@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import type { ModulePreviewSessionSnapshot } from "../dsl/modulePreviewState";
 import type { ModulePreviewTarget } from "../dsl/modulePreviewTarget";
 import type { CanvasHostAdapter } from "../components/canvasHostAdapter";
+import type { VscodeWebviewPresentation } from "./webviewPresentation";
 
 const mocks = vi.hoisted(() => ({
   queryModulePreviewTarget: vi.fn(),
@@ -75,11 +76,14 @@ const snapshot: ModulePreviewSessionSnapshot = {
   inputDiagnostics: [], preview: { kind: "current", result: root as never }
 };
 
-const renderPreview = () => {
+const renderPreview = (
+  previewSnapshot: ModulePreviewSessionSnapshot = snapshot,
+  presentation?: VscodeWebviewPresentation
+) => {
   AutomationDocument.fromSource(sourceText);
   mocks.queryModulePreviewTarget.mockReturnValue(target);
-  mocks.session.activate.mockReturnValue(snapshot);
-  mocks.session.getState.mockReturnValue(snapshot);
+  mocks.session.activate.mockReturnValue(previewSnapshot);
+  mocks.session.getState.mockReturnValue(previewSnapshot);
   render(<ModulePreviewApp api={{ postMessage: mocks.postMessage }} />);
   act(() => {
     const bootstrap = {
@@ -101,6 +105,11 @@ const renderPreview = () => {
         normalizedSourceOffset: sourceText.indexOf("module Preview")
       }
     }));
+    if (presentation) {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "webviewPresentation", presentation }
+      }));
+    }
   });
 };
 
@@ -128,6 +137,92 @@ describe("ModulePreviewApp Canvas-first composition", () => {
     expect(mocks.postMessage).toHaveBeenCalledWith({ type: "modulePreviewEditValues" });
     act(() => screen.getByRole("button", { name: "Insert Instance" }).click());
     expect(mocks.postMessage).toHaveBeenCalledWith({ type: "modulePreviewInsertInstance" });
+  });
+
+  it("renders Host-resolved Japanese Module Preview presentation without resolving a locale in the Webview", () => {
+    const targetParameter = snapshot.parameters.parameters[0]!;
+    const summarySnapshot: ModulePreviewSessionSnapshot = {
+      ...snapshot,
+      ancestorContexts: [{
+        kind: "ancestor",
+        definitionStatementId: "module:outer",
+        definitionStatementIndex: 0,
+        name: "Outer",
+        parameters: [
+          {
+            ...targetParameter,
+            definitionStatementId: "module:outer",
+            parameterIndex: 0,
+            name: "ease",
+            type: { kind: "number" },
+            optional: true,
+            required: false,
+            defaultSourceText: null,
+            value: "",
+            active: false
+          },
+          {
+            ...targetParameter,
+            definitionStatementId: "module:outer",
+            parameterIndex: 1,
+            name: "easeWithDefault",
+            type: { kind: "number" },
+            defaultSourceText: "6",
+            value: "",
+            active: false
+          }
+        ]
+      }],
+      parameters: {
+        ...snapshot.parameters,
+        parameters: [
+          { ...targetParameter, value: "@Top", active: true },
+          {
+            ...targetParameter,
+            parameterIndex: 1,
+            name: "offset",
+            type: { kind: "number" },
+            defaultSourceText: "8",
+            value: "",
+            active: false
+          }
+        ]
+      }
+    };
+    const hostPresentation: VscodeWebviewPresentation = {
+      locale: "en",
+      strings: {
+        "modulePreview.action.previewValues": "値をプレビュー...",
+        "modulePreview.action.insertInstance": "インスタンスを挿入",
+        "modulePreview.valueSummary.ariaLabel": "現在のModule Previewパラメータ値",
+        "modulePreview.valueSummary.context": "コンテキスト",
+        "modulePreview.valueSummary.target": "対象",
+        "modulePreview.valueSummary.omittedOptional": "省略（任意）",
+        "modulePreview.valueSummary.omittedDefaulted": "省略（デフォルト: {default}）"
+      },
+      diagnosticTemplates: {}
+    };
+
+    renderPreview(summarySnapshot, hostPresentation);
+
+    expect(screen.getByRole("button", { name: "値をプレビュー..." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "インスタンスを挿入" })).toBeInTheDocument();
+    const valueSummary = screen.getByLabelText("現在のModule Previewパラメータ値");
+    expect(valueSummary).toBeInTheDocument();
+    expect(valueSummary.textContent).toContain("コンテキスト: Outer.ease = 省略（任意）");
+    expect(valueSummary.textContent).toContain("コンテキスト: Outer.easeWithDefault = 省略（デフォルト: 6）");
+    expect(valueSummary.textContent).toContain("対象: Preview.anchor = @Top");
+    expect(valueSummary.textContent).toContain("対象: Preview.offset = 省略（デフォルト: 8）");
+
+    mocks.postMessage.mockClear();
+    act(() => screen.getByRole("button", { name: "offset" }).click());
+    expect(mocks.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueSiteEdit",
+      definitionName: "Preview",
+      blockKind: "target",
+      parameterIndex: 1,
+      parameterName: "offset"
+    }));
   });
 
   it("publishes value-site proof without editing canonical Source", () => {

@@ -2,7 +2,8 @@ import * as vscode from "vscode";
 import {
   applyLineSplices,
   planModulePreviewInstance,
-  type LineSplice
+  type LineSplice,
+  type ModulePreviewInstancePlanRejectionReason
 } from "@nuinuicad/nui-language/document";
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
 import { queryModulePreviewTarget } from "../../src/dsl/modulePreviewTarget";
@@ -56,6 +57,21 @@ export const NUI_MODULE_PREVIEW_VIEW_TYPE = "nuinuiCAD.modulePreview";
 export const NUI_MODULE_PREVIEW_SOURCE_TARGET_CONTEXT = "nuinuiCAD.modulePreviewSourceTarget";
 export const NUI_MODULE_PREVIEW_INSERT_CONTEXT = "nuinuiCAD.modulePreviewInsertAvailable";
 export const MODULE_PREVIEW_INSERT_INSTANCE_COMMAND = "nuinuiCAD.insertModulePreviewInstance";
+
+const plannerRejectionTranslationKey: Record<ModulePreviewInstancePlanRejectionReason, string> = {
+  "incomplete-source": "modulePreview.insert.planner.incompleteSource",
+  "invalid-caret": "modulePreview.insert.planner.invalidCaret",
+  "target-not-exact-current": "modulePreview.insert.planner.targetNotExactCurrent",
+  "target-semantic-definition-missing": "modulePreview.insert.planner.targetSemanticDefinitionMissing",
+  "invalid-explicit-argument": "modulePreview.insert.planner.invalidExplicitArgument",
+  "illegal-statement-boundary": "modulePreview.insert.planner.illegalStatementBoundary",
+  "unknown-lexical-scope": "modulePreview.insert.planner.unknownLexicalScope",
+  "statement-identities-missing": "modulePreview.insert.planner.statementIdentitiesMissing",
+  "target-not-visible": "modulePreview.insert.planner.targetNotVisible",
+  "undeclared-argument": "modulePreview.insert.planner.undeclaredArgument",
+  "splice-rejected": "modulePreview.insert.planner.spliceRejected",
+  "candidate-invalid": "modulePreview.insert.planner.candidateInvalid"
+};
 
 const nonWritingCanvasCommands = new Set<VscodeCanvasCommandId>([
   "clearCanvasSelection",
@@ -371,6 +387,10 @@ export const registerModulePreviewFeature = ({
   let nextSessionGeneration = 1;
   let nextReferencePickRequestId = 1;
   let boundValueSession: ModulePreviewSession | null = null;
+  const modulePreviewTextFor = (
+    key: string,
+    parameters?: Readonly<Record<string, string | number | boolean>>
+  ): string => modulePreviewTranslatorFor(displayLanguageFor())(key, parameters);
 
   const cancelActiveReferencePick = (session: ModulePreviewSession): void => {
     const active = session.activeReferencePick;
@@ -725,11 +745,11 @@ export const registerModulePreviewFeature = ({
 
   const valueDescriptionFor = (parameter: VscodeModulePreviewValueSnapshot["groups"][number]["parameters"][number]): string => {
     switch (parameter.valueState) {
-      case "explicit": return `Explicit: ${parameter.value}`;
-      case "omitted-defaulted": return `Omitted; default: ${parameter.defaultSourceText ?? ""}`;
-      case "omitted-optional": return "Omitted; optional";
-      case "required-missing": return "Required value missing";
-      case "invalid": return `Invalid: ${parameter.value}`;
+      case "explicit": return modulePreviewTextFor("modulePreview.valueEdit.explicit", { value: parameter.value });
+      case "omitted-defaulted": return modulePreviewTextFor("modulePreview.valueEdit.omittedDefaulted", { default: parameter.defaultSourceText ?? "" });
+      case "omitted-optional": return modulePreviewTextFor("modulePreview.valueEdit.omittedOptional");
+      case "required-missing": return modulePreviewTextFor("modulePreview.valueEdit.requiredMissing");
+      case "invalid": return modulePreviewTextFor("modulePreview.valueEdit.invalid", { value: parameter.value });
     }
   };
 
@@ -765,10 +785,13 @@ export const registerModulePreviewFeature = ({
     const geometryInterface = moduleGeometryInterfaceTypeOf(currentSite.parameter.type);
     if (geometryInterface) {
       const geometryChoice = await nativeShowQuickPick([
-        { label: "Pick from Canvas", kind: "pick" as const },
-        { label: "Enter expression...", kind: "expression" as const }
+        { label: modulePreviewTextFor("modulePreview.valueEdit.pickFromCanvas"), kind: "pick" as const },
+        { label: modulePreviewTextFor("modulePreview.valueEdit.enterExpression"), kind: "expression" as const }
       ], {
-        placeHolder: `Choose how to edit ${site.definitionName}.${site.parameterName}`
+        placeHolder: modulePreviewTextFor("modulePreview.valueEdit.chooseMethod", {
+          definition: site.definitionName,
+          parameter: site.parameterName
+        })
       });
       if (!geometryChoice) return;
       if (geometryChoice.kind === "pick") {
@@ -781,7 +804,11 @@ export const registerModulePreviewFeature = ({
       }
     }
     const expression = await nativeShowInputBox({
-      prompt: `${site.blockKind === "ancestor" ? "Context" : "Target"} ${site.definitionName}.${site.parameterName}`,
+      prompt: modulePreviewTextFor("modulePreview.valueEdit.prompt", {
+        group: modulePreviewTextFor(site.blockKind === "ancestor" ? "modulePreview.valueEdit.context" : "modulePreview.valueEdit.target"),
+        definition: site.definitionName,
+        parameter: site.parameterName
+      }),
       value: currentSite.parameter.valueState === "explicit" ? currentSite.parameter.value : ""
     });
     if (expression === undefined) return;
@@ -828,14 +855,20 @@ export const registerModulePreviewFeature = ({
       return;
     }
     const items = snapshot.groups.flatMap((group) => group.parameters.map((parameter) => ({
-      label: `${group.kind === "ancestor" ? "Context" : "Target"}: ${group.name}.${parameter.name}`,
+      label: modulePreviewTextFor("modulePreview.valueEdit.siteLabel", {
+        group: modulePreviewTextFor(group.kind === "ancestor" ? "modulePreview.valueEdit.context" : "modulePreview.valueEdit.target"),
+        definition: group.name,
+        parameter: parameter.name
+      }),
       description: valueDescriptionFor(parameter),
-      detail: parameter.type ? `${parameter.type.kind} parameter` : "parameter",
+      detail: parameter.type
+        ? modulePreviewTextFor("modulePreview.valueEdit.typedParameterDetail", { type: parameter.type.kind })
+        : modulePreviewTextFor("modulePreview.valueEdit.parameterDetail"),
       site: valueProofFor(snapshot, group, parameter),
       parameter
     })));
     const selected = await nativeShowQuickPick(items, {
-      placeHolder: "Select a Module Preview value to edit",
+      placeHolder: modulePreviewTextFor("modulePreview.valueEdit.selectPlaceholder"),
       matchOnDescription: true,
       matchOnDetail: true
     });
@@ -1129,12 +1162,12 @@ export const registerModulePreviewFeature = ({
   };
 
   const insertModulePreviewInstance = async (session: ModulePreviewSession): Promise<void> => {
-    const stale = (reason: string): void => {
+    const stale = (key: string): void => {
       resyncModulePreview(session);
-      void vscode.window.showErrorMessage(reason);
+      void vscode.window.showErrorMessage(modulePreviewTextFor(key));
     };
-    const rejected = (reason: string): void => {
-      void vscode.window.showErrorMessage(reason);
+    const rejected = (key: string): void => {
+      void vscode.window.showErrorMessage(modulePreviewTextFor(key));
     };
 
     if (
@@ -1143,12 +1176,12 @@ export const registerModulePreviewFeature = ({
       !isOpenDocument(session.document) ||
       !bootstrapIsAuthoritative(session)
     ) {
-      stale("Module Preview session is no longer authoritative.");
+      stale("modulePreview.insert.staleSession");
       return;
     }
     const snapshot = currentValueAuthorityFor(session);
     if (!snapshot || snapshot.previewStatus !== "current") {
-      stale("The current Module Preview values are not exact-current.");
+      stale("modulePreview.insert.staleValues");
       return;
     }
     const current = currentTargetFor(session);
@@ -1157,7 +1190,7 @@ export const registerModulePreviewFeature = ({
       current.target.definitionStatementIndex !== snapshot.target.definitionStatementIndex ||
       current.target.name !== snapshot.target.name
     ) {
-      stale("The Module Preview target is stale.");
+      stale("modulePreview.insert.staleTarget");
       return;
     }
     const targetGroup = snapshot.groups.find((group) =>
@@ -1166,24 +1199,24 @@ export const registerModulePreviewFeature = ({
       group.name === snapshot.target.name
     );
     if (!targetGroup) {
-      rejected("The current Module Preview has no exact target value group.");
+      rejected("modulePreview.insert.rejectedTargetGroupMissing");
       return;
     }
     if (targetGroup.parameters.some((parameter) => parameter.valueState === "required-missing" || parameter.valueState === "invalid")) {
-      rejected("Complete the required target values before inserting an instance.");
+      rejected("modulePreview.insert.rejectedIncompleteValues");
       return;
     }
     const explicitArguments = targetGroup.parameters
       .filter((parameter) => parameter.valueState === "explicit")
       .map((parameter) => ({ name: parameter.name, expression: parameter.value }));
     if (explicitArguments.some((argument) => argument.expression.length === 0)) {
-      rejected("The current Module Preview contains an empty explicit argument.");
+      rejected("modulePreview.insert.rejectedEmptyArgument");
       return;
     }
 
     const editor = currentSourceEditorFor(session.document);
     if (!editor || !sameDocument(editor.document, session.document)) {
-      rejected("The current same-document Source editor is not available.");
+      rejected("modulePreview.insert.rejectedSourceEditorUnavailable");
       return;
     }
     const rawSource = editor.document.getText();
@@ -1193,7 +1226,7 @@ export const registerModulePreviewFeature = ({
       normalizedSourceFor(rawSource) !== snapshot.normalizedSource ||
       !source.semantic?.compiled
     ) {
-      stale("The source document changed after the current Module Preview values were published.");
+      stale("modulePreview.insert.staleSourceAfterPublish");
       return;
     }
     const insertionOffset = normalizedOffsetFromRaw(rawSource, editor.document.offsetAt(editor.selection.active));
@@ -1209,7 +1242,7 @@ export const registerModulePreviewFeature = ({
       explicitArguments
     });
     if (plan.status === "rejected") {
-      rejected(plan.message);
+      rejected(plannerRejectionTranslationKey[plan.reason]);
       return;
     }
     if (
@@ -1218,7 +1251,7 @@ export const registerModulePreviewFeature = ({
       editor.document.getText() !== rawSource ||
       currentValueAuthorityFor(session) !== snapshot
     ) {
-      stale("The Source editor or Module Preview values changed before insertion.");
+      stale("modulePreview.insert.staleBeforeApply");
       return;
     }
     const edit = textEditForLineSplice(editor.document, rawSource, plan.splice);
@@ -1228,14 +1261,14 @@ export const registerModulePreviewFeature = ({
         (editBuilder) => editBuilder.replace(edit.range, edit.replacement),
         { undoStopBefore: true, undoStopAfter: true }
       );
-    } catch (error) {
-      rejected(error instanceof Error ? error.message : String(error));
+    } catch {
+      rejected("modulePreview.insert.rejectedSourceEdit");
       return;
     }
     if (!applied) {
       const changedDuringApply = editor.document.version !== snapshot.documentVersion || editor.document.getText() !== rawSource;
-      if (changedDuringApply) stale("The source document changed while inserting the Module instance.");
-      else rejected("VS Code rejected the Module instance source edit.");
+      if (changedDuringApply) stale("modulePreview.insert.staleDuringApply");
+      else rejected("modulePreview.insert.rejectedSourceEdit");
       return;
     }
     let focusedEditor = editor;

@@ -8,7 +8,10 @@ import type {
   VscodeModulePreviewModelPatchRequest,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
-import type { VscodeModulePreviewValueSnapshot } from "../../src/vscode/protocol";
+import type {
+  VscodeModulePreviewValueParameter,
+  VscodeModulePreviewValueSnapshot
+} from "../../src/vscode/protocol";
 
 const mocks = vi.hoisted(() => ({
   activeTextEditor: null as null | {
@@ -1092,7 +1095,8 @@ describe("registerModulePreviewFeature", () => {
 
   const registerInvocationFixture = (
     source: string,
-    hostAnalysis = createLanguageAnalysisSession(source)
+    hostAnalysis = createLanguageAnalysisSession(source),
+    displayLanguage = "en"
   ) => {
     const document = createDocument(source);
     const editor = createEditor(document);
@@ -1112,7 +1116,8 @@ describe("registerModulePreviewFeature", () => {
       canvasRibbons: () => [],
       updateCanvasRibbonPosition: () => undefined,
       editCanvasRibbon: () => undefined,
-      evaluateWithRust: async () => ({})
+      evaluateWithRust: async () => ({}),
+      displayLanguageFor: () => displayLanguage
     });
     mocks.commandHandlers.get("nuinuiCAD.openModulePreview")!();
     return { document, panel, feature, analysis: hostAnalysis };
@@ -1242,7 +1247,7 @@ describe("registerModulePreviewFeature", () => {
       "}",
       ""
     ].join("\n");
-    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    const { document, panel, feature, analysis } = registerInvocationFixture(source, undefined, "ja");
     const editor = mocks.visibleTextEditors[0]!;
     await panel.receive({ type: "webviewReady" });
     await acknowledgeBootstrap(panel);
@@ -1261,7 +1266,7 @@ describe("registerModulePreviewFeature", () => {
     expect(editor.edit).not.toHaveBeenCalled();
     expect(document.getText()).toBe(source);
     expect(mocks.showErrorMessage).toHaveBeenCalledWith(
-      "The target Module is not visible at the current source insertion position."
+      "現在のSource挿入位置では対象のModuleを参照できません。"
     );
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "modulePreviewInsertInstanceResult" })
@@ -1304,6 +1309,83 @@ describe("registerModulePreviewFeature", () => {
     expect(wrongEditor.edit).not.toHaveBeenCalled();
     expect(mocks.showErrorMessage).toHaveBeenCalledWith("The current same-document Source editor is not available.");
     wrongDocument.feature.dispose();
+  });
+
+  it("shows a localized generic rejection when VS Code throws while applying an insertion", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      ""
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source, undefined, "ja");
+    const editor = mocks.visibleTextEditors[0]!;
+    await panel.receive({ type: "webviewReady" });
+    await acknowledgeBootstrap(panel);
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
+    await panel.receive({
+      ...valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" }),
+      sessionId
+    });
+    editor.edit.mockRejectedValue(new Error("private editor failure detail"));
+
+    await panel.receive({ type: "modulePreviewInsertInstance" });
+
+    expect(document.getText()).toBe(source);
+    expect(mocks.showErrorMessage).toHaveBeenCalledWith("VS CodeがModuleインスタンスのSource編集を拒否しました。");
+    expect(mocks.showErrorMessage).not.toHaveBeenCalledWith("private editor failure detail");
+    feature.dispose();
+  });
+
+  it("localizes Insert Instance preflight rejections without applying Source edits", async () => {
+    const source = [
+      "nui 1",
+      "point Top = coordinate(x: 0, y: 0)",
+      "module Pocket(anchor: point) {",
+      "}",
+      ""
+    ].join("\n");
+    const cases = [
+      { kind: "missing-group", expected: "現在のModule Previewに正確な対象値グループがありません。" },
+      { kind: "incomplete", expected: "インスタンスを挿入する前に必須の対象値を入力してください。" },
+      { kind: "empty-argument", expected: "現在のModule Previewに空の明示引数があります。" },
+      { kind: "source-editor", expected: "同じ文書を表示する現在のSource Editorを利用できません。" }
+    ] as const;
+
+    for (const item of cases) {
+      const { document, panel, feature, analysis } = registerInvocationFixture(source, undefined, "ja");
+      const editor = mocks.visibleTextEditors[0]!;
+      await panel.receive({ type: "webviewReady" });
+      await acknowledgeBootstrap(panel);
+      const sessionId = panel.webview.postMessage.mock.calls
+        .map(([message]) => message)
+        .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
+      const base = valueSnapshotFor(document, analysis, { name: "anchor", type: { kind: "point" }, value: "@Top" });
+      const baseGroup = base.groups[0]!;
+      const baseParameter = baseGroup.parameters[0]!;
+      const groups = item.kind === "missing-group"
+        ? []
+        : [{
+          ...baseGroup,
+          parameters: [{
+            ...baseParameter,
+            value: item.kind === "incomplete" ? "" : item.kind === "empty-argument" ? "" : "@Top",
+            valueState: item.kind === "incomplete" ? "required-missing" as const : "explicit" as const
+          }]
+        }];
+      await panel.receive({ ...base, sessionId, groups });
+      if (item.kind === "source-editor") mocks.visibleTextEditors = [];
+
+      await panel.receive({ type: "modulePreviewInsertInstance" });
+
+      expect(editor.edit).not.toHaveBeenCalled();
+      expect(document.getText()).toBe(source);
+      expect(mocks.showErrorMessage).toHaveBeenLastCalledWith(item.expected);
+      feature.dispose();
+    }
   });
 
   it("fails closed without editing for stale source, session, or target proof", async () => {
@@ -1438,6 +1520,120 @@ describe("registerModulePreviewFeature", () => {
       expression: "13"
     }));
     expect(document.getText()).toBe(source);
+    feature.dispose();
+  });
+
+  it("localizes native Preview Values rows while retaining order, value states, site proofs, and submitted expressions", async () => {
+    const source = [
+      "nui 1",
+      "module Outer(scale: number) {",
+      "  module Pocket(width: number) {",
+      "  }",
+      "}"
+    ].join("\n");
+    const { document, panel, feature, analysis } = registerInvocationFixture(source, undefined, "ja-JP");
+    await panel.receive({ type: "webviewReady" });
+    await acknowledgeBootstrap(panel);
+    const sessionId = panel.webview.postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => message?.type === "modulePreviewBootstrap")?.sessionId as string;
+    const base = valueSnapshotFor(document, analysis, { name: "width", type: { kind: "number" }, value: "12" });
+    const outer = analysis.runtimeEvaluationSnapshot()!.compiled.moduleSemanticAnalysis!.definitions
+      .find((definition) => definition.name === "Outer")!;
+    const baseParameter = base.groups[0]!.parameters[0]!;
+    const parameter = (overrides: Partial<VscodeModulePreviewValueParameter>): VscodeModulePreviewValueParameter => ({
+      ...baseParameter,
+      ...overrides
+    });
+    const snapshot: VscodeModulePreviewValueSnapshot = {
+      ...base,
+      sessionId,
+      groups: [
+        {
+          kind: "ancestor",
+          definitionStatementIndex: outer.statementIndex,
+          name: "Outer",
+          parameters: [
+            parameter({ parameterIndex: 0, name: "scale", value: "2", valueState: "explicit" }),
+            parameter({ parameterIndex: 1, name: "ease", value: "", defaultSourceText: "4", valueState: "omitted-defaulted" }),
+            parameter({ parameterIndex: 2, name: "optionalEase", value: "", defaultSourceText: null, optional: true, required: false, valueState: "omitted-optional" }),
+            parameter({ parameterIndex: 3, name: "requiredEase", value: "", valueState: "required-missing" }),
+            parameter({ parameterIndex: 4, name: "invalidEase", value: "?", valueState: "invalid" })
+          ]
+        },
+        {
+          ...base.groups[0]!,
+          parameters: [parameter({ parameterIndex: 0, name: "width", value: "12", valueState: "explicit" })]
+        }
+      ]
+    };
+    await panel.receive(snapshot);
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly unknown[]) => items.at(-1));
+    mocks.nativeShowInputBox.mockResolvedValue(" 13 ");
+    panel.webview.postMessage.mockClear();
+
+    await mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await flushContext();
+
+    const [items, options] = mocks.nativeShowQuickPick.mock.calls[0]! as [
+      ReadonlyArray<{ label: string; description: string; detail: string; site: Record<string, unknown> }>,
+      { placeHolder: string }
+    ];
+    expect(items.map((item) => item.label)).toEqual([
+      "コンテキスト: Outer.scale",
+      "コンテキスト: Outer.ease",
+      "コンテキスト: Outer.optionalEase",
+      "コンテキスト: Outer.requiredEase",
+      "コンテキスト: Outer.invalidEase",
+      "対象: Pocket.width"
+    ]);
+    expect(items.map((item) => item.description)).toEqual([
+      "明示値: 2",
+      "省略・デフォルト: 4",
+      "省略・任意",
+      "必須値がありません",
+      "無効: ?",
+      "明示値: 12"
+    ]);
+    expect(items.every((item) => item.detail === "number パラメータ")).toBe(true);
+    expect(options.placeHolder).toBe("編集するModule Previewの値を選択");
+    expect(items.at(-1)?.site).toMatchObject({
+      sessionId,
+      targetDefinitionStatementIndex: base.target.definitionStatementIndex,
+      targetName: "Pocket",
+      definitionStatementIndex: base.target.definitionStatementIndex,
+      definitionName: "Pocket",
+      blockKind: "target",
+      parameterIndex: 0,
+      parameterName: "width"
+    });
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledWith({ prompt: "対象 Pocket.width", value: "12" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      definitionStatementIndex: base.target.definitionStatementIndex,
+      definitionName: "Pocket",
+      blockKind: "target",
+      parameterIndex: 0,
+      parameterName: "width",
+      expression: " 13 "
+    }));
+    expect(document.getText()).toBe(source);
+
+    mocks.nativeShowQuickPick.mockImplementation(async (items: readonly unknown[]) => items[0]);
+    mocks.nativeShowInputBox.mockResolvedValue("3");
+    panel.webview.postMessage.mockClear();
+    await mocks.commandHandlers.get("nuinuiCAD.editModulePreviewValues")!();
+    await flushContext();
+    expect(mocks.nativeShowInputBox).toHaveBeenLastCalledWith({ prompt: "コンテキスト Outer.scale", value: "2" });
+    expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "modulePreviewValueEdit",
+      definitionStatementIndex: outer.statementIndex,
+      definitionName: "Outer",
+      blockKind: "ancestor",
+      parameterIndex: 0,
+      parameterName: "scale",
+      expression: "3"
+    }));
     feature.dispose();
   });
 
@@ -1730,7 +1926,7 @@ describe("registerModulePreviewFeature", () => {
       "module Pocket(anchor: point) {",
       "}"
     ].join("\n");
-    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    const { document, panel, feature, analysis } = registerInvocationFixture(source, undefined, "ja");
     await panel.receive({ type: "webviewReady" });
     await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
@@ -1740,7 +1936,7 @@ describe("registerModulePreviewFeature", () => {
     await panel.receive(snapshot);
     const group = snapshot.groups[0]!;
     const parameter = group.parameters[0]!;
-    mocks.nativeShowQuickPick.mockResolvedValue({ label: "Pick from Canvas", kind: "pick" });
+    mocks.nativeShowQuickPick.mockResolvedValue({ label: "Canvasから選択", kind: "pick" });
     panel.webview.postMessage.mockClear();
 
     await panel.receive({
@@ -1762,10 +1958,16 @@ describe("registerModulePreviewFeature", () => {
     await flushContext();
 
     expect(mocks.nativeShowQuickPick).toHaveBeenCalledTimes(1);
-    expect(mocks.nativeShowQuickPick.mock.calls[0]?.[0].map((item: { label: string }) => item.label)).toEqual([
-      "Pick from Canvas",
-      "Enter expression..."
+    expect(mocks.nativeShowQuickPick.mock.calls[0]?.[0].map((item: { label: string; kind: string }) => ({
+      label: item.label,
+      kind: item.kind
+    }))).toEqual([
+      { label: "Canvasから選択", kind: "pick" },
+      { label: "式を入力...", kind: "expression" }
     ]);
+    expect(mocks.nativeShowQuickPick.mock.calls[0]?.[1]).toMatchObject({
+      placeHolder: "Pocket.anchorの編集方法を選択"
+    });
     expect(mocks.nativeShowInputBox).not.toHaveBeenCalled();
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewReferencePickStartRequest",
@@ -1782,7 +1984,7 @@ describe("registerModulePreviewFeature", () => {
       "module Pocket(anchor: point) {",
       "}"
     ].join("\n");
-    const { document, panel, feature, analysis } = registerInvocationFixture(source);
+    const { document, panel, feature, analysis } = registerInvocationFixture(source, undefined, "ja");
     await panel.receive({ type: "webviewReady" });
     await acknowledgeBootstrap(panel);
     const sessionId = panel.webview.postMessage.mock.calls
@@ -1820,7 +2022,18 @@ describe("registerModulePreviewFeature", () => {
     await flushContext();
 
     expect(mocks.nativeShowQuickPick).toHaveBeenCalledTimes(2);
+    expect(mocks.nativeShowQuickPick.mock.calls[1]?.[0].map((item: { label: string; kind: string }) => ({
+      label: item.label,
+      kind: item.kind
+    }))).toEqual([
+      { label: "Canvasから選択", kind: "pick" },
+      { label: "式を入力...", kind: "expression" }
+    ]);
+    expect(mocks.nativeShowQuickPick.mock.calls[1]?.[1]).toMatchObject({
+      placeHolder: "Pocket.anchorの編集方法を選択"
+    });
     expect(mocks.nativeShowInputBox).toHaveBeenCalledTimes(1);
+    expect(mocks.nativeShowInputBox).toHaveBeenCalledWith({ prompt: "対象 Pocket.anchor", value: "" });
     expect(panel.webview.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "modulePreviewValueEdit",
       parameterName: "anchor",
