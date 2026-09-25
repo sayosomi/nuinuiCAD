@@ -1642,20 +1642,54 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure intersection geometry value program entries");
+    const firstEntry = program.find((entry) => entry.sourceStatementIndex === 2);
+    const secondEntry = program.find((entry) => entry.sourceStatementIndex === 3);
     const sameEntry = program.find((entry) => entry.sourceStatementIndex === 4);
     const invalidEntry = program.find((entry) => entry.sourceStatementIndex === 6);
     const failedEntry = program.find((entry) => entry.sourceStatementIndex === 7);
-    if (!sameEntry || !invalidEntry || !failedEntry) throw new Error("expected alias and unavailable intersection entries");
+    if (!firstEntry || !secondEntry || !sameEntry || !invalidEntry || !failedEntry) {
+      throw new Error("expected both alias and unavailable intersection entries");
+    }
     const options = optionsFor(fixture);
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    const valueEntryFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof firstEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])].find((entry) =>
+      entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+      entry.occurrence.instancePath.length === occurrence.instancePath.length &&
+      entry.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index])
+    );
     for (const payload of [tsPayload, rustPayload]) {
       const result = evaluationPayloadToResult(payload);
       expect(result.errors).toEqual([]);
-      expect(result.computedGeometryValues).toEqual(new Map());
+      const firstValue = valueEntryFor(result, firstEntry.occurrence);
+      const secondValue = valueEntryFor(result, secondEntry.occurrence);
+      expect(firstValue).toBeDefined();
+      expect(secondValue).toBeDefined();
+      expect(firstValue?.value).toMatchObject({
+        kind: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 0 }
+      });
+      expect(secondValue?.value).toMatchObject({
+        kind: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 0 }
+      });
+      const aliasValues = [firstValue, secondValue];
+      expect(aliasValues.map((entry) => entry?.occurrence.sourceStatementId)).toEqual([
+        firstEntry.occurrence.sourceStatementId,
+        secondEntry.occurrence.sourceStatementId
+      ]);
+      expect([...result.computedGeometryValues!.values()]).toHaveLength(2);
+      expect(aliasValues.every((entry) =>
+        entry !== undefined && !("elementId" in entry.value) && !("name" in entry.value)
+      )).toBe(true);
       expect(result.geometryValueErrors).toEqual([
         {
           occurrence: sameEntry.occurrence,
