@@ -107,6 +107,7 @@ describe("CommandRibbonFloatingOverlay", () => {
 
     expect(onPositionCommit).toHaveBeenCalledTimes(1);
     expect(onPositionCommit).toHaveBeenCalledWith("ribbon", { x: 72, y: 57 });
+    expect(positionedRibbon()).toHaveStyle({ left: "72px", top: "57px" });
 
     view.rerender(
       <CommandRibbonFloatingOverlay
@@ -119,6 +120,18 @@ describe("CommandRibbonFloatingOverlay", () => {
       />
     );
     expect(positionedRibbon()).toHaveStyle({ left: "72px", top: "57px" });
+
+    view.rerender(
+      <CommandRibbonFloatingOverlay
+        ribbons={[{ ...ribbon, x: 110, y: 80 }, otherRibbon]}
+        viewportSize={{ width: 320, height: 180 }}
+        defaultStackGap={16}
+        iconResolver={() => Circle}
+        onPositionChange={onPositionChange}
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    expect(positionedRibbon()).toHaveStyle({ left: "110px", top: "80px" });
   });
 
   it("clears a canceled persisted Ribbon drag without committing or reviving its transient position", () => {
