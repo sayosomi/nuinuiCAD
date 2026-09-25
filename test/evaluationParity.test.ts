@@ -186,6 +186,162 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(cycleCompile.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
   }, 30000);
 
+  it("projects compiler-resolved point references through the persistent Rust evaluator", async () => {
+    const sourceFor = (padded: boolean) => [
+      "nui 1",
+      ...(padded ? ["const PaddingBefore: number = 3"] : []),
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "move AB as moved (from: (0, 0), to: (10, 0))",
+      "const P: point = @AB.start",
+      ...(padded ? ["const PaddingBetweenAliases: number = 9"] : []),
+      "const P2: point = @P",
+      "const P2X: number = @P2.x",
+      "line Use = segment(start: @P2, end: (0, 0))",
+      "const SourceLine: line = segment(start: (2, 3), end: (12, 13))",
+      "const FromGeometryValue: point = @SourceLine.end",
+      "const FromGeometryValueAlias: point = @FromGeometryValue",
+      "const BaseStart: point = @AB.base.start",
+      "const NamedStageStart: point = @AB.moved.start",
+      "const FinalStart: point = @AB.final.start",
+      ...(padded ? ["const PaddingAfterAliases: number = 15"] : [])
+    ].join("\n");
+
+    for (const padded of [false, true]) {
+      const fixture = fixtureFromSource(sourceFor(padded));
+      const options = optionsFor(fixture);
+      const semanticValues = fixture.compiled?.doc.moduleSemanticAnalysis?.geometryValues;
+      if (!semanticValues) throw new Error("expected compiler-resolved immutable geometry values");
+      // Root aliases stay in ModuleSemanticAnalysis as backing targets. Build
+      // runtime Reference entries from those resolved targets to exercise the
+      // Rust evaluator without changing alias lowering.
+      type GeometryValueProgramEntry = NonNullable<typeof options.geometryValueProgram>[number];
+      type GeometryReferenceTarget = Extract<
+        GeometryValueProgramEntry["construction"],
+        { kind: "reference" }
+      >["target"];
+      const referenceEntries = [
+        "P",
+        "P2",
+        "FromGeometryValue",
+        "FromGeometryValueAlias",
+        "BaseStart",
+        "NamedStageStart",
+        "FinalStart"
+      ].map((name): GeometryValueProgramEntry => {
+        const value = semanticValues.find((candidate) => candidate.name === name);
+        if (!value?.backingTarget) throw new Error(`expected a resolved backing target for ${name}`);
+        const source = value.backingTarget;
+        let target: GeometryReferenceTarget;
+        if (source.kind === "sourceGeometry") {
+          target = {
+            kind: "drawable",
+            statementId: source.statementId,
+            statementIndex: source.statementIndex,
+            geometryType: "point",
+            ...(source.pointKey ? { pointKey: source.pointKey } : {}),
+            ...(source.stagePath ? { stagePath: source.stagePath } : {})
+          };
+        } else if (source.kind === "geometryValue") {
+          target = {
+            kind: "geometryValue",
+            occurrence: { sourceStatementId: source.statementId, instancePath: [] },
+            statementId: source.statementId,
+            statementIndex: source.statementIndex,
+            geometryType: "point",
+            ...(source.pointKey ? { pointKey: source.pointKey } : {}),
+            ...(source.stagePath ? { stagePath: source.stagePath } : {})
+          };
+        } else {
+          throw new Error(`unsupported resolved point reference target for ${name}: ${source.kind}`);
+        }
+        return {
+          sourceStatementId: value.statementId,
+          sourceStatementIndex: value.statementIndex,
+          declaredInterfaceType: value.declaredInterfaceType,
+          occurrence: { sourceStatementId: value.statementId, instancePath: [] },
+          sourceExecutionPosition: value.statementIndex,
+          executionPosition: value.statementIndex,
+          construction: { kind: "reference", target }
+        };
+      });
+      const program = [...(options.geometryValueProgram ?? []), ...referenceEntries]
+        .sort((left, right) => left.sourceStatementIndex - right.sourceStatementIndex)
+        .map((entry) => ({
+          ...entry,
+          sourceExecutionPosition: entry.sourceStatementIndex,
+          executionPosition: entry.sourceStatementIndex
+        }));
+      const use = fixture.elements.find((element) => element.name === "Use")!;
+      const owner = fixture.elements.find((element) => element.name === "AB")!;
+      const inputTargetsByParameter = new Map(options.geometryInputTargetsByElementId?.get(use.id) ?? []);
+      // Resolve the P2 backing chain to its canonical drawable endpoint for
+      // the consumer while the injected entries test P/P2 materialization.
+      inputTargetsByParameter.set("startPoint", {
+        kind: "drawable",
+        elementId: owner.id,
+        geometryType: "point",
+        pointKey: "start",
+        stagePath: ["final"]
+      });
+      const geometryInputTargetsByElementId = new Map(options.geometryInputTargetsByElementId ?? []);
+      geometryInputTargetsByElementId.set(use.id, inputTargetsByParameter);
+      const parityOptions = {
+        ...options,
+        geometryValueProgram: program,
+        geometryInputTargetsByElementId
+      };
+      if (program.length !== 8) throw new Error("expected eight geometry value entries");
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, parityOptions);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, parityOptions);
+      const tsResult = evaluationPayloadToResult(tsPayload);
+      const rustResult = evaluationPayloadToResult(rustPayload);
+
+      const pointValueFor = (
+        result: ReturnType<typeof evaluationPayloadToResult>,
+        programIndex: number
+      ) => {
+        const occurrence = program[programIndex]!.occurrence;
+        return [...(result.computedGeometryValues?.values() ?? [])]
+          .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+            entry.occurrence.instancePath.length === occurrence.instancePath.length &&
+            entry.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index]) &&
+            entry.occurrence.mappedMemberIndex === occurrence.mappedMemberIndex)?.value;
+      };
+      for (let index = 0; index < program.length; index += 1) {
+        expect(pointValueFor(rustResult, index), `geometry value program entry ${index}`).toEqual(pointValueFor(tsResult, index));
+      }
+
+      for (const [payload, result] of [[tsPayload, tsResult], [rustPayload, rustResult]] as const) {
+        const use = fixture.elements.find((element) => element.name === "Use")!;
+        expect(result.errors).toEqual([]);
+        expect(result.geometryValueErrors ?? []).toEqual([]);
+        expect(pointValueFor(result, 0)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(pointValueFor(result, 1)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(pointValueFor(result, 2)).toMatchObject({
+          kind: "line",
+          start: { x: 2, y: 3 },
+          end: { x: 12, y: 13 }
+        });
+        expect(pointValueFor(result, 3)).toEqual({ kind: "point", x: 12, y: 13 });
+        expect(pointValueFor(result, 4)).toEqual({ kind: "point", x: 12, y: 13 });
+        expect(pointValueFor(result, 5)).toEqual({ kind: "point", x: 0, y: 0 });
+        expect(pointValueFor(result, 6)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(pointValueFor(result, 7)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect([...result.computedGeometryValues!.values()].every(({ value }) =>
+          !("elementId" in value) && !("name" in value) && !("baseLineIds" in value)
+        )).toBe(true);
+        expect(result.computedGeometry.get(use.id)).toMatchObject({
+          kind: "line",
+          start: { x: 10, y: 0 },
+          end: { x: 0, y: 0 }
+        });
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, "P2X"), 10);
+      }
+    }
+  }, 30000);
+
   it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
     const fixture = fixtureFromSource([
       "nui 1",
