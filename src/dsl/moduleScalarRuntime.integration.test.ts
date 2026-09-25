@@ -13,6 +13,11 @@ import { parseDsl } from "@nuinuicad/nui-language";
 import { moduleRecordExportFieldBindingIdFor } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
+import type { GeometryInputTarget } from "../types/geometry";
+
+const isGeometryInputTargetList = (
+  target: GeometryInputTarget | readonly GeometryInputTarget[]
+): target is readonly GeometryInputTarget[] => Array.isArray(target);
 
 const compileWithIds = (source: string, prefix = "task6") => {
   const parsed = parseDsl(source);
@@ -37,7 +42,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     ...(runtimeOptions.transformationDependencyPlans ? { transformationDependencyPlans: runtimeOptions.transformationDependencyPlans } : {}),
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
-    geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
+    geometryInputTargetsByElementId: runtimeOptions.geometryInputTargetsByElementId,
     geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
     geometryValueProgram,
     statementInfoByElementId: compiled.statementMap.byElementId,
@@ -817,6 +822,134 @@ describe("module scalar runtime integration", () => {
       x: 3,
       y: 4
     });
+  });
+
+  it("projects Module export aliases and root alias chains as concrete geometry value producers", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module AliasProvider(input: point) {",
+      "  export const Output: point = @input",
+      "  line DirectConsumer = segment(start: @Output, end: (0, 0))",
+      "}",
+      "point SourceA = coordinate(x: 11, y: 2)",
+      "point SourceB = coordinate(x: 20, y: 5)",
+      "instance A = AliasProvider(input: @SourceA)",
+      "instance B = AliasProvider(input: @SourceB)",
+      "const RootA: point = @A::Output",
+      "const ChainA: point = @RootA",
+      "const RootB: point = @B::Output",
+      "const ChainB: point = @RootB",
+      "line UseA = segment(start: @ChainA, end: (0, 0))",
+      "line UseB = segment(start: @ChainB, end: (0, 0))"
+    ].join("\n"), "module-geometry-value-alias-producers");
+    expectValid(compiled);
+
+    const runtimeOptions = buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: compiled.document!.evaluationLimitIndex
+    });
+    const program = runtimeOptions.geometryValueProgram ?? [];
+    const moduleDefinition = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "AliasProvider");
+    const exportedAlias = moduleDefinition?.localGeometryValues.find((value) => value.name === "Output");
+    expect(exportedAlias).toBeDefined();
+    const rootValue = (name: string) => compiled.moduleSemanticAnalysis!.geometryValues.find((value) =>
+      value.ownerModuleDefinitionStatementId === null && value.name === name
+    );
+    const rootA = rootValue("RootA");
+    const chainA = rootValue("ChainA");
+    const rootB = rootValue("RootB");
+    const chainB = rootValue("ChainB");
+    expect([rootA, chainA, rootB, chainB].every(Boolean)).toBe(true);
+
+    const entryFor = (statementId: string) => program.find((entry) => entry.sourceStatementId === statementId);
+    const exportedEntries = program.filter((entry) => entry.sourceStatementId === exportedAlias!.statementId);
+    expect(exportedEntries).toHaveLength(2);
+    expect(new Set(exportedEntries.map((entry) => JSON.stringify(entry.occurrence.instancePath))).size).toBe(2);
+    expect(exportedEntries.every((entry) => entry.construction.kind === "reference")).toBe(true);
+
+    const rootEntries = [rootA, chainA, rootB, chainB].map((value) => entryFor(value!.statementId));
+    expect(rootEntries).toHaveLength(4);
+    expect(rootEntries.every((entry) => entry?.construction.kind === "reference")).toBe(true);
+    const rootAEntry = entryFor(rootA!.statementId)!;
+    const chainAEntry = entryFor(chainA!.statementId)!;
+    const rootBEntry = entryFor(rootB!.statementId)!;
+    const chainBEntry = entryFor(chainB!.statementId)!;
+    expect(rootAEntry.construction).toMatchObject({
+      kind: "reference",
+      target: { statementId: elementNamed(compiled, "SourceA").id }
+    });
+    expect(rootBEntry.construction).toMatchObject({
+      kind: "reference",
+      target: { statementId: elementNamed(compiled, "SourceB").id }
+    });
+    expect(chainAEntry.construction).toMatchObject({
+      kind: "reference",
+      target: { statementId: elementNamed(compiled, "SourceA").id }
+    });
+    expect(chainBEntry.construction).toMatchObject({
+      kind: "reference",
+      target: { statementId: elementNamed(compiled, "SourceB").id }
+    });
+    const rootAliasExportTargets = [rootAEntry, rootBEntry].map((entry) =>
+      entry.construction.kind === "reference" ? entry.construction.target.statementId : undefined
+    );
+    expect(rootAliasExportTargets).toEqual([
+      elementNamed(compiled, "SourceA").id,
+      elementNamed(compiled, "SourceB").id
+    ]);
+
+    const consumerElements = compiled.document!.elements.filter((element) =>
+      ["DirectConsumer", "UseA", "UseB"].includes(element.name)
+    );
+    const targetOccurrences = consumerElements.flatMap((element) =>
+      [...(runtimeOptions.geometryInputTargetsByElementId?.get(element.id)?.values() ?? [])]
+        .flatMap((target) => isGeometryInputTargetList(target) ? [...target] : [target])
+        .filter((target) => target.kind === "geometryValue")
+        .map((target) => target.occurrence)
+    );
+    expect(consumerElements).toHaveLength(4);
+    expect(targetOccurrences).toHaveLength(2);
+    expect(new Set(targetOccurrences.map((occurrence) => occurrence.sourceStatementId))).toEqual(new Set([
+      chainA!.statementId,
+      chainB!.statementId
+    ]));
+    const producedOccurrences = new Set(program.map((entry) => JSON.stringify(entry.occurrence)));
+    for (const occurrence of targetOccurrences) {
+      expect(producedOccurrences.has(JSON.stringify(occurrence))).toBe(true);
+    }
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors ?? []).toEqual([]);
+    const useA = elementNamed(compiled, "UseA");
+    const useB = elementNamed(compiled, "UseB");
+    expect(result.computedGeometry.get(useA.id)).toMatchObject({
+      kind: "line",
+      start: {
+        kind: "point",
+        elementId: `${useA.id}:start`,
+        name: `${useA.name}.start`,
+        x: 11,
+        y: 2
+      },
+      startPointId: null,
+      end: { x: 0, y: 0 }
+    });
+    expect(result.computedGeometry.get(useB.id)).toMatchObject({
+      kind: "line",
+      start: {
+        kind: "point",
+        elementId: `${useB.id}:start`,
+        name: `${useB.name}.start`,
+        x: 20,
+        y: 5
+      },
+      startPointId: null,
+      end: { x: 0, y: 0 }
+    });
+    expect(consumerElements.filter((element) => element.name === "DirectConsumer").every((element) =>
+      result.computedGeometry.has(element.id)
+    )).toBe(true);
   });
 
   it("evaluates a geometry builtin operand projected from a root record field", () => {

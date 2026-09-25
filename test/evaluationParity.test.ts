@@ -5,6 +5,7 @@ import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/n
 import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
+import type { GeometryInputTarget } from "../src/types/geometry";
 import {
   evaluateWithRustFixture,
   isCurrentReleaseFixture,
@@ -44,6 +45,10 @@ const expectScalarNumberClose = (
   if (value?.status !== "ok" || value.value.kind !== "number") throw new Error("expected a numeric scalar success");
   expect(value.value.value).toBeCloseTo(expected, 10);
 };
+
+const isGeometryInputTargetList = (
+  target: GeometryInputTarget | readonly GeometryInputTarget[]
+): target is readonly GeometryInputTarget[] => Array.isArray(target);
 
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
   let rustStdio: ReturnType<typeof createRustStdioParityClient> | undefined;
@@ -184,6 +189,107 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     ].join("\n");
     const cycleCompile = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), cycleSource);
     expect(cycleCompile.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+  }, 30000);
+
+  it("materializes Module-export geometry aliases and root alias chains across the persistent Rust stdio boundary", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module AliasProvider(input: point) {",
+      "  export const Output: point = @input",
+      "  line DirectConsumer = segment(start: @Output, end: (0, 0))",
+      "}",
+      "point SourceA = coordinate(x: 11, y: 2)",
+      "point SourceB = coordinate(x: 20, y: 5)",
+      "instance A = AliasProvider(input: @SourceA)",
+      "instance B = AliasProvider(input: @SourceB)",
+      "const RootA: point = @A::Output",
+      "const ChainA: point = @RootA",
+      "const RootB: point = @B::Output",
+      "const ChainB: point = @RootB",
+      "line UseA = segment(start: @ChainA, end: (0, 0))",
+      "line UseB = segment(start: @ChainB, end: (0, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const compiled = fixture.compiled!.doc;
+    const program = options.geometryValueProgram ?? [];
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const moduleDefinition = analysis.definitions.find((definition) => definition.name === "AliasProvider");
+    const exportedAlias = moduleDefinition?.localGeometryValues.find((value) => value.name === "Output");
+    expect(exportedAlias).toBeDefined();
+    const rootValue = (name: string) => analysis.geometryValues.find((value) =>
+      value.ownerModuleDefinitionStatementId === null && value.name === name
+    );
+    const rootA = rootValue("RootA");
+    const chainA = rootValue("ChainA");
+    const rootB = rootValue("RootB");
+    const chainB = rootValue("ChainB");
+    expect([rootA, chainA, rootB, chainB].every(Boolean)).toBe(true);
+    const entryFor = (statementId: string) => program.find((entry) => entry.sourceStatementId === statementId);
+    const exportedEntries = program.filter((entry) => entry.sourceStatementId === exportedAlias!.statementId);
+    expect(exportedEntries).toHaveLength(2);
+    expect(new Set(exportedEntries.map((entry) => JSON.stringify(entry.occurrence.instancePath))).size).toBe(2);
+    expect(exportedEntries.every((entry) => entry.construction.kind === "reference")).toBe(true);
+    for (const value of [rootA, chainA, rootB, chainB]) {
+      expect(entryFor(value!.statementId)?.construction.kind).toBe("reference");
+    }
+
+    const consumers = fixture.elements.filter((element) => ["DirectConsumer", "UseA", "UseB"].includes(element.name));
+    const targetOccurrences = consumers.flatMap((element) =>
+      [...(options.geometryInputTargetsByElementId?.get(element.id)?.values() ?? [])]
+        .flatMap((target) => isGeometryInputTargetList(target) ? [...target] : [target])
+        .filter((target) => target.kind === "geometryValue")
+        .map((target) => target.occurrence)
+    );
+    expect(consumers).toHaveLength(4);
+    expect(targetOccurrences).toHaveLength(2);
+    expect(new Set(targetOccurrences.map((occurrence) => occurrence.sourceStatementId))).toEqual(new Set([
+      chainA!.statementId,
+      chainB!.statementId
+    ]));
+    const producedOccurrences = new Set(program.map((entry) => JSON.stringify(entry.occurrence)));
+    for (const occurrence of targetOccurrences) {
+      expect(producedOccurrences.has(JSON.stringify(occurrence))).toBe(true);
+    }
+
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    const useA = fixture.elements.find((element) => element.name === "UseA")!;
+    const useB = fixture.elements.find((element) => element.name === "UseB")!;
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+      for (const consumer of consumers) expect(result.evaluatedElementIds.has(consumer.id)).toBe(true);
+      expect(result.computedGeometry.get(useA.id)).toMatchObject({
+        kind: "line",
+        start: {
+          kind: "point",
+          elementId: `${useA.id}:start`,
+          name: `${useA.name}.start`,
+          x: 11,
+          y: 2
+        },
+        startPointId: null,
+        end: { x: 0, y: 0 }
+      });
+      expect(result.computedGeometry.get(useB.id)).toMatchObject({
+        kind: "line",
+        start: {
+          kind: "point",
+          elementId: `${useB.id}:start`,
+          name: `${useB.name}.start`,
+          x: 20,
+          y: 5
+        },
+        startPointId: null,
+        end: { x: 0, y: 0 }
+      });
+      expect(consumers.filter((element) => element.name === "DirectConsumer").every((element) =>
+        result.computedGeometry.has(element.id)
+      )).toBe(true);
+    }
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
   it("projects compiler-resolved point aliases through the persistent Rust evaluator", async () => {
@@ -1249,7 +1355,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const Ly: number = @L.end.y"
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
-    if (!program || program.length !== 4) throw new Error("expected four pure polar geometry value program entries");
+    if (!program || program.length !== 5) throw new Error("expected five pure polar geometry value program entries, including the Path alias");
     const options = optionsFor(fixture);
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -1260,11 +1366,12 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
       expect(result.errors).toEqual([]);
       const values = [...(result.computedGeometryValues?.values() ?? [])];
-      expect(values).toHaveLength(4);
+      expect(values).toHaveLength(5);
       expect(values[0]?.value).toMatchObject({ kind: "point", x: expect.closeTo(10, 10), y: 40 });
       expect(values[1]?.value).toEqual({ kind: "point", x: 10, y: 20 });
       expect(values[2]?.value).toMatchObject({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, length: expect.closeTo(100, 10) });
       expect(values[3]?.value).toMatchObject({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, end: { x: expect.closeTo(110, 10), y: 40 }, length: expect.closeTo(100, 10) });
+      expect(values[4]?.value).toMatchObject({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, end: { x: expect.closeTo(10 + Math.cos(Math.PI / 6) * 100, 10), y: 90 }, length: expect.closeTo(100, 10) });
       expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
     }
   }, 30000);
@@ -1535,20 +1642,54 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     ].join("\n"));
     const program = fixture.compiled?.doc.geometryValueProgram;
     if (!program) throw new Error("expected pure intersection geometry value program entries");
+    const firstEntry = program.find((entry) => entry.sourceStatementIndex === 2);
+    const secondEntry = program.find((entry) => entry.sourceStatementIndex === 3);
     const sameEntry = program.find((entry) => entry.sourceStatementIndex === 4);
     const invalidEntry = program.find((entry) => entry.sourceStatementIndex === 6);
     const failedEntry = program.find((entry) => entry.sourceStatementIndex === 7);
-    if (!sameEntry || !invalidEntry || !failedEntry) throw new Error("expected alias and unavailable intersection entries");
+    if (!firstEntry || !secondEntry || !sameEntry || !invalidEntry || !failedEntry) {
+      throw new Error("expected both alias and unavailable intersection entries");
+    }
     const options = optionsFor(fixture);
 
     expect(isRustEligibleFixture(fixture)).toBe(true);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    const valueEntryFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: typeof firstEntry.occurrence
+    ) => [...(result.computedGeometryValues?.values() ?? [])].find((entry) =>
+      entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+      entry.occurrence.instancePath.length === occurrence.instancePath.length &&
+      entry.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index])
+    );
     for (const payload of [tsPayload, rustPayload]) {
       const result = evaluationPayloadToResult(payload);
       expect(result.errors).toEqual([]);
-      expect(result.computedGeometryValues).toEqual(new Map());
+      const firstValue = valueEntryFor(result, firstEntry.occurrence);
+      const secondValue = valueEntryFor(result, secondEntry.occurrence);
+      expect(firstValue).toBeDefined();
+      expect(secondValue).toBeDefined();
+      expect(firstValue?.value).toMatchObject({
+        kind: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 0 }
+      });
+      expect(secondValue?.value).toMatchObject({
+        kind: "line",
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 0 }
+      });
+      const aliasValues = [firstValue, secondValue];
+      expect(aliasValues.map((entry) => entry?.occurrence.sourceStatementId)).toEqual([
+        firstEntry.occurrence.sourceStatementId,
+        secondEntry.occurrence.sourceStatementId
+      ]);
+      expect([...result.computedGeometryValues!.values()]).toHaveLength(2);
+      expect(aliasValues.every((entry) =>
+        entry !== undefined && !("elementId" in entry.value) && !("name" in entry.value)
+      )).toBe(true);
       expect(result.geometryValueErrors).toEqual([
         {
           occurrence: sameEntry.occurrence,

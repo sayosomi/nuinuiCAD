@@ -875,7 +875,7 @@ export const evaluateElements = (
         continue;
       }
       materialized.set(parameterKey, selected);
-      if (target.kind === "collectionIndex" || target.kind === "geometryValueMap" || target.kind === "forGroupOccurrence" || target.kind === "geometryCarry") {
+      if (target.kind === "collectionIndex" || target.kind === "geometryValue" || target.kind === "geometryValueMap" || target.kind === "forGroupOccurrence" || target.kind === "geometryCarry") {
         const anchor = pointAnchorForGeometryInputTarget(selected);
         if (anchor) materializedElement = setParameterValue(materializedElement, parameterKey, anchor);
       }

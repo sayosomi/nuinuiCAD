@@ -19,9 +19,10 @@ const evaluate = (source: string) => {
   const compiled = compile(source);
   expect(compiled.diagnostics).toEqual([]);
   expect(compiled.document).not.toBeNull();
+  const options = buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined });
   const result = evaluateElements(
     compiled.document!.elements,
-    buildEvaluationOptions({ compiledDocument: compiled, evaluationLimitIndex: undefined })
+    options
   );
   return { compiled, result };
 };
@@ -390,7 +391,8 @@ describe("pure geometry construction runtime", () => {
     expect(result.errors).toEqual([]);
     const copyValues = [...(result.computedGeometryValues?.values() ?? [])]
       .filter((entry) => entry.value.kind === "offsetLine");
-    expect(copyValues).toHaveLength(1);
+    expect(copyValues).toHaveLength(3);
+    expect(new Set(copyValues.map((entry) => entry.occurrence.sourceStatementId)).size).toBe(3);
     expect(copyValues.every((entry) => entry.value.kind === "offsetLine" && !("elementId" in entry.value))).toBe(true);
     expect(copyValues.at(-1)?.value).toMatchObject({ start: { x: 20, y: 10 }, end: { x: 30, y: 10 } });
   });
@@ -496,7 +498,8 @@ describe("pure geometry construction runtime", () => {
       expect.objectContaining({ kind: "point", x: expect.closeTo(10, 10), y: 40 }),
       { kind: "point", x: 10, y: 20 },
       expect.objectContaining({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, length: expect.closeTo(100, 10) }),
-      expect.objectContaining({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, end: { x: expect.closeTo(110, 10), y: 40 }, length: expect.closeTo(100, 10) })
+      expect.objectContaining({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, end: { x: expect.closeTo(110, 10), y: 40 }, length: expect.closeTo(100, 10) }),
+      expect.objectContaining({ kind: "line", start: { x: expect.closeTo(10, 10), y: 40 }, end: { x: 10 + Math.cos(Math.PI / 6) * 100, y: 90 }, length: expect.closeTo(100, 10) })
     ]);
     expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
     expect(result.computedGeometry.get("geometry-value-runtime:9")).toMatchObject({
@@ -553,8 +556,8 @@ describe("pure geometry construction runtime", () => {
     expect(result.errors).toEqual([]);
     expect(result.geometryValueErrors).toEqual([]);
     const values = [...(result.computedGeometryValues?.values() ?? [])];
-    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1)).toHaveLength(3);
-    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "line")).toHaveLength(1);
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1)).toHaveLength(4);
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 1 && entry.value.kind === "line")).toHaveLength(2);
     expect(values.every((entry) => !("elementId" in entry.value) && !("name" in entry.value))).toBe(true);
     const use = compiled.document!.elements.find((element) => element.name === "Use");
     expect(use && result.computedGeometry.get(use.id)).toMatchObject({ kind: "line" });
@@ -770,6 +773,7 @@ describe("pure geometry construction runtime", () => {
     expect([...result.computedGeometryValues!.values()].map((entry) => entry.value.kind)).toEqual([
       "arcLine",
       "arcLine",
+      "line",
       "line"
     ]);
   });
@@ -1685,7 +1689,16 @@ describe("pure geometry construction runtime", () => {
 
     expect(compiled.diagnostics).toEqual([]);
     expect(result.errors).toEqual([]);
-    expect(result.computedGeometryValues).toEqual(new Map());
+    const aliasValues = [...(result.computedGeometryValues?.values() ?? [])];
+    expect(aliasValues.map((entry) => entry.occurrence.sourceStatementId)).toEqual([
+      "geometry-value-runtime:2",
+      "geometry-value-runtime:3"
+    ]);
+    expect(aliasValues.map((entry) => entry.value)).toEqual([
+      expect.objectContaining({ kind: "line", start: { x: 0, y: 0 }, end: { x: 100, y: 0 } }),
+      expect.objectContaining({ kind: "line", start: { x: 0, y: 0 }, end: { x: 100, y: 0 } })
+    ]);
+    expect(aliasValues.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
     expect(result.geometryValueErrors).toEqual([{
       occurrence: { sourceStatementId: "geometry-value-runtime:4", instancePath: [] },
       message: "intersection geometry value cannot intersect the same source geometry twice."
@@ -1777,7 +1790,9 @@ describe("pure geometry construction runtime", () => {
       { kind: "point", x: 50, y: 0 },
       { kind: "point", x: 50, y: 0 }
     ]);
-    expect(values.filter((entry) => entry.occurrence.instancePath.length === 0)).toEqual([]);
+    expect(values.filter((entry) => entry.occurrence.instancePath.length === 0).map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 50, y: 0 }
+    ]);
     expect(values.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
     expect(result.computedGeometry.get("geometry-value-runtime:9")).toMatchObject({
       kind: "line",
