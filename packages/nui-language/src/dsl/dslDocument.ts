@@ -61,6 +61,7 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
 import { geometryAliasForSourceElement, geometryValueOccurrenceForRecordField, propertyForAlias } from "./moduleGeometryRuntimeLowering";
+import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { parseRecordConstructorFields } from "./recordSemanticAnalysis";
 import { buildRootGeometryValueProgram } from "./moduleGeometryValueProgram";
@@ -4213,6 +4214,46 @@ export const compileDslDocument = (
   }
   // This is intentionally built before the final diagnostic gate. It is a
   // current-source analysis record, not part of the last-good geometry model.
+  const geometryValueProgramForGraph = moduleScalarCompilation?.geometryValueProgram?.length
+    ? moduleScalarCompilation.geometryValueProgram
+    : compiled.geometryValueProgram;
+  const geometryValueSourceEventOrders = new Map<number, number[]>();
+  const addGeometryValueSourceEvent = (statementIndex: number | undefined, sourceOrder: number | undefined) => {
+    if (statementIndex === undefined || sourceOrder === undefined) return;
+    const orders = geometryValueSourceEventOrders.get(statementIndex) ?? [];
+    orders.push(sourceOrder);
+    geometryValueSourceEventOrders.set(statementIndex, orders);
+  };
+  for (const [statementIndex, elementId] of compiled.elementIdsByStatementIndex ?? []) {
+    addGeometryValueSourceEvent(
+      statementIndex,
+      moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId.get(elementId)
+    );
+  }
+  const bindingAnalysisForGeometryValues = scalarAnalysis?.bindingAnalysis;
+  for (const version of bindingVersions?.versions ?? []) {
+    const binding = bindingAnalysisForGeometryValues?.catalog.bindingsById.get(version.bindingId);
+    if (!binding || stableStatementIdByIndex?.get(binding.statementIndex) !== binding.id.replace(/^binding:/, "")) continue;
+    addGeometryValueSourceEvent(binding.statementIndex, version.sourceOrder);
+  }
+  const sourcePositionForGeometryValueStatement = (statementIndex: number): number => {
+    const exact = geometryValueSourceEventOrders.get(statementIndex);
+    if (exact?.length) return Math.min(...exact);
+    const candidates = [...geometryValueSourceEventOrders.entries()].sort((left, right) => left[0] - right[0]);
+    const next = candidates.find(([candidate]) => candidate > statementIndex);
+    if (next?.[1].length) return Math.max(0, Math.min(...next[1]) - 0.5);
+    const previous = candidates.filter(([candidate]) => candidate < statementIndex).at(-1);
+    if (previous?.[1].length) return Math.max(0, Math.max(...previous[1]) + 0.5);
+    return 0;
+  };
+  const geometryValueProgramWithSourcePositions = geometryValueProgramForGraph?.map((entry) => ({
+    ...entry,
+    sourceExecutionPosition: entry.sourceExecutionPosition ?? sourcePositionForGeometryValueStatement(entry.sourceStatementIndex)
+  }));
+  const geometryInputTargetsForGraph = new Map([
+    ...(geometryInputTargetsByElementId ?? []),
+    ...(moduleScalarCompilation?.geometryInputTargetsByRuntimeElementId ?? [])
+  ]);
   const typedDependencyGraph = buildTypedDependencyGraph({
     elements: compiled.elements,
     drawingModifiers: compiled.modifiers,
@@ -4224,11 +4265,23 @@ export const compileDslDocument = (
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
     conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,
     scalarProgram,
-    geometryInputTargets: geometryInputTargetsByElementId,
+    geometryInputTargets: geometryInputTargetsForGraph,
     constructionInputConsumerElementIds,
     transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes,
+    geometryValueProgram: geometryValueProgramWithSourcePositions,
+    moduleExportedGeometryValueStatementIds: new Set(
+      moduleSemanticCompilation?.geometryValues
+        .filter((value) => value.exported)
+        .map((value) => value.statementId) ?? []
+    ),
     moduleMaterialization: compiled.moduleMaterialization
   });
+  const geometryValueProgram = geometryValueProgramWithSourcePositions?.map((entry) => ({
+    ...entry,
+    executionPosition: typedDependencyGraph?.geometryValueExecutionPositionByOccurrence.get(
+      geometryValueOccurrenceKey(entry.occurrence)
+    ) ?? entry.executionPosition
+  }));
   const finalDiagnostics = [
     ...(propertyBindingCompilation ? [...allDiagnostics, ...propertyBindingCompilation.diagnostics] : allDiagnostics),
     ...(numericBindingCompilation ? numericBindingCompilation.diagnostics : []),
@@ -4279,8 +4332,7 @@ export const compileDslDocument = (
       ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
       ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
-      ...(compiled.geometryValueProgram ? { geometryValueProgram: compiled.geometryValueProgram } : {}),
-      ...(moduleScalarCompilation?.geometryValueProgram?.length ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
+      ...(geometryValueProgram?.length ? { geometryValueProgram } : {}),
       ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
         ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
         : {}),
@@ -4378,8 +4430,7 @@ export const compileDslDocument = (
     ...(moduleRuntimeContext ? { moduleRuntimeContext } : {}),
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
-      ...(compiled.geometryValueProgram ? { geometryValueProgram: compiled.geometryValueProgram } : {}),
-    ...(moduleScalarCompilation?.geometryValueProgram?.length ? { geometryValueProgram: moduleScalarCompilation.geometryValueProgram } : {}),
+    ...(geometryValueProgram?.length ? { geometryValueProgram } : {}),
     ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
       ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
       : {}),

@@ -1,6 +1,8 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import {
@@ -13,6 +15,7 @@ import {
   readParityFixture,
   runtimeDiagnosticsFor,
   evaluateWithRustOptions,
+  createRustStdioParityClient,
   evaluateWithRustStdioOptions,
   fixtureFromSource
 } from "./evaluationParitySupport";
@@ -43,6 +46,146 @@ const expectScalarNumberClose = (
 };
 
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
+  let rustStdio: ReturnType<typeof createRustStdioParityClient> | undefined;
+
+  beforeAll(() => {
+    rustStdio = createRustStdioParityClient(repoRoot);
+  });
+
+  afterAll(() => {
+    rustStdio?.dispose();
+  });
+
+  it("keeps immutable geometry values on the canonical dependency execution timeline", async () => {
+    const sourceFor = (padding: boolean) => [
+      "nui 1",
+      ...(padding ? ["const PaddingBefore: number = 3"] : []),
+      "const Alias: point = @Later",
+      ...(padding ? ["const PaddingBetween: number = 9"] : []),
+      "line Use = segment(start: @Alias, end: (0, 0))",
+      "point Later = coordinate(x: 20, y: 0)"
+    ].join("\n");
+    const evaluate = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      const ts = evaluationPayloadToResult(tsPayload);
+      const rust = evaluationPayloadToResult(rustPayload);
+      const use = fixture.elements.find((element) => element.name === "Use")!;
+      const later = fixture.elements.find((element) => element.name === "Later")!;
+      const aliasEntry = options.geometryValueProgram?.find((entry) =>
+        entry.construction.kind === "reference" && entry.construction.target.statementId === later.id
+      );
+
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      expect(aliasEntry).toBeDefined();
+      expect(aliasEntry?.sourceExecutionPosition).toBeDefined();
+      expect(aliasEntry?.executionPosition).not.toBe(aliasEntry?.sourceStatementIndex);
+      expect(rust.errors).toEqual(ts.errors);
+      expect(rust.warnings).toEqual(ts.warnings);
+      for (const result of [ts, rust]) {
+        expect(result.errors).toEqual([]);
+        expect(result.warnings).toEqual([]);
+        expect(result.computedGeometry.get(use.id)).toMatchObject({
+          kind: "line",
+          start: { x: 20, y: 0 },
+          end: { x: 0, y: 0 }
+        });
+      }
+      return { fixture, ts, rust };
+    };
+
+    await evaluate(sourceFor(false));
+    await evaluate(sourceFor(true));
+
+    const inactiveLaterBranch = fixtureFromSource([
+      "nui 1",
+      "const flag: boolean = false",
+      "const Selected: point =",
+      "  if (@flag) {",
+      "    @Late",
+      "  } else {",
+      "    coordinate(x: 3, y: 4)",
+      "  }",
+      "line Use = segment(start: @Selected, end: (0, 0))",
+      "point Late = coordinate(x: 20, y: 0)"
+    ].join("\n"));
+    const inactiveLaterOptions = {
+      ...optionsFor(inactiveLaterBranch),
+      evaluationLimitIndex: inactiveLaterBranch.elements.findIndex((element) => element.name === "Late")
+    };
+    const inactiveLaterTsPayload = evaluateElementsReferencePayload(inactiveLaterBranch.elements, inactiveLaterOptions);
+    const inactiveLaterRustPayload = await rustStdio!.evaluate(inactiveLaterBranch.elements, inactiveLaterOptions);
+    expect(inactiveLaterBranch.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(inactiveLaterBranch)).toBe(true);
+    expect(normalizeParityPayload(inactiveLaterRustPayload)).toEqual(normalizeParityPayload(inactiveLaterTsPayload));
+    for (const payload of [inactiveLaterTsPayload, inactiveLaterRustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      const use = inactiveLaterBranch.elements.find((element) => element.name === "Use")!;
+      const late = inactiveLaterBranch.elements.find((element) => element.name === "Late")!;
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+      expect(result.evaluatedElementIds).toContain(use.id);
+      expect(result.evaluatedElementIds).not.toContain(late.id);
+      expect(result.computedGeometry.get(use.id)).toMatchObject({
+        kind: "line",
+        start: { x: 3, y: 4 },
+        end: { x: 0, y: 0 }
+      });
+    }
+
+    const laterDeclaration = fixtureFromSource([
+      "nui 1",
+      "line Use = segment(start: @Later, end: (0, 0))",
+      "point Later = coordinate(x: 20, y: 0)"
+    ].join("\n"));
+    const laterOptions = optionsFor(laterDeclaration);
+    const laterTs = evaluateElementsReferencePayload(laterDeclaration.elements, laterOptions);
+    const laterRust = await rustStdio!.evaluate(laterDeclaration.elements, laterOptions);
+    for (const payload of [laterTs, laterRust]) {
+      const result = evaluationPayloadToResult(payload);
+      const use = laterDeclaration.elements.find((element) => element.name === "Use")!;
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.computedGeometry.get(use.id)).toMatchObject({ kind: "line", start: { x: 20, y: 0 } });
+    }
+    expect(evaluationPayloadToResult(laterRust).errors).toEqual(evaluationPayloadToResult(laterTs).errors);
+    expect(evaluationPayloadToResult(laterRust).warnings).toEqual(evaluationPayloadToResult(laterTs).warnings);
+
+    const moduleFixture = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  export const P: point = between(start: @Target.start, end: @Target.end, ratio: 0.5)",
+      "  line Target = segment(start: (20, 0), end: (40, 0))",
+      "}",
+      "instance I = M()",
+      "line Use = segment(start: @I::P, end: (0, 0))"
+    ].join("\n"));
+    const moduleOptions = optionsFor(moduleFixture);
+    const moduleTs = evaluateElementsReferencePayload(moduleFixture.elements, moduleOptions);
+    const moduleRust = await rustStdio!.evaluate(moduleFixture.elements, moduleOptions);
+    expect(isRustEligibleFixture(moduleFixture)).toBe(true);
+    expect(evaluationPayloadToResult(moduleRust).errors).toEqual(evaluationPayloadToResult(moduleTs).errors);
+    expect(evaluationPayloadToResult(moduleRust).warnings).toEqual(evaluationPayloadToResult(moduleTs).warnings);
+    for (const payload of [moduleTs, moduleRust]) {
+      const result = evaluationPayloadToResult(payload);
+      const use = moduleFixture.elements.find((element) => element.name === "Use")!;
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.computedGeometry.get(use.id)).toMatchObject({ kind: "line", start: { x: 30, y: 0 } });
+    }
+
+    const cycleSource = [
+      "nui 1",
+      "line A = segment(start: @B.end, end: (10, 0))",
+      "line B = segment(start: @A.end, end: (20, 0))"
+    ].join("\n");
+    const cycleCompile = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), cycleSource);
+    expect(cycleCompile.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+  }, 30000);
+
   it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
     const fixture = fixtureFromSource([
       "nui 1",

@@ -80,24 +80,34 @@ export const evaluateWithRustOptions = (
   return JSON.parse(output) as EvaluationPayload;
 };
 
-export const evaluateWithRustStdioOptions = async (
-  repoRoot: string,
-  elements: CadElement[],
-  options: EvaluateElementsOptions
-): Promise<EvaluationPayload> => {
-  const input = buildRustEvaluationInput(elements, options);
+/** Issue regressions that must cross the production persistent Node→Rust stdio boundary. */
+export const createRustStdioParityClient = (repoRoot: string) => {
   const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
   execFileSync(
     "cargo",
     ["build", "--quiet", "--manifest-path", cargoManifest, "--bin", "evaluation_stdio"],
     { cwd: repoRoot, stdio: "inherit" }
   );
+  const process = new RustEvaluationProcess(resolveRustEvaluationBinaryPath(repoRoot));
+  return {
+    evaluate: async (elements: CadElement[], options: EvaluateElementsOptions): Promise<EvaluationPayload> => {
+      const payload = await process.request(buildRustEvaluationInput(elements, options));
+      return payload as EvaluationPayload;
+    },
+    dispose: () => process.dispose()
+  };
+};
 
-  const rustProcess = new RustEvaluationProcess(resolveRustEvaluationBinaryPath(repoRoot));
+export const evaluateWithRustStdioOptions = async (
+  repoRoot: string,
+  elements: CadElement[],
+  options: EvaluateElementsOptions
+): Promise<EvaluationPayload> => {
+  const rustStdio = createRustStdioParityClient(repoRoot);
   try {
-    return await rustProcess.request(input) as EvaluationPayload;
+    return await rustStdio.evaluate(elements, options);
   } finally {
-    rustProcess.dispose();
+    rustStdio.dispose();
   }
 };
 

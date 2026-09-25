@@ -2474,13 +2474,20 @@ export const compileModuleScalarRuntime = ({
   const events: RuntimeEvent[] = [];
   const eventOrderByBindingId = new Map<BindingId, number>();
   const eventOrderByStatementIndex = new Map<number, number>();
+  const eventOrderByPathAndStatementIndex = new Map<string, Map<number, number>>();
   const elementOrderById = new Map<ElementId, number>();
   const scopeExitOrderById = new Map<string, number>();
-  const pushEvent = (event: RuntimeEvent, sourceStatementIndex?: number) => {
+  const pushEvent = (event: RuntimeEvent, sourceStatementIndex?: number, runtimePath: readonly string[] = []) => {
     const order = events.length;
     events.push(event);
     if (sourceStatementIndex !== undefined && !eventOrderByStatementIndex.has(sourceStatementIndex)) {
       eventOrderByStatementIndex.set(sourceStatementIndex, order);
+    }
+    if (sourceStatementIndex !== undefined) {
+      const key = pathKey(runtimePath);
+      const pathEvents = eventOrderByPathAndStatementIndex.get(key) ?? new Map<number, number>();
+      if (!pathEvents.has(sourceStatementIndex)) pathEvents.set(sourceStatementIndex, order);
+      eventOrderByPathAndStatementIndex.set(key, pathEvents);
     }
     if (event.kind === "binding") eventOrderByBindingId.set(event.bindingId, order);
     if (event.kind === "element") elementOrderById.set(event.elementId, order);
@@ -2510,19 +2517,20 @@ export const compileModuleScalarRuntime = ({
     }
     emitForeignDocumentBindings(context.definitionDocumentId);
     const runtimeId = instanceElement(moduleMaterialization, context.path);
-    if (runtimeId) pushEvent({ kind: "element", elementId: runtimeId }, context.instance.statementIndex);
+    const callerPath = context.path.slice(0, -1);
+    if (runtimeId) pushEvent({ kind: "element", elementId: runtimeId }, context.instance.statementIndex, callerPath);
     for (const parameter of context.definition.parameters) {
       const info = context.parameters.get(parameter.parameterIndex);
-      if (info) pushEvent({ kind: "binding", bindingId: info.id }, context.instance.statementIndex);
+      if (info) pushEvent({ kind: "binding", bindingId: info.id }, context.instance.statementIndex, callerPath);
     }
     for (const fields of context.recordParameters.values()) {
       for (const field of fields.values()) {
-        if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex);
+        if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex, callerPath);
       }
     }
     for (const fields of context.recordParameterFieldBindingsByPath.values()) {
       for (const field of fields.values()) {
-        if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex);
+        if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex, callerPath);
       }
     }
     const pendingRecordValues = [...context.definition.recordValues].sort((left, right) => left.value.statementIndex - right.value.statementIndex);
@@ -2535,10 +2543,10 @@ export const compileModuleScalarRuntime = ({
         // only a constructor introduces new runtime binding events.
         if (!recordValue.value.constructor && !recordValue.valueExpression) continue;
         for (const field of context.recordValues.get(recordValue.value.statementId)?.values() ?? []) {
-          if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, recordValue.value.statementIndex);
+          if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, recordValue.value.statementIndex, context.path);
         }
         for (const field of context.recordValueFieldBindingsByPath.get(recordValue.value.statementId)?.values() ?? []) {
-          if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, recordValue.value.statementIndex);
+          if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, recordValue.value.statementIndex, context.path);
         }
       }
     };
@@ -2547,7 +2555,7 @@ export const compileModuleScalarRuntime = ({
       if (!moduleBodyStatementIsReachable(context, body)) continue;
       if (body.statementKind === "typedDeclaration") {
         const info = context.locals.get(body.statementId);
-        if (info) pushEvent({ kind: "binding", bindingId: info.id }, body.statementIndex);
+        if (info) pushEvent({ kind: "binding", bindingId: info.id }, body.statementIndex, context.path);
       } else if (body.statementKind === "moduleInstance") {
         const nestedPath = moduleRuntimeContext
           ? moduleRuntimeContext.runtimePathForInstance(context.path, (moduleRuntimeContext.analysisFor(context.definitionDocumentId) ?? moduleSemanticAnalysis).instancesByStatementId.get(body.statementId)!)
@@ -2556,7 +2564,7 @@ export const compileModuleScalarRuntime = ({
         if (nested) emitInstance(nested);
       } else {
         const runtime = bodyRuntimeEntry(context, body);
-        if (runtime) pushEvent({ kind: "element", elementId: runtime.elementId }, body.statementIndex);
+        if (runtime) pushEvent({ kind: "element", elementId: runtime.elementId }, body.statementIndex, context.path);
       }
     }
     emitRecordValuesThrough(Number.MAX_SAFE_INTEGER);
@@ -2616,7 +2624,11 @@ export const compileModuleScalarRuntime = ({
       if (context && (!contextIsReachable(context) || (body && !moduleBodyStatementIsReachable(context, body)))) continue;
     }
     if (!elementOrderById.has(entry.runtimeElementId)) {
-      pushEvent({ kind: "element", elementId: entry.runtimeElementId }, entry.sourceStatementIndex);
+      pushEvent(
+        { kind: "element", elementId: entry.runtimeElementId },
+        entry.sourceStatementIndex,
+        entry.runtimeInstancePath ?? entry.instancePath
+      );
     }
   }
 
@@ -3821,6 +3833,31 @@ export const compileModuleScalarRuntime = ({
       firstAvailableAfterScalars
     );
   };
+  const runtimeEventPositionForValue = (path: readonly string[], statementIndex: number): number => {
+    if (path.length === 0) return executionPositionForValue(path, statementIndex);
+    const pathEvents = eventOrderByPathAndStatementIndex.get(pathKey(path));
+    if (pathEvents) {
+      const exact = pathEvents.get(statementIndex);
+      if (exact !== undefined) return exact;
+    }
+    const priorPathEvents = [...(pathEvents?.entries() ?? [])]
+      .filter(([candidate]) => candidate < statementIndex)
+      .map(([, order]) => order);
+    const context = contextsByKey.get(pathKey(path));
+    const priorParameterEvents = context
+      ? [
+          ...[...context.parameters.values()].map((parameter) => eventOrderByBindingId.get(parameter.id)),
+          ...[...context.recordParameters.values()].flatMap((fields) =>
+            [...fields.values()].map((field) => eventOrderByBindingId.get(field.id))
+          )
+        ].filter((order): order is number => order !== undefined)
+      : [];
+    const priorEvents = [...priorPathEvents, ...priorParameterEvents];
+    if (priorEvents.length > 0) return Math.max(...priorEvents) + 0.5;
+    const instanceId = instanceElement(moduleMaterialization, path);
+    const instancePosition = instanceId ? elementOrderById.get(instanceId) : undefined;
+    return instancePosition === undefined ? 0 : instancePosition + 0.5;
+  };
   const recordFieldSourceOrderForContext = (
     target: Extract<ModuleGeometryPropertySourceTarget, { kind: "recordField" }>,
     path: readonly string[]
@@ -4815,7 +4852,7 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? runtimeEventPositionForValue(context.path, sourceOrder) : sourceOrder
         )
       : lowerExpression(
           semantic,
@@ -4825,7 +4862,7 @@ export const compileModuleScalarRuntime = ({
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
           (valueId) => collectionValueIdFor(valueId, null),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? runtimeEventPositionForValue([], sourceOrder) : sourceOrder
         );
     return lowered.expression;
   };
@@ -5132,7 +5169,7 @@ export const compileModuleScalarRuntime = ({
         valueExpression: fieldValue.expression,
         backingTarget: null
       };
-      const executionPosition = executionPositionForValue(executionPath ?? path, statementIndex);
+      const executionPosition = runtimeEventPositionForValue(executionPath ?? path, statementIndex);
       const construction = lowerGeometryValueExpression(virtualValue, fieldValue.expression, context, executionPosition);
       if (!construction) continue;
       geometryValueProgramEntries.push({
@@ -5140,6 +5177,7 @@ export const compileModuleScalarRuntime = ({
         sourceStatementIndex: statementIndex,
         declaredInterfaceType: valueType.kind,
         occurrence,
+        sourceExecutionPosition: executionPosition,
         executionPosition,
         construction
       });
@@ -5152,7 +5190,7 @@ export const compileModuleScalarRuntime = ({
     emit = true
   ): GeometryValueProgramNode | undefined => {
     const path = context?.path ?? [];
-    const executionPosition = executionPositionForValue(path, value.statementIndex);
+    const executionPosition = runtimeEventPositionForValue(path, value.statementIndex);
     if (value.valueExpression) {
       const expression = lowerGeometryValueExpression(value, value.valueExpression, context, executionPosition);
       if (!expression) return undefined;
@@ -5162,6 +5200,7 @@ export const compileModuleScalarRuntime = ({
           sourceStatementIndex: value.statementIndex,
           declaredInterfaceType: value.declaredInterfaceType,
           occurrence: { sourceStatementId: value.statementId, instancePath: [...path] },
+          sourceExecutionPosition: executionPosition,
           executionPosition,
           construction: expression
         });
@@ -5403,6 +5442,7 @@ export const compileModuleScalarRuntime = ({
       sourceStatementIndex: value.statementIndex,
       declaredInterfaceType: value.declaredInterfaceType,
       occurrence: { sourceStatementId: value.statementId, instancePath: [...path] },
+      sourceExecutionPosition: executionPosition,
       executionPosition,
       construction
     });
@@ -5434,7 +5474,7 @@ export const compileModuleScalarRuntime = ({
       ,
       exported: false
     };
-    const executionPosition = executionPositionForValue(path, value.statementIndex);
+    const executionPosition = runtimeEventPositionForValue(path, value.statementIndex);
     aliases.forEach((_alias: GeometryAlias, memberIndex: number) => {
       const occurrence = {
         sourceStatementId: value.statementId,
@@ -5449,6 +5489,7 @@ export const compileModuleScalarRuntime = ({
         sourceStatementIndex: value.statementIndex,
         declaredInterfaceType: mappedValue.resultElementType,
         occurrence,
+        sourceExecutionPosition: executionPosition,
         executionPosition,
         construction: expression,
         lazy: true
