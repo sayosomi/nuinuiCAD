@@ -94,6 +94,7 @@ type VSCodeDrawingCanvasProps = {
   canvasRibbonRibbons?: VscodeCanvasRibbon[];
   onCanvasRibbonPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
   onEditCanvasRibbon?: () => void;
+  onToggleCanvasGridSnap?: () => void;
   measureCanvasTextWidth?: CanvasTextWidthMeasurer;
   multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
   webviewPresentation?: VscodeWebviewPresentation | null;
@@ -128,6 +129,7 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
     canvasRibbonRibbons = [],
     onCanvasRibbonPositionCommit,
     onEditCanvasRibbon,
+    onToggleCanvasGridSnap,
     measureCanvasTextWidth,
     multiDocumentRuntimePresentation = null,
     webviewPresentation = null,
@@ -378,9 +380,11 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
       showCanvasPointNames,
       showCanvasGeometryNames,
       showCanvasPoints,
+      canvasGridSnapEnabled: canvasGridSettings.snapEnabled,
+      canvasGridSnapAvailable: true,
       pickModeActive: effectivePickModeActive,
       canvasModalMode
-    }), [canvasModalMode, effectivePickModeActive, selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
+    }), [canvasGridSettings.snapEnabled, canvasModalMode, effectivePickModeActive, selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
     const dispatchSharedCanvasCommand = useCallback((commandId: CommandId) => {
       drawingCanvasRef.current?.finalizeCanvasInteraction();
@@ -404,6 +408,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         showCanvasPointNames: currentUiState.showCanvasPointNames,
         showCanvasGeometryNames: currentUiState.showCanvasGeometryNames,
         showCanvasPoints: currentUiState.showCanvasPoints,
+        canvasGridSnapEnabled: canvasGridSettings.snapEnabled,
+        canvasGridSnapAvailable: true,
         pickModeActive: canvasModalMode !== null,
         canvasModalMode
       })) return;
@@ -412,9 +418,13 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         onEditCanvasRibbon?.();
         return;
       }
+      if (definition.hostAction === "toggleCanvasGridSnap") {
+        onToggleCanvasGridSnap?.();
+        return;
+      }
       if (!definition.sharedCommandId) return;
       dispatchSharedCanvasCommand(definition.sharedCommandId);
-    }, [canvasModalMode, dispatchSharedCanvasCommand, onEditCanvasRibbon]);
+    }, [canvasGridSettings.snapEnabled, canvasModalMode, dispatchSharedCanvasCommand, onEditCanvasRibbon, onToggleCanvasGridSnap]);
 
     const executeViewportCommand = useCallback((item: CommandRibbonPresentationCommandItem) => {
       if (!isVscodeCanvasViewportCommandId(item.commandId)) return;
@@ -559,7 +569,12 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
         undefined,
         false,
         hasCoordinatePointConversionTarget,
-        { showCanvasPointNames, showCanvasGeometryNames, showCanvasPoints }
+        {
+          showCanvasPointNames,
+          showCanvasGeometryNames,
+          showCanvasPoints,
+          canvasGridSnapEnabled: canvasGridSettings.snapEnabled
+        }
       ),
       publishCanvasPointerPosition: postCanvasPointerPosition,
       publishCanvasContextMenu: ({ kind, pointer }) => {
@@ -581,7 +596,8 @@ export const VSCodeDrawingCanvas = forwardRef<VSCodeDrawingCanvasHandle, VSCodeD
           {
             showCanvasPointNames: currentSelection.showCanvasPointNames,
             showCanvasGeometryNames: currentSelection.showCanvasGeometryNames,
-            showCanvasPoints: currentSelection.showCanvasPoints
+            showCanvasPoints: currentSelection.showCanvasPoints,
+            canvasGridSnapEnabled: canvasGridSettings.snapEnabled
           }
         );
       },

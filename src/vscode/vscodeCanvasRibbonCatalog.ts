@@ -13,6 +13,7 @@ export const vscodeCanvasRibbonCommandIds = [
   "toggleCanvasPointNames",
   "toggleCanvasGeometryNames",
   "toggleCanvasPoints",
+  "toggleCanvasGridSnap",
   "editCanvasRibbon"
 ] as const;
 
@@ -23,6 +24,8 @@ export type VscodeCanvasRibbonCommandContext = {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  canvasGridSnapEnabled?: boolean;
+  canvasGridSnapAvailable?: boolean;
   pickModeActive?: boolean;
   canvasModalMode?: CanvasModalMode | null;
 };
@@ -32,13 +35,13 @@ export type VscodeCanvasRibbonCommandDefinition = {
   label: string;
   description: string;
   icon: string;
-  sharedCommandId?: Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon"> & CommandId;
-  hostAction?: "editCanvasRibbon";
+  sharedCommandId?: Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon" | "toggleCanvasGridSnap"> & CommandId;
+  hostAction?: "editCanvasRibbon" | "toggleCanvasGridSnap";
   isAvailable: (context: VscodeCanvasRibbonCommandContext) => boolean;
   isPressed?: (context: VscodeCanvasRibbonCommandContext) => boolean;
 };
 
-const sharedLabel = (commandId: Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon">): string =>
+const sharedLabel = (commandId: Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon" | "toggleCanvasGridSnap">): string =>
   ({
     clearCanvasSelection: selectionCommandDefinitions.clearCanvasSelection,
     resetCanvasView: viewModeCommandDefinitions.resetCanvasView,
@@ -46,7 +49,7 @@ const sharedLabel = (commandId: Exclude<VscodeCanvasRibbonCommandId, "editCanvas
     toggleCanvasPointNames: viewModeCommandDefinitions.toggleCanvasPointNames,
     toggleCanvasGeometryNames: viewModeCommandDefinitions.toggleCanvasGeometryNames,
     toggleCanvasPoints: viewModeCommandDefinitions.toggleCanvasPoints
-  } as Record<Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon">, { label: string }>)[commandId].label;
+  } as Record<Exclude<VscodeCanvasRibbonCommandId, "editCanvasRibbon" | "toggleCanvasGridSnap">, { label: string }>)[commandId].label;
 
 export const vscodeCanvasRibbonCommandCatalog: Record<
   VscodeCanvasRibbonCommandId,
@@ -106,6 +109,15 @@ export const vscodeCanvasRibbonCommandCatalog: Record<
     sharedCommandId: "toggleCanvasPoints",
     isAvailable: () => true,
     isPressed: ({ showCanvasPoints }) => showCanvasPoints
+  },
+  toggleCanvasGridSnap: {
+    id: "toggleCanvasGridSnap",
+    label: "Grid Snap",
+    description: "Enable or disable Canvas grid snapping.",
+    icon: "magnet",
+    hostAction: "toggleCanvasGridSnap",
+    isAvailable: ({ canvasGridSnapAvailable }) => canvasGridSnapAvailable === true,
+    isPressed: ({ canvasGridSnapEnabled }) => canvasGridSnapEnabled === true
   },
   editCanvasRibbon: {
     id: "editCanvasRibbon",

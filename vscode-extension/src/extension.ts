@@ -241,12 +241,16 @@ const nonce = () => randomBytes(16).toString("hex");
 
 type CanvasRibbonConfiguration = {
   get: <T>(section: string) => T | undefined;
+  inspect: (section: string) => {
+    globalValue?: unknown;
+    workspaceValue?: unknown;
+  } | undefined;
   update: (section: string, value: unknown, target: unknown) => Thenable<void>;
 };
 
 const canvasRibbonConfiguration = (): CanvasRibbonConfiguration | null => {
   const getConfiguration = (vscode.workspace as typeof vscode.workspace & {
-    getConfiguration?: () => CanvasRibbonConfiguration;
+    getConfiguration?: (section?: string) => CanvasRibbonConfiguration;
   }).getConfiguration;
   if (typeof getConfiguration !== "function") return null;
   return getConfiguration.call(vscode.workspace);
@@ -270,6 +274,17 @@ export const normalizedCanvasGridConfiguration = (): CanvasGridSettings => {
 
 const globalConfigurationTarget = (): unknown =>
   (vscode as typeof vscode & { ConfigurationTarget?: { Global: unknown } }).ConfigurationTarget?.Global ?? 1;
+
+const canvasGridConfigurationTargetFor = (
+  inspection: ReturnType<NonNullable<CanvasRibbonConfiguration["inspect"]>>
+): unknown => {
+  const targets = (vscode as typeof vscode & {
+    ConfigurationTarget?: { Global?: unknown; Workspace?: unknown };
+  }).ConfigurationTarget;
+  if (inspection?.workspaceValue !== undefined) return targets?.Workspace ?? 2;
+  if (inspection?.globalValue !== undefined) return targets?.Global ?? 1;
+  return targets?.Global ?? 1;
+};
 
 const postCanvasRibbonConfiguration = (
   panel: vscode.WebviewPanel,
@@ -619,9 +634,7 @@ export const activate = (
 
   const broadcastCanvasGridConfiguration = (): void => {
     const settings = normalizedCanvasGridConfiguration();
-    for (const session of sessions.valuesForSurface("canvas")) {
-      postCanvasGridConfiguration(session.panel, settings);
-    }
+    for (const session of sessions.valuesForSurface("canvas")) postCanvasGridConfiguration(session.panel, settings);
   };
 
   const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
@@ -654,6 +667,21 @@ export const activate = (
     return remembered && sessions.get(remembered.documentUri, "canvas") === remembered && remembered.panel.visible
       ? remembered
       : null;
+  };
+
+  const toggleCanvasGridSnap = async (): Promise<void> => {
+    const session = canvasSessionForCommand();
+    if (!session) return;
+    const configuration = canvasRibbonConfiguration();
+    if (!configuration) return;
+    const snapEnabled = normalizeCanvasGridSettings({
+      snapEnabled: configuration.get<unknown>(CANVAS_GRID_SNAP_ENABLED_SETTING)
+    }).snapEnabled;
+    await configuration.update(
+      CANVAS_GRID_SNAP_ENABLED_SETTING,
+      !snapEnabled,
+      canvasGridConfigurationTargetFor(configuration.inspect(CANVAS_GRID_SNAP_ENABLED_SETTING))
+    );
   };
 
   const canvasSessionForFreePointCommand = (context?: unknown): DocumentSession | null => {
@@ -1816,7 +1844,7 @@ export const activate = (
         postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
-        postCanvasGridConfiguration(panel);
+        postCanvasGridConfiguration(panel, normalizedCanvasGridConfiguration());
         updateCoordinatePointCreationContext();
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
         return;
@@ -1924,6 +1952,10 @@ export const activate = (
       }
       if (message.type === "editCanvasRibbon") {
         editCanvasRibbon();
+        return;
+      }
+      if (message.type === "toggleCanvasGridSnap") {
+        await vscode.commands.executeCommand("nuinuiCAD.toggleCanvasGridSnap");
         return;
       }
       if (message.type === "webviewAuthoritativeDocumentReady") {
@@ -2477,6 +2509,10 @@ export const activate = (
     "nuinuiCAD.editCanvasRibbon",
     editCanvasRibbon
   );
+  const toggleCanvasGridSnapCommand = vscode.commands.registerCommand(
+    "nuinuiCAD.toggleCanvasGridSnap",
+    toggleCanvasGridSnap
+  );
   const canvasCommandDisposables = [
     ["nuinuiCAD.canvasUndo", "undo"],
     ["nuinuiCAD.canvasRedo", "redo"],
@@ -2540,6 +2576,7 @@ export const activate = (
     sourceAuthoringPositionFeature,
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
+    toggleCanvasGridSnapCommand,
     ...canvasCommandDisposables,
     bakeCurrentShapeCommand,
     bakeBaseShapeCommand,
