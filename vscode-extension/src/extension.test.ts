@@ -386,7 +386,7 @@ vi.mock("vscode", () => {
       RefactorRewrite: "refactor.rewrite"
     },
     FoldingRangeKind: { Comment: "comment" },
-    ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+    ConfigurationTarget: { Global: 1, Workspace: 2 },
     TextDocumentChangeReason: { Undo: 1, Redo: 2 },
     TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2 },
     TabInputText: mocks.TabInputText,
@@ -766,7 +766,6 @@ const setup = (
           mocks.canvasGridSettings.snapEnabled = value;
           if (target === 1) mocks.canvasGridConfigurationInspection.globalValue = value;
           if (target === 2) mocks.canvasGridConfigurationInspection.workspaceValue = value;
-          if (target === 3) mocks.canvasGridConfigurationInspection.workspaceFolderValue = value;
         }
         return Promise.resolve();
       }
@@ -5837,7 +5836,6 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
   });
 
   it.each([
-    ["workspace folder when it owns the effective value", { globalValue: true, workspaceValue: true, workspaceFolderValue: false }, 3],
     ["workspace when it owns the effective value", { globalValue: true, workspaceValue: false }, 2],
     ["global when it is the only explicit value", { globalValue: false }, 1],
     ["global when no explicit value exists", {}, 1]
@@ -5857,7 +5855,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
       value: true,
       target
     }]);
-    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: document.uri });
+    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: undefined });
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasGridConfiguration" }));
   });
 
@@ -5887,6 +5885,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
       type: "canvasGridConfiguration",
       settings: { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true }
     });
+    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: undefined });
 
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
@@ -5912,7 +5911,12 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     };
     expect(panelA.webview.postMessage).toHaveBeenCalledWith(expected);
     expect(panelB.webview.postMessage).toHaveBeenCalledWith(expected);
+    expect(panelA.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasGridConfiguration"))
+      .toEqual([[expected]]);
+    expect(panelB.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasGridConfiguration"))
+      .toEqual([[expected]]);
     expect(outputPanel.webview.postMessage).not.toHaveBeenCalledWith(expected);
+    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: undefined });
   });
 });
 

@@ -244,17 +244,16 @@ type CanvasRibbonConfiguration = {
   inspect: (section: string) => {
     globalValue?: unknown;
     workspaceValue?: unknown;
-    workspaceFolderValue?: unknown;
   } | undefined;
   update: (section: string, value: unknown, target: unknown) => Thenable<void>;
 };
 
-const canvasRibbonConfiguration = (resource?: vscode.Uri): CanvasRibbonConfiguration | null => {
+const canvasRibbonConfiguration = (): CanvasRibbonConfiguration | null => {
   const getConfiguration = (vscode.workspace as typeof vscode.workspace & {
-    getConfiguration?: (section?: string, scope?: vscode.Uri) => CanvasRibbonConfiguration;
+    getConfiguration?: (section?: string) => CanvasRibbonConfiguration;
   }).getConfiguration;
   if (typeof getConfiguration !== "function") return null;
-  return getConfiguration.call(vscode.workspace, undefined, resource);
+  return getConfiguration.call(vscode.workspace);
 };
 
 const normalizedCanvasRibbonConfiguration = (): VscodeCanvasRibbon[] => {
@@ -263,8 +262,8 @@ const normalizedCanvasRibbonConfiguration = (): VscodeCanvasRibbon[] => {
   return normalizeVscodeCanvasRibbons(configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING));
 };
 
-export const normalizedCanvasGridConfiguration = (resource?: vscode.Uri): CanvasGridSettings => {
-  const configuration = canvasRibbonConfiguration(resource);
+export const normalizedCanvasGridConfiguration = (): CanvasGridSettings => {
+  const configuration = canvasRibbonConfiguration();
   return normalizeCanvasGridSettings({
     enabled: configuration?.get<unknown>(CANVAS_GRID_ENABLED_SETTING),
     spacingMm: configuration?.get<unknown>(CANVAS_GRID_SPACING_SETTING),
@@ -280,9 +279,8 @@ const canvasGridConfigurationTargetFor = (
   inspection: ReturnType<NonNullable<CanvasRibbonConfiguration["inspect"]>>
 ): unknown => {
   const targets = (vscode as typeof vscode & {
-    ConfigurationTarget?: { Global?: unknown; Workspace?: unknown; WorkspaceFolder?: unknown };
+    ConfigurationTarget?: { Global?: unknown; Workspace?: unknown };
   }).ConfigurationTarget;
-  if (inspection?.workspaceFolderValue !== undefined) return targets?.WorkspaceFolder ?? 3;
   if (inspection?.workspaceValue !== undefined) return targets?.Workspace ?? 2;
   if (inspection?.globalValue !== undefined) return targets?.Global ?? 1;
   return targets?.Global ?? 1;
@@ -635,9 +633,8 @@ export const activate = (
   };
 
   const broadcastCanvasGridConfiguration = (): void => {
-    for (const session of sessions.valuesForSurface("canvas")) {
-      postCanvasGridConfiguration(session.panel, normalizedCanvasGridConfiguration(session.document.uri));
-    }
+    const settings = normalizedCanvasGridConfiguration();
+    for (const session of sessions.valuesForSurface("canvas")) postCanvasGridConfiguration(session.panel, settings);
   };
 
   const setCanvasHistoryHandoffContext = (enabled: boolean): Promise<void> => {
@@ -675,7 +672,7 @@ export const activate = (
   const toggleCanvasGridSnap = async (): Promise<void> => {
     const session = canvasSessionForCommand();
     if (!session) return;
-    const configuration = canvasRibbonConfiguration(session.document.uri);
+    const configuration = canvasRibbonConfiguration();
     if (!configuration) return;
     const snapEnabled = normalizeCanvasGridSettings({
       snapEnabled: configuration.get<unknown>(CANVAS_GRID_SNAP_ENABLED_SETTING)
@@ -1847,7 +1844,7 @@ export const activate = (
         postWebviewPresentation(panel);
         postAuthoritativeDocument(panel, session.document);
         postCanvasRibbonConfiguration(panel);
-        postCanvasGridConfiguration(panel, normalizedCanvasGridConfiguration(session.document.uri));
+        postCanvasGridConfiguration(panel, normalizedCanvasGridConfiguration());
         updateCoordinatePointCreationContext();
         if (benchmarkConfig) post({ type: "benchmarkConfig", config: benchmarkConfig });
         return;

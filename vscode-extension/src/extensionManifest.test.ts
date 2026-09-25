@@ -1390,10 +1390,10 @@ describe("VS Code Canvas grid configuration contribution", () => {
     });
     expect(properties["nuinuiCAD.canvas.grid.snapEnabled"]).toMatchObject({
       type: "boolean",
-      scope: "resource",
       default: false,
       description: "%configuration.canvas.grid.snapEnabled.description%"
     });
+    expect(properties["nuinuiCAD.canvas.grid.snapEnabled"]).not.toHaveProperty("scope");
 
     const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
     const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;

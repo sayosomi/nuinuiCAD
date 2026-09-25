@@ -1241,7 +1241,6 @@
         },
         "nuinuiCAD.canvas.grid.snapEnabled": {
           "type": "boolean",
-          "scope": "resource",
           "default": false,
           "description": "%configuration.canvas.grid.snapEnabled.description%"
         },
