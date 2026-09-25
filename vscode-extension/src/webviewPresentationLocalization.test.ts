@@ -21,6 +21,9 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.coordinatePointCreation.instruction"]).toBe("Canvasをクリックして座標点を作成");
     expect(presentation.strings["canvas.coordinatePointCreation.finish"]).toBe("作成を終了");
     expect(presentation.strings["canvas.coordinatePointCreation.finishHint"]).toBe("Enter で作成を終了");
+    expect(presentation.strings["canvas.ribbon.command.toggleCanvasGridSnap.label"]).toBe("グリッドスナップ");
+    expect(presentation.strings["canvas.ribbon.command.toggleCanvasGridSnap.description"])
+      .toBe("Canvasのグリッドスナップを有効または無効にします。");
     expect(presentation.strings["output.place.candidateMenu"]).toBe("重なっている配置ハンドル");
     expect(presentation.strings["output.place.dragReason.axes"]).toBe("ドラッグできません: at の {axes} は直接の有限数値リテラルである必要があります。");
     expect(presentation.strings["output.noValidPlan"]).toBe("現在のSourceから有効な出力プランを作成できません。");
@@ -60,6 +63,9 @@ describe("Webview presentation localization", () => {
     expect(english.strings["canvas.coordinatePointCreation.instruction"]).toBe("Click the Canvas to create coordinate points");
     expect(english.strings["canvas.coordinatePointCreation.finish"]).toBe("Finish");
     expect(english.strings["canvas.coordinatePointCreation.finishHint"]).toBe("Press Enter to finish");
+    expect(english.strings["canvas.ribbon.command.toggleCanvasGridSnap.label"]).toBe("Grid Snap");
+    expect(english.strings["canvas.ribbon.command.toggleCanvasGridSnap.description"])
+      .toBe("Enable or disable Canvas grid snapping.");
     expect(english.strings["canvas.referencePick.propertyHelp.sweepAngleDeg"]).toBe("");
     expect(english.strings["canvas.referencePick.propertyHelp.intermediatePoint.incomingHandleLength"]).toBe("");
     expect(english.strings["output.place.candidateMenu"]).toBe("Overlapping place handles");

@@ -40,6 +40,7 @@ const drawingCanvasProps = vi.hoisted(() => ({
   bakeSandboxPromise: null as Promise<unknown> | null,
   multiDocumentRuntimePresentation: null as VscodeMultiDocumentCanvasRuntimePresentation | null,
   canvasGridSettings: null as CanvasGridSettings | null,
+  onToggleCanvasGridSnap: null as (() => void) | null,
   evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
 }));
 
@@ -71,7 +72,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     postCanonicalSourceText,
     currentReferencePickAuthorityFor,
     multiDocumentRuntimePresentation,
-    canvasGridSettings
+    canvasGridSettings,
+    onToggleCanvasGridSnap
   }: {
     canvasFocusRef: RefObject<HTMLDivElement | null>;
     postCanvasCommit: (operationId?: number, coordinatePointConversionRequestId?: number) => void;
@@ -79,12 +81,14 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
     multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
     canvasGridSettings?: CanvasGridSettings;
+    onToggleCanvasGridSnap?: () => void;
   }) => {
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
     drawingCanvasProps.postCanonicalSourceText = postCanonicalSourceText;
     drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
     drawingCanvasProps.multiDocumentRuntimePresentation = multiDocumentRuntimePresentation ?? null;
     drawingCanvasProps.canvasGridSettings = canvasGridSettings ?? null;
+    drawingCanvasProps.onToggleCanvasGridSnap = onToggleCanvasGridSnap ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
 }));
@@ -257,6 +261,7 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.bakeSandboxPromise = null;
     drawingCanvasProps.multiDocumentRuntimePresentation = null;
     drawingCanvasProps.canvasGridSettings = null;
+    drawingCanvasProps.onToggleCanvasGridSnap = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
     evaluationStateControl.isCurrent = true;
   });
@@ -281,6 +286,15 @@ describe("VSCodeApp Canvas history coordinator", () => {
 
     expect(drawingCanvasProps.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true });
     expect(useCadDocumentStore.getState().sourceText).toBe(sourceBefore);
+  });
+
+  it("routes Canvas Ribbon Grid Snap through the typed Extension Host message", () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+
+    drawingCanvasProps.onToggleCanvasGridSnap?.();
+
+    expect(api.postMessage).toHaveBeenCalledWith({ type: "toggleCanvasGridSnap" });
   });
 
   it.each([

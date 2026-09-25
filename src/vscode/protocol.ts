@@ -135,6 +135,7 @@ export type VscodeCanvasDisplayState = {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  canvasGridSnapEnabled?: boolean;
 };
 
 export type VscodeBakeSettings = {
@@ -150,6 +151,9 @@ export const vscodeCanvasPointerContextKeys = {
 
 export const VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY =
   "nuinuiCAD.canvasHasCoordinatePointConversionTarget";
+
+export const VSCODE_CANVAS_GRID_SNAP_ENABLED_CONTEXT_KEY =
+  "nuinuiCAD.canvasGridSnapEnabled";
 
 export const isVscodeCanvasPointer = (value: unknown): value is VscodeCanvasPointer => {
   if (typeof value !== "object" || value === null) return false;
@@ -179,7 +183,10 @@ export const vscodeCanvasContextDataFor = (
   ...(displayState ? {
     "nuinuiCAD.showCanvasPointNames": displayState.showCanvasPointNames,
     "nuinuiCAD.showCanvasGeometryNames": displayState.showCanvasGeometryNames,
-    "nuinuiCAD.showCanvasPoints": displayState.showCanvasPoints
+    "nuinuiCAD.showCanvasPoints": displayState.showCanvasPoints,
+    ...(displayState.canvasGridSnapEnabled === undefined
+      ? {}
+      : { [VSCODE_CANVAS_GRID_SNAP_ENABLED_CONTEXT_KEY]: displayState.canvasGridSnapEnabled })
   } : {}),
   ...(hasCoordinatePointConversionTarget
     ? { [VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY]: true }
@@ -255,6 +262,7 @@ export type VscodeToExtensionMessage =
     }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
   | { type: "editCanvasRibbon" }
+  | { type: "toggleCanvasGridSnap" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | VscodeRuntimeDiagnosticsToExtensionMessage
   | VscodeCanvasObservationToExtensionMessage

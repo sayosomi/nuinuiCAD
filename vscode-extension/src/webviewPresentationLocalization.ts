@@ -48,6 +48,8 @@ export const webviewPresentationTranslationCatalog = {
   "canvas.ribbon.command.toggleCanvasGeometryNames.description": { en: "Show or hide Canvas geometry names.", ja: "Canvasの図形名を表示または非表示にします。" },
   "canvas.ribbon.command.toggleCanvasPoints.label": { en: "Points", ja: "点" },
   "canvas.ribbon.command.toggleCanvasPoints.description": { en: "Show or hide Canvas points.", ja: "Canvasの点を表示または非表示にします。" },
+  "canvas.ribbon.command.toggleCanvasGridSnap.label": { en: "Grid Snap", ja: "グリッドスナップ" },
+  "canvas.ribbon.command.toggleCanvasGridSnap.description": { en: "Enable or disable Canvas grid snapping.", ja: "Canvasのグリッドスナップを有効または無効にします。" },
   "canvas.ribbon.command.editCanvasRibbon.label": { en: "Edit Canvas Ribbon", ja: "Canvas リボンを編集" },
   "canvas.ribbon.command.editCanvasRibbon.description": { en: "Open the VS Code setting for Canvas Ribbon items.", ja: "Canvas リボン項目のVS Code設定を開きます。" },
   "canvas.viewportControls.title": { en: "Canvas viewport controls", ja: "Canvas表示領域の操作" },
