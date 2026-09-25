@@ -13,48 +13,20 @@ import {
 } from "./languageAnalysisSession";
 import { normalizedSourceFor } from "./sourceOffsetAdapter";
 import {
-  SOURCE_OUTPUT_TEMPLATE_DEFINITIONS,
   sourceOutputTemplateIsLegalIn,
   sourceOutputTemplateSnippetFor,
   type SourceOutputTemplateId
 } from "../../src/commands/sourceOutputTemplateCatalog";
-import {
-  SOURCE_CONTROL_FLOW_TEMPLATE_QUICK_PICK_ITEMS,
-  type SourceControlFlowTemplatePresentation
-} from "../../src/commands/sourceControlFlowTemplateCatalog";
 import { materializeSourceControlFlowTemplate } from "../../src/commands/sourceControlFlowTemplateMaterializer";
-import {
-  SOURCE_VALUE_MATCH_TEMPLATE_QUICK_PICK_ITEMS,
-  type SourceValueMatchTemplatePresentation
-} from "../../src/commands/sourceValueMatchTemplateCatalog";
 import { materializeSourceValueMatchTemplate } from "../../src/commands/sourceValueMatchTemplateMaterializer";
-import {
-  SOURCE_MODULE_TEMPLATE_QUICK_PICK_ITEMS,
-  type SourceModuleTemplatePresentation
-} from "../../src/commands/sourceModuleTemplateCatalog";
 import { materializeSourceModuleTemplate } from "../../src/commands/sourceModuleTemplateMaterializer";
-import {
-  SOURCE_STYLE_PROFILE_TEMPLATE_QUICK_PICK_ITEMS,
-  type SourceStyleProfileTemplatePresentation
-} from "../../src/commands/sourceStyleProfileTemplateCatalog";
 import { materializeSourceStyleProfileTemplate } from "../../src/commands/sourceStyleProfileTemplateMaterializer";
 import {
-  SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS,
   resolveSourceTemplateInsertion,
   sourceTemplateRouteFor,
   type SourceTemplateInsertionContext
 } from "../../src/commands/sourceTemplateCatalog";
-import {
-  sourceGeometryValueTemplateGroups,
-  type SourceGeometryValueConstructionPlan,
-  type SourceGeometryValueTemplateForm,
-  type SourceGeometryValueTemplateGroup
-} from "../../src/commands/sourceGeometryValueTemplateCatalog";
 import { materializeSourceGeometryValueTemplate } from "../../src/commands/sourceGeometryValueTemplateMaterializer";
-import {
-  sourceCalculationMeasurementTemplatePlans,
-  type SourceCalculationMeasurementTemplatePlan
-} from "../../src/commands/sourceCalculationMeasurementTemplateCatalog";
 import { materializeSourceCalculationMeasurementTemplate } from "../../src/commands/sourceCalculationMeasurementTemplateMaterializer";
 import {
   type SourceCreationCursor,
@@ -74,6 +46,19 @@ import {
 import { runSourceCreationFlow } from "./sourceCreationFlow";
 import { createSourceCreationMru } from "./sourceCreationMru";
 import { nativeShowQuickPick } from "./nativeQuickInput";
+import {
+  sourceCalculationMeasurementPickerItemsFor,
+  sourceCreationMessageFor,
+  sourceControlFlowPickerItemsFor,
+  sourceGeometryValueConstructionPickerItemsFor,
+  sourceGeometryValueFormPickerItemsFor,
+  sourceGeometryValueGroupPickerItemsFor,
+  sourceModulePickerItemsFor,
+  sourceOutputPrintPickerItemsFor,
+  sourceStyleProfilePickerItemsFor,
+  sourceTemplateFamilyPickerItemsFor,
+  sourceValueMatchPickerItemsFor
+} from "./sourceCreationPresentationLocalization";
 
 export const VSCODE_SOURCE_CREATE_GEOMETRY_COMMAND_ID = "nuinuiCAD.createGeometry";
 export const VSCODE_SOURCE_INSERT_TEMPLATE_COMMAND_ID = "nuinuiCAD.insertTemplate";
@@ -93,17 +78,6 @@ const isSourceCreationInternalInvocation = (value: unknown): value is SourceCrea
     candidate.insertionOrigin === "document-end" &&
     candidate.preselectedFamilyId === "output-print";
 };
-
-const SOURCE_TEMPLATE_STALE_MESSAGE =
-  "nuinuiCAD: The Source changed while Insert Template was open. Retry the command.";
-const SOURCE_TEMPLATE_UNSAFE_INSERTION_MESSAGE =
-  "nuinuiCAD: Could not establish a safe Source statement boundary. Move the caret between statements and retry.";
-const SOURCE_MODULE_TEMPLATE_NO_CANDIDATES_MESSAGE =
-  "nuinuiCAD: No legal Module callees are available at this Source insertion target.";
-const SOURCE_MODULE_TEMPLATE_EXPORT_SCOPE_MESSAGE =
-  "nuinuiCAD: Export Module is legal only at the document top level.";
-const SOURCE_STYLE_PROFILE_TEMPLATE_PROFILE_SCOPE_MESSAGE =
-  "nuinuiCAD: Profile is legal only at the document top level.";
 
 type SourceTemplateTarget = {
   editor: vscode.TextEditor;
@@ -288,32 +262,30 @@ const sourceModuleTemplateInsertionFor = (
   };
 };
 
-const outputTemplateIdForLabel = (label: string): SourceOutputTemplateId | null =>
-  SOURCE_OUTPUT_TEMPLATE_DEFINITIONS.find((template) => template.label === label)?.id ?? null;
-
-const illegalScopeMessageFor = (templateId: SourceOutputTemplateId): string =>
+const illegalScopeMessageFor = (
+  templateId: SourceOutputTemplateId,
+  displayLanguage: string
+): string =>
   templateId === "place"
-    ? "nuinuiCAD: Place is legal only directly inside a layout body."
-    : "nuinuiCAD: This template is legal only at the document top level.";
+    ? sourceCreationMessageFor("placeScope", displayLanguage)
+    : sourceCreationMessageFor("outputTopLevel", displayLanguage);
 
 const insertOutputTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
-  showStaleMessage: () => void
+  showStaleMessage: () => void,
+  displayLanguage: string
 ): Promise<boolean | undefined> => {
-  const outputTemplateLabel = await nativeShowQuickPick(
-    SOURCE_OUTPUT_TEMPLATE_DEFINITIONS.map((template) => template.label)
-  );
+  const outputTemplate = await nativeShowQuickPick(sourceOutputPrintPickerItemsFor(displayLanguage));
   if (!isCurrent()) {
     showStaleMessage();
     return undefined;
   }
-  if (!outputTemplateLabel) return undefined;
-  const templateId = outputTemplateIdForLabel(outputTemplateLabel);
-  if (!templateId) return undefined;
+  if (!outputTemplate) return undefined;
+  const templateId = outputTemplate.id;
   if (!sourceOutputTemplateIsLegalIn(templateId, target.context.scope)) {
-    void vscode.window.showErrorMessage(illegalScopeMessageFor(templateId));
+    void vscode.window.showErrorMessage(illegalScopeMessageFor(templateId, displayLanguage));
     return undefined;
   }
 
@@ -325,50 +297,14 @@ const insertOutputTemplate = async (
   );
 };
 
-type SourceGeometryValueGroupPickerItem = {
-  label: string;
-  group: SourceGeometryValueTemplateGroup;
-};
-
-type SourceGeometryValueConstructionPickerItem = {
-  label: string;
-  plan: SourceGeometryValueConstructionPlan;
-};
-
-type SourceGeometryValueFormPickerItem = {
-  label: string;
-  form: SourceGeometryValueTemplateForm;
-};
-
-const geometryValueGroupPickerItemsFor = (): SourceGeometryValueGroupPickerItem[] =>
-  sourceGeometryValueTemplateGroups().map((group) => ({
-    label: group.label,
-    group
-  }));
-
-const geometryValueConstructionPickerItemsFor = (
-  group: SourceGeometryValueTemplateGroup
-): SourceGeometryValueConstructionPickerItem[] =>
-  group.plans.map((plan) => ({
-    label: plan.construction,
-    plan
-  }));
-
-const geometryValueFormPickerItemsFor = (
-  plan: SourceGeometryValueConstructionPlan
-): SourceGeometryValueFormPickerItem[] =>
-  plan.forms.map((form) => ({
-    label: form.exclusiveChoices.map(({ selectedArgName }) => selectedArgName).join(" + "),
-    form
-  }));
-
 const insertGeometryValueTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
-  showStaleMessage: () => void
+  showStaleMessage: () => void,
+  displayLanguage: string
 ): Promise<boolean | undefined> => {
-  const groupItem = await nativeShowQuickPick(geometryValueGroupPickerItemsFor());
+  const groupItem = await nativeShowQuickPick(sourceGeometryValueGroupPickerItemsFor(displayLanguage));
   if (!isCurrent()) {
     showStaleMessage();
     return undefined;
@@ -376,7 +312,7 @@ const insertGeometryValueTemplate = async (
   if (!groupItem) return undefined;
 
   const constructionItem = await nativeShowQuickPick(
-    geometryValueConstructionPickerItemsFor(groupItem.group)
+    sourceGeometryValueConstructionPickerItemsFor(groupItem.group)
   );
   if (!isCurrent()) {
     showStaleMessage();
@@ -387,7 +323,7 @@ const insertGeometryValueTemplate = async (
   let form = constructionItem.plan.forms[0];
   if (!form) return undefined;
   if (constructionItem.plan.forms.length > 1) {
-    const formItem = await nativeShowQuickPick(geometryValueFormPickerItemsFor(constructionItem.plan));
+    const formItem = await nativeShowQuickPick(sourceGeometryValueFormPickerItemsFor(constructionItem.plan));
     if (!isCurrent()) {
       showStaleMessage();
       return undefined;
@@ -411,24 +347,14 @@ const insertGeometryValueTemplate = async (
   );
 };
 
-type SourceCalculationMeasurementPickerItem = {
-  label: string;
-  plan: SourceCalculationMeasurementTemplatePlan;
-};
-
-const calculationMeasurementPickerItemsFor = (): SourceCalculationMeasurementPickerItem[] =>
-  sourceCalculationMeasurementTemplatePlans().map((plan) => ({
-    label: plan.label,
-    plan
-  }));
-
 const insertCalculationMeasurementTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
-  showStaleMessage: () => void
+  showStaleMessage: () => void,
+  displayLanguage: string
 ): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick(calculationMeasurementPickerItemsFor());
+  const item = await nativeShowQuickPick(sourceCalculationMeasurementPickerItemsFor(displayLanguage));
   if (!isCurrent()) {
     showStaleMessage();
     return undefined;
@@ -454,11 +380,10 @@ const insertControlFlowTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
-  showStaleMessage: () => void
+  showStaleMessage: () => void,
+  displayLanguage: string
 ): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick<SourceControlFlowTemplatePresentation>(
-    SOURCE_CONTROL_FLOW_TEMPLATE_QUICK_PICK_ITEMS
-  );
+  const item = await nativeShowQuickPick(sourceControlFlowPickerItemsFor(displayLanguage));
   if (!isCurrent()) {
     showStaleMessage();
     return undefined;
@@ -484,11 +409,10 @@ const insertValueMatchTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
-  showStaleMessage: () => void
+  showStaleMessage: () => void,
+  displayLanguage: string
 ): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick<SourceValueMatchTemplatePresentation>(
-    SOURCE_VALUE_MATCH_TEMPLATE_QUICK_PICK_ITEMS
-  );
+  const item = await nativeShowQuickPick(sourceValueMatchPickerItemsFor(displayLanguage));
   if (!isCurrent()) {
     showStaleMessage();
     return undefined;
@@ -514,11 +438,10 @@ const insertModuleTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
-  showStaleMessage: () => void
+  showStaleMessage: () => void,
+  displayLanguage: string
 ): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick<SourceModuleTemplatePresentation>(
-    SOURCE_MODULE_TEMPLATE_QUICK_PICK_ITEMS
-  );
+  const item = await nativeShowQuickPick(sourceModulePickerItemsFor(displayLanguage));
   if (!isCurrent()) {
     showStaleMessage();
     return undefined;
@@ -527,7 +450,7 @@ const insertModuleTemplate = async (
 
   const templateId = item.id;
   if (templateId === "export-module" && target.context.scope !== "top-level") {
-    void vscode.window.showErrorMessage(SOURCE_MODULE_TEMPLATE_EXPORT_SCOPE_MESSAGE);
+    void vscode.window.showErrorMessage(sourceCreationMessageFor("exportModuleTopLevel", displayLanguage));
     return undefined;
   }
 
@@ -539,7 +462,7 @@ const insertModuleTemplate = async (
       insertion
     });
     if (candidates.length === 0) {
-      void vscode.window.showErrorMessage(SOURCE_MODULE_TEMPLATE_NO_CANDIDATES_MESSAGE);
+      void vscode.window.showErrorMessage(sourceCreationMessageFor("moduleNoCandidates", displayLanguage));
       return undefined;
     }
     candidate = await nativeShowQuickPick(candidates);
@@ -569,11 +492,10 @@ const insertStyleProfileTemplate = async (
   target: SourceTemplateTarget,
   insertionPosition: vscode.Position,
   isCurrent: () => boolean,
-  showStaleMessage: () => void
+  showStaleMessage: () => void,
+  displayLanguage: string
 ): Promise<boolean | undefined> => {
-  const item = await nativeShowQuickPick<SourceStyleProfileTemplatePresentation>(
-    SOURCE_STYLE_PROFILE_TEMPLATE_QUICK_PICK_ITEMS
-  );
+  const item = await nativeShowQuickPick(sourceStyleProfilePickerItemsFor(displayLanguage));
   if (!isCurrent()) {
     showStaleMessage();
     return undefined;
@@ -581,7 +503,7 @@ const insertStyleProfileTemplate = async (
   if (!item) return undefined;
 
   if (item.id === "profile" && target.context.scope !== "top-level") {
-    void vscode.window.showErrorMessage(SOURCE_STYLE_PROFILE_TEMPLATE_PROFILE_SCOPE_MESSAGE);
+    void vscode.window.showErrorMessage(sourceCreationMessageFor("profileTopLevel", displayLanguage));
     return undefined;
   }
 
@@ -634,6 +556,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
       if (internalInvocation === null) return undefined;
       const editor = activeSourceEditor();
       if (!isWritableSourceEditor(editor)) return undefined;
+      const displayLanguage = displayLanguageFor();
       if (internalInvocation && (
         editor.document.uri.toString() !== internalInvocation.documentUri ||
         editor.document.version !== internalInvocation.expectedDocumentVersion
@@ -645,7 +568,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
         internalInvocation?.insertionOrigin ?? "source-cursor"
       );
       if (!target) {
-        void vscode.window.showErrorMessage(SOURCE_TEMPLATE_UNSAFE_INSERTION_MESSAGE);
+        void vscode.window.showErrorMessage(sourceCreationMessageFor("unsafeInsertion", displayLanguage));
         return undefined;
       }
 
@@ -653,7 +576,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
       const showStaleMessage = (): void => {
         if (staleMessageShown) return;
         staleMessageShown = true;
-        void vscode.window.showErrorMessage(SOURCE_TEMPLATE_STALE_MESSAGE);
+        void vscode.window.showErrorMessage(sourceCreationMessageFor("stale", displayLanguage));
       };
       const isCurrent = (): boolean =>
         target.editor.document === target.document &&
@@ -672,7 +595,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
       if (internalInvocation?.preselectedFamilyId === "output-print") {
         route = sourceTemplateRouteFor(internalInvocation.preselectedFamilyId);
       } else {
-        const family = await nativeShowQuickPick(SOURCE_TEMPLATE_FAMILY_QUICK_PICK_ITEMS);
+        const family = await nativeShowQuickPick(sourceTemplateFamilyPickerItemsFor(displayLanguage));
         if (!isCurrent()) {
           showStaleMessage();
           return undefined;
@@ -688,7 +611,7 @@ export const registerVscodeSourceCreationCommandFeature = ({
           return runSourceCreationFlow(
             target.editor,
             target.caret,
-            displayLanguageFor(),
+            displayLanguage,
             sourceCreationMru,
             {
               insertionPosition,
@@ -702,49 +625,56 @@ export const registerVscodeSourceCreationCommandFeature = ({
             target,
             insertionPosition,
             isCurrent,
-            showStaleMessage
+            showStaleMessage,
+            displayLanguage
           );
         case "calculation-measurement":
           return insertCalculationMeasurementTemplate(
             target,
             insertionPosition,
             isCurrent,
-            showStaleMessage
+            showStaleMessage,
+            displayLanguage
           );
         case "control-flow":
           return insertControlFlowTemplate(
             target,
             insertionPosition,
             isCurrent,
-            showStaleMessage
+            showStaleMessage,
+            displayLanguage
           );
         case "value-match":
           return insertValueMatchTemplate(
             target,
             insertionPosition,
             isCurrent,
-            showStaleMessage
+            showStaleMessage,
+            displayLanguage
           );
         case "module":
           return insertModuleTemplate(
             target,
             insertionPosition,
             isCurrent,
-            showStaleMessage
+            showStaleMessage,
+            displayLanguage
           );
         case "style-profile":
           return insertStyleProfileTemplate(
             target,
             insertionPosition,
             isCurrent,
-            showStaleMessage
+            showStaleMessage,
+            displayLanguage
           );
         case "output-print":
           return insertOutputTemplate(
             target,
             insertionPosition,
             isCurrent,
-            showStaleMessage
+            showStaleMessage,
+            displayLanguage
           );
       }
       return unreachableSourceTemplateRoute(route);
