@@ -32,6 +32,20 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(normalizeVscodeCanvasRibbons([])).toEqual([]);
   });
 
+  it("normalizes canvasGrid as a supported value item while retaining canvasZoom", () => {
+    expect(normalizeVscodeCanvasRibbons([{
+      id: "grid-ribbon",
+      items: [
+        { id: "zoom", type: "value", valueId: "canvasZoom" },
+        { id: "grid", type: "value", valueId: "canvasGrid" },
+        { id: "other", type: "value", valueId: "other" }
+      ]
+    }])[0]?.items).toEqual([
+      { id: "zoom", type: "value", valueId: "canvasZoom" },
+      { id: "grid", type: "value", valueId: "canvasGrid" }
+    ]);
+  });
+
   it("fails closed while normalizing malformed records and duplicate IDs", () => {
     const ribbons = normalizeVscodeCanvasRibbons([
       { id: "missing-items" },
@@ -165,6 +179,8 @@ describe("VS Code Canvas Ribbon configuration", () => {
       "toggleCanvasPointNames",
       "toggleCanvasGeometryNames",
       "toggleCanvasPoints",
+      "toggleCanvasGrid",
+      "configureCanvasGrid",
       "toggleCanvasGridSnap",
       "editCanvasRibbon"
     ]);
@@ -172,11 +188,36 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(vscodeCanvasRibbonCommandFor("workbench.action.files.openFile")).toBeNull();
     expect(vscodeCanvasRibbonCommandFor("editCanvasRibbon")?.hostAction).toBe("editCanvasRibbon");
     expect(vscodeCanvasRibbonCommandFor("toggleCanvasGridSnap")?.hostAction).toBe("toggleCanvasGridSnap");
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasGrid")).toMatchObject({
+      label: "Grid",
+      icon: "grid-3x3",
+      hostAction: "toggleCanvasGrid"
+    });
+    expect(vscodeCanvasRibbonCommandFor("configureCanvasGrid")).toMatchObject({
+      label: "Grid Settings",
+      icon: "ruler",
+      hostAction: "configureCanvasGrid"
+    });
     expect(vscodeCanvasRibbonCommandFor("toggleCanvasGridSnap")).toMatchObject({
       label: "Grid Snap",
       description: "Enable or disable Canvas grid snapping.",
       icon: "magnet"
     });
+  });
+
+  it("uses effective Grid enabled state for Ribbon availability and pressed state", () => {
+    const command = vscodeCanvasRibbonCommandFor("toggleCanvasGrid");
+    const context = {
+      hasSelection: false,
+      showCanvasPointNames: false,
+      showCanvasGeometryNames: false,
+      showCanvasPoints: false,
+      canvasGridEnabled: false
+    };
+
+    expect(command?.isAvailable(context)).toBe(true);
+    expect(command?.isPressed?.(context)).toBe(false);
+    expect(command?.isPressed?.({ ...context, canvasGridEnabled: true })).toBe(true);
   });
 
   it("uses the current Canvas grid snap setting for availability and pressed state", () => {
@@ -192,6 +233,11 @@ describe("VS Code Canvas Ribbon configuration", () => {
     expect(command?.isAvailable({ ...context, canvasGridSnapAvailable: true, canvasGridSnapEnabled: false })).toBe(true);
     expect(command?.isPressed?.({ ...context, canvasGridSnapEnabled: false })).toBe(false);
     expect(command?.isPressed?.({ ...context, canvasGridSnapEnabled: true })).toBe(true);
+  });
+
+  it("resolves the requested Lucide icon names through the existing dynamic icon path", () => {
+    expect(resolveVscodeLucideIconName("grid-3x3")).toBe("grid-3x3");
+    expect(resolveVscodeLucideIconName("ruler")).toBe("ruler");
   });
 
   it("uses the exact shared English labels for Canvas identity commands", () => {

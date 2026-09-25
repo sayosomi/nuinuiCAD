@@ -24,6 +24,12 @@ describe("Webview presentation localization", () => {
     expect(presentation.strings["canvas.ribbon.command.toggleCanvasGridSnap.label"]).toBe("グリッドスナップ");
     expect(presentation.strings["canvas.ribbon.command.toggleCanvasGridSnap.description"])
       .toBe("Canvasのグリッドスナップを有効または無効にします。");
+    expect(presentation.strings["canvas.ribbon.command.toggleCanvasGrid.label"]).toBe("グリッド");
+    expect(presentation.strings["canvas.ribbon.command.toggleCanvasGrid.description"])
+      .toBe("Canvasのグリッドを表示または非表示にします。");
+    expect(presentation.strings["canvas.ribbon.command.configureCanvasGrid.label"]).toBe("グリッド設定");
+    expect(presentation.strings["canvas.ribbon.command.configureCanvasGrid.description"])
+      .toBe("Canvasグリッドの表示、間隔、主線間隔を設定します。");
     expect(presentation.strings["output.place.candidateMenu"]).toBe("重なっている配置ハンドル");
     expect(presentation.strings["output.place.dragReason.axes"]).toBe("ドラッグできません: at の {axes} は直接の有限数値リテラルである必要があります。");
     expect(presentation.strings["output.noValidPlan"]).toBe("現在のSourceから有効な出力プランを作成できません。");
@@ -66,6 +72,8 @@ describe("Webview presentation localization", () => {
     expect(english.strings["canvas.ribbon.command.toggleCanvasGridSnap.label"]).toBe("Grid Snap");
     expect(english.strings["canvas.ribbon.command.toggleCanvasGridSnap.description"])
       .toBe("Enable or disable Canvas grid snapping.");
+    expect(english.strings["canvas.ribbon.command.toggleCanvasGrid.label"]).toBe("Grid");
+    expect(english.strings["canvas.ribbon.command.configureCanvasGrid.label"]).toBe("Grid Settings");
     expect(english.strings["canvas.referencePick.propertyHelp.sweepAngleDeg"]).toBe("");
     expect(english.strings["canvas.referencePick.propertyHelp.intermediatePoint.incomingHandleLength"]).toBe("");
     expect(english.strings["output.place.candidateMenu"]).toBe("Overlapping place handles");

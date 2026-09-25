@@ -96,6 +96,40 @@ describe("CommandRibbonView", () => {
     expect(onCommand).not.toHaveBeenCalled();
   });
 
+  it("renders interactive value items as accessible buttons and dispatches activation", () => {
+    const onCommand = vi.fn();
+    const ribbon: CommandRibbonPresentation = {
+      ...ribbonFor("horizontal"),
+      items: [{
+        id: "grid-settings",
+        type: "interactive-value",
+        commandId: "configureCanvasGrid",
+        icon: "ruler",
+        label: "Grid Settings",
+        description: "Configure Canvas grid spacing.",
+        valueText: "10 mm · ×5",
+        available: true
+      }]
+    };
+    const view = render(
+      <CommandRibbonView ribbon={ribbon} iconResolver={() => Circle} onCommand={onCommand} />
+    );
+
+    const button = screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" });
+    expect(button).toHaveAttribute("data-command-id", "configureCanvasGrid");
+    expect(button).toHaveTextContent("10 mm · ×5");
+    expect(button).toHaveClass("is-interactive-value");
+    expect(screen.queryByRole("status", { name: /Grid Settings/ })).toBeNull();
+    fireEvent.click(button);
+
+    expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({
+      type: "interactive-value",
+      commandId: "configureCanvasGrid",
+      valueText: "10 mm · ×5"
+    }));
+    expect(view.container.querySelector(".command-ribbon-interactive-value-text")).toHaveTextContent("10 mm · ×5");
+  });
+
   it("renders orientation, pressed state, multi-field value text, and focus-associated tooltip content", () => {
     const screenView = render(
       <CommandRibbonView

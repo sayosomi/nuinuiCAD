@@ -36,6 +36,21 @@ describe("Command Ribbon estimated geometry", () => {
     });
   });
 
+  it("reserves width for interactive value text", () => {
+    const width = estimatedRibbonSize(ribbonFor("horizontal", [{
+      id: "grid-settings",
+      type: "interactive-value",
+      commandId: "configureCanvasGrid",
+      icon: "ruler",
+      label: "Grid Settings",
+      description: "Configure Canvas grid settings.",
+      valueText: "10 mm · ×5",
+      available: true
+    }])).width;
+
+    expect(width).toBeGreaterThan(24 + 16 + 14);
+  });
+
   it("estimates multiple VS Code vertical items as one side-handle column", () => {
     expect(estimatedRibbonSize(ribbonFor("vertical", [commandItem("one"), commandItem("two")], "side"))).toEqual({
       width: 54,

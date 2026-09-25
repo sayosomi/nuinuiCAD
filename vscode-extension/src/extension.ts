@@ -115,6 +115,10 @@ import {
 } from "../../src/vscode/protocol";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import { registerWebviewContextCommandAliases } from "./webviewContextCommandAliases";
+import {
+  registerCanvasGridCommandFeature,
+  type CanvasGridSettingKey
+} from "./canvasGridCommandFeature";
 import { registerSourceContextCommandAliases } from "./sourceContextCommandAliases";
 import {
   VscodeWebviewSessionRegistry,
@@ -670,6 +674,19 @@ export const activate = (
       : null;
   };
 
+  const updateCanvasGridSetting = async (
+    setting: CanvasGridSettingKey,
+    value: boolean | number
+  ): Promise<void> => {
+    const configuration = canvasRibbonConfiguration();
+    if (!configuration) return;
+    await configuration.update(
+      setting,
+      value,
+      canvasGridConfigurationTargetFor(configuration.inspect(setting))
+    );
+  };
+
   const toggleCanvasGridSnap = async (): Promise<void> => {
     const session = canvasSessionForCommand();
     if (!session) return;
@@ -678,11 +695,7 @@ export const activate = (
     const snapEnabled = normalizeCanvasGridSettings({
       snapEnabled: configuration.get<unknown>(CANVAS_GRID_SNAP_ENABLED_SETTING)
     }).snapEnabled;
-    await configuration.update(
-      CANVAS_GRID_SNAP_ENABLED_SETTING,
-      !snapEnabled,
-      canvasGridConfigurationTargetFor(configuration.inspect(CANVAS_GRID_SNAP_ENABLED_SETTING))
-    );
+    await updateCanvasGridSetting(CANVAS_GRID_SNAP_ENABLED_SETTING, !snapEnabled);
   };
 
   const canvasSessionForFreePointCommand = (context?: unknown): DocumentSession | null => {
@@ -1959,6 +1972,14 @@ export const activate = (
         await vscode.commands.executeCommand("nuinuiCAD.toggleCanvasGridSnap");
         return;
       }
+      if (message.type === "toggleCanvasGrid") {
+        await vscode.commands.executeCommand("nuinuiCAD.toggleCanvasGrid");
+        return;
+      }
+      if (message.type === "configureCanvasGrid") {
+        await vscode.commands.executeCommand("nuinuiCAD.configureCanvasGrid");
+        return;
+      }
       if (message.type === "webviewAuthoritativeDocumentReady") {
         if (
           message.documentVersion !== session.document.version ||
@@ -2514,6 +2535,12 @@ export const activate = (
     "nuinuiCAD.toggleCanvasGridSnap",
     toggleCanvasGridSnap
   );
+  const canvasGridCommandFeature = registerCanvasGridCommandFeature({
+    hasActiveCanvas: () => canvasSessionForCommand() !== null,
+    getSettings: normalizedCanvasGridConfiguration,
+    updateSetting: updateCanvasGridSetting,
+    text: (key, parameters) => canvasPresentationTextFor(key, extensionDisplayLanguage(), parameters)
+  });
   const canvasCommandDisposables = [
     ["nuinuiCAD.canvasUndo", "undo"],
     ["nuinuiCAD.canvasRedo", "redo"],
@@ -2579,6 +2606,7 @@ export const activate = (
     choiceQuickFixApplyCommand,
     editCanvasRibbonCommand,
     toggleCanvasGridSnapCommand,
+    canvasGridCommandFeature,
     ...canvasCommandDisposables,
     bakeCurrentShapeCommand,
     bakeBaseShapeCommand,

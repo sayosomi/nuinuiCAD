@@ -93,7 +93,9 @@ export const VSCodeCanvasViewportControls = ({
         className="canvas-viewport-controls-ribbon"
         showHandle={false}
         iconResolver={resolveVscodeLucideIcon}
-        onCommand={onCommand}
+        onCommand={(item) => {
+          if (item.type === "command") onCommand?.(item);
+        }}
       />
     </div>
   );

@@ -16,7 +16,7 @@ export type VscodeCanvasRibbonCommandItem = {
 export type VscodeCanvasRibbonValueItem = {
   id: string;
   type: "value";
-  valueId: "canvasZoom";
+  valueId: "canvasZoom" | "canvasGrid";
 };
 
 export type VscodeCanvasRibbonItem =
@@ -85,11 +85,15 @@ const normalizeCommandItem = (value: unknown): VscodeCanvasRibbonCommandItem | n
 const normalizeValueItem = (value: unknown): VscodeCanvasRibbonValueItem | null => {
   if (!isObject(value)) return null;
   const id = nonEmptyString(value.id);
-  if (id === null || value.type !== "value" || value.valueId !== "canvasZoom") return null;
+  if (
+    id === null ||
+    value.type !== "value" ||
+    (value.valueId !== "canvasZoom" && value.valueId !== "canvasGrid")
+  ) return null;
   return {
     id,
     type: "value",
-    valueId: "canvasZoom"
+    valueId: value.valueId
   };
 };
 

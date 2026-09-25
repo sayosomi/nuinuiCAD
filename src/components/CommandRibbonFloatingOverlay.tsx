@@ -6,7 +6,7 @@ import { clampRibbonPosition, defaultRibbonX, estimatedRibbonSize } from "./comm
 import {
   CommandRibbonView,
   type CommandRibbonPresentation,
-  type CommandRibbonPresentationCommandItem
+  type CommandRibbonPresentationActionItem
 } from "./CommandRibbonView";
 
 type RibbonDrag = {
@@ -30,7 +30,7 @@ export type CommandRibbonFloatingOverlayProps = {
     ariaLabel: string;
     title: string;
   };
-  onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
+  onCommand?: (item: CommandRibbonPresentationActionItem) => void;
   onPositionChange?: (ribbonId: string, position: RibbonPosition) => void;
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
   onDropToDock?: (ribbonId: string, position: RibbonPosition) => void;

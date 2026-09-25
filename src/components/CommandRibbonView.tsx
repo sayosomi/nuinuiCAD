@@ -24,6 +24,21 @@ export type CommandRibbonPresentationCommandItem = {
   pressed?: boolean;
 };
 
+export type CommandRibbonPresentationInteractiveValueItem = {
+  id: string;
+  type: "interactive-value";
+  commandId: string;
+  icon: string;
+  label: string;
+  description: string;
+  valueText: string;
+  available: boolean;
+};
+
+export type CommandRibbonPresentationActionItem =
+  | CommandRibbonPresentationCommandItem
+  | CommandRibbonPresentationInteractiveValueItem;
+
 export type CommandRibbonPresentationValueItem = {
   id: string;
   type: "value";
@@ -37,7 +52,7 @@ export type CommandRibbonPresentationValueItem = {
 };
 
 export type CommandRibbonPresentationItem =
-  | CommandRibbonPresentationCommandItem
+  | CommandRibbonPresentationActionItem
   | CommandRibbonPresentationValueItem;
 
 export type CommandRibbonPresentation = {
@@ -63,7 +78,7 @@ export type CommandRibbonViewProps = {
   handleAriaLabel?: string;
   handleTitle?: string;
   iconResolver: (iconName: string) => LucideIcon;
-  onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
+  onCommand?: (item: CommandRibbonPresentationActionItem) => void;
   onHandlePointerDown?: (
     event: ReactPointerEvent<HTMLButtonElement>,
     ribbon: CommandRibbonPresentation
@@ -247,8 +262,10 @@ export const CommandRibbonView = ({
             );
           }
 
+          const interactiveValue = item.type === "interactive-value" ? item : null;
+          const commandItem = item.type === "command" ? item : null;
           const Icon = iconResolver(item.icon);
-          const tooltipText = item.tooltipText ?? (
+          const tooltipText = commandItem?.tooltipText ?? (
             item.description ? `${item.label}: ${item.description}` : item.label
           );
           return (
@@ -263,14 +280,15 @@ export const CommandRibbonView = ({
                 type="button"
                 className={[
                   "command-ribbon-button",
-                  item.showLabel ? "has-label" : "",
-                  item.pressed ? "is-active" : ""
+                  commandItem?.showLabel || interactiveValue ? "has-label" : "",
+                  commandItem?.pressed ? "is-active" : "",
+                  interactiveValue ? "is-interactive-value" : ""
                 ].filter(Boolean).join(" ")}
-                aria-label={item.label}
+                aria-label={interactiveValue ? `${interactiveValue.label}: ${interactiveValue.valueText}` : item.label}
                 aria-describedby={tooltipId}
                 aria-disabled={item.available ? undefined : "true"}
-                aria-pressed={item.pressed === undefined ? undefined : item.pressed}
-                disabled={item.nativeDisabled}
+                aria-pressed={commandItem?.pressed === undefined ? undefined : commandItem.pressed}
+                disabled={commandItem?.nativeDisabled}
                 data-command-id={item.commandId}
                 style={{
                   minWidth: ribbon.iconSize + RIBBON_BUTTON_PADDING,
@@ -287,9 +305,11 @@ export const CommandRibbonView = ({
                   size={ribbon.iconSize}
                   strokeWidth={2}
                   aria-hidden="true"
-                  style={{ color: item.iconColor || "currentColor" }}
+                  style={{ color: commandItem?.iconColor || "currentColor" }}
                 />
-                {item.showLabel ? <span>{item.label}</span> : null}
+                {interactiveValue
+                  ? <span className="command-ribbon-interactive-value-text">{interactiveValue.valueText}</span>
+                  : commandItem?.showLabel ? <span>{commandItem.label}</span> : null}
               </button>
               <span
                 ref={(node) => setTooltipNode(tooltipId, node)}

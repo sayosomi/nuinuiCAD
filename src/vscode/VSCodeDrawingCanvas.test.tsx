@@ -92,7 +92,9 @@ const renderCanvas = (
   onEditCanvasRibbon = vi.fn(),
   postCanvasPointerPosition = vi.fn(),
   canvasGridSettings?: { enabled: boolean; spacingMm: number; majorEvery: number; snapEnabled: boolean },
-  onToggleCanvasGridSnap = vi.fn()
+  onToggleCanvasGridSnap = vi.fn(),
+  onToggleCanvasGrid = vi.fn(),
+  onConfigureCanvasGrid = vi.fn()
 ) => {
   const view = render(
     <VSCodeDrawingCanvas
@@ -104,6 +106,8 @@ const renderCanvas = (
       currentReferencePickAuthorityFor={() => null}
       canvasRibbonRibbons={canvasRibbonRibbons}
       onEditCanvasRibbon={onEditCanvasRibbon}
+      onToggleCanvasGrid={onToggleCanvasGrid}
+      onConfigureCanvasGrid={onConfigureCanvasGrid}
       onToggleCanvasGridSnap={onToggleCanvasGridSnap}
       canvasGridSettings={canvasGridSettings}
     />
@@ -153,6 +157,62 @@ describe("VSCodeDrawingCanvas adapter", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Grid Snap" }));
 
+    expect(onToggleCanvasGridSnap).toHaveBeenCalledTimes(1);
+    expect(mocks.dispatchCommand).not.toHaveBeenCalled();
+  });
+
+  it("routes Grid and interactive Grid Settings Ribbon actions through Extension Host callbacks", () => {
+    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
+    const onToggleCanvasGrid = vi.fn();
+    const onConfigureCanvasGrid = vi.fn();
+    const onToggleCanvasGridSnap = vi.fn();
+    const ribbons: VscodeCanvasRibbon[] = [{
+      id: "grid-ribbon",
+      label: "Canvas Ribbon",
+      x: null,
+      y: 12,
+      orientation: "horizontal",
+      items: [
+        { id: "grid", type: "command", commandId: "toggleCanvasGrid", icon: "grid-3x3", showLabel: true },
+        { id: "settings", type: "value", valueId: "canvasGrid" },
+        { id: "snap", type: "command", commandId: "toggleCanvasGridSnap", icon: "magnet", showLabel: true },
+        { id: "configure", type: "command", commandId: "configureCanvasGrid", icon: "ruler", showLabel: true }
+      ]
+    }];
+    const { adapter } = renderCanvas(
+      evaluation,
+      undefined,
+      vi.fn(),
+      ribbons,
+      vi.fn(),
+      vi.fn(),
+      { enabled: false, spacingMm: 10, majorEvery: 5, snapEnabled: true },
+      onToggleCanvasGridSnap,
+      onToggleCanvasGrid,
+      onConfigureCanvasGrid
+    );
+    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
+    if (!overlay) throw new Error("Canvas Ribbon overlay was not rendered");
+    const view = render(overlay);
+
+    const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(
+      "[data-ribbon-id='grid-ribbon'] button[data-command-id]"
+    )];
+    expect(buttons.map((button) => button.dataset.commandId)).toEqual([
+      "toggleCanvasGrid",
+      "configureCanvasGrid",
+      "toggleCanvasGridSnap",
+      "configureCanvasGrid"
+    ]);
+    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grid Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grid Snap" }));
+
+    expect(onToggleCanvasGrid).toHaveBeenCalledTimes(1);
+    expect(onConfigureCanvasGrid).toHaveBeenCalledTimes(2);
     expect(onToggleCanvasGridSnap).toHaveBeenCalledTimes(1);
     expect(mocks.dispatchCommand).not.toHaveBeenCalled();
   });
@@ -325,6 +385,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       "nuinuiCAD.showCanvasPointNames": true,
       "nuinuiCAD.showCanvasGeometryNames": false,
       "nuinuiCAD.showCanvasPoints": true,
+      "nuinuiCAD.canvasGridEnabled": true,
       "nuinuiCAD.canvasGridSnapEnabled": false,
       preventDefaultContextMenuItems: true
     });
@@ -338,7 +399,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     });
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [], vi.fn(), vi.fn(), {
-      enabled: true,
+      enabled: false,
       spacingMm: 10,
       majorEvery: 5,
       snapEnabled: true
@@ -350,6 +411,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       "nuinuiCAD.showCanvasPointNames": false,
       "nuinuiCAD.showCanvasGeometryNames": true,
       "nuinuiCAD.showCanvasPoints": false,
+      "nuinuiCAD.canvasGridEnabled": false,
       "nuinuiCAD.canvasGridSnapEnabled": true
     });
 
@@ -363,6 +425,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       "nuinuiCAD.showCanvasPointNames": true,
       "nuinuiCAD.showCanvasGeometryNames": false,
       "nuinuiCAD.showCanvasPoints": true,
+      "nuinuiCAD.canvasGridEnabled": false,
       "nuinuiCAD.canvasGridSnapEnabled": true
     });
   });

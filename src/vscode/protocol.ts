@@ -135,6 +135,7 @@ export type VscodeCanvasDisplayState = {
   showCanvasPointNames: boolean;
   showCanvasGeometryNames: boolean;
   showCanvasPoints: boolean;
+  canvasGridEnabled?: boolean;
   canvasGridSnapEnabled?: boolean;
 };
 
@@ -154,6 +155,9 @@ export const VSCODE_CANVAS_HAS_COORDINATE_POINT_CONVERSION_TARGET_CONTEXT_KEY =
 
 export const VSCODE_CANVAS_GRID_SNAP_ENABLED_CONTEXT_KEY =
   "nuinuiCAD.canvasGridSnapEnabled";
+
+export const VSCODE_CANVAS_GRID_ENABLED_CONTEXT_KEY =
+  "nuinuiCAD.canvasGridEnabled";
 
 export const isVscodeCanvasPointer = (value: unknown): value is VscodeCanvasPointer => {
   if (typeof value !== "object" || value === null) return false;
@@ -184,6 +188,9 @@ export const vscodeCanvasContextDataFor = (
     "nuinuiCAD.showCanvasPointNames": displayState.showCanvasPointNames,
     "nuinuiCAD.showCanvasGeometryNames": displayState.showCanvasGeometryNames,
     "nuinuiCAD.showCanvasPoints": displayState.showCanvasPoints,
+    ...(displayState.canvasGridEnabled === undefined
+      ? {}
+      : { [VSCODE_CANVAS_GRID_ENABLED_CONTEXT_KEY]: displayState.canvasGridEnabled }),
     ...(displayState.canvasGridSnapEnabled === undefined
       ? {}
       : { [VSCODE_CANVAS_GRID_SNAP_ENABLED_CONTEXT_KEY]: displayState.canvasGridSnapEnabled })
@@ -262,6 +269,8 @@ export type VscodeToExtensionMessage =
     }
   | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
   | { type: "editCanvasRibbon" }
+  | { type: "toggleCanvasGrid" }
+  | { type: "configureCanvasGrid" }
   | { type: "toggleCanvasGridSnap" }
   | { type: "webviewAuthoritativeDocumentReady"; documentVersion: number }
   | VscodeRuntimeDiagnosticsToExtensionMessage

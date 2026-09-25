@@ -190,6 +190,66 @@ describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
 });
 
 describe("VSCodeCanvasRibbonOverlay command presentation", () => {
+  it("maps canvasGrid to an interactive Grid Settings button and refreshes its value while Grid is off", () => {
+    const onCommand = vi.fn();
+    const canvasFocusRef = createRef<HTMLDivElement>();
+    const ribbons: VscodeCanvasRibbon[] = [{
+      id: "grid-ribbon",
+      label: "Grid Ribbon",
+      x: null,
+      y: 12,
+      orientation: "horizontal",
+      items: [
+        { id: "grid-settings", type: "value", valueId: "canvasGrid" },
+        { id: "grid", type: "command", commandId: "toggleCanvasGrid", icon: "grid-3x3", showLabel: true },
+        { id: "snap", type: "command", commandId: "toggleCanvasGridSnap", icon: "magnet", showLabel: true }
+      ]
+    }];
+    const renderOverlay = (grid: { spacingMm: number; majorEvery: number; enabled: boolean }) => (
+      <div ref={canvasFocusRef}>
+        <VSCodeCanvasRibbonOverlay
+          canvasFocusRef={canvasFocusRef}
+          canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
+          canvasRibbonRibbons={ribbons}
+          viewportSize={{ width: 400, height: 300 }}
+          ribbonCommandContext={{
+            ...commandContext,
+            canvasGridEnabled: grid.enabled,
+            canvasGridSpacingMm: grid.spacingMm,
+            canvasGridMajorEvery: grid.majorEvery,
+            canvasGridSnapEnabled: true,
+            canvasGridSnapAvailable: true
+          }}
+          onCommand={onCommand}
+        />
+      </div>
+    );
+    const view = render(renderOverlay({ enabled: false, spacingMm: 10, majorEvery: 5 }));
+
+    const settingsButton = screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" });
+    expect([...document.querySelectorAll<HTMLButtonElement>("button[data-command-id]")]
+      .map((button) => button.dataset.commandId)).toEqual([
+      "configureCanvasGrid",
+      "toggleCanvasGrid",
+      "toggleCanvasGridSnap"
+    ]);
+    expect(settingsButton).toHaveAttribute("data-command-id", "configureCanvasGrid");
+    expect(settingsButton).toHaveTextContent("10 mm · ×5");
+    expect(settingsButton.querySelector("svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Grid Snap" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(settingsButton);
+    expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({
+      type: "interactive-value",
+      commandId: "configureCanvasGrid",
+      icon: "ruler",
+      valueText: "10 mm · ×5"
+    }));
+
+    view.rerender(renderOverlay({ enabled: false, spacingMm: 2.5, majorEvery: 4 }));
+    expect(screen.getByRole("button", { name: "Grid Settings: 2.5 mm · ×4" })).toBeInTheDocument();
+  });
+
   it("uses a concise localized tooltip for Edit Canvas Ribbon and informative defaults elsewhere", () => {
     const onCommand = vi.fn();
     const canvasFocusRef = createRef<HTMLDivElement>();

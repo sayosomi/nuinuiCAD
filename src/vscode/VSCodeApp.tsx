@@ -2105,6 +2105,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }}
         onEditCanvasRibbon={() => api.postMessage({ type: "editCanvasRibbon" })}
+        onToggleCanvasGrid={() => api.postMessage({ type: "toggleCanvasGrid" })}
+        onConfigureCanvasGrid={() => api.postMessage({ type: "configureCanvasGrid" })}
         onToggleCanvasGridSnap={() => api.postMessage({ type: "toggleCanvasGridSnap" })}
         currentReferencePickAuthorityFor={currentReferencePickAuthorityFor}
         currentCoordinatePointConversionAuthorityFor={currentReferencePickAuthorityFor}

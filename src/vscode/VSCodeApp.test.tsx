@@ -40,6 +40,8 @@ const drawingCanvasProps = vi.hoisted(() => ({
   bakeSandboxPromise: null as Promise<unknown> | null,
   multiDocumentRuntimePresentation: null as VscodeMultiDocumentCanvasRuntimePresentation | null,
   canvasGridSettings: null as CanvasGridSettings | null,
+  onToggleCanvasGrid: null as (() => void) | null,
+  onConfigureCanvasGrid: null as (() => void) | null,
   onToggleCanvasGridSnap: null as (() => void) | null,
   evaluation: { computedGeometry: new Map(), errors: [], warnings: [] } as EvaluationResult
 }));
@@ -73,6 +75,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     currentReferencePickAuthorityFor,
     multiDocumentRuntimePresentation,
     canvasGridSettings,
+    onToggleCanvasGrid,
+    onConfigureCanvasGrid,
     onToggleCanvasGridSnap
   }: {
     canvasFocusRef: RefObject<HTMLDivElement | null>;
@@ -81,6 +85,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     currentReferencePickAuthorityFor: VscodeReferencePickAuthorityFor;
     multiDocumentRuntimePresentation?: VscodeMultiDocumentCanvasRuntimePresentation | null;
     canvasGridSettings?: CanvasGridSettings;
+    onToggleCanvasGrid?: () => void;
+    onConfigureCanvasGrid?: () => void;
     onToggleCanvasGridSnap?: () => void;
   }) => {
     drawingCanvasProps.postCanvasCommit = postCanvasCommit;
@@ -88,6 +94,8 @@ vi.mock("./VSCodeDrawingCanvas", () => ({
     drawingCanvasProps.currentReferencePickAuthorityFor = currentReferencePickAuthorityFor;
     drawingCanvasProps.multiDocumentRuntimePresentation = multiDocumentRuntimePresentation ?? null;
     drawingCanvasProps.canvasGridSettings = canvasGridSettings ?? null;
+    drawingCanvasProps.onToggleCanvasGrid = onToggleCanvasGrid ?? null;
+    drawingCanvasProps.onConfigureCanvasGrid = onConfigureCanvasGrid ?? null;
     drawingCanvasProps.onToggleCanvasGridSnap = onToggleCanvasGridSnap ?? null;
     return <div ref={canvasFocusRef} data-testid="canvas" tabIndex={-1} />;
   }
@@ -261,6 +269,8 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.bakeSandboxPromise = null;
     drawingCanvasProps.multiDocumentRuntimePresentation = null;
     drawingCanvasProps.canvasGridSettings = null;
+    drawingCanvasProps.onToggleCanvasGrid = null;
+    drawingCanvasProps.onConfigureCanvasGrid = null;
     drawingCanvasProps.onToggleCanvasGridSnap = null;
     drawingCanvasProps.evaluation = { computedGeometry: new Map(), errors: [], warnings: [] };
     evaluationStateControl.isCurrent = true;
@@ -295,6 +305,18 @@ describe("VSCodeApp Canvas history coordinator", () => {
     drawingCanvasProps.onToggleCanvasGridSnap?.();
 
     expect(api.postMessage).toHaveBeenCalledWith({ type: "toggleCanvasGridSnap" });
+  });
+
+  it("routes Canvas Grid Ribbon actions through typed Extension Host messages", () => {
+    const api = { postMessage: vi.fn() };
+    render(<VSCodeAppForTest api={api} />);
+    api.postMessage.mockClear();
+
+    drawingCanvasProps.onToggleCanvasGrid?.();
+    drawingCanvasProps.onConfigureCanvasGrid?.();
+
+    expect(api.postMessage).toHaveBeenNthCalledWith(1, { type: "toggleCanvasGrid" });
+    expect(api.postMessage).toHaveBeenNthCalledWith(2, { type: "configureCanvasGrid" });
   });
 
   it.each([
