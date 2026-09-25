@@ -97,6 +97,8 @@ mod performance_tests;
 mod point_anchor;
 mod point_evaluators;
 #[cfg(test)]
+mod point_evaluators_tests;
+#[cfg(test)]
 mod polyline_tests;
 mod property_binding_runtime;
 #[cfg(test)]

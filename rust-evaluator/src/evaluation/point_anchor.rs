@@ -260,14 +260,17 @@ pub(crate) fn point_anchor_or_error(
                 element,
                 local_variables,
                 local_variable_names,
-            )?;
+            );
             let y = evaluate_numeric_or_push(
                 anchor.get("y").unwrap_or(&Value::Null),
                 state,
                 element,
                 local_variables,
                 local_variable_names,
-            )?;
+            );
+            let (Some(x), Some(y)) = (x, y) else {
+                return None;
+            };
             Some(Point {
                 element_id: format!("{}:{anchor_key}", element_id(element).unwrap_or_default()),
                 name: format!("{}.{anchor_key}", element_name(element)),

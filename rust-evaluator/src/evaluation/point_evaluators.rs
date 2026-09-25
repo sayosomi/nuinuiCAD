@@ -18,22 +18,21 @@ pub(crate) fn evaluate_free_point(
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
     state: &mut EvaluationState,
 ) {
-    let Some(x) = evaluate_numeric_or_push(
+    let x = evaluate_numeric_or_push(
         element.get("x").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
         &local_variables.1,
-    ) else {
-        return;
-    };
-    let Some(y) = evaluate_numeric_or_push(
+    );
+    let y = evaluate_numeric_or_push(
         element.get("y").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
         &local_variables.1,
-    ) else {
+    );
+    let (Some(x), Some(y)) = (x, y) else {
         return;
     };
     let id = element_id(element).unwrap_or_default();
@@ -75,22 +74,21 @@ pub(crate) fn evaluate_offset_point(
     let Some(from_point) = from_point else {
         return;
     };
-    let Some(dx) = evaluate_numeric_or_push(
+    let dx = evaluate_numeric_or_push(
         element.get("dx").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
         &local_variables.1,
-    ) else {
-        return;
-    };
-    let Some(dy) = evaluate_numeric_or_push(
+    );
+    let dy = evaluate_numeric_or_push(
         element.get("dy").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
         &local_variables.1,
-    ) else {
+    );
+    let (Some(dx), Some(dy)) = (dx, dy) else {
         return;
     };
     let id = element_id(element).unwrap_or_default();
@@ -136,22 +134,21 @@ pub(crate) fn evaluate_polar_offset_point(
     let Some(from_point) = from_point else {
         return;
     };
-    let Some(angle_deg) = evaluate_numeric_or_push(
+    let angle_deg = evaluate_numeric_or_push(
         element.get("angleDeg").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
         &local_variables.1,
-    ) else {
-        return;
-    };
-    let Some(distance) = evaluate_numeric_or_push(
+    );
+    let distance = evaluate_numeric_or_push(
         element.get("distance").unwrap_or(&Value::Null),
         state,
         element,
         &local_variables.0,
         &local_variables.1,
-    ) else {
+    );
+    let (Some(angle_deg), Some(distance)) = (angle_deg, distance) else {
         return;
     };
     let point = polar_point_geometry_kernel(
@@ -175,24 +172,23 @@ pub(crate) fn evaluate_division_point(
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
     state: &mut EvaluationState,
 ) {
-    let Some(start) = point_anchor_or_error(
+    let start = point_anchor_or_error(
         element,
         element.get("startPoint").unwrap_or(&Value::Null),
         "start",
         state,
         &local_variables.0,
         &local_variables.1,
-    ) else {
-        return;
-    };
-    let Some(end) = point_anchor_or_error(
+    );
+    let end = point_anchor_or_error(
         element,
         element.get("endPoint").unwrap_or(&Value::Null),
         "end",
         state,
         &local_variables.0,
         &local_variables.1,
-    ) else {
+    );
+    let (Some(start), Some(end)) = (start, end) else {
         return;
     };
 
