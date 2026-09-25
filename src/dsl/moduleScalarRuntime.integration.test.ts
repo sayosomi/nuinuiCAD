@@ -1044,6 +1044,59 @@ describe("module scalar runtime integration", () => {
     expect(scalarValue("absentCount")).toMatchObject({ status: "ok", value: { kind: "none" } });
   });
 
+  it("preserves canonical optional-member positions when scalar events are projected", () => {
+    const recordField = compileWithIds([
+      "nui 1",
+      "record Gate(enabled: boolean)",
+      "const input: Gate? = none",
+      "const choices: number[] = if (@input?.enabled ?? false) { [1] } else { [2] }"
+    ].join("\n"), "optional-member-equal-position");
+    expectValid(recordField);
+    const conditional = recordField.scalarProgram?.collectionValues?.find((value) =>
+      value.kind === "if" && value.valueId === "optional-member-equal-position:3"
+    );
+    expect(conditional?.kind).toBe("if");
+    if (conditional?.kind !== "if") throw new Error("expected projected collection condition");
+    expect(conditional.sourceOrder).toBe(0);
+    expect(conditional.condition).toMatchObject({
+      kind: "binary",
+      operator: "??",
+      left: {
+        kind: "optionalMember",
+        target: { kind: "recordField", targetSourceOrder: 0 }
+      }
+    });
+
+    const collectionLength = compileWithIds([
+      "nui 1",
+      "const items: number[]? = [1, 2]",
+      "const choices: number[] = if ((@items?.length ?? 0) > 0) { [1] } else { [2] }"
+    ].join("\n"), "optional-collection-length-projection");
+    expectValid(collectionLength);
+    const collectionConditional = collectionLength.scalarProgram?.collectionValues?.find((value) =>
+      value.kind === "if" && value.valueId === "optional-collection-length-projection:2"
+    );
+    expect(collectionConditional?.kind).toBe("if");
+    if (collectionConditional?.kind !== "if") throw new Error("expected projected collection-length condition");
+    const optionalMembers: { target?: { kind?: string; targetSourceOrder?: number } | null }[] = [];
+    const visit = (value: unknown): void => {
+      if (!value || typeof value !== "object") return;
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      const expression = value as { kind?: unknown; target?: { kind?: string; targetSourceOrder?: number } | null };
+      if (expression.kind === "optionalMember") optionalMembers.push(expression);
+      Object.entries(value).forEach(([key, nested]) => {
+        if (key !== "target") visit(nested);
+      });
+    };
+    visit(collectionConditional.condition);
+    expect(optionalMembers).toHaveLength(1);
+    expect(optionalMembers[0]?.target).toMatchObject({ kind: "collectionLength", targetSourceOrder: 0 });
+    expect(collectionConditional.sourceOrder).toBe(1);
+  });
+
   it("rejects optional member access on a non-optional receiver", () => {
     const compiled = compileWithIds([
       "nui 1",
