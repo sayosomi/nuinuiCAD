@@ -205,6 +205,9 @@ export type GeometryValueProgramEntry = {
   sourceStatementIndex: number;
   declaredInterfaceType: ModuleGeometryInterfaceType;
   occurrence: GeometryValueOccurrence;
+  /** Dense scalar/runtime event position used for scalar and stage reads. */
+  sourceExecutionPosition?: number;
+  /** Dependency-first element execution position used only to release the value. */
   executionPosition: number;
   construction: GeometryValueProgramNode;
   /** Collection-map entries are evaluated only when the selected member is

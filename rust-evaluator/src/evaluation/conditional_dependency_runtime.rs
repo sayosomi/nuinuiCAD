@@ -14,7 +14,7 @@ use super::scalars::{
     validate_typed_expression_payload, ScalarDocumentBindingResolver, ScalarValue,
     TypedScalarExpression,
 };
-use super::types::{DependencyError, ElementId, EvaluationState};
+use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOccurrence};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,6 +55,7 @@ struct RawConditionalDependencyActivation {
 struct RawConditionalDependencyGuard {
     controller_id: String,
     branch: String,
+    controller_kind: Option<String>,
     static_selection: Option<String>,
     controller_expression: Option<Value>,
 }
@@ -85,6 +86,7 @@ struct ConditionalDependencyActivation {
 struct ConditionalDependencyGuard {
     controller_id: String,
     branch: String,
+    controller_kind: Option<String>,
     static_selection: Option<String>,
     controller_expression: Option<TypedScalarExpression>,
 }
@@ -96,14 +98,25 @@ pub(crate) struct ConditionalDependencyGraph {
 
 pub(crate) struct ActivatedConditionalDependencies {
     pub(crate) evaluation_order: Vec<ElementId>,
+    pub(crate) dependency_order: Vec<String>,
     pub(crate) cycles: Vec<DependencyError>,
 }
 
 pub(crate) struct ConditionalDependencyControllerCandidate<'a> {
     pub(crate) controller_id: String,
-    pub(crate) expression: &'a TypedScalarExpression,
+    pub(crate) source_endpoint_id: String,
+    pub(crate) controller_kind: Option<String>,
+    pub(crate) expression: Option<&'a TypedScalarExpression>,
     pub(crate) branches: Vec<String>,
     pub(crate) prerequisite_endpoint_ids: Vec<String>,
+}
+
+struct DependencyReadinessContext<'a> {
+    branch_selections: &'a HashMap<String, String>,
+    resolver: &'a dyn ScalarDocumentBindingResolver,
+    state: &'a EvaluationState,
+    evaluated_geometry_values: &'a [bool],
+    geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
 }
 
 pub(crate) fn decode_conditional_dependency_graph(
@@ -132,6 +145,7 @@ pub(crate) fn decode_conditional_dependency_graph(
                         Ok::<_, String>(ConditionalDependencyGuard {
                             controller_id: raw_guard.controller_id,
                             branch: raw_guard.branch,
+                            controller_kind: raw_guard.controller_kind,
                             static_selection: raw_guard.static_selection,
                             controller_expression,
                         })
@@ -160,6 +174,32 @@ pub(crate) fn decode_conditional_dependency_graph(
         });
     }
     Ok(Some(ConditionalDependencyGraph { edges }))
+}
+
+fn encode_identity_tuple(parts: &[String]) -> String {
+    let mut encoded = String::new();
+    for part in parts {
+        encoded.push_str(&part.encode_utf16().count().to_string());
+        encoded.push(':');
+        encoded.push_str(part);
+    }
+    encoded
+}
+
+pub(crate) fn geometry_value_endpoint_id(occurrence: &GeometryValueOccurrence) -> String {
+    let mut parts = vec![
+        if occurrence.mapped_member_index.is_some() {
+            "geometry-value-map-member".to_owned()
+        } else {
+            "geometry-value".to_owned()
+        },
+        occurrence.source_statement_id.clone(),
+    ];
+    parts.extend(occurrence.instance_path.iter().cloned());
+    if let Some(index) = occurrence.mapped_member_index {
+        parts.push(index.to_string());
+    }
+    format!("geometry-value:{}", encode_identity_tuple(&parts))
 }
 
 fn endpoint_key(endpoint: &ConditionalDependencyEndpoint) -> String {
@@ -266,17 +306,23 @@ impl ConditionalDependencyGraph {
                 continue;
             };
             for (guard_index, guard) in activation.guards.iter().enumerate() {
-                let Some(expression) = guard.controller_expression.as_ref() else {
+                let is_geometry_coalesce =
+                    guard.controller_kind.as_deref() == Some("geometry-value-coalesce");
+                let expression = guard.controller_expression.as_ref();
+                if expression.is_none() && !is_geometry_coalesce {
                     continue;
-                };
+                }
                 let prefix = &activation.guards[..guard_index];
                 if !activation_path_is_active(prefix, branch_selections) {
                     continue;
                 }
+                let source_endpoint_id = endpoint_key(&edge.from);
                 let candidate = candidates
                     .entry(guard.controller_id.clone())
                     .or_insert_with(|| ConditionalDependencyControllerCandidate {
                         controller_id: guard.controller_id.clone(),
+                        source_endpoint_id: source_endpoint_id.clone(),
+                        controller_kind: guard.controller_kind.clone(),
                         expression,
                         branches: Vec::new(),
                         prerequisite_endpoint_ids: Vec::new(),
@@ -285,7 +331,7 @@ impl ConditionalDependencyGraph {
                     candidate.branches.push(guard.branch.clone());
                 }
                 for prerequisite in &self.edges {
-                    if endpoint_key(&prerequisite.from) != endpoint_key(&edge.from) {
+                    if endpoint_key(&prerequisite.from) != source_endpoint_id {
                         continue;
                     }
                     let prerequisite_guards = prerequisite
@@ -314,12 +360,18 @@ impl ConditionalDependencyGraph {
         branch_selections: &HashMap<String, String>,
         resolver: &dyn ScalarDocumentBindingResolver,
         state: &EvaluationState,
+        evaluated_geometry_values: &[bool],
+        geometry_value_index_by_endpoint_id: &HashMap<String, usize>,
     ) -> bool {
         self.endpoint_is_ready_inner(
             endpoint_id,
-            branch_selections,
-            resolver,
-            state,
+            &DependencyReadinessContext {
+                branch_selections,
+                resolver,
+                state,
+                evaluated_geometry_values,
+                geometry_value_index_by_endpoint_id,
+            },
             &mut HashSet::new(),
         )
     }
@@ -327,9 +379,7 @@ impl ConditionalDependencyGraph {
     fn endpoint_is_ready_inner(
         &self,
         endpoint_id: &str,
-        branch_selections: &HashMap<String, String>,
-        resolver: &dyn ScalarDocumentBindingResolver,
-        state: &EvaluationState,
+        context: &DependencyReadinessContext<'_>,
         visiting: &mut HashSet<String>,
     ) -> bool {
         if !visiting.insert(endpoint_id.to_owned()) {
@@ -345,22 +395,34 @@ impl ConditionalDependencyGraph {
             return false;
         };
         let ready = match endpoint.kind.as_str() {
+            "geometry-value" => context
+                .geometry_value_index_by_endpoint_id
+                .get(endpoint_id)
+                .and_then(|index| context.evaluated_geometry_values.get(*index))
+                .copied()
+                .unwrap_or(false),
             "geometry-stage" => match endpoint.owner_id.as_ref() {
-                Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => {
-                    state.base_transformation_geometry.contains_key(owner_id)
-                }
+                Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => context
+                    .state
+                    .base_transformation_geometry
+                    .contains_key(owner_id),
                 Some(owner_id) if endpoint.stage_path == ["final".to_owned()] => {
-                    state.computed_geometry.contains_key(owner_id)
+                    context.state.computed_geometry.contains_key(owner_id)
                 }
-                Some(owner_id) => state.transformation_stage_geometry.contains_key(&format!(
-                    "{}\u{0}*\u{0}{}",
-                    owner_id,
-                    endpoint.stage_path.join(".")
-                )),
+                Some(owner_id) => {
+                    context
+                        .state
+                        .transformation_stage_geometry
+                        .contains_key(&format!(
+                            "{}\u{0}*\u{0}{}",
+                            owner_id,
+                            endpoint.stage_path.join(".")
+                        ))
+                }
                 None => false,
             },
-            "element" => state.computed_geometry.contains_key(&endpoint.id),
-            "module-occurrence" => state.instance_base_geometry.contains_key(
+            "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+            "module-occurrence" => context.state.instance_base_geometry.contains_key(
                 endpoint
                     .id
                     .strip_prefix("module-occurrence:")
@@ -372,20 +434,16 @@ impl ConditionalDependencyGraph {
                     .iter()
                     .filter(|edge| {
                         endpoint_key(&edge.from) == endpoint_id
-                            && edge_is_active(edge, branch_selections)
+                            && edge_is_active(edge, context.branch_selections)
                     })
                     .all(|edge| {
-                        self.endpoint_is_ready_inner(
-                            &endpoint_key(&edge.to),
-                            branch_selections,
-                            resolver,
-                            state,
-                            visiting,
-                        )
+                        self.endpoint_is_ready_inner(&endpoint_key(&edge.to), context, visiting)
                     });
                 prerequisites_ready
                     && matches!(
-                        resolver.resolve_binding(&endpoint.id, state),
+                        context
+                            .resolver
+                            .resolve_binding(&endpoint.id, context.state),
                         super::scalars::ScalarEvaluation::Ok { .. }
                     )
             }
@@ -449,6 +507,7 @@ impl ConditionalDependencyGraph {
         }
         ActivatedConditionalDependencies {
             evaluation_order,
+            dependency_order: traversal.ordered_endpoints,
             cycles: traversal.cycles,
         }
     }
