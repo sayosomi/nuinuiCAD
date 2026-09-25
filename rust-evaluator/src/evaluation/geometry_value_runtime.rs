@@ -1816,10 +1816,12 @@ fn evaluate_geometry_value_node(
             state.computed_geometry_values.remove(&entry.occurrence);
         }
         GeometryValueConstruction::Reference { target } => {
-            if matches!(
-                target.geometry_type,
-                super::scalars::GeometryInterfaceType::Point
-            ) {
+            if entry.declared_interface_type == "point"
+                || matches!(
+                    target.geometry_type,
+                    super::scalars::GeometryInterfaceType::Point
+                )
+            {
                 let Some((x, y)) = target_point(target, state) else {
                     append_geometry_value_error(
                         state,

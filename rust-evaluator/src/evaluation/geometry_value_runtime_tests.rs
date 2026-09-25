@@ -314,7 +314,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             target(
                 "drawable",
                 owner_id,
-                "point",
+                "line",
                 Some("start"),
                 None,
                 None,
@@ -340,7 +340,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             target(
                 "drawable",
                 owner_id,
-                "point",
+                "line",
                 Some("start"),
                 Some(json!(["base"])),
                 None,
@@ -353,7 +353,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             target(
                 "drawable",
                 owner_id,
-                "point",
+                "line",
                 Some("start"),
                 Some(json!(["moved"])),
                 None,
@@ -366,7 +366,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             target(
                 "drawable",
                 owner_id,
-                "point",
+                "line",
                 Some("start"),
                 Some(json!(["final"])),
                 None,
@@ -379,7 +379,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             target(
                 "geometryValue",
                 "value:line",
-                "point",
+                "line",
                 Some("start"),
                 None,
                 Some(occurrence_json("value:line")),
@@ -392,7 +392,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             target(
                 "geometryValueForBinder",
                 "binder:base-end",
-                "point",
+                "line",
                 None,
                 None,
                 None,
@@ -405,7 +405,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             target(
                 "geometryValueForBinder",
                 "binder:base-end",
-                "point",
+                "line",
                 Some("start"),
                 Some(json!(["moved"])),
                 None,
@@ -413,12 +413,25 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             )
         ),
         reference(
-            "value:unavailable-point",
+            "value:point-target-type",
             8,
             target(
                 "drawable",
                 owner_id,
                 "point",
+                Some("start"),
+                None,
+                None,
+                None
+            )
+        ),
+        reference(
+            "value:unavailable-point",
+            9,
+            target(
+                "drawable",
+                owner_id,
+                "line",
                 Some("missing"),
                 None,
                 None,
@@ -519,6 +532,10 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
     assert_eq!(
         value("value:binder-stage-override"),
         Some(json!({ "kind": "point", "x": 30.0, "y": 2.0 }))
+    );
+    assert_eq!(
+        value("value:point-target-type"),
+        Some(json!({ "kind": "point", "x": 10.0, "y": 1.0 }))
     );
     assert_eq!(value("value:unavailable-point"), None);
     assert_eq!(state.geometry_value_errors.len(), 1);
