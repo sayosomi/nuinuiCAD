@@ -14,10 +14,15 @@ fn commits_multiple_carries_from_one_iteration_snapshot() {
         loop_scope_id: "scope:loop".to_owned(),
         iteration_binding_id: "binding:iteration:i".to_owned(),
         iteration_values: vec![0.0],
+        iteration_value_overrides: vec![],
         generated_statements: vec![()],
     };
     environment
-        .run(&plan, |environment, _| {
+        .run(&plan, |environment, context| {
+            assert_eq!(
+                environment.read(context.iteration_binding_id),
+                Some(LoopRead::Iteration(0.0))
+            );
             let value_a = match environment.read("b") {
                 Some(LoopRead::Slot(value)) => value,
                 _ => panic!("missing b snapshot"),
@@ -43,6 +48,7 @@ fn empty_execution_preserves_seeded_initial_value() {
         loop_scope_id: "scope:empty".to_owned(),
         iteration_binding_id: "binding:iteration:i".to_owned(),
         iteration_values: vec![],
+        iteration_value_overrides: vec![],
         generated_statements: vec![()],
     };
     environment
@@ -51,4 +57,40 @@ fn empty_execution_preserves_seeded_initial_value() {
         })
         .unwrap();
     assert_eq!(environment.final_values().get("carry"), Some(&7.0));
+}
+
+#[test]
+fn iteration_binding_reads_exact_typed_override_and_remains_read_only() {
+    use super::ForGroupExecutionError;
+    use crate::evaluation::scalars::{ScalarEvaluation, ScalarType, ScalarValue};
+
+    let expected = ScalarEvaluation::Ok {
+        r#type: ScalarType::String,
+        value: ScalarValue::String("a".to_owned()),
+    };
+    let mut environment = ForGroupExecutionEnvironment::new(HashMap::new());
+    let plan = ForGroupExecutionPlan {
+        loop_scope_id: "scope:collection".to_owned(),
+        iteration_binding_id: "binding:iteration:item".to_owned(),
+        iteration_values: vec![0.0],
+        iteration_value_overrides: vec![Some(expected.clone())],
+        generated_statements: vec![()],
+    };
+
+    environment
+        .run(&plan, |environment, context| {
+            assert_eq!(context.iteration_value, 0.0);
+            assert_eq!(
+                environment.read(context.iteration_binding_id),
+                Some(LoopRead::TypedIteration(expected.clone()))
+            );
+            assert_eq!(
+                environment.commit(context.iteration_binding_id, expected.clone()),
+                Err(ForGroupExecutionError::ReadOnlyIterationBinding(
+                    "binding:iteration:item".to_owned()
+                ))
+            );
+            Ok(ForGroupExecutionRunOutcome::Completed)
+        })
+        .unwrap();
 }

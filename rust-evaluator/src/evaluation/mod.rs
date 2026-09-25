@@ -148,7 +148,7 @@ use corner_radius_evaluator::evaluate_corner_radius_arc_line;
 use edge_extend_evaluator::{evaluate_edge, evaluate_extend_trim};
 use errors::geometry_error;
 use for_group::{
-    for_group_loop_values, for_group_template_descendant_ids, iteration_local_variables,
+    for_group_template_descendant_ids, iteration_local_variables, prepare_for_group_iterations,
 };
 use for_group_execution_runtime::ForGroupExecutionRuntime;
 use for_group_generic_runtime::GenericForGroupRuntime;
@@ -2465,9 +2465,13 @@ fn evaluate_document_input_with_scalar_program(
         }
 
         if element_type(&element) == Some("forGroup") {
-            let Some(iteration_values) =
-                for_group_loop_values(&element, &local_variables, &mut state)
-            else {
+            let Some(prepared_iterations) = prepare_for_group_iterations(
+                &element,
+                &local_variables,
+                active_scalar_binding_resolver,
+                Some(current_execution_position),
+                &mut state,
+            ) else {
                 execute_transformation_recipes_through(
                     &transformation_recipes,
                     &mut next_transformation_recipe_index,
@@ -2477,9 +2481,9 @@ fn evaluate_document_input_with_scalar_program(
                 complete_attempt_and_continue!();
             };
 
-            // Evaluated once per forGroup entry, alongside min/max/step -
-            // never re-evaluated per iteration. Presentation-only: never
-            // gates or alters the iteration loop below.
+            // Evaluated once per forGroup entry and never re-evaluated per
+            // iteration. Presentation-only: it never gates or alters the
+            // prepared iteration sequence below.
             let literal_show_generated = element
                 .get("showGenerated")
                 .and_then(Value::as_bool)
@@ -2542,7 +2546,7 @@ fn evaluate_document_input_with_scalar_program(
                         &mut environment,
                         &element,
                         &element,
-                        &iteration_values,
+                        prepared_iterations,
                         effective_show_generated,
                         &[],
                         &HashMap::new(),
@@ -2577,6 +2581,7 @@ fn evaluate_document_input_with_scalar_program(
                 &show_generated_by_element_id,
                 &condition_by_element_id,
                 &text_templates_by_element_id,
+                &source_statement_indices,
                 active_scalar_binding_resolver,
                 &mut effective_visible_element_ids,
                 &mut effective_enabled_ids,
@@ -2588,8 +2593,10 @@ fn evaluate_document_input_with_scalar_program(
             generic_runtime.run(
                 &element,
                 &element,
-                &iteration_values,
+                prepared_iterations,
                 effective_show_generated,
+                &[],
+                &[],
                 &[],
                 &HashMap::new(),
                 &[],

@@ -7,16 +7,21 @@
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ForGroupExecutionPlan<Statement> {
+pub(crate) struct ForGroupExecutionPlan<Statement, Value> {
     pub(crate) loop_scope_id: String,
     pub(crate) iteration_binding_id: String,
     pub(crate) iteration_values: Vec<f64>,
+    /// Optional typed values for the iteration binding. Numeric expansion
+    /// values remain separate so generated occurrences keep their authored
+    /// numeric indexes.
+    pub(crate) iteration_value_overrides: Vec<Option<Value>>,
     pub(crate) generated_statements: Vec<Statement>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LoopRead<T> {
     Iteration(f64),
+    TypedIteration(T),
     Slot(T),
 }
 
@@ -48,6 +53,7 @@ struct ActiveFrame<T> {
     iteration_binding_id: String,
     iteration_index: usize,
     iteration_value: f64,
+    iteration_value_override: Option<T>,
     locals: HashMap<String, T>,
 }
 
@@ -70,7 +76,13 @@ impl<T: Clone> ForGroupExecutionEnvironment<T> {
     pub(crate) fn read(&self, binding_id: &str) -> Option<LoopRead<T>> {
         for frame in self.frames.iter().rev() {
             if binding_id == frame.iteration_binding_id {
-                return Some(LoopRead::Iteration(frame.iteration_value));
+                return Some(
+                    frame
+                        .iteration_value_override
+                        .clone()
+                        .map(LoopRead::TypedIteration)
+                        .unwrap_or(LoopRead::Iteration(frame.iteration_value)),
+                );
             }
             if let Some(value) = frame.locals.get(binding_id) {
                 return Some(LoopRead::Slot(value.clone()));
@@ -131,7 +143,7 @@ impl<T: Clone> ForGroupExecutionEnvironment<T> {
 
     pub(crate) fn run<Statement, F>(
         &mut self,
-        plan: &ForGroupExecutionPlan<Statement>,
+        plan: &ForGroupExecutionPlan<Statement, T>,
         mut execute_statement: F,
     ) -> Result<ForGroupExecutionRunOutcome, ForGroupExecutionError>
     where
@@ -147,6 +159,11 @@ impl<T: Clone> ForGroupExecutionEnvironment<T> {
                 iteration_binding_id: plan.iteration_binding_id.clone(),
                 iteration_index,
                 iteration_value,
+                iteration_value_override: plan
+                    .iteration_value_overrides
+                    .get(iteration_index)
+                    .cloned()
+                    .flatten(),
                 locals: HashMap::new(),
             });
             let outcome = (|| {

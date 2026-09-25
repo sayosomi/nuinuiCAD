@@ -5,12 +5,169 @@ use super::for_group_ancestor_reference::{
     remap_ancestor_element_references, remap_current_invocation_numeric_references,
 };
 use super::numeric_expression::evaluate_numeric_or_push;
-use super::scalars::{ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue};
+use super::scalars::{
+    decode_scalar_type, ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue,
+};
 use super::types::{
     element_display_name, element_id, element_name, element_type,
     element_type_without_own_drawable_geometry, DependencyError, ElementId, EvaluationState,
-    ForGroupGeneratedOccurrenceStep, ForGroupGeneratedRow,
+    ForGroupGeneratedOccurrenceStep, ForGroupGeneratedRow, GeometryInputTarget,
 };
+
+pub(crate) struct PreparedForGroupIterations {
+    pub(crate) iteration_values: Vec<f64>,
+    pub(crate) iteration_value_overrides: Vec<Option<ScalarEvaluation>>,
+    pub(crate) geometry_members: Vec<Option<GeometryInputTarget>>,
+}
+
+/// Selects one of the two compiled statement-for sources and prepares the
+/// iteration data shared by mutation and generic execution. Collection member
+/// values never replace numeric occurrence indexes.
+pub(crate) fn prepare_for_group_iterations(
+    element: &Value,
+    local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    current_source_order: Option<f64>,
+    state: &mut EvaluationState,
+) -> Option<PreparedForGroupIterations> {
+    let has_collection_metadata = [
+        "iterationSource",
+        "iterationSourceValueId",
+        "iterationSourceOrder",
+        "iterationElementValueType",
+        "iterationElementType",
+    ]
+    .iter()
+    .any(|field| element.get(field).is_some());
+    if !has_collection_metadata {
+        return for_group_loop_values(element, local_variables, state).map(|iteration_values| {
+            PreparedForGroupIterations {
+                iteration_value_overrides: vec![None; iteration_values.len()],
+                geometry_members: std::iter::repeat_with(|| None)
+                    .take(iteration_values.len())
+                    .collect(),
+                iteration_values,
+            }
+        });
+    }
+
+    let source_id = element
+        .get("iterationSourceValueId")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let source_name = element
+        .get("iterationSource")
+        .and_then(Value::as_str)
+        .unwrap_or(source_id);
+    let collection_source = element
+        .get("iterationSourceValueId")
+        .and_then(Value::as_str)
+        .zip(element.get("iterationElementValueType"));
+    let Some((collection_value_id, _element_value_type)) = collection_source else {
+        push_collection_iteration_source_error(element, source_id, source_name, state);
+        return None;
+    };
+    let Some(resolver) = resolver else {
+        push_collection_iteration_source_error(element, source_id, source_name, state);
+        return None;
+    };
+    let Some(length) =
+        resolver.resolve_collection_length(collection_value_id, state, &mut HashSet::new())
+    else {
+        push_collection_iteration_source_error(element, source_id, source_name, state);
+        return None;
+    };
+    if !length.is_finite() || length < 0.0 || length.fract() != 0.0 {
+        push_collection_iteration_source_error(element, source_id, source_name, state);
+        return None;
+    }
+
+    let iteration_values = (0..length as usize)
+        .map(|index| index as f64)
+        .collect::<Vec<_>>();
+    let target_source_order = element
+        .get("iterationSourceOrder")
+        .and_then(Value::as_f64)
+        .or_else(|| current_source_order.map(|source_order| source_order - 1.0))
+        .unwrap_or_default();
+    if let Some(element_type) = element.get("iterationElementType") {
+        let Ok(element_type) = decode_scalar_type(element_type) else {
+            push_collection_iteration_source_error(element, source_id, source_name, state);
+            return None;
+        };
+        let iteration_value_overrides = iteration_values
+            .iter()
+            .copied()
+            .map(|index| {
+                Some(resolver.resolve_collection_index(
+                    collection_value_id,
+                    index,
+                    &element_type,
+                    Some(length),
+                    target_source_order,
+                    state,
+                ))
+            })
+            .collect();
+        return Some(PreparedForGroupIterations {
+            iteration_values,
+            iteration_value_overrides,
+            geometry_members: std::iter::repeat_with(|| None)
+                .take(length as usize)
+                .collect(),
+        });
+    }
+
+    let is_geometry_value = element
+        .get("iterationElementValueType")
+        .and_then(|value_type| value_type.get("kind"))
+        .and_then(Value::as_str)
+        .is_some_and(|kind| matches!(kind, "point" | "line" | "path"));
+    let geometry_members = if is_geometry_value {
+        // A failed member remains absent at its own index so the geometry
+        // binder reports unavailable when a body expression actually uses it.
+        iteration_values
+            .iter()
+            .map(|index| {
+                super::line_geometry_input::resolve_geometry_collection_iteration_member(
+                    state,
+                    resolver,
+                    collection_value_id,
+                    *index as usize,
+                )
+                .ok()
+            })
+            .collect()
+    } else {
+        std::iter::repeat_with(|| None)
+            .take(iteration_values.len())
+            .collect()
+    };
+    Some(PreparedForGroupIterations {
+        geometry_members,
+        iteration_value_overrides: vec![None; iteration_values.len()],
+        iteration_values,
+    })
+}
+
+fn push_collection_iteration_source_error(
+    element: &Value,
+    source_id: &str,
+    source_name: &str,
+    state: &mut EvaluationState,
+) {
+    state.errors.push(DependencyError {
+        code: None,
+        element_id: element_id(element).unwrap_or_default(),
+        element_name: element_name(element),
+        missing_dependency_id: source_id.to_owned(),
+        missing_dependency_name: Some(source_name.to_owned().into()),
+        message: format!(
+            "{} の collection iteration source を評価できません。",
+            element_name(element)
+        ),
+    });
+}
 
 /// Materializes only the runtime bindings owned by enclosing/current
 /// forGroup iterations. Element-owned numeric variable declarations are not
@@ -45,28 +202,47 @@ pub(crate) fn iteration_local_variables(
 pub(crate) struct IterationScalarBindingResolver<'a> {
     base: &'a dyn ScalarDocumentBindingResolver,
     values: HashMap<String, f64>,
+    typed_values: HashMap<String, ScalarEvaluation>,
 }
 
 impl<'a> IterationScalarBindingResolver<'a> {
     pub(crate) fn new(
         base: &'a dyn ScalarDocumentBindingResolver,
         iteration_variables: &[Value],
+        iteration_binding_ids: &[String],
+        iteration_value_overrides: &[Option<ScalarEvaluation>],
     ) -> Self {
+        let typed_values = iteration_binding_ids
+            .iter()
+            .zip(iteration_value_overrides)
+            .filter_map(|(binding_id, value)| {
+                value
+                    .as_ref()
+                    .cloned()
+                    .map(|value| (binding_id.clone(), value))
+            })
+            .collect();
         Self {
             base,
             values: iteration_local_variables(iteration_variables).0,
+            typed_values,
         }
     }
 }
 
 impl ScalarDocumentBindingResolver for IterationScalarBindingResolver<'_> {
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
-        self.values
+        self.typed_values
             .get(binding_id)
-            .copied()
-            .map(|value| ScalarEvaluation::Ok {
-                r#type: ScalarType::Number,
-                value: ScalarValue::Number(value),
+            .cloned()
+            .or_else(|| {
+                self.values
+                    .get(binding_id)
+                    .copied()
+                    .map(|value| ScalarEvaluation::Ok {
+                        r#type: ScalarType::Number,
+                        value: ScalarValue::Number(value),
+                    })
             })
             .unwrap_or_else(|| self.base.resolve_binding(binding_id, state))
     }
