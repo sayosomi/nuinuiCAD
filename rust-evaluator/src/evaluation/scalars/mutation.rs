@@ -1405,7 +1405,7 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                 target_source_order,
                 ..
             } => {
-                if *target_source_order >= self.source_order {
+                if *target_source_order > self.source_order {
                     return ScalarEvaluation::Error {
                         r#type: r#type.clone(),
                         issue_code: "evaluation-collection-index-unavailable".to_owned(),
@@ -1428,6 +1428,10 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "mutation_tests.rs"]
+mod tests;
 impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
         self.resolve(binding_id, state)
