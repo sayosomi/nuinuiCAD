@@ -77,7 +77,7 @@ import { isElementDslStatement, parseDsl, parseDslSnapshot } from "./dslParser";
 import type { SourceRevision } from "./logicalStatementSourceMap";
 import { createStatementIdentity, type StatementIdentity } from "../document/statementIdentity";
 import type { BindingAnalysis } from "../scalars/bindingAnalysis";
-import { bindingIdForStableStatementId, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
+import { bindingIdForStableStatementId, type Binding, type BindingId, type BindingSeed, type SourceNamespaceBindingResolver } from "../scalars/bindingCatalog";
 import { scopeChain } from "../scalars/lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramCollection, ScalarProgramCollectionMember, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import type { ScalarExpressionType, ScalarValue } from "../scalars/types";
@@ -2289,6 +2289,27 @@ export const compileDslDocument = (
   const rootScalarCollectionValues = (analysis: BindingAnalysis, moduleAnalysis?: ModuleSemanticAnalysis): readonly ScalarProgramCollection[] => {
     const collectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
     if (!collectionAnalysis || !stableStatementIdByIndex) return [];
+    const collectionControlFlowBindings = new Map(analysis.catalog.bindingsById);
+    const bindingForCollectionControlFlowTarget = (target: import("./moduleSemanticTypes").ModuleScalarSourceTarget): Binding | undefined => {
+      if (target.kind === "documentBinding") return analysis.catalog.bindingsById.get(target.bindingId);
+      if (target.kind !== "valueForBinder") return undefined;
+      const scopeId = sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(target.statementIndex) ?? sourceLexicalNamespace?.scopeIndex.rootScopeId ?? "root";
+      const binding: Binding = {
+        id: target.binderId,
+        kind: "typed",
+        name: target.name,
+        nameSpan: null,
+        statementIndex: target.statementIndex,
+        effectiveScopeId: scopeId,
+        visibility: { kind: "typed", scopeId },
+        mutability: "readonly",
+        declaredType: target.sourceElementType,
+        rank: Number.MAX_SAFE_INTEGER,
+        resolutionMode: "preResolvedOnly"
+      };
+      collectionControlFlowBindings.set(binding.id, binding);
+      return binding;
+    };
     const values: ScalarProgramCollection[] = [];
     const append = (valueId: string, collectionValue: NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId: string, sourceOrder: number): void => {
       if (collectionValue.kind === "coalesce") {
@@ -2307,8 +2328,8 @@ export const compileDslDocument = (
         if (!collectionValue.condition) return;
         const condition = lowerExpression(
           collectionValue.condition,
-          (target) => target.kind === "documentBinding" ? analysis.catalog.bindingsById.get(target.bindingId) : undefined,
-          analysis.catalog.bindingsById,
+          bindingForCollectionControlFlowTarget,
+          collectionControlFlowBindings,
           undefined,
           undefined,
           undefined,
@@ -2320,15 +2341,22 @@ export const compileDslDocument = (
       }
       if (collectionValue.kind === "match") {
         if (!collectionValue.scrutinee) return;
+        const binderType = collectionValue.scrutinee.type?.kind === "optional"
+          ? scalarTypeOfDslValueType(collectionValue.scrutinee.type.valueType)
+          : null;
         const arms = collectionValue.arms.map((arm) => {
           const armValueId = `${valueId}:arm:${arm.label}`;
           append(armValueId, arm.value as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId, sourceOrder);
-          return { label: arm.label, valueId: armValueId };
+          return {
+            label: arm.label,
+            valueId: armValueId,
+            ...(arm.label === "some" && arm.binderId && binderType ? { binderId: arm.binderId, binderType } : {})
+          };
         });
         const scrutinee = lowerExpression(
           collectionValue.scrutinee,
-          (target) => target.kind === "documentBinding" ? analysis.catalog.bindingsById.get(target.bindingId) : undefined,
-          analysis.catalog.bindingsById,
+          bindingForCollectionControlFlowTarget,
+          collectionControlFlowBindings,
           undefined,
           undefined,
           undefined,
@@ -2393,6 +2421,10 @@ export const compileDslDocument = (
       }
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of collectionValue.members) {
+        if (member.target.kind === "scalarBinding") {
+          members.push({ kind: "binding", type: elementType, bindingId: member.target.bindingId });
+          continue;
+        }
         if (member.target.kind === "scalarValue" && member.target.statementId === sourceStatementId) {
           const literal = scanScalarLiteral(member.sourceText, { start: 0, end: member.sourceText.length });
           if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== member.sourceText.length) return;
@@ -2461,6 +2493,10 @@ export const compileDslDocument = (
       }
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of collectionValue.members) {
+        if (member.target.kind === "scalarBinding") {
+          members.push({ kind: "binding", type: elementType, bindingId: member.target.bindingId });
+          continue;
+        }
         if (member.target.kind === "scalarValue" && member.target.statementId === value.statementId) {
           const literal = scanScalarLiteral(member.sourceText, { start: 0, end: member.sourceText.length });
           if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== member.sourceText.length) break;

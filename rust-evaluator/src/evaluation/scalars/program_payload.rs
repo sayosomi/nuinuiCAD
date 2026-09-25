@@ -6,6 +6,7 @@ use std::collections::HashSet;
 
 use serde_json::Value;
 
+use super::expression_evaluator::static_expression_type;
 use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
@@ -61,9 +62,17 @@ pub(crate) enum ValidatedScalarProgramCollectionValue {
     },
     Match {
         scrutinee: Box<TypedScalarExpression>,
-        arms: Vec<(String, String)>,
+        arms: Vec<ValidatedScalarProgramMatchArm>,
         source_order: f64,
     },
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatedScalarProgramMatchArm {
+    pub(crate) label: String,
+    pub(crate) value_id: String,
+    pub(crate) binder_id: Option<BindingId>,
+    pub(crate) binder_type: Option<ScalarType>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -547,6 +556,7 @@ pub(crate) fn decode_collection_values(
                     "scrutinee",
                     "scalar program collection match",
                 )?)?;
+                let scrutinee_type = static_expression_type(&scrutinee);
                 let arms = require_field(entry, "arms", "scalar program collection match")?
                     .as_array()
                     .ok_or_else(|| {
@@ -560,7 +570,7 @@ pub(crate) fn decode_collection_values(
                     let arm = as_object(arm, "scalar program collection match arm")?;
                     reject_unexpected_fields(
                         arm,
-                        &["label", "valueId"],
+                        &["label", "valueId", "binderId", "binderType"],
                         "scalar program collection match arm",
                     )?;
                     let label = non_empty_string(
@@ -573,7 +583,43 @@ pub(crate) fn decode_collection_values(
                         "scalar program collection match arm valueId",
                     )?
                     .to_owned();
-                    decoded_arms.push((label, value_id));
+                    let binder_id = arm
+                        .get("binderId")
+                        .map(|value| {
+                            non_empty_string(value, "scalar program collection match arm binderId")
+                                .map(str::to_owned)
+                        })
+                        .transpose()?;
+                    let binder_type = arm.get("binderType").map(decode_scalar_type).transpose()?;
+                    if binder_id.is_some() != binder_type.is_some() {
+                        return Err(issue(
+                            Code::InvalidFieldType,
+                            "scalar program collection match arm binderId and binderType must be provided together",
+                        ));
+                    }
+                    if let Some(binder_type) = &binder_type {
+                        if label != "some"
+                            || !matches!(scrutinee_type.as_ref(), Some(ScalarType::Optional { value_type }) if value_type.as_ref() == binder_type)
+                        {
+                            return Err(issue(
+                                Code::InvalidFieldType,
+                                "scalar program collection match binder metadata must match the optional some arm type",
+                            ));
+                        }
+                    } else if label == "some"
+                        && matches!(scrutinee_type.as_ref(), Some(ScalarType::Optional { .. }))
+                    {
+                        return Err(issue(
+                            Code::InvalidFieldType,
+                            "scalar program optional collection match some arm is missing binder metadata",
+                        ));
+                    }
+                    decoded_arms.push(ValidatedScalarProgramMatchArm {
+                        label,
+                        value_id,
+                        binder_id,
+                        binder_type,
+                    });
                 }
                 let source_order =
                     require_field(entry, "sourceOrder", "scalar program collection match")?

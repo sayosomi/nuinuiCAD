@@ -6550,29 +6550,62 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // resolver/typechecker for their condition or scrutinee.  Shape resolution
   // already happened in geometryArraySemanticAnalysis; this pass only fills
   // the scalar semantic needed by the runtime and editor identity paths.
+  type CollectionControlFlowBinding = {
+    name: string;
+    bindingId: string;
+    type: ScalarType;
+  };
+  const collectionControlFlowBindingFor = (
+    statementIndex: number,
+    localBindings: readonly CollectionControlFlowBinding[],
+    reference: { name: string; span: DslSpan }
+  ): ReferenceResolution | null => {
+    const binding = [...localBindings].reverse().find((candidate) => candidate.name === reference.name);
+    if (!binding) return null;
+    return {
+      target: {
+        kind: "valueForBinder",
+        binderId: binding.bindingId,
+        statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
+        statementIndex,
+        name: binding.name,
+        sourceElementType: binding.type
+      },
+      type: binding.type,
+      resolution: "resolved"
+    };
+  };
   const analyzeCollectionControlFlow = (
     statementIndex: number,
     ownerIndex: number | null,
     source: string,
     value: DslArraySemanticValue<unknown> | GeometryArraySemanticValue<unknown>,
-    analyzeScalar: (raw: string, span: DslSpan, expectedType: ScalarType | null) => ModuleScalarExpressionSemantic | null,
-    addDiagnostic: (diagnostic: ModuleScalarLocalDiagnostic) => void
+    analyzeScalar: (
+      raw: string,
+      span: DslSpan,
+      expectedType: ScalarType | null,
+      localBindings: readonly CollectionControlFlowBinding[]
+    ) => ModuleScalarExpressionSemantic | null,
+    addDiagnostic: (diagnostic: ModuleScalarLocalDiagnostic) => void,
+    localBindings: readonly CollectionControlFlowBinding[] = []
   ): void => {
     if (value.kind === "if") {
       value.condition = analyzeScalar(
         source.slice(value.conditionSpan.start, value.conditionSpan.end),
         value.conditionSpan,
-        { kind: "boolean" }
+        { kind: "boolean" },
+        localBindings
       ) ?? undefined;
-      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.thenValue, analyzeScalar, addDiagnostic);
-      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.elseValue, analyzeScalar, addDiagnostic);
+      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.thenValue, analyzeScalar, addDiagnostic, localBindings);
+      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.elseValue, analyzeScalar, addDiagnostic, localBindings);
       return;
     }
     if (value.kind === "match") {
       value.scrutinee = analyzeScalar(
         source.slice(value.scrutineeSpan.start, value.scrutineeSpan.end),
         value.scrutineeSpan,
-        null
+        null,
+        localBindings
       ) ?? undefined;
       if (value.scrutinee) {
         const addMatchDiagnostic = (diagnostic: { code: string; span: DslSpan; message: string; presentation?: DslDiagnosticPresentation }) => addDiagnostic(issue(
@@ -6599,7 +6632,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           });
         }
       }
-      for (const arm of value.arms) analyzeCollectionControlFlow(statementIndex, ownerIndex, source, arm.value, analyzeScalar, addDiagnostic);
+      const someType = value.scrutinee?.type?.kind === "optional"
+        ? scalarTypeOfDslValueType(value.scrutinee.type.valueType)
+        : null;
+      for (const arm of value.arms) {
+        const armBindings = arm.label === "some" && arm.binder && arm.binderId && someType
+          ? [...localBindings, { name: arm.binder, bindingId: arm.binderId, type: someType }]
+          : localBindings;
+        analyzeCollectionControlFlow(statementIndex, ownerIndex, source, arm.value, analyzeScalar, addDiagnostic, armBindings);
+      }
+      return;
+    }
+    if (value.kind === "coalesce") {
+      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.left, analyzeScalar, addDiagnostic, localBindings);
+      analyzeCollectionControlFlow(statementIndex, ownerIndex, source, value.right, analyzeScalar, addDiagnostic, localBindings);
     }
   };
 
@@ -6614,13 +6660,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       null,
       source,
       value,
-      (raw, span, expectedType) => analyzeExpression(
+      (raw, span, expectedType, localBindings) => analyzeExpression(
         statementIndex,
         null,
         raw,
         span,
         expectedType,
-        (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
+        (reference) => collectionControlFlowBindingFor(statementIndex, localBindings, reference) ??
+          resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
         undefined,
         (reference) => resolveGeometryProperty(statementIndex, null, reference),
         (reference) => resolveGeometry(statementIndex, null, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
@@ -6767,13 +6814,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         definition.statementIndex,
         source,
         collectionValue.value,
-        (raw, span, expectedType) => analyzeExpression(
+        (raw, span, expectedType, localBindings) => analyzeExpression(
           collectionValue.statementIndex,
           definition.statementIndex,
           raw,
           span,
           expectedType,
-          (reference) => resolveBodyScalar(collectionValue.statementIndex, definition.statementIndex, reference),
+          (reference) => collectionControlFlowBindingFor(collectionValue.statementIndex, localBindings, reference) ??
+            resolveBodyScalar(collectionValue.statementIndex, definition.statementIndex, reference),
           undefined,
           (reference) => resolveGeometryProperty(collectionValue.statementIndex, definition.statementIndex, reference),
           (reference) => resolveGeometry(collectionValue.statementIndex, definition.statementIndex, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {

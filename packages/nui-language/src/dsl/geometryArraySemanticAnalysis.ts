@@ -43,6 +43,7 @@ export type GeometryArraySourceTarget =
 export type GenericArraySourceTarget =
   | GeometryArraySourceTarget
   | { kind: "scalarValue"; statementId: string; statementIndex: number }
+  | { kind: "scalarBinding"; bindingId: string }
   | { kind: "recordValue"; statementId: string; statementIndex: number }
   | { kind: "moduleParameterValue"; definitionStatementId: string; parameterIndex: number };
 
@@ -884,7 +885,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       expectedType: enrichedExpectedType,
       expectedValueType: semantic.declaredValueType,
       expression,
-      resolveMember: (member) => {
+      resolveMember: (member, localBindings) => {
         const expectedElement = enrichedExpectedType.elementType;
         const token = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
         if (token.kind !== "error" && token.span.start === 0 && token.span.end === member.text.length) {
@@ -914,6 +915,22 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         if (!sourceReference) return collectionMemberDiagnostic("array-invalid-member", "array member は scalar/geometry/record reference または scalar literal で指定してください。", member.span);
         const path = parseDslReferenceToken(sourceReference.pathText);
         if (path.segments.length === 0) return collectionMemberDiagnostic("array-invalid-member", "array member の参照が不正です。", member.span);
+        if (!path.absolute && path.segments.length === 1) {
+          const localBinding = [...(localBindings ?? [])].reverse().find((candidate) => candidate.name === path.segments[0]);
+          if (localBinding) {
+            if (!isDslScalarValueType(expectedElement)) {
+              return collectionMemberDiagnostic(
+                "array-member-type-mismatch",
+                "optional match binder は scalar array member にのみ使用できます。",
+                member.span
+              );
+            }
+            return {
+              kind: "resolved",
+              value: { elementType: expectedElement, target: { kind: "scalarBinding", bindingId: localBinding.bindingId } }
+            };
+          }
+        }
         if (path.segments.length === 1 && !path.absolute) {
           const moduleParameter = moduleParameterByName(statements, stableStatementIdByIndex, semantic.statementIndex, path.segments[0]!);
           if (moduleParameter) {
