@@ -2319,13 +2319,14 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const present: number? = 7",
       "const absent: number? = none",
       "const fromSome: number[]? = match @present { none => none some value => if (@value > 0) { [@value] } else { [0] } }",
-      "const fromNone: number[] = match @absent { none => [3, 4] some value => [@value] }",
+      "const fromNone: number[] = match @absent { none => [3, 4] some value => if (1 / 0 > 0) { [@value] } else { [0] } }",
       "const emptyFromNone: number[]? = match @absent { none => none some value => [@value] }",
       "const coalescedSome: number[] = @fromSome ?? [90]",
       "const coalescedNone: number[] = @emptyFromNone ?? @fromNone",
       "const someLength: number = @coalescedSome.length",
       "const someIndex: number = @coalescedSome[0]",
       "const noneLength: number = @coalescedNone.length",
+      "const noneFirst: number = @coalescedNone[0]",
       "const noneIndex: number = @coalescedNone[1]",
       "line Output = segment(start: (@someIndex, @noneIndex), end: (0, 0))"
     ].join("\n"));
@@ -2347,7 +2348,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       });
     }
 
-    for (const [name, expected] of [["someLength", 1], ["someIndex", 7], ["noneLength", 2], ["noneIndex", 4]] as const) {
+    for (const [name, expected] of [["someLength", 1], ["someIndex", 7], ["noneLength", 2], ["noneFirst", 3], ["noneIndex", 4]] as const) {
       expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), expected);
       expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), expected);
     }
