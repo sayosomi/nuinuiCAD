@@ -1431,22 +1431,137 @@ fn same_geometry_source(
     }
 }
 
-fn remove_geometry_identity(value: &mut Value) {
-    match value {
-        Value::Array(values) => values.iter_mut().for_each(remove_geometry_identity),
-        Value::Object(object) => {
-            if object.get("kind").and_then(Value::as_str) == Some("point")
-                && object.contains_key("x")
-                && object.contains_key("y")
-            {
-                object.remove("kind");
-            }
-            object.remove("elementId");
-            object.remove("name");
-            object.remove("baseLineIds");
-            object.values_mut().for_each(remove_geometry_identity);
-        }
-        _ => {}
+fn geometry_value_number(value: &Value, field: &str) -> Option<Value> {
+    value.get(field).filter(|value| value.is_number()).cloned()
+}
+
+fn geometry_value_nullable_number(value: &Value, field: &str) -> Option<Value> {
+    let value = value.get(field)?;
+    (value.is_null() || value.is_number()).then(|| value.clone())
+}
+
+fn geometry_value_point(value: &Value) -> Option<Value> {
+    let x = value.get("x").filter(|value| value.is_number())?;
+    let y = value.get("y").filter(|value| value.is_number())?;
+    Some(json!({ "x": x, "y": y }))
+}
+
+fn geometry_value_optional_point(value: &Value) -> Option<Value> {
+    if value.is_null() {
+        Some(Value::Null)
+    } else {
+        geometry_value_point(value)
+    }
+}
+
+fn geometry_value_segment(value: &Value) -> Option<Value> {
+    let kind = value.get("kind")?.as_str()?;
+    match kind {
+        "line" => Some(json!({
+            "kind": "line",
+            "start": geometry_value_point(value.get("start")?)?,
+            "end": geometry_value_point(value.get("end")?)?,
+            "length": geometry_value_number(value, "length")?
+        })),
+        "bezier" => Some(json!({
+            "kind": "bezier",
+            "start": geometry_value_point(value.get("start")?)?,
+            "control1": geometry_value_point(value.get("control1")?)?,
+            "control2": geometry_value_point(value.get("control2")?)?,
+            "end": geometry_value_point(value.get("end")?)?,
+            "length": geometry_value_number(value, "length")?
+        })),
+        "arc" => Some(json!({
+            "kind": "arc",
+            "center": geometry_value_point(value.get("center")?)?,
+            "start": geometry_value_point(value.get("start")?)?,
+            "end": geometry_value_point(value.get("end")?)?,
+            "radius": geometry_value_number(value, "radius")?,
+            "startAngleDeg": geometry_value_number(value, "startAngleDeg")?,
+            "sweepAngleDeg": geometry_value_number(value, "sweepAngleDeg")?,
+            "length": geometry_value_number(value, "length")?
+        })),
+        _ => None,
+    }
+}
+
+fn geometry_value_segments(value: &Value) -> Option<Vec<Value>> {
+    value
+        .as_array()?
+        .iter()
+        .map(geometry_value_segment)
+        .collect()
+}
+
+fn identity_free_geometry_value(geometry: &Value) -> Option<Value> {
+    match geometry.get("kind")?.as_str()? {
+        "point" => Some(json!({
+            "kind": "point",
+            "x": geometry.get("x").filter(|value| value.is_number())?,
+            "y": geometry.get("y").filter(|value| value.is_number())?
+        })),
+        "line" => Some(json!({
+            "kind": "line",
+            "start": geometry_value_point(geometry.get("start")?)?,
+            "end": geometry_value_point(geometry.get("end")?)?,
+            "length": geometry_value_number(geometry, "length")?,
+            "startAngleDeg": geometry_value_nullable_number(geometry, "startAngleDeg")?,
+            "endAngleDeg": geometry_value_nullable_number(geometry, "endAngleDeg")?,
+            "startTangentAngleDeg": geometry_value_nullable_number(geometry, "startTangentAngleDeg")?,
+            "endTangentAngleDeg": geometry_value_nullable_number(geometry, "endTangentAngleDeg")?
+        })),
+        "arcLine" => Some(json!({
+            "kind": "arcLine",
+            "center": geometry_value_point(geometry.get("center")?)?,
+            "start": geometry_value_point(geometry.get("start")?)?,
+            "end": geometry_value_point(geometry.get("end")?)?,
+            "radius": geometry_value_number(geometry, "radius")?,
+            "startAngleDeg": geometry_value_number(geometry, "startAngleDeg")?,
+            "endAngleDeg": geometry_value_number(geometry, "endAngleDeg")?,
+            "startTangentAngleDeg": geometry_value_number(geometry, "startTangentAngleDeg")?,
+            "endTangentAngleDeg": geometry_value_number(geometry, "endTangentAngleDeg")?,
+            "sweepAngleDeg": geometry_value_number(geometry, "sweepAngleDeg")?,
+            "length": geometry_value_number(geometry, "length")?
+        })),
+        "bezierCurve" => Some(json!({
+            "kind": "bezierCurve",
+            "segments": geometry.get("segments")?.as_array()?.iter().map(|segment| {
+                Some(json!({
+                    "start": geometry_value_point(segment.get("start")?)?,
+                    "control1": geometry_value_point(segment.get("control1")?)?,
+                    "control2": geometry_value_point(segment.get("control2")?)?,
+                    "end": geometry_value_point(segment.get("end")?)?
+                }))
+            }).collect::<Option<Vec<_>>>()?,
+            "length": geometry_value_number(geometry, "length")?
+        })),
+        "polyline" => Some(json!({
+            "kind": "polyline",
+            "segments": geometry.get("segments")?.as_array()?.iter().map(|segment| {
+                Some(json!({
+                    "start": geometry_value_point(segment.get("start")?)?,
+                    "end": geometry_value_point(segment.get("end")?)?,
+                    "length": geometry_value_number(segment, "length")?
+                }))
+            }).collect::<Option<Vec<_>>>()?,
+            "closed": geometry.get("closed").filter(|value| value.is_boolean())?,
+            "start": geometry_value_point(geometry.get("start")?)?,
+            "end": geometry_value_point(geometry.get("end")?)?,
+            "length": geometry_value_number(geometry, "length")?,
+            "startTangentAngleDeg": geometry_value_nullable_number(geometry, "startTangentAngleDeg")?,
+            "endTangentAngleDeg": geometry_value_nullable_number(geometry, "endTangentAngleDeg")?
+        })),
+        "offsetLine" | "joinedPath" => Some(json!({
+            "kind": geometry.get("kind")?,
+            "start": geometry_value_optional_point(geometry.get("start")?)?,
+            "end": geometry_value_optional_point(geometry.get("end")?)?,
+            "segments": geometry_value_segments(geometry.get("segments")?)?,
+            "closed": geometry.get("closed").filter(|value| value.is_boolean())?,
+            "length": geometry_value_number(geometry, "length")?,
+            "startTangentAngleDeg": geometry_value_nullable_number(geometry, "startTangentAngleDeg")?,
+            "endTangentAngleDeg": geometry_value_nullable_number(geometry, "endTangentAngleDeg")?
+        })),
+        _ => None,
     }
 }
 
@@ -1844,8 +1959,14 @@ fn evaluate_geometry_value_node(
                 );
                 return;
             };
-            let mut value = geometry.clone();
-            remove_geometry_identity(&mut value);
+            let Some(value) = identity_free_geometry_value(geometry) else {
+                append_geometry_value_error(
+                    state,
+                    entry,
+                    "Geometry value reference is unavailable at runtime.",
+                );
+                return;
+            };
             state
                 .computed_geometry_values
                 .insert(entry.occurrence.clone(), value);
@@ -3226,10 +3347,9 @@ fn evaluate_geometry_value_leaf(
                 append_geometry_value_error(state, entry, &error);
                 return;
             }
-            result.geometry.map(|mut value| {
-                remove_geometry_identity(&mut value);
-                value
-            })
+            result
+                .geometry
+                .and_then(|geometry| identity_free_geometry_value(&geometry))
         }
         _ => None,
     };

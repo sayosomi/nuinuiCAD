@@ -999,6 +999,187 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("projects drawable and materialized geometry references to canonical identity-free values through Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Baseline = segment(start: (10, 10), end: (20, 10))",
+      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "curve Bezier = bezier(start: (0, 10), end: (10, 10), startAngle: 90, startLength: 2, endAngle: -90, endLength: 2)",
+      "line Outline = polyline(points: [(0, 0), (3, 4), (3, 0)], closed: false)",
+      "line Shifted = offset(sources: [@Quarter], distance: 2, side: right, closed: false)",
+      "line Connector = segment(start: (0, 10), end: (10, 10))",
+      "line Joined = join(paths: [@Quarter, @Connector, @Baseline], closed: false)",
+      "const StrictLineAlias: line = @Baseline",
+      "const StrictLineAliasCopy: line = @StrictLineAlias",
+      "const PathAlias: path = @Quarter",
+      "const OptionalPathAlias: path? = @Baseline",
+      "const ArcAlias: path = @Quarter",
+      "const BezierAlias: path = @Bezier",
+      "const PolylineAlias: path = @Outline",
+      "const OffsetAlias: path = @Shifted",
+      "const JoinedAlias: path = @Joined"
+    ].join("\n"));
+    const program = fixture.compiled?.doc.geometryValueProgram;
+    if (!program) throw new Error("expected compiled geometry reference program");
+    const referenceEntries = program.filter((entry) => entry.construction.kind === "reference");
+    expect(referenceEntries).toHaveLength(9);
+
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const valueFor = (
+      payload: typeof tsPayload,
+      occurrence: (typeof referenceEntries)[number]["occurrence"]
+    ) => {
+      const result = evaluationPayloadToResult(payload);
+      return [...(result.computedGeometryValues?.values() ?? [])]
+        .find((entry) => entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+          entry.occurrence.instancePath.length === occurrence.instancePath.length &&
+          entry.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index]))
+        ?.value;
+    };
+    const expectKeys = (value: unknown, keys: string[]) => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error("expected a structural geometry object");
+      }
+      expect(Object.keys(value).sort()).toEqual([...keys].sort());
+      return value as Record<string, unknown>;
+    };
+    const expectCoordinate = (value: unknown) => {
+      expectKeys(value, ["x", "y"]);
+      const coordinate = value as { x: unknown; y: unknown };
+      expect(typeof coordinate.x).toBe("number");
+      expect(typeof coordinate.y).toBe("number");
+    };
+    const expectCanonicalShape = (value: unknown) => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error("expected a geometry value object");
+      }
+      const geometry = value as Record<string, unknown>;
+      switch (geometry.kind) {
+        case "line": {
+          expectKeys(value, ["kind", "start", "end", "length", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg"]);
+          expectCoordinate(geometry.start);
+          expectCoordinate(geometry.end);
+          break;
+        }
+        case "arcLine": {
+          expectKeys(value, ["kind", "center", "start", "end", "radius", "startAngleDeg", "endAngleDeg", "startTangentAngleDeg", "endTangentAngleDeg", "sweepAngleDeg", "length"]);
+          expectCoordinate(geometry.center);
+          expectCoordinate(geometry.start);
+          expectCoordinate(geometry.end);
+          break;
+        }
+        case "bezierCurve": {
+          expectKeys(value, ["kind", "segments", "length"]);
+          expect(Array.isArray(geometry.segments)).toBe(true);
+          for (const segment of geometry.segments as unknown[]) {
+            const projected = expectKeys(segment, ["start", "control1", "control2", "end"]);
+            for (const key of ["start", "control1", "control2", "end"]) expectCoordinate(projected[key]);
+          }
+          break;
+        }
+        case "polyline": {
+          expectKeys(value, ["kind", "segments", "closed", "start", "end", "length", "startTangentAngleDeg", "endTangentAngleDeg"]);
+          expect(Array.isArray(geometry.segments)).toBe(true);
+          for (const segment of geometry.segments as unknown[]) {
+            const projected = expectKeys(segment, ["start", "end", "length"]);
+            expectCoordinate(projected.start);
+            expectCoordinate(projected.end);
+          }
+          expectCoordinate(geometry.start);
+          expectCoordinate(geometry.end);
+          break;
+        }
+        case "offsetLine":
+        case "joinedPath": {
+          expectKeys(value, ["kind", "start", "end", "segments", "closed", "length", "startTangentAngleDeg", "endTangentAngleDeg"]);
+          if (geometry.start !== null) expectCoordinate(geometry.start);
+          if (geometry.end !== null) expectCoordinate(geometry.end);
+          expect(Array.isArray(geometry.segments)).toBe(true);
+          for (const segment of geometry.segments as unknown[]) {
+            if (segment === null || typeof segment !== "object" || Array.isArray(segment)) {
+              throw new Error("expected a path segment object");
+            }
+            const primitive = segment as Record<string, unknown>;
+            if (primitive.kind === "line") {
+              const projected = expectKeys(segment, ["kind", "start", "end", "length"]);
+              expectCoordinate(projected.start);
+              expectCoordinate(projected.end);
+            } else if (primitive.kind === "bezier") {
+              const projected = expectKeys(segment, ["kind", "start", "control1", "control2", "end", "length"]);
+              for (const key of ["start", "control1", "control2", "end"]) expectCoordinate(projected[key]);
+            } else if (primitive.kind === "arc") {
+              const projected = expectKeys(segment, ["kind", "center", "start", "end", "radius", "startAngleDeg", "sweepAngleDeg", "length"]);
+              for (const key of ["center", "start", "end"]) expectCoordinate(projected[key]);
+            } else {
+              throw new Error("unexpected path segment kind");
+            }
+          }
+          break;
+        }
+        default:
+          throw new Error(`unexpected geometry reference kind: ${String(geometry.kind)}`);
+      }
+    };
+
+    const aliases = [tsPayload, rustPayload].map((payload) =>
+      referenceEntries.map((entry) => valueFor(payload, entry.occurrence))
+    );
+    for (const values of aliases) {
+      expect(values.every((value) => value !== undefined)).toBe(true);
+      for (const value of values) expectCanonicalShape(value);
+
+      expect(values[0]).toMatchObject({
+        kind: "line", start: { x: 10, y: 10 }, end: { x: 20, y: 10 }, length: 10,
+        startAngleDeg: 0, endAngleDeg: 180, startTangentAngleDeg: 0, endTangentAngleDeg: 180
+      });
+      expect(values[0]).not.toHaveProperty("startPointId");
+      expect(values[0]).not.toHaveProperty("endPointId");
+      expect(values[1]).toMatchObject({ kind: "line", start: { x: 10, y: 10 }, end: { x: 20, y: 10 }, length: 10 });
+      expect(values[1]).not.toHaveProperty("startPointId");
+      expect(values[1]).not.toHaveProperty("endPointId");
+      expect(values[2]).toMatchObject({
+        kind: "arcLine", radius: 10, start: { x: 10, y: 0 },
+        end: { x: expect.closeTo(0, 10), y: 10 }, sweepAngleDeg: 90,
+        startAngleDeg: 0, endAngleDeg: 90, startTangentAngleDeg: 90, endTangentAngleDeg: 0
+      });
+      expect(values[3]).toMatchObject({ kind: "line", start: { x: 10, y: 10 }, end: { x: 20, y: 10 }, length: 10 });
+      expect(values[3]).not.toHaveProperty("startPointId");
+      expect(values[3]).not.toHaveProperty("endPointId");
+      expect(values[4]).toMatchObject({ kind: "arcLine", radius: 10, sweepAngleDeg: 90, length: Math.PI * 5 });
+      expect(values[5]).toMatchObject({
+        kind: "bezierCurve",
+        segments: [{ start: { x: 0, y: 10 }, control1: { x: expect.closeTo(0, 10), y: 12 }, control2: { x: 10, y: 12 }, end: { x: 10, y: 10 } }]
+      });
+      expect((values[5] as { length: number }).length).toBeGreaterThan(0);
+      expect(values[6]).toMatchObject({
+        kind: "polyline", closed: false, start: { x: 0, y: 0 }, end: { x: 3, y: 0 }, length: 9,
+        segments: [{ start: { x: 0, y: 0 }, end: { x: 3, y: 4 }, length: 5 }, { start: { x: 3, y: 4 }, end: { x: 3, y: 0 }, length: 4 }],
+        startTangentAngleDeg: expect.any(Number), endTangentAngleDeg: expect.any(Number)
+      });
+      expect(values[7]).toMatchObject({
+        kind: "offsetLine", closed: false, start: { x: 8, y: 0 }, end: { x: expect.closeTo(0, 10), y: 8 },
+        segments: [{ kind: "arc", radius: 8, startAngleDeg: 0, sweepAngleDeg: 90 }],
+        startTangentAngleDeg: expect.any(Number), endTangentAngleDeg: expect.any(Number)
+      });
+      expect((values[7] as { length: number }).length).toBeGreaterThan(0);
+      expect(values[8]).toMatchObject({
+        kind: "joinedPath", closed: false, start: { x: 10, y: 0 }, end: { x: 20, y: 10 },
+        segments: [
+          { kind: "arc", radius: 10, sweepAngleDeg: 90 },
+          { kind: "line", start: { x: 0, y: 10 }, end: { x: 10, y: 10 }, length: 10 },
+          { kind: "line", start: { x: 10, y: 10 }, end: { x: 20, y: 10 }, length: 10 }
+        ],
+        startTangentAngleDeg: expect.any(Number), endTangentAngleDeg: expect.any(Number)
+      });
+      expect((values[8] as { length: number }).length).toBeGreaterThan(0);
+    }
+  }, 30000);
+
   it("matches invalid copy path scale, mirror axis, and ordered sources across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",
