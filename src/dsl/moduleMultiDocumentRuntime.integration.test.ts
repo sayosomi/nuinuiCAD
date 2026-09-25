@@ -846,7 +846,10 @@ describe("multi-document module runtime", () => {
     expect(result.geometryValueErrors).toEqual([]);
     const importedValues = [...(result.computedGeometryValues?.values() ?? [])]
       .filter((entry) => entry.occurrence.instancePath.length === 1);
-    expect(importedValues.map((entry) => entry.value)).toEqual([{ kind: "point", x: 50, y: 0 }]);
+    expect(importedValues.map((entry) => entry.value)).toEqual([
+      { kind: "point", x: 50, y: 0 },
+      { kind: "point", x: 50, y: 0 }
+    ]);
     expect(importedValues.every(({ value }) => !("elementId" in value) && !("name" in value))).toBe(true);
     const use = compiled.document?.elements.find((element) => element.name === "Use");
     expect(use && result.computedGeometry.get(use.id)).toMatchObject({

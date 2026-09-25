@@ -5207,6 +5207,25 @@ export const compileModuleScalarRuntime = ({
       }
       return expression;
     }
+    if (value.initializer) {
+      const lowered = value.initializer.expectedGeometryKind === "point"
+        ? lowerGeometryValuePoint(value.initializer, context, executionPosition)
+        : lowerGeometryValuePath(value.initializer, context, executionPosition);
+      if (lowered?.kind !== "target") return undefined;
+      const construction: GeometryValueProgramNode = { kind: "reference", target: lowered.target };
+      if (emit) {
+        geometryValueProgramEntries.push({
+          sourceStatementId: value.statementId,
+          sourceStatementIndex: value.statementIndex,
+          declaredInterfaceType: value.declaredInterfaceType,
+          occurrence: { sourceStatementId: value.statementId, instancePath: [...path] },
+          sourceExecutionPosition: executionPosition,
+          executionPosition,
+          construction
+        });
+      }
+      return construction;
+    }
     if (!value.construction) return undefined;
     const construction = value.construction.kind === "coordinate"
       ? value.construction.x && value.construction.y
