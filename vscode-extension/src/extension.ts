@@ -115,6 +115,7 @@ import {
 } from "../../src/vscode/protocol";
 import { webviewPresentationFor } from "./webviewPresentationLocalization";
 import { registerWebviewContextCommandAliases } from "./webviewContextCommandAliases";
+import { registerSourceContextCommandAliases } from "./sourceContextCommandAliases";
 import {
   VscodeWebviewSessionRegistry,
   type VscodeWebviewSessionBase
@@ -2537,6 +2538,7 @@ export const activate = (
     () => executeBakeCommand("base")
   );
   const webviewContextCommandAliases = registerWebviewContextCommandAliases();
+  const sourceContextCommandAliases = registerSourceContextCommandAliases();
 
   const closeDocumentListener = vscode.workspace.onDidCloseTextDocument((document) => {
     if (lastBakeSurface?.kind === "source" && sameDocument(lastBakeSurface.document, document)) {
@@ -2581,6 +2583,7 @@ export const activate = (
     bakeCurrentShapeCommand,
     bakeBaseShapeCommand,
     webviewContextCommandAliases,
+    sourceContextCommandAliases,
     closeDocumentListener,
     disposeAllSessions,
     disposeRustProcess

@@ -38,6 +38,10 @@
         "label": "%submenu.convert%"
       },
       {
+        "id": "nuinuiCAD.sourceBake",
+        "label": "%submenu.source.bake%"
+      },
+      {
         "id": "nuinuiCAD.webview.canvasDisplay",
         "label": "%submenu.webview.display%"
       },
@@ -465,6 +469,14 @@
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly"
         },
         {
+          "command": "nuinuiCAD.sourceContext.insertTemplate",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.sourceContext.insertModulePreviewInstance",
+          "when": "false"
+        },
+        {
           "command": "nuinuiCAD.createFreePointAtPointer",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -775,7 +787,7 @@
           "group": "2_nuinuiCAD@0"
         },
         {
-          "command": "nuinuiCAD.insertTemplate",
+          "command": "nuinuiCAD.sourceContext.insertTemplate",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly",
           "group": "2_nuinuiCAD@0.1"
         },
@@ -810,34 +822,14 @@
           "group": "2_nuinuiCAD@3.1"
         },
         {
-          "command": "nuinuiCAD.insertModulePreviewInstance",
+          "command": "nuinuiCAD.sourceContext.insertModulePreviewInstance",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.modulePreviewInsertAvailable",
           "group": "2_nuinuiCAD@3.2"
-        },
-        {
-          "command": "nuinuiCAD.inlineModuleInstance",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.inlineModuleSourceTarget",
-          "group": "2_nuinuiCAD@4"
-        },
-        {
-          "command": "nuinuiCAD.extractModule",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.extractModuleSourceTarget",
-          "group": "2_nuinuiCAD@5"
         },
         {
           "command": "nuinuiCAD.pickReferenceFromCanvas",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.referencePickSourceTarget",
           "group": "2_nuinuiCAD@6"
-        },
-        {
-          "submenu": "nuinuiCAD.convertPoint",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.coordinatePointConversionSourceTarget",
-          "group": "2_nuinuiCAD@7"
-        },
-        {
-          "command": "nuinuiCAD.replaceGeometryReferences",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && !editorReadonly && nuinuiCAD.geometryReferenceRetargetSourceTarget",
-          "group": "2_nuinuiCAD@8"
         },
         {
           "command": "nuinuiCAD.stepSourceValueForward",
@@ -850,14 +842,19 @@
           "group": "2_nuinuiCAD@10"
         },
         {
-          "command": "nuinuiCAD.bakeCurrentShape",
+          "submenu": "nuinuiCAD.sourceBake",
           "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
           "group": "2_nuinuiCAD@11"
+        }
+      ],
+      "nuinuiCAD.sourceBake": [
+        {
+          "command": "nuinuiCAD.bakeCurrentShape",
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget"
         },
         {
           "command": "nuinuiCAD.bakeBaseShape",
-          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget",
-          "group": "2_nuinuiCAD@12"
+          "when": "editorLangId == nui && resourceScheme == file && resourceExtname == .nui && nuinuiCAD.bakeSourceTarget"
         }
       ]
     },
@@ -1118,6 +1115,14 @@
         "command": "nuinuiCAD.insertTemplate",
         "title": "%command.insertTemplate.title%",
         "category": "nuinuiCAD"
+      },
+      {
+        "command": "nuinuiCAD.sourceContext.insertTemplate",
+        "title": "%command.sourceContext.insertTemplate.title%"
+      },
+      {
+        "command": "nuinuiCAD.sourceContext.insertModulePreviewInstance",
+        "title": "%command.sourceContext.insertModulePreviewInstance.title%"
       },
       {
         "command": "nuinuiCAD.createFreePointAtPointer",
