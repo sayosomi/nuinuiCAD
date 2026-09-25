@@ -100,7 +100,15 @@ export const CommandRibbonFloatingOverlay = ({
     const persistedPosition = defaultStackGap !== undefined && ribbon.x !== null
       ? { x: ribbon.x, y: ribbon.y }
       : null;
-    const configured = persistedPosition ?? positions[ribbon.id] ?? (
+    const localPosition = positions[ribbon.id];
+    const activeDragPosition = draggingRibbonId === ribbon.id
+      ? localPosition
+      : undefined;
+    const pendingPersistedPosition = defaultStackGap !== undefined && persistedPosition && localPosition &&
+      (localPosition.x !== persistedPosition.x || localPosition.y !== persistedPosition.y)
+      ? localPosition
+      : undefined;
+    const configured = activeDragPosition ?? pendingPersistedPosition ?? persistedPosition ?? localPosition ?? (
       usesDefaultStackPosition && defaultStackPosition
         ? defaultStackPosition
         : { x: ribbon.x ?? defaultRibbonX(viewportSize, ribbon, sizeFor(ribbon)), y: ribbon.y }
@@ -144,6 +152,26 @@ export const CommandRibbonFloatingOverlay = ({
     // This effect never invokes onPositionCommit, so resize alone cannot persist.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultStackGap, ribbonConfigurationKey, viewportSize.width, viewportSize.height, sizeFor]);
+
+  useEffect(() => {
+    if (defaultStackGap === undefined) return;
+    // Drop the transient entry when the host publishes the committed coordinates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPositions((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const ribbon of ribbons) {
+        if (draggingRibbonId === ribbon.id || ribbon.x === null) continue;
+        const position = current[ribbon.id];
+        if (!position || position.x !== ribbon.x || position.y !== ribbon.y) continue;
+        delete next[ribbon.id];
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+    // ribbonConfigurationKey tracks the Ribbon props used by this acknowledgement pass.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultStackGap, draggingRibbonId, ribbonConfigurationKey]);
 
   useEffect(() => {
     if (typeof ResizeObserver === "undefined") return;
@@ -235,10 +263,18 @@ export const CommandRibbonFloatingOverlay = ({
   };
 
   const cancelDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (!dragRef.current) return;
+    const drag = dragRef.current;
+    if (!drag) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setPositions((current) => {
+      const settledPosition = { x: drag.startX, y: drag.startY };
+      if (current[drag.ribbonId]?.x === settledPosition.x && current[drag.ribbonId]?.y === settledPosition.y) {
+        return current;
+      }
+      return { ...current, [drag.ribbonId]: settledPosition };
+    });
     dragRef.current = null;
     setDraggingRibbonId(null);
   };

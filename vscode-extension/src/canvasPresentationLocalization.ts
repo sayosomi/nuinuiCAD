@@ -36,6 +36,7 @@ export const canvasPresentationTranslationCatalog = {
   "canvas.grid.configure.majorEvery": { en: "Major interval: ×{majorEvery}", ja: "主線間隔: ×{majorEvery}" },
   "canvas.grid.configure.gridSnapOn": { en: "Grid Snap: On", ja: "グリッドスナップ: オン" },
   "canvas.grid.configure.gridSnapOff": { en: "Grid Snap: Off", ja: "グリッドスナップ: オフ" },
+  "canvas.grid.configure.resetToDefaults": { en: "Reset to Defaults", ja: "初期値に戻す" },
   "canvas.grid.configure.spacingTitle": { en: "Canvas Grid Spacing", ja: "Canvasグリッド間隔" },
   "canvas.grid.configure.spacingPrompt": {
     en: "Enter a finite spacing value in millimetres greater than 0.",

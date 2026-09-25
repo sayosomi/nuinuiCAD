@@ -1,9 +1,11 @@
 import * as vscode from "vscode";
 import {
+  CANVAS_GRID_SNAP_ENABLED_SETTING,
   CANVAS_GRID_ENABLED_SETTING,
   CANVAS_GRID_MAJOR_EVERY_SETTING,
   CANVAS_GRID_SETTING_KEYS,
   CANVAS_GRID_SPACING_SETTING,
+  DEFAULT_CANVAS_GRID_SETTINGS,
   type CanvasGridSettings
 } from "../../src/components/canvasGrid";
 import { nativeShowInputBox, nativeShowQuickPick } from "./nativeQuickInput";
@@ -11,7 +13,7 @@ import { nativeShowInputBox, nativeShowQuickPick } from "./nativeQuickInput";
 export type CanvasGridSettingKey = (typeof CANVAS_GRID_SETTING_KEYS)[number];
 
 type CanvasGridQuickPickItem = vscode.QuickPickItem & {
-  setting: "grid" | "spacing" | "majorEvery" | "gridSnap";
+  setting: "grid" | "spacing" | "majorEvery" | "gridSnap" | "resetToDefaults";
 };
 
 export type CanvasGridCommandTextKey =
@@ -23,6 +25,7 @@ export type CanvasGridCommandTextKey =
   | "canvas.grid.configure.majorEvery"
   | "canvas.grid.configure.gridSnapOn"
   | "canvas.grid.configure.gridSnapOff"
+  | "canvas.grid.configure.resetToDefaults"
   | "canvas.grid.configure.spacingTitle"
   | "canvas.grid.configure.spacingPrompt"
   | "canvas.grid.configure.spacingInvalid"
@@ -83,6 +86,10 @@ export const registerCanvasGridCommandFeature = (
             ? "canvas.grid.configure.gridSnapOn"
             : "canvas.grid.configure.gridSnapOff"),
           setting: "gridSnap"
+        },
+        {
+          label: dependencies.text("canvas.grid.configure.resetToDefaults"),
+          setting: "resetToDefaults"
         }
       ];
       const selected = await nativeShowQuickPick(items, {
@@ -97,6 +104,13 @@ export const registerCanvasGridCommandFeature = (
       }
       if (selected.setting === "gridSnap") {
         await vscode.commands.executeCommand("nuinuiCAD.toggleCanvasGridSnap");
+        continue;
+      }
+      if (selected.setting === "resetToDefaults") {
+        await dependencies.updateSetting(CANVAS_GRID_ENABLED_SETTING, DEFAULT_CANVAS_GRID_SETTINGS.enabled);
+        await dependencies.updateSetting(CANVAS_GRID_SPACING_SETTING, DEFAULT_CANVAS_GRID_SETTINGS.spacingMm);
+        await dependencies.updateSetting(CANVAS_GRID_MAJOR_EVERY_SETTING, DEFAULT_CANVAS_GRID_SETTINGS.majorEvery);
+        await dependencies.updateSetting(CANVAS_GRID_SNAP_ENABLED_SETTING, DEFAULT_CANVAS_GRID_SETTINGS.snapEnabled);
         continue;
       }
       if (selected.setting === "spacing") {

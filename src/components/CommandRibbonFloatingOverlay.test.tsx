@@ -72,6 +72,97 @@ describe("CommandRibbonFloatingOverlay", () => {
     expect(onPositionCommit).toHaveBeenCalledTimes(commitsBeforeResize);
   });
 
+  it("shows a persisted fixed Canvas Ribbon at its live drag position before committing only that Ribbon", () => {
+    const onPositionChange = vi.fn();
+    const onPositionCommit = vi.fn();
+    const otherRibbon = { ...ribbon, id: "other-ribbon", label: "Other Ribbon", x: 96, y: 24 };
+    const view = render(
+      <CommandRibbonFloatingOverlay
+        ribbons={[ribbon, otherRibbon]}
+        viewportSize={{ width: 320, height: 180 }}
+        defaultStackGap={16}
+        iconResolver={() => Circle}
+        onPositionChange={onPositionChange}
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    const positionedRibbon = () => view.container.querySelectorAll<HTMLElement>(
+      ".command-ribbon-layer > div"
+    )[0];
+    const positionedOtherRibbon = () => view.container.querySelectorAll<HTMLElement>(
+      ".command-ribbon-layer > div"
+    )[1];
+    const handle = screen.getByRole("button", { name: "Ribbonを移動" });
+
+    expect(positionedRibbon()).toHaveStyle({ left: "12px", top: "12px" });
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 7, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(handle, { pointerId: 7, clientX: 80, clientY: 65 });
+
+    expect(positionedRibbon()).toHaveStyle({ left: "72px", top: "57px" });
+    expect(onPositionChange).toHaveBeenCalledWith("ribbon", { x: 72, y: 57 });
+    expect(onPositionCommit).not.toHaveBeenCalled();
+    expect(positionedOtherRibbon()).toHaveStyle({ left: "96px", top: "24px" });
+
+    fireEvent.pointerUp(handle, { pointerId: 7, clientX: 80, clientY: 65 });
+
+    expect(onPositionCommit).toHaveBeenCalledTimes(1);
+    expect(onPositionCommit).toHaveBeenCalledWith("ribbon", { x: 72, y: 57 });
+    expect(positionedRibbon()).toHaveStyle({ left: "72px", top: "57px" });
+
+    view.rerender(
+      <CommandRibbonFloatingOverlay
+        ribbons={[{ ...ribbon, x: 72, y: 57 }, otherRibbon]}
+        viewportSize={{ width: 320, height: 180 }}
+        defaultStackGap={16}
+        iconResolver={() => Circle}
+        onPositionChange={onPositionChange}
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    expect(positionedRibbon()).toHaveStyle({ left: "72px", top: "57px" });
+
+    view.rerender(
+      <CommandRibbonFloatingOverlay
+        ribbons={[{ ...ribbon, x: 110, y: 80 }, otherRibbon]}
+        viewportSize={{ width: 320, height: 180 }}
+        defaultStackGap={16}
+        iconResolver={() => Circle}
+        onPositionChange={onPositionChange}
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    expect(positionedRibbon()).toHaveStyle({ left: "110px", top: "80px" });
+  });
+
+  it("clears a canceled persisted Ribbon drag without committing or reviving its transient position", () => {
+    const onPositionCommit = vi.fn();
+    const view = render(
+      <CommandRibbonFloatingOverlay
+        ribbons={[ribbon]}
+        viewportSize={{ width: 320, height: 180 }}
+        defaultStackGap={16}
+        iconResolver={() => Circle}
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    const positionedRibbon = view.container.querySelector<HTMLElement>(".command-ribbon-layer > div");
+    const handle = screen.getByRole("button", { name: "Ribbonを移動" });
+
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 8, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(handle, { pointerId: 8, clientX: 80, clientY: 65 });
+    expect(positionedRibbon).toHaveStyle({ left: "72px", top: "57px" });
+
+    fireEvent.pointerCancel(handle, { pointerId: 8, clientX: 80, clientY: 65 });
+
+    expect(positionedRibbon).toHaveStyle({ left: "12px", top: "12px" });
+    expect(onPositionCommit).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 9, clientX: 20, clientY: 20 });
+    expect(positionedRibbon).toHaveStyle({ left: "12px", top: "12px" });
+    fireEvent.pointerCancel(handle, { pointerId: 9, clientX: 20, clientY: 20 });
+    expect(onPositionCommit).not.toHaveBeenCalled();
+  });
+
   it("displaces only the displayed Ribbon position below Pick Mode chrome", () => {
     const onPositionChange = vi.fn();
     const onPositionCommit = vi.fn();

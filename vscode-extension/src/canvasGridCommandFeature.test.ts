@@ -29,6 +29,7 @@ import {
   CANVAS_GRID_MAJOR_EVERY_SETTING,
   CANVAS_GRID_SNAP_ENABLED_SETTING,
   CANVAS_GRID_SPACING_SETTING,
+  DEFAULT_CANVAS_GRID_SETTINGS,
   type CanvasGridSettings
 } from "../../src/components/canvasGrid";
 import {
@@ -48,6 +49,7 @@ const englishText: Record<CanvasGridCommandTextKey, string> = {
   "canvas.grid.configure.majorEvery": "Major interval: ×{majorEvery}",
   "canvas.grid.configure.gridSnapOn": "Grid Snap: On",
   "canvas.grid.configure.gridSnapOff": "Grid Snap: Off",
+  "canvas.grid.configure.resetToDefaults": "Reset to Defaults",
   "canvas.grid.configure.spacingTitle": "Canvas Grid Spacing",
   "canvas.grid.configure.spacingPrompt": "Enter a finite spacing value in millimetres greater than 0.",
   "canvas.grid.configure.spacingInvalid": "Enter a finite number greater than 0.",
@@ -63,12 +65,7 @@ const interpolate = (
 
 const createFeature = (
   activeCanvas = true,
-  initialSettings: CanvasGridSettings = {
-    enabled: true,
-    spacingMm: 10,
-    majorEvery: 5,
-    snapEnabled: false
-  }
+  initialSettings: CanvasGridSettings = { ...DEFAULT_CANVAS_GRID_SETTINGS }
 ) => {
   let settings = initialSettings;
   const updates: Array<{ key: CanvasGridSettingKey; value: boolean | number }> = [];
@@ -145,9 +142,9 @@ describe("Canvas Grid native commands", () => {
     await feature.handlers.get("nuinuiCAD.configureCanvasGrid")?.();
 
     expect(mocks.showQuickPick.mock.calls.map(([items]) => (items as Array<{ label: string }>).map(({ label }) => label))).toEqual([
-      ["Grid: On", "Spacing: 10 mm", "Major interval: ×5", "Grid Snap: Off"],
-      ["Grid: On", "Spacing: 10 mm", "Major interval: ×5", "Grid Snap: Off"],
-      ["Grid: On", "Spacing: 10 mm", "Major interval: ×5", "Grid Snap: Off"]
+      ["Grid: On", "Spacing: 10 mm", "Major interval: ×5", "Grid Snap: Off", "Reset to Defaults"],
+      ["Grid: On", "Spacing: 10 mm", "Major interval: ×5", "Grid Snap: Off", "Reset to Defaults"],
+      ["Grid: On", "Spacing: 10 mm", "Major interval: ×5", "Grid Snap: Off", "Reset to Defaults"]
     ]);
     expect(mocks.showQuickPick).toHaveBeenNthCalledWith(1, expect.any(Array), {
       title: "Configure Canvas Grid",
@@ -156,6 +153,38 @@ describe("Canvas Grid native commands", () => {
     expect(mocks.executeCommand).toHaveBeenNthCalledWith(1, "nuinuiCAD.toggleCanvasGrid");
     expect(mocks.executeCommand).toHaveBeenNthCalledWith(2, "nuinuiCAD.toggleCanvasGridSnap");
     expect(feature.updates).toEqual([]);
+  });
+
+  it("resets all Canvas Grid settings and refreshes the picker from canonical defaults", async () => {
+    const feature = createFeature(true, {
+      enabled: false,
+      spacingMm: 2.5,
+      majorEvery: 2,
+      snapEnabled: true
+    });
+    mocks.showQuickPick
+      .mockImplementationOnce(async (items: Array<{ label: string; setting: string }>) => {
+        const reset = items.find(({ setting }) => setting === "resetToDefaults");
+        expect(reset?.label).toBe("Reset to Defaults");
+        return reset;
+      })
+      .mockResolvedValueOnce(undefined);
+
+    await feature.handlers.get("nuinuiCAD.configureCanvasGrid")?.();
+
+    expect(feature.updates).toEqual([
+      { key: CANVAS_GRID_ENABLED_SETTING, value: DEFAULT_CANVAS_GRID_SETTINGS.enabled },
+      { key: CANVAS_GRID_SPACING_SETTING, value: DEFAULT_CANVAS_GRID_SETTINGS.spacingMm },
+      { key: CANVAS_GRID_MAJOR_EVERY_SETTING, value: DEFAULT_CANVAS_GRID_SETTINGS.majorEvery },
+      { key: CANVAS_GRID_SNAP_ENABLED_SETTING, value: DEFAULT_CANVAS_GRID_SETTINGS.snapEnabled }
+    ]);
+    expect(mocks.showQuickPick.mock.calls[1]?.[0]).toEqual([
+      { label: "Grid: On", setting: "grid" },
+      { label: `Spacing: ${DEFAULT_CANVAS_GRID_SETTINGS.spacingMm} mm`, setting: "spacing" },
+      { label: `Major interval: ×${DEFAULT_CANVAS_GRID_SETTINGS.majorEvery}`, setting: "majorEvery" },
+      { label: "Grid Snap: Off", setting: "gridSnap" },
+      { label: "Reset to Defaults", setting: "resetToDefaults" }
+    ]);
   });
 
   it("validates and updates spacing and major interval, refreshing the next Quick Pick", async () => {
@@ -226,6 +255,10 @@ describe("Canvas Grid native commands", () => {
 
 describe("Canvas Grid command localization", () => {
   it("resolves the Quick Input rows and validation messages in English and Japanese", () => {
+    expect(canvasPresentationTextFor("canvas.grid.configure.resetToDefaults", "en"))
+      .toBe("Reset to Defaults");
+    expect(canvasPresentationTextFor("canvas.grid.configure.resetToDefaults", "ja"))
+      .toBe("初期値に戻す");
     expect(canvasPresentationTextFor("canvas.grid.configure.spacing", "en", { spacing: 2.5 }))
       .toBe("Spacing: 2.5 mm");
     expect(canvasPresentationTextFor("canvas.grid.configure.majorEvery", "ja", { majorEvery: 5 }))
