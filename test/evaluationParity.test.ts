@@ -186,6 +186,125 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(cycleCompile.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
   }, 30000);
 
+  it("preserves optional-member availability through the persistent Rust stdio boundary", async () => {
+    const evaluateSource = async (lines: string[]) => {
+      const fixture = fixtureFromSource(lines.join("\n"));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      const ts = evaluationPayloadToResult(tsPayload);
+      const rust = evaluationPayloadToResult(rustPayload);
+      expect(rust.errors).toEqual(ts.errors);
+      expect(rust.warnings).toEqual(ts.warnings);
+      return { fixture, options, tsPayload, rustPayload, ts, rust };
+    };
+
+    const firstPosition = await evaluateSource([
+      "nui 1",
+      "record Piece(amount: number)",
+      "const input: Piece? = none",
+      "const readAmount: number? = @input?.amount"
+    ]);
+    const firstBinding = firstPosition.fixture.compiled?.doc.bindingAnalysis.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "readAmount"
+    );
+    const firstStatement = firstPosition.options.scalarProgram?.statements.find(
+      (statement) => statement.bindingId === firstBinding?.id
+    );
+    expect(firstStatement?.sourceOrder).toBe(0);
+    expect(firstStatement?.declaration.initializer).toMatchObject({
+      kind: "optionalMember",
+      target: { kind: "recordField", targetSourceOrder: firstStatement?.sourceOrder }
+    });
+    for (const payload of [firstPosition.tsPayload, firstPosition.rustPayload]) {
+      expect(scalarBindingFor(firstPosition.fixture, payload, "readAmount")).toMatchObject({
+        status: "ok",
+        value: { kind: "none" }
+      });
+    }
+
+    const presentRecord = await evaluateSource([
+      "nui 1",
+      "record Piece(amount: number)",
+      "const input: Piece? = Piece(amount: 17)",
+      "const readAmount: number? = @input?.amount"
+    ]);
+    for (const payload of [presentRecord.tsPayload, presentRecord.rustPayload]) {
+      expect(scalarBindingFor(presentRecord.fixture, payload, "readAmount")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 17 }
+      });
+    }
+
+    const paddedAbsentRecord = await evaluateSource([
+      "nui 1",
+      "record Piece(amount: number)",
+      "const paddingBefore: number = 101",
+      "const input: Piece? = none",
+      "const paddingBetween: number = 202",
+      "const readAmount: number? = @input?.amount",
+      "const paddingAfter: number = 303"
+    ]);
+    for (const payload of [paddedAbsentRecord.tsPayload, paddedAbsentRecord.rustPayload]) {
+      expect(scalarBindingFor(paddedAbsentRecord.fixture, payload, "readAmount")).toMatchObject({
+        status: "ok",
+        value: { kind: "none" }
+      });
+    }
+    expect(scalarBindingFor(paddedAbsentRecord.fixture, paddedAbsentRecord.tsPayload, "readAmount"))
+      .toEqual(scalarBindingFor(firstPosition.fixture, firstPosition.tsPayload, "readAmount"));
+
+    const nestedRecord = await evaluateSource([
+      "nui 1",
+      "record Metadata(label: string)",
+      "record Piece(metadata: Metadata)",
+      'const input: Piece? = Piece(metadata: Metadata(label: "nested"))',
+      "const readLabel: string? = @input?.metadata.label"
+    ]);
+    const nestedBinding = nestedRecord.fixture.compiled?.doc.bindingAnalysis.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "readLabel"
+    );
+    const nestedInitializer = nestedRecord.options.scalarProgram?.statements.find(
+      (statement) => statement.bindingId === nestedBinding?.id
+    )?.declaration.initializer;
+    expect(nestedInitializer).toMatchObject({
+      kind: "optionalMember",
+      target: { kind: "recordField", field: { fieldPath: expect.arrayContaining([expect.anything(), expect.anything()]) } }
+    });
+    for (const payload of [nestedRecord.tsPayload, nestedRecord.rustPayload]) {
+      expect(scalarBindingFor(nestedRecord.fixture, payload, "readLabel")).toMatchObject({
+        status: "ok",
+        value: { kind: "string", value: "nested" }
+      });
+    }
+
+    const presentCollection = await evaluateSource([
+      "nui 1",
+      "const items: number[]? = [1, 2, 3]",
+      "const itemCount: number? = @items?.length"
+    ]);
+    for (const payload of [presentCollection.tsPayload, presentCollection.rustPayload]) {
+      expect(scalarBindingFor(presentCollection.fixture, payload, "itemCount")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 3 }
+      });
+    }
+
+    const absentCollection = await evaluateSource([
+      "nui 1",
+      "const items: number[]? = none",
+      "const itemCount: number? = @items?.length"
+    ]);
+    for (const payload of [absentCollection.tsPayload, absentCollection.rustPayload]) {
+      expect(scalarBindingFor(absentCollection.fixture, payload, "itemCount")).toMatchObject({
+        status: "ok",
+        value: { kind: "none" }
+      });
+    }
+  }, 30000);
+
   it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
     const fixture = fixtureFromSource([
       "nui 1",
