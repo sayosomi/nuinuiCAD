@@ -756,14 +756,27 @@ const setup = (
           ? mocks.bakeSettings[fullKey] as T
           : defaultValue as T;
       },
-      inspect: (key: string) => key === CANVAS_GRID_SNAP_ENABLED_SETTING
+      inspect: (key: string) => [
+        CANVAS_GRID_ENABLED_SETTING,
+        CANVAS_GRID_SPACING_SETTING,
+        CANVAS_GRID_MAJOR_EVERY_SETTING,
+        CANVAS_GRID_SNAP_ENABLED_SETTING
+      ].includes(key as typeof CANVAS_GRID_ENABLED_SETTING)
         ? { ...mocks.canvasGridConfigurationInspection }
         : undefined,
       update: (key: string, value: unknown, target: unknown) => {
         mocks.configurationUpdates.push({ section: key, value, target });
         if (key === "nuinuiCAD.canvasRibbon.ribbons") mocks.canvasRibbonSetting = value;
-        if (key === CANVAS_GRID_SNAP_ENABLED_SETTING) {
-          mocks.canvasGridSettings.snapEnabled = value;
+        if (key === CANVAS_GRID_ENABLED_SETTING) mocks.canvasGridSettings.enabled = value;
+        if (key === CANVAS_GRID_SPACING_SETTING) mocks.canvasGridSettings.spacingMm = value;
+        if (key === CANVAS_GRID_MAJOR_EVERY_SETTING) mocks.canvasGridSettings.majorEvery = value;
+        if (key === CANVAS_GRID_SNAP_ENABLED_SETTING) mocks.canvasGridSettings.snapEnabled = value;
+        if ([
+          CANVAS_GRID_ENABLED_SETTING,
+          CANVAS_GRID_SPACING_SETTING,
+          CANVAS_GRID_MAJOR_EVERY_SETTING,
+          CANVAS_GRID_SNAP_ENABLED_SETTING
+        ].includes(key as typeof CANVAS_GRID_ENABLED_SETTING)) {
           if (target === 1) mocks.canvasGridConfigurationInspection.globalValue = value;
           if (target === 2) mocks.canvasGridConfigurationInspection.workspaceValue = value;
         }
@@ -5859,6 +5872,30 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasGridConfiguration" }));
   });
 
+  it.each([
+    ["workspace when it owns the effective value", { globalValue: true, workspaceValue: false }, 2],
+    ["global when it is the only explicit value", { globalValue: false }, 1],
+    ["global when no explicit value exists", {}, 1]
+  ] as const)("toggles Canvas Grid at the %s configuration target", async (_caseName, inspection, target) => {
+    const document = documentFor("/tmp/grid-target.nui", "file:///tmp/grid-target.nui");
+    const editor = editorFor(document);
+    mocks.canvasGridSettings = { enabled: false, spacingMm: 10, majorEvery: 5, snapEnabled: false };
+    mocks.canvasGridConfigurationInspection = { ...inspection };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.toggleCanvasGrid", expect.any(Function));
+    await commandHandlerFor("nuinuiCAD.toggleCanvasGrid")?.();
+
+    expect(mocks.configurationUpdates).toEqual([{
+      section: CANVAS_GRID_ENABLED_SETTING,
+      value: true,
+      target
+    }]);
+    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: undefined });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasGridConfiguration" }));
+  });
+
   it("routes the Ribbon host action through the canonical Grid Snap command", async () => {
     const document = documentFor("/tmp/grid-snap-host-action.nui", "file:///tmp/grid-snap-host-action.nui");
     const editor = editorFor(document);
@@ -5868,6 +5905,20 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     await messageHandlerFor(panel)({ type: "toggleCanvasGridSnap" });
 
     expect(mocks.executeCommand).toHaveBeenCalledWith("nuinuiCAD.toggleCanvasGridSnap");
+    expect(mocks.configurationUpdates).toEqual([]);
+  });
+
+  it("routes Canvas Grid Ribbon host actions through the canonical native commands", async () => {
+    const document = documentFor("/tmp/grid-host-actions.nui", "file:///tmp/grid-host-actions.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    await messageHandlerFor(panel)({ type: "toggleCanvasGrid" });
+    await messageHandlerFor(panel)({ type: "configureCanvasGrid" });
+
+    expect(mocks.executeCommand).toHaveBeenCalledWith("nuinuiCAD.toggleCanvasGrid");
+    expect(mocks.executeCommand).toHaveBeenCalledWith("nuinuiCAD.configureCanvasGrid");
     expect(mocks.configurationUpdates).toEqual([]);
   });
 

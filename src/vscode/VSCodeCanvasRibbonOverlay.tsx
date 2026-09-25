@@ -7,13 +7,16 @@ import { CommandRibbonFloatingOverlay } from "../components/CommandRibbonFloatin
 import type { RibbonPosition } from "../components/commandRibbonFloatingGeometry";
 import type {
   CommandRibbonPresentation,
+  CommandRibbonPresentationActionItem,
   CommandRibbonPresentationCommandItem
 } from "../components/CommandRibbonView";
 import type { CanvasPresentation } from "../components/canvasPresentation";
+import { DEFAULT_CANVAS_GRID_SETTINGS } from "../components/canvasGrid";
 import {
   VSCODE_CANVAS_RIBBON_ICON_SIZE,
   type VscodeCanvasRibbon,
-  type VscodeCanvasRibbonCommandItem
+  type VscodeCanvasRibbonCommandItem,
+  type VscodeCanvasRibbonValueItem
 } from "./vscodeCanvasRibbonConfig";
 import {
   vscodeCanvasRibbonCommandFor,
@@ -33,7 +36,7 @@ export type VSCodeCanvasRibbonOverlayProps = {
   viewportSize: ViewportSize;
   canvasModeChromeHeight?: number;
   ribbonCommandContext: VscodeCanvasRibbonCommandContext;
-  onCommand?: (item: CommandRibbonPresentationCommandItem) => void;
+  onCommand?: (item: CommandRibbonPresentationActionItem) => void;
   onPositionCommit?: (ribbonId: string, position: RibbonPosition) => void;
   presentation?: CanvasPresentation;
 };
@@ -73,6 +76,34 @@ const commandItemPresentationFor = (
   };
 };
 
+const gridValueItemPresentationFor = (
+  item: VscodeCanvasRibbonValueItem,
+  ribbonCommandContext: VscodeCanvasRibbonCommandContext,
+  presentation?: CanvasPresentation
+): CommandRibbonPresentationActionItem => {
+  const definition = vscodeCanvasRibbonCommandFor("configureCanvasGrid");
+  const label = presentation?.text(
+    "canvas.ribbon.command.configureCanvasGrid.label",
+    definition?.label ?? "Grid Settings"
+  ) ?? definition?.label ?? "Grid Settings";
+  const description = presentation?.text(
+    "canvas.ribbon.command.configureCanvasGrid.description",
+    definition?.description ?? "Configure Canvas grid visibility, spacing, and major interval."
+  ) ?? definition?.description ?? "Configure Canvas grid visibility, spacing, and major interval.";
+  const spacingMm = ribbonCommandContext.canvasGridSpacingMm ?? DEFAULT_CANVAS_GRID_SETTINGS.spacingMm;
+  const majorEvery = ribbonCommandContext.canvasGridMajorEvery ?? DEFAULT_CANVAS_GRID_SETTINGS.majorEvery;
+  return {
+    id: item.id,
+    type: "interactive-value",
+    commandId: "configureCanvasGrid",
+    icon: "ruler",
+    label,
+    description,
+    valueText: `${spacingMm} mm · ×${majorEvery}`,
+    available: definition?.isAvailable(ribbonCommandContext) ?? false
+  };
+};
+
 const vscodeCanvasRibbonPresentationsFor = (
   ribbons: VscodeCanvasRibbon[],
   canvasViewport: CanvasViewport,
@@ -89,17 +120,20 @@ const vscodeCanvasRibbonPresentationsFor = (
   orientation: ribbon.orientation,
   iconSize: VSCODE_CANVAS_RIBBON_ICON_SIZE,
   verticalHandlePlacement: ribbon.orientation === "vertical" ? "side" : undefined,
-    items: ribbon.items.map((item) => {
-      if (item.type !== "value") return commandItemPresentationFor(item, ribbonCommandContext, presentation);
-      return vscodeCanvasStatusPresentationFor(
-        item.id,
-        canvasViewport,
-        pointerWorldPoint,
-        presentation?.text("canvas.status.label", "Canvas status"),
-        presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
-        presentation?.statusFields
-      );
-    })
+  items: ribbon.items.map((item) => {
+    if (item.type !== "value") return commandItemPresentationFor(item, ribbonCommandContext, presentation);
+    if (item.valueId === "canvasGrid") {
+      return gridValueItemPresentationFor(item, ribbonCommandContext, presentation);
+    }
+    return vscodeCanvasStatusPresentationFor(
+      item.id,
+      canvasViewport,
+      pointerWorldPoint,
+      presentation?.text("canvas.status.label", "Canvas status"),
+      presentation?.text("canvas.status.description", "Current Canvas zoom and pointer position."),
+      presentation?.statusFields
+    );
+  })
 }));
 
 const pointerWorldPointFor = (
@@ -140,7 +174,7 @@ export const VSCodeCanvasRibbonOverlay = ({
     [canvasRibbonRibbons, canvasViewport, pointerWorldPoint, ribbonCommandContext, presentation]
   );
   const tracksPointer = canvasRibbonRibbons.some((ribbon) =>
-    ribbon.items.some((item) => item.type === "value")
+    ribbon.items.some((item) => item.type === "value" && item.valueId === "canvasZoom")
   );
 
   useEffect(() => {

@@ -22,6 +22,38 @@ export const canvasPresentationTranslationCatalog = {
     en: "nuinuiCAD: No active Canvas is available. Open Canvas and try again.",
     ja: "nuinuiCAD: アクティブな Canvas がありません。Canvas を開いてから再試行してください。"
   },
+  "canvas.grid.configure.title": {
+    en: "Configure Canvas Grid",
+    ja: "Canvas グリッドを設定"
+  },
+  "canvas.grid.configure.placeholder": {
+    en: "Select a Canvas grid setting to edit",
+    ja: "編集するCanvasグリッド設定を選択"
+  },
+  "canvas.grid.configure.gridOn": { en: "Grid: On", ja: "グリッド: オン" },
+  "canvas.grid.configure.gridOff": { en: "Grid: Off", ja: "グリッド: オフ" },
+  "canvas.grid.configure.spacing": { en: "Spacing: {spacing} mm", ja: "間隔: {spacing} mm" },
+  "canvas.grid.configure.majorEvery": { en: "Major interval: ×{majorEvery}", ja: "主線間隔: ×{majorEvery}" },
+  "canvas.grid.configure.gridSnapOn": { en: "Grid Snap: On", ja: "グリッドスナップ: オン" },
+  "canvas.grid.configure.gridSnapOff": { en: "Grid Snap: Off", ja: "グリッドスナップ: オフ" },
+  "canvas.grid.configure.spacingTitle": { en: "Canvas Grid Spacing", ja: "Canvasグリッド間隔" },
+  "canvas.grid.configure.spacingPrompt": {
+    en: "Enter a finite spacing value in millimetres greater than 0.",
+    ja: "0より大きい有限のグリッド間隔をミリメートル単位で入力してください。"
+  },
+  "canvas.grid.configure.spacingInvalid": {
+    en: "Enter a finite number greater than 0.",
+    ja: "0より大きい有限の数値を入力してください。"
+  },
+  "canvas.grid.configure.majorEveryTitle": { en: "Canvas Grid Major Interval", ja: "Canvasグリッド主線間隔" },
+  "canvas.grid.configure.majorEveryPrompt": {
+    en: "Enter an integer of at least 1.",
+    ja: "1以上の整数を入力してください。"
+  },
+  "canvas.grid.configure.majorEveryInvalid": {
+    en: "Enter an integer of at least 1.",
+    ja: "1以上の整数を入力してください。"
+  },
   "canvas.sourceOrCanvasRequired": {
     en: "nuinuiCAD: Activate a .nui Source Editor or Canvas before running this command.",
     ja: "nuinuiCAD: 実行する前に .nui の Source Editor または Canvas をアクティブにしてください。"

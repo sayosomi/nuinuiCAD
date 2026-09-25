@@ -16,6 +16,8 @@ export const estimatedRibbonSize = (
   const itemLengths = ribbon.items.map((item) => {
     const labelLength = item.type === "command" && item.showLabel
       ? Math.min(120, Math.max(20, item.label.length * 7)) + 5
+      : item.type === "interactive-value"
+        ? Math.min(120, Math.max(48, item.valueText.length * 7)) + 5
       : item.type === "value"
         ? Math.min(
             260,

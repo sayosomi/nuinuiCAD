@@ -107,6 +107,8 @@ const commandIds = [
   "nuinuiCAD.toggleCanvasElementNames",
   "nuinuiCAD.toggleCanvasPoints",
   "nuinuiCAD.toggleCanvasGridSnap",
+  "nuinuiCAD.toggleCanvasGrid",
+  "nuinuiCAD.configureCanvasGrid",
   "nuinuiCAD.bakeCurrentShape",
   "nuinuiCAD.bakeBaseShape",
   "nuinuiCAD.editCanvasRibbon",
@@ -127,6 +129,9 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.hideCanvasGeometryNames",
   "nuinuiCAD.webview.showCanvasPoints",
   "nuinuiCAD.webview.hideCanvasPoints",
+  "nuinuiCAD.webview.showCanvasGrid",
+  "nuinuiCAD.webview.hideCanvasGrid",
+  "nuinuiCAD.webview.canvasGridSettings",
   "nuinuiCAD.webview.enableCanvasGridSnap",
   "nuinuiCAD.webview.disableCanvasGridSnap",
   "nuinuiCAD.webview.modulePreview.showPointNames",
@@ -516,6 +521,8 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Canvas Element Names (Legacy)",
       "nuinuiCAD: Toggle Canvas Points",
       "nuinuiCAD: Toggle Grid Snap",
+      "nuinuiCAD: Toggle Grid",
+      "nuinuiCAD: Configure Canvas Grid…",
       "Current Shape",
       "Base Shape",
       "Edit Ribbon",
@@ -567,6 +574,9 @@ describe("VS Code extension manifest command contributions", () => {
       "Hide Geometry Names",
       "Show Points",
       "Hide Points",
+      "Show Grid",
+      "Hide Grid",
+      "Grid Settings…",
       "Enable Grid Snap",
       "Disable Grid Snap",
       "Show Point Names",
@@ -583,6 +593,9 @@ describe("VS Code extension manifest command contributions", () => {
       "ジオメトリ名を非表示",
       "点を表示",
       "点を非表示",
+      "グリッドを表示",
+      "グリッドを非表示",
+      "グリッド設定…",
       "グリッドスナップを有効にする",
       "グリッドスナップを無効にする",
       "点名を表示",
@@ -659,6 +672,31 @@ describe("VS Code extension manifest command contributions", () => {
       const alias = manifest.contributes?.commands?.find(({ command: id }) => id === commandId);
       expect(resolveNlsToken(alias!.title, english)).toBe(englishTitle);
       expect(resolveNlsToken(alias!.title, japanese)).toBe(japaneseTitle);
+    }
+  });
+
+  it("keeps Grid visibility and settings commands Canvas-only in the Palette", async () => {
+    const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const palette = manifest.contributes?.menus?.commandPalette ?? [];
+    const commands = manifest.contributes?.commands ?? [];
+    const keybindings = manifest.contributes?.keybindings ?? [];
+    const expected = [
+      ["nuinuiCAD.toggleCanvasGrid", "%command.toggleCanvasGrid.title%", "nuinuiCAD: Toggle Grid", "nuinuiCAD: グリッドを切り替え"],
+      ["nuinuiCAD.configureCanvasGrid", "%command.configureCanvasGrid.title%", "nuinuiCAD: Configure Canvas Grid…", "nuinuiCAD: Canvasグリッドを設定…"]
+    ] as const;
+
+    for (const [commandId, title, englishTitle, japaneseTitle] of expected) {
+      const command = commands.find(({ command }) => command === commandId);
+      expect(command).toMatchObject({ command: commandId, title });
+      expect(command?.enablement).toBeUndefined();
+      expect(resolveNlsToken(command!.title, english)).toBe(englishTitle);
+      expect(resolveNlsToken(command!.title, japanese)).toBe(japaneseTitle);
+      expect(palette.filter(({ command: id }) => id === commandId)).toEqual([
+        { command: commandId, when: canvasPaletteWhen }
+      ]);
+      expect(keybindings.some(({ command: id }) => id === commandId)).toBe(false);
     }
   });
 
@@ -835,6 +873,8 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.insertModulePreviewInstance", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
       { command: "nuinuiCAD.toggleCanvasGridSnap", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.toggleCanvasGrid", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.configureCanvasGrid", when: canvasPaletteWhen },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.revealInOutputPreview", when: sourcePaletteWhen },
@@ -941,8 +981,11 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.webview.hideCanvasGeometryNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
       { command: "nuinuiCAD.webview.showCanvasPoints", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
       { command: "nuinuiCAD.webview.hideCanvasPoints", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
-      { command: "nuinuiCAD.webview.enableCanvasGridSnap", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@4" },
-      { command: "nuinuiCAD.webview.disableCanvasGridSnap", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@4" }
+      { command: "nuinuiCAD.webview.showCanvasGrid", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridEnabled`, group: "1_display@4" },
+      { command: "nuinuiCAD.webview.hideCanvasGrid", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridEnabled`, group: "1_display@4" },
+      { command: "nuinuiCAD.webview.canvasGridSettings", when: canvasBlankWhen, group: "1_display@5" },
+      { command: "nuinuiCAD.webview.enableCanvasGridSnap", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@6" },
+      { command: "nuinuiCAD.webview.disableCanvasGridSnap", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@6" }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.modulePreviewDisplay"]).toEqual([
       { command: "nuinuiCAD.webview.modulePreview.showPointNames", when: `${modulePreviewBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
@@ -1445,7 +1488,7 @@ describe("VS Code Canvas Ribbon configuration contribution", () => {
     expect(commandSchema?.properties?.iconColor).toBeUndefined();
     expect(commandSchema?.properties?.label).toBeUndefined();
     expect(commandSchema?.properties?.commandId).toBeDefined();
-    expect(valueSchema?.properties?.valueId).toEqual({ const: "canvasZoom" });
+    expect(valueSchema?.properties?.valueId).toEqual({ enum: ["canvasZoom", "canvasGrid"] });
     expect(valueSchema?.properties?.label).toBeUndefined();
   });
 });

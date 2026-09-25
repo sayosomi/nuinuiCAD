@@ -119,6 +119,8 @@ export const pickModeCanvasOperationForCommand = (
     commandId === "toggleCanvasGeometryNames" ||
     commandId === "toggleCanvasElementNames" ||
     commandId === "toggleCanvasPoints" ||
+    commandId === "toggleCanvasGrid" ||
+    commandId === "configureCanvasGrid" ||
     commandId === "toggleCanvasGridSnap"
   ) return "presentation-toggle";
   if (commandId === "focusCanvas") return "focus";
