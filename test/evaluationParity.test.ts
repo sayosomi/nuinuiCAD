@@ -2612,6 +2612,128 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("executes collection-backed statement-for loops through the persistent Rust stdio boundary", async () => {
+    const evaluateSource = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return {
+        fixture,
+        tsPayload,
+        rustPayload,
+        ts: evaluationPayloadToResult(tsPayload),
+        rust: evaluationPayloadToResult(rustPayload)
+      };
+    };
+
+    const strings = await evaluateSource([
+      "nui 1",
+      'const items: string[] = ["a", "b"]',
+      'for item in @items carry last: string = "" {',
+      "  next last = @item",
+      "  point Mark = coordinate(x: 0, y: 0)",
+      "}",
+      "const result: string = @last"
+    ].join("\n"));
+    for (const result of [strings.ts, strings.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(scalarBindingFor(strings.fixture, result === strings.ts ? strings.tsPayload : strings.rustPayload, "result"))
+        .toMatchObject({ status: "ok", type: { kind: "string" }, value: { kind: "string", value: "b" } });
+    }
+    const stringLoop = strings.fixture.elements.find((element) => element.type === "forGroup")!;
+    const markRows = strings.ts.forGroupGeneratedRows?.filter((row) => row.forGroupId === stringLoop.id) ?? [];
+    expect(markRows.map((row) => row.iterationIndex)).toEqual([0, 1]);
+    expect(markRows.map((row) => row.variableValue)).toEqual([0, 1]);
+    expect(markRows.every((row) => row.occurrencePath.at(-1)?.iterationIndex === row.iterationIndex)).toBe(true);
+
+    const geometry = await evaluateSource([
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 2, y: 0)",
+      "const items: point[] = [@A, @B]",
+      "for item in @items carry cursor: point = @A {",
+      "  next cursor = @item",
+      "}",
+      "const result: number = @cursor.x"
+    ].join("\n"));
+    for (const result of [geometry.ts, geometry.rust]) {
+      expect(result.errors).toEqual([]);
+      const payload = result === geometry.ts ? geometry.tsPayload : geometry.rustPayload;
+      expectScalarNumberClose(scalarBindingFor(geometry.fixture, payload, "result"), 2);
+    }
+
+    const empty = await evaluateSource([
+      "nui 1",
+      "const items: number[] = []",
+      "for item in @items carry total: number = 7 {",
+      "  next total = @total + 1",
+      "  point Mark = coordinate(x: 0, y: 0)",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    for (const result of [empty.ts, empty.rust]) {
+      expect(result.errors).toEqual([]);
+      const payload = result === empty.ts ? empty.tsPayload : empty.rustPayload;
+      expectScalarNumberClose(scalarBindingFor(empty.fixture, payload, "result"), 7);
+      const loop = empty.fixture.elements.find((element) => element.type === "forGroup")!;
+      expect(result.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop.id) ?? []).toEqual([]);
+      expect([...result.computedGeometry.keys()].some((id) => id.includes(`@${loop.id}:`))).toBe(false);
+    }
+
+    const gated = await evaluateSource([
+      "nui 1",
+      "const items: number[] = [1, 2]",
+      "for item in @items {",
+      "  point Hidden = coordinate(x: 0, y: 0, visible: false)",
+      "}"
+    ].join("\n"));
+    for (const result of [gated.ts, gated.rust]) {
+      expect(result.errors).toEqual([]);
+      const loop = gated.fixture.elements.find((element) => element.type === "forGroup")!;
+      const hiddenRows = result.forGroupGeneratedRows?.filter((row) =>
+        row.forGroupId === loop.id && row.elementName.endsWith("Hidden")
+      ) ?? [];
+      expect(hiddenRows).toHaveLength(2);
+      expect(hiddenRows.every((row) => result.computedGeometry.has(row.generatedElementId))).toBe(true);
+      expect(hiddenRows.some((row) => result.effectiveVisibleElementIds.has(row.generatedElementId))).toBe(false);
+    }
+
+    const nested = await evaluateSource([
+      "nui 1",
+      "const outerItems: number[] = [7, 8]",
+      'const innerItems: string[] = ["a", "b"]',
+      "for outer in @outerItems {",
+      "  for inner in @innerItems {",
+      "    point Mark = coordinate(x: 0, y: 0)",
+      "  }",
+      "}"
+    ].join("\n"));
+    for (const result of [nested.ts, nested.rust]) {
+      expect(result.errors).toEqual([]);
+      const markRows = result.forGroupGeneratedRows?.filter((row) => row.elementName.endsWith("Mark")) ?? [];
+      expect(markRows).toHaveLength(4);
+      expect(markRows.map((row) => row.iterationIndex)).toEqual([0, 1, 0, 1]);
+      expect(markRows.every((row) => row.occurrencePath.length === 2)).toBe(true);
+    }
+
+    const unavailableSource = await evaluateSource([
+      "nui 1",
+      "const controller: boolean = true",
+      'const items: string[] = if (@controller) { @other } else { ["a"] }',
+      "const other: string[] = @items",
+      'for item in @items carry last: string = "seed" {',
+      "  next last = @item",
+      "}",
+      "const result: string = @last"
+    ].join("\n"));
+    for (const result of [unavailableSource.ts, unavailableSource.rust]) {
+      expect(result.errors.some((error) => error.message.includes("collection iteration source"))).toBe(true);
+      expect(result.errors.every((error) => !error.message.includes("min は max 以下"))).toBe(true);
+    }
+  }, 30000);
+
   it("uses the materialized runtime position for Module geometry-property reads", () => {
     const fixture = readParityFixture(repoRoot, "nui1-geometry-value-module-runtime-order.nui");
     const options = optionsFor(fixture);

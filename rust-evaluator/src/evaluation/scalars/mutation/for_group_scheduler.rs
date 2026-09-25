@@ -4,6 +4,7 @@
 
 use super::super::bindings::ScalarDocumentBindingResolver;
 use super::*;
+use crate::evaluation::for_group::PreparedForGroupIterations;
 use crate::evaluation::scalar_expression_runtime::{
     lookup_for_group_geometry_property, lookup_geometry_property,
     lookup_geometry_value_binder_property, lookup_geometry_value_property,
@@ -335,7 +336,7 @@ impl ScalarMutationResolver<'_> {
         &mut self,
         element_id: &str,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
-        iteration_values: Vec<f64>,
+        prepared_iterations: PreparedForGroupIterations,
         statements: Vec<ForGroupExecutionStatement>,
         state: &mut EvaluationState,
         mut execute_statement: F,
@@ -348,6 +349,11 @@ impl ScalarMutationResolver<'_> {
             &mut EvaluationState,
         ) -> Result<ForGroupExecutionRunOutcome, ForGroupExecutionError>,
     {
+        let PreparedForGroupIterations {
+            iteration_values,
+            iteration_value_overrides,
+            geometry_members,
+        } = prepared_iterations;
         let owner = self
             .program
             .for_group_owners_by_element_id
@@ -361,6 +367,7 @@ impl ScalarMutationResolver<'_> {
             loop_scope_id: owner.scope_id,
             iteration_binding_id: owner.iteration_binding_id,
             iteration_values,
+            iteration_value_overrides,
             generated_statements: statements,
         };
         let loop_source_order = self
@@ -373,7 +380,36 @@ impl ScalarMutationResolver<'_> {
             loop_source_order,
         )?;
         self.push_loop_conditional_results();
+        let geometry_binding_id = self
+            .program
+            .for_group_owners_by_element_id
+            .get(element_id)
+            .expect("validated forGroup mutation payload must contain the owner")
+            .iteration_binding_id
+            .clone();
+        let mut geometry_members = geometry_members;
+        let mut active_geometry_iteration = None;
+        let mut previous_geometry_binder: Option<(String, Option<GeometryInputTarget>)> = None;
         let outcome = environment.run(&plan, |environment, context| {
+            if active_geometry_iteration != Some(context.iteration_index) {
+                if let Some((binding_id, previous)) = previous_geometry_binder.take() {
+                    state.geometry_value_binders.remove(&binding_id);
+                    if let Some(previous) = previous {
+                        state.geometry_value_binders.insert(binding_id, previous);
+                    }
+                }
+                let previous = state.geometry_value_binders.remove(&geometry_binding_id);
+                if let Some(member) = geometry_members
+                    .get_mut(context.iteration_index)
+                    .and_then(Option::take)
+                {
+                    state
+                        .geometry_value_binders
+                        .insert(geometry_binding_id.clone(), member);
+                }
+                previous_geometry_binder = Some((geometry_binding_id.clone(), previous));
+                active_geometry_iteration = Some(context.iteration_index);
+            }
             if active_iteration != Some(context.iteration_index) {
                 active_iteration = Some(context.iteration_index);
                 version_index = 0;
@@ -392,6 +428,12 @@ impl ScalarMutationResolver<'_> {
             }
             execute_statement(self, environment, context, state)
         });
+        if let Some((binding_id, previous)) = previous_geometry_binder.take() {
+            state.geometry_value_binders.remove(&binding_id);
+            if let Some(previous) = previous {
+                state.geometry_value_binders.insert(binding_id, previous);
+            }
+        }
         self.pop_loop_conditional_results();
         outcome
     }
@@ -624,9 +666,39 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
                 r#type: ScalarType::Number,
                 value: super::super::types::ScalarValue::Number(value),
             },
+            Some(LoopRead::TypedIteration(value)) => value,
             Some(LoopRead::Slot(value)) => value,
             None => self.resolver.resolve(binding_id, state),
         }
+    }
+
+    fn resolve_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        self.resolver.resolve_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+            state,
+        )
+    }
+
+    fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut std::collections::HashSet<String>,
+    ) -> Option<f64> {
+        self.resolver
+            .resolve_collection_length(collection_value_id, state, seen)
     }
 }
 
@@ -644,6 +716,7 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
                 r#type: ScalarType::Number,
                 value: super::super::types::ScalarValue::Number(value),
             },
+            Some(LoopRead::TypedIteration(value)) => value,
             Some(LoopRead::Slot(value)) => value,
             None => self.resolver.resolve(binding_id, self.state),
         }

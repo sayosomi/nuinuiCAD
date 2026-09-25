@@ -5,8 +5,9 @@
 
 use super::*;
 use crate::evaluation::for_group::{
-    expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
-    iteration_local_variables, record_for_group_expected_occurrences,
+    expand_for_group_iteration_from_template, for_group_owned_template_ids,
+    iteration_local_variables, prepare_for_group_iterations, record_for_group_expected_occurrences,
+    PreparedForGroupIterations,
 };
 use crate::evaluation::scalars::{ForGroupExecutionEnvironment, ForGroupExecutionError};
 use crate::evaluation::types::element_name;
@@ -68,7 +69,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
         environment: &mut ForGroupExecutionEnvironment<scalars::ScalarEvaluation>,
         template_for_group: &Value,
         instance_for_group: &Value,
-        iteration_values: &[f64],
+        prepared_iterations: PreparedForGroupIterations,
         show_generated: bool,
         ancestor_iteration_variables: &[Value],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
@@ -80,7 +81,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
         record_for_group_expected_occurrences(
             self.original_elements,
             &template_for_group_id,
-            iteration_values.len(),
+            prepared_iterations.iteration_values.len(),
             state,
         );
         let owned_template_ids_vec =
@@ -114,7 +115,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
         resolver.run_for_group(
             &template_for_group_id,
             environment,
-            iteration_values.to_vec(),
+            prepared_iterations,
             statements,
             state,
             |resolver, environment, context, state| {
@@ -279,9 +280,16 @@ impl<'a> ForGroupExecutionRuntime<'a> {
                 .iter()
                 .find(|element| element_id(element).as_deref() == Some(template_id.as_str()))
                 .expect("generated forGroup must retain its source template");
-            let Some(nested_iteration_values) =
-                for_group_loop_values(&generated_element, &local_variables, state)
-            else {
+            let nested_source_order = resolver
+                .source_order_for_element(&template_id)
+                .map(|source_order| source_order as f64);
+            let Some(nested_prepared_iterations) = prepare_for_group_iterations(
+                &generated_element,
+                &local_variables,
+                Some(&loop_binding_resolver),
+                nested_source_order,
+                state,
+            ) else {
                 return Ok(ForGroupExecutionRunOutcome::Completed);
             };
             let nested_show_generated = self.record_effective_show_generated(
@@ -298,7 +306,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
                 environment,
                 template_for_group,
                 &generated_element,
-                &nested_iteration_values,
+                nested_prepared_iterations,
                 nested_show_generated,
                 &child_ancestor_iteration_variables,
                 ancestor_element_id_map,

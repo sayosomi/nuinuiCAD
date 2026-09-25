@@ -1,18 +1,15 @@
 //! Recursive expansion runtime for the generic (non-mutation-owned) forGroup
 //! iteration path. Mirrors `ForGroupExecutionRuntime`'s shape - same owned
-//! template-id filtering, same explicit ancestor-iteration-variable
-//! threading - but carries no scheduler/resolver/environment dependency:
-//! iteration is a plain nested loop, not scheduler-driven statement replay,
-//! so there is no `Result<Outcome, Error>` to propagate and no per-iteration
-//! loop-scoped binding resolver to derive; `active_scalar_binding_resolver`
-//! is the same plain, already-resolved resolver the generic top-level loop
-//! uses for every other binding lookup.
+//! template-id filtering and explicit ancestor-iteration-variable threading.
+//! It shares the prepared iteration sequence with the mutation runtime and
+//! adds typed ancestor values through a narrow resolver adapter, without a
+//! mutation scheduler or statement-frame environment.
 
 use super::*;
 use crate::evaluation::for_group::{
-    expand_for_group_iteration_from_template, for_group_loop_values, for_group_owned_template_ids,
-    iteration_local_variables, record_for_group_expected_occurrences,
-    IterationScalarBindingResolver,
+    expand_for_group_iteration_from_template, for_group_owned_template_ids,
+    iteration_local_variables, prepare_for_group_iterations, record_for_group_expected_occurrences,
+    IterationScalarBindingResolver, PreparedForGroupIterations,
 };
 use crate::evaluation::types::element_name;
 
@@ -24,6 +21,7 @@ pub(super) struct GenericForGroupRuntime<'a> {
     show_generated_by_element_id: &'a HashMap<ElementId, ValidatedPropertyBinding>,
     condition_by_element_id: &'a HashMap<ElementId, TypedScalarExpression>,
     text_templates_by_element_id: &'a HashMap<ElementId, ValidatedTextTemplate>,
+    source_statement_indices: &'a HashMap<ElementId, usize>,
     active_scalar_binding_resolver: Option<&'a dyn ScalarDocumentBindingResolver>,
     effective_visible_element_ids: &'a mut Vec<ElementId>,
     effective_enabled_ids: &'a mut HashSet<ElementId>,
@@ -43,6 +41,7 @@ impl<'a> GenericForGroupRuntime<'a> {
         show_generated_by_element_id: &'a HashMap<ElementId, ValidatedPropertyBinding>,
         condition_by_element_id: &'a HashMap<ElementId, TypedScalarExpression>,
         text_templates_by_element_id: &'a HashMap<ElementId, ValidatedTextTemplate>,
+        source_statement_indices: &'a HashMap<ElementId, usize>,
         active_scalar_binding_resolver: Option<&'a dyn ScalarDocumentBindingResolver>,
         effective_visible_element_ids: &'a mut Vec<ElementId>,
         effective_enabled_ids: &'a mut HashSet<ElementId>,
@@ -59,6 +58,7 @@ impl<'a> GenericForGroupRuntime<'a> {
             show_generated_by_element_id,
             condition_by_element_id,
             text_templates_by_element_id,
+            source_statement_indices,
             active_scalar_binding_resolver,
             effective_visible_element_ids,
             effective_enabled_ids,
@@ -74,15 +74,22 @@ impl<'a> GenericForGroupRuntime<'a> {
         &mut self,
         template_for_group: &Value,
         instance_for_group: &Value,
-        iteration_values: &[f64],
+        prepared_iterations: PreparedForGroupIterations,
         effective_show_generated: bool,
         ancestor_iteration_variables: &[Value],
+        ancestor_iteration_binding_ids: &[String],
+        ancestor_iteration_value_overrides: &[Option<scalars::ScalarEvaluation>],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         ancestor_occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
     ) {
         let template_for_group_id = element_id(template_for_group)
             .expect("forGroup template must have a validated element id");
+        let PreparedForGroupIterations {
+            iteration_values,
+            iteration_value_overrides,
+            mut geometry_members,
+        } = prepared_iterations;
         record_for_group_expected_occurrences(
             self.original_elements,
             &template_for_group_id,
@@ -96,7 +103,17 @@ impl<'a> GenericForGroupRuntime<'a> {
         let instance_is_visible = element_id(instance_for_group)
             .is_some_and(|id| self.effective_visible_element_ids.contains(&id));
 
+        let iteration_binding_id = format!("binding:iteration:{template_for_group_id}");
+        let previous_geometry_binder = state.geometry_value_binders.remove(&iteration_binding_id);
         for (iteration_index, variable_value) in iteration_values.iter().copied().enumerate() {
+            if let Some(member) = geometry_members
+                .get_mut(iteration_index)
+                .and_then(Option::take)
+            {
+                state
+                    .geometry_value_binders
+                    .insert(iteration_binding_id.clone(), member);
+            }
             let (generated, rows, iteration_variable, occurrence_path) =
                 expand_for_group_iteration_from_template(
                     self.original_elements,
@@ -115,6 +132,16 @@ impl<'a> GenericForGroupRuntime<'a> {
             }
             let mut child_ancestor_iteration_variables = ancestor_iteration_variables.to_vec();
             child_ancestor_iteration_variables.push(iteration_variable);
+            let mut child_ancestor_iteration_binding_ids = ancestor_iteration_binding_ids.to_vec();
+            child_ancestor_iteration_binding_ids.push(iteration_binding_id.clone());
+            let mut child_ancestor_iteration_value_overrides =
+                ancestor_iteration_value_overrides.to_vec();
+            child_ancestor_iteration_value_overrides.push(
+                iteration_value_overrides
+                    .get(iteration_index)
+                    .cloned()
+                    .unwrap_or(None),
+            );
             let mut child_ancestor_element_id_map = ancestor_element_id_map.clone();
             for (generated_element, template_id) in &generated {
                 if owned_template_ids.contains(template_id) {
@@ -133,11 +160,19 @@ impl<'a> GenericForGroupRuntime<'a> {
                     effective_show_generated,
                     instance_is_visible,
                     &child_ancestor_iteration_variables,
+                    &child_ancestor_iteration_binding_ids,
+                    &child_ancestor_iteration_value_overrides,
                     &child_ancestor_element_id_map,
                     &occurrence_path,
                     state,
                 );
             }
+            state.geometry_value_binders.remove(&iteration_binding_id);
+        }
+        if let Some(previous) = previous_geometry_binder {
+            state
+                .geometry_value_binders
+                .insert(iteration_binding_id, previous);
         }
     }
 
@@ -149,6 +184,8 @@ impl<'a> GenericForGroupRuntime<'a> {
         effective_show_generated: bool,
         instance_is_visible: bool,
         ancestor_iteration_variables: &[Value],
+        ancestor_iteration_binding_ids: &[String],
+        ancestor_iteration_value_overrides: &[Option<scalars::ScalarEvaluation>],
         ancestor_element_id_map: &HashMap<ElementId, ElementId>,
         occurrence_path: &[types::ForGroupGeneratedOccurrenceStep],
         state: &mut EvaluationState,
@@ -186,7 +223,12 @@ impl<'a> GenericForGroupRuntime<'a> {
         }
         let local_variables = iteration_local_variables(ancestor_iteration_variables);
         let local_binding_resolver = self.active_scalar_binding_resolver.map(|resolver| {
-            IterationScalarBindingResolver::new(resolver, ancestor_iteration_variables)
+            IterationScalarBindingResolver::new(
+                resolver,
+                ancestor_iteration_variables,
+                ancestor_iteration_binding_ids,
+                ancestor_iteration_value_overrides,
+            )
         });
         let active_resolver: Option<&dyn ScalarDocumentBindingResolver> = local_binding_resolver
             .as_ref()
@@ -213,9 +255,17 @@ impl<'a> GenericForGroupRuntime<'a> {
                 .iter()
                 .find(|element| element_id(element).as_deref() == Some(template_id.as_str()))
                 .expect("generated forGroup must retain its source template");
-            let Some(nested_iteration_values) =
-                for_group_loop_values(&generated_element, &local_variables, state)
-            else {
+            let nested_source_order = self
+                .source_statement_indices
+                .get(&template_id)
+                .map(|source_order| *source_order as f64);
+            let Some(nested_prepared_iterations) = prepare_for_group_iterations(
+                &generated_element,
+                &local_variables,
+                active_resolver,
+                nested_source_order,
+                state,
+            ) else {
                 return;
             };
             let nested_effective_show_generated =
@@ -223,9 +273,11 @@ impl<'a> GenericForGroupRuntime<'a> {
             self.run(
                 nested_template,
                 &generated_element,
-                &nested_iteration_values,
+                nested_prepared_iterations,
                 nested_effective_show_generated,
                 ancestor_iteration_variables,
+                ancestor_iteration_binding_ids,
+                ancestor_iteration_value_overrides,
                 ancestor_element_id_map,
                 occurrence_path,
                 state,

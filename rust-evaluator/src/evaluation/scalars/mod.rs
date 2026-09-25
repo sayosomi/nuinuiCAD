@@ -97,7 +97,7 @@ pub(crate) use property_binding_payload::{
     declared_type as declared_scalar_expression_type, validate_property_bindings_payload,
     ValidatedPropertyBinding,
 };
-pub(crate) use scalar_payload::scalar_value_matches_type;
+pub(crate) use scalar_payload::{decode_scalar_type, scalar_value_matches_type};
 pub(crate) use text::{
     evaluate_text_template_segments, NumericExpressionHoleEvaluator, TextTemplateHoleOrigin,
 };
