@@ -305,6 +305,10 @@
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
         {
+          "command": "nuinuiCAD.toggleCanvasGridSnap",
+          "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
+        },
+        {
           "command": "nuinuiCAD.goToSourceDefinition",
           "when": "activeWebviewPanelId == 'nuinuiCAD.canvas'"
         },
@@ -486,6 +490,14 @@
         },
         {
           "command": "nuinuiCAD.webview.hideCanvasPoints",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.enableCanvasGridSnap",
+          "when": "false"
+        },
+        {
+          "command": "nuinuiCAD.webview.disableCanvasGridSnap",
           "when": "false"
         },
         {
@@ -692,6 +704,16 @@
           "command": "nuinuiCAD.webview.hideCanvasPoints",
           "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.showCanvasPoints",
           "group": "1_display@3"
+        },
+        {
+          "command": "nuinuiCAD.webview.enableCanvasGridSnap",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && !nuinuiCAD.canvasGridSnapEnabled",
+          "group": "1_display@4"
+        },
+        {
+          "command": "nuinuiCAD.webview.disableCanvasGridSnap",
+          "when": "webviewId == 'nuinuiCAD.canvas' && webviewSection == 'blank' && nuinuiCAD.canvasGridSnapEnabled",
+          "group": "1_display@4"
         }
       ],
       "nuinuiCAD.webview.modulePreviewDisplay": [
@@ -1035,6 +1057,10 @@
         "title": "%command.toggleCanvasPoints.title%"
       },
       {
+        "command": "nuinuiCAD.toggleCanvasGridSnap",
+        "title": "%command.toggleCanvasGridSnap.title%"
+      },
+      {
         "command": "nuinuiCAD.bakeCurrentShape",
         "title": "%command.bakeCurrentShape.title%",
         "shortTitle": "%command.bakeCurrentShape.shortTitle%",
@@ -1123,6 +1149,14 @@
       {
         "command": "nuinuiCAD.webview.hideCanvasPoints",
         "title": "%command.webview.hideCanvasPoints.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.enableCanvasGridSnap",
+        "title": "%command.webview.enableCanvasGridSnap.title%"
+      },
+      {
+        "command": "nuinuiCAD.webview.disableCanvasGridSnap",
+        "title": "%command.webview.disableCanvasGridSnap.title%"
       },
       {
         "command": "nuinuiCAD.webview.modulePreview.showPointNames",

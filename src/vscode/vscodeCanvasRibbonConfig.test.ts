@@ -165,11 +165,33 @@ describe("VS Code Canvas Ribbon configuration", () => {
       "toggleCanvasPointNames",
       "toggleCanvasGeometryNames",
       "toggleCanvasPoints",
+      "toggleCanvasGridSnap",
       "editCanvasRibbon"
     ]);
     expect(Object.keys(vscodeCanvasRibbonCommandCatalog)).toEqual(vscodeCanvasRibbonCommandIds);
     expect(vscodeCanvasRibbonCommandFor("workbench.action.files.openFile")).toBeNull();
     expect(vscodeCanvasRibbonCommandFor("editCanvasRibbon")?.hostAction).toBe("editCanvasRibbon");
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasGridSnap")?.hostAction).toBe("toggleCanvasGridSnap");
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasGridSnap")).toMatchObject({
+      label: "Grid Snap",
+      description: "Enable or disable Canvas grid snapping.",
+      icon: "magnet"
+    });
+  });
+
+  it("uses the current Canvas grid snap setting for availability and pressed state", () => {
+    const command = vscodeCanvasRibbonCommandFor("toggleCanvasGridSnap");
+    const context = {
+      hasSelection: false,
+      showCanvasPointNames: false,
+      showCanvasGeometryNames: false,
+      showCanvasPoints: false
+    };
+
+    expect(command?.isAvailable(context)).toBe(false);
+    expect(command?.isAvailable({ ...context, canvasGridSnapAvailable: true, canvasGridSnapEnabled: false })).toBe(true);
+    expect(command?.isPressed?.({ ...context, canvasGridSnapEnabled: false })).toBe(false);
+    expect(command?.isPressed?.({ ...context, canvasGridSnapEnabled: true })).toBe(true);
   });
 
   it("uses the exact shared English labels for Canvas identity commands", () => {

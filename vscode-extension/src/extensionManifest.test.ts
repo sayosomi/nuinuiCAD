@@ -105,6 +105,7 @@ const commandIds = [
   "nuinuiCAD.toggleCanvasGeometryNames",
   "nuinuiCAD.toggleCanvasElementNames",
   "nuinuiCAD.toggleCanvasPoints",
+  "nuinuiCAD.toggleCanvasGridSnap",
   "nuinuiCAD.bakeCurrentShape",
   "nuinuiCAD.bakeBaseShape",
   "nuinuiCAD.editCanvasRibbon",
@@ -125,6 +126,8 @@ const webviewContextAliasIds = [
   "nuinuiCAD.webview.hideCanvasGeometryNames",
   "nuinuiCAD.webview.showCanvasPoints",
   "nuinuiCAD.webview.hideCanvasPoints",
+  "nuinuiCAD.webview.enableCanvasGridSnap",
+  "nuinuiCAD.webview.disableCanvasGridSnap",
   "nuinuiCAD.webview.modulePreview.showPointNames",
   "nuinuiCAD.webview.modulePreview.hidePointNames",
   "nuinuiCAD.webview.modulePreview.showGeometryNames",
@@ -426,6 +429,7 @@ describe("VS Code extension manifest command contributions", () => {
       "nuinuiCAD: Toggle Geometry Names",
       "nuinuiCAD: Toggle Canvas Element Names (Legacy)",
       "nuinuiCAD: Toggle Canvas Points",
+      "nuinuiCAD: Toggle Grid Snap",
       "Current Shape",
       "Base Shape",
       "Edit Ribbon",
@@ -477,6 +481,8 @@ describe("VS Code extension manifest command contributions", () => {
       "Hide Geometry Names",
       "Show Points",
       "Hide Points",
+      "Enable Grid Snap",
+      "Disable Grid Snap",
       "Show Point Names",
       "Hide Point Names",
       "Show Geometry Names",
@@ -491,6 +497,8 @@ describe("VS Code extension manifest command contributions", () => {
       "ジオメトリ名を非表示",
       "点を表示",
       "点を非表示",
+      "グリッドスナップを有効にする",
+      "グリッドスナップを無効にする",
       "点名を表示",
       "点名を非表示",
       "ジオメトリ名を表示",
@@ -536,6 +544,36 @@ describe("VS Code extension manifest command contributions", () => {
     const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.createFreePointAtPointer");
 
     expect(command?.shortTitle).toBe("%command.createFreePointAtPointer.shortTitle%");
+  });
+
+  it("keeps Grid Snap Canvas-only in the Palette and localizes its native Display actions", async () => {
+    const manifest = await readManifest();
+    const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
+    const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;
+    const command = manifest.contributes?.commands?.find(({ command }) => command === "nuinuiCAD.toggleCanvasGridSnap");
+    const palette = manifest.contributes?.menus?.commandPalette ?? [];
+
+    expect(command).toMatchObject({
+      command: "nuinuiCAD.toggleCanvasGridSnap",
+      title: "%command.toggleCanvasGridSnap.title%"
+    });
+    expect(command?.enablement).toBeUndefined();
+    expect(resolveNlsToken(command!.title, english)).toBe("nuinuiCAD: Toggle Grid Snap");
+    expect(resolveNlsToken(command!.title, japanese)).toBe("nuinuiCAD: グリッドスナップを切り替え");
+    expect(palette.filter(({ command: id }) => id === "nuinuiCAD.toggleCanvasGridSnap")).toEqual([
+      { command: "nuinuiCAD.toggleCanvasGridSnap", when: canvasPaletteWhen }
+    ]);
+    expect(manifest.contributes?.keybindings?.some(({ command: id }) => id === "nuinuiCAD.toggleCanvasGridSnap")).toBe(false);
+
+    const aliases = [
+      ["nuinuiCAD.webview.enableCanvasGridSnap", "Enable Grid Snap", "グリッドスナップを有効にする"],
+      ["nuinuiCAD.webview.disableCanvasGridSnap", "Disable Grid Snap", "グリッドスナップを無効にする"]
+    ] as const;
+    for (const [commandId, englishTitle, japaneseTitle] of aliases) {
+      const alias = manifest.contributes?.commands?.find(({ command: id }) => id === commandId);
+      expect(resolveNlsToken(alias!.title, english)).toBe(englishTitle);
+      expect(resolveNlsToken(alias!.title, japanese)).toBe(japaneseTitle);
+    }
   });
 
   it("preserves concise canonical English and Japanese labels on static Webview commands", async () => {
@@ -713,6 +751,7 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.editModulePreviewValues", when: modulePreviewPaletteWhen },
       { command: "nuinuiCAD.insertModulePreviewInstance", when: sourcePaletteWhen },
       { command: "nuinuiCAD.editCanvasRibbon", when: canvasPaletteWhen },
+      { command: "nuinuiCAD.toggleCanvasGridSnap", when: canvasPaletteWhen },
       { command: "nuinuiCAD.goToSourceDefinition", when: canvasPaletteWhen },
       { command: "nuinuiCAD.revealInCanvas", when: sourcePaletteWhen },
       { command: "nuinuiCAD.revealInOutputPreview", when: sourcePaletteWhen },
@@ -816,7 +855,9 @@ describe("VS Code extension manifest command contributions", () => {
       { command: "nuinuiCAD.webview.showCanvasGeometryNames", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
       { command: "nuinuiCAD.webview.hideCanvasGeometryNames", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasGeometryNames`, group: "1_display@2" },
       { command: "nuinuiCAD.webview.showCanvasPoints", when: `${canvasBlankWhen} && !nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
-      { command: "nuinuiCAD.webview.hideCanvasPoints", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@3" }
+      { command: "nuinuiCAD.webview.hideCanvasPoints", when: `${canvasBlankWhen} && nuinuiCAD.showCanvasPoints`, group: "1_display@3" },
+      { command: "nuinuiCAD.webview.enableCanvasGridSnap", when: `${canvasBlankWhen} && !nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@4" },
+      { command: "nuinuiCAD.webview.disableCanvasGridSnap", when: `${canvasBlankWhen} && nuinuiCAD.canvasGridSnapEnabled`, group: "1_display@4" }
     ]);
     expect(manifest.contributes?.menus?.["nuinuiCAD.webview.modulePreviewDisplay"]).toEqual([
       { command: "nuinuiCAD.webview.modulePreview.showPointNames", when: `${modulePreviewBlankWhen} && !nuinuiCAD.showCanvasPointNames`, group: "1_display@1" },
@@ -1352,6 +1393,7 @@ describe("VS Code Canvas grid configuration contribution", () => {
       default: false,
       description: "%configuration.canvas.grid.snapEnabled.description%"
     });
+    expect(properties["nuinuiCAD.canvas.grid.snapEnabled"]).not.toHaveProperty("scope");
 
     const english = JSON.parse(await readFile(packageNlsPath, "utf8")) as Record<string, unknown>;
     const japanese = JSON.parse(await readFile(packageNlsJaPath, "utf8")) as Record<string, unknown>;

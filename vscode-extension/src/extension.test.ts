@@ -145,7 +145,9 @@ const mocks = vi.hoisted(() => ({
   colorRegistrations: [] as Array<{ selector: unknown; provider: unknown; disposable: { dispose: () => void } }>,
   canvasRibbonSetting: undefined as unknown,
   canvasGridSettings: {} as Record<string, unknown>,
+  canvasGridConfigurationInspection: {} as Record<string, unknown>,
   configurationUpdates: [] as Array<{ section: string; value: unknown; target: unknown }>,
+  configurationScopes: [] as Array<{ section?: string; scope?: unknown }>,
   configurationChangeListeners: [] as Array<(event: { affectsConfiguration: (section: string) => boolean }) => void>,
   showErrorMessage: vi.fn(),
   showWarningMessage: vi.fn(),
@@ -384,7 +386,7 @@ vi.mock("vscode", () => {
       RefactorRewrite: "refactor.rewrite"
     },
     FoldingRangeKind: { Comment: "comment" },
-    ConfigurationTarget: { Global: 1 },
+    ConfigurationTarget: { Global: 1, Workspace: 2 },
     TextDocumentChangeReason: { Undo: 1, Redo: 2 },
     TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2 },
     TabInputText: mocks.TabInputText,
@@ -738,26 +740,37 @@ const setup = (
       return disposable();
     });
   }
-  mocks.getConfiguration.mockImplementation((section?: string) => ({
-    get: <T>(key: string, defaultValue?: T) => {
-      const fullKey = section ? `${section}.${key}` : key;
-      if (fullKey === "nuinuiCAD.canvasRibbon.ribbons") {
-        return (mocks.canvasRibbonSetting ?? defaultValue) as T;
+  mocks.getConfiguration.mockImplementation((section?: string, scope?: unknown) => {
+    mocks.configurationScopes.push({ section, scope });
+    return {
+      get: <T>(key: string, defaultValue?: T) => {
+        const fullKey = section ? `${section}.${key}` : key;
+        if (fullKey === "nuinuiCAD.canvasRibbon.ribbons") {
+          return (mocks.canvasRibbonSetting ?? defaultValue) as T;
+        }
+        if (fullKey === CANVAS_GRID_ENABLED_SETTING) return mocks.canvasGridSettings.enabled as T;
+        if (fullKey === CANVAS_GRID_SPACING_SETTING) return mocks.canvasGridSettings.spacingMm as T;
+        if (fullKey === CANVAS_GRID_MAJOR_EVERY_SETTING) return mocks.canvasGridSettings.majorEvery as T;
+        if (fullKey === CANVAS_GRID_SNAP_ENABLED_SETTING) return mocks.canvasGridSettings.snapEnabled as T;
+        return Object.hasOwn(mocks.bakeSettings, fullKey)
+          ? mocks.bakeSettings[fullKey] as T
+          : defaultValue as T;
+      },
+      inspect: (key: string) => key === CANVAS_GRID_SNAP_ENABLED_SETTING
+        ? { ...mocks.canvasGridConfigurationInspection }
+        : undefined,
+      update: (key: string, value: unknown, target: unknown) => {
+        mocks.configurationUpdates.push({ section: key, value, target });
+        if (key === "nuinuiCAD.canvasRibbon.ribbons") mocks.canvasRibbonSetting = value;
+        if (key === CANVAS_GRID_SNAP_ENABLED_SETTING) {
+          mocks.canvasGridSettings.snapEnabled = value;
+          if (target === 1) mocks.canvasGridConfigurationInspection.globalValue = value;
+          if (target === 2) mocks.canvasGridConfigurationInspection.workspaceValue = value;
+        }
+        return Promise.resolve();
       }
-      if (fullKey === CANVAS_GRID_ENABLED_SETTING) return mocks.canvasGridSettings.enabled as T;
-      if (fullKey === CANVAS_GRID_SPACING_SETTING) return mocks.canvasGridSettings.spacingMm as T;
-      if (fullKey === CANVAS_GRID_MAJOR_EVERY_SETTING) return mocks.canvasGridSettings.majorEvery as T;
-      if (fullKey === CANVAS_GRID_SNAP_ENABLED_SETTING) return mocks.canvasGridSettings.snapEnabled as T;
-      return Object.hasOwn(mocks.bakeSettings, fullKey)
-        ? mocks.bakeSettings[fullKey] as T
-        : defaultValue as T;
-    },
-    update: (section: string, value: unknown, target: unknown) => {
-      mocks.configurationUpdates.push({ section, value, target });
-      if (section === "nuinuiCAD.canvasRibbon.ribbons") mocks.canvasRibbonSetting = value;
-      return Promise.resolve();
-    }
-  }));
+    };
+  });
   mocks.onDidChangeConfiguration.mockImplementation((listener: (event: { affectsConfiguration: (section: string) => boolean }) => void) => {
     mocks.configurationChangeListeners.push(listener);
     return disposable();
@@ -911,7 +924,9 @@ afterEach(() => {
   mocks.documentCloseListeners.length = 0;
   mocks.canvasRibbonSetting = undefined;
   mocks.canvasGridSettings = {};
+  mocks.canvasGridConfigurationInspection = {};
   mocks.configurationUpdates.length = 0;
+  mocks.configurationScopes.length = 0;
   mocks.configurationChangeListeners.length = 0;
   mocks.panels.length = 0;
   mocks.rustProcesses.length = 0;
@@ -5820,6 +5835,42 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     });
   });
 
+  it.each([
+    ["workspace when it owns the effective value", { globalValue: true, workspaceValue: false }, 2],
+    ["global when it is the only explicit value", { globalValue: false }, 1],
+    ["global when no explicit value exists", {}, 1]
+  ] as const)("toggles Canvas Grid Snap at the %s configuration target", async (_caseName, inspection, target) => {
+    const document = documentFor("/tmp/grid-snap-target.nui", "file:///tmp/grid-snap-target.nui");
+    const editor = editorFor(document);
+    mocks.canvasGridSettings = { snapEnabled: false };
+    mocks.canvasGridConfigurationInspection = { ...inspection };
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    expect(mocks.registerCommand).toHaveBeenCalledWith("nuinuiCAD.toggleCanvasGridSnap", expect.any(Function));
+    await commandHandlerFor("nuinuiCAD.toggleCanvasGridSnap")?.();
+
+    expect(mocks.configurationUpdates).toEqual([{
+      section: CANVAS_GRID_SNAP_ENABLED_SETTING,
+      value: true,
+      target
+    }]);
+    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: undefined });
+    expect(panel.webview.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "canvasGridConfiguration" }));
+  });
+
+  it("routes the Ribbon host action through the canonical Grid Snap command", async () => {
+    const document = documentFor("/tmp/grid-snap-host-action.nui", "file:///tmp/grid-snap-host-action.nui");
+    const editor = editorFor(document);
+    setup(false, editor, [document]);
+    const panel = openPanelFor(editor);
+
+    await messageHandlerFor(panel)({ type: "toggleCanvasGridSnap" });
+
+    expect(mocks.executeCommand).toHaveBeenCalledWith("nuinuiCAD.toggleCanvasGridSnap");
+    expect(mocks.configurationUpdates).toEqual([]);
+  });
+
   it("publishes Canvas grid configuration initially and live without broadcasting to Output Preview", async () => {
     mocks.canvasGridSettings = { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true };
     const documentA = documentFor("/tmp/grid-a.nui", "file:///tmp/grid-a.nui");
@@ -5834,6 +5885,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
       type: "canvasGridConfiguration",
       settings: { enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: true }
     });
+    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: undefined });
 
     mocks.activeTextEditor = editorB;
     mocks.visibleTextEditors = [editorB];
@@ -5849,7 +5901,7 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     mocks.canvasGridSettings = { enabled: true, spacingMm: 20, majorEvery: 3, snapEnabled: false };
     for (const listener of mocks.configurationChangeListeners) {
       listener({
-        affectsConfiguration: (section) => section === CANVAS_GRID_SPACING_SETTING
+        affectsConfiguration: (section) => section === CANVAS_GRID_SNAP_ENABLED_SETTING
       });
     }
 
@@ -5859,7 +5911,12 @@ describe("VS Code Canvas Ribbon lifecycle", () => {
     };
     expect(panelA.webview.postMessage).toHaveBeenCalledWith(expected);
     expect(panelB.webview.postMessage).toHaveBeenCalledWith(expected);
+    expect(panelA.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasGridConfiguration"))
+      .toEqual([[expected]]);
+    expect(panelB.webview.postMessage.mock.calls.filter(([message]) => message?.type === "canvasGridConfiguration"))
+      .toEqual([[expected]]);
     expect(outputPanel.webview.postMessage).not.toHaveBeenCalledWith(expected);
+    expect(mocks.configurationScopes).toContainEqual({ section: undefined, scope: undefined });
   });
 });
 

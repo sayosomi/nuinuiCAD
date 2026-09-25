@@ -51,6 +51,7 @@ describe("Pick Mode Canvas operation policy", () => {
     ["resetCanvasView", "reset-view"],
     ["fitDrawing", "fit-drawing"],
     ["toggleCanvasPointNames", "presentation-toggle"],
+    ["toggleCanvasGridSnap", "presentation-toggle"],
     ["editCanvasRibbon", "workflow-start"],
     ["zoomInCanvas", "zoom"],
     ["undo", "undo"],

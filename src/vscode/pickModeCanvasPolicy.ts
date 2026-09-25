@@ -118,7 +118,8 @@ export const pickModeCanvasOperationForCommand = (
     commandId === "toggleCanvasPointNames" ||
     commandId === "toggleCanvasGeometryNames" ||
     commandId === "toggleCanvasElementNames" ||
-    commandId === "toggleCanvasPoints"
+    commandId === "toggleCanvasPoints" ||
+    commandId === "toggleCanvasGridSnap"
   ) return "presentation-toggle";
   if (commandId === "focusCanvas") return "focus";
   if (pickCommandIds.has(commandId)) return "pick";

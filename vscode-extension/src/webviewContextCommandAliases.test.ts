@@ -40,6 +40,8 @@ describe("Webview context command aliases", () => {
       ["nuinuiCAD.webview.hideCanvasGeometryNames", "nuinuiCAD.toggleCanvasGeometryNames"],
       ["nuinuiCAD.webview.showCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
       ["nuinuiCAD.webview.hideCanvasPoints", "nuinuiCAD.toggleCanvasPoints"],
+      ["nuinuiCAD.webview.enableCanvasGridSnap", "nuinuiCAD.toggleCanvasGridSnap"],
+      ["nuinuiCAD.webview.disableCanvasGridSnap", "nuinuiCAD.toggleCanvasGridSnap"],
       ["nuinuiCAD.webview.modulePreview.showPointNames", "nuinuiCAD.modulePreview.togglePointNames"],
       ["nuinuiCAD.webview.modulePreview.hidePointNames", "nuinuiCAD.modulePreview.togglePointNames"],
       ["nuinuiCAD.webview.modulePreview.showGeometryNames", "nuinuiCAD.modulePreview.toggleGeometryNames"],
