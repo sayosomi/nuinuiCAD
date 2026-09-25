@@ -32,7 +32,6 @@ import type {
   VscodeBakeSettings,
   VscodeToExtensionMessage
 } from "../../src/vscode/protocol";
-import type { VscodeCanvasRibbon } from "../../src/vscode/vscodeCanvasRibbonConfig";
 import {
   CANVAS_GRID_SETTING_KEYS,
   DEFAULT_CANVAS_GRID_SETTINGS,
@@ -143,10 +142,7 @@ export type RegisterModulePreviewFeatureOptions = {
   languageAnalysisSessionFor: (document: vscode.TextDocument) => NuiLanguageAnalysisSession;
   canvasThemeGeneration: () => number;
   webviewHtml: (panel: vscode.WebviewPanel) => string;
-  canvasRibbons: () => VscodeCanvasRibbon[];
   canvasGridSettings?: () => CanvasGridSettings;
-  updateCanvasRibbonPosition: (ribbonId: string, x: number, y: number) => Promise<void> | void;
-  editCanvasRibbon: () => void;
   evaluateWithRust: (input: unknown) => Promise<unknown>;
   presentBakeOperationResult?: (
     message: Extract<VscodeToExtensionMessage, { type: "bakeOperationResult" }>
@@ -373,10 +369,7 @@ export const registerModulePreviewFeature = ({
   languageAnalysisSessionFor,
   canvasThemeGeneration,
   webviewHtml,
-  canvasRibbons,
   canvasGridSettings = () => DEFAULT_CANVAS_GRID_SETTINGS,
-  updateCanvasRibbonPosition,
-  editCanvasRibbon,
   evaluateWithRust,
   presentBakeOperationResult,
   displayLanguageFor = vscodeDisplayLanguage
@@ -1421,10 +1414,6 @@ export const registerModulePreviewFeature = ({
         } satisfies ExtensionToVscodeMessage);
         postBootstrap(session);
         void panel.webview.postMessage({
-          type: "canvasRibbonConfiguration",
-          ribbons: canvasRibbons()
-        } satisfies ExtensionToVscodeMessage);
-        void panel.webview.postMessage({
           type: "canvasGridConfiguration",
           settings: normalizeCanvasGridSettings(canvasGridSettings())
         } satisfies ExtensionToVscodeMessage);
@@ -1449,15 +1438,6 @@ export const registerModulePreviewFeature = ({
       }
       if (message.type === "modulePreviewValueUnavailable" && isModulePreviewValueUnavailable(message)) {
         acceptsValueUnavailable(session, message);
-        return;
-      }
-      if (message.type === "canvasRibbonPositionCommit") {
-        if (!message.ribbonId || !Number.isFinite(message.x) || !Number.isFinite(message.y)) return;
-        await updateCanvasRibbonPosition(message.ribbonId, message.x, message.y);
-        return;
-      }
-      if (message.type === "editCanvasRibbon") {
-        editCanvasRibbon();
         return;
       }
       if (message.type === "rustEvaluationRequest") {
@@ -1555,15 +1535,6 @@ export const registerModulePreviewFeature = ({
     }
   }));
   const configurationListener = vscode.workspace.onDidChangeConfiguration?.((event) => {
-    if (event.affectsConfiguration("nuinuiCAD.canvasRibbon.ribbons")) {
-      const ribbons = canvasRibbons();
-      for (const session of sessions.values()) {
-        void session.panel.webview.postMessage({
-          type: "canvasRibbonConfiguration",
-          ribbons
-        } satisfies ExtensionToVscodeMessage);
-      }
-    }
     if (CANVAS_GRID_SETTING_KEYS.some((key) => event.affectsConfiguration(key))) {
       const settings = normalizeCanvasGridSettings(canvasGridSettings());
       for (const session of sessions.values()) {

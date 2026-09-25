@@ -4,6 +4,8 @@
   "views.elements": "Elements",
   "submenu.convert": "Convert",
   "submenu.webview.display": "Display",
+  "submenu.webview.viewport": "Viewport",
+  "submenu.webview.grid": "Grid",
   "submenu.webview.convertPoint": "Convert",
   "submenu.webview.bake": "Bake",
   "submenu.source.bake": "nuinuiCAD: Bake",
@@ -54,6 +56,8 @@
   "command.selectInstance.shortTitle": "Select Instance",
   "command.resetCanvasView.title": "Reset View",
   "command.resetCanvasView.shortTitle": "Reset View",
+  "command.zoomInCanvas.title": "Zoom In",
+  "command.zoomOutCanvas.title": "Zoom Out",
   "command.fitDrawing.title": "Fit Drawing",
   "command.fitDrawing.shortTitle": "Fit Drawing",
   "command.resetOutputPreviewView.title": "Reset View",
@@ -71,8 +75,6 @@
   "command.bakeCurrentShape.shortTitle": "Current Shape",
   "command.bakeBaseShape.title": "Base Shape",
   "command.bakeBaseShape.shortTitle": "Base Shape",
-  "command.editCanvasRibbon.title": "Edit Ribbon",
-  "command.editCanvasRibbon.shortTitle": "Edit Ribbon",
   "command.modulePreview.clearSelection.title": "Clear Selection",
   "command.modulePreview.clearSelection.shortTitle": "Clear Selection",
   "command.modulePreview.resetView.title": "Reset View",
@@ -111,7 +113,5 @@
   "configuration.canvas.grid.enabled.description": "Show the Canvas grid and axis guides.",
   "configuration.canvas.grid.spacingMm.description": "Base Canvas grid spacing in millimetres.",
   "configuration.canvas.grid.majorEvery.description": "Number of rendered grid intervals between major lines.",
-  "configuration.canvas.grid.snapEnabled.description": "Snap Canvas point drags and coordinate-point creation to the grid spacing.",
-  "configuration.canvasRibbon.ribbons.description": "Canvas ribbons shown in the nuinuiCAD VS Code Canvas.",
-  "configuration.canvasRibbon.defaultLabel": "Canvas Ribbon"
+  "configuration.canvas.grid.snapEnabled.description": "Snap Canvas point drags and coordinate-point creation to the grid spacing."
 }

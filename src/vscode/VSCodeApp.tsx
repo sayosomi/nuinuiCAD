@@ -38,8 +38,9 @@ import {
 } from "../geometry/canvasSelectionEligibility";
 import { CANVAS_FIT_PADDING_PX, fitCanvasViewportToBounds } from "../geometry/canvasViewportFit";
 import {
-  normalizeVscodeCanvasRibbons,
-  type VscodeCanvasRibbon
+  isVscodeCanvasRibbonId,
+  normalizeVscodeCanvasRibbonPositions,
+  type VscodeCanvasRibbonPositions
 } from "./vscodeCanvasRibbonConfig";
 import { getSelectedElementIds } from "../commands/commandRuntime";
 import { resolveDisabledBakeTargetIds } from "../commands/bakeGeometry";
@@ -203,7 +204,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
   const [benchmarkConfig, setBenchmarkConfig] = useState<VscodeBenchmarkConfig | null>(null);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
   const [canvasGridSettings, setCanvasGridSettings] = useState<CanvasGridSettings>(DEFAULT_CANVAS_GRID_SETTINGS);
-  const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
+  const [canvasRibbonPositions, setCanvasRibbonPositions] = useState<VscodeCanvasRibbonPositions>({});
   const [multiDocumentGraphPublication, setMultiDocumentGraphPublication] = useState<VscodeMultiDocumentGraphPublication | null>(null);
   const [latestHostDocumentVersion, setLatestHostDocumentVersion] = useState<number | null>(null);
   const [coordinatePointCreationActive, setCoordinatePointCreationActive] = useState(false);
@@ -1605,8 +1606,8 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         return;
       } else if (message.type === "canvasThemeChanged") {
         if (Number.isInteger(message.generation)) refreshCanvasTheme(message.generation);
-      } else if (message.type === "canvasRibbonConfiguration") {
-        setCanvasRibbonRibbons(normalizeVscodeCanvasRibbons(message.ribbons));
+      } else if (message.type === "canvasRibbonPositions") {
+        setCanvasRibbonPositions(normalizeVscodeCanvasRibbonPositions(message.positions));
       } else if (message.type === "canvasGridConfiguration") {
         setCanvasGridSettings(normalizeCanvasGridSettings(message.settings));
       } else if (message.type === "canvasCommand") {
@@ -2085,7 +2086,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
         coordinatePointCreationActive={coordinatePointCreationActive}
         onFinishCoordinatePointCreation={finishCoordinatePointCreation}
         postCoordinatePointCreationClick={postCoordinatePointCreationClick}
-        canvasRibbonRibbons={canvasRibbonRibbons}
+        canvasRibbonPositions={canvasRibbonPositions}
         measureCanvasTextWidth={measureCanvasTextWidth}
         postCanvasPointerPosition={(pointer: VscodeCanvasPointer) => {
           const documentVersion = latestHostDocumentVersionRef.current;
@@ -2097,6 +2098,7 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
           });
         }}
         onCanvasRibbonPositionCommit={(ribbonId, position) => {
+          if (!isVscodeCanvasRibbonId(ribbonId)) return;
           api.postMessage({
             type: "canvasRibbonPositionCommit",
             ribbonId,
@@ -2104,7 +2106,6 @@ export const VSCodeApp = ({ api }: { api: VscodeWebviewApi }) => {
             y: position.y
           });
         }}
-        onEditCanvasRibbon={() => api.postMessage({ type: "editCanvasRibbon" })}
         onToggleCanvasGrid={() => api.postMessage({ type: "toggleCanvasGrid" })}
         onConfigureCanvasGrid={() => api.postMessage({ type: "configureCanvasGrid" })}
         onToggleCanvasGridSnap={() => api.postMessage({ type: "toggleCanvasGridSnap" })}

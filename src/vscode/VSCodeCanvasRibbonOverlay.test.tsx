@@ -4,289 +4,185 @@ import { describe, expect, it, vi } from "vitest";
 import type { CanvasViewport } from "../state/cadUiStore";
 import { estimatedRibbonSize } from "../components/commandRibbonFloatingGeometry";
 import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
-import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
-import { webviewCanvasPresentationFor } from "./webviewCanvasPresentation";
-import { webviewPresentationFor } from "../../vscode-extension/src/webviewPresentationLocalization";
-import {
-  VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH,
-  vscodeCanvasStatusPresentationFor
-} from "./vscodeCanvasRibbonStatus";
-import { vscodeCanvasRibbonContextData } from "./protocol";
-
-const ribbonWithStatus: VscodeCanvasRibbon[] = [{
-  id: "ribbon",
-  label: "Canvas Ribbon",
-  x: null,
-  y: 12,
-  orientation: "horizontal",
-  items: [{ id: "status", type: "value", valueId: "canvasZoom" }]
-}];
-
-const ribbonWithCommands: VscodeCanvasRibbon[] = [{
-  id: "ribbon",
-  label: "Canvas Ribbon",
-  x: null,
-  y: 12,
-  orientation: "horizontal",
-  items: [
-    { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false },
-    { id: "point-names", type: "command", commandId: "toggleCanvasPointNames", icon: "tags", showLabel: false }
-  ]
-}];
+import { vscodeCanvasRibbonDefinitions } from "./vscodeCanvasRibbonConfig";
+import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
+import { vscodeCanvasStatusPresentationFor } from "./vscodeCanvasRibbonStatus";
 
 const commandContext = {
-  hasSelection: false,
-  showCanvasPointNames: false,
+  showCanvasPointNames: true,
   showCanvasGeometryNames: false,
-  showCanvasPoints: false
+  showCanvasPoints: true,
+  canvasGridEnabled: true,
+  canvasGridSpacingMm: 10,
+  canvasGridMajorEvery: 5,
+  canvasGridSnapEnabled: true,
+  canvasGridSnapAvailable: true
 };
 
-const domRectFor = (left: number, top: number, width: number, height: number): DOMRect => ({
-  left,
-  top,
-  right: left + width,
-  bottom: top + height,
-  width,
-  height,
-  x: left,
-  y: top,
-  toJSON: () => ({})
-} as DOMRect);
-
-const renderStatus = (canvasViewport: CanvasViewport) => {
+const renderOverlay = (
+  options: {
+    positions?: Parameters<typeof VSCodeCanvasRibbonOverlay>[0]["canvasRibbonPositions"];
+    topInset?: number;
+    viewportSize?: { width: number; height: number };
+    onCommand?: (item: Parameters<NonNullable<Parameters<typeof VSCodeCanvasRibbonOverlay>[0]["onCommand"]>>[0]) => void;
+    onPositionCommit?: (ribbonId: string, position: { x: number; y: number }) => void;
+    canvasViewport?: CanvasViewport;
+  } = {}
+) => {
   const canvasFocusRef = createRef<HTMLDivElement>();
-  const view = render(
+  return render(
     <div ref={canvasFocusRef}>
       <VSCodeCanvasRibbonOverlay
         canvasFocusRef={canvasFocusRef}
-        canvasViewport={canvasViewport}
-        canvasRibbonRibbons={ribbonWithStatus}
-        viewportSize={{ width: 400, height: 300 }}
+        canvasViewport={options.canvasViewport ?? { panX: 0, panY: 0, zoom: 1 }}
+        canvasRibbonPositions={options.positions ?? {}}
+        viewportSize={options.viewportSize ?? { width: 640, height: 480 }}
+        canvasModeChromeHeight={options.topInset}
         ribbonCommandContext={commandContext}
+        onCommand={options.onCommand}
+        onPositionCommit={options.onPositionCommit}
       />
     </div>
   );
-  const viewport = canvasFocusRef.current;
-  if (!viewport) throw new Error("Canvas viewport was not mounted");
-  vi.spyOn(viewport, "getBoundingClientRect").mockReturnValue(domRectFor(100, 50, 400, 300));
-  const rerenderStatus = (nextCanvasViewport: CanvasViewport) => {
-    view.rerender(
-      <div ref={canvasFocusRef}>
-        <VSCodeCanvasRibbonOverlay
-          canvasFocusRef={canvasFocusRef}
-          canvasViewport={nextCanvasViewport}
-          canvasRibbonRibbons={ribbonWithStatus}
-          viewportSize={{ width: 400, height: 300 }}
-          ribbonCommandContext={commandContext}
-        />
-      </div>
-    );
-  };
-  return { rerenderStatus, view, viewport };
 };
 
-describe("VSCodeCanvasRibbonOverlay Canvas status", () => {
-  it("uses a stable presentation width estimate as status values change", () => {
-    const baseViewport: CanvasViewport = { panX: 0, panY: 0, zoom: 1 };
-    const presentationFor = (
-      pointerWorldPoint: { x: number; y: number } | null,
-      zoom = 1
-    ) => ({
-      id: "ribbon",
-      label: "Canvas Ribbon",
-      x: null,
-      y: 12,
-      orientation: "horizontal" as const,
-      iconSize: 16,
-      items: [vscodeCanvasStatusPresentationFor(
-        "status",
-        { ...baseViewport, zoom },
-        pointerWorldPoint
-      )]
-    });
-
-    const unavailable = presentationFor(null);
-    const smallPositive = presentationFor({ x: 2.4, y: 3.5 }, 0.5);
-    const coordinates = presentationFor({ x: 186.1, y: -183.4 });
-    const largerCoordinates = presentationFor({ x: 1234.5, y: -987.6 }, 2.345);
-    const unavailableItem = unavailable.items[0];
-    const coordinatesItem = coordinates.items[0];
-
-    expect(unavailableItem).toMatchObject({
-      type: "value",
-      estimatedWidth: VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH
-    });
-    expect(coordinatesItem).toMatchObject({
-      type: "value",
-      estimatedWidth: VSCODE_CANVAS_STATUS_ESTIMATED_WIDTH
-    });
-    const widths = [unavailable, smallPositive, coordinates, largerCoordinates]
-      .map((presentation) => estimatedRibbonSize(presentation).width);
-    expect(new Set(widths)).toEqual(new Set([widths[0]]));
-  });
-
-  it("formats zoom as an integer percent and starts with unavailable coordinates", () => {
-    renderStatus({ panX: 20, panY: -10, zoom: 1.234 });
-
-    expect(document.querySelector(".command-ribbon")).toHaveAttribute(
-      "data-vscode-context",
-      vscodeCanvasRibbonContextData
-    );
-    expect(screen.getByRole("status", {
-      name: "Canvas status: ZOOM: 123%, X: —, Y: —"
-    })).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM123%X—Y—");
-    expect(screen.queryByText("px/mm")).not.toBeInTheDocument();
-  });
-
-  it("tracks pointer world coordinates locally and preserves Y-up semantics", () => {
-    const { viewport } = renderStatus({ panX: 20, panY: -10, zoom: 2 });
-
-    fireEvent.pointerMove(viewport, { clientX: 250, clientY: 150 });
-    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X-35.0Y20.0");
-
-    fireEvent.pointerMove(viewport, { clientX: 250, clientY: 250 });
-    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X-35.0Y-30.0");
-
-    fireEvent.pointerLeave(viewport);
-    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X—Y—");
-  });
-
-  it("refreshes stationary-pointer coordinates when the viewport zooms and pans", () => {
-    const { rerenderStatus, viewport } = renderStatus({ panX: 0, panY: 0, zoom: 1 });
-
-    fireEvent.pointerMove(viewport, { clientX: 250, clientY: 150 });
-    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM100%X-50.0Y50.0");
-
-    rerenderStatus({ panX: 0, panY: 0, zoom: 2 });
-    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X-25.0Y25.0");
-
-    rerenderStatus({ panX: 20, panY: -10, zoom: 2 });
-    expect(screen.getByRole("status", { name: /Canvas status:/ })).toHaveTextContent("ZOOM200%X-35.0Y20.0");
-  });
-
-  it("renders the status as a read-only value item without dispatching commands", () => {
+describe("VSCodeCanvasRibbonOverlay", () => {
+  it("renders the fixed Viewport, Display, and Grid controls in product order", () => {
     const onCommand = vi.fn();
-    const canvasFocusRef = createRef<HTMLDivElement>();
-    render(
-      <div ref={canvasFocusRef}>
-        <VSCodeCanvasRibbonOverlay
-          canvasFocusRef={canvasFocusRef}
-          canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
-          canvasRibbonRibbons={ribbonWithStatus}
-          viewportSize={{ width: 400, height: 300 }}
-          ribbonCommandContext={commandContext}
-          onCommand={onCommand}
-        />
-      </div>
-    );
-
-    const status = screen.getByRole("status", { name: /Canvas status:/ });
-    expect(status).not.toBeInstanceOf(HTMLButtonElement);
-    expect(status).not.toHaveAttribute("data-command-id");
-    fireEvent.click(status);
-    expect(onCommand).not.toHaveBeenCalled();
-  });
-});
-
-describe("VSCodeCanvasRibbonOverlay command presentation", () => {
-  it("maps canvasGrid to an interactive Grid Settings button and refreshes its value while Grid is off", () => {
-    const onCommand = vi.fn();
-    const canvasFocusRef = createRef<HTMLDivElement>();
-    const ribbons: VscodeCanvasRibbon[] = [{
-      id: "grid-ribbon",
-      label: "Grid Ribbon",
-      x: null,
-      y: 12,
-      orientation: "horizontal",
-      items: [
-        { id: "grid-settings", type: "value", valueId: "canvasGrid" },
-        { id: "grid", type: "command", commandId: "toggleCanvasGrid", icon: "grid-3x3", showLabel: true },
-        { id: "snap", type: "command", commandId: "toggleCanvasGridSnap", icon: "magnet", showLabel: true }
-      ]
-    }];
-    const renderOverlay = (grid: { spacingMm: number; majorEvery: number; enabled: boolean }) => (
-      <div ref={canvasFocusRef}>
-        <VSCodeCanvasRibbonOverlay
-          canvasFocusRef={canvasFocusRef}
-          canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
-          canvasRibbonRibbons={ribbons}
-          viewportSize={{ width: 400, height: 300 }}
-          ribbonCommandContext={{
-            ...commandContext,
-            canvasGridEnabled: grid.enabled,
-            canvasGridSpacingMm: grid.spacingMm,
-            canvasGridMajorEvery: grid.majorEvery,
-            canvasGridSnapEnabled: true,
-            canvasGridSnapAvailable: true
-          }}
-          onCommand={onCommand}
-        />
-      </div>
-    );
-    const view = render(renderOverlay({ enabled: false, spacingMm: 10, majorEvery: 5 }));
-
-    const settingsButton = screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" });
-    expect([...document.querySelectorAll<HTMLButtonElement>("button[data-command-id]")]
-      .map((button) => button.dataset.commandId)).toEqual([
-      "configureCanvasGrid",
-      "toggleCanvasGrid",
-      "toggleCanvasGridSnap"
-    ]);
-    expect(settingsButton).toHaveAttribute("data-command-id", "configureCanvasGrid");
-    expect(settingsButton).toHaveTextContent("10 mm · ×5");
-    expect(settingsButton.querySelector("svg")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "false");
+    const view = renderOverlay({ onCommand });
+    const ribbons = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon")];
+    expect(ribbons.map((ribbon) => ribbon.dataset.ribbonId)).toEqual(["viewport", "display", "grid"]);
+    expect(ribbons.map((ribbon) => ribbon.querySelectorAll("[data-command-id]").length)).toEqual([4, 3, 3]);
+    expect(ribbons[0]?.querySelector("[role=status]")).toHaveTextContent("ZOOM100%");
+    expect([...ribbons[0]!.querySelectorAll("[data-command-id]")].map((node) => node.getAttribute("data-command-id")))
+      .toEqual(["zoomOutCanvas", "zoomInCanvas", "resetCanvasView", "fitDrawing"]);
+    expect([...ribbons[1]!.querySelectorAll("[data-command-id]")].map((node) => node.getAttribute("data-command-id")))
+      .toEqual(["toggleCanvasPoints", "toggleCanvasPointNames", "toggleCanvasGeometryNames"]);
+    expect([...ribbons[2]!.querySelectorAll("[data-command-id]")].map((node) => node.getAttribute("data-command-id")))
+      .toEqual(["toggleCanvasGrid", "configureCanvasGrid", "toggleCanvasGridSnap"]);
+    expect(ribbons[0]?.querySelector("[data-command-id='resetCanvasView'] svg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Point Names" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Geometry Names" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Points" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Grid Snap" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(settingsButton);
-    expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({
-      type: "interactive-value",
-      commandId: "configureCanvasGrid",
-      icon: "ruler",
-      valueText: "10 mm · ×5"
-    }));
 
-    view.rerender(renderOverlay({ enabled: false, spacingMm: 2.5, majorEvery: 4 }));
-    expect(screen.getByRole("button", { name: "Grid Settings: 2.5 mm · ×4" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom In" }));
+    expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ commandId: "zoomInCanvas" }));
+    expect(view.container.querySelector(".command-ribbon[data-ribbon-id='viewport']"))
+      .not.toHaveAttribute("data-vscode-context");
   });
 
-  it("uses a concise localized tooltip for Edit Canvas Ribbon and informative defaults elsewhere", () => {
-    const onCommand = vi.fn();
-    const canvasFocusRef = createRef<HTMLDivElement>();
-    const view = render(
-      <div ref={canvasFocusRef}>
-        <VSCodeCanvasRibbonOverlay
-          canvasFocusRef={canvasFocusRef}
-          canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
-          canvasRibbonRibbons={ribbonWithCommands}
-          viewportSize={{ width: 400, height: 300 }}
-          ribbonCommandContext={commandContext}
-          presentation={webviewCanvasPresentationFor(webviewPresentationFor("ja-JP"))}
-          onCommand={onCommand}
-        />
-      </div>
-    );
+  it("uses the current Canvas status presentation without making it actionable", () => {
+    const viewport = { panX: 12, panY: -7, zoom: 1.234 };
+    const presentation = vscodeCanvasStatusPresentationFor("status", viewport, null);
+    expect(presentation).toMatchObject({
+      type: "value",
+      label: "Canvas status",
+      fields: [
+        { label: "ZOOM", value: "123%" },
+        { label: "X", value: "—" },
+        { label: "Y", value: "—" }
+      ]
+    });
+    expect(vscodeCanvasRibbonDefinitions[0]?.items[1]).toEqual({
+      id: "canvas-status",
+      type: "value",
+      valueId: "canvasStatus"
+    });
+  });
 
-    const editButton = screen.getByRole("button", { name: "Canvas リボンを編集" });
-    const editTooltip = document.getElementById(editButton.getAttribute("aria-describedby")!);
-    expect(editButton).not.toHaveAttribute("title");
-    expect(editTooltip?.textContent).toBe("Canvas リボンを編集");
-
-    const pointNamesButton = screen.getByRole("button", { name: "点名" });
-    const pointNamesTooltip = document.getElementById(pointNamesButton.getAttribute("aria-describedby")!);
-    expect(pointNamesTooltip?.textContent).toBe("点名: Canvasの点名を表示または非表示にします。");
-    expect(view.container.querySelector(".command-ribbon-handle")).toHaveAttribute("title", "ドラッグで移動");
-    expect(view.container.querySelector(".command-ribbon")).toHaveAttribute(
-      "data-vscode-context",
-      vscodeCanvasRibbonContextData
-    );
-
-    fireEvent.click(editButton);
-    expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({
-      commandId: "editCanvasRibbon",
-      label: "Canvas リボンを編集",
-      description: "Canvas リボン項目のVS Code設定を開きます。",
-      tooltipText: "Canvas リボンを編集"
+  it("stacks defaults at the upper left, preserving spacing under Canvas chrome inset", () => {
+    const view = renderOverlay({ topInset: 40 });
+    const placedRibbons = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon-layer > div")];
+    const actualPositions = placedRibbons.map((ribbon) => ({
+      x: Number.parseFloat(ribbon.style.left),
+      y: Number.parseFloat(ribbon.style.top)
     }));
+    const heights = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon")]
+      .map((ribbon) => estimatedRibbonSize({
+        id: ribbon.dataset.ribbonId!,
+        label: ribbon.dataset.ribbonId!,
+        x: null,
+        y: 0,
+        orientation: "horizontal",
+        iconSize: 16,
+        items: []
+      }).height);
+    expect(actualPositions.map(({ x }) => x)).toEqual([8, 8, 8]);
+    expect(actualPositions[0]?.y).toBe(48);
+    expect((actualPositions[1]?.y ?? Number.NaN) - (actualPositions[0]?.y ?? Number.NaN) - (heights[0] ?? Number.NaN)).toBe(8);
+    expect((actualPositions[2]?.y ?? Number.NaN) - (actualPositions[1]?.y ?? Number.NaN) - (heights[1] ?? Number.NaN)).toBe(8);
+  });
+
+  it("preserves the top inset and measured gaps when the full default stack cannot fit", () => {
+    const view = renderOverlay({ topInset: 40, viewportSize: { width: 640, height: 120 } });
+    const placedRibbons = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon-layer > div")];
+    const heights = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon")]
+      .map((ribbon) => estimatedRibbonSize({
+        id: ribbon.dataset.ribbonId!,
+        label: ribbon.dataset.ribbonId!,
+        x: null,
+        y: 0,
+        orientation: "horizontal",
+        iconSize: 16,
+        items: []
+      }).height);
+    const positions = placedRibbons.map((ribbon) => Number.parseFloat(ribbon.style.top));
+
+    expect(positions[0]).toBe(48);
+    expect((positions[1] ?? Number.NaN) - (positions[0] ?? Number.NaN) - (heights[0] ?? Number.NaN)).toBe(8);
+    expect((positions[2] ?? Number.NaN) - (positions[1] ?? Number.NaN) - (heights[1] ?? Number.NaN)).toBe(8);
+  });
+
+  it("uses independent persisted positions and commits only the Ribbon dragged", () => {
+    const onPositionCommit = vi.fn();
+    const view = renderOverlay({
+      positions: { viewport: { x: 80, y: 110 } },
+      onPositionCommit
+    });
+    const placedRibbons = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon-layer > div")];
+    expect(placedRibbons[0]).toHaveStyle({ left: "80px", top: "110px" });
+    expect(placedRibbons[1]).toHaveStyle({ left: "8px", top: "48px" });
+    const displayHandle = screen.getByRole("button", { name: "Move Display" });
+    fireEvent.pointerDown(displayHandle, { button: 0, pointerId: 7, clientX: 8, clientY: 48 });
+    fireEvent.pointerMove(displayHandle, { pointerId: 7, clientX: 38, clientY: 78 });
+    fireEvent.pointerUp(displayHandle, { pointerId: 7, clientX: 38, clientY: 78 });
+    expect(onPositionCommit).toHaveBeenCalledTimes(1);
+    expect(onPositionCommit).toHaveBeenCalledWith("display", { x: 38, y: 78 });
+  });
+
+  it("clamps presentation on resize without changing or committing stored coordinates", () => {
+    const onPositionCommit = vi.fn();
+    const view = renderOverlay({
+      positions: { grid: { x: 600, y: 440 } },
+      viewportSize: { width: 640, height: 480 },
+      onPositionCommit
+    });
+    const original = view.container.querySelector<HTMLElement>("[data-ribbon-id='grid']")?.parentElement;
+    expect(original?.style.left).not.toBe("600px");
+    view.rerender(
+      <VSCodeCanvasRibbonOverlay
+        canvasFocusRef={createRef<HTMLDivElement>()}
+        canvasViewport={{ panX: 0, panY: 0, zoom: 1 }}
+        canvasRibbonPositions={{ grid: { x: 600, y: 440 } }}
+        viewportSize={{ width: 180, height: 90 }}
+        ribbonCommandContext={commandContext}
+        onPositionCommit={onPositionCommit}
+      />
+    );
+    expect(onPositionCommit).not.toHaveBeenCalled();
+    expect(view.container.querySelector("[data-ribbon-id='grid']")?.parentElement).toHaveStyle({ left: "0px" });
+  });
+
+  it("keeps the existing Grid command owner and current-value interaction", () => {
+    expect(vscodeCanvasRibbonCommandFor("configureCanvasGrid")?.hostAction).toBe("configureCanvasGrid");
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasGrid")?.hostAction).toBe("toggleCanvasGrid");
+    expect(vscodeCanvasRibbonCommandFor("toggleCanvasGridSnap")?.hostAction).toBe("toggleCanvasGridSnap");
+    const onCommand = vi.fn();
+    renderOverlay({ onCommand });
+    fireEvent.click(screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" }));
+    expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ commandId: "configureCanvasGrid" }));
   });
 });

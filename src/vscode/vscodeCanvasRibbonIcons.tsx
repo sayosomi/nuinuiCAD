@@ -1,30 +1,40 @@
-import { forwardRef, type ComponentProps } from "react";
-import { Circle, type LucideIcon } from "lucide-react";
-import { DynamicIcon, iconNames, type IconName } from "lucide-react/dynamic";
+import {
+  CircleDot,
+  Crosshair,
+  FileDown,
+  Grid3X3,
+  Magnet,
+  Maximize,
+  Minus,
+  Plus,
+  RotateCcw,
+  Ruler,
+  Tag,
+  type LucideIcon
+} from "lucide-react";
 
-export const VSCODE_CANVAS_RIBBON_FALLBACK_ICON = "circle" as const;
+export const vscodeLucideIconRegistry = {
+  "circle-dot": CircleDot,
+  crosshair: Crosshair,
+  "file-down": FileDown,
+  "grid-3x3": Grid3X3,
+  magnet: Magnet,
+  maximize: Maximize,
+  minus: Minus,
+  plus: Plus,
+  "rotate-ccw": RotateCcw,
+  ruler: Ruler,
+  tag: Tag
+} satisfies Record<string, LucideIcon>;
 
-export const resolveVscodeLucideIconName = (value: unknown): IconName =>
-  typeof value === "string" && (iconNames as readonly string[]).includes(value)
-    ? value as IconName
-    : VSCODE_CANVAS_RIBBON_FALLBACK_ICON;
+export type VscodeLucideIconName = keyof typeof vscodeLucideIconRegistry;
 
-type DynamicIconProps = ComponentProps<typeof DynamicIcon>;
+export const vscodeLucideIconName = <Name extends VscodeLucideIconName>(name: Name): Name => name;
 
-const iconCache = new Map<IconName, LucideIcon>();
+export const isVscodeLucideIconName = (name: string): name is VscodeLucideIconName =>
+  Object.hasOwn(vscodeLucideIconRegistry, name);
 
-export const resolveVscodeLucideIcon = (value: unknown): LucideIcon => {
-  const name = resolveVscodeLucideIconName(value);
-  const cached = iconCache.get(name);
-  if (cached) return cached;
-  const Icon = forwardRef<SVGSVGElement, DynamicIconProps>((props, ref) => (
-    <DynamicIcon
-      {...props}
-      ref={ref}
-      name={name}
-      fallback={() => <Circle {...props} ref={ref} />}
-    />
-  ));
-  iconCache.set(name, Icon as LucideIcon);
-  return Icon as LucideIcon;
+export const resolveVscodeLucideIcon = (name: string): LucideIcon => {
+  if (!isVscodeLucideIconName(name)) throw new Error(`Unregistered VS Code Webview icon: ${name}`);
+  return vscodeLucideIconRegistry[name];
 };

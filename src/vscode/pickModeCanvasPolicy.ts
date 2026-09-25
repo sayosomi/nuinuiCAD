@@ -10,7 +10,6 @@ export type CanvasModalOperation =
   | "bezier-drag"
   | "clear-selection"
   | "document-mutation"
-  | "workflow-start"
   | "undo"
   | "redo"
   | "pan"
@@ -110,7 +109,6 @@ export const pickModeCanvasOperationForCommand = (
   if (commandId === "undo") return "undo";
   if (commandId === "redo") return "redo";
   if (commandId === "clearCanvasSelection") return "clear-selection";
-  if (commandId === "editCanvasRibbon") return "workflow-start";
   if (commandId === "zoomInCanvas" || commandId === "zoomOutCanvas") return "zoom";
   if (commandId === "resetCanvasView") return "reset-view";
   if (commandId === "fitDrawing") return "fit-drawing";

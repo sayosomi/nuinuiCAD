@@ -2,12 +2,6 @@ import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 import { vscodeWebviewSurfaceDataAttribute, type VscodeCanvasCommandId } from "../../src/vscode/protocol";
 import {
-  defaultVscodeCanvasRibbons,
-  normalizeVscodeCanvasRibbons,
-  patchVscodeCanvasRibbonPosition,
-  VSCODE_CANVAS_RIBBON_SETTING
-} from "../../src/vscode/vscodeCanvasRibbonConfig";
-import {
   activate as activateExtension,
   currentCanvasThemeGeneration,
   extensionDisplayLanguage,
@@ -77,27 +71,6 @@ export const modulePreviewWebviewHtml = (
 </html>`;
 };
 
-const modulePreviewCanvasRibbons = (): ReturnType<typeof defaultVscodeCanvasRibbons> => {
-  const configuration = vscode.workspace.getConfiguration();
-  return normalizeVscodeCanvasRibbons(configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING));
-};
-
-const updateModulePreviewCanvasRibbonPosition = async (
-  ribbonId: string,
-  x: number,
-  y: number
-): Promise<void> => {
-  const configuration = vscode.workspace.getConfiguration();
-  const current = configuration.get<unknown>(VSCODE_CANVAS_RIBBON_SETTING);
-  const patched = patchVscodeCanvasRibbonPosition(current, ribbonId, x, y);
-  if (!patched) return;
-  await configuration.update(
-    VSCODE_CANVAS_RIBBON_SETTING,
-    patched,
-    vscode.ConfigurationTarget.Global
-  );
-};
-
 const registerModulePreviewCommands = (
   feature: ModulePreviewFeature
 ): vscode.Disposable[] => {
@@ -136,12 +109,7 @@ const registerModulePreview = (
     languageAnalysisSessionFor: sessionFor,
     canvasThemeGeneration: currentCanvasThemeGeneration,
     webviewHtml: (panel) => modulePreviewWebviewHtml(panel, context),
-    canvasRibbons: modulePreviewCanvasRibbons,
     canvasGridSettings: normalizedCanvasGridConfiguration,
-    updateCanvasRibbonPosition: updateModulePreviewCanvasRibbonPosition,
-    editCanvasRibbon: () => {
-      void vscode.commands.executeCommand("workbench.action.openSettings", VSCODE_CANVAS_RIBBON_SETTING);
-    },
     evaluateWithRust: (input) => rustProcessOwner.get().request(input),
     presentBakeOperationResult: presentModulePreviewBakeOperationResult
   });

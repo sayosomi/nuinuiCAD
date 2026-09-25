@@ -220,11 +220,11 @@ describe("CommandRibbonView", () => {
           items: [{
             id: "edit",
             type: "command",
-            commandId: "editCanvasRibbon",
+            commandId: "exampleCommand",
             icon: "circle",
-            label: "Canvas リボンを編集",
-            description: "Open the VS Code setting for Canvas Ribbon items.",
-            tooltipText: "Canvas リボンを編集",
+            label: "Example command",
+            description: "This example command has a longer description.",
+            tooltipText: "Example command",
             showLabel: false,
             available: true
           }]
@@ -233,10 +233,10 @@ describe("CommandRibbonView", () => {
       />
     );
 
-    const button = screen.getByRole("button", { name: "Canvas リボンを編集" });
+    const button = screen.getByRole("button", { name: "Example command" });
     const tooltip = document.getElementById(button.getAttribute("aria-describedby")!);
     expect(button).not.toHaveAttribute("title");
-    expect(tooltip?.textContent).toBe("Canvas リボンを編集");
+    expect(tooltip?.textContent).toBe("Example command");
   });
 
   it("keeps a one-item VS Code vertical Ribbon handle beside its item column", () => {

@@ -1,5 +1,5 @@
 import { createRef } from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyEvaluationResult } from "../geometry/evaluationEngine";
 import { compileDslDocument } from "@nuinuicad/nui-language";
@@ -10,7 +10,7 @@ import { pickModeSessionForTarget } from "../model/pickModeSession";
 import { useCadDocumentStore } from "../state/cadDocumentStore";
 import { initialCadUiState, useCadUiStore } from "../state/cadUiStore";
 import { VSCodeDrawingCanvas } from "./VSCodeDrawingCanvas";
-import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import type { VscodeCanvasRibbonPositions } from "./vscodeCanvasRibbonConfig";
 
 const mocks = vi.hoisted(() => ({
   dispatchCommand: vi.fn(),
@@ -88,13 +88,12 @@ const renderCanvas = (
   evaluation: ReturnType<typeof emptyEvaluationResult>,
   evaluationState: EvaluationEngineState | undefined,
   postCanonicalSourceText = vi.fn(),
-  canvasRibbonRibbons: VscodeCanvasRibbon[] = [],
-  onEditCanvasRibbon = vi.fn(),
   postCanvasPointerPosition = vi.fn(),
   canvasGridSettings?: { enabled: boolean; spacingMm: number; majorEvery: number; snapEnabled: boolean },
   onToggleCanvasGridSnap = vi.fn(),
   onToggleCanvasGrid = vi.fn(),
-  onConfigureCanvasGrid = vi.fn()
+  onConfigureCanvasGrid = vi.fn(),
+  canvasRibbonPositions: VscodeCanvasRibbonPositions = {}
 ) => {
   const view = render(
     <VSCodeDrawingCanvas
@@ -104,8 +103,7 @@ const renderCanvas = (
       postCanonicalSourceText={postCanonicalSourceText}
       postCanvasPointerPosition={postCanvasPointerPosition}
       currentReferencePickAuthorityFor={() => null}
-      canvasRibbonRibbons={canvasRibbonRibbons}
-      onEditCanvasRibbon={onEditCanvasRibbon}
+      canvasRibbonPositions={canvasRibbonPositions}
       onToggleCanvasGrid={onToggleCanvasGrid}
       onConfigureCanvasGrid={onConfigureCanvasGrid}
       onToggleCanvasGridSnap={onToggleCanvasGridSnap}
@@ -120,7 +118,7 @@ const renderCanvas = (
 describe("VSCodeDrawingCanvas adapter", () => {
   it("passes Canvas grid configuration through the shared DrawingCanvas boundary", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [], vi.fn(), vi.fn(), {
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), vi.fn(), {
       enabled: false,
       spacingMm: 2.5,
       majorEvery: 1,
@@ -130,60 +128,14 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(adapter.canvasGridSettings).toEqual({ enabled: false, spacingMm: 2.5, majorEvery: 1, snapEnabled: false });
   });
 
-  it("routes the Canvas Grid Snap Ribbon action to the Extension Host", () => {
-    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const onToggleCanvasGridSnap = vi.fn();
-    const ribbons: VscodeCanvasRibbon[] = [{
-      id: "ribbon",
-      label: "Canvas Ribbon",
-      x: null,
-      y: 12,
-      orientation: "horizontal",
-      items: [{ id: "grid-snap", type: "command", commandId: "toggleCanvasGridSnap", icon: "magnet", showLabel: true }]
-    }];
-    const { adapter } = renderCanvas(
-      evaluation,
-      undefined,
-      vi.fn(),
-      ribbons,
-      vi.fn(),
-      vi.fn(),
-      { enabled: true, spacingMm: 10, majorEvery: 5, snapEnabled: false },
-      onToggleCanvasGridSnap
-    );
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
-    if (!overlay) throw new Error("Canvas Ribbon overlay was not rendered");
-    render(overlay);
-
-    fireEvent.click(screen.getByRole("button", { name: "Grid Snap" }));
-
-    expect(onToggleCanvasGridSnap).toHaveBeenCalledTimes(1);
-    expect(mocks.dispatchCommand).not.toHaveBeenCalled();
-  });
-
-  it("routes Grid and interactive Grid Settings Ribbon actions through Extension Host callbacks", () => {
+  it("renders the fixed Grid Ribbon and routes its existing Extension Host actions", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
     const onToggleCanvasGrid = vi.fn();
     const onConfigureCanvasGrid = vi.fn();
     const onToggleCanvasGridSnap = vi.fn();
-    const ribbons: VscodeCanvasRibbon[] = [{
-      id: "grid-ribbon",
-      label: "Canvas Ribbon",
-      x: null,
-      y: 12,
-      orientation: "horizontal",
-      items: [
-        { id: "grid", type: "command", commandId: "toggleCanvasGrid", icon: "grid-3x3", showLabel: true },
-        { id: "settings", type: "value", valueId: "canvasGrid" },
-        { id: "snap", type: "command", commandId: "toggleCanvasGridSnap", icon: "magnet", showLabel: true },
-        { id: "configure", type: "command", commandId: "configureCanvasGrid", icon: "ruler", showLabel: true }
-      ]
-    }];
     const { adapter } = renderCanvas(
       evaluation,
       undefined,
-      vi.fn(),
-      ribbons,
       vi.fn(),
       vi.fn(),
       { enabled: false, spacingMm: 10, majorEvery: 5, snapEnabled: true },
@@ -196,23 +148,21 @@ describe("VSCodeDrawingCanvas adapter", () => {
     const view = render(overlay);
 
     const buttons = [...view.container.querySelectorAll<HTMLButtonElement>(
-      "[data-ribbon-id='grid-ribbon'] button[data-command-id]"
+      "[data-ribbon-id='grid'] button[data-command-id]"
     )];
     expect(buttons.map((button) => button.dataset.commandId)).toEqual([
       "toggleCanvasGrid",
       "configureCanvasGrid",
-      "toggleCanvasGridSnap",
-      "configureCanvasGrid"
+      "toggleCanvasGridSnap"
     ]);
     expect(screen.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Grid" }));
     fireEvent.click(screen.getByRole("button", { name: "Grid Settings: 10 mm · ×5" }));
-    fireEvent.click(screen.getByRole("button", { name: "Grid Settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Grid Snap" }));
 
     expect(onToggleCanvasGrid).toHaveBeenCalledTimes(1);
-    expect(onConfigureCanvasGrid).toHaveBeenCalledTimes(2);
+    expect(onConfigureCanvasGrid).toHaveBeenCalledTimes(1);
     expect(onToggleCanvasGridSnap).toHaveBeenCalledTimes(1);
     expect(mocks.dispatchCommand).not.toHaveBeenCalled();
   });
@@ -225,26 +175,27 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(mocks.nativePointerBoundaryFallback).toBe(true);
   });
 
-  it("keeps fixed viewport controls visible when configurable Canvas Ribbons are empty", () => {
+  it("includes viewport controls and Canvas Status in the fixed Viewport Ribbon", () => {
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), []);
+    const { adapter } = renderCanvas(evaluation, undefined);
     const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 52 });
     if (!overlay) throw new Error("Canvas UI overlay was not rendered");
     const view = render(overlay);
-    const controls = view.container.querySelector("[data-canvas-viewport-controls]");
+    const ribbons = [...view.container.querySelectorAll<HTMLElement>(".command-ribbon")];
 
-    expect(controls).toBeInTheDocument();
-    expect(controls).toHaveStyle({ top: "60px", right: "8px" });
-    expect(controls?.querySelectorAll(".command-ribbon-button")).toHaveLength(4);
-    expect(controls?.querySelector("[data-command-id='zoomOutCanvas']")).toBeInTheDocument();
-    expect(controls?.querySelector("[data-command-id='zoomInCanvas']")).toBeInTheDocument();
-    expect(controls?.querySelector("[data-command-id='resetCanvasView']")).toBeInTheDocument();
-    expect(controls?.querySelector("[data-command-id='fitDrawing']")).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "Canvas zoom: 100%" })).toBeInTheDocument();
-    fireEvent.click(controls?.querySelector("[data-command-id='zoomOutCanvas']") as HTMLElement);
-    fireEvent.click(controls?.querySelector("[data-command-id='zoomInCanvas']") as HTMLElement);
-    fireEvent.click(controls?.querySelector("[data-command-id='resetCanvasView']") as HTMLElement);
-    fireEvent.click(controls?.querySelector("[data-command-id='fitDrawing']") as HTMLElement);
+    expect(ribbons.map((ribbon) => ribbon.dataset.ribbonId)).toEqual(["viewport", "display", "grid"]);
+    expect(ribbons[0]?.querySelectorAll(".command-ribbon-button")).toHaveLength(4);
+    expect(ribbons[0]?.querySelector("[data-command-id='zoomOutCanvas']")).toBeInTheDocument();
+    expect(ribbons[0]?.querySelector("[data-command-id='zoomInCanvas']")).toBeInTheDocument();
+    expect(ribbons[0]?.querySelector("[data-command-id='resetCanvasView']")).toBeInTheDocument();
+    expect(ribbons[0]?.querySelector("[data-command-id='fitDrawing']")).toBeInTheDocument();
+    expect(ribbons[0]?.querySelector("[role='status']")).toHaveTextContent("ZOOM100%");
+    expect(view.container.querySelector("[data-canvas-viewport-controls]")).toBeNull();
+    expect(ribbons[0]?.parentElement).toHaveStyle({ top: "60px", left: "8px" });
+    fireEvent.click(ribbons[0]?.querySelector("[data-command-id='zoomOutCanvas']") as HTMLElement);
+    fireEvent.click(ribbons[0]?.querySelector("[data-command-id='zoomInCanvas']") as HTMLElement);
+    fireEvent.click(ribbons[0]?.querySelector("[data-command-id='resetCanvasView']") as HTMLElement);
+    fireEvent.click(ribbons[0]?.querySelector("[data-command-id='fitDrawing']") as HTMLElement);
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("zoomOutCanvas", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("zoomInCanvas", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("resetCanvasView", expect.anything());
@@ -312,7 +263,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
     expect(uiView.container.querySelector(".canvas-mode-status")).toBeNull();
   });
 
-  it("keeps view and presentation Ribbon operations available during Pick", () => {
+  it("keeps fixed view and presentation Ribbon operations available during Pick", () => {
     const target = { elementId: "target", parameterKey: "point" };
     useCadUiStore.setState({
       activePointPickTarget: target,
@@ -321,39 +272,18 @@ describe("VSCodeDrawingCanvas adapter", () => {
     });
     mocks.dispatchCommand.mockReturnValue({ status: "applied" });
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const onEditCanvasRibbon = vi.fn();
-    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [{
-      id: "ribbon",
-      label: "Ribbon",
-      x: null,
-      y: 12,
-      orientation: "vertical",
-      items: [
-        { id: "clear", type: "command", commandId: "clearCanvasSelection", icon: "x", showLabel: true },
-        { id: "reset", type: "command", commandId: "resetCanvasView", icon: "scan", showLabel: true },
-        { id: "fit", type: "command", commandId: "fitDrawing", icon: "maximize", showLabel: true },
-        { id: "names", type: "command", commandId: "toggleCanvasPointNames", icon: "tags", showLabel: true },
-        { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: true }
-      ]
-    }], onEditCanvasRibbon);
+    const { adapter } = renderCanvas(evaluation, undefined);
     const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 60 });
     if (!overlay) throw new Error("Ribbon overlay was not rendered");
     render(overlay);
-    const ribbon = document.querySelector("[data-ribbon-id='ribbon']");
-    if (!(ribbon instanceof HTMLElement)) throw new Error("Configured Ribbon was not rendered");
-
-    expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: "Edit Canvas Ribbon" })).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(within(ribbon).getByRole("button", { name: "キャンバス表示をリセット" }));
-    fireEvent.click(within(ribbon).getByRole("button", { name: "描画全体を表示" }));
-    fireEvent.click(within(ribbon).getByRole("button", { name: "Toggle Point Names" }));
-    fireEvent.click(within(ribbon).getByRole("button", { name: "Edit Canvas Ribbon" }));
+    fireEvent.click(document.querySelector("[data-command-id='resetCanvasView']")!);
+    fireEvent.click(document.querySelector("[data-command-id='fitDrawing']")!);
+    fireEvent.click(document.querySelector("[data-command-id='toggleCanvasPointNames']")!);
 
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("resetCanvasView", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("fitDrawing", expect.anything());
     expect(mocks.dispatchCommand).toHaveBeenCalledWith("toggleCanvasPointNames", expect.anything());
     expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("clearCanvasSelection", expect.anything());
-    expect(onEditCanvasRibbon).not.toHaveBeenCalled();
   });
 
   it("commits rectangle selection through the shared command owner with history enabled", () => {
@@ -398,7 +328,7 @@ describe("VSCodeDrawingCanvas adapter", () => {
       showCanvasPoints: false
     });
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [], vi.fn(), vi.fn(), {
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), vi.fn(), {
       enabled: false,
       spacingMm: 10,
       majorEvery: 5,
@@ -524,86 +454,10 @@ describe("VSCodeDrawingCanvas adapter", () => {
   it("forwards the latest finite world pointer through the Canvas host boundary", () => {
     const postCanvasPointerPosition = vi.fn();
     const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), [], vi.fn(), postCanvasPointerPosition);
+    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), postCanvasPointerPosition);
 
     adapter.publishCanvasPointerPosition?.({ x: 25, y: -4 });
     expect(postCanvasPointerPosition).toHaveBeenCalledWith({ x: 25, y: -4 });
-  });
-
-  it("renders the closed Ribbon surface from shared Canvas state and routes only allowed commands", () => {
-    useCadUiStore.setState({
-      selectedElementIds: [],
-      showCanvasPointNames: true,
-      showCanvasGeometryNames: false,
-      showCanvasPoints: false
-    });
-    mocks.dispatchCommand.mockReturnValue({ status: "applied" });
-    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const onEditCanvasRibbon = vi.fn();
-    const ribbons: VscodeCanvasRibbon[] = [{
-      id: "ribbon",
-      label: "Ribbon",
-      x: null,
-      y: 12,
-      orientation: "vertical",
-      items: [
-        { id: "clear", type: "command", commandId: "clearCanvasSelection", icon: "x", showLabel: true },
-        { id: "names", type: "command", commandId: "toggleCanvasPointNames", icon: "tags", showLabel: false },
-        { id: "points", type: "command", commandId: "toggleCanvasPoints", icon: "dot", showLabel: false },
-        { id: "unknown", type: "command", commandId: "workbench.action.files.openFile", icon: "circle", showLabel: false },
-        { id: "zoom", type: "value", valueId: "canvasZoom" },
-        { id: "edit", type: "command", commandId: "editCanvasRibbon", icon: "settings-2", showLabel: false }
-      ]
-    }];
-    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), ribbons, onEditCanvasRibbon);
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 }, { canvasModeChromeHeight: 60 });
-    if (!overlay) throw new Error("Ribbon overlay was not rendered");
-    render(overlay);
-
-    expect(screen.getByRole("button", { name: "Ribbonを移動" })).toBeInTheDocument();
-    const unavailable = screen.getByRole("button", { name: "workbench.action.files.openFile" });
-    expect(unavailable).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(unavailable);
-    expect(mocks.dispatchCommand).not.toHaveBeenCalledWith("workbench.action.files.openFile", expect.anything());
-    expect(screen.getByRole("button", { name: "Toggle Point Names" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "キャンバス点を表示/非表示" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "キャンバス選択を解除" })).toHaveTextContent("キャンバス選択を解除");
-    expect(screen.queryByRole("button", { name: "Toggle Canvas Element Names (Legacy)" })).toBeNull();
-    expect(screen.getByRole("status", { name: /Canvas status: ZOOM: \d+%, X: —, Y: —/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ribbonを移動" }).closest(".command-ribbon")?.parentElement)
-      .toHaveStyle({ top: "68px" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit Canvas Ribbon" }));
-    expect(onEditCanvasRibbon).toHaveBeenCalledTimes(1);
-  });
-
-  it("uses the VS Code side-handle presentation and inherited currentColor for vertical Ribbons", () => {
-    const evaluation = emptyEvaluationResult(useCadDocumentStore.getState().elements);
-    const ribbons: VscodeCanvasRibbon[] = [{
-      id: "vertical-ribbon",
-      label: "Vertical Ribbon",
-      x: 12,
-      y: 12,
-      orientation: "vertical",
-      items: [{
-        id: "edit",
-        type: "command",
-        commandId: "editCanvasRibbon",
-        icon: "settings-2",
-        showLabel: true
-      }]
-    }];
-    const { adapter } = renderCanvas(evaluation, undefined, vi.fn(), ribbons);
-    const overlay = adapter.renderHostOverlay?.({ width: 400, height: 300 });
-    if (!overlay) throw new Error("Ribbon overlay was not rendered");
-    const view = render(overlay);
-
-    const ribbon = view.container.querySelector("[data-ribbon-id='vertical-ribbon']");
-    expect(ribbon).toHaveClass("is-vertical", "has-side-handle");
-    expect(ribbon?.children).toHaveLength(2);
-    expect(ribbon?.querySelector(".command-ribbon-buttons")?.children).toHaveLength(1);
-    expect(ribbon?.querySelector("svg")?.getAttribute("style")).toMatch(/color:\s*currentcolor/i);
-    expect(ribbon?.querySelector("svg")).toHaveAttribute("width", "16");
-    expect(ribbon?.querySelector("svg")).toHaveAttribute("height", "16");
   });
 
   it("keeps preview mutations in the Webview and sends one canonical source after each commit", () => {

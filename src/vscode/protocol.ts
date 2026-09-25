@@ -9,7 +9,10 @@ import type {
   DslCanvasRevealSourceTarget
 } from "@nuinuicad/nui-language";
 import type { DslRevealRuntimeStatementOwnerProjection } from "@nuinuicad/nui-language";
-import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
+import type {
+  VscodeCanvasRibbonId,
+  VscodeCanvasRibbonPositions
+} from "./vscodeCanvasRibbonConfig";
 import type { VscodeCanvasObservationToExtensionMessage } from "./canvasObservationProtocol";
 import type { VscodeCanvasThemeToExtensionMessage } from "./vscodeCanvasThemeProtocol";
 import type { VscodeMultiDocumentGraphPublication } from "./multiDocumentGraphTransport";
@@ -206,8 +209,6 @@ export const vscodeCanvasContextDataFor = (
     : {})
 });
 
-export const vscodeCanvasRibbonContextData = vscodeCanvasContextDataFor("ribbon", false);
-
 export const isVscodeWebviewSurfaceKind = (value: unknown): value is VscodeWebviewSurfaceKind =>
   typeof value === "string" &&
   (vscodeWebviewSurfaceKinds as readonly string[]).includes(value);
@@ -267,8 +268,7 @@ export type VscodeToExtensionMessage =
       documentVersion: number;
       pointer: VscodeCanvasPointer;
     }
-  | { type: "canvasRibbonPositionCommit"; ribbonId: string; x: number; y: number }
-  | { type: "editCanvasRibbon" }
+  | { type: "canvasRibbonPositionCommit"; ribbonId: VscodeCanvasRibbonId; x: number; y: number }
   | { type: "toggleCanvasGrid" }
   | { type: "configureCanvasGrid" }
   | { type: "toggleCanvasGridSnap" }
@@ -396,7 +396,7 @@ export type ExtensionToVscodeMessage =
       documentVersion: number;
     }
   | { type: "canvasThemeChanged"; generation: number }
-  | { type: "canvasRibbonConfiguration"; ribbons: VscodeCanvasRibbon[] }
+  | { type: "canvasRibbonPositions"; positions: VscodeCanvasRibbonPositions }
   | { type: "canvasGridConfiguration"; settings: CanvasGridSettings }
   | {
       type: "canvasFreePointAtPointer";

@@ -26,7 +26,6 @@ describe("Pick Mode Canvas operation policy", () => {
     ["bezier-drag", false],
     ["clear-selection", false],
     ["document-mutation", false],
-    ["workflow-start", false],
     ["undo", false],
     ["redo", false],
     ["pan", true],
@@ -54,7 +53,6 @@ describe("Pick Mode Canvas operation policy", () => {
     ["toggleCanvasGrid", "presentation-toggle"],
     ["configureCanvasGrid", "presentation-toggle"],
     ["toggleCanvasGridSnap", "presentation-toggle"],
-    ["editCanvasRibbon", "workflow-start"],
     ["zoomInCanvas", "zoom"],
     ["undo", "undo"],
     ["redo", "redo"],
@@ -70,7 +68,6 @@ describe("Pick Mode Canvas operation policy", () => {
     expect(pickModeCanvasCommandAllowed("finishPickMode", activeSession)).toBe(true);
     expect(pickModeCanvasCommandAllowed("cancelPickMode", activeSession)).toBe(true);
     expect(pickModeCanvasCommandAllowed("fitDrawing", activeSession)).toBe(true);
-    expect(pickModeCanvasCommandAllowed("editCanvasRibbon", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("clearCanvasSelection", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("undo", activeSession)).toBe(false);
     expect(pickModeCanvasCommandAllowed("addLine", activeSession)).toBe(false);
@@ -91,7 +88,7 @@ describe("Pick Mode Canvas operation policy", () => {
     for (const operation of ["create-coordinate-point", "pan", "zoom", "reset-view", "fit-drawing", "presentation-toggle", "focus", "undo", "redo"] as const) {
       expect(canvasModalCanvasOperationAllowed(operation, mode)).toBe(true);
     }
-    for (const operation of ["normal-selection", "rectangle-selection", "point-drag", "bezier-drag", "clear-selection", "document-mutation", "workflow-start", "pick", "reveal"] as const) {
+    for (const operation of ["normal-selection", "rectangle-selection", "point-drag", "bezier-drag", "clear-selection", "document-mutation", "pick", "reveal"] as const) {
       expect(canvasModalCanvasOperationAllowed(operation, mode)).toBe(false);
     }
     expect(canvasModalCanvasCommandAllowed("undo", mode)).toBe(true);

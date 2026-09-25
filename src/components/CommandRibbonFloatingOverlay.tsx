@@ -1,8 +1,8 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ViewportSize } from "./canvasViewport";
 import type { RibbonPosition, RibbonRenderedSize } from "./commandRibbonFloatingGeometry";
-import { clampRibbonPosition, defaultRibbonX, estimatedRibbonSize } from "./commandRibbonFloatingGeometry";
+import { clampRibbonPosition, defaultRibbonX, estimatedRibbonSize, FLOATING_RIBBON_MARGIN } from "./commandRibbonFloatingGeometry";
 import {
   CommandRibbonView,
   type CommandRibbonPresentation,
@@ -23,6 +23,8 @@ export type CommandRibbonFloatingOverlayProps = {
   viewportSize: ViewportSize;
   /** Presentation-only top space reserved by the shared Pick Mode chrome. */
   topInset?: number;
+  /** Use a measured, top-left vertical stack for missing positions. */
+  defaultStackGap?: number;
   iconResolver: (iconName: string) => import("lucide-react").LucideIcon;
   viewportAwareTooltips?: boolean;
   contextMenuData?: string;
@@ -50,6 +52,7 @@ export const CommandRibbonFloatingOverlay = ({
   ribbons,
   viewportSize,
   topInset = 0,
+  defaultStackGap,
   iconResolver,
   viewportAwareTooltips = false,
   contextMenuData,
@@ -70,8 +73,8 @@ export const CommandRibbonFloatingOverlay = ({
 
   const ribbonConfigurationKey = useMemo(() => JSON.stringify(ribbons), [ribbons]);
 
-  const sizeFor = (ribbon: CommandRibbonPresentation): RibbonRenderedSize =>
-    renderedSizes[ribbon.id] ?? estimatedRibbonSize(ribbon);
+  const sizeFor = useCallback((ribbon: CommandRibbonPresentation): RibbonRenderedSize =>
+    renderedSizes[ribbon.id] ?? estimatedRibbonSize(ribbon), [renderedSizes]);
 
   const clampBaseFor = (ribbon: CommandRibbonPresentation, position: RibbonPosition): RibbonPosition =>
     clampRibbonPosition(position.x, position.y, viewportSize, sizeFor(ribbon));
@@ -79,15 +82,37 @@ export const CommandRibbonFloatingOverlay = ({
   const clampDisplayedFor = (ribbon: CommandRibbonPresentation, position: RibbonPosition): RibbonPosition =>
     clampRibbonPosition(position.x, position.y, viewportSize, sizeFor(ribbon), undefined, topInset);
 
-  const positionFor = (ribbon: CommandRibbonPresentation): RibbonPosition => {
-    const configured = positions[ribbon.id] ?? {
-      x: ribbon.x ?? defaultRibbonX(viewportSize, ribbon, sizeFor(ribbon)),
-      y: ribbon.y
-    };
-    return clampDisplayedFor(ribbon, configured);
+  const defaultStackPositions = useMemo(() => {
+    if (defaultStackGap === undefined) return null;
+    const requestedStackTop = FLOATING_RIBBON_MARGIN + topInset;
+    let nextTop = requestedStackTop;
+    return ribbons.map((ribbon) => {
+      const position = { x: FLOATING_RIBBON_MARGIN, y: nextTop };
+      nextTop += sizeFor(ribbon).height + defaultStackGap;
+      return position;
+    });
+  }, [defaultStackGap, ribbons, sizeFor, topInset]);
+
+  const positionFor = (ribbon: CommandRibbonPresentation, index: number): RibbonPosition => {
+    const defaultStackPosition = defaultStackPositions?.[index];
+    const usesDefaultStackPosition = defaultStackGap !== undefined &&
+      positions[ribbon.id] === undefined && ribbon.x === null && defaultStackPosition !== undefined;
+    const persistedPosition = defaultStackGap !== undefined && ribbon.x !== null
+      ? { x: ribbon.x, y: ribbon.y }
+      : null;
+    const configured = persistedPosition ?? positions[ribbon.id] ?? (
+      usesDefaultStackPosition && defaultStackPosition
+        ? defaultStackPosition
+        : { x: ribbon.x ?? defaultRibbonX(viewportSize, ribbon, sizeFor(ribbon)), y: ribbon.y }
+    );
+    const clamped = clampDisplayedFor(ribbon, configured);
+    return usesDefaultStackPosition && defaultStackPosition
+      ? { x: clamped.x, y: defaultStackPosition.y }
+      : clamped;
   };
 
   useEffect(() => {
+    if (defaultStackGap !== undefined) return;
     if (dragRef.current) return;
     setPositions((current) => {
       const next: Record<string, RibbonPosition> = {};
@@ -118,7 +143,7 @@ export const CommandRibbonFloatingOverlay = ({
     // positionFor, so its automatic displacement never replaces this value.
     // This effect never invokes onPositionCommit, so resize alone cannot persist.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ribbonConfigurationKey, viewportSize.width, viewportSize.height, renderedSizes]);
+  }, [defaultStackGap, ribbonConfigurationKey, viewportSize.width, viewportSize.height, sizeFor]);
 
   useEffect(() => {
     if (typeof ResizeObserver === "undefined") return;
@@ -160,7 +185,7 @@ export const CommandRibbonFloatingOverlay = ({
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    const position = positionFor(ribbon);
+    const position = positionFor(ribbon, ribbons.indexOf(ribbon));
     dragRef.current = {
       pointerId: event.pointerId,
       ribbonId: ribbon.id,
@@ -220,8 +245,8 @@ export const CommandRibbonFloatingOverlay = ({
 
   return (
     <div ref={overlayRef} className="command-ribbon-layer" aria-label="コマンドリボン">
-      {ribbons.map((ribbon) => {
-        const position = positionFor(ribbon);
+      {ribbons.map((ribbon, index) => {
+        const position = positionFor(ribbon, index);
         return (
           <div
             key={ribbon.id}

@@ -90,9 +90,6 @@ import type {
 } from "./protocol";
 import { vscodeCanvasContextDataFor } from "./protocol";
 import { readVSCodeCanvasTheme } from "./vscodeCanvasTheme";
-import { VSCodeCanvasRibbonOverlay } from "./VSCodeCanvasRibbonOverlay";
-import { vscodeCanvasRibbonCommandFor } from "./vscodeCanvasRibbonCatalog";
-import type { VscodeCanvasRibbon } from "./vscodeCanvasRibbonConfig";
 import { VscodeRustTransport, isExtensionToVscodeMessage } from "./vscodeRustTransport";
 import {
   useVSCodeModulePreviewReferencePickSession,
@@ -358,7 +355,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     statusText("modulePreview.initial", "Open Module Preview from a Module definition in the Source Editor.")
   ]);
   const [canvasTheme, setCanvasTheme] = useState(LEGACY_CANVAS_THEME);
-  const [canvasRibbonRibbons, setCanvasRibbonRibbons] = useState<VscodeCanvasRibbon[]>([]);
   const selectedElementId = useCadUiStore((state) => state.selectedElementId);
   const selectedElementIds = useCadUiStore((state) => state.selectedElementIds);
   const selectionAnchorElementId = useCadUiStore((state) => state.selectionAnchorElementId);
@@ -1465,10 +1461,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         refreshCanvasTheme();
         return;
       }
-      if (message.type === "canvasRibbonConfiguration") {
-        setCanvasRibbonRibbons(message.ribbons);
-        return;
-      }
       if (message.type === "canvasGridConfiguration") {
         setCanvasGridSettings(normalizeCanvasGridSettings(message.settings));
         return;
@@ -1518,13 +1510,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     if (!selection) return;
     useCadUiStore.getState().applySelection(renderElements, selection);
   }, [renderElements]);
-
-  const ribbonCommandContext = useMemo(() => ({
-    hasSelection: selectedElementIds.length > 0,
-    showCanvasPointNames,
-    showCanvasGeometryNames,
-    showCanvasPoints
-  }), [selectedElementIds.length, showCanvasGeometryNames, showCanvasPointNames, showCanvasPoints]);
 
   const modulePreviewPickActive = modulePreviewReferencePickSession !== null;
   const modulePreviewPickCompiled = modulePreviewPickActive
@@ -1665,37 +1650,8 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
         }}
       />
     ) : null,
-    renderHostOverlay: (_viewportSize, layout = { canvasModeChromeHeight: 0 }) => (
-        <>
-          <VSCodeCanvasRibbonOverlay
-            canvasFocusRef={canvasFocusRef}
-            canvasViewport={canvasViewport}
-            canvasRibbonRibbons={canvasRibbonRibbons}
-            viewportSize={_viewportSize}
-          canvasModeChromeHeight={layout.canvasModeChromeHeight}
-            ribbonCommandContext={ribbonCommandContext}
-            presentation={canvasPresentationAdapter}
-            onCommand={(item) => {
-              const definition = vscodeCanvasRibbonCommandFor(item.commandId);
-              if (!definition || !definition.isAvailable(ribbonCommandContext)) return;
-              if (definition.hostAction === "editCanvasRibbon") {
-                api.postMessage({ type: "editCanvasRibbon" });
-                return;
-              }
-              if (definition.sharedCommandId) executeSharedCanvasCommand(definition.sharedCommandId);
-            }}
-            onPositionCommit={(ribbonId, position) => api.postMessage({
-              type: "canvasRibbonPositionCommit",
-              ribbonId,
-              x: position.x,
-              y: position.y
-            })}
-          />
-        </>
-      )
+    renderHostOverlay: () => null
   }), [
-    api,
-    canvasRibbonRibbons,
     canvasTheme,
     canvasGridSettings,
     canvasPresentationAdapter,
@@ -1722,7 +1678,6 @@ export const ModulePreviewApp = ({ api }: { api: VscodeWebviewApi }) => {
     dispatchPreviewGeometry,
     previewCanvasSelection,
     commitCanvasRectangleSelection,
-    ribbonCommandContext,
     selectElement,
     selectedElementId,
     selectedElementIds,

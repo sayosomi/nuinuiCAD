@@ -113,6 +113,15 @@ const renderPreview = (
   });
 };
 
+describe("ModulePreviewApp Canvas boundary", () => {
+  it("does not render or expose the Canvas fixed Ribbon overlay", () => {
+    renderPreview();
+
+    expect(screen.getByTestId("module-preview-canvas").querySelector(".command-ribbon-layer")).toBeNull();
+    expect(mocks.hostAdapter?.renderHostOverlay?.({ width: 400, height: 300 })).toBeNull();
+  });
+});
+
 afterEach(() => {
   cleanup();
   mocks.queryModulePreviewTarget.mockReset();

@@ -4,6 +4,8 @@
   "views.elements": "要素",
   "submenu.convert": "変換",
   "submenu.webview.display": "表示",
+  "submenu.webview.viewport": "表示範囲",
+  "submenu.webview.grid": "グリッド",
   "submenu.webview.convertPoint": "変換",
   "submenu.webview.bake": "Bake",
   "submenu.source.bake": "nuinuiCAD: Bake",
@@ -54,6 +56,8 @@
   "command.selectInstance.shortTitle": "インスタンスを選択",
   "command.resetCanvasView.title": "表示をリセット",
   "command.resetCanvasView.shortTitle": "表示をリセット",
+  "command.zoomInCanvas.title": "拡大",
+  "command.zoomOutCanvas.title": "縮小",
   "command.fitDrawing.title": "図面をフィット",
   "command.fitDrawing.shortTitle": "図面をフィット",
   "command.resetOutputPreviewView.title": "表示をリセット",
@@ -71,8 +75,6 @@
   "command.bakeCurrentShape.shortTitle": "現在の形状",
   "command.bakeBaseShape.title": "ベース形状",
   "command.bakeBaseShape.shortTitle": "ベース形状",
-  "command.editCanvasRibbon.title": "リボンを編集",
-  "command.editCanvasRibbon.shortTitle": "リボンを編集",
   "command.modulePreview.clearSelection.title": "選択を解除",
   "command.modulePreview.clearSelection.shortTitle": "選択を解除",
   "command.modulePreview.resetView.title": "表示をリセット",
@@ -111,7 +113,5 @@
   "configuration.canvas.grid.enabled.description": "Canvas のグリッドと軸ガイドを表示します。",
   "configuration.canvas.grid.spacingMm.description": "Canvas グリッドの基準間隔（ミリメートル）です。",
   "configuration.canvas.grid.majorEvery.description": "大グリッド線の間隔となるグリッド区切り数です。",
-  "configuration.canvas.grid.snapEnabled.description": "Canvas の点のドラッグと座標点の作成をグリッド間隔にスナップします。",
-  "configuration.canvasRibbon.ribbons.description": "nuinuiCAD VS Code Canvas に表示するリボンです。",
-  "configuration.canvasRibbon.defaultLabel": "Canvas リボン"
+  "configuration.canvas.grid.snapEnabled.description": "Canvas の点のドラッグと座標点の作成をグリッド間隔にスナップします。"
 }

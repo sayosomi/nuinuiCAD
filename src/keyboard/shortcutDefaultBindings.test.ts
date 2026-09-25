@@ -35,4 +35,21 @@ describe("default shortcut bindings", () => {
         defaultChords: [{ key: "ArrowLeft", mod: false, alt: false, shift: false }]
       }]);
   });
+
+  it("leaves Canvas Zoom defaults to the native VS Code keybindings while preserving Reset", () => {
+    const normalBindings = shortcutBindings.filter(({ scope }) => scope === "normal");
+    const normalChords = normalBindings.flatMap(({ defaultChords }) => defaultChords.map(({ key }) => key));
+
+    expect(bindingFor("normal.zoomInCanvas")?.defaultChords).toEqual([]);
+    expect(bindingFor("normal.zoomOutCanvas")?.defaultChords).toEqual([]);
+    expect(normalChords).not.toContain("+");
+    expect(normalChords).not.toContain("=");
+    expect(normalChords).not.toContain("-");
+    expect(bindingFor("normal.resetCanvasView")?.defaultChords).toEqual([{
+      key: "0",
+      mod: false,
+      alt: false,
+      shift: false
+    }]);
+  });
 });
