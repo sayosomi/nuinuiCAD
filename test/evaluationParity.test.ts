@@ -61,6 +61,103 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     rustStdio?.dispose();
   });
 
+  it("accumulates independent point input diagnostics across the persistent Rust stdio boundary", async () => {
+    const evaluateSource = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      const ts = evaluationPayloadToResult(tsPayload);
+      const rust = evaluationPayloadToResult(rustPayload);
+      expect(rust.errors).toEqual(ts.errors);
+      return { fixture, ts, rust };
+    };
+
+    const bothAxes = await evaluateSource([
+      "nui 1",
+      "point A = coordinate(x: 1 / 0, y: sqrt(-1))"
+    ].join("\n"));
+    const bothAxesPoint = bothAxes.fixture.elements.find((element) => element.name === "A")!;
+    for (const result of [bothAxes.ts, bothAxes.rust]) {
+      expect(result.computedGeometry.has(bothAxesPoint.id)).toBe(false);
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors.map((error) => error.missingDependencyId)).toEqual(["1 / 0", "sqrt(-1)"]);
+    }
+
+    const oneAxis = await evaluateSource([
+      "nui 1",
+      "point A = coordinate(x: 1 / 0, y: 4)"
+    ].join("\n"));
+    const oneAxisPoint = oneAxis.fixture.elements.find((element) => element.name === "A")!;
+    for (const result of [oneAxis.ts, oneAxis.rust]) {
+      expect(result.computedGeometry.has(oneAxisPoint.id)).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].missingDependencyId).toBe("1 / 0");
+    }
+
+    const disabled = await evaluateSource([
+      "nui 1",
+      "point A = coordinate(x: 1 / 0, y: sqrt(-1), enabled: false)"
+    ].join("\n"));
+    const disabledPoint = disabled.fixture.elements.find((element) => element.name === "A")!;
+    for (const result of [disabled.ts, disabled.rust]) {
+      expect(result.computedGeometry.has(disabledPoint.id)).toBe(false);
+      expect(result.errors).toEqual([]);
+    }
+
+    const cascade = await evaluateSource([
+      "nui 1",
+      "point Broken = coordinate(x: 1 / 0, y: 0)",
+      "point Child = offset(from: @Broken, dx: sqrt(-1), dy: 1)"
+    ].join("\n"));
+    const brokenPoint = cascade.fixture.elements.find((element) => element.name === "Broken")!;
+    const childPoint = cascade.fixture.elements.find((element) => element.name === "Child")!;
+    for (const result of [cascade.ts, cascade.rust]) {
+      expect(result.computedGeometry.has(brokenPoint.id)).toBe(false);
+      expect(result.computedGeometry.has(childPoint.id)).toBe(false);
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors.map((error) => error.elementId)).toEqual([brokenPoint.id, childPoint.id]);
+      expect(result.errors[1].missingDependencyId).toBe(brokenPoint.id);
+      expect(result.errors.some((error) => error.missingDependencyId === "sqrt(-1)")).toBe(false);
+    }
+
+    const offsetInputs = await evaluateSource([
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Offset = offset(from: @Base, dx: 1 / 0, dy: sqrt(-1))"
+    ].join("\n"));
+    const offsetPoint = offsetInputs.fixture.elements.find((element) => element.name === "Offset")!;
+    for (const result of [offsetInputs.ts, offsetInputs.rust]) {
+      expect(result.computedGeometry.has(offsetPoint.id)).toBe(false);
+      expect(result.errors.map((error) => error.missingDependencyId)).toEqual(["1 / 0", "sqrt(-1)"]);
+    }
+
+    const polarInputs = await evaluateSource([
+      "nui 1",
+      "point Base = coordinate(x: 0, y: 0)",
+      "point Polar = polar(from: @Base, angle: 1 / 0, distance: sqrt(-1))"
+    ].join("\n"));
+    const polarPoint = polarInputs.fixture.elements.find((element) => element.name === "Polar")!;
+    for (const result of [polarInputs.ts, polarInputs.rust]) {
+      expect(result.computedGeometry.has(polarPoint.id)).toBe(false);
+      expect(result.errors.map((error) => error.missingDependencyId)).toEqual(["1 / 0", "sqrt(-1)"]);
+    }
+
+    const divisionAnchors = await evaluateSource([
+      "nui 1",
+      "point Between = between(start: (1 / 0, sqrt(-1)), end: (1 / 0, sqrt(-1)), ratio: 0.5)"
+    ].join("\n"));
+    const divisionPoint = divisionAnchors.fixture.elements.find((element) => element.name === "Between")!;
+    for (const result of [divisionAnchors.ts, divisionAnchors.rust]) {
+      expect(result.computedGeometry.has(divisionPoint.id)).toBe(false);
+      expect(result.errors).toHaveLength(4);
+      expect(result.errors.map((error) => error.missingDependencyId)).toEqual([
+        "1 / 0", "sqrt(-1)", "1 / 0", "sqrt(-1)"
+      ]);
+    }
+  }, 30000);
+
   it("keeps immutable geometry values on the canonical dependency execution timeline", async () => {
     const sourceFor = (padding: boolean) => [
       "nui 1",
