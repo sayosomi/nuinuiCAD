@@ -888,7 +888,6 @@ impl<'a> ScalarMutationResolver<'a> {
             index,
             element_type,
             collection_length,
-            _target_source_order,
             state,
             &HashMap::new(),
         )
@@ -900,7 +899,6 @@ impl<'a> ScalarMutationResolver<'a> {
         index: f64,
         element_type: &ScalarType,
         collection_length: Option<f64>,
-        _target_source_order: f64,
         state: &EvaluationState,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> ScalarEvaluation {
@@ -972,7 +970,6 @@ impl<'a> ScalarMutationResolver<'a> {
                         index,
                         source_element_type,
                         None,
-                        *source_order as f64,
                         state,
                         local_bindings,
                     );
@@ -1073,7 +1070,6 @@ impl<'a> ScalarMutationResolver<'a> {
                         index,
                         element_type,
                         None,
-                        *source_order,
                         state,
                         local_bindings,
                     );
@@ -1109,7 +1105,6 @@ impl<'a> ScalarMutationResolver<'a> {
                         index,
                         element_type,
                         None,
-                        *source_order,
                         state,
                         &branch_bindings,
                     );
@@ -1145,7 +1140,6 @@ impl<'a> ScalarMutationResolver<'a> {
                         index,
                         element_type,
                         None,
-                        -1.0,
                         state,
                         local_bindings,
                     );

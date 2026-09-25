@@ -64,6 +64,12 @@ pub(super) struct SelectedCollectionMatchArm<'a> {
     pub(super) local_binding: Option<(BindingId, ScalarEvaluation)>,
 }
 
+struct RecordFieldLookup<'a> {
+    index: f64,
+    field: &'a ValidatedScalarProgramRecordFieldIdentity,
+    collection_length: Option<f64>,
+}
+
 pub(super) fn select_collection_match_arm<'a>(
     scrutinee_expression: &TypedScalarExpression,
     scrutinee: ScalarEvaluation,
@@ -552,13 +558,16 @@ impl<'a> ScalarBindingResolver<'a> {
     fn resolve_record_field_with_seen(
         &self,
         collection_value_id: &str,
-        index: f64,
-        field: &ValidatedScalarProgramRecordFieldIdentity,
-        collection_length: Option<f64>,
+        lookup: RecordFieldLookup<'_>,
         state: &EvaluationState,
         seen: &mut HashSet<String>,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> ScalarEvaluation {
+        let RecordFieldLookup {
+            index,
+            field,
+            collection_length,
+        } = lookup;
         if !index.is_finite()
             || index.fract() != 0.0
             || index < 0.0
@@ -793,7 +802,6 @@ impl<'a> ScalarBindingResolver<'a> {
             index,
             element_type,
             collection_length,
-            _target_source_order,
             state,
             &HashMap::new(),
         )
@@ -805,7 +813,6 @@ impl<'a> ScalarBindingResolver<'a> {
         index: f64,
         element_type: &ScalarType,
         collection_length: Option<f64>,
-        _target_source_order: f64,
         state: &EvaluationState,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> ScalarEvaluation {
@@ -871,7 +878,6 @@ impl<'a> ScalarBindingResolver<'a> {
                         index,
                         source_element_type,
                         None,
-                        *source_order as f64,
                         state,
                         local_bindings,
                     );
@@ -913,9 +919,11 @@ impl<'a> ScalarBindingResolver<'a> {
                 } => {
                     return self.resolve_record_field_with_seen(
                         source_value_id,
-                        index,
-                        field,
-                        collection_length,
+                        RecordFieldLookup {
+                            index,
+                            field,
+                            collection_length,
+                        },
                         state,
                         &mut HashSet::new(),
                         local_bindings,
@@ -966,7 +974,6 @@ impl<'a> ScalarBindingResolver<'a> {
                         index,
                         element_type,
                         None,
-                        *source_order,
                         state,
                         local_bindings,
                     );
@@ -1002,7 +1009,6 @@ impl<'a> ScalarBindingResolver<'a> {
                         index,
                         element_type,
                         None,
-                        *source_order,
                         state,
                         &branch_bindings,
                     );
@@ -1038,7 +1044,6 @@ impl<'a> ScalarBindingResolver<'a> {
                         index,
                         element_type,
                         None,
-                        -1.0,
                         state,
                         local_bindings,
                     );
@@ -1388,9 +1393,11 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
                     };
                     let result = self.resolve_record_field_with_seen(
                         collection_value_id,
-                        0.0,
-                        &field,
-                        *collection_length,
+                        RecordFieldLookup {
+                            index: 0.0,
+                            field: &field,
+                            collection_length: *collection_length,
+                        },
                         state,
                         &mut HashSet::new(),
                         &HashMap::new(),
@@ -1463,9 +1470,11 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
                 let empty_local_bindings = HashMap::new();
                 return self.resolver.resolve_record_field_with_seen(
                     &context.source_value_id,
-                    context.index,
-                    &field,
-                    None,
+                    RecordFieldLookup {
+                        index: context.index,
+                        field: &field,
+                        collection_length: None,
+                    },
                     self.state,
                     &mut seen,
                     self.local_bindings.unwrap_or(&empty_local_bindings),
