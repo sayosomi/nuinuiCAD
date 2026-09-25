@@ -186,6 +186,109 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(cycleCompile.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
   }, 30000);
 
+  it("projects compiler-resolved point aliases through the persistent Rust evaluator", async () => {
+    const sourceFor = (padded: boolean) => [
+      "nui 1",
+      ...(padded ? ["const PaddingBefore: number = 3"] : []),
+      "line AB = segment(start: (0, 0), end: (10, 0))",
+      "move AB as moved (from: (0, 0), to: (10, 0))",
+      "const P: point = @AB.start",
+      ...(padded ? ["const PaddingBetweenAliases: number = 9"] : []),
+      "const P2: point = @P",
+      "const P2X: number = @P2.x",
+      "line Use = segment(start: @P2, end: (0, 0))",
+      "const BaseStart: point = @AB.base.start",
+      "const NamedStageStart: point = @AB.moved.start",
+      "const FinalStart: point = @AB.final.start",
+      ...(padded ? ["const PaddingAfterAliases: number = 15"] : [])
+    ].join("\n");
+
+    for (const padded of [false, true]) {
+      const fixture = fixtureFromSource(sourceFor(padded));
+      const options = optionsFor(fixture);
+      const program = fixture.compiled?.doc.geometryValueProgram ?? [];
+      expect(program).toHaveLength(5);
+      expect(options.geometryValueProgram).toEqual(program);
+
+      const referenceTargets = program.map((entry) => {
+        expect(entry.declaredInterfaceType).toBe("point");
+        if (entry.construction.kind !== "reference") {
+          throw new Error("expected compiler-projected point Reference entry");
+        }
+        return entry.construction.target;
+      });
+      expect(referenceTargets.map((target) => target.pointKey)).toEqual([
+        "start",
+        "start",
+        "start",
+        "start",
+        "start"
+      ]);
+      expect(referenceTargets.map((target) => target.stagePath)).toEqual([
+        ["final"],
+        ["final"],
+        ["base"],
+        ["moved"],
+        ["final"]
+      ]);
+
+      const use = fixture.elements.find((element) => element.name === "Use")!;
+      const useStartTarget = options.geometryInputTargetsByElementId?.get(use.id)?.get("startPoint");
+      expect(useStartTarget).toMatchObject({
+        kind: "geometryValue",
+        occurrence: program[1]!.occurrence
+      });
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      const tsResult = evaluationPayloadToResult(tsPayload);
+      const rustResult = evaluationPayloadToResult(rustPayload);
+
+      const valueFor = (
+        result: ReturnType<typeof evaluationPayloadToResult>,
+        occurrence: (typeof program)[number]["occurrence"]
+      ) => [...(result.computedGeometryValues?.values() ?? [])].find((entry) =>
+        entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+        entry.occurrence.instancePath.length === occurrence.instancePath.length &&
+        entry.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index]) &&
+        entry.occurrence.mappedMemberIndex === occurrence.mappedMemberIndex
+      )?.value;
+
+      const expectedPoints = [
+        { kind: "point", x: 10, y: 0 },
+        { kind: "point", x: 10, y: 0 },
+        { kind: "point", x: 0, y: 0 },
+        { kind: "point", x: 10, y: 0 },
+        { kind: "point", x: 10, y: 0 }
+      ];
+      for (let index = 0; index < program.length; index += 1) {
+        const occurrence = program[index]!.occurrence;
+        const tsValue = valueFor(tsResult, occurrence);
+        const rustValue = valueFor(rustResult, occurrence);
+        expect(rustValue, "computed geometry value occurrence").toEqual(tsValue);
+        expect(tsValue, "TypeScript point occurrence").toEqual(expectedPoints[index]);
+        expect(rustValue, "Rust point occurrence").toEqual(expectedPoints[index]);
+      }
+
+      for (const [payload, result] of [[tsPayload, tsResult], [rustPayload, rustResult]] as const) {
+        expect(result.errors).toEqual([]);
+        expect(result.geometryValueErrors ?? []).toEqual([]);
+        expect(valueFor(result, program[0]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(valueFor(result, program[1]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(valueFor(result, program[2]!.occurrence)).toEqual({ kind: "point", x: 0, y: 0 });
+        expect(valueFor(result, program[3]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(valueFor(result, program[4]!.occurrence)).toEqual({ kind: "point", x: 10, y: 0 });
+        expect(result.computedGeometry.get(use.id)).toMatchObject({
+          kind: "line",
+          start: { x: 10, y: 0 },
+          end: { x: 0, y: 0 }
+        });
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, "P2X"), 10);
+      }
+    }
+  }, 30000);
+
   it("preserves optional-member availability through the persistent Rust stdio boundary", async () => {
     const evaluateSource = async (lines: string[]) => {
       const fixture = fixtureFromSource(lines.join("\n"));

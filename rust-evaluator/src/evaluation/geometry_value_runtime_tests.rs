@@ -1,5 +1,10 @@
 use serde_json::{json, Value};
+use std::collections::{HashMap, HashSet};
 
+use super::geometry_value_runtime::{
+    decode_geometry_value_program, evaluate_geometry_value_entry, EmptyBindingResolver,
+};
+use super::types::{EvaluationState, GeometryInputTarget, GeometryValueOccurrence};
 use super::{evaluate_document_input, EvaluationInput};
 
 fn number(value: f64) -> Value {
@@ -229,6 +234,322 @@ fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
         geometry_value_program: Some(Value::Array(program)),
         module_materialization: None,
     }
+}
+
+#[test]
+fn point_references_project_drawable_geometry_values_and_selected_stages() {
+    let owner_id = "drawable:line";
+    let source_occurrence = GeometryValueOccurrence {
+        source_statement_id: "value:line".to_owned(),
+        instance_path: Vec::new(),
+        mapped_member_index: None,
+    };
+    let point_occurrence = |source_statement_id: &str| GeometryValueOccurrence {
+        source_statement_id: source_statement_id.to_owned(),
+        instance_path: Vec::new(),
+        mapped_member_index: None,
+    };
+    let drawable_line = |start_x: f64, start_y: f64, end_x: f64, end_y: f64| {
+        json!({
+            "kind": "line",
+            "start": {
+                "kind": "point",
+                "elementId": format!("{owner_id}:start"),
+                "name": "A.start",
+                "x": start_x,
+                "y": start_y
+            },
+            "end": {
+                "kind": "point",
+                "elementId": format!("{owner_id}:end"),
+                "name": "A.end",
+                "x": end_x,
+                "y": end_y
+            }
+        })
+    };
+    let target = |kind: &str,
+                  statement_id: &str,
+                  geometry_type: &str,
+                  point_key: Option<&str>,
+                  stage_path: Option<Value>,
+                  occurrence: Option<Value>,
+                  binder_id: Option<&str>| {
+        let mut target = json!({
+            "kind": kind,
+            "statementId": statement_id,
+            "statementIndex": 0,
+            "geometryType": geometry_type
+        });
+        if let Some(point_key) = point_key {
+            target["pointKey"] = json!(point_key);
+        }
+        if let Some(stage_path) = stage_path {
+            target["stagePath"] = stage_path;
+        }
+        if let Some(occurrence) = occurrence {
+            target["occurrence"] = occurrence;
+        }
+        if let Some(binder_id) = binder_id {
+            target["binderId"] = json!(binder_id);
+        }
+        target
+    };
+    let occurrence_json = |source_statement_id: &str| json!({ "sourceStatementId": source_statement_id, "instancePath": [] });
+    let reference = |source_statement_id: &str, index: u64, target: Value| {
+        json!({
+            "sourceStatementId": source_statement_id,
+            "sourceStatementIndex": index,
+            "declaredInterfaceType": "point",
+            "occurrence": occurrence_json(source_statement_id),
+            "executionPosition": index as f64,
+            "construction": { "kind": "reference", "target": target }
+        })
+    };
+
+    let program = json!([
+        reference(
+            "value:drawable-start",
+            0,
+            target(
+                "drawable",
+                owner_id,
+                "line",
+                Some("start"),
+                None,
+                None,
+                None
+            )
+        ),
+        reference(
+            "value:alias-of-alias",
+            1,
+            target(
+                "geometryValue",
+                "value:drawable-start",
+                "point",
+                None,
+                None,
+                Some(occurrence_json("value:drawable-start")),
+                None
+            )
+        ),
+        reference(
+            "value:base-start",
+            2,
+            target(
+                "drawable",
+                owner_id,
+                "line",
+                Some("start"),
+                Some(json!(["base"])),
+                None,
+                None
+            )
+        ),
+        reference(
+            "value:named-stage-start",
+            3,
+            target(
+                "drawable",
+                owner_id,
+                "line",
+                Some("start"),
+                Some(json!(["moved"])),
+                None,
+                None
+            )
+        ),
+        reference(
+            "value:explicit-final-start",
+            4,
+            target(
+                "drawable",
+                owner_id,
+                "line",
+                Some("start"),
+                Some(json!(["final"])),
+                None,
+                None
+            )
+        ),
+        reference(
+            "value:value-backed-start",
+            5,
+            target(
+                "geometryValue",
+                "value:line",
+                "line",
+                Some("start"),
+                None,
+                Some(occurrence_json("value:line")),
+                None
+            )
+        ),
+        reference(
+            "value:binder-stage-end",
+            6,
+            target(
+                "geometryValueForBinder",
+                "binder:base-end",
+                "line",
+                None,
+                None,
+                None,
+                Some("binder:base-end")
+            )
+        ),
+        reference(
+            "value:binder-stage-override",
+            7,
+            target(
+                "geometryValueForBinder",
+                "binder:base-end",
+                "line",
+                Some("start"),
+                Some(json!(["moved"])),
+                None,
+                Some("binder:base-end")
+            )
+        ),
+        reference(
+            "value:point-target-type",
+            8,
+            target(
+                "drawable",
+                owner_id,
+                "point",
+                Some("start"),
+                None,
+                None,
+                None
+            )
+        ),
+        reference(
+            "value:unavailable-point",
+            9,
+            target(
+                "drawable",
+                owner_id,
+                "line",
+                Some("missing"),
+                None,
+                None,
+                None
+            )
+        )
+    ]);
+    let entries = decode_geometry_value_program(Some(&program)).expect("valid point references");
+    let mut state = EvaluationState {
+        elements: Vec::new(),
+        elements_by_id: HashMap::new(),
+        drawing_modifiers: Value::Array(Vec::new()),
+        selected_drawing_profile_id: None,
+        group_states: HashMap::new(),
+        computed_geometry: HashMap::from([(
+            owner_id.to_owned(),
+            drawable_line(10.0, 1.0, 20.0, 1.0),
+        )]),
+        base_transformation_geometry: HashMap::from([(
+            owner_id.to_owned(),
+            drawable_line(0.0, 1.0, 10.0, 1.0),
+        )]),
+        transformation_stage_geometry: HashMap::from([(
+            super::transformation_stage_key(owner_id, &["moved".to_owned()]),
+            drawable_line(30.0, 2.0, 40.0, 2.0),
+        )]),
+        completed_transformation_recipe_indices: HashSet::new(),
+        transformation_dependency_plans: None,
+        computed_geometry_order: Vec::new(),
+        computed_geometry_values: HashMap::from([(
+            source_occurrence.clone(),
+            json!({
+                "kind": "line",
+                "start": { "x": 3.0, "y": 4.0 },
+                "end": { "x": 9.0, "y": 8.0 }
+            }),
+        )]),
+        geometry_input_targets: HashMap::new(),
+        geometry_collection_nodes: HashMap::new(),
+        geometry_value_binders: HashMap::from([(
+            "binder:base-end".to_owned(),
+            GeometryInputTarget::Drawable {
+                element_id: owner_id.to_owned(),
+                geometry_type: "line".to_owned(),
+                point_key: Some("end".to_owned()),
+                stage_path: Some(vec!["base".to_owned()]),
+            },
+        )]),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
+        pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
+        instance_base_geometry: HashMap::new(),
+        errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    for entry in &entries {
+        evaluate_geometry_value_entry(entry, &EmptyBindingResolver, &mut state);
+    }
+
+    let value = |source_statement_id: &str| {
+        state
+            .computed_geometry_values
+            .get(&point_occurrence(source_statement_id))
+            .cloned()
+    };
+    assert_eq!(
+        value("value:drawable-start"),
+        Some(json!({ "kind": "point", "x": 10.0, "y": 1.0 }))
+    );
+    assert_eq!(
+        value("value:alias-of-alias"),
+        Some(json!({ "kind": "point", "x": 10.0, "y": 1.0 }))
+    );
+    assert_eq!(
+        value("value:base-start"),
+        Some(json!({ "kind": "point", "x": 0.0, "y": 1.0 }))
+    );
+    assert_eq!(
+        value("value:named-stage-start"),
+        Some(json!({ "kind": "point", "x": 30.0, "y": 2.0 }))
+    );
+    assert_eq!(
+        value("value:explicit-final-start"),
+        Some(json!({ "kind": "point", "x": 10.0, "y": 1.0 }))
+    );
+    assert_eq!(
+        value("value:value-backed-start"),
+        Some(json!({ "kind": "point", "x": 3.0, "y": 4.0 }))
+    );
+    assert_eq!(
+        value("value:binder-stage-end"),
+        Some(json!({ "kind": "point", "x": 10.0, "y": 1.0 }))
+    );
+    assert_eq!(
+        value("value:binder-stage-override"),
+        Some(json!({ "kind": "point", "x": 30.0, "y": 2.0 }))
+    );
+    assert_eq!(
+        value("value:point-target-type"),
+        Some(json!({ "kind": "point", "x": 10.0, "y": 1.0 }))
+    );
+    assert_eq!(value("value:unavailable-point"), None);
+    assert_eq!(state.geometry_value_errors.len(), 1);
+    assert_eq!(
+        state.geometry_value_errors[0].message,
+        "Geometry value reference is unavailable at runtime."
+    );
+    assert!(state
+        .computed_geometry_values
+        .values()
+        .filter(|value| value.get("kind").and_then(Value::as_str) == Some("point"))
+        .all(|value| value.as_object().is_some_and(|object| {
+            object.len() == 3 && !object.contains_key("elementId") && !object.contains_key("name")
+        })));
 }
 
 #[test]
