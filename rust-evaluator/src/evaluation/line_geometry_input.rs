@@ -52,28 +52,19 @@ pub(crate) fn decode_geometry_collection_nodes(
         .collect()
 }
 
-/// Resolves one member of a compiler-provided geometry collection through the
-/// same collection nodes and typed expressions used by ordinary geometry
-/// collection indexing. The returned target is limited to the already
-/// materialized geometry-value binder forms.
+/// Selects one already-resolved member from the compiler-provided geometry
+/// collection node. Collection leaves are deliberately not resolved here;
+/// decoding has already rejected deferred collection and occurrence targets.
 pub(crate) fn resolve_geometry_collection_iteration_member(
     state: &EvaluationState,
     resolver: &dyn ScalarDocumentBindingResolver,
     collection_value_id: &str,
     index: usize,
-    current_source_order: Option<f64>,
 ) -> Result<GeometryInputTarget, String> {
     let Some(node) = state.geometry_collection_nodes.get(collection_value_id) else {
         return Err("evaluation-collection-index-unavailable".to_owned());
     };
-    resolve_geometry_collection_node_member(
-        node,
-        index,
-        resolver,
-        state,
-        current_source_order,
-        &mut HashMap::new(),
-    )
+    resolve_geometry_collection_node_member(node, index, resolver, state)
 }
 
 fn resolve_geometry_collection_node_member(
@@ -81,8 +72,6 @@ fn resolve_geometry_collection_node_member(
     index: usize,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
-    current_source_order: Option<f64>,
-    seen: &mut HashMap<String, ()>,
 ) -> Result<GeometryInputTarget, String> {
     match node {
         GeometryInputCollectionNode::None => {
@@ -92,14 +81,39 @@ fn resolve_geometry_collection_node_member(
             let target = targets
                 .get(index)
                 .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
-            resolve_geometry_collection_target_member(
-                target,
-                index,
-                resolver,
-                state,
-                current_source_order,
-                seen,
-            )
+            match target {
+                GeometryInputTarget::Drawable {
+                    element_id,
+                    geometry_type,
+                    point_key,
+                    stage_path,
+                } => Ok(GeometryInputTarget::Drawable {
+                    element_id: element_id.clone(),
+                    geometry_type: geometry_type.clone(),
+                    point_key: point_key.clone(),
+                    stage_path: stage_path.clone(),
+                }),
+                GeometryInputTarget::GeometryValue {
+                    occurrence,
+                    geometry_type,
+                    point_key,
+                    stage_path,
+                } => Ok(GeometryInputTarget::GeometryValue {
+                    occurrence: occurrence.clone(),
+                    geometry_type: geometry_type.clone(),
+                    point_key: point_key.clone(),
+                    stage_path: stage_path.clone(),
+                }),
+                GeometryInputTarget::Coordinate { anchor } => Ok(GeometryInputTarget::Coordinate {
+                    anchor: anchor.clone(),
+                }),
+                GeometryInputTarget::GeometryValueMap { .. }
+                | GeometryInputTarget::CollectionValue { .. }
+                | GeometryInputTarget::CollectionIndex { .. }
+                | GeometryInputTarget::ForGroupOccurrence { .. } => {
+                    Err("evaluation-collection-index-unavailable".to_owned())
+                }
+            }
         }
         GeometryInputCollectionNode::If {
             condition,
@@ -115,25 +129,11 @@ fn resolve_geometry_collection_node_member(
             ScalarEvaluation::Ok {
                 value: ScalarValue::Boolean(true),
                 ..
-            } => resolve_geometry_collection_node_member(
-                then_branch,
-                index,
-                resolver,
-                state,
-                current_source_order,
-                seen,
-            ),
+            } => resolve_geometry_collection_node_member(then_branch, index, resolver, state),
             ScalarEvaluation::Ok {
                 value: ScalarValue::Boolean(false),
                 ..
-            } => resolve_geometry_collection_node_member(
-                else_branch,
-                index,
-                resolver,
-                state,
-                current_source_order,
-                seen,
-            ),
+            } => resolve_geometry_collection_node_member(else_branch, index, resolver, state),
             ScalarEvaluation::Error { issue_code, .. } => Err(issue_code),
             ScalarEvaluation::Ok { .. } => Err("evaluation-runtime-value-type-mismatch".to_owned()),
         },
@@ -161,210 +161,14 @@ fn resolve_geometry_collection_node_member(
                 .iter()
                 .find(|(candidate, _)| candidate == &label)
                 .ok_or_else(|| "evaluation-runtime-value-type-mismatch".to_owned())?;
-            resolve_geometry_collection_node_member(
-                branch,
-                index,
-                resolver,
-                state,
-                current_source_order,
-                seen,
-            )
+            resolve_geometry_collection_node_member(branch, index, resolver, state)
         }
         GeometryInputCollectionNode::Coalesce {
             left_branch,
             right_branch,
-        } => resolve_geometry_collection_node_member(
-            left_branch,
-            index,
-            resolver,
-            state,
-            current_source_order,
-            seen,
-        )
-        .or_else(|_| {
-            resolve_geometry_collection_node_member(
-                right_branch,
-                index,
-                resolver,
-                state,
-                current_source_order,
-                seen,
-            )
-        }),
-    }
-}
-
-fn resolve_geometry_collection_target_member(
-    target: &GeometryInputTarget,
-    member_index: usize,
-    resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
-    current_source_order: Option<f64>,
-    seen: &mut HashMap<String, ()>,
-) -> Result<GeometryInputTarget, String> {
-    match target {
-        GeometryInputTarget::Drawable {
-            element_id,
-            geometry_type,
-            point_key,
-            stage_path,
-        } => Ok(GeometryInputTarget::Drawable {
-            element_id: element_id.clone(),
-            geometry_type: geometry_type.clone(),
-            point_key: point_key.clone(),
-            stage_path: stage_path.clone(),
-        }),
-        GeometryInputTarget::GeometryValue {
-            occurrence,
-            geometry_type,
-            point_key,
-            stage_path,
-        } => Ok(GeometryInputTarget::GeometryValue {
-            occurrence: occurrence.clone(),
-            geometry_type: geometry_type.clone(),
-            point_key: point_key.clone(),
-            stage_path: stage_path.clone(),
-        }),
-        GeometryInputTarget::Coordinate { anchor } => Ok(GeometryInputTarget::Coordinate {
-            anchor: anchor.clone(),
-        }),
-        GeometryInputTarget::ForGroupOccurrence {
-            template_element_id,
-            geometry_type,
-            point_key,
-            target_source_order,
-            index,
-        } => {
-            if current_source_order.is_some_and(|source_order| *target_source_order >= source_order)
-            {
-                return Err("evaluation-collection-index-unavailable".to_owned());
-            }
-            let rows = state
-                .for_group_generated_rows
-                .iter()
-                .filter(|row| row.template_element_id == *template_element_id)
-                .collect::<Vec<_>>();
-            let ordinal = if let Some(index) = index.as_deref() {
-                match evaluate_document_typed_expression(
-                    index,
-                    resolver,
-                    state,
-                    current_source_order,
-                ) {
-                    ScalarEvaluation::Ok {
-                        value: ScalarValue::Number(value),
-                        ..
-                    } if value.is_finite() && value.fract() == 0.0 && value >= 0.0 => {
-                        value as usize
-                    }
-                    ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
-                    ScalarEvaluation::Ok { .. } => {
-                        return Err("evaluation-collection-index-invalid".to_owned())
-                    }
-                }
-            } else if rows.len() == 1 {
-                0
-            } else {
-                return Err("evaluation-collection-index-unavailable".to_owned());
-            };
-            let row = rows
-                .get(ordinal)
-                .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
-            if !state
-                .computed_geometry
-                .contains_key(&row.generated_element_id)
-            {
-                return Err("evaluation-collection-index-unavailable".to_owned());
-            }
-            Ok(GeometryInputTarget::Drawable {
-                element_id: row.generated_element_id.clone(),
-                geometry_type: geometry_type.clone(),
-                point_key: point_key.clone(),
-                stage_path: None,
-            })
-        }
-        GeometryInputTarget::CollectionValue {
-            collection_value_id,
-            target_source_order,
-            value,
-        } => {
-            if current_source_order.is_some_and(|source_order| *target_source_order >= source_order)
-            {
-                return Err("evaluation-collection-index-unavailable".to_owned());
-            }
-            if seen.insert(collection_value_id.clone(), ()).is_some() {
-                return Err("evaluation-collection-index-unavailable".to_owned());
-            }
-            let result = resolve_geometry_collection_node_member(
-                value,
-                member_index,
-                resolver,
-                state,
-                current_source_order,
-                seen,
-            );
-            seen.remove(collection_value_id);
-            result
-        }
-        GeometryInputTarget::CollectionIndex {
-            collection_value_id: _,
-            collection_length,
-            target_source_order,
-            index,
-            members,
-            value,
-        } => {
-            if current_source_order.is_some_and(|source_order| *target_source_order >= source_order)
-            {
-                return Err("evaluation-collection-index-unavailable".to_owned());
-            }
-            let index_value = match evaluate_document_typed_expression(
-                index,
-                resolver,
-                state,
-                current_source_order,
-            ) {
-                ScalarEvaluation::Ok {
-                    value: ScalarValue::Number(value),
-                    ..
-                } if value.is_finite()
-                    && value.fract() == 0.0
-                    && value >= 0.0
-                    && collection_length.map_or(true, |length| value < length) =>
-                {
-                    value as usize
-                }
-                ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
-                ScalarEvaluation::Ok { .. } => {
-                    return Err("evaluation-collection-index-invalid".to_owned())
-                }
-            };
-            if let Some(value) = value {
-                resolve_geometry_collection_node_member(
-                    value,
-                    index_value,
-                    resolver,
-                    state,
-                    current_source_order,
-                    seen,
-                )
-            } else {
-                let member = members
-                    .get(index_value)
-                    .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
-                resolve_geometry_collection_target_member(
-                    member,
-                    index_value,
-                    resolver,
-                    state,
-                    current_source_order,
-                    seen,
-                )
-            }
-        }
-        GeometryInputTarget::GeometryValueMap { .. } => {
-            Err("evaluation-collection-index-unavailable".to_owned())
-        }
+        } => resolve_geometry_collection_node_member(left_branch, index, resolver, state).or_else(
+            |_| resolve_geometry_collection_node_member(right_branch, index, resolver, state),
+        ),
     }
 }
 

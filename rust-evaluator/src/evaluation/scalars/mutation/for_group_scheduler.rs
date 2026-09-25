@@ -247,10 +247,16 @@ impl ScalarMutationResolver<'_> {
         }
 
         let resolver = self.for_group_binding_resolver(environment);
+        let iteration_binding_id = self
+            .program
+            .for_group_owners_by_element_id
+            .values()
+            .find(|owner| owner.owner_statement_id == owner_statement_id)
+            .map(|owner| owner.iteration_binding_id.clone());
         let geometry_next_values = plan
             .geometry_carries
             .iter()
-            .filter_map(|carry| {
+            .map(|carry| {
                 let template_element_id = carry
                     .next
                     .for_group_template_element_id
@@ -287,11 +293,34 @@ impl ScalarMutationResolver<'_> {
                         &carry.next,
                     )
                 };
-                resolved.ok().map(|value| (carry.binding_id.clone(), value, carry))
+                (carry, resolved)
             })
             .collect::<Vec<_>>();
-        for (binding_id, value, carry) in geometry_next_values {
-            self.install_geometry_carry_value(state, &binding_id, &carry.next, &value);
+        for (carry, resolved) in geometry_next_values {
+            match resolved {
+                Ok(value) => {
+                    self.install_geometry_carry_value(
+                        state,
+                        &carry.binding_id,
+                        &carry.next,
+                        &value,
+                    );
+                }
+                Err(_)
+                    if iteration_binding_id
+                        .as_deref()
+                        .is_some_and(|iteration_binding_id| {
+                            carry.next.geometry_value_binder_id.as_deref()
+                                == Some(iteration_binding_id)
+                        }) =>
+                {
+                    // A failed collection iteration member consumes the next
+                    // geometry carry as unavailable. Keep it from silently
+                    // retaining the prior iteration's or initializer's value.
+                    state.geometry_value_binders.remove(&carry.binding_id);
+                }
+                Err(_) => {}
+            }
         }
         let geometry_collection_next_values = plan
             .geometry_collection_carries

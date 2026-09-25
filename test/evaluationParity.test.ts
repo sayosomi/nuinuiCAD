@@ -2732,6 +2732,27 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(result.errors.some((error) => error.message.includes("collection iteration source"))).toBe(true);
       expect(result.errors.every((error) => !error.message.includes("min は max 以下"))).toBe(true);
     }
+
+    const unavailableMember = await evaluateSource([
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "point Missing = coordinate(x: 10, y: 0, enabled: false)",
+      "const items: point[] = [@Missing]",
+      "for item in @items carry cursor: point = @Seed {",
+      "  next cursor = @item",
+      "}",
+      "const result: number = @cursor.x"
+    ].join("\n"));
+    for (const result of [unavailableMember.ts, unavailableMember.rust]) {
+      const payload = result === unavailableMember.ts
+        ? unavailableMember.tsPayload
+        : unavailableMember.rustPayload;
+      expect(runtimeDiagnosticsFor(unavailableMember.fixture, payload)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "evaluation-geometry-property-unavailable", origin: "runtime" })
+      ]));
+      expect(result.errors.some((error) => error.message.includes("collection iteration source"))).toBe(false);
+      expect(result.errors.every((error) => !error.message.includes("min は max 以下"))).toBe(true);
+    }
   }, 30000);
 
   it("uses the materialized runtime position for Module geometry-property reads", () => {
