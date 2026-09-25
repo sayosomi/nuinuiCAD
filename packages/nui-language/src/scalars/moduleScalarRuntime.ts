@@ -4888,6 +4888,7 @@ export const compileModuleScalarRuntime = ({
           statementId: reference.target.statementId,
           statementIndex: executionPosition,
           geometryType: reference.target.sourceElementType,
+          ...(reference.target.stagePath ? { stagePath: reference.target.stagePath } : {})
         }
       };
     }
@@ -4896,6 +4897,7 @@ export const compileModuleScalarRuntime = ({
     const stagePath = "stagePath" in reference.target ? reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "point");
     if (!lowered) return undefined;
+    const resolvedStagePath = stagePath ?? lowered.stagePath;
     if (lowered.kind === "geometryValue") {
       return {
         kind: "target",
@@ -4908,7 +4910,7 @@ export const compileModuleScalarRuntime = ({
             : executionPosition,
           geometryType: lowered.geometryType,
           ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-          ...(stagePath ? { stagePath } : {})
+          ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
         }
       };
     }
@@ -4926,7 +4928,7 @@ export const compileModuleScalarRuntime = ({
           index: lowered.index ? lowerGeometryValueScalar(lowered.index, context) : null,
           geometryType: lowered.geometryType,
           ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-          ...(stagePath ? { stagePath } : {})
+          ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
         }
       };
     }
@@ -4940,7 +4942,7 @@ export const compileModuleScalarRuntime = ({
           statementIndex: executionPosition,
           geometryType: lowered.geometryType,
           ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-          ...(stagePath ? { stagePath } : {})
+          ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
         }
       };
     }
@@ -4953,7 +4955,7 @@ export const compileModuleScalarRuntime = ({
         statementIndex: targetSourceOrder,
         geometryType: lowered.geometryType,
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-        ...(stagePath ? { stagePath } : {})
+        ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
       }
     };
   };
@@ -4981,6 +4983,7 @@ export const compileModuleScalarRuntime = ({
     const stagePath = "stagePath" in reference.target ? reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "line");
     if (!lowered) return undefined;
+    const resolvedStagePath = stagePath ?? lowered.stagePath;
     if (lowered.kind === "geometryValue") {
       return {
         kind: "target",
@@ -4992,7 +4995,7 @@ export const compileModuleScalarRuntime = ({
             ? executionPositionForValue(path, reference.target.statementIndex)
             : executionPosition,
           geometryType: lowered.geometryType,
-          ...(stagePath ? { stagePath } : {})
+          ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
         }
       };
     }
@@ -5010,7 +5013,7 @@ export const compileModuleScalarRuntime = ({
           index: lowered.index ? lowerGeometryValueScalar(lowered.index, context) : null,
           geometryType: lowered.geometryType,
           ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-          ...(stagePath ? { stagePath } : {})
+          ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
         }
       };
     }
@@ -5023,7 +5026,7 @@ export const compileModuleScalarRuntime = ({
           statementId: lowered.bindingId,
           statementIndex: executionPosition,
           geometryType: lowered.geometryType,
-          ...(stagePath ? { stagePath } : {})
+          ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
         }
       };
     }
@@ -5035,7 +5038,7 @@ export const compileModuleScalarRuntime = ({
         statementId: lowered.elementId,
         statementIndex: targetSourceOrder,
         geometryType: lowered.geometryType,
-        ...(stagePath ? { stagePath } : {})
+        ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
       }
     };
   };
@@ -5206,6 +5209,25 @@ export const compileModuleScalarRuntime = ({
         });
       }
       return expression;
+    }
+    if (value.initializer) {
+      const lowered = value.initializer.expectedGeometryKind === "point"
+        ? lowerGeometryValuePoint(value.initializer, context, executionPosition)
+        : lowerGeometryValuePath(value.initializer, context, executionPosition);
+      if (lowered?.kind !== "target") return undefined;
+      const construction: GeometryValueProgramNode = { kind: "reference", target: lowered.target };
+      if (emit) {
+        geometryValueProgramEntries.push({
+          sourceStatementId: value.statementId,
+          sourceStatementIndex: value.statementIndex,
+          declaredInterfaceType: value.declaredInterfaceType,
+          occurrence: { sourceStatementId: value.statementId, instancePath: [...path] },
+          sourceExecutionPosition: executionPosition,
+          executionPosition,
+          construction
+        });
+      }
+      return construction;
     }
     if (!value.construction) return undefined;
     const construction = value.construction.kind === "coordinate"
