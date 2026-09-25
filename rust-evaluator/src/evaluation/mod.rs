@@ -2940,10 +2940,7 @@ fn evaluate_document_input_with_scalar_program(
                     .get(&entry.occurrence)
                     .map(|value| {
                         serde_json::json!({
-                            "occurrence": {
-                                "sourceStatementId": entry.occurrence.source_statement_id,
-                                "instancePath": entry.occurrence.instance_path,
-                            },
+                            "occurrence": entry.occurrence,
                             "value": value,
                         })
                     })
