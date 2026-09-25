@@ -11,7 +11,7 @@ use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
 use super::program_payload::{
     decode_collection_values, ValidatedScalarProgramCollection,
-    ValidatedScalarProgramCollectionMember,
+    ValidatedScalarProgramCollectionMember, ValidatedScalarProgramCollectionValue,
 };
 use super::scalar_payload::{decode_scalar_type, scalar_type_assignable};
 use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
@@ -101,6 +101,59 @@ pub(crate) struct ValidatedImmutableGeometryCollectionCarry {
     pub(crate) collection_value_id: String,
     pub(crate) initializer: ValidatedImmutableGeometryCollectionSource,
     pub(crate) next: ValidatedImmutableGeometryCollectionSource,
+}
+
+fn collection_subgraph(
+    values: &[ValidatedScalarProgramCollection],
+    root_value_id: &str,
+) -> HashSet<String> {
+    let values_by_id = values
+        .iter()
+        .map(|value| (value.value_id.as_str(), value))
+        .collect::<HashMap<_, _>>();
+    let mut reachable = HashSet::new();
+    let mut pending = vec![root_value_id.to_owned()];
+    while let Some(value_id) = pending.pop() {
+        if !reachable.insert(value_id.clone()) {
+            continue;
+        }
+        let Some(value) = values_by_id.get(value_id.as_str()) else {
+            continue;
+        };
+        match &value.value {
+            ValidatedScalarProgramCollectionValue::Alias(target) => pending.push(target.clone()),
+            ValidatedScalarProgramCollectionValue::Coalesce {
+                left_value_id,
+                right_value_id,
+            } => {
+                pending.push(left_value_id.clone());
+                pending.push(right_value_id.clone());
+            }
+            ValidatedScalarProgramCollectionValue::Map {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordMap {
+                source_value_id, ..
+            }
+            | ValidatedScalarProgramCollectionValue::RecordField {
+                source_value_id, ..
+            } => pending.push(source_value_id.clone()),
+            ValidatedScalarProgramCollectionValue::If {
+                then_value_id,
+                else_value_id,
+                ..
+            } => {
+                pending.push(then_value_id.clone());
+                pending.push(else_value_id.clone());
+            }
+            ValidatedScalarProgramCollectionValue::Match { arms, .. } => {
+                pending.extend(arms.iter().map(|arm| arm.value_id.clone()));
+            }
+            ValidatedScalarProgramCollectionValue::None
+            | ValidatedScalarProgramCollectionValue::Literal(_) => {}
+        }
+    }
+    reachable
 }
 
 fn geometry_input_target_type(
@@ -757,6 +810,32 @@ pub(crate) fn validate_binding_versions_payload(
         .map(decode_collection_values)
         .transpose()?
         .unwrap_or_default();
+    let mut optional_match_binder_ids = HashSet::new();
+    let mut collection_local_bindings = HashMap::<String, HashSet<BindingId>>::new();
+    for collection in &collection_values {
+        let ValidatedScalarProgramCollectionValue::Match { arms, .. } = &collection.value else {
+            continue;
+        };
+        for arm in arms {
+            let Some(binder_id) = &arm.binder_id else {
+                continue;
+            };
+            if declared_types.contains_key(binder_id)
+                || !optional_match_binder_ids.insert(binder_id.clone())
+            {
+                return Err(issue(
+                    Code::InvalidBindingId,
+                    "scalar program optional match binderId must be unique and local",
+                ));
+            }
+            for value_id in collection_subgraph(&collection_values, &arm.value_id) {
+                collection_local_bindings
+                    .entry(value_id)
+                    .or_default()
+                    .insert(binder_id.clone());
+            }
+        }
+    }
     let mut immutable_for_groups = HashMap::new();
     if let Some(plans) = object.get("immutableForGroups") {
         let plans = plans.as_array().ok_or_else(|| {
@@ -1093,7 +1172,11 @@ pub(crate) fn validate_binding_versions_payload(
         {
             for member in members {
                 if let ValidatedScalarProgramCollectionMember::Binding { binding_id, .. } = member {
-                    if !binding_ids.contains(binding_id) {
+                    if !binding_ids.contains(binding_id)
+                        && !collection_local_bindings
+                            .get(&collection.value_id)
+                            .is_some_and(|local_ids| local_ids.contains(binding_id))
+                    {
                         return Err(issue(
                             Code::InvalidBindingId,
                             "scalar program collection member references an unknown bindingId",

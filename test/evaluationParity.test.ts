@@ -2313,6 +2313,47 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "resolvedNoneNumber"), 10);
   }, 30000);
 
+  it("runs optional collection match some/none binders lazily through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const present: number? = 7",
+      "const absent: number? = none",
+      "const fromSome: number[]? = match @present { none => none some value => if (@value > 0) { [@value] } else { [0] } }",
+      "const fromNone: number[] = match @absent { none => [3, 4] some value => if (1 / 0 > 0) { [@value] } else { [0] } }",
+      "const emptyFromNone: number[]? = match @absent { none => none some value => [@value] }",
+      "const coalescedSome: number[] = @fromSome ?? [90]",
+      "const coalescedNone: number[] = @emptyFromNone ?? @fromNone",
+      "const someLength: number = @coalescedSome.length",
+      "const someIndex: number = @coalescedSome[0]",
+      "const noneLength: number = @coalescedNone.length",
+      "const noneFirst: number = @coalescedNone[0]",
+      "const noneIndex: number = @coalescedNone[1]",
+      "line Output = segment(start: (@someIndex, @noneIndex), end: (0, 0))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    // This call uses the shared long-lived evaluation_stdio process started in beforeAll.
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Output")!.id)).toMatchObject({
+        kind: "line",
+        start: { x: 7, y: 4 },
+        end: { x: 0, y: 0 }
+      });
+    }
+
+    for (const [name, expected] of [["someLength", 1], ["someIndex", 7], ["noneLength", 2], ["noneFirst", 3], ["noneIndex", 4]] as const) {
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), expected);
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), expected);
+    }
+  }, 30000);
+
   it("matches general optional member chaining for geometry, records, and collections", () => {
     const fixture = fixtureFromSource([
       "nui 1",

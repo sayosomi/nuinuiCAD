@@ -22,6 +22,7 @@ import type { ModuleGeometryValueExpressionSemantic } from "./moduleSemanticType
 import type { ModuleScalarExpressionSemantic } from "./moduleSemanticTypes";
 import type { RecordFieldIdentity } from "./recordSemanticAnalysis";
 import type { DslRecordTypeReference } from "./dslValueTypes";
+import { optionalMatchBinderId } from "../scalars/optionalMatchBinder";
 
 export type GeometryArraySemanticDiagnostic = {
   code: string;
@@ -100,7 +101,7 @@ export type GeometryArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: GeometryArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; binderId?: string; value: GeometryArraySemanticValue<TTarget> }[];
     };
 
 export type GeometryArrayCoalesceValue<TTarget> = {
@@ -181,7 +182,7 @@ export type DslArrayConditionalValue<TTarget> =
       scrutineeText: string;
       scrutineeSpan: DslSpan;
       scrutinee?: ModuleScalarExpressionSemantic;
-      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: DslArraySemanticValue<TTarget> }[];
+      arms: readonly { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; binderId?: string; value: DslArraySemanticValue<TTarget> }[];
     };
 
 export type DslArrayCoalesceValue<TTarget> = {
@@ -240,7 +241,9 @@ export type ResolveDslArrayExpressionInput<TTarget> = {
   expectedValueType?: DslValueType;
   requireOptional?: boolean;
   expression: GeometryArrayExpression;
-  resolveMember: (member: GeometryArrayLiteralMember) => DslArrayMemberResolution<TTarget>;
+  resolveMember: (member: GeometryArrayLiteralMember, localBindings?: readonly { name: string; bindingId: string }[]) => DslArrayMemberResolution<TTarget>;
+  /** Internal lexical context propagated while resolving nested match arms. */
+  localBindings?: readonly { name: string; bindingId: string }[];
   resolveArrayReference: (sourceText: string, sourceSpan: DslSpan) => DslArrayReferenceResolution;
   resolveValueFor?: (expression: Extract<GeometryArrayExpression, { kind: "valueFor" }>) =>
     | { kind: "resolved"; value: DslArrayMappedValue }
@@ -330,9 +333,16 @@ export const resolveDslArrayExpression = <TTarget>(
     const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: DslArraySemanticValue<TTarget> }[] = [];
     const diagnostics: GeometryArraySemanticDiagnostic[] = [];
     for (const arm of input.expression.arms) {
-      const result = resolveDslArrayExpression({ ...input, expression: arm.expression });
+      const binderId = arm.label === "some" && arm.binder
+        ? optionalMatchBinderId(input.expression.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
+        : undefined;
+      const result = resolveDslArrayExpression({
+        ...input,
+        expression: arm.expression,
+        ...(binderId && arm.binder ? { localBindings: [...(input.localBindings ?? []), { name: arm.binder, bindingId: binderId }] } : {})
+      });
       diagnostics.push(...result.diagnostics);
-      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}), value: result.value });
+      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}), ...(binderId ? { binderId } : {}), value: result.value });
     }
     return values.length === input.expression.arms.length && diagnostics.length === 0
       ? { value: { kind: "match", span: input.expression.span, valueType: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, valueType: input.expectedType, diagnostics }
@@ -393,7 +403,7 @@ export const resolveDslArrayExpression = <TTarget>(
   const diagnostics: GeometryArraySemanticDiagnostic[] = [];
   const members: DslArrayMemberSemantic<TTarget>[] = [];
   for (const member of input.expression.members) {
-    const resolution = input.resolveMember(member);
+    const resolution = input.resolveMember(member, input.localBindings);
     if (resolution.kind === "invalid") {
       diagnostics.push(resolution.diagnostic);
       continue;

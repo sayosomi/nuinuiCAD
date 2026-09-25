@@ -87,6 +87,25 @@ import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseG
 import type { GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
 import { scanScalarLiteral } from "./literalScanner";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
+import { optionalMatchBinderId } from "./optionalMatchBinder";
+
+const optionalCollectionMatchBinderType = (scrutinee: TypedScalarExpression): ScalarType | null =>
+  scrutinee.type?.kind === "optional" ? scalarTypeOfDslValueType(scrutinee.type.valueType) : null;
+
+const collectionMatchArm = (
+  label: string,
+  valueId: string,
+  binderId: string | undefined,
+  scrutinee: TypedScalarExpression,
+  runtimeBinderId: (binderId: string) => string = (binderId) => binderId
+) => {
+  const binderType = optionalCollectionMatchBinderType(scrutinee);
+  return {
+    label,
+    valueId,
+    ...(label === "some" && binderId && binderType ? { binderId: runtimeBinderId(binderId), binderType } : {})
+  };
+};
 
 export type MaterializedPropertyBindingSource = {
   elementId: ElementId;
@@ -1766,11 +1785,18 @@ export const lowerExpression = (
     span: reference.span,
     resolution: resolutions[index]
   }));
+  const localValueForBinderIds = new Set(semantic.references.flatMap((reference) => {
+    if (reference.target?.kind !== "valueForBinder") return [];
+    const binding = bindingForTarget(reference.target, reference.name, reference.span.start);
+    return binding ? [binding.id] : [];
+  }));
   // The caller fills fromBindingId after the owning binding is known. Keep a
   // catalog touch here so a missing target fails at the same lowering boundary
   // rather than being rediscovered by a runtime name lookup.
   for (const resolution of resolutions) {
-    if (resolution.kind === "resolved" && !catalogBindings.has(resolution.binding.id)) {
+    if (resolution.kind === "resolved" &&
+      !catalogBindings.has(resolution.binding.id) &&
+      !localValueForBinderIds.has(resolution.binding.id)) {
       throw new Error(`moduleScalarRuntime: lowered reference ${resolution.binding.id} is not in the combined catalog`);
     }
   }
@@ -2893,6 +2919,7 @@ export const compileModuleScalarRuntime = ({
     target: import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget,
     context: InstanceContext
   ): BindingId | undefined => {
+    if (target.kind === "scalarBinding") return moduleCollectionBinderIdFor(context.path, target.bindingId);
     if (target.kind === "moduleParameterValue") {
       return contextCandidatesFor(context)
         .find((candidate) => candidate.definition.statementId === target.definitionStatementId)
@@ -3030,17 +3057,26 @@ export const compileModuleScalarRuntime = ({
         return;
       }
       if (expression.kind === "match") {
-        const arms: { label: string; valueId: string }[] = [];
+        const arms: { label: string; valueId: string; binderId?: string }[] = [];
         for (const arm of expression.arms) {
           const armValueId = `${valueId}:arm:${arm.label}`;
           if (arm.expression) appendRecordValueExpression(arm.expression, armValueId, target, typeIdentity, context);
           else moduleCollectionValues.push({ valueId: armValueId, kind: "none" });
-          arms.push({ label: arm.label, valueId: armValueId });
+          const binderId = arm.label === "some" && arm.binder
+            ? optionalMatchBinderId(expression.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
+            : undefined;
+          arms.push({ label: arm.label, valueId: armValueId, ...(binderId ? { binderId } : {}) });
         }
         const scrutinee = lowerControlExpression(expression.scrutinee);
-        if (scrutinee) moduleCollectionValues.push({ valueId, kind: "match", scrutinee, arms, sourceOrder: context
+        if (scrutinee) moduleCollectionValues.push({
+          valueId,
+          kind: "match",
+          scrutinee,
+          arms: arms.map((arm) => collectionMatchArm(arm.label, arm.valueId, arm.binderId, scrutinee, (binderId) => moduleCollectionBinderIdFor(context?.path ?? [], binderId))),
+          sourceOrder: context
           ? executionPositionForValue(context.path, target.statementIndex)
-          : executionPositionForValue([], target.statementIndex) });
+          : executionPositionForValue([], target.statementIndex)
+        });
         return;
       }
       if (expression.kind === "reference") {
@@ -3356,11 +3392,11 @@ export const compileModuleScalarRuntime = ({
         return;
       }
       if (value.kind === "match") {
-        const arms: { label: string; valueId: string }[] = [];
+        const arms: { label: string; valueId: string; binderId?: string }[] = [];
         for (const arm of value.arms) {
           const armValueId = `${valueId}:arm:${arm.label}`;
           appendConditional(arm.value, armValueId, context, contextAnalysis, sourceOrder);
-          arms.push({ label: arm.label, valueId: armValueId });
+          arms.push({ label: arm.label, valueId: armValueId, ...(arm.binderId ? { binderId: arm.binderId } : {}) });
         }
         if (!value.scrutinee) return;
         const scrutinee = lowerExpression(
@@ -3373,7 +3409,19 @@ export const compileModuleScalarRuntime = ({
           (id) => collectionValueIdFor(id, context),
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
         ).expression;
-        moduleCollectionValues.push({ valueId, kind: "match", scrutinee, arms, sourceOrder: executionPositionForValue(context.path, sourceOrder) });
+        moduleCollectionValues.push({
+          valueId,
+          kind: "match",
+          scrutinee,
+          arms: arms.map((arm) => collectionMatchArm(
+            arm.label,
+            arm.valueId,
+            arm.binderId,
+            scrutinee,
+            (binderId) => moduleCollectionBinderIdFor(context.path, binderId)
+          )),
+          sourceOrder: executionPositionForValue(context.path, sourceOrder)
+        });
         return;
       }
       if (value.kind === "coalesce") {
@@ -3573,7 +3621,7 @@ export const compileModuleScalarRuntime = ({
         const arms = value.arms.map((arm) => {
           const armValueId = `${valueId}:arm:${arm.label}`;
           appendRootConditional(arm.value, armValueId, sourceOrder);
-          return { label: arm.label, valueId: armValueId };
+          return { label: arm.label, valueId: armValueId, ...(arm.binderId ? { binderId: arm.binderId } : {}) };
         });
         if (!value.scrutinee) return;
         const scrutinee = lowerExpression(
@@ -3586,7 +3634,13 @@ export const compileModuleScalarRuntime = ({
           (id) => collectionValueIdFor(id, null),
           (order) => order
         ).expression;
-        moduleCollectionValues.push({ valueId, kind: "match", scrutinee, arms, sourceOrder });
+        moduleCollectionValues.push({
+          valueId,
+          kind: "match",
+          scrutinee,
+          arms: arms.map((arm) => collectionMatchArm(arm.label, arm.valueId, arm.binderId, scrutinee)),
+          sourceOrder
+        });
         return;
       }
       if (value.kind === "coalesce") {
@@ -3713,11 +3767,15 @@ export const compileModuleScalarRuntime = ({
         return;
       }
       if (value.kind === "match") {
-        const arms: { label: string; valueId: string }[] = [];
+        const arms: { label: string; valueId: string; binderId?: string }[] = [];
         for (const arm of value.arms) {
           const armValueId = `${valueId}:arm:${arm.label}`;
           appendForeignValue(arm.value, armValueId, sourceOrder);
-          arms.push({ label: arm.label, valueId: armValueId });
+          arms.push({
+            label: arm.label,
+            valueId: armValueId,
+            ...(arm.binderId ? { binderId: `module-document-collection-binder:${encodeIdentityTuple([String(foreign.documentId), arm.binderId])}` } : {})
+          });
         }
         if (!value.scrutinee) return;
         const scrutinee = lowerExpression(
@@ -3732,7 +3790,13 @@ export const compileModuleScalarRuntime = ({
           foreignValueIdFor,
           foreignSourceOrderFor
         ).expression;
-        foreignCollectionValues.push({ valueId, kind: "match", scrutinee, arms, sourceOrder: foreignSourceOrderFor(sourceOrder) });
+        foreignCollectionValues.push({
+          valueId,
+          kind: "match",
+          scrutinee,
+          arms: arms.map((arm) => collectionMatchArm(arm.label, arm.valueId, arm.binderId, scrutinee)),
+          sourceOrder: foreignSourceOrderFor(sourceOrder)
+        });
         return;
       }
       if (value.kind === "map") {
@@ -3779,6 +3843,14 @@ export const compileModuleScalarRuntime = ({
           continue;
         }
         const target = member.target;
+        if (target.kind === "scalarBinding") {
+          members.push({
+            kind: "binding",
+            type: elementType,
+            bindingId: `module-document-collection-binder:${encodeIdentityTuple([String(foreign.documentId), target.bindingId])}`
+          });
+          continue;
+        }
         if (target.kind !== "scalarValue") return;
         const binding = foreign.analysis.bindingAnalysis.catalog.bindings.find((candidate) =>
           candidate.kind === "typed" && candidate.statementIndex === target.statementIndex

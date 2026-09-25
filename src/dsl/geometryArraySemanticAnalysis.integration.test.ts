@@ -106,15 +106,28 @@ describe("geometry array source semantic integration", () => {
   it("supports optional collection results for omitted-else if and optional match", () => {
     const compiled = compile([
       "nui 1",
-      "const note: string? = \"present\"",
+      "const note: number? = 7",
       "const maybe: number[]? = if (false) { [1, 2] }",
-      "const selected: number[]? = match @note { none => none some value => [3] }",
+      "const selected: number[]? = match @note { none => none some value => [@value] }",
       "const count: number = @selected.length"
     ].join("\n"));
 
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "maybe")?.value).toMatchObject({ kind: "if" });
     expect(compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "selected")?.value).toMatchObject({ kind: "match" });
+    const selected = compiled.scalarProgram?.collectionValues?.find((value) => value.valueId === "statement:3");
+    expect(selected).toMatchObject({
+      kind: "match",
+      arms: [
+        { label: "none" },
+        { label: "some", binderId: expect.stringContaining("optional-match-binder:"), binderType: { kind: "number" } }
+      ]
+    });
+    const binderId = selected?.kind === "match" ? selected.arms.find((arm) => arm.label === "some")?.binderId : undefined;
+    expect(compiled.scalarProgram?.collectionValues?.find((value) => value.valueId === "statement:3:arm:some")).toMatchObject({
+      kind: "literal",
+      members: [{ kind: "binding", bindingId: binderId, type: { kind: "number" } }]
+    });
   });
 
   it("keeps collection member and whole-value assignment fail-closed", () => {

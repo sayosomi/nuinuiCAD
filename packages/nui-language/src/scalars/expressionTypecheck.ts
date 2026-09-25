@@ -41,6 +41,7 @@ import { isChoiceOptionMember, isScalarExpressionTypeAssignable } from "./scalar
 import { dslCoalesceResultType, dslRequiredValueTypeOf, dslValueTypeName, isDslOptionalValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { isChoiceScalarType, type ChoiceScalarType, type ScalarExpressionType, type ScalarType } from "./types";
 import { isModuleGeometryInterfaceAssignable } from "../dsl/moduleGeometryInterfaces";
+import { optionalMatchBinderId } from "./optionalMatchBinder";
 
 const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
@@ -676,7 +677,7 @@ const checkNode = (
       const armResults = node.arms.map((arm) => {
         const binderType = optional.scrutineeIsOptional && arm.label === "some" && arm.binder ? optional.underlyingType : null;
         const binderId = binderType && arm.binder
-          ? `optional-match-binder:${node.span.start}:${arm.labelSpan.start}:${arm.binderSpan?.start ?? arm.labelSpan.end}`
+          ? optionalMatchBinderId(node.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
           : undefined;
         if (binderType && arm.binder && binderId) state.localBindings.set(arm.binder, { id: binderId, type: binderType });
         const expression = checkNode(arm.expression, expectedType, state);

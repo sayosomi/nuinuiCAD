@@ -1865,6 +1865,40 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("matchFirst")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
   });
 
+  it("preserves optional collection match binders in Module collection lowering", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(note: number?) {",
+      "  const picked: number[]? = match @note { none => none some value => if (@value > 0) { [@value] } else { [0] } }",
+      "  const resolved: number[] = @picked ?? [0]",
+      "  export const selected: number = @resolved[0]",
+      "}",
+      "instance Some = M(note: 7)",
+      "instance None = M(note: none)",
+      "const someResult: number = @Some::selected",
+      "const noneResult: number = @None::selected"
+    ].join("\n"), "optional-module-collection-match-binder");
+    expectValid(compiled);
+
+    const matches = compiled.scalarProgram?.collectionValues?.filter((value) => value.kind === "match") ?? [];
+    expect(matches).toHaveLength(2);
+    for (const match of matches) {
+      expect(match.arms.find((arm) => arm.label === "some")).toMatchObject({
+        binderId: expect.stringContaining("module-collection-binder:"),
+        binderType: { kind: "number" }
+      });
+    }
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(scalarValue("someResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+    expect(scalarValue("noneResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+  });
+
   it.each([
     [
       "geometry",

@@ -900,7 +900,7 @@ fn eval_node<'a>(
     }
 }
 
-fn static_expression_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
+pub(super) fn static_expression_type(expression: &TypedScalarExpression) -> Option<ScalarType> {
     match expression {
         TypedScalarExpression::NumberLiteral { r#type, .. }
         | TypedScalarExpression::StringLiteral { r#type, .. }
