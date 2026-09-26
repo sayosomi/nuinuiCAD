@@ -198,14 +198,23 @@ pub(crate) fn resolve_for_group_geometry_builtin_target(
     super::scalars::resolve_geometry_builtin_target(state, current_source_order, target)
 }
 
+#[derive(Debug, Clone, Copy)]
+enum GeometryCollectionLengthLookup {
+    Unavailable,
+    Absent,
+    Present(f64),
+}
+
 fn geometry_collection_length_for_node(
     node: &GeometryInputCollectionNode,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
-) -> Option<f64> {
+) -> GeometryCollectionLengthLookup {
     match node {
-        GeometryInputCollectionNode::None => None,
-        GeometryInputCollectionNode::Leaf { targets } => Some(targets.len() as f64),
+        GeometryInputCollectionNode::None => GeometryCollectionLengthLookup::Absent,
+        GeometryInputCollectionNode::Leaf { targets } => {
+            GeometryCollectionLengthLookup::Present(targets.len() as f64)
+        }
         GeometryInputCollectionNode::If {
             condition,
             source_order,
@@ -225,7 +234,7 @@ fn geometry_collection_length_for_node(
                 value: ScalarValue::Boolean(false),
                 ..
             } => geometry_collection_length_for_node(else_branch, resolver, state),
-            _ => None,
+            _ => GeometryCollectionLengthLookup::Unavailable,
         },
         GeometryInputCollectionNode::Match {
             scrutinee,
@@ -237,19 +246,52 @@ fn geometry_collection_length_for_node(
                 ..
             } = evaluate_document_typed_expression(scrutinee, resolver, state, Some(*source_order))
             else {
-                return None;
+                return GeometryCollectionLengthLookup::Unavailable;
             };
             arms.iter()
                 .find(|(label, _)| label == &value)
-                .and_then(|(_, branch)| {
-                    geometry_collection_length_for_node(branch, resolver, state)
-                })
+                .map(|(_, branch)| geometry_collection_length_for_node(branch, resolver, state))
+                .unwrap_or(GeometryCollectionLengthLookup::Unavailable)
         }
         GeometryInputCollectionNode::Coalesce {
             left_branch,
             right_branch,
-        } => geometry_collection_length_for_node(left_branch, resolver, state)
-            .or_else(|| geometry_collection_length_for_node(right_branch, resolver, state)),
+        } => match geometry_collection_length_for_node(left_branch, resolver, state) {
+            present @ GeometryCollectionLengthLookup::Present(_) => present,
+            GeometryCollectionLengthLookup::Absent
+            | GeometryCollectionLengthLookup::Unavailable => {
+                geometry_collection_length_for_node(right_branch, resolver, state)
+            }
+        },
+    }
+}
+
+fn lookup_geometry_collection_optional_length(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    collection_value_id: &str,
+    seen: &mut HashSet<String>,
+) -> GeometryCollectionLengthLookup {
+    if !seen.insert(collection_value_id.to_owned()) {
+        return GeometryCollectionLengthLookup::Unavailable;
+    }
+    state
+        .geometry_collection_nodes
+        .get(collection_value_id)
+        .map(|node| geometry_collection_length_for_node(node, resolver, state))
+        .unwrap_or(GeometryCollectionLengthLookup::Unavailable)
+}
+
+pub(crate) fn lookup_geometry_collection_presence(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    collection_value_id: &str,
+    seen: &mut HashSet<String>,
+) -> Option<bool> {
+    match lookup_geometry_collection_optional_length(state, resolver, collection_value_id, seen) {
+        GeometryCollectionLengthLookup::Absent => Some(false),
+        GeometryCollectionLengthLookup::Present(_) => Some(true),
+        GeometryCollectionLengthLookup::Unavailable => None,
     }
 }
 
@@ -259,13 +301,12 @@ pub(crate) fn lookup_geometry_collection_length(
     collection_value_id: &str,
     seen: &mut HashSet<String>,
 ) -> Option<f64> {
-    if !seen.insert(collection_value_id.to_owned()) {
-        return None;
+    match lookup_geometry_collection_optional_length(state, resolver, collection_value_id, seen) {
+        GeometryCollectionLengthLookup::Present(length) => Some(length),
+        GeometryCollectionLengthLookup::Absent | GeometryCollectionLengthLookup::Unavailable => {
+            None
+        }
     }
-    state
-        .geometry_collection_nodes
-        .get(collection_value_id)
-        .and_then(|node| geometry_collection_length_for_node(node, resolver, state))
 }
 
 pub(crate) fn lookup_geometry_value_property(

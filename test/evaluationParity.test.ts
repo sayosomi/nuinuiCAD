@@ -2488,6 +2488,106 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("resolves optional geometry collection length through persistent Rust stdio", async () => {
+    const cases: Array<{
+      name: string;
+      source: string[];
+      bindingName: string;
+      expected: number;
+    }> = [
+      {
+        name: "absent optional geometry collection coalesces to 17",
+        source: [
+          "nui 1",
+          "const maybe: point[]? = none",
+          "const result: number = @maybe?.length ?? 17"
+        ],
+        bindingName: "result",
+        expected: 17
+      },
+      {
+        name: "present empty optional geometry collection has length zero",
+        source: [
+          "nui 1",
+          "const maybe: point[]? = []",
+          "const result: number? = @maybe?.length"
+        ],
+        bindingName: "result",
+        expected: 0
+      },
+      {
+        name: "present one-member optional geometry collection has length one",
+        source: [
+          "nui 1",
+          "point A = coordinate(x: 0, y: 0)",
+          "const maybe: point[]? = [@A]",
+          "const result: number? = @maybe?.length"
+        ],
+        bindingName: "result",
+        expected: 1
+      },
+      {
+        name: "non-optional empty geometry collection keeps length zero",
+        source: [
+          "nui 1",
+          "const maybe: point[] = []",
+          "const result: number = @maybe.length"
+        ],
+        bindingName: "result",
+        expected: 0
+      },
+      {
+        name: "absent optional scalar collection remains none",
+        source: [
+          "nui 1",
+          "const maybe: number[]? = none",
+          "const result: number = @maybe?.length ?? 17"
+        ],
+        bindingName: "result",
+        expected: 17
+      },
+      {
+        name: "present empty optional scalar collection keeps length zero",
+        source: [
+          "nui 1",
+          "const maybe: number[]? = []",
+          "const result: number? = @maybe?.length"
+        ],
+        bindingName: "result",
+        expected: 0
+      }
+    ];
+
+    for (const testCase of cases) {
+      const fixture = fixtureFromSource(testCase.source.join("\n"));
+      const options = optionsFor(fixture);
+      expect(
+        fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error"),
+        `${testCase.name} must compile without errors`
+      ).toEqual([]);
+      expect(isRustEligibleFixture(fixture), `${testCase.name} must use the production Rust route`).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload), testCase.name).toEqual(normalizeParityPayload(tsPayload));
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, testCase.bindingName), testCase.expected);
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, testCase.bindingName), testCase.expected);
+
+      const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+        (candidate) => candidate.kind === "typed" && candidate.name === testCase.bindingName
+      );
+      if (!binding) throw new Error(`typed binding "${testCase.bindingName}" not found`);
+      const rustBinding = rustPayload.computedScalarBindings?.find(
+        (candidate) => candidate.bindingId === binding.id
+      );
+      expect(rustBinding, `${testCase.name} must include the raw Rust binding payload`).toBeDefined();
+      expect(rustBinding?.evaluation).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: testCase.expected }
+      });
+    }
+  }, 30000);
+
   it("matches general optional member chaining for geometry, records, and collections", () => {
     const fixture = fixtureFromSource([
       "nui 1",

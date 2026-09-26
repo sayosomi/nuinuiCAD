@@ -3,9 +3,10 @@
 mod for_group_scheduler;
 use super::super::scalar_expression_runtime::{
     lookup_for_group_geometry_property, lookup_geometry_collection_length,
-    lookup_geometry_property, lookup_geometry_value_binder_property,
-    lookup_geometry_value_property, lookup_optional_geometry_property,
-    resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
+    lookup_geometry_collection_presence, lookup_geometry_property,
+    lookup_geometry_value_binder_property, lookup_geometry_value_property,
+    lookup_optional_geometry_property, resolve_for_group_geometry_builtin_target,
+    ForGroupGeometryPropertyRequest,
 };
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{
@@ -766,7 +767,12 @@ impl<'a> ScalarMutationResolver<'a> {
             .iter()
             .find(|candidate| candidate.value_id == collection_value_id)
         else {
-            return Ok(None);
+            return Ok(lookup_geometry_collection_presence(
+                state,
+                self,
+                collection_value_id,
+                &mut HashSet::new(),
+            ));
         };
         match &value.value {
             ValidatedScalarProgramCollectionValue::None => Ok(Some(false)),
