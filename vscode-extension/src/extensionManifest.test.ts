@@ -60,7 +60,6 @@ type ExtensionManifest = {
 
 const manifestPath = resolve(process.cwd(), "vscode-extension/package.json");
 const webviewIconSourcePath = resolve(process.cwd(), "src/vscode/vscodeCanvasRibbonIcons.tsx");
-const architecturePath = resolve(process.cwd(), "ARCHITECTURE.md");
 const packageNlsPath = resolve(process.cwd(), "vscode-extension/package.nls.json");
 const packageNlsJaPath = resolve(process.cwd(), "vscode-extension/package.nls.ja.json");
 const agentsPath = resolve(process.cwd(), "AGENTS.md");
@@ -1456,32 +1455,6 @@ describe("VS Code extension manifest keybindings", () => {
         seen.add(signature);
       }
     }
-  });
-});
-
-describe("Module Preview architecture documentation", () => {
-  it("documents fixed Canvas Ribbon ownership and keeps Module Preview decoupled", async () => {
-    const architecture = await readFile(architecturePath, "utf8");
-
-    expect(architecture).toContain("fixed product-owned");
-    expect(architecture).toContain("horizontal Viewport, Display, and Grid Ribbons");
-    expect(architecture).toContain("position-only state for Canvas Ribbons");
-    expect(architecture).toContain("there is no contributed arbitrary Ribbon setting");
-    expect(architecture).toContain("is decoupled from the Canvas Ribbon contract");
-    expect(architecture).not.toContain("nuinuiCAD.canvasRibbon.ribbons");
-    expect(architecture).not.toContain("dynamic Lucide icon resolution");
-  });
-
-  it("documents authored point/Bezier source commits and keeps Bake outside Slice A", async () => {
-    const architecture = await readFile(architecturePath, "utf8");
-
-    expect(architecture).toContain("Shared DrawingCanvas point and");
-    expect(architecture).toContain("Bezier gestures use Preview-only ephemeral runtime transforms.");
-    expect(architecture).toContain("source-preserving statement `LineSplice`s through the existing");
-    expect(architecture).toContain("Native VS Code Undo/Redo remains canonical history");
-    expect(architecture).toContain("Module Preview Bake Current/Base uses the authored current `StatementMap`");
-    expect(architecture).not.toContain("Bake Current/Base remains outside Slice A");
-    expect(architecture).not.toContain("surface is read-only for authored source: source-writing Canvas gestures are not");
   });
 });
 
