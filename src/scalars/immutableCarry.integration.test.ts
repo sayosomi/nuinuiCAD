@@ -17,14 +17,23 @@ const optionsFor = (compiled: LastGoodDslDocument) => ({
   bindingVersions: compiled.bindingVersions,
   statementInfoByElementId: compiled.statementMap.byElementId,
   statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
+  sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
+  scalarExecutionPositionByElementId: compiled.scalarExecutionPositionByRuntimeElementId,
   forGroupMutationOwnerByElementId: compiled.bindingVersions
-    ? forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
-        compiled.bindingVersions,
-        compiled.document.elements,
-        compiled.statementMap.byElementId,
-        compiled.statementMap.statementIdByStatementIndex
-      ))
-    : undefined
+    ? new Map([
+        ...forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
+          compiled.bindingVersions,
+          compiled.document.elements,
+          compiled.statementMap.byElementId,
+          compiled.statementMap.statementIdByStatementIndex,
+          new Set(compiled.moduleForGroupExecutionOwnerByElementId
+            ? [...compiled.moduleForGroupExecutionOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
+            : [])
+        )),
+        ...(compiled.moduleForGroupExecutionOwnerByElementId ? [...compiled.moduleForGroupExecutionOwnerByElementId] : [])
+      ])
+    : undefined,
+  moduleForGroupExecutionOwnerByElementId: compiled.moduleForGroupExecutionOwnerByElementId
 });
 
 describe("immutable statement-for carries", () => {
@@ -188,6 +197,34 @@ describe("immutable statement-for carries", () => {
       status: "ok",
       value: { kind: "number", value: 7 }
     });
+  });
+
+  it("keeps a Module collection carry initializer when the source is empty", () => {
+    const compiled = compile([
+      "nui 1",
+      "module M() {",
+      "  const items: number[] = []",
+      "  for item in @items carry total: number = 7 {",
+      "    next total = @total + 1",
+      "    point Mark = coordinate(x: 0, y: 0)",
+      "  }",
+      "  export const output: number = @total",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const loop = compiled.document.elements.find((element) => element.type === "forGroup");
+    expect(loop).toMatchObject({ iterationElementValueType: { kind: "number" } });
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 7 }
+    });
+    expect(evaluation.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop?.id) ?? []).toEqual([]);
   });
 
   it("propagates state through an inner carry and rejects direct outer next", () => {

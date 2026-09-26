@@ -3622,6 +3622,17 @@ export const compileDslDocument = (
       moduleRuntimeContext,
       drawingModifiers: compiled.modifiers
     });
+    if (moduleScalarCompilation.materializedForGroupCollectionSourcesByElementId.size > 0) {
+      const iterationSources = moduleScalarCompilation.materializedForGroupCollectionSourcesByElementId;
+      compiled = {
+        ...compiled,
+        elements: compiled.elements.map((element) => {
+          if (element.type !== "forGroup") return element;
+          const metadata = iterationSources.get(element.id);
+          return metadata ? { ...element, ...metadata } : element;
+        })
+      };
+    }
     const hasModuleScalarBindings = moduleScalarCompilation.bindingAnalysis.catalog.bindings.some((binding) =>
       binding.resolutionMode === "preResolvedOnly"
     );
@@ -3654,7 +3665,7 @@ export const compileDslDocument = (
           }
         : {}),
       moduleMaterialization: {
-        ...compiled.moduleMaterialization,
+        ...compiled.moduleMaterialization!,
         scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId
       }
     };

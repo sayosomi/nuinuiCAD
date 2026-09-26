@@ -2602,6 +2602,97 @@ describe("module scalar runtime integration", () => {
     expect([...result.computedGeometry.values()].filter((value) => value.kind === "point").map((value) => value.x)).toEqual([1, 2]);
   });
 
+  it("materializes and evaluates Module scalar and string collection iteration sources", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  const items: number[] = [1, 2]",
+      "  for item in @items {",
+      "    const value: number = @item",
+      "    point Mark = coordinate(x: @value, y: 0)",
+      "  }",
+      '  const words: string[] = ["a", "b"]',
+      "  for word in @words {",
+      '    text Word = label(text: "${@word}", anchor: none, size: 3)',
+      "  }",
+      "}",
+      "instance A = M()"
+    ].join("\n"), "module-collection-for-group");
+    expectValid(compiled);
+
+    const loops = compiled.document!.elements.filter((element) => element.type === "forGroup");
+    expect(loops).toHaveLength(2);
+    const itemLoop = loops.find((element) => element.type === "forGroup" && element.iterationElementValueType?.kind === "number");
+    const wordLoop = loops.find((element) => element.type === "forGroup" && element.iterationElementValueType?.kind === "string");
+    expect(itemLoop).toMatchObject({
+      iterationSourceValueId: expect.any(String),
+      iterationSourceOrder: expect.any(Number),
+      iterationElementValueType: { kind: "number" },
+      iterationElementType: { kind: "number" }
+    });
+    expect(wordLoop).toMatchObject({
+      iterationSourceValueId: expect.any(String),
+      iterationSourceOrder: expect.any(Number),
+      iterationElementValueType: { kind: "string" },
+      iterationElementType: { kind: "string" }
+    });
+    const materializedIds = new Set(compiled.scalarProgram?.collectionValues?.map((value) => value.valueId) ?? []);
+    for (const loop of [itemLoop, wordLoop]) {
+      if (!loop || loop.type !== "forGroup") throw new Error("expected both materialized collection loops");
+      expect(materializedIds.has(loop.iterationSourceValueId!)).toBe(true);
+      const loopOrder = compiled.scalarExecutionPositionByRuntimeElementId?.get(loop.id);
+      expect(loopOrder).toEqual(expect.any(Number));
+      expect(loop.iterationSourceOrder).toBeLessThan(loopOrder!);
+    }
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const numberRows = result.forGroupGeneratedRows?.filter((row) => row.forGroupId === itemLoop!.id) ?? [];
+    expect(numberRows.map((row) => result.computedGeometry.get(row.generatedElementId)))
+      .toEqual([expect.objectContaining({ kind: "point", x: 1 }), expect.objectContaining({ kind: "point", x: 2 })]);
+    const wordRows = result.forGroupGeneratedRows?.filter((row) => row.forGroupId === wordLoop!.id) ?? [];
+    expect(wordRows.map((row) => result.computedGeometry.get(row.generatedElementId)))
+      .toEqual([expect.objectContaining({ kind: "text", text: "a" }), expect.objectContaining({ kind: "text", text: "b" })]);
+  });
+
+  it("qualifies Module collection identities independently for each instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(first: number, second: number) {",
+      "  const items: number[] = [@first, @second]",
+      "  for item in @items {",
+      "    const value: number = @item",
+      "    point Mark = coordinate(x: @value, y: 0)",
+      "  }",
+      "}",
+      "instance A = M(first: 2, second: 4)",
+      "instance B = M(first: 7, second: 9)"
+    ].join("\n"), "module-collection-for-group-instances");
+    expectValid(compiled);
+    const instances = compiled.moduleSemanticAnalysis!.instances.filter((instance) => instance.name === "A" || instance.name === "B");
+    const loops = compiled.document!.elements.filter((element) => element.type === "forGroup");
+    expect(loops).toHaveLength(2);
+    const loopFor = (instanceName: string) => {
+      const instance = instances.find((candidate) => candidate.name === instanceName)!;
+      return loops.find((element) => element.type === "forGroup" &&
+        compiled.moduleMaterialization!.originByRuntimeElementId.get(element.id)?.instancePath.includes(instance.statementId)
+      ) as Extract<typeof loops[number], { type: "forGroup" }>;
+    };
+    const loopA = loopFor("A");
+    const loopB = loopFor("B");
+    expect(loopA.iterationSourceValueId).toEqual(expect.any(String));
+    expect(loopB.iterationSourceValueId).toEqual(expect.any(String));
+    expect(loopA.iterationSourceValueId).not.toBe(loopB.iterationSourceValueId);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valuesFor = (loop: typeof loopA) => (result.forGroupGeneratedRows ?? [])
+      .filter((row) => row.forGroupId === loop.id)
+      .map((row) => result.computedGeometry.get(row.generatedElementId))
+      .map((geometry) => geometry?.kind === "point" ? geometry.x : undefined);
+    expect(valuesFor(loopA)).toEqual([2, 4]);
+    expect(valuesFor(loopB)).toEqual([7, 9]);
+  });
+
   it("inherits a document forGroup caller and its iteration binding into a root module call", () => {
     const compiled = compileWithIds([
       "nui 1",

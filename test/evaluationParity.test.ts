@@ -3130,6 +3130,62 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(markRows.every((row) => row.occurrencePath.length === 2)).toBe(true);
     }
 
+    const moduleCollections = await evaluateSource([
+      "nui 1",
+      "module M(first: number, second: number, word: string) {",
+      "  const numbers: number[] = [@first, @second]",
+      "  const words: string[] = [@word, \"tail\"]",
+      "  for item in @numbers {",
+      "    const value: number = @item",
+      "    point Mark = coordinate(x: @value, y: 0)",
+      "  }",
+      '  for item in @words {',
+      '    text WordItem = label(text: "${@item}", anchor: none, size: 3)',
+      "  }",
+      "}",
+      "instance First = M(first: 2, second: 4, word: \"a\")",
+      "instance Second = M(first: 7, second: 9, word: \"x\")"
+    ].join("\n"));
+    const moduleAnalysis = moduleCollections.fixture.compiled?.doc.moduleSemanticAnalysis;
+    const moduleOptions = optionsFor(moduleCollections.fixture);
+    const moduleLoops = moduleCollections.fixture.elements.filter((element) => element.type === "forGroup");
+    const moduleLoopFor = (instanceName: string, elementKind: "number" | "string") => {
+      const instance = moduleAnalysis?.instances.find((candidate) => candidate.name === instanceName);
+      const loop = moduleLoops.find((element) => element.type === "forGroup" &&
+        element.iterationElementValueType?.kind === elementKind &&
+        instance !== undefined && moduleOptions.moduleMaterialization?.originByRuntimeElementId.get(element.id)?.instancePath.includes(instance.statementId)
+      );
+      if (!loop || loop.type !== "forGroup") throw new Error(`missing ${elementKind} loop for Module instance ${instanceName}`);
+      return loop;
+    };
+    const firstNumberLoop = moduleLoopFor("First", "number");
+    const secondNumberLoop = moduleLoopFor("Second", "number");
+    const firstStringLoop = moduleLoopFor("First", "string");
+    const secondStringLoop = moduleLoopFor("Second", "string");
+    expect(new Set([firstNumberLoop.iterationSourceValueId, secondNumberLoop.iterationSourceValueId]).size).toBe(2);
+    expect(new Set([firstStringLoop.iterationSourceValueId, secondStringLoop.iterationSourceValueId]).size).toBe(2);
+    for (const result of [moduleCollections.ts, moduleCollections.rust]) {
+      expect(result.errors).toEqual([]);
+      const pointValues = (loopId: string) => (result.forGroupGeneratedRows ?? [])
+        .filter((row) => row.forGroupId === loopId)
+        .map((row) => result.computedGeometry.get(row.generatedElementId))
+        .map((geometry) => {
+          if (geometry?.kind !== "point") throw new Error("expected generated Module point geometry");
+          return geometry.x;
+        });
+      const textValues = (loopId: string) => (result.forGroupGeneratedRows ?? [])
+        .filter((row) => row.forGroupId === loopId)
+        .map((row) => result.computedGeometry.get(row.generatedElementId))
+        .map((geometry) => {
+          if (geometry?.kind !== "text") throw new Error("expected generated Module text geometry");
+          return geometry.text;
+        });
+      expect(pointValues(firstNumberLoop.id)).toEqual([2, 4]);
+      expect(pointValues(secondNumberLoop.id)).toEqual([7, 9]);
+      expect(textValues(firstStringLoop.id)).toEqual(["a", "tail"]);
+      expect(textValues(secondStringLoop.id)).toEqual(["x", "tail"]);
+    }
+
     const unavailableSource = await evaluateSource([
       "nui 1",
       "const controller: boolean = true",
