@@ -7,7 +7,7 @@ import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import { buildEvaluationOptions } from "../src/geometry/productionEvaluationContext";
 import { canUseRustEvaluationForElements } from "../src/geometry/rustEvaluationEligibility";
-import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
+import { buildRustEvaluationInput, type EvaluateDocumentInput } from "../src/geometry/rustEvaluationInput";
 import { resolveRustEvaluationBinaryPath, RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import { runtimeScalarDiagnostics } from "../src/scalars/runtimeScalarDiagnostics";
 import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
@@ -92,6 +92,10 @@ export const createRustStdioParityClient = (repoRoot: string) => {
   return {
     evaluate: async (elements: CadElement[], options: EvaluateElementsOptions): Promise<EvaluationPayload> => {
       const payload = await process.request(buildRustEvaluationInput(elements, options));
+      return payload as EvaluationPayload;
+    },
+    evaluateInput: async (input: EvaluateDocumentInput): Promise<EvaluationPayload> => {
+      const payload = await process.request(input);
       return payload as EvaluationPayload;
     },
     dispose: () => process.dispose()

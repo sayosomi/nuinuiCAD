@@ -58,6 +58,8 @@ mod for_group_execution_core_tests;
 #[cfg(test)]
 mod geometry_builtin_runtime_tests;
 #[cfg(test)]
+mod mutation_payload_tests;
+#[cfg(test)]
 mod program_payload_tests;
 #[cfg(test)]
 mod property_binding_payload_tests;

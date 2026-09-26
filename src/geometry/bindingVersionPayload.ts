@@ -25,6 +25,7 @@ export type RustBindingMutationPayload = {
   forGroupOwners: readonly {
     ownerStatementId: string; elementId: ElementId; scopeId: string;
     exitSourceOrder: number; iterationBindingId: string;
+    moduleExecutionOwner?: true;
   }[];
   collectionValues?: readonly ScalarProgramCollection[];
   immutableForGroups?: readonly {
@@ -153,7 +154,8 @@ export const buildRustBindingMutationPayload = (
             elementId: owner.elementId,
             scopeId: owner.scopeId,
             exitSourceOrder: owner.exitSourceOrder,
-            iterationBindingId: owner.iterationBindingId ?? `binding:iteration:${owner.ownerStatementId}`
+            iterationBindingId: owner.iterationBindingId ?? `binding:iteration:${owner.ownerStatementId}`,
+            moduleExecutionOwner: true as const
           }))
         : [])
     ],
