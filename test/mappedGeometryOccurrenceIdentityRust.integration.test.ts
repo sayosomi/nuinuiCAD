@@ -9,6 +9,7 @@ import {
   evaluationPayloadToResult,
   type EvaluationPayload
 } from "../src/geometry/evaluationPayload";
+import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import {
   createRustStdioParityClient,
   fixtureFromSource,
@@ -42,6 +43,39 @@ const rawEntryForOccurrence = (
 
 const evaluateRust = (fixture: EvaluationFixture) =>
   rustStdio.evaluate(fixture.elements, optionsFor(fixture));
+
+const geometryInputTargetsFor = (
+  fixture: EvaluationFixture,
+  request: ReturnType<typeof buildRustEvaluationInput>,
+  elementName: string,
+  parameterKey: string
+) => {
+  const element = fixture.elements.find((candidate) => candidate.name === elementName);
+  if (!element) throw new Error(`fixture has no element ${elementName}`);
+  const parameter = request.geometryInputTargets
+    ?.find((entry) => entry.elementId === element.id)
+    ?.parameters.find((entry) => entry.parameterKey === parameterKey);
+  if (!parameter) throw new Error(`${elementName} request omitted ${parameterKey}`);
+  return Array.isArray(parameter.target) ? parameter.target : [parameter.target];
+};
+
+const mappedMemberIndicesFor = (
+  fixture: EvaluationFixture,
+  request: ReturnType<typeof buildRustEvaluationInput>,
+  elementName: string,
+  parameterKey: string
+) => geometryInputTargetsFor(fixture, request, elementName, parameterKey).map((target) => {
+  if (target.kind !== "geometryValueMap" && target.kind !== "geometryValue") {
+    throw new Error(`${elementName}.${parameterKey} contained a non-value target`);
+  }
+  return target.occurrence.mappedMemberIndex;
+});
+
+const geometryFor = (fixture: EvaluationFixture, payload: EvaluationPayload, elementName: string) => {
+  const element = fixture.elements.find((candidate) => candidate.name === elementName);
+  if (!element) throw new Error(`fixture has no element ${elementName}`);
+  return evaluationPayloadToResult(payload).computedGeometry.get(element.id);
+};
 
 describe("Rust mapped geometry occurrence identity", () => {
   beforeAll(() => {
@@ -79,6 +113,127 @@ describe("Rust mapped geometry occurrence identity", () => {
       expect(decoded?.occurrence).toEqual(entry.occurrence);
       expect(decoded?.value).toMatchObject({ kind: "point", x: point[0], y: point[1] });
     }
+  }, 30_000);
+
+  it("preserves every mapped offset source in order through persistent evaluation_stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (10, 0), end: (20, 0))",
+      "const lines: line[] = [@A, @B]",
+      "const mapped: path[] = for item in @lines { @item }",
+      "line Combined = offset(sources: [@mapped[0], @mapped[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "line FirstOnly = offset(sources: [@mapped[0]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "line SecondOnly = offset(sources: [@mapped[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const request = buildRustEvaluationInput(fixture.elements, options);
+    const expected = request.geometryValueProgram?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined) ?? [];
+
+    expect(expected.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 1]);
+    expect(mappedMemberIndicesFor(fixture, request, "Combined", "baseLineIds")).toEqual([0, 1]);
+    expect(mappedMemberIndicesFor(fixture, request, "FirstOnly", "baseLineIds")).toEqual([0]);
+    expect(mappedMemberIndicesFor(fixture, request, "SecondOnly", "baseLineIds")).toEqual([1]);
+
+    const payload = await rustStdio.evaluate(fixture.elements, options);
+    const rawEntries = expected.map((entry) => rawEntryForOccurrence(payload, entry.occurrence));
+    expect(rawEntries.map((entry) => entry.occurrence)).toEqual(expected.map((entry) => entry.occurrence));
+
+    const result = evaluationPayloadToResult(payload);
+    expect(result.errors).toEqual([]);
+    for (const entry of expected) {
+      expect(result.computedGeometryValues.get(geometryValueOccurrenceKey(entry.occurrence))?.occurrence)
+        .toEqual(entry.occurrence);
+    }
+    const combined = geometryFor(fixture, payload, "Combined");
+    expect(combined).toMatchObject({ kind: "offsetLine", length: 20 });
+    if (combined?.kind !== "offsetLine") throw new Error("expected the complete offset path");
+    expect(combined.segments).toHaveLength(2);
+    expect(combined.segments[0]?.start).toMatchObject({ x: 0, y: 1 });
+    expect(combined.segments[0]?.end).toMatchObject({ x: 10, y: 1 });
+    expect(combined.segments[1]?.start).toMatchObject({ x: 10, y: 1 });
+    expect(combined.segments[1]?.end).toMatchObject({ x: 20, y: 1 });
+  }, 30_000);
+
+  it("preserves indexed line targets and reversed mapped path order through Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (10, 0), end: (20, 0))",
+      "const lines: line[] = [@A, @B]",
+      "line Indexed = offset(sources: [@lines[0], @lines[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "line Square = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
+      "line Triangle = polyline(points: [(0, 0), (4, 0), (0, 4)], closed: true)",
+      "const loops: path[] = [@Square, @Triangle]",
+      "const mapped: path[] = for item in @loops { @item }",
+      "line CopiedForward = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@mapped[0], @mapped[1]])",
+      "line CopiedReverse = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@mapped[1], @mapped[0]])"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const request = buildRustEvaluationInput(fixture.elements, options);
+    const indexedTargets = geometryInputTargetsFor(fixture, request, "Indexed", "baseLineIds");
+    const a = fixture.elements.find((element) => element.name === "A");
+    const b = fixture.elements.find((element) => element.name === "B");
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(indexedTargets.map((target) => target.kind === "drawable" ? target.elementId : undefined))
+      .toEqual([a!.id, b!.id]);
+    const forwardTargets = geometryInputTargetsFor(fixture, request, "CopiedForward", "baseLineIds");
+    const reverseTargets = geometryInputTargetsFor(fixture, request, "CopiedReverse", "baseLineIds");
+    expect(forwardTargets).toHaveLength(2);
+    expect(reverseTargets).toHaveLength(2);
+    expect(reverseTargets).toEqual([...forwardTargets].reverse());
+    expect(mappedMemberIndicesFor(fixture, request, "CopiedForward", "baseLineIds")).toEqual([0, 1]);
+    expect(mappedMemberIndicesFor(fixture, request, "CopiedReverse", "baseLineIds")).toEqual([1, 0]);
+    const expected = request.geometryValueProgram?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined) ?? [];
+    expect(expected.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 1]);
+
+    const payload = await rustStdio.evaluate(fixture.elements, options);
+    const rawEntries = expected.map((entry) => rawEntryForOccurrence(payload, entry.occurrence));
+    expect(rawEntries.map((entry) => entry.occurrence)).toEqual(expected.map((entry) => entry.occurrence));
+    const result = evaluationPayloadToResult(payload);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues.size).toBe(2);
+    expect(geometryFor(fixture, payload, "Indexed")).toMatchObject({ kind: "offsetLine", length: 20 });
+    const forward = geometryFor(fixture, payload, "CopiedForward");
+    expect(forward).toMatchObject({ kind: "offsetLine" });
+    if (forward?.kind !== "offsetLine") throw new Error("expected the forward copied path");
+    expect(forward.segments).toHaveLength(7);
+    expect(forward.segments[0]).toMatchObject({ start: { x: 10, y: 0 }, end: { x: 20, y: 0 } });
+    const copied = geometryFor(fixture, payload, "CopiedReverse");
+    expect(copied).toMatchObject({ kind: "offsetLine" });
+    if (copied?.kind !== "offsetLine") throw new Error("expected the reversed copied path");
+    expect(copied.segments).toHaveLength(7);
+    expect(copied.segments[0]).toMatchObject({ start: { x: 10, y: 0 }, end: { x: 14, y: 0 } });
+  }, 30_000);
+
+  it("keeps equal duplicate paths as two construction-list entries", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Loop = polyline(points: [(0, 0), (10, 0), (10, 10), (0, 10)], closed: true)",
+      "const loops: path[] = [@Loop]",
+      "const mapped: path[] = for item in @loops { @item }",
+      "line Duplicated = transformCopy(startPoint: (0, 0), endPoint: (10, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@mapped[0], @mapped[0]])"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const request = buildRustEvaluationInput(fixture.elements, options);
+    const loop = fixture.elements.find((element) => element.name === "Loop");
+    expect(loop).toBeDefined();
+    const targets = geometryInputTargetsFor(fixture, request, "Duplicated", "baseLineIds");
+    expect(targets.map((target) => {
+      if (target.kind !== "geometryValueMap" && target.kind !== "geometryValue") {
+        throw new Error("expected mapped duplicate path entries");
+      }
+      return target.occurrence.mappedMemberIndex;
+    })).toEqual([0, 0]);
+
+    const payload = await rustStdio.evaluate(fixture.elements, options);
+    const result = evaluationPayloadToResult(payload);
+    expect(result.errors).toEqual([]);
+    const duplicated = geometryFor(fixture, payload, "Duplicated");
+    expect(duplicated).toMatchObject({ kind: "offsetLine" });
+    if (duplicated?.kind !== "offsetLine") throw new Error("expected the duplicate copied path");
+    expect(duplicated.segments).toHaveLength(8);
   }, 30_000);
 
   it("omits mappedMemberIndex for an ordinary immutable point occurrence", async () => {

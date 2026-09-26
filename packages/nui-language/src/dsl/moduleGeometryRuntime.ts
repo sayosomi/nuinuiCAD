@@ -124,6 +124,15 @@ export const buildModuleGeometryRuntime = ({
   const geometryInputTargetsByRuntimeElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const geometryInputTargetSourcesByRuntimeElementId = new Map<ElementId, Map<string, RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]>>();
   const isTargetList = (target: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]): target is readonly RuntimeGeometryInputTarget[] => Array.isArray(target);
+  const appendGeometryInputTargets = (
+    existing: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[] | undefined,
+    target: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]
+  ): RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[] => {
+    if (!existing) return target;
+    const existingTargets = isTargetList(existing) ? existing : [existing];
+    const newTargets = isTargetList(target) ? target : [target];
+    return [...existingTargets, ...newTargets];
+  };
 
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     if (exported.backingTarget) {
@@ -402,16 +411,9 @@ export const buildModuleGeometryRuntime = ({
     resolversByRuntimeElementId.set(entry.runtimeElementId, {
       ...baseResolver,
       recordGeometryInputTarget: (_elementId, parameterKey, target) => {
-        const existing = targetsForElement.get(parameterKey);
-        if (!existing) {
-          targetsForElement.set(parameterKey, target);
-        } else {
-          const existingTargets = Array.isArray(existing) ? existing : [existing];
-          const newTargets = Array.isArray(target) ? target : [target];
-          targetsForElement.set(parameterKey, [...existingTargets, ...newTargets]);
-        }
+        targetsForElement.set(parameterKey, appendGeometryInputTargets(targetsForElement.get(parameterKey), target));
         const sourceTargets = geometryInputTargetSourcesByRuntimeElementId.get(entry.runtimeElementId) ?? new Map();
-        sourceTargets.set(parameterKey, target);
+        sourceTargets.set(parameterKey, appendGeometryInputTargets(sourceTargets.get(parameterKey), target));
         geometryInputTargetSourcesByRuntimeElementId.set(entry.runtimeElementId, sourceTargets);
         if (!isTargetList(target) && target.kind !== "collectionIndex") {
           geometryInputTargetsByRuntimeElementId.set(entry.runtimeElementId, targetsForElement as Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>);

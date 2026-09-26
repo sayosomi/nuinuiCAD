@@ -46,6 +46,28 @@ describe("module geometry array runtime", () => {
     expect(copy.baseLineIds).toEqual([named(compiled, "A").id, named(compiled, "B").id, named(compiled, "A").id]);
   });
 
+  it("retains each indexed mapped path target in an authored construction list", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "line B = segment(start: (10, 0), end: (20, 0))",
+      "const lines: line[] = [@A, @B]",
+      "const mapped: path[] = for item in @lines { @item }",
+      "line Use = offset(sources: [@mapped[0], @mapped[1]], distance: 1, side: left, closed: false, suppressTrimWarnings: false)"
+    ].join("\n"), "ordered-mapped-geometry-inputs");
+
+    expect(errorsOf(compiled)).toEqual([]);
+    const use = named(compiled, "Use");
+    const target = compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(use.id)?.get("baseLineIds");
+    expect(Array.isArray(target)).toBe(true);
+    if (!Array.isArray(target)) throw new Error("expected an ordered geometry target list");
+    expect(target.map((entry) =>
+      entry.kind === "geometryValueMap" || entry.kind === "geometryValue"
+        ? entry.occurrence.mappedMemberIndex
+        : undefined
+    )).toEqual([0, 1]);
+  });
+
   it("preserves line[] to path[] through local aliases and nested Module pass-through", () => {
     const compiled = compileWithIds([
       "nui 1",
