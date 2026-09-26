@@ -1911,11 +1911,21 @@ export const compileModuleScalarRuntime = ({
     containerIndex: adapter.containerIndex
   });
   const sourceOwnedBindingsByStatementIndex = new Map<number, Binding[]>();
+  const sourceLaneOrdinalByBindingId = new Map<BindingId, number>();
+  const sourceLaneOrdinalByStatementIndex = new Map<number, Map<Binding["kind"], number>>();
   for (const binding of baseCatalog.bindings) {
-    if (binding.kind !== "typed" || binding.resolutionMode !== "preResolvedOnly" || binding.catalogOrder !== "source") continue;
-    const bucket = sourceOwnedBindingsByStatementIndex.get(binding.statementIndex) ?? [];
-    bucket.push(binding);
-    sourceOwnedBindingsByStatementIndex.set(binding.statementIndex, bucket);
+    if (binding.catalogOrder !== "append") {
+      const laneOrdinals = sourceLaneOrdinalByStatementIndex.get(binding.statementIndex) ?? new Map<Binding["kind"], number>();
+      const sourceOrder = laneOrdinals.get(binding.kind) ?? 0;
+      if (binding.catalogOrder === "source") sourceLaneOrdinalByBindingId.set(binding.id, sourceOrder);
+      laneOrdinals.set(binding.kind, sourceOrder + 1);
+      sourceLaneOrdinalByStatementIndex.set(binding.statementIndex, laneOrdinals);
+    }
+    if (binding.kind === "typed" && binding.resolutionMode === "preResolvedOnly" && binding.catalogOrder === "source") {
+      const bucket = sourceOwnedBindingsByStatementIndex.get(binding.statementIndex) ?? [];
+      bucket.push(binding);
+      sourceOwnedBindingsByStatementIndex.set(binding.statementIndex, bucket);
+    }
   }
 
   const rootRecordPlan = sourceNamespace?.recordSemanticAnalysis && sourceNamespace
@@ -2707,20 +2717,29 @@ export const compileModuleScalarRuntime = ({
   );
   const basePreResolvedSeeds: BindingSeed[] = baseCatalog.bindings
     .filter((binding) => binding.resolutionMode === "preResolvedOnly" || binding.id.includes(":carry:"))
-    .map((binding) => ({
+    .map((binding) => {
+      const sourceLaneOrdinal = binding.catalogOrder === "source"
+        ? sourceLaneOrdinalByBindingId.get(binding.id)
+        : undefined;
+      if (binding.catalogOrder === "source" && sourceLaneOrdinal === undefined) {
+        throw new Error(`moduleScalarRuntime: missing source-lane ordinal for ${binding.id}`);
+      }
+      return {
       id: binding.id,
       kind: binding.kind,
       name: binding.name,
       nameSpan: binding.nameSpan,
       statementIndex: binding.statementIndex,
-      sourceOrder: 0,
+      sourceOrder: sourceLaneOrdinal ?? 0,
       effectiveScopeId: binding.effectiveScopeId,
       visibility: binding.visibility,
       mutability: binding.mutability,
       declaredType: binding.declaredType,
       ...(binding.declarationVersionId ? { declarationVersionId: binding.declarationVersionId } : {}),
-      resolutionMode: "preResolvedOnly" as const
-    }));
+      resolutionMode: "preResolvedOnly" as const,
+      ...(binding.catalogOrder === "source" ? { catalogOrder: "source" as const } : {})
+      };
+    });
   const additionalSeeds: BindingSeed[] = [];
   const additionalSeedIds = new Set<BindingId>();
   for (const seed of [...basePreResolvedSeeds, ...moduleSeeds, ...moduleIterationSeeds]) {

@@ -375,6 +375,62 @@ describe("geometry array source semantic integration", () => {
     expect(selected?.declaration.initializer).toMatchObject({ kind: "collectionIndex", collectionValueId: "statement:2", collectionLength: 3 });
   });
 
+  it("keeps scalar value-for binding versions ordered under unrelated declarations", () => {
+    const cases = [
+      { name: "without records", beforeMap: [], betweenMapAndConsumer: [], afterConsumer: [], compareToBaseline: true },
+      { name: "one record before the map", beforeMap: ["record Before(x: number)"], betweenMapAndConsumer: [], afterConsumer: [], compareToBaseline: true },
+      { name: "one record between the map and consumer", beforeMap: [], betweenMapAndConsumer: ["record Between(x: number)"], afterConsumer: [], compareToBaseline: true },
+      { name: "one record after the declarations", beforeMap: [], betweenMapAndConsumer: [], afterConsumer: ["record After(x: number)"], compareToBaseline: true },
+      { name: "two records before the map", beforeMap: ["record BeforeA(x: number)", "record BeforeB(x: number)"], betweenMapAndConsumer: [], afterConsumer: [], compareToBaseline: true },
+      { name: "an unrelated scalar before the map", beforeMap: ["const unrelated: number = 9"], betweenMapAndConsumer: [], afterConsumer: [], compareToBaseline: false },
+      { name: "an unrelated empty Module", beforeMap: ["module Empty() {", "}"], betweenMapAndConsumer: [], afterConsumer: [], compareToBaseline: true }
+    ];
+    let baselineCoordinates: readonly [number, number] | undefined;
+
+    for (const variant of cases) {
+      const compiled = compile([
+        "nui 1",
+        "const values: number[] = [2]",
+        ...variant.beforeMap,
+        "const mapped: number[] = for item in @values { @item * 3 }",
+        ...variant.betweenMapAndConsumer,
+        "const result: number = @mapped[0]",
+        ...variant.afterConsumer
+      ].join("\n"));
+      expect([...compiled.diagnostics, ...(compiled.bindingIssueDiagnostics ?? [])].filter((diagnostic) => diagnostic.severity === "error"), variant.name).toEqual([]);
+
+      const map = compiled.scalarProgram?.collectionValues?.find((value) => value.kind === "map");
+      const catalog = compiled.bindingAnalysis?.catalog;
+      const graph = compiled.bindingVersions;
+      if (!map || map.kind !== "map" || !catalog || !graph) throw new Error(`${variant.name}: expected compiled value-for binding metadata`);
+
+      const binder = catalog.bindingsById.get(map.binderId);
+      const resultBinding = catalog.bindings.find((binding) => binding.kind === "typed" && binding.name === "result");
+      if (!binder || !resultBinding) throw new Error(`${variant.name}: expected binder and result bindings`);
+      expect(binder).toMatchObject({ resolutionMode: "preResolvedOnly", catalogOrder: "source" });
+
+      const binderVersion = graph.versions.find((version) => version.bindingId === binder.id);
+      const resultVersion = graph.versions.find((version) => version.bindingId === resultBinding.id);
+      const resultStatement = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === resultBinding.id);
+      if (!binderVersion || !resultVersion || !resultStatement) throw new Error(`${variant.name}: expected binder and result versions`);
+
+      const sourceOrders = graph.versions.map((version) => version.sourceOrder);
+      expect(new Set(sourceOrders).size, variant.name).toBe(sourceOrders.length);
+      for (let index = 1; index < sourceOrders.length; index += 1) {
+        expect(sourceOrders[index], variant.name).toBeGreaterThan(sourceOrders[index - 1]!);
+      }
+      expect(binderVersion.sourceOrder, variant.name).toBe(binder.rank);
+      expect(resultVersion.sourceOrder, variant.name).toBe(resultStatement.sourceOrder);
+      expect(binderVersion.sourceOrder, variant.name).toBeLessThan(resultVersion.sourceOrder);
+
+      const coordinates = [binderVersion.sourceOrder, resultVersion.sourceOrder] as const;
+      if (variant.compareToBaseline) {
+        if (baselineCoordinates) expect(coordinates, variant.name).toEqual(baselineCoordinates);
+        else baselineCoordinates = coordinates;
+      }
+    }
+  });
+
   it("supports exact choice source/result identities, multiline framing, aliases, and empty sources", () => {
     const source = [
       "nui 1",
