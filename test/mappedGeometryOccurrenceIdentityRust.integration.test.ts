@@ -5,6 +5,7 @@ import {
   geometryValueOccurrenceKey,
   type GeometryValueOccurrence
 } from "@nuinuicad/nui-language";
+import { compileCanonicalText } from "@nuinuicad/nui-language/document";
 import {
   evaluationPayloadToResult,
   type EvaluationPayload
@@ -71,10 +72,40 @@ const mappedMemberIndicesFor = (
   return target.occurrence.mappedMemberIndex;
 });
 
+const mappedEntriesFor = (fixture: EvaluationFixture) =>
+  geometryValueProgramFor(fixture).filter((entry) => entry.occurrence.mappedMemberIndex !== undefined);
+
+const occurrenceForMappedTarget = (target: unknown): GeometryValueOccurrence => {
+  const findOccurrences = (value: unknown): GeometryValueOccurrence[] => {
+    if (Array.isArray(value)) return value.flatMap(findOccurrences);
+    if (!value || typeof value !== "object") return [];
+    const record = value as Record<string, unknown>;
+    if (
+      (record.kind === "geometryValueMap" || record.kind === "geometryValue") &&
+      record.occurrence && typeof record.occurrence === "object"
+    ) {
+      return [record.occurrence as GeometryValueOccurrence];
+    }
+    return Object.values(record).flatMap(findOccurrences);
+  };
+  const occurrence = findOccurrences(target)[0];
+  if (!occurrence) throw new Error("expected a compiler-authored geometry value target");
+  return occurrence;
+};
+
 const geometryFor = (fixture: EvaluationFixture, payload: EvaluationPayload, elementName: string) => {
   const element = fixture.elements.find((candidate) => candidate.name === elementName);
   if (!element) throw new Error(`fixture has no element ${elementName}`);
   return evaluationPayloadToResult(payload).computedGeometry.get(element.id);
+};
+
+const lineEndpointsFor = (fixture: EvaluationFixture, payload: EvaluationPayload, elementName: string) => {
+  const geometry = geometryFor(fixture, payload, elementName);
+  if (geometry?.kind !== "line") throw new Error(`${elementName} did not materialize as a line`);
+  return {
+    start: { x: geometry.start.x, y: geometry.start.y },
+    end: { x: geometry.end.x, y: geometry.end.y }
+  };
 };
 
 describe("Rust mapped geometry occurrence identity", () => {
@@ -306,5 +337,282 @@ describe("Rust mapped geometry occurrence identity", () => {
       memberPositionByPath.set(pathKey, (memberPositionByPath.get(pathKey) ?? 0) + 1);
     }
     expect([...memberPositionByPath.values()]).toEqual([2, 2]);
+  }, 30_000);
+
+  it("materializes an inline Module point map without scalar payloads", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(input: point[]) {",
+      "  export const mapped: point[] = for p in @input { @p }",
+      "}",
+      "instance A = M(input: [(1, 2)])",
+      "line Use = segment(start: @A::mapped[0], end: (10, 20))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const request = buildRustEvaluationInput(fixture.elements, options);
+    const mapped = mappedEntriesFor(fixture);
+
+    expect(Object.hasOwn(request, "scalarProgram")).toBe(false);
+    expect(Object.hasOwn(request, "bindingVersions")).toBe(false);
+    expect(mapped).toHaveLength(1);
+    const occurrence = mapped[0]!.occurrence;
+    expect(occurrence.instancePath.length).toBeGreaterThan(0);
+    expect(occurrence.mappedMemberIndex).toBe(0);
+    expect(occurrenceForMappedTarget(
+      geometryInputTargetsFor(fixture, request, "Use", "startPoint")
+    )).toEqual(occurrence);
+
+    const payload = await rustStdio.evaluate(fixture.elements, options);
+    const raw = rawEntryForOccurrence(payload, occurrence);
+    expect(raw.occurrence).toEqual(occurrence);
+    expect(raw.value).toMatchObject({ kind: "point", x: 1, y: 2 });
+
+    const result = evaluationPayloadToResult(payload);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometryValues.get(geometryValueOccurrenceKey(occurrence))?.value)
+      .toMatchObject({ kind: "point", x: 1, y: 2 });
+    expect(geometryFor(fixture, payload, "Use")).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 10, y: 20 }
+    });
+  }, 30_000);
+
+  it("preserves both inline Module map members and materializes their consumers", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(input: point[]) {",
+      "  export const mapped: point[] = for p in @input { @p }",
+      "}",
+      "instance A = M(input: [(1, 2), (3, 4)])",
+      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const request = buildRustEvaluationInput(fixture.elements, options);
+    const mapped = mappedEntriesFor(fixture);
+
+    expect(mapped.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 1]);
+    expect(mapped[0]!.occurrence.instancePath).toEqual(mapped[1]!.occurrence.instancePath);
+    expect(new Set(mapped.map((entry) => geometryValueOccurrenceKey(entry.occurrence))).size).toBe(2);
+    expect(mappedMemberIndicesFor(fixture, request, "Use", "startPoint")).toEqual([0]);
+    expect(mappedMemberIndicesFor(fixture, request, "Use", "endPoint")).toEqual([1]);
+
+    const payload = await rustStdio.evaluate(fixture.elements, options);
+    const result = evaluationPayloadToResult(payload);
+    expect(result.errors).toEqual([]);
+    for (const [entry, point] of mapped.map((entry, index) => [entry, [[1, 2], [3, 4]][index]!] as const)) {
+      const raw = rawEntryForOccurrence(payload, entry.occurrence);
+      expect(raw.occurrence).toEqual(entry.occurrence);
+      expect(raw.value).toMatchObject({ kind: "point", x: point[0], y: point[1] });
+      expect(result.computedGeometryValues.get(geometryValueOccurrenceKey(entry.occurrence))?.value)
+        .toMatchObject({ kind: "point", x: point[0], y: point[1] });
+    }
+    expect(geometryFor(fixture, payload, "Use")).toMatchObject({
+      kind: "line",
+      start: { x: 1, y: 2 },
+      end: { x: 3, y: 4 }
+    });
+  }, 30_000);
+
+  it("keeps an unrelated scalar declaration inert for inline Module maps", async () => {
+    const source = [
+      "nui 1",
+      "module M(input: point[]) {",
+      "  export const mapped: point[] = for p in @input { @p }",
+      "}",
+      "instance A = M(input: [(1, 2), (3, 4)])",
+      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+    ];
+    const withoutScalar = fixtureFromSource(source.join("\n"));
+    const withScalarCompiled = compileCanonicalText(
+      withoutScalar.compiled!,
+      [...source, "const unused: number = 99"].join("\n")
+    );
+    if (withScalarCompiled.status === "fatal") throw new Error("scalar variant failed to compile");
+    const withScalar: EvaluationFixture = {
+      elements: withScalarCompiled.doc.document.elements,
+      evaluationLimitIndex: withScalarCompiled.doc.document.evaluationLimitIndex,
+      compiled: withScalarCompiled
+    };
+    const withoutOptions = optionsFor(withoutScalar);
+    const withOptions = optionsFor(withScalar);
+    const withoutRequest = buildRustEvaluationInput(withoutScalar.elements, withoutOptions);
+    const withRequest = buildRustEvaluationInput(withScalar.elements, withOptions);
+
+    expect(Object.hasOwn(withoutRequest, "scalarProgram")).toBe(false);
+    expect(Object.hasOwn(withoutRequest, "bindingVersions")).toBe(false);
+    expect(Object.hasOwn(withRequest, "scalarProgram")).toBe(false);
+    expect(Object.hasOwn(withRequest, "bindingVersions")).toBe(true);
+    expect(mappedEntriesFor(withScalar).map((entry) => entry.occurrence))
+      .toEqual(mappedEntriesFor(withoutScalar).map((entry) => entry.occurrence));
+
+    const withoutPayload = await rustStdio.evaluate(withoutScalar.elements, withoutOptions);
+    const withPayload = await rustStdio.evaluate(withScalar.elements, withOptions);
+    const withoutResult = evaluationPayloadToResult(withoutPayload);
+    const withResult = evaluationPayloadToResult(withPayload);
+    const withoutMapped = mappedEntriesFor(withoutScalar).map((entry) =>
+      withoutResult.computedGeometryValues.get(geometryValueOccurrenceKey(entry.occurrence))?.value
+    );
+    const withMapped = mappedEntriesFor(withScalar).map((entry) =>
+      withResult.computedGeometryValues.get(geometryValueOccurrenceKey(entry.occurrence))?.value
+    );
+
+    expect(withoutResult.errors).toEqual([]);
+    expect(withResult.errors).toEqual([]);
+    expect(withMapped).toEqual(withoutMapped);
+    expect(lineEndpointsFor(withScalar, withPayload, "Use")).toEqual(
+      lineEndpointsFor(withoutScalar, withoutPayload, "Use")
+    );
+  }, 30_000);
+
+  it("produces equivalent mapped geometry for named and inline point collections", async () => {
+    const moduleLines = [
+      "module M(input: point[]) {",
+      "  export const mapped: point[] = for p in @input { @p }",
+      "}"
+    ];
+    const inputPoints = "[(1, 2), (3, 4)]";
+    const inline = fixtureFromSource([
+      "nui 1",
+      ...moduleLines,
+      `instance A = M(input: ${inputPoints})`,
+      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+    ].join("\n"));
+    const named = fixtureFromSource([
+      "nui 1",
+      ...moduleLines,
+      `const points: point[] = ${inputPoints}`,
+      "instance A = M(input: @points)",
+      "line Use = segment(start: @A::mapped[0], end: @A::mapped[1])"
+    ].join("\n"));
+    const inlinePayload = await evaluateRust(inline);
+    const namedPayload = await evaluateRust(named);
+    const inlineResult = evaluationPayloadToResult(inlinePayload);
+    const namedResult = evaluationPayloadToResult(namedPayload);
+    const inlineValues = mappedEntriesFor(inline).map((entry) =>
+      inlineResult.computedGeometryValues.get(geometryValueOccurrenceKey(entry.occurrence))?.value
+    );
+    const namedValues = mappedEntriesFor(named).map((entry) =>
+      namedResult.computedGeometryValues.get(geometryValueOccurrenceKey(entry.occurrence))?.value
+    );
+
+    expect(inlineResult.errors).toEqual([]);
+    expect(namedResult.errors).toEqual([]);
+    expect(inlineValues).toEqual(namedValues);
+    expect(lineEndpointsFor(inline, inlinePayload, "Use")).toEqual(
+      lineEndpointsFor(named, namedPayload, "Use")
+    );
+  }, 30_000);
+
+  it("preserves sibling and nested Module mapped occurrence identities", async () => {
+    const siblings = fixtureFromSource([
+      "nui 1",
+      "module M(input: point[]) {",
+      "  export const mapped: point[] = for p in @input { @p }",
+      "}",
+      "instance A = M(input: [(1, 2)])",
+      "instance B = M(input: [(3, 4)])",
+      "line UseA = segment(start: @A::mapped[0], end: (10, 20))",
+      "line UseB = segment(start: @B::mapped[0], end: (10, 20))"
+    ].join("\n"));
+    const siblingOptions = optionsFor(siblings);
+    const siblingRequest = buildRustEvaluationInput(siblings.elements, siblingOptions);
+    const siblingEntries = mappedEntriesFor(siblings);
+    const useAOccurrence = occurrenceForMappedTarget(
+      geometryInputTargetsFor(siblings, siblingRequest, "UseA", "startPoint")
+    );
+    const useBOccurrence = occurrenceForMappedTarget(
+      geometryInputTargetsFor(siblings, siblingRequest, "UseB", "startPoint")
+    );
+
+    expect(siblingEntries).toHaveLength(2);
+    expect(siblingEntries.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 0]);
+    expect(useAOccurrence.instancePath).not.toEqual(useBOccurrence.instancePath);
+    expect(siblingEntries.map((entry) => entry.occurrence).sort((left, right) =>
+      geometryValueOccurrenceKey(left).localeCompare(geometryValueOccurrenceKey(right))
+    )).toEqual([useAOccurrence, useBOccurrence].sort((left, right) =>
+      geometryValueOccurrenceKey(left).localeCompare(geometryValueOccurrenceKey(right))
+    ));
+
+    const siblingPayload = await rustStdio.evaluate(siblings.elements, siblingOptions);
+    const siblingResult = evaluationPayloadToResult(siblingPayload);
+    expect(siblingResult.errors).toEqual([]);
+    for (const [occurrence, point] of [[useAOccurrence, [1, 2]], [useBOccurrence, [3, 4]]] as const) {
+      expect(rawEntryForOccurrence(siblingPayload, occurrence).occurrence).toEqual(occurrence);
+      expect(siblingResult.computedGeometryValues.get(geometryValueOccurrenceKey(occurrence))?.value)
+        .toMatchObject({ kind: "point", x: point[0], y: point[1] });
+    }
+    expect(geometryFor(siblings, siblingPayload, "UseA")).toMatchObject({
+      kind: "line", start: { x: 1, y: 2 }, end: { x: 10, y: 20 }
+    });
+    expect(geometryFor(siblings, siblingPayload, "UseB")).toMatchObject({
+      kind: "line", start: { x: 3, y: 4 }, end: { x: 10, y: 20 }
+    });
+
+    const nested = fixtureFromSource([
+      "nui 1",
+      "module MapPoints(input: point[]) {",
+      "  export const mapped: point[] = for p in @input { @p }",
+      "}",
+      "module Wrapper(input: point[]) {",
+      "  instance Inner = MapPoints(input: @input)",
+      "  line Use = segment(start: @Inner::mapped[0], end: (10, 20))",
+      "}",
+      "instance A = Wrapper(input: [(5, 6)])",
+    ].join("\n"));
+    const nestedOptions = optionsFor(nested);
+    const nestedRequest = buildRustEvaluationInput(nested.elements, nestedOptions);
+    const nestedEntries = mappedEntriesFor(nested);
+    const nestedOccurrence = nestedEntries.find((entry) => entry.occurrence.instancePath.length > 1)?.occurrence;
+    expect(nestedOccurrence).toBeDefined();
+    expect(nestedOccurrence!.mappedMemberIndex).toBe(0);
+    expect(nestedRequest.geometryValueProgram
+      ?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined)
+      .map((entry) => entry.occurrence)).toEqual(nestedEntries.map((entry) => entry.occurrence));
+
+    const nestedPayload = await rustStdio.evaluate(nested.elements, nestedOptions);
+    const nestedResult = evaluationPayloadToResult(nestedPayload);
+    expect(nestedResult.errors).toEqual([]);
+    expect(rawEntryForOccurrence(nestedPayload, nestedOccurrence!).occurrence).toEqual(nestedOccurrence);
+    expect(nestedResult.computedGeometryValues.get(geometryValueOccurrenceKey(nestedOccurrence!))?.value)
+      .toMatchObject({ kind: "point", x: 5, y: 6 });
+    const wrapperInstance = nested.elements.find((element) => element.name === "A");
+    expect(wrapperInstance).toBeDefined();
+    expect(nestedResult.instanceBaseGeometry.get(wrapperInstance!.id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "line",
+        start: expect.objectContaining({ x: 5, y: 6 }),
+        end: expect.objectContaining({ x: 10, y: 20 })
+      })
+    ]));
+  }, 60_000);
+
+  it("keeps genuine unavailable scalar lookups explicit without a resolver payload", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const index: number = 0",
+      "module M(input: point[], delta: number) {",
+      "  export const mapped: point[] = for p in @input { coordinate(x: @p.x + @delta, y: @p.y) }",
+      "}",
+      "instance A = M(input: [(1, 2)], delta: 3)",
+      "line MapUse = segment(start: @A::mapped[0], end: (10, 20))",
+      "line IndexedUse = segment(start: @A::mapped[@index], end: (10, 20))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(options.scalarProgram ?? options.bindingVersions).toBeDefined();
+    const optionsWithoutScalarContext = { ...options };
+    delete optionsWithoutScalarContext.scalarProgram;
+    delete optionsWithoutScalarContext.bindingVersions;
+    const request = buildRustEvaluationInput(fixture.elements, optionsWithoutScalarContext);
+    expect(request.scalarProgram).toBeUndefined();
+    expect(request.bindingVersions).toBeUndefined();
+
+    const payload = await rustStdio.evaluate(fixture.elements, optionsWithoutScalarContext);
+    const result = evaluationPayloadToResult(payload);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining("evaluation-binding-unavailable") })
+    ]));
+    expect(geometryFor(fixture, payload, "MapUse")).toBeUndefined();
+    expect(geometryFor(fixture, payload, "IndexedUse")).toBeUndefined();
   }, 30_000);
 });
