@@ -5,6 +5,7 @@ import { evaluateElements } from "../geometry/evaluate";
 import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
+import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 
 const compileWithIds = (source: string, prefix = "task7") => {
   const parsed = parseDsl(source);
@@ -30,6 +31,21 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
     scalarExecutionPositionByElementId: compiled.scalarExecutionPositionByRuntimeElementId,
+    forGroupMutationOwnerByElementId: compiled.bindingVersions
+      ? new Map([
+          ...forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
+            compiled.bindingVersions,
+            elements,
+            compiled.statementMap.byElementId,
+            compiled.statementMap.statementIdByStatementIndex,
+            new Set(compiled.moduleForGroupExecutionOwnerByElementId
+              ? [...compiled.moduleForGroupExecutionOwnerByElementId.values()].map((owner) => owner.ownerStatementId)
+              : [])
+          )),
+          ...(compiled.moduleForGroupExecutionOwnerByElementId ? [...compiled.moduleForGroupExecutionOwnerByElementId] : [])
+        ])
+      : undefined,
+    moduleForGroupExecutionOwnerByElementId: compiled.moduleForGroupExecutionOwnerByElementId,
     propertyBindingEntries: compiled.scalarProgram && compiled.propertyBindings
       ? buildPropertyBindingRuntimeEntries({
           propertyBindings: compiled.propertyBindings,
@@ -59,6 +75,35 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module geometry runtime", () => {
+  it("preserves geometry collection identity and exact element type in a Module loop", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  point A = coordinate(x: 0, y: 0)",
+      "  point B = coordinate(x: 2, y: 0)",
+      "  const items: point[] = [@A, @B]",
+      "  for item in @items {",
+      "    point Mark = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"), "module-geometry-collection-for-group");
+    expectValid(compiled);
+    const loop = compiled.document!.elements.find((element) => element.type === "forGroup");
+    expect(loop).toMatchObject({
+      iterationSourceValueId: expect.any(String),
+      iterationSourceOrder: expect.any(Number),
+      iterationElementValueType: { kind: "point" }
+    });
+    if (!loop || loop.type !== "forGroup") throw new Error("expected a materialized Module collection loop");
+    expect(loop).not.toHaveProperty("iterationElementType");
+    expect(compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId?.has(loop.iterationSourceValueId!)).toBe(true);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop.id)).toHaveLength(2);
+  });
+
   it("selects conditional geometry collections for length, indexed, and whole-list consumers", () => {
     const compiled = compileWithIds([
       "nui 1",

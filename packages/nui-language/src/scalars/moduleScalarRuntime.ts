@@ -31,7 +31,6 @@ import type {
   GeometryValueProgramTarget
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
-import { isDslOptionalValueType } from "../dsl/dslValueTypes";
 import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputCollectionNode, GeometryInputTarget, PointAnchor } from "../types/geometry";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
@@ -83,12 +82,15 @@ import {
   recordFieldCollectionValueIdFor
 } from "./recordScalarLowering";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
-import { isDslGeometryValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslValueType } from "../dsl/dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
 import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 import type { GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
+import { immutableCarryCollectionValueId } from "./immutableCarryCompiler";
 import { scanScalarLiteral } from "./literalScanner";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import { optionalMatchBinderId } from "./optionalMatchBinder";
+import { parseDslSourceReference } from "../dsl/dslReferenceTokens";
+import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 
 const optionalCollectionMatchBinderType = (scrutinee: TypedScalarExpression): ScalarType | null =>
   scrutinee.type?.kind === "optional" ? scalarTypeOfDslValueType(scrutinee.type.valueType) : null;
@@ -124,6 +126,13 @@ export type MaterializedTextTemplateSource = {
   template: TextTemplateAst;
 };
 
+export type MaterializedForGroupCollectionSource = {
+  iterationSourceValueId: string;
+  iterationSourceOrder: number;
+  iterationElementValueType: DslNonArrayValueType;
+  iterationElementType?: ScalarType;
+};
+
 export type ModuleScalarRuntimeCompilation = {
   bindingAnalysis: BindingAnalysis;
   scalarProgram: ScalarProgram;
@@ -133,6 +142,7 @@ export type ModuleScalarRuntimeCompilation = {
   materializedPropertyBindings: readonly MaterializedPropertyBindingSource[];
   materializedNumericBindings: readonly MaterializedNumericBindingSource[];
   materializedTextTemplates: readonly MaterializedTextTemplateSource[];
+  materializedForGroupCollectionSourcesByElementId: ReadonlyMap<ElementId, MaterializedForGroupCollectionSource>;
   materializedConditionalGroupConditions: readonly { elementId: ElementId; expression: TypedScalarExpression }[];
   conditionalOwnerStatementIdByElementId: ReadonlyMap<ElementId, string>;
   forGroupMutationOwnerByElementId: ReadonlyMap<ElementId, Extract<BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
@@ -2401,7 +2411,7 @@ export const compileModuleScalarRuntime = ({
         id: moduleIterationIdFor(path, body.statementId),
         declarationVersionId: moduleIterationIdFor(path, body.statementId),
         name: sourceSlot?.name ?? "",
-        type: { kind: "number" },
+        type: scalarTypeOfDslValueType(sourceSlot?.valueType ?? null) ?? { kind: "number" },
         bindingKind: "const",
         sourceScopeId,
         scopeId: moduleScopeIdFor(path, sourceScopeId),
@@ -5883,6 +5893,46 @@ export const compileModuleScalarRuntime = ({
       ...foreignCollectionValues
     ]
   });
+  const materializedCollectionValueIds = new Set([
+    ...(scalarProgram.collectionValues ?? []).map((value) => value.valueId),
+    ...geometryCollectionNodesByValueId.keys()
+  ]);
+  const materializedForGroupCollectionSourcesByElementId = new Map<ElementId, MaterializedForGroupCollectionSource>();
+  for (const entry of moduleMaterialization.executionStatements) {
+    if (entry.type !== "forGroup" || entry.runtimeIdentity?.kind !== "moduleBody") continue;
+    const context = contextsByKey.get(pathKey(entry.runtimeInstancePath ?? entry.instancePath));
+    if (!context || !contextIsReachable(context)) continue;
+    const body = context.definition.bodyStatements.find((candidate) => candidate.statementId === entry.sourceStatementId);
+    if (!body || !moduleBodyStatementIsReachable(context, body)) continue;
+    if (entry.statement.kind !== "element" || entry.statement.type !== "forGroup" || !entry.statement.forSource) continue;
+
+    const parsedSource = parseDslSourceReference(entry.statement.forSource);
+    if (parsedSource.kind !== "valid") continue;
+    const sourceNamespace = sourceNamespaceForContext(context);
+    if (!sourceNamespace) continue;
+    const lookup = resolveSourceLexicalPath(sourceNamespace, entry.sourceStatementIndex, parsedSource.reference.path);
+    if (lookup.kind !== "resolved") continue;
+    const declaration = lookup.declaration;
+    const valueType = declaration.statement.kind === "typedDeclaration"
+      ? declaration.statement.valueType
+      : declaration.kind === "carry" && declaration.statement.kind === "element"
+        ? declaration.statement.forCarries?.find((carry) => carry.name === declaration.name)?.valueType ?? null
+        : null;
+    if (!isDslArrayValueType(valueType)) continue;
+
+    const sourceValueId = declaration.kind === "carry"
+      ? immutableCarryCollectionValueId(`binding:${declaration.statementId}`)
+      : declaration.statementId;
+    const iterationSourceValueId = collectionValueIdFor(sourceValueId, context);
+    if (!materializedCollectionValueIds.has(iterationSourceValueId)) continue;
+    const iterationElementType = scalarTypeOfDslValueType(valueType.elementType);
+    materializedForGroupCollectionSourcesByElementId.set(entry.runtimeElementId, {
+      iterationSourceValueId,
+      iterationSourceOrder: executionPositionForValue(context.path, declaration.statementIndex),
+      iterationElementValueType: valueType.elementType,
+      ...(iterationElementType ? { iterationElementType } : {})
+    });
+  }
   const sourceOrderByStatementIndex = new Map(eventOrderByStatementIndex);
   let nextSourceOrder = events.length;
   for (let statementIndex = statements.length - 1; statementIndex >= 0; statementIndex -= 1) {
@@ -6195,6 +6245,7 @@ export const compileModuleScalarRuntime = ({
     materializedPropertyBindings,
     materializedNumericBindings,
     materializedTextTemplates,
+    materializedForGroupCollectionSourcesByElementId,
     materializedConditionalGroupConditions,
     conditionalOwnerStatementIdByElementId,
     forGroupMutationOwnerByElementId,
