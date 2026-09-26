@@ -1,4 +1,5 @@
 import type { GeometryValueOccurrence } from "../types/geometry";
+import type { GeometryInputTarget } from "../types/geometry";
 import type {
   ScalarExpressionResolvedGeometryTarget,
   TypedScalarExpression
@@ -17,7 +18,7 @@ import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
 export type GeometryValueProgramPoint =
   | {
       kind: "target";
-      target: ScalarExpressionResolvedGeometryTarget;
+      target: GeometryValueProgramTarget;
     }
   | {
       kind: "coordinate";
@@ -27,8 +28,18 @@ export type GeometryValueProgramPoint =
 
 export type GeometryValueProgramPath = {
   kind: "target";
-  target: ScalarExpressionResolvedGeometryTarget;
+  target: GeometryValueProgramTarget;
 };
+
+/** An indexed collection target keeps the canonical, compiler-resolved member
+ * identities and typed index together until evaluation selects a member. */
+export type GeometryValueProgramTarget =
+  | ScalarExpressionResolvedGeometryTarget
+  | {
+      kind: "geometryInputTarget";
+      target: Extract<GeometryInputTarget, { kind: "collectionIndex" }>;
+      geometryType: "point" | "line";
+    };
 
 export type GeometryValueProgramPlacement = {
   kind: "distance" | "ratio";
@@ -179,7 +190,7 @@ export type GeometryValueProgramNode =
   | { kind: "none" }
   | {
       kind: "reference";
-      target: ScalarExpressionResolvedGeometryTarget;
+      target: GeometryValueProgramTarget;
     }
   | {
       kind: "coalesce";
@@ -584,7 +595,7 @@ export const buildRootGeometryValueProgram = ({
 
   const targetForReference = (reference: ModuleGeometryReferenceSemantic): ScalarExpressionResolvedGeometryTarget | undefined => {
     const lowered = reference.expectedGeometryKind === "point" ? pointForReference(reference) : pathForReference(reference);
-    return lowered?.kind === "target" ? lowered.target : undefined;
+    return lowered?.kind === "target" && lowered.target.kind !== "geometryInputTarget" ? lowered.target : undefined;
   };
 
   const lowerExpression = (

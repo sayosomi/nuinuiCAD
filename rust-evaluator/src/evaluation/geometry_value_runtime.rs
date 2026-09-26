@@ -52,7 +52,30 @@ pub(crate) enum GeometryValuePoint {
         x: Box<TypedScalarExpression>,
         y: Box<TypedScalarExpression>,
     },
-    Target(super::scalars::ScalarExpressionResolvedGeometryTarget),
+    Target(GeometryValueProgramTarget),
+}
+
+#[derive(Debug)]
+pub(crate) enum GeometryValueProgramTarget {
+    Resolved(super::scalars::ScalarExpressionResolvedGeometryTarget),
+    CollectionIndex {
+        target: Box<GeometryInputTarget>,
+        geometry_type: String,
+    },
+}
+
+impl GeometryValueProgramTarget {
+    fn is_point(&self) -> bool {
+        match self {
+            Self::Resolved(target) => {
+                matches!(
+                    target.geometry_type,
+                    super::scalars::GeometryInterfaceType::Point
+                )
+            }
+            Self::CollectionIndex { geometry_type, .. } => geometry_type == "point",
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -79,7 +102,7 @@ pub(crate) struct GeometryValueMatchArm {
 pub(crate) enum GeometryValueConstruction {
     None,
     Reference {
-        target: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        target: GeometryValueProgramTarget,
     },
     Coalesce {
         left: Box<GeometryValueConstruction>,
@@ -114,36 +137,36 @@ pub(crate) enum GeometryValueConstruction {
         placement: GeometryValuePlacement,
     },
     OnLine {
-        line: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        line: GeometryValueProgramTarget,
         endpoint_key: String,
         placement: GeometryValuePlacement,
     },
     Intersection {
-        line1: super::scalars::ScalarExpressionResolvedGeometryTarget,
-        line2: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        line1: GeometryValueProgramTarget,
+        line2: GeometryValueProgramTarget,
         index: Box<TypedScalarExpression>,
         extensions: Box<TypedScalarExpression>,
     },
     CommonTangent {
-        first: super::scalars::ScalarExpressionResolvedGeometryTarget,
-        second: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        first: GeometryValueProgramTarget,
+        second: GeometryValueProgramTarget,
         tangent_kind: Box<TypedScalarExpression>,
         side: Box<TypedScalarExpression>,
     },
     TangentOffset {
-        line: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        line: GeometryValueProgramTarget,
         base: Box<GeometryValuePoint>,
         angle_deg: Option<Box<TypedScalarExpression>>,
         curve_side: Option<Box<TypedScalarExpression>>,
         distance: Box<TypedScalarExpression>,
     },
     BezierExtremePoint {
-        source: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        source: GeometryValueProgramTarget,
         segment_index: Box<TypedScalarExpression>,
         direction: Box<TypedScalarExpression>,
     },
     BezierBulgePoint {
-        source: super::scalars::ScalarExpressionResolvedGeometryTarget,
+        source: GeometryValueProgramTarget,
         segment_index: Box<TypedScalarExpression>,
     },
     Segment {
@@ -183,14 +206,14 @@ pub(crate) enum GeometryValueConstruction {
         closed: Box<TypedScalarExpression>,
     },
     OffsetPath {
-        sources: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+        sources: Vec<GeometryValueProgramTarget>,
         distance: Box<TypedScalarExpression>,
         side: Box<TypedScalarExpression>,
         closed: Box<TypedScalarExpression>,
         suppress_trim_warnings: Box<TypedScalarExpression>,
     },
     JoinedPath {
-        paths: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+        paths: Vec<GeometryValueProgramTarget>,
         closed: Box<TypedScalarExpression>,
     },
     TransformCopy {
@@ -199,12 +222,12 @@ pub(crate) enum GeometryValueConstruction {
         scale: Box<TypedScalarExpression>,
         angle_deg: Box<TypedScalarExpression>,
         mirror_x: Box<TypedScalarExpression>,
-        base_lines: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+        base_lines: Vec<GeometryValueProgramTarget>,
     },
     MirrorCopy {
         axis1: Box<GeometryValuePoint>,
         axis2: Box<GeometryValuePoint>,
-        base_lines: Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>,
+        base_lines: Vec<GeometryValueProgramTarget>,
     },
 }
 
@@ -219,6 +242,11 @@ pub(crate) struct GeometryValueProgramEntry {
     pub(crate) execution_position: f64,
     pub(crate) lazy: bool,
     pub(crate) construction: GeometryValueConstruction,
+}
+
+struct GeometryValueProgramEntryView<'a> {
+    declared_interface_type: &'a str,
+    occurrence: &'a GeometryValueOccurrence,
 }
 
 pub(crate) fn decode_geometry_value_program(
@@ -298,6 +326,48 @@ fn occurrence(value: &Value, context: &str) -> Result<GeometryValueOccurrence, S
     })
 }
 
+fn decode_program_target(value: &Value) -> Result<Option<GeometryValueProgramTarget>, String> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let target_object = object(value, "geometry value program target")?;
+    if target_object.get("kind").and_then(Value::as_str) == Some("geometryInputTarget") {
+        if let Some(field) = target_object
+            .keys()
+            .find(|field| !["kind", "target", "geometryType"].contains(&field.as_str()))
+        {
+            return Err(format!(
+                "geometry value program target.{field} is not supported"
+            ));
+        }
+        let geometry_type = string_field(
+            target_object,
+            "geometryType",
+            "geometry value program target",
+        )?;
+        if geometry_type != "point" && geometry_type != "line" {
+            return Err("geometry value program target geometryType is unsupported".to_owned());
+        }
+        let target = super::line_geometry_input::decode_target(
+            target_object
+                .get("target")
+                .ok_or_else(|| "geometry value program target is missing target".to_owned())?,
+            "geometry value program indexed target",
+        )
+        .map_err(|error| error.message)?;
+        if !matches!(target, GeometryInputTarget::CollectionIndex { .. }) {
+            return Err("geometry value program target must be a collectionIndex".to_owned());
+        }
+        return Ok(Some(GeometryValueProgramTarget::CollectionIndex {
+            target: Box::new(target),
+            geometry_type,
+        }));
+    }
+    super::scalars::decode_geometry_target_payload(value)
+        .map(|target| target.map(GeometryValueProgramTarget::Resolved))
+        .map_err(|error| format!("{error:?}"))
+}
+
 fn decode_point(value: &Value) -> Result<GeometryValuePoint, String> {
     let object = object(value, "geometry value point")?;
     match string_field(object, "kind", "geometry value point")?.as_str() {
@@ -320,7 +390,7 @@ fn decode_point(value: &Value) -> Result<GeometryValuePoint, String> {
             ),
         }),
         "target" => Ok(GeometryValuePoint::Target(
-            super::scalars::decode_geometry_target_payload(
+            decode_program_target(
                 object
                     .get("target")
                     .ok_or_else(|| "geometry value target is missing target".to_owned())?,
@@ -377,7 +447,7 @@ fn decode_target_list(
     construction_object: &serde_json::Map<String, Value>,
     name: &str,
     context: &str,
-) -> Result<Vec<super::scalars::ScalarExpressionResolvedGeometryTarget>, String> {
+) -> Result<Vec<GeometryValueProgramTarget>, String> {
     construction_object
         .get(name)
         .and_then(Value::as_array)
@@ -389,7 +459,7 @@ fn decode_target_list(
                 .as_object()
                 .and_then(|object| object.get("target"))
                 .unwrap_or(source);
-            super::scalars::decode_geometry_target_payload(target_payload)
+            decode_program_target(target_payload)
                 .map_err(|error| format!("{context} {name} source {index}: {error:?}"))?
                 .ok_or_else(|| format!("{context} {name} source {index} cannot be null"))
         })
@@ -479,7 +549,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
         match string_field(construction_object, "kind", "geometry value construction")?.as_str() {
             "none" => GeometryValueConstruction::None,
             "reference" => GeometryValueConstruction::Reference {
-                target: super::scalars::decode_geometry_target_payload(
+                target: decode_program_target(
                     construction_object
                         .get("target")
                         .ok_or_else(|| "geometry value reference is missing target".to_owned())?,
@@ -627,11 +697,9 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     return Err("geometry value onLine line must be a target".to_owned());
                 }
                 GeometryValueConstruction::OnLine {
-                    line: super::scalars::decode_geometry_target_payload(
-                        line_object.get("target").ok_or_else(|| {
-                            "geometry value onLine line is missing target".to_owned()
-                        })?,
-                    )
+                    line: decode_program_target(line_object.get("target").ok_or_else(|| {
+                        "geometry value onLine line is missing target".to_owned()
+                    })?)
                     .map_err(|error| format!("{error:?}"))?
                     .ok_or_else(|| "geometry value onLine line cannot be null".to_owned())?,
                     endpoint_key,
@@ -639,7 +707,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                 }
             }
             "intersection" => GeometryValueConstruction::Intersection {
-                line1: super::scalars::decode_geometry_target_payload(
+                line1: decode_program_target(
                     construction_object
                         .get("line1")
                         .and_then(|value| value.get("target"))
@@ -649,7 +717,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                 )
                 .map_err(|error| format!("{error:?}"))?
                 .ok_or_else(|| "geometry value intersection line1 cannot be null".to_owned())?,
-                line2: super::scalars::decode_geometry_target_payload(
+                line2: decode_program_target(
                     construction_object
                         .get("line2")
                         .and_then(|value| value.get("target"))
@@ -671,10 +739,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                 )?),
             },
             "commonTangent" => {
-                let target = |name: &str| -> Result<
-                    super::scalars::ScalarExpressionResolvedGeometryTarget,
-                    String,
-                > {
+                let target = |name: &str| -> Result<GeometryValueProgramTarget, String> {
                     let target_object = object(
                         construction_object.get(name).ok_or_else(|| {
                             format!("geometry value commonTangent is missing {name}")
@@ -691,11 +756,9 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                             "geometry value commonTangent {name} must be a target"
                         ));
                     }
-                    super::scalars::decode_geometry_target_payload(
-                        target_object.get("target").ok_or_else(|| {
-                            format!("geometry value commonTangent {name} is missing target")
-                        })?,
-                    )
+                    decode_program_target(target_object.get("target").ok_or_else(|| {
+                        format!("geometry value commonTangent {name} is missing target")
+                    })?)
                     .map_err(|error| format!("{error:?}"))?
                     .ok_or_else(|| format!("geometry value commonTangent {name} cannot be null"))
                 };
@@ -727,11 +790,9 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     return Err("geometry value tangentOffset line must be a target".to_owned());
                 }
                 GeometryValueConstruction::TangentOffset {
-                    line: super::scalars::decode_geometry_target_payload(
-                        line_object.get("target").ok_or_else(|| {
-                            "geometry value tangentOffset line is missing target".to_owned()
-                        })?,
-                    )
+                    line: decode_program_target(line_object.get("target").ok_or_else(|| {
+                        "geometry value tangentOffset line is missing target".to_owned()
+                    })?)
                     .map_err(|error| format!("{error:?}"))?
                     .ok_or_else(|| "geometry value tangentOffset line cannot be null".to_owned())?,
                     base: Box::new(decode_point(construction_object.get("base").ok_or_else(
@@ -774,11 +835,9 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     );
                 }
                 GeometryValueConstruction::BezierExtremePoint {
-                    source: super::scalars::decode_geometry_target_payload(
-                        source_object.get("target").ok_or_else(|| {
-                            "geometry value bezierExtremePoint source is missing target".to_owned()
-                        })?,
-                    )
+                    source: decode_program_target(source_object.get("target").ok_or_else(
+                        || "geometry value bezierExtremePoint source is missing target".to_owned(),
+                    )?)
                     .map_err(|error| format!("{error:?}"))?
                     .ok_or_else(|| {
                         "geometry value bezierExtremePoint source cannot be null".to_owned()
@@ -813,11 +872,9 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                     );
                 }
                 GeometryValueConstruction::BezierBulgePoint {
-                    source: super::scalars::decode_geometry_target_payload(
-                        source_object.get("target").ok_or_else(|| {
-                            "geometry value bezierBulgePoint source is missing target".to_owned()
-                        })?,
-                    )
+                    source: decode_program_target(source_object.get("target").ok_or_else(
+                        || "geometry value bezierBulgePoint source is missing target".to_owned(),
+                    )?)
                     .map_err(|error| format!("{error:?}"))?
                     .ok_or_else(|| {
                         "geometry value bezierBulgePoint source cannot be null".to_owned()
@@ -1068,7 +1125,7 @@ fn decode_entry(value: &Value) -> Result<GeometryValueProgramEntry, String> {
                             .as_object()
                             .and_then(|object| object.get("target"))
                             .unwrap_or(source);
-                        super::scalars::decode_geometry_target_payload(target_payload)
+                        decode_program_target(target_payload)
                             .map_err(|error| {
                                 format!("geometry value offsetPath source {index}: {error:?}")
                             })?
@@ -1245,9 +1302,25 @@ fn side_expression(
 }
 
 fn target_point(
-    target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
-    state: &EvaluationState,
+    target: &GeometryValueProgramTarget,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    source_order: f64,
 ) -> Option<(f64, f64)> {
+    let GeometryValueProgramTarget::Resolved(target) = target else {
+        let GeometryValueProgramTarget::CollectionIndex { target, .. } = target else {
+            return None;
+        };
+        let selected =
+            super::line_geometry_input::materialize_geometry_input_target_for_geometry_value(
+                target,
+                resolver,
+                state,
+                source_order,
+            )
+            .ok()?;
+        return point_from_input_target(&selected, state, None, None);
+    };
     if let Some(binder_id) = &target.geometry_value_binder_id {
         let source = state.geometry_value_binders.get(binder_id)?;
         return point_from_input_target(
@@ -1361,51 +1434,69 @@ fn point_from_geometry_value(
         .flatten()
 }
 
-fn target_geometry<'a>(
-    target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
-    state: &'a EvaluationState,
-) -> Option<&'a Value> {
+fn target_geometry(
+    target: &GeometryValueProgramTarget,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    source_order: f64,
+) -> Option<Value> {
+    let GeometryValueProgramTarget::Resolved(target) = target else {
+        let GeometryValueProgramTarget::CollectionIndex { target, .. } = target else {
+            return None;
+        };
+        let selected =
+            super::line_geometry_input::materialize_geometry_input_target_for_geometry_value(
+                target,
+                resolver,
+                state,
+                source_order,
+            )
+            .ok()?;
+        return super::line_geometry_input::resolve_geometry_input_target(state, &selected);
+    };
     if let Some(binder_id) = &target.geometry_value_binder_id {
         let source = state.geometry_value_binders.get(binder_id)?;
         return match source {
             GeometryInputTarget::Drawable { element_id, .. } => {
-                state.computed_geometry.get(element_id)
+                state.computed_geometry.get(element_id).cloned()
             }
             GeometryInputTarget::GeometryValue { occurrence, .. } => {
-                state.computed_geometry_values.get(occurrence)
+                state.computed_geometry_values.get(occurrence).cloned()
             }
             GeometryInputTarget::Coordinate { .. }
             | GeometryInputTarget::CollectionValue { .. }
             | GeometryInputTarget::GeometryValueMap { .. }
             | GeometryInputTarget::CollectionIndex { .. }
             | GeometryInputTarget::ForGroupOccurrence { .. } => {
-                state.computed_geometry.get(binder_id)
+                state.computed_geometry.get(binder_id).cloned()
             }
         };
     }
     if let Some(occurrence) = &target.geometry_value_occurrence {
-        state.computed_geometry_values.get(occurrence)
+        state.computed_geometry_values.get(occurrence).cloned()
     } else {
-        state.computed_geometry.get(&target.statement_id)
+        state.computed_geometry.get(&target.statement_id).cloned()
     }
 }
 
 fn copy_source_segments(
-    sources: &[super::scalars::ScalarExpressionResolvedGeometryTarget],
-    state: &EvaluationState,
+    sources: &[GeometryValueProgramTarget],
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    source_order: f64,
 ) -> Result<Vec<SourceSegment>, &'static str> {
     if sources.is_empty() {
         return Err("inputs are unavailable, non-line-like, or contain no segments");
     }
     let mut groups = Vec::with_capacity(sources.len());
     for source in sources {
-        let Some(geometry) = target_geometry(source, state) else {
+        let Some(geometry) = target_geometry(source, resolver, state, source_order) else {
             return Err("inputs are unavailable, non-line-like, or contain no segments");
         };
-        if !is_line_like_geometry(Some(geometry)) {
+        if !is_line_like_geometry(Some(&geometry)) {
             return Err("inputs are unavailable, non-line-like, or contain no segments");
         }
-        let segments = source_segments_for_geometry(geometry);
+        let segments = source_segments_for_geometry(&geometry);
         if segments.is_empty() {
             return Err("inputs are unavailable, non-line-like, or contain no segments");
         }
@@ -1417,16 +1508,79 @@ fn copy_source_segments(
         .ok_or("baseLines are not continuous in the specified order")
 }
 
+#[derive(PartialEq)]
+enum GeometryValueSourceIdentity {
+    Drawable(String),
+    GeometryValue(GeometryValueOccurrence),
+}
+
+fn geometry_input_target_source_identity(
+    target: &GeometryInputTarget,
+) -> Option<GeometryValueSourceIdentity> {
+    match target {
+        GeometryInputTarget::Drawable { element_id, .. } => {
+            Some(GeometryValueSourceIdentity::Drawable(element_id.clone()))
+        }
+        GeometryInputTarget::GeometryValue { occurrence, .. }
+        | GeometryInputTarget::GeometryValueMap { occurrence, .. } => Some(
+            GeometryValueSourceIdentity::GeometryValue(occurrence.clone()),
+        ),
+        GeometryInputTarget::Coordinate { .. }
+        | GeometryInputTarget::ForGroupOccurrence { .. }
+        | GeometryInputTarget::CollectionValue { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => None,
+    }
+}
+
+fn geometry_value_program_target_source_identity(
+    target: &GeometryValueProgramTarget,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
+) -> Option<GeometryValueSourceIdentity> {
+    match target {
+        GeometryValueProgramTarget::Resolved(target) => {
+            Some(match &target.geometry_value_occurrence {
+                Some(occurrence) => GeometryValueSourceIdentity::GeometryValue(occurrence.clone()),
+                None => GeometryValueSourceIdentity::Drawable(target.statement_id.clone()),
+            })
+        }
+        GeometryValueProgramTarget::CollectionIndex { target, .. } => {
+            let GeometryInputTarget::CollectionIndex { index, members, .. } = target.as_ref()
+            else {
+                return None;
+            };
+            let index = match evaluate_document_typed_expression(
+                index,
+                resolver,
+                state,
+                Some(source_order),
+            ) {
+                ScalarEvaluation::Ok {
+                    value: ScalarValue::Number(index),
+                    ..
+                } if index.is_finite() && index.fract() == 0.0 && index >= 0.0 => index as usize,
+                _ => return None,
+            };
+            members
+                .get(index)
+                .and_then(geometry_input_target_source_identity)
+        }
+    }
+}
+
 fn same_geometry_source(
-    left: &super::scalars::ScalarExpressionResolvedGeometryTarget,
-    right: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+    left: &GeometryValueProgramTarget,
+    right: &GeometryValueProgramTarget,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &EvaluationState,
+    source_order: f64,
 ) -> bool {
     match (
-        left.geometry_value_occurrence.as_ref(),
-        right.geometry_value_occurrence.as_ref(),
+        geometry_value_program_target_source_identity(left, resolver, state, source_order),
+        geometry_value_program_target_source_identity(right, resolver, state, source_order),
     ) {
         (Some(left), Some(right)) => left == right,
-        (None, None) => left.statement_id == right.statement_id,
         _ => false,
     }
 }
@@ -1568,7 +1722,7 @@ fn identity_free_geometry_value(geometry: &Value) -> Option<Value> {
 fn evaluate_point(
     point: &GeometryValuePoint,
     resolver: &dyn ScalarDocumentBindingResolver,
-    state: &EvaluationState,
+    state: &mut EvaluationState,
     source_order: f64,
 ) -> Option<(f64, f64)> {
     match point {
@@ -1576,7 +1730,7 @@ fn evaluate_point(
             number_expression(x, resolver, state, source_order)?,
             number_expression(y, resolver, state, source_order)?,
         )),
-        GeometryValuePoint::Target(target) => target_point(target, state),
+        GeometryValuePoint::Target(target) => target_point(target, resolver, state, source_order),
     }
 }
 
@@ -1867,11 +2021,40 @@ pub(crate) fn evaluate_geometry_value_entry(
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &mut EvaluationState,
 ) {
-    if entry.source_statement_id != entry.occurrence.source_statement_id {
+    evaluate_geometry_value_program_parts(
+        &entry.source_statement_id,
+        &entry.declared_interface_type,
+        &entry.occurrence,
+        entry.source_execution_position,
+        &entry.construction,
+        resolver,
+        state,
+    );
+}
+
+pub(crate) fn evaluate_geometry_value_program_parts(
+    source_statement_id: &str,
+    declared_interface_type: &str,
+    occurrence: &GeometryValueOccurrence,
+    source_execution_position: f64,
+    construction: &GeometryValueConstruction,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+) {
+    if source_statement_id != occurrence.source_statement_id {
         return;
     }
-    let source_order = entry.source_execution_position;
-    evaluate_geometry_value_node(&entry.construction, entry, resolver, state, source_order);
+    let entry = GeometryValueProgramEntryView {
+        declared_interface_type,
+        occurrence,
+    };
+    evaluate_geometry_value_node(
+        construction,
+        &entry,
+        resolver,
+        state,
+        source_execution_position,
+    );
 }
 
 pub(crate) fn evaluate_geometry_value_coalesce_left_at_path(
@@ -1901,13 +2084,17 @@ pub(crate) fn evaluate_geometry_value_coalesce_left_at_path(
         Some(node)
     }
 
+    let entry_view = GeometryValueProgramEntryView {
+        declared_interface_type: &entry.declared_interface_type,
+        occurrence: &entry.occurrence,
+    };
     let GeometryValueConstruction::Coalesce { left, .. } = node_at_path(&entry.construction, path)?
     else {
         return None;
     };
     evaluate_geometry_value_node(
         left,
-        entry,
+        &entry_view,
         resolver,
         state,
         entry.source_execution_position,
@@ -1921,23 +2108,18 @@ pub(crate) fn evaluate_geometry_value_coalesce_left_at_path(
 
 fn evaluate_geometry_value_node(
     construction: &GeometryValueConstruction,
-    entry: &GeometryValueProgramEntry,
+    entry: &GeometryValueProgramEntryView<'_>,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &mut EvaluationState,
     source_order: f64,
 ) {
     match construction {
         GeometryValueConstruction::None => {
-            state.computed_geometry_values.remove(&entry.occurrence);
+            state.computed_geometry_values.remove(entry.occurrence);
         }
         GeometryValueConstruction::Reference { target } => {
-            if entry.declared_interface_type == "point"
-                || matches!(
-                    target.geometry_type,
-                    super::scalars::GeometryInterfaceType::Point
-                )
-            {
-                let Some((x, y)) = target_point(target, state) else {
+            if entry.declared_interface_type == "point" || target.is_point() {
+                let Some((x, y)) = target_point(target, resolver, state, source_order) else {
                     append_geometry_value_error(
                         state,
                         entry,
@@ -1951,7 +2133,7 @@ fn evaluate_geometry_value_node(
                 );
                 return;
             }
-            let Some(geometry) = target_geometry(target, state) else {
+            let Some(geometry) = target_geometry(target, resolver, state, source_order) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -1959,7 +2141,7 @@ fn evaluate_geometry_value_node(
                 );
                 return;
             };
-            let Some(value) = identity_free_geometry_value(geometry) else {
+            let Some(value) = identity_free_geometry_value(&geometry) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -1975,7 +2157,7 @@ fn evaluate_geometry_value_node(
             evaluate_geometry_value_node(left, entry, resolver, state, source_order);
             if state
                 .computed_geometry_values
-                .contains_key(&entry.occurrence)
+                .contains_key(entry.occurrence)
             {
                 return;
             }
@@ -2042,7 +2224,7 @@ fn evaluate_geometry_value_node(
 
 fn evaluate_geometry_value_leaf(
     construction: &GeometryValueConstruction,
-    entry: &GeometryValueProgramEntry,
+    entry: &GeometryValueProgramEntryView<'_>,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &mut EvaluationState,
     source_order: f64,
@@ -2167,7 +2349,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            let Some(geometry) = target_geometry(line, state) else {
+            let Some(geometry) = target_geometry(line, resolver, state, source_order) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2175,7 +2357,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            if !is_line_like_geometry(Some(geometry)) {
+            if !is_line_like_geometry(Some(&geometry)) {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2191,7 +2373,7 @@ fn evaluate_geometry_value_leaf(
             let path_distance = match kind {
                 DivisionPlacementKind::Distance => value,
                 DivisionPlacementKind::Ratio => {
-                    let Some(length) = geometry_length(geometry) else {
+                    let Some(length) = geometry_length(&geometry) else {
                         append_geometry_value_error(
                             state,
                             entry,
@@ -2203,7 +2385,7 @@ fn evaluate_geometry_value_leaf(
                 }
             };
             let Some((x, y)) =
-                point_at_distance_from_endpoint(geometry, endpoint_key, path_distance)
+                point_at_distance_from_endpoint(&geometry, endpoint_key, path_distance)
             else {
                 append_geometry_value_error(
                     state,
@@ -2228,7 +2410,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            if same_geometry_source(line1, line2) {
+            if same_geometry_source(line1, line2, resolver, state, source_order) {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2236,7 +2418,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            let Some(geometry1) = target_geometry(line1, state) else {
+            let Some(geometry1) = target_geometry(line1, resolver, state, source_order) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2244,7 +2426,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            let Some(geometry2) = target_geometry(line2, state) else {
+            let Some(geometry2) = target_geometry(line2, resolver, state, source_order) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2252,7 +2434,8 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            if !is_line_like_geometry(Some(geometry1)) || !is_line_like_geometry(Some(geometry2)) {
+            if !is_line_like_geometry(Some(&geometry1)) || !is_line_like_geometry(Some(&geometry2))
+            {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2285,7 +2468,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            let Some(result) = find_line_intersections(geometry1, geometry2, extensions) else {
+            let Some(result) = find_line_intersections(&geometry1, &geometry2, extensions) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2326,8 +2509,8 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            let first_geometry = target_geometry(first, state).cloned();
-            let second_geometry = target_geometry(second, state).cloned();
+            let first_geometry = target_geometry(first, resolver, state, source_order);
+            let second_geometry = target_geometry(second, resolver, state, source_order);
             if first_geometry
                 .as_ref()
                 .and_then(|geometry| geometry.get("kind"))
@@ -2443,7 +2626,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            let Some(geometry) = target_geometry(line, state) else {
+            let Some(geometry) = target_geometry(line, resolver, state, source_order) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2451,7 +2634,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            if !is_line_like_geometry(Some(geometry)) {
+            if !is_line_like_geometry(Some(&geometry)) {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2511,7 +2694,7 @@ fn evaluate_geometry_value_leaf(
                 None
             };
             let result = tangent_offset_point_geometry_kernel(
-                geometry,
+                &geometry,
                 Point {
                     x: base.0,
                     y: base.1,
@@ -2546,7 +2729,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            let Some(geometry) = target_geometry(source, state) else {
+            let Some(geometry) = target_geometry(source, resolver, state, source_order) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -2653,7 +2836,7 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            let Some(geometry) = target_geometry(source, state) else {
+            let Some(geometry) = target_geometry(source, resolver, state, source_order) else {
                 append_geometry_value_error(
                     state,
                     entry,
@@ -3078,7 +3261,7 @@ fn evaluate_geometry_value_leaf(
             };
             let Some(geometries) = paths
                 .iter()
-                .map(|path| target_geometry(path, state).cloned())
+                .map(|path| target_geometry(path, resolver, state, source_order))
                 .collect::<Option<Vec<_>>>()
             else {
                 append_geometry_value_error(
@@ -3163,7 +3346,12 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             };
-            let source_segments = match copy_source_segments(base_lines, state) {
+            let source_segments = match copy_source_segments(
+                base_lines,
+                resolver,
+                state,
+                source_order,
+            ) {
                 Ok(segments) => segments,
                 Err(reason) => {
                     let message = if reason.contains("continuous") {
@@ -3244,7 +3432,12 @@ fn evaluate_geometry_value_leaf(
                 );
                 return;
             }
-            let source_segments = match copy_source_segments(base_lines, state) {
+            let source_segments = match copy_source_segments(
+                base_lines,
+                resolver,
+                state,
+                source_order,
+            ) {
                 Ok(segments) => segments,
                 Err(reason) => {
                     let message = if reason.contains("continuous") {
@@ -3297,7 +3490,7 @@ fn evaluate_geometry_value_leaf(
                 boolean_expression(suppress_trim_warnings, resolver, state, source_order);
             let base_geometries = sources
                 .iter()
-                .map(|source| target_geometry(source, state).cloned())
+                .map(|source| target_geometry(source, resolver, state, source_order))
                 .collect::<Option<Vec<_>>>();
             let Some((distance, side, closed, suppress_trim_warnings, base_geometries)) = distance
                 .zip(side)
@@ -3362,7 +3555,7 @@ fn evaluate_geometry_value_leaf(
 
 fn append_geometry_value_error(
     state: &mut EvaluationState,
-    entry: &GeometryValueProgramEntry,
+    entry: &GeometryValueProgramEntryView<'_>,
     message: &str,
 ) {
     state

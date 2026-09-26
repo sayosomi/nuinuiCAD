@@ -4194,6 +4194,8 @@ export const compileDslDocument = (
           resolvePropertyTarget: () => undefined,
           resolveBuiltinTarget: () => undefined,
           resolvePointReferenceList: () => null,
+          resolveGeometryCollectionIndexPoint: () => null,
+          resolveGeometryCollectionIndexLine: () => null,
           coordinateForReference: () => undefined
         }),
         geometryCollectionNodesByValueId

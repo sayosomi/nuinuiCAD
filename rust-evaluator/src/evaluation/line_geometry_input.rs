@@ -441,7 +441,7 @@ pub(crate) fn decode_collection_node(
     }
 }
 
-fn decode_target(
+pub(crate) fn decode_target(
     value: &Value,
     context: &str,
 ) -> Result<GeometryInputTarget, EvaluationCommandError> {
@@ -897,7 +897,7 @@ fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
 }
 
 fn materialize_collection_node(
-    node: GeometryInputCollectionNode,
+    node: &GeometryInputCollectionNode,
     resolver: Option<&dyn ScalarDocumentBindingResolver>,
     state: &mut EvaluationState,
     current_source_order: Option<f64>,
@@ -907,8 +907,8 @@ fn materialize_collection_node(
             Err("evaluation-collection-index-unavailable".to_owned())
         }
         GeometryInputCollectionNode::Leaf { targets } => targets
-            .into_iter()
-            .map(|target| materialize_target(target, resolver, state, current_source_order))
+            .iter()
+            .map(|target| materialize_target(target, resolver, state, current_source_order, false))
             .collect::<Result<Vec<_>, _>>()
             .map(|groups| groups.into_iter().flatten().collect()),
         GeometryInputCollectionNode::If {
@@ -920,14 +920,17 @@ fn materialize_collection_node(
             let Some(resolver) = resolver else {
                 return Err("evaluation-binding-unavailable".to_owned());
             };
-            let evaluation =
-                evaluate_document_typed_expression(&condition, resolver, state, Some(source_order));
-            match evaluation {
+            match evaluate_document_typed_expression(
+                condition,
+                resolver,
+                state,
+                Some(*source_order),
+            ) {
                 ScalarEvaluation::Ok {
                     value: ScalarValue::Boolean(value),
                     ..
                 } => materialize_collection_node(
-                    if value { *then_branch } else { *else_branch },
+                    if value { then_branch } else { else_branch },
                     Some(resolver),
                     state,
                     current_source_order,
@@ -946,9 +949,12 @@ fn materialize_collection_node(
             let Some(resolver) = resolver else {
                 return Err("evaluation-binding-unavailable".to_owned());
             };
-            let evaluation =
-                evaluate_document_typed_expression(&scrutinee, resolver, state, Some(source_order));
-            let label = match evaluation {
+            let label = match evaluate_document_typed_expression(
+                scrutinee,
+                resolver,
+                state,
+                Some(*source_order),
+            ) {
                 ScalarEvaluation::Ok {
                     value: ScalarValue::Choice { value, .. },
                     ..
@@ -959,7 +965,7 @@ fn materialize_collection_node(
                 }
             };
             let (_, branch) = arms
-                .into_iter()
+                .iter()
                 .find(|(candidate, _)| candidate == &label)
                 .ok_or_else(|| "evaluation-runtime-value-type-mismatch".to_owned())?;
             materialize_collection_node(branch, Some(resolver), state, current_source_order)
@@ -967,190 +973,286 @@ fn materialize_collection_node(
         GeometryInputCollectionNode::Coalesce {
             left_branch,
             right_branch,
-        } => match materialize_collection_node(*left_branch, resolver, state, current_source_order)
-        {
-            Ok(value) => Ok(value),
-            Err(_) => {
-                materialize_collection_node(*right_branch, resolver, state, current_source_order)
+        } => {
+            match materialize_collection_node(left_branch, resolver, state, current_source_order) {
+                Ok(value) => Ok(value),
+                Err(_) => {
+                    materialize_collection_node(right_branch, resolver, state, current_source_order)
+                }
             }
-        },
+        }
+    }
+}
+
+fn clone_static_geometry_input_target(
+    target: &GeometryInputTarget,
+) -> Result<GeometryInputTarget, String> {
+    match target {
+        GeometryInputTarget::Drawable {
+            element_id,
+            geometry_type,
+            point_key,
+            stage_path,
+        } => Ok(GeometryInputTarget::Drawable {
+            element_id: element_id.clone(),
+            geometry_type: geometry_type.clone(),
+            point_key: point_key.clone(),
+            stage_path: stage_path.clone(),
+        }),
+        GeometryInputTarget::GeometryValue {
+            occurrence,
+            geometry_type,
+            point_key,
+            stage_path,
+        } => Ok(GeometryInputTarget::GeometryValue {
+            occurrence: occurrence.clone(),
+            geometry_type: geometry_type.clone(),
+            point_key: point_key.clone(),
+            stage_path: stage_path.clone(),
+        }),
+        GeometryInputTarget::Coordinate { anchor } => Ok(GeometryInputTarget::Coordinate {
+            anchor: anchor.clone(),
+        }),
+        GeometryInputTarget::ForGroupOccurrence { .. }
+        | GeometryInputTarget::GeometryValueMap { .. }
+        | GeometryInputTarget::CollectionValue { .. }
+        | GeometryInputTarget::CollectionIndex { .. } => {
+            Err("evaluation-collection-index-unavailable".to_owned())
+        }
     }
 }
 
 fn materialize_target(
-    target: GeometryInputTarget,
+    target: &GeometryInputTarget,
     resolver: Option<&dyn ScalarDocumentBindingResolver>,
     state: &mut EvaluationState,
     current_source_order: Option<f64>,
+    allow_equal_source_order: bool,
 ) -> Result<Vec<GeometryInputTarget>, String> {
-    if let GeometryInputTarget::GeometryValueMap {
-        occurrence,
-        binder_id,
-        geometry_type,
-        point_key,
-        source,
-        program,
-        execution_position,
-        declared_interface_type,
-    } = target
-    {
-        let Some(resolver) = resolver else {
-            return Err("evaluation-binding-unavailable".to_owned());
-        };
-        let synthetic_coordinate = match source.as_ref() {
-            GeometryInputTarget::Coordinate { anchor } => anchor
-                .get("x")
-                .and_then(Value::as_f64)
-                .zip(anchor.get("y").and_then(Value::as_f64))
-                .map(|(x, y)| json!({ "kind": "point", "x": x, "y": y })),
-            _ => None,
-        };
-        if let Some(coordinate) = synthetic_coordinate {
-            state
-                .computed_geometry
-                .insert(binder_id.clone(), coordinate);
-        }
-        state
-            .geometry_value_binders
-            .insert(binder_id.clone(), *source);
-        let entry = super::geometry_value_runtime::GeometryValueProgramEntry {
-            source_statement_id: occurrence.source_statement_id.clone(),
-            source_statement_index: 0,
-            declared_interface_type,
-            occurrence: occurrence.clone(),
-            source_execution_position: execution_position,
-            execution_position,
-            lazy: false,
-            construction: *program,
-        };
-        super::geometry_value_runtime::evaluate_geometry_value_entry(&entry, resolver, state);
-        state.geometry_value_binders.remove(&binder_id);
-        state.computed_geometry.remove(&binder_id);
-        if !state.computed_geometry_values.contains_key(&occurrence) {
-            return Err("evaluation-geometry-value-unavailable".to_owned());
-        }
-        return Ok(vec![GeometryInputTarget::GeometryValue {
+    match target {
+        GeometryInputTarget::GeometryValueMap {
             occurrence,
+            binder_id,
             geometry_type,
             point_key,
-            stage_path: None,
-        }]);
-    }
-    if let GeometryInputTarget::ForGroupOccurrence {
-        template_element_id,
-        geometry_type,
-        point_key,
-        target_source_order,
-        index,
-    } = target
-    {
-        if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
-            return Err("evaluation-collection-index-unavailable".to_owned());
+            source,
+            program,
+            execution_position,
+            declared_interface_type,
+        } => {
+            let Some(resolver) = resolver else {
+                return Err("evaluation-binding-unavailable".to_owned());
+            };
+            let synthetic_coordinate = match source.as_ref() {
+                GeometryInputTarget::Coordinate { anchor } => anchor
+                    .get("x")
+                    .and_then(Value::as_f64)
+                    .zip(anchor.get("y").and_then(Value::as_f64))
+                    .map(|(x, y)| json!({ "kind": "point", "x": x, "y": y })),
+                _ => None,
+            };
+            if let Some(coordinate) = synthetic_coordinate {
+                state
+                    .computed_geometry
+                    .insert(binder_id.clone(), coordinate);
+            }
+            let binder_source = if matches!(
+                source.as_ref(),
+                GeometryInputTarget::ForGroupOccurrence { .. }
+            ) {
+                let mut targets =
+                    materialize_target(source, Some(resolver), state, current_source_order, false)?;
+                if targets.len() != 1 {
+                    return Err("evaluation-collection-index-invalid".to_owned());
+                }
+                targets.remove(0)
+            } else {
+                clone_static_geometry_input_target(source)?
+            };
+            state
+                .geometry_value_binders
+                .insert(binder_id.clone(), binder_source);
+            super::geometry_value_runtime::evaluate_geometry_value_program_parts(
+                &occurrence.source_statement_id,
+                declared_interface_type,
+                occurrence,
+                *execution_position,
+                program,
+                resolver,
+                state,
+            );
+            state.geometry_value_binders.remove(binder_id);
+            state.computed_geometry.remove(binder_id);
+            if !state.computed_geometry_values.contains_key(occurrence) {
+                return Err("evaluation-geometry-value-unavailable".to_owned());
+            }
+            Ok(vec![GeometryInputTarget::GeometryValue {
+                occurrence: occurrence.clone(),
+                geometry_type: geometry_type.clone(),
+                point_key: point_key.clone(),
+                stage_path: None,
+            }])
         }
-        let Some(resolver) = resolver else {
-            return Err("evaluation-binding-unavailable".to_owned());
-        };
-        let rows = state
-            .for_group_generated_rows
-            .iter()
-            .filter(|row| row.template_element_id == template_element_id)
-            .collect::<Vec<_>>();
-        let ordinal = if let Some(index) = index.as_deref() {
-            let evaluation =
-                evaluate_document_typed_expression(index, resolver, state, current_source_order);
-            match evaluation {
+        GeometryInputTarget::ForGroupOccurrence {
+            template_element_id,
+            geometry_type,
+            point_key,
+            target_source_order,
+            index,
+        } => {
+            if current_source_order.is_some_and(|source_order| *target_source_order >= source_order)
+            {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            }
+            let Some(resolver) = resolver else {
+                return Err("evaluation-binding-unavailable".to_owned());
+            };
+            let rows = state
+                .for_group_generated_rows
+                .iter()
+                .filter(|row| row.template_element_id == *template_element_id)
+                .collect::<Vec<_>>();
+            let ordinal = if let Some(index) = index.as_deref() {
+                match evaluate_document_typed_expression(
+                    index,
+                    resolver,
+                    state,
+                    current_source_order,
+                ) {
+                    ScalarEvaluation::Ok {
+                        value: ScalarValue::Number(value),
+                        ..
+                    } if value.is_finite() && value.fract() == 0.0 && value >= 0.0 => {
+                        value as usize
+                    }
+                    ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
+                    ScalarEvaluation::Ok { .. } => {
+                        return Err("evaluation-collection-index-invalid".to_owned())
+                    }
+                }
+            } else if rows.len() == 1 {
+                0
+            } else {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            };
+            let row = rows
+                .get(ordinal)
+                .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
+            if !state
+                .computed_geometry
+                .contains_key(&row.generated_element_id)
+            {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            }
+            Ok(vec![GeometryInputTarget::Drawable {
+                element_id: row.generated_element_id.clone(),
+                geometry_type: geometry_type.clone(),
+                point_key: point_key.clone(),
+                stage_path: None,
+            }])
+        }
+        GeometryInputTarget::CollectionValue {
+            collection_value_id: _collection_value_id,
+            target_source_order,
+            value,
+        } => {
+            if current_source_order.is_some_and(|source_order| *target_source_order >= source_order)
+            {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            }
+            materialize_collection_node(value, resolver, state, current_source_order)
+        }
+        GeometryInputTarget::CollectionIndex {
+            collection_value_id: _collection_value_id,
+            collection_length,
+            target_source_order,
+            index,
+            members,
+            value,
+        } => {
+            if current_source_order.is_some_and(|source_order| {
+                *target_source_order > source_order
+                    || (!allow_equal_source_order && *target_source_order == source_order)
+            }) {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            }
+            let Some(resolver) = resolver else {
+                return Err("evaluation-binding-unavailable".to_owned());
+            };
+            let index = match evaluate_document_typed_expression(
+                index,
+                resolver,
+                state,
+                current_source_order,
+            ) {
                 ScalarEvaluation::Ok {
-                    value: ScalarValue::Number(value),
+                    value: ScalarValue::Number(index),
                     ..
-                } if value.is_finite() && value.fract() == 0.0 && value >= 0.0 => value as usize,
-                ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
+                } if index.is_finite()
+                    && index.fract() == 0.0
+                    && index >= 0.0
+                    && collection_length.map_or(true, |length| index < length) =>
+                {
+                    index as usize
+                }
                 ScalarEvaluation::Ok { .. } => {
                     return Err("evaluation-collection-index-invalid".to_owned())
                 }
+                ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
+            };
+            let selected = if let Some(value) = value {
+                materialize_collection_node(value, Some(resolver), state, current_source_order)?
+                    .into_iter()
+                    .nth(index)
+            } else {
+                let member = members
+                    .get(index)
+                    .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
+                return materialize_target(
+                    member,
+                    Some(resolver),
+                    state,
+                    current_source_order,
+                    false,
+                );
             }
-        } else if rows.len() == 1 {
-            0
-        } else {
-            return Err("evaluation-collection-index-unavailable".to_owned());
-        };
-        let row = rows
-            .get(ordinal)
             .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
-        if !state
-            .computed_geometry
-            .contains_key(&row.generated_element_id)
-        {
-            return Err("evaluation-collection-index-unavailable".to_owned());
-        }
-        return Ok(vec![GeometryInputTarget::Drawable {
-            element_id: row.generated_element_id.clone(),
-            geometry_type,
-            point_key,
-            stage_path: None,
-        }]);
-    }
-    if let GeometryInputTarget::CollectionValue {
-        collection_value_id: _collection_value_id,
-        target_source_order,
-        value,
-    } = target
-    {
-        if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
-            return Err("evaluation-collection-index-unavailable".to_owned());
-        }
-        return materialize_collection_node(value, resolver, state, current_source_order);
-    }
-    let GeometryInputTarget::CollectionIndex {
-        collection_value_id: _collection_value_id,
-        collection_length,
-        target_source_order,
-        index,
-        members,
-        value,
-    } = target
-    else {
-        return Ok(vec![target]);
-    };
-    if current_source_order.is_some_and(|source_order| target_source_order >= source_order) {
-        return Err("evaluation-collection-index-unavailable".to_owned());
-    }
-    let Some(resolver) = resolver else {
-        return Err("evaluation-binding-unavailable".to_owned());
-    };
-    let evaluation =
-        evaluate_document_typed_expression(&index, resolver, state, current_source_order);
-    let index = match evaluation {
-        ScalarEvaluation::Ok {
-            value: ScalarValue::Number(index),
-            ..
-        } if index.is_finite()
-            && index.fract() == 0.0
-            && index >= 0.0
-            && collection_length.map_or(true, |length| index < length) =>
-        {
-            index as usize
-        }
-        ScalarEvaluation::Ok { .. } => return Err("evaluation-collection-index-invalid".to_owned()),
-        ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
-    };
-    let candidates = if let Some(value) = value {
-        materialize_collection_node(value, Some(resolver), state, current_source_order)?
-    } else {
-        members
-    };
-    let selected = candidates
-        .into_iter()
-        .nth(index)
-        .filter(|member| {
-            !matches!(
-                member,
+            if matches!(
+                selected,
                 GeometryInputTarget::CollectionIndex { .. }
+                    | GeometryInputTarget::CollectionValue { .. }
                     | GeometryInputTarget::GeometryValueMap { .. }
                     | GeometryInputTarget::ForGroupOccurrence { .. }
-            )
-        })
-        .ok_or_else(|| "evaluation-collection-index-invalid".to_owned())?;
-    Ok(vec![selected])
+            ) {
+                return Err("evaluation-collection-index-invalid".to_owned());
+            }
+            Ok(vec![selected])
+        }
+        _ => Ok(vec![clone_static_geometry_input_target(target)?]),
+    }
+}
+
+pub(crate) fn materialize_geometry_input_target_for_geometry_value(
+    target: &GeometryInputTarget,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    current_source_order: f64,
+) -> Result<GeometryInputTarget, String> {
+    // Compiler-resolved immutable aliases can share a dense runtime event
+    // position with their earlier collection declaration. The compiler has
+    // already validated authored dependency order, so permit equality only
+    // for this geometry-value program selection path.
+    let mut targets = materialize_target(
+        target,
+        Some(resolver),
+        state,
+        Some(current_source_order),
+        true,
+    )?;
+    if targets.len() != 1 {
+        return Err("evaluation-collection-index-invalid".to_owned());
+    }
+    Ok(targets.remove(0))
 }
 
 /// Resolves deferred geometry collection indexes at the same document/runtime
@@ -1189,8 +1291,8 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
     for (parameter_key, targets) in parameters {
         let target_count = targets.len();
         let materialized = targets
-            .into_iter()
-            .map(|target| materialize_target(target, resolver, state, current_source_order))
+            .iter()
+            .map(|target| materialize_target(target, resolver, state, current_source_order, false))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()

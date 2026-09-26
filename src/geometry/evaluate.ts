@@ -1074,10 +1074,88 @@ export const evaluateElements = (
     }
   };
 
-  const structuralPointForValueTarget = (target: Parameters<typeof resolveDocumentGeometryTarget>[1], sourceOrder: number): StructuralPoint | undefined => {
-    const geometry = resolveGeometryTargetForEvaluation(target, sourceOrder);
+  const resolveGeometryValueProgramTarget = (
+    target: import("@nuinuicad/nui-language").GeometryValueProgramTarget,
+    sourceOrder: number,
+    lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([])
+  ): GeometryBuiltinTargetLookupResult | undefined => {
+    if (target.kind !== "geometryInputTarget") return resolveGeometryTargetForEvaluation(target, sourceOrder, lookupBinding);
+    const contextElement = elements[0] ?? ({ id: "geometry-value-program", name: "Geometry value" } as CadElement);
+    const materialized = materializeGeometryInputTargets(
+      contextElement,
+      new Map([["geometry-value-program", target.target]]),
+      sourceOrder,
+      lookupBinding
+    );
+    const selected = materialized?.targets.get("geometry-value-program");
+    if (!selected || Array.isArray(selected)) return undefined;
+    const selectedTarget = selected as GeometryInputTarget;
+    if (selectedTarget.kind === "coordinate") {
+      const anchor = selectedTarget.anchor;
+      return anchor.mode === "coordinate" && typeof anchor.x === "number" && typeof anchor.y === "number"
+        ? { kind: "point", x: anchor.x, y: anchor.y }
+        : undefined;
+    }
+    if (selectedTarget.kind === "geometryValue") {
+      return resolveGeometryTargetForEvaluation({
+        kind: "geometryValue",
+        occurrence: selectedTarget.occurrence,
+        statementId: selectedTarget.occurrence.sourceStatementId,
+        statementIndex: sourceOrder,
+        geometryType: selectedTarget.geometryType,
+        ...(selectedTarget.pointKey ? { pointKey: selectedTarget.pointKey } : {})
+      }, sourceOrder, lookupBinding);
+    }
+    if (selectedTarget.kind === "drawable") {
+      return resolveGeometryTargetForEvaluation({
+        statementId: selectedTarget.elementId,
+        statementIndex: sourceOrder,
+        geometryType: selectedTarget.geometryType,
+        ...(selectedTarget.pointKey ? { pointKey: selectedTarget.pointKey } : {}),
+        ...(selectedTarget.stagePath ? { stagePath: selectedTarget.stagePath } : {})
+      }, sourceOrder, lookupBinding);
+    }
+    return undefined;
+  };
+
+  const structuralPointForValueTarget = (
+    target: import("@nuinuicad/nui-language").GeometryValueProgramTarget,
+    sourceOrder: number
+  ): StructuralPoint | undefined => {
+    const geometry = resolveGeometryValueProgramTarget(target, sourceOrder);
     if (!geometry || geometry.kind === "unavailable") return undefined;
     if (geometry.kind === "point") return { x: geometry.x, y: geometry.y };
+    return undefined;
+  };
+
+  const geometryValueProgramTargetIdentity = (
+    target: import("@nuinuicad/nui-language").GeometryValueProgramTarget,
+    sourceOrder: number
+  ): string | undefined => {
+    if (target.kind !== "geometryInputTarget") {
+      return target.kind === "geometryValue"
+        ? `geometryValue:${geometryValueOccurrenceKey(target.occurrence)}`
+        : `drawable:${target.statementId}`;
+    }
+    const index = target.target.index.kind === "numberLiteral"
+      ? target.target.index.value
+      : (() => {
+          const evaluation = evaluateOccurrenceIndexForEvaluation(
+            target.target.index,
+            sourceOrder,
+            scalarBindingLookupFor([])
+          );
+          return evaluation.status === "ok" && evaluation.value.kind === "number"
+            ? evaluation.value.value
+            : undefined;
+        })();
+    if (index === undefined || !Number.isInteger(index) || index < 0) return undefined;
+    const selected = target.target.members[index];
+    if (!selected) return undefined;
+    if (selected.kind === "drawable") return `drawable:${selected.elementId}`;
+    if (selected.kind === "geometryValue" || selected.kind === "geometryValueMap") {
+      return `geometryValue:${geometryValueOccurrenceKey(selected.occurrence)}`;
+    }
     return undefined;
   };
 
@@ -1109,7 +1187,7 @@ export const evaluateElements = (
       return;
     }
     if (entry.construction.kind === "reference") {
-      const geometry = resolveGeometryTargetForEvaluation(entry.construction.target, sourceOrder);
+      const geometry = resolveGeometryValueProgramTarget(entry.construction.target, sourceOrder);
       const value = geometry && geometry.kind !== "unavailable" ? identityFreeGeometryValue(geometry) : undefined;
       if (!value) {
         appendGeometryValueError(entry, "Geometry value reference is unavailable at runtime.");
@@ -1208,7 +1286,7 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
       }
-      const geometry = resolveGeometryTargetForEvaluation(entry.construction.line.target, sourceOrder);
+      const geometry = resolveGeometryValueProgramTarget(entry.construction.line.target, sourceOrder);
       const line = geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
       const placementValue = evaluateGeometryValueScalar(entry.construction.placement.value, sourceOrder);
       if (!line || placementValue === undefined) {
@@ -1231,18 +1309,15 @@ export const evaluateElements = (
       }
       const line1Target = entry.construction.line1.target;
       const line2Target = entry.construction.line2.target;
-      const sameSource = line1Target.kind === "geometryValue" || line2Target.kind === "geometryValue"
-        ? line1Target.kind === "geometryValue" && line2Target.kind === "geometryValue" &&
-          line1Target.occurrence.sourceStatementId === line2Target.occurrence.sourceStatementId &&
-          line1Target.occurrence.instancePath.length === line2Target.occurrence.instancePath.length &&
-          line1Target.occurrence.instancePath.every((part, index) => part === line2Target.occurrence.instancePath[index])
-        : line1Target.statementId === line2Target.statementId;
+      const line1Identity = geometryValueProgramTargetIdentity(line1Target, sourceOrder);
+      const line2Identity = geometryValueProgramTargetIdentity(line2Target, sourceOrder);
+      const sameSource = line1Identity !== undefined && line1Identity === line2Identity;
       if (sameSource) {
         appendGeometryValueError(entry, "intersection geometry value cannot intersect the same source geometry twice.");
         return;
       }
-      const geometry1 = resolveGeometryTargetForEvaluation(line1Target, sourceOrder);
-      const geometry2 = resolveGeometryTargetForEvaluation(line2Target, sourceOrder);
+      const geometry1 = resolveGeometryValueProgramTarget(line1Target, sourceOrder);
+      const geometry2 = resolveGeometryValueProgramTarget(line2Target, sourceOrder);
       const line1 = geometry1 && geometry1.kind !== "unavailable" && isLineLikeGeometryInput(geometry1) ? geometry1 : undefined;
       const line2 = geometry2 && geometry2.kind !== "unavailable" && isLineLikeGeometryInput(geometry2) ? geometry2 : undefined;
       if (!line1 || !line2) {
@@ -1280,8 +1355,8 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
       }
-      const firstGeometry = resolveGeometryTargetForEvaluation(entry.construction.first.target, sourceOrder);
-      const secondGeometry = resolveGeometryTargetForEvaluation(entry.construction.second.target, sourceOrder);
+      const firstGeometry = resolveGeometryValueProgramTarget(entry.construction.first.target, sourceOrder);
+      const secondGeometry = resolveGeometryValueProgramTarget(entry.construction.second.target, sourceOrder);
       const firstArc = firstGeometry && firstGeometry.kind !== "unavailable" && firstGeometry.kind === "arcLine"
         ? firstGeometry
         : undefined;
@@ -1312,7 +1387,7 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
       }
-      const geometry = resolveGeometryTargetForEvaluation(entry.construction.line.target, sourceOrder);
+      const geometry = resolveGeometryValueProgramTarget(entry.construction.line.target, sourceOrder);
       const line = geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
       const base = structuralPointForProgramPoint(entry.construction.base, sourceOrder);
       const distance = evaluateGeometryValueScalar(entry.construction.distance, sourceOrder);
@@ -1352,7 +1427,7 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
       }
-      const geometry = resolveGeometryTargetForEvaluation(entry.construction.source.target, sourceOrder);
+      const geometry = resolveGeometryValueProgramTarget(entry.construction.source.target, sourceOrder);
       if (!geometry || geometry.kind === "unavailable" || geometry.kind !== "bezierCurve") {
         appendGeometryValueError(entry, "Bezier feature-point construction requires a computed Bezier curve source.");
         return;
@@ -1386,7 +1461,7 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "Geometry value construction is incompatible with its declared interface type.");
         return;
       }
-      const geometry = resolveGeometryTargetForEvaluation(entry.construction.source.target, sourceOrder);
+      const geometry = resolveGeometryValueProgramTarget(entry.construction.source.target, sourceOrder);
       if (!geometry || geometry.kind === "unavailable" || geometry.kind !== "bezierCurve") {
         appendGeometryValueError(entry, "Bezier feature-point construction requires a computed Bezier curve source.");
         return;
@@ -1540,7 +1615,7 @@ export const evaluateElements = (
       }
       const closed = evaluateGeometryValueBoolean(entry.construction.closed, sourceOrder);
       const sources = entry.construction.paths.map((path) => {
-        const geometry = resolveGeometryTargetForEvaluation(path.target, sourceOrder);
+        const geometry = resolveGeometryValueProgramTarget(path.target, sourceOrder);
         return geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
       });
       if (closed === undefined || sources.some((source) => !source)) {
@@ -1572,7 +1647,7 @@ export const evaluateElements = (
         return;
       }
       const sourceGroups = entry.construction.baseLines.map((source) => {
-        const geometry = resolveGeometryTargetForEvaluation(source.target, sourceOrder);
+        const geometry = resolveGeometryValueProgramTarget(source.target, sourceOrder);
         if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) return undefined;
         const segments = sourceSegmentsForGeometry(geometry);
         return segments.length > 0 ? segments : undefined;
@@ -1611,7 +1686,7 @@ export const evaluateElements = (
         return;
       }
       const sourceGroups = entry.construction.baseLines.map((source) => {
-        const geometry = resolveGeometryTargetForEvaluation(source.target, sourceOrder);
+        const geometry = resolveGeometryValueProgramTarget(source.target, sourceOrder);
         if (!geometry || geometry.kind === "unavailable" || !isLineLikeGeometryInput(geometry)) return undefined;
         const segments = sourceSegmentsForGeometry(geometry);
         return segments.length > 0 ? segments : undefined;
@@ -1637,7 +1712,7 @@ export const evaluateElements = (
       const closed = evaluateGeometryValueBoolean(entry.construction.closed, sourceOrder);
       const suppressTrimWarnings = evaluateGeometryValueBoolean(entry.construction.suppressTrimWarnings, sourceOrder);
       const sources = entry.construction.sources.map((source) => {
-        const geometry = resolveGeometryTargetForEvaluation(source.target, sourceOrder);
+        const geometry = resolveGeometryValueProgramTarget(source.target, sourceOrder);
         return geometry && geometry.kind !== "unavailable" && isLineLikeGeometryInput(geometry) ? geometry : undefined;
       });
       if (
