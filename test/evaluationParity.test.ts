@@ -5,6 +5,7 @@ import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/n
 import { emptyDocument } from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
+import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import type { GeometryInputTarget } from "../src/types/geometry";
 import {
   evaluateWithRustFixture,
@@ -287,6 +288,183 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const cycleCompile = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), cycleSource);
     expect(cycleCompile.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
   }, 30000);
+
+  it("accepts explicit Module forGroup execution owners across the persistent Rust stdio boundary", async () => {
+    const evaluateSource = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return {
+        fixture,
+        options,
+        tsPayload,
+        rustPayload,
+        ts: evaluationPayloadToResult(tsPayload),
+        rust: evaluationPayloadToResult(rustPayload)
+      };
+    };
+    const markRows = (result: ReturnType<typeof evaluationPayloadToResult>) =>
+      result.forGroupGeneratedRows?.filter((row) => row.elementName.includes("Mark")) ?? [];
+    const observableMarks = (result: ReturnType<typeof evaluationPayloadToResult>) =>
+      markRows(result).map((row) => {
+        const geometry = result.computedGeometry.get(row.generatedElementId);
+        if (geometry?.kind !== "point") throw new Error("generated Mark must have computed point geometry");
+        return {
+          iterationIndex: row.iterationIndex,
+          variableValue: row.variableValue,
+          occurrenceIndexes: row.occurrencePath.map((step) => step.iterationIndex),
+          x: geometry.x,
+          y: geometry.y
+        };
+      });
+    const expectCanonicalOccurrence = (
+      fixture: ReturnType<typeof fixtureFromSource>,
+      row: ReturnType<typeof markRows>[number]
+    ) => {
+      expect(row.occurrencePath).toHaveLength(1);
+      expect(row.occurrencePath[0]?.iterationIndex).toBe(row.iterationIndex);
+      expect(fixture.elements.some((element) =>
+        element.type === "forGroup" && element.id === row.occurrencePath[0]?.templateForGroupId
+      )).toBe(true);
+    };
+
+    const oneIteration = await evaluateSource([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) {",
+      "    point Mark = coordinate(x: @i, y: 0)",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    const oneIterationInput = buildRustEvaluationInput(oneIteration.fixture.elements, oneIteration.options);
+    expect(oneIterationInput.bindingVersions?.versions).toEqual([]);
+    expect(oneIterationInput.bindingVersions?.immutableForGroups ?? []).toEqual([]);
+    expect(oneIterationInput.bindingVersions?.forGroupOwners).toHaveLength(1);
+    expect(oneIterationInput.bindingVersions?.forGroupOwners[0]).toMatchObject({ moduleExecutionOwner: true });
+    for (const result of [oneIteration.ts, oneIteration.rust]) {
+      expect(result.errors).toEqual([]);
+      const rows = markRows(result);
+      expect(rows).toHaveLength(1);
+      expectCanonicalOccurrence(oneIteration.fixture, rows[0]!);
+      expect(result.computedGeometry.get(rows[0]!.generatedElementId)).toMatchObject({ kind: "point", x: 0, y: 0 });
+    }
+
+    const twoIterations = await evaluateSource([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    point Mark = coordinate(x: @i, y: 0)",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    for (const result of [twoIterations.ts, twoIterations.rust]) {
+      expect(result.errors).toEqual([]);
+      const rows = markRows(result);
+      expect(rows).toHaveLength(2);
+      rows.forEach((row) => expectCanonicalOccurrence(twoIterations.fixture, row));
+      expect(rows.map((row) => row.iterationIndex)).toEqual([0, 1]);
+      expect(rows.map((row) => row.variableValue)).toEqual([0, 1]);
+      expect(rows.map((row) => row.occurrencePath.map((step) => step.iterationIndex))).toEqual([[0], [1]]);
+      expect(observableMarks(result).map((mark) => [mark.x, mark.y])).toEqual([[0, 0], [1, 0]]);
+    }
+
+    const repeatedInstances = await evaluateSource([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) {",
+      "    point Mark = coordinate(x: @i, y: 0)",
+      "  }",
+      "}",
+      "instance First = M()",
+      "instance Second = M()"
+    ].join("\n"));
+    const repeatedRows = markRows(repeatedInstances.rust);
+    const moduleInstances = repeatedInstances.fixture.compiled?.doc.moduleSemanticAnalysis?.instances
+      .filter((instance) => instance.name === "First" || instance.name === "Second") ?? [];
+    const repeatedOrigins = repeatedRows.map((row) => ({
+      row,
+      origin: repeatedInstances.options.moduleMaterialization?.originByRuntimeElementId.get(row.forGroupId)
+    }));
+    expect(repeatedInstances.rust.errors).toEqual([]);
+    expect(repeatedRows).toHaveLength(2);
+    repeatedRows.forEach((row) => expectCanonicalOccurrence(repeatedInstances.fixture, row));
+    expect(new Set(repeatedRows.map((row) => row.forGroupId)).size).toBe(2);
+    expect(new Set(repeatedRows.map((row) => row.templateElementId)).size).toBe(2);
+    expect(new Set(repeatedRows.map((row) => row.generatedElementId)).size).toBe(2);
+    expect(repeatedRows.map((row) => row.iterationIndex)).toEqual([0, 0]);
+    expect(repeatedRows.map((row) => row.occurrencePath.map((step) => step.iterationIndex))).toEqual([[0], [0]]);
+    const owningInstances = repeatedOrigins.map(({ origin }) =>
+      moduleInstances.find((instance) => origin?.instancePath.includes(instance.statementId))?.statementId
+    );
+    expect(owningInstances.every((statementId) => statementId !== undefined)).toBe(true);
+    expect(new Set(owningInstances).size).toBe(2);
+
+    const withoutLocal = await evaluateSource([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    point Mark = coordinate(x: @i, y: 2)",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    const withLocal = await evaluateSource([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 1, step: 1) {",
+      "    const unrelated: number = @i + 100",
+      "    point Mark = coordinate(x: @i, y: 2)",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    for (const result of [withoutLocal.ts, withoutLocal.rust, withLocal.ts, withLocal.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(markRows(result)).toHaveLength(2);
+    }
+    expect(observableMarks(withLocal.ts)).toEqual(observableMarks(withoutLocal.ts));
+    expect(observableMarks(withLocal.rust)).toEqual(observableMarks(withoutLocal.rust));
+    const withLocalInput = buildRustEvaluationInput(withLocal.fixture.elements, withLocal.options);
+    expect(withLocalInput.bindingVersions?.forGroupOwners).toHaveLength(1);
+    expect(withLocalInput.bindingVersions?.forGroupOwners[0]).toMatchObject({ moduleExecutionOwner: true });
+
+    const rootLoop = await evaluateSource([
+      "nui 1",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  point Mark = coordinate(x: @i, y: 2)",
+      "}"
+    ].join("\n"));
+    for (const result of [rootLoop.ts, rootLoop.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(markRows(result)).toHaveLength(2);
+      expect(observableMarks(result)).toEqual(observableMarks(twoIterations.ts).map((mark) => ({ ...mark, y: 2 })));
+    }
+    const ordinaryOwnerLoop = await evaluateSource([
+      "nui 1",
+      "for i in range(min: 0, max: 1, step: 1) carry total: number = 0 {",
+      "  next total = @total + 1",
+      "  point Mark = coordinate(x: @i, y: 0)",
+      "}"
+    ].join("\n"));
+    const ordinaryOwnerInput = buildRustEvaluationInput(ordinaryOwnerLoop.fixture.elements, ordinaryOwnerLoop.options);
+    expect(ordinaryOwnerInput.bindingVersions?.forGroupOwners).toHaveLength(1);
+    expect(ordinaryOwnerInput.bindingVersions?.forGroupOwners[0]).not.toHaveProperty("moduleExecutionOwner");
+    expect(ordinaryOwnerLoop.rust.errors).toEqual([]);
+
+    const fabricatedInput = buildRustEvaluationInput(oneIteration.fixture.elements, oneIteration.options);
+    const fabricatedOwner = fabricatedInput.bindingVersions?.forGroupOwners[0];
+    expect(fabricatedOwner?.moduleExecutionOwner).toBe(true);
+    if (!fabricatedOwner) throw new Error("expected the Module forGroup owner payload row");
+    delete fabricatedOwner.moduleExecutionOwner;
+    await expect(rustStdio!.evaluateInput(fabricatedInput)).rejects.toThrow(
+      /scalar-payload-invalid-control-owner.*forGroupOwners contains an unused owner/
+    );
+  }, 60000);
 
   it("materializes Module-export geometry aliases and root alias chains across the persistent Rust stdio boundary", async () => {
     const fixture = fixtureFromSource([

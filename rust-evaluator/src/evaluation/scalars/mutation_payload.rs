@@ -1459,6 +1459,7 @@ pub(crate) fn validate_binding_versions_payload(
         .collect::<HashSet<_>>();
     let mut for_group_owners_by_element_id = HashMap::new();
     let mut for_group_owner_ids = HashSet::new();
+    let mut module_execution_owner_ids = HashSet::new();
     for owner in for_group_json {
         let owner = as_object(owner, "forGroup mutation owner")?;
         reject_unexpected_fields(
@@ -1469,9 +1470,20 @@ pub(crate) fn validate_binding_versions_payload(
                 "scopeId",
                 "exitSourceOrder",
                 "iterationBindingId",
+                "moduleExecutionOwner",
             ],
             "forGroup mutation owner",
         )?;
+        let module_execution_owner = match owner.get("moduleExecutionOwner") {
+            Some(Value::Bool(true)) => true,
+            Some(_) => {
+                return Err(issue(
+                    Code::InvalidControlOwner,
+                    "forGroup moduleExecutionOwner must be true when present",
+                ))
+            }
+            None => false,
+        };
         let owner_statement_id = string(
             require_field(owner, "ownerStatementId", "forGroup mutation owner")?,
             "forGroup ownerStatementId",
@@ -1502,7 +1514,7 @@ pub(crate) fn validate_binding_versions_payload(
                 .insert(
                     element_id,
                     ValidatedForGroupOwner {
-                        owner_statement_id,
+                        owner_statement_id: owner_statement_id.clone(),
                         scope_id,
                         exit_source_order,
                         iteration_binding_id,
@@ -1515,8 +1527,11 @@ pub(crate) fn validate_binding_versions_payload(
                 "forGroupOwners contains an unknown or duplicate owner",
             ));
         }
+        if module_execution_owner {
+            module_execution_owner_ids.insert(owner_statement_id);
+        }
     }
-    let mut referenced_for_group_owner_ids = HashSet::new();
+    let mut referenced_for_group_owner_ids = module_execution_owner_ids;
     for version in &versions {
         let Some(chain) = version.control.get("ownerChain").and_then(Value::as_array) else {
             continue;
