@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use super::super::scalar_expression_runtime::{
     lookup_for_group_geometry_property, lookup_geometry_collection_length,
-    lookup_geometry_property, lookup_geometry_value_property,
+    lookup_geometry_collection_presence, lookup_geometry_property, lookup_geometry_value_property,
     resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
 };
 use super::expression_evaluator::{
@@ -416,7 +416,12 @@ impl<'a> ScalarBindingResolver<'a> {
             .iter()
             .find(|candidate| candidate.value_id == collection_value_id);
         let Some(value) = value else {
-            return Ok(None);
+            return Ok(lookup_geometry_collection_presence(
+                state,
+                self,
+                collection_value_id,
+                &mut HashSet::new(),
+            ));
         };
         match &value.value {
             ValidatedScalarProgramCollectionValue::None => Ok(Some(false)),

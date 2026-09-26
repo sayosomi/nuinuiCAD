@@ -12,7 +12,7 @@ use super::super::types::{
 use super::{MutationEnvironment, ScalarMutationResolver};
 use crate::evaluation::scalars::expression_evaluator::ScalarEvaluationEnvironment;
 use crate::evaluation::scalars::mutation_payload::ValidatedImmutableForGroupPlan;
-use crate::evaluation::types::EvaluationState;
+use crate::evaluation::types::{EvaluationState, GeometryInputCollectionNode, GeometryInputTarget};
 
 fn evaluation_state() -> EvaluationState {
     EvaluationState {
@@ -225,6 +225,54 @@ fn optional_member_equal_absent_collection_length_position_returns_none() {
     let target = collection_length_target("items", 0.0);
 
     assert_none(lookup_optional_member(&resolver, &state, &target, 0.0));
+}
+
+#[test]
+fn optional_member_geometry_collection_none_node_returns_none() {
+    let program = binding_versions(Vec::new());
+    let resolver = ScalarMutationResolver::new(&program);
+    let mut state = evaluation_state();
+    state.geometry_collection_nodes.insert(
+        "geometry-items".to_owned(),
+        GeometryInputCollectionNode::None,
+    );
+    let target = collection_length_target("geometry-items", 0.0);
+
+    assert_none(lookup_optional_member(&resolver, &state, &target, 0.0));
+}
+
+#[test]
+fn optional_member_geometry_collection_empty_leaf_returns_zero_length() {
+    let program = binding_versions(Vec::new());
+    let resolver = ScalarMutationResolver::new(&program);
+    let mut state = evaluation_state();
+    state.geometry_collection_nodes.insert(
+        "geometry-items".to_owned(),
+        GeometryInputCollectionNode::Leaf {
+            targets: Vec::new(),
+        },
+    );
+    let target = collection_length_target("geometry-items", 0.0);
+
+    assert_number(lookup_optional_member(&resolver, &state, &target, 0.0), 0.0);
+}
+
+#[test]
+fn optional_member_geometry_collection_non_empty_leaf_returns_member_count() {
+    let program = binding_versions(Vec::new());
+    let resolver = ScalarMutationResolver::new(&program);
+    let mut state = evaluation_state();
+    state.geometry_collection_nodes.insert(
+        "geometry-items".to_owned(),
+        GeometryInputCollectionNode::Leaf {
+            targets: vec![GeometryInputTarget::Coordinate {
+                anchor: serde_json::json!({"x": 0, "y": 0}),
+            }],
+        },
+    );
+    let target = collection_length_target("geometry-items", 0.0);
+
+    assert_number(lookup_optional_member(&resolver, &state, &target, 0.0), 1.0);
 }
 
 #[test]
