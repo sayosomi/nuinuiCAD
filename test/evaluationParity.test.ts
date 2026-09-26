@@ -2321,6 +2321,43 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("keeps scalar value-for binding order stable through persistent Rust stdio", async () => {
+    const cases = [
+      { name: "without records", beforeMap: [], betweenMapAndConsumer: [], afterConsumer: [] },
+      { name: "one record before the map", beforeMap: ["record Before(x: number)"], betweenMapAndConsumer: [], afterConsumer: [] },
+      { name: "one record between the map and consumer", beforeMap: [], betweenMapAndConsumer: ["record Between(x: number)"], afterConsumer: [] },
+      { name: "one record after the declarations", beforeMap: [], betweenMapAndConsumer: [], afterConsumer: ["record After(x: number)"] },
+      { name: "two records before the map", beforeMap: ["record BeforeA(x: number)", "record BeforeB(x: number)"], betweenMapAndConsumer: [], afterConsumer: [] },
+      { name: "an unrelated scalar before the map", beforeMap: ["const unrelated: number = 9"], betweenMapAndConsumer: [], afterConsumer: [] },
+      { name: "an unrelated empty Module", beforeMap: ["module Empty() {", "}"], betweenMapAndConsumer: [], afterConsumer: [] }
+    ];
+
+    for (const variant of cases) {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        "const values: number[] = [2]",
+        ...variant.beforeMap,
+        "const mapped: number[] = for item in @values { @item * 3 }",
+        ...variant.betweenMapAndConsumer,
+        "const result: number = @mapped[0]",
+        ...variant.afterConsumer
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture), variant.name).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      expect(tsPayload.errors, variant.name).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, "result"), 6);
+
+      // This uses the production compiler payload through the persistent
+      // Node -> Rust stdio client; the payload is not repaired in the test.
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(rustPayload.errors, variant.name).toEqual([]);
+      expect(normalizeParityPayload(rustPayload), variant.name).toEqual(normalizeParityPayload(tsPayload));
+      expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "result"), 6);
+    }
+  }, 60000);
+
   it("matches nominal-record collection value-for field projections across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

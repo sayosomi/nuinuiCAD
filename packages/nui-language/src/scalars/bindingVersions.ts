@@ -314,7 +314,7 @@ export const buildBindingVersionGraph = ({
       bindingId: binding.id,
       bindingKind: "const",
       declaredType,
-      sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? binding.statementIndex,
+      sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? binding.rank,
       scopeId: binding.effectiveScopeId,
       scopeExitSourceOrder: controlFor(controlByScopeId, binding.effectiveScopeId).scopeExitSourceOrder,
       control: controlFor(controlByScopeId, binding.effectiveScopeId),
