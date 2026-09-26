@@ -2,400 +2,175 @@
 
 ## Purpose
 
-- Current implementation architecture の navigation index。
-- Subsystem ownership と primary entry points を素早く把握するためのもの。
-- Design proposal、roadmap、history、exhaustive source tree ではない。
-- Implementation details が食い違う場合は source code が authoritative。
-- Durable product/engineering policy は `AGENTS.md` を参照する。
+This document is the current architecture navigation index for nuinuiCAD.
 
-## High-level flow
+Use it to answer:
+
+- which subsystem owns a concern;
+- which entry points are primary;
+- which boundaries must remain shared across hosts;
+- how canonical source, compilation, evaluation, rendering, and host adapters connect.
+
+This document is not a roadmap, implementation history, exhaustive source tree,
+or feature-by-feature behavior specification. Source code is authoritative when
+implementation details differ from this index. Durable product and engineering
+policy belongs in `AGENTS.md`.
+
+## High-level architecture
+
+The production flow is:
 
 ```text
 .nui sourceText
-        ↓
-VS Code TextDocument (production) / NuiLanguageSession / AutomationDocument
-        ↓
-@nuinuicad/nui-language document/compiler surfaces
-        ↓
-compileCanonicalText
-        ↓
-parseDslSnapshot
-        ↓
-reconcileStatements
-        ↓
-compileDslDocument
-        ↓
-current-source diagnostics
-+
-host-neutral source lint diagnostics
-+
-last-good compiled document
-        ↓
-shared production evaluation context builder
-        ↓
-VS Code Webview / Headless MCP / parity consumers
-        ↓
-useEvaluationEngine / rustEvaluationRunner / Rust input
-        ↓
-VS Code Extension Host persistent Node stdio
-→ rust-evaluator evaluation_stdio → evaluate_document
-TS: reference / parity / test (Vite/browser development harness)
-        ↓
-EvaluationResult
-        ↓
-VS Code Webview surface
-        ↓
-CanvasHostAdapter
-        ↓
-DrawingCanvas
-        ↓
-canvasRenderer + CanvasOverlay
+  -> VS Code TextDocument
+  -> @nuinuicad/nui-language document/compiler surfaces
+  -> canonical compilation and semantic products
+  -> production evaluation context
+  -> Rust production evaluator
+  -> EvaluationResult
+  -> VS Code Webview surfaces
+  -> host-neutral Canvas / Output / Preview presentation
 ```
 
-Bake uses the same host-neutral target resolver and conversion planner. When
-disabled geometry is explicitly included, the VS Code Canvas / Source routes
-run one on-demand Rust evaluation with only the resolved disabled Bake target
-IDs allowed; the result is accepted only if the captured document revision is
-still current. The normal document evaluation remains disabled-aware and is
-never replaced by this sandbox.
+Headless MCP reuses the same Language Core and Rust evaluation boundaries without
+creating another parser, resolver, evaluator, or document model.
 
-Production VS Code evaluation follows the persistent Extension Host boundary
-while reusing the same Webview document/evaluation/Canvas path:
+The major architectural boundaries are:
 
-```text
-VS Code TextDocument / Extension Host
-→ Webview production document/evaluation/Canvas
-→ Extension Host persistent stdio transport
-→ shared Node evaluation_stdio process client
-→ rust-evaluator evaluation_stdio binary
-→ rust-evaluator::evaluate_document
-```
+- `.nui` source text is canonical.
+- VS Code `TextDocument` is the production source authority.
+- Language Core owns parser/compiler/source semantics and remains host-neutral.
+- Runtime evaluation is a separate boundary from source compilation.
+- Rust owns production CAD evaluation semantics.
+- TypeScript evaluation remains the reference/parity/test path.
+- Webviews are disposable presentation/runtime mirrors, not source authorities.
+- Model-originated edits return through source-preserving text patches.
+- Multi-document semantics are graph-backed and document-qualified.
+- Host-specific APIs stay behind narrow adapters.
 
-For a root that imports a saved Module, the Module-aware Extension Host uses the
-same exact graph-backed root compile for native language features and for a
-narrow Canvas runtime projection. The Webview accepts that projection only when
-the graph, root source/version, and publication revision still match its
-authoritative root mirror; it evaluates the prepared Rust input and presents
-the imported runtime without rebuilding imports or filesystem state. Graph
-building/invalidating/unavailable states clear this cross-document runtime
-authority rather than retaining a previous imported render. Same-file roots
-continue through the local Canvas path.
+## Architecture map
 
-Native Hover uses an Extension Host-only current-document path, so Canvas may be
-closed and no Webview protocol is involved:
+| Concern | Primary owner / entry points |
+| --- | --- |
+| Canonical document lifecycle | `packages/nui-language/src/document/canonicalDocument.ts`, `automationDocument.ts`, `src/state/cadDocumentStore.ts` |
+| Language Core package | `packages/nui-language/src/` |
+| Compilation / source patches | `canonicalDocument.ts`, `statementReconciler.ts`, `textPatch.ts` |
+| Lexical / source semantics | `packages/nui-language/src/dsl/`, `packages/nui-language/src/scalars/` |
+| Module semantics | `moduleSemantic*`, `moduleMaterialization*`, `moduleRuntimeContext.ts` |
+| Multi-document graph | `multiDocumentImportGraph.ts`, `multiDocumentPublicApi.ts`, `multiDocumentLanguageQueries.ts` |
+| TypeScript reference evaluation | `src/geometry/evaluate.ts`, `evaluationEngine.ts` |
+| Production Rust evaluation | `rust-evaluator/src/evaluation/` |
+| Production evaluation lowering | `src/geometry/productionEvaluationContext.ts`, `rustEvaluationRunner.ts` |
+| Output planning / encoding | `src/output/outputCore.ts`, `rust-evaluator/src/output/` |
+| VS Code production host | `vscode-extension/src/extensionEntry.ts`, `extension.ts` |
+| Webview routing | `src/vscode/main.tsx`, `webviewSurfaceRouter.tsx` |
+| Canvas rendering | `DrawingCanvas.tsx`, `canvasRenderer.ts`, `CanvasOverlay.tsx` |
+| Output Preview | `OutputPreviewApp.tsx`, `outputPreviewFeature.ts` |
+| Module Preview | `ModulePreviewApp.tsx`, `modulePreviewFeature.ts` |
+| Native language features | `vscode-extension/src/*Provider.ts`, `languageAnalysisSession.ts` |
+| Headless MCP | `mcp-server/src/` |
+| VS Code observation bridge | `vscodeObservationFeature.ts`, `mcpObservationBridge.ts` |
+| Commands / shortcuts | `src/commands/`, `src/keyboard/` |
+| UI state | `src/state/cadUiStore.ts` |
+| Tests / parity | colocated tests, `test/evaluationParitySupport.ts`, Rust evaluator tests |
+| Performance foundation | `src/performance/`, `scripts/performance/`, `performance/fixtures/` |
 
-```text
-VS Code TextDocument
-→ exact-current NuiLanguageSession.hover()
-→ queryDslGeometryHoverTarget
-→ NuiRuntimeEvaluationService
-→ shared productionEvaluationContext / rustEvaluationRunner
-→ existing RustEvaluationProcessOwner
-→ EvaluationResult
-→ native HoverProvider
-```
-
-The Hover path is exact-current only. It resolves a compiler-owned semantic target
-before starting runtime work, preserves the document evaluation limit and runtime
-activity state, and drops cancelled or stale completions rather than falling back
-to last-good geometry.
-
-The explicit VS Code surface open commands are `nuinuiCAD: Open Canvas`,
-`nuinuiCAD: Open Output Preview`, and `nuinuiCAD: Open Module Preview`. The same
-production-oriented lifecycle also supports Source → Canvas commands such as
-`nuinuiCAD: Pick Reference from Canvas` for file-scheme `.nui` documents.
-Reference Pick resolves an exact-current Source target in the Extension Host,
-reuses or opens the URI-matched Canvas without stealing focus, waits for
-authoritative Webview hydration, and then starts the shared host-neutral pick
-session. Canvas and Output Preview remain independent sessions keyed by document
-URI and surface kind in `src/vscode/vscodeWebviewSession.ts`. Module Preview owns
-a separate one-panel-per-document target lifecycle in
-`vscode-extension/src/modulePreviewFeature.ts`: opening it again reveals and
-retargets the existing panel using the exact-current Module definition identity.
-All three surfaces reuse the one Extension Host Rust process owner and the shared
-`replaceTextDocument` / `commitText` hydration protocol.
-
-Coordinate point conversion is an explicit Source+Canvas command family with an
-Explorer item-context entry point. `vscode-extension/src/coordinatePointConversionCommandFeature.ts`
-owns the source/editor target projection, exact-current runtime evaluation,
-native QuickPick lifecycle, Canvas-session routing for the explicit visual
-path, and result presentation. `src/commands/coordinatePointConversionSession.ts`
-owns the captured target/base-candidate session, while
-`src/commands/coordinatePointConversion.ts` remains the sole eligibility,
-planning, math, and statement-splice authority. Source, Canvas, and Explorer
-capture the same proof-carrying request and use the Extension Host's native
-QuickPick for the primary legal shared-base interaction. Native apply performs
-one statement-level Source edit; Canvas-origin success crosses the host
-boundary using ordinary Source ownership/source statement identity through a
-narrow selection adapter, and the Webview resolves current runtime IDs after
-the authoritative source edit before replacing Canvas selection. The existing
-Webview conversion and point-pick path remains an explicit Canvas visual-pick adapter, and only
-that choice may create or reveal Canvas for a Source-origin request. No
-cross-surface sticky target or alternate conversion semantics are introduced.
-
-Output Preview is routed to `src/vscode/OutputPreviewApp.tsx` from
-`webviewSurfaceRouter.tsx`. Its active output and viewport are session-local
-Webview state. It derives current print/svg candidates from the compiled
-`StatementMap`, passes the selected compiled output to `evaluateOutputPlan` with
-`VscodeRustTransport`, and renders the resolved `OutputPlan` as a read-only
-physical plane. Source navigation crosses the host boundary only as the current
-document version plus a normalized source range, which the Extension Host
-validates before revealing the declaration.
-
-Module Preview is routed to `src/vscode/ModulePreviewApp.tsx`. The Extension Host
-resolves the exact-current innermost Module through `queryModulePreviewTarget`,
-then the Webview re-proves that target against its authoritative source mirror and
-uses `createModulePreviewSession` / `compileModulePreviewRoot` for ephemeral
-parameter/default/last-good semantics and preview-root materialization. It
-evaluates through the existing Rust transport and renders only the target runtime
-elements through the shared `DrawingCanvas` / `CanvasHostAdapter` path. Exact-current
-Module target identity and the authoritative `TextDocument` remain host-owned;
-parameter/default Preview state remains ephemeral. Shared DrawingCanvas point and
-Bezier gestures use Preview-only ephemeral runtime transforms. Committed
-point/Bezier edits resolve runtime provenance to the real authored Module-body owner and produce
-source-preserving statement `LineSplice`s through the existing
-`moduleModelBridge` serialization authority. The Extension Host revalidates the
-exact document/source/target proof and exact patched source before one native
-`TextEditor.edit` transaction. Native VS Code Undo/Redo remains canonical history
-and refreshes Preview through `onDidChangeTextDocument` and stable target identity.
-Module Preview Bake Current/Base uses the authored current `StatementMap` for
-source ownership and insertion lines together with the current Preview
-`moduleMaterialization` and evaluation. Materialized Module-body leaves insert
-beside their real authored body statements; real nested Module instances insert
-beside their authored call sites in the enclosing Module/body scope. Synthetic
-Preview calls and roots are never writable; no visible synthetic argument
-editor or parameter/context state is persisted. Bake splices use the same
-authoritative TextDocument transaction as point/Bezier commits, so native VS Code
-history remains canonical. Normal Canvas Bake retains its module-body to root
-instance redirect semantics.
-temporary target/input invalidity keeps the session's last-good preview, and loss
-of exact target identity fails closed rather than rebinding by name or ancestor.
-
-Fatal source でも current-source diagnostics は更新され、last-good compiled
-document は保持される。Current source と compiled document は意図的に別
-lifecycle である。
-
-## Subsystem index
-
-### Production host and Webview entry / orchestration
+## Canonical document and Language Core
 
 Primary:
 
-- `vscode-extension/src/extensionEntry.ts`
-- `vscode-extension/src/extension.ts`
-- `src/vscode/main.tsx`
-- `src/vscode/webviewSurfaceRouter.tsx`
-
-`src/geometry/productionEvaluationContext.ts` の shared builder が last-good
-compiled document を `EvaluateElementsOptions` にlowerする。Production Webview
-surfaces select effective runtime elements and evaluation limits before calling
-the builder and passing the result to `useEvaluationEngine`. Runtime elementsはbuilderの所有外
-なので、Canvas drag previewではelementsだけをephemeralに差し替えられ、Source
-Editor previewでは対応するcompiled metadataも差し替えられる。
-
-### Canonical document state
-
-Primary:
-
-- `src/state/cadDocumentStore.ts`
+- `packages/nui-language/src/document/canonicalDocument.ts`
 - `packages/nui-language/src/document/automationDocument.ts`
+- `packages/nui-language/src/model/cadDocumentTypes.ts`
+- `src/state/cadDocumentStore.ts`
 
-Important current contract:
+`sourceText` is the only canonical document value.
 
-- `sourceText` = only canonical document value
-- `sourceRevision` = Source Editor adapter notification revision
-- `doc` = last successful compile
-- `docText` = source text represented by `doc`
-- `compiledDocumentRevision` = last-good compiled document identity
-- Current-source diagnostics と last-good compiled document は分離される。
-- Preview state は ephemeral。
+The document lifecycle intentionally distinguishes:
 
-`packages/nui-language/src/document/canonicalDocument.ts` の production primitives は、
-`compileFreshCanonicalText` と `compileCanonicalText` を通じて次の二つの
-consumer が共有する。
+- current source text;
+- current-source diagnostics;
+- last successful compiled document;
+- the source text represented by that compiled document;
+- source lifecycle revision;
+- compiled-document lifecycle revision;
+- runtime evaluation revisions.
 
-- `CadDocumentStore`: application document adapter、Source Editor notification、
-  preview、history、file lifecycle を owner とする。
-- `AutomationDocument`: React / Zustand / host APIs に依存しない host-independent
-  facade。current source と current-source diagnostics、last-good compiled
-  document、source lifecycle revision、compiled-document lifecycle revision を
-保持する。
+These identities are not interchangeable.
 
-`AutomationDocument` は既存の parser、statement reconciler、compiler、Module
-semantic / materialization path をそのまま利用し、materialized Module children
-を source representation に flatten しない。Headless MCP の fresh file snapshot
-もこの facade を利用し、fatal current source では `currentCompiled` の diagnostics
-だけを返して last-good `doc` を current semantics として公開しない。
+`AutomationDocument` is the host-independent document facade. It owns current
+source, current-source diagnostics, last-good compiled state, and document
+lifecycle revisions while reusing the canonical parser/compiler pipeline.
 
-Current type ownership is split across the document and evaluation boundaries:
-`packages/nui-language/src/model/cadDocumentTypes.ts` owns authored/compiled CAD
-model contracts,
-`src/geometry/evaluationTypes.ts` owns computed geometry and
-`EvaluationResult`/runtime evaluation contracts, and `src/types/geometry.ts`
-currently remains a compatibility/presentation facade over those owners.
-Within Language Core, `packages/nui-language/src/dsl/dslValueTypes.ts` owns the
-host-neutral source-level immutable declaration value-type taxonomy.
+`CadDocumentStore` is the application-side adapter used by Webview surfaces. It
+adds application notification, preview, history, and UI integration around the
+same canonical document model. It is not a second source authority in the VS Code
+production host.
 
-`NuiLanguageSession` is the package-owned per-document facade. It owns
-current source/revision proof and direct host-neutral language query invocation
-over one lower-level `AutomationDocument`. It exposes no VS Code, Node, React,
-DOM, Canvas, runtime geometry, or evaluator services. Single-document VS Code
-providers use this facade as thin projection/localization adapters. Runtime
-diagnostics and Rust runtime evaluation remain host/runtime-owned. The
-exact-current compiled semantic proof needed by workspace consumers is exposed
-only through the package workspace entry, not as an ordinary session method.
-
-Immutable single-geometry declarations have a Language Core-owned compiled
-geometry-value program in `moduleGeometryValueProgram.ts` and
-`moduleScalarRuntime.ts`. Each entry carries its source declaration identity,
-declared public interface, resolved scalar/geometry construction inputs, and
-two distinct positions. `sourceExecutionPosition` orders scalar and stage
-reads on the source/module event timeline; `executionPosition` is the release
-rank assigned by the canonical typed dependency graph. The compiler joins the
-geometry-value program to that graph before publishing the compiled document.
-Runtime projection forwards both positions and does not rediscover dependencies
-from construction payloads. At evaluation time, controller selections for
-`if`, `match`, and `coalesce` are applied to the same graph projection, which
-supplies the current dependency order; inactive alternatives do not hold a
-selected value back.
-Runtime occurrences use a dedicated geometry-value occurrence key
-(`sourceStatementId` plus the existing Module instance path); they are not
-`ElementId`s and never enter authored or materialized element lists.
+Authored/compiled CAD model contracts live in Language Core. Runtime computed
+geometry and `EvaluationResult` contracts remain under the runtime/evaluation
+boundary.
 
 ### Language Core package boundary
 
 Primary:
 
-- `packages/nui-language/src/`
-- `packages/nui-language/src/index.ts` (`@nuinuicad/nui-language`)
-- `packages/nui-language/src/document-entry.ts` (`@nuinuicad/nui-language/document`)
-- `packages/nui-language/src/workspace-entry.ts` (`@nuinuicad/nui-language/workspace`)
+- `packages/nui-language/src/index.ts`
+- `packages/nui-language/src/document-entry.ts`
+- `packages/nui-language/src/workspace-entry.ts`
 
-`packages/nui-language` is the implementation owner for the host-neutral parser,
-compiler, source maps, semantic indexes, canonical document lifecycle,
-authored/source model contracts, compile-time scalar/binding/expression
-semantics, and multi-document workspace semantics. The three package entry
-points are the supported internal surfaces; the package is private and has no
-additional public export paths.
+`packages/nui-language` owns host-neutral:
 
-All repository consumers use those three supported package surfaces directly:
-the root entry for ordinary language semantics and DTOs, the document entry for
-single-document lifecycle/source editing helpers, and the workspace entry for
-multi-document graph, identity, and cross-document language semantics. No
-forwarding-only Language Core shims remain under root `src/**`. Runtime computed
-geometry, `EvaluationResult`, Rust payload construction, and runtime evaluator
-orchestration remain outside Language Core. Language Core remains host-neutral;
-filesystem, URI, version, watcher, Node, VS Code, and runtime/evaluation
-responsibilities remain outside the package.
+- parsing and compilation;
+- source maps and statement identity;
+- authored/source model contracts;
+- lexical and semantic indexes;
+- single-document document lifecycle;
+- compile-time scalar, binding, and expression semantics;
+- multi-document graph and workspace semantics;
+- host-neutral language queries.
 
-### Headless MCP
+The package exposes the supported internal root, document, and workspace entry
+points. Runtime computed geometry, Rust payload construction, runtime evaluator
+orchestration, filesystem access, URI/version ownership, React, DOM, Canvas, and
+VS Code APIs stay outside the package.
 
-Primary:
+`NuiLanguageSession` is the per-document host-neutral facade for current source,
+revision proof, diagnostics, and single-document language queries. Runtime
+evaluation remains host/runtime-owned and is not part of the ordinary session
+surface.
 
-- `mcp-server/src/server.ts`
-- `mcp-server/src/documentSnapshot.ts`
-- `mcp-server/src/documentEvaluation.ts`
-- `src/node/rustEvaluationProcess.ts`
-
-Repository-owned MCP server は Node の直接 entry
-`mcp-server/dist/server.js` を stdio transport で起動する。stdout は MCP protocol
-専用で、server diagnostics は stderr に出す。`document_inspect`、
-`document_definition`、`document_references` は absolute file-backed `.nui` を
-call ごとに disk から fresh read し、SHA-256 source identity と exact-current
-compiler / semantic productsを利用する。
-
-`document_evaluate` も同じ fresh snapshot boundary を使い、exact-current compiled
-documentだけを shared `productionEvaluationContext` → `rustEvaluationRunner` で
-production Rust inputへlowerする。Rust eligibility、process unavailable / failed、
-source-unavailable、staleを明示し、成功時もerrors / warningsを含むcompact DTOだけを
-返す。computed geometryやevaluated element IDsは明示的に要求された範囲だけを返し、
-internal `EvaluationResult` 全体は公開しない。Rust完了後にはdisk source identityを
-再取得し、変化していれば結果をstaleとして破棄する。
-
-MCPとVS Code Extension Hostは`src/node/rustEvaluationProcess.ts`の同じNode-only
-`evaluation_stdio` NDJSON client / lazy owner実装を利用する。各hostは独立したowner
-instanceを持つがprotocol implementationは複製しない。binaryは既存の
-`NUINUICAD_RUST_EVALUATION_BINARY` overrideまたは
-`rust-evaluator/target/debug/evaluation_stdio` のrepository debug fallbackで解決し、
-MCP startup時にCargo buildは起動しない。Mutable document registry、VS Code
-attached observation、source mutationはHeadless MCP boundaryのownerではない。
-
-### VS Code attached observation bridge
-
-Primary:
-
-- `vscode-extension/src/vscodeObservationFeature.ts`
-- `vscode-extension/src/vscodeObservationState.ts`
-- `vscode-extension/src/mcpObservationBridge.ts`
-- `vscode-extension/src/extensionEntry.ts`
-- `src/node/vscodeObservationBridge.ts`
-- `mcp-server/src/vscodeObserve.ts`
-
-`vscodeObservationFeature.ts` owns Extension Host observation lifecycle and
-Canvas publication delegation. The root `extension.ts` composition supplies the
-existing host-document projection and the authoritative current Canvas session
-proof/document version facts. `vscodeObservationState.ts` remains the exact-
-current observation state and acceptance owner; the feature delegates to it and
-does not duplicate its freshness checks. The bridge reads that owner and does
-not reconstruct Canvas, evaluation, selection, or diagnostic semantics.
-`extensionEntry.ts` is
-the packaged Extension Host entry and starts the private bridge only when
-`NUINUICAD_MCP_OBSERVATION=1` or the application-scoped developer setting
-`nuinuiCAD.developer.mcpObservation.enabled` is enabled. The bridge is disabled
-by default and setting changes require an Extension Host reload. The developer-only
-bridge snapshot also carries current `TextDocument` source text for supported
-open `.nui` documents so dirty in-memory source can be returned exactly when the
-MCP caller explicitly opts into that larger field.
-
-`src/node/vscodeObservationBridge.ts` owns the shared Node-only transport and
-discovery boundary: loopback-only ephemeral TCP, authenticated observe-only
-NDJSON, restrictive temporary descriptor lifecycle, canonical file-path matching,
-and deterministic instance resolution. Resolution uses explicit instance ID,
-then an exactly-one-open-document match, then the sole live instance; remaining
-multiple candidates are reported as ambiguity rather than guessed by PID,
-timestamp, or window order. Candidate metadata omits the auth token.
-
-`mcp-server/src/vscodeObserve.ts` is the read-only MCP projection boundary.
-`vscode_observe` maps discovery failures to explicit `unavailable` / `ambiguous`
-results, rejects a non-current Canvas runtime snapshot as `stale`, keeps the
-protocol result JSON-friendly, and declares Source selection indexing as zero-based
-UTF-16 line/character coordinates. Full `sourceText` is stripped from the default
-MCP response and retained only for `includeSourceText: true`; no command, mutation,
-shell, keyboard, pointer, screenshot, HTTP, OAuth, or host-attach surface is
-introduced.
-
-### Compilation / source mutation
+## Compilation and source mutation
 
 Primary:
 
 - `packages/nui-language/src/document/canonicalDocument.ts`
 - `packages/nui-language/src/document/statementReconciler.ts`
 - `packages/nui-language/src/document/textPatch.ts`
+- `packages/nui-language/src/document/moduleModelBridge.ts`
 
-`compileCanonicalText` の current path:
+Canonical compilation follows:
 
 ```text
 sourceText
-→ parseDslSnapshot
-→ reconcileStatements
-→ compileDslDocument
+  -> parseDslSnapshot
+  -> reconcileStatements
+  -> compileDslDocument
 ```
 
-Model-originated edits は既存の canonical source text / line-splice boundary を
-使う。Whole-file reserialization を通常の mutation path として追加しない。
-Stable statement / element identity を維持する。
+The statement reconciler preserves stable statement identity across edits where
+the authored structure permits it.
 
-### Source Editor
+Model- or command-originated mutations use the canonical source-edit boundary and
+source-preserving line/statement patches. Whole-file reserialization is not the
+normal mutation path because comments, blank lines, formatting, and authored
+layout remain source-owned.
 
-Primary:
+Stable source identity is the bridge between language semantics, runtime source
+ownership, navigation, rename, Canvas commits, Module Preview commits, and other
+source-writing features.
 
-- `src/editor/`
-- `src/editor/sourceEditSession.ts`
-- `src/components/SourceEditorPane.tsx`
-
-CodeMirror-specific ownership は `src/editor/` と `SourceEditorPane` に閉じる。
-他 subsystem は plain application types / editor handles / `sourceEditSession`
-boundary を使う。
+## DSL, lexical resolution, and typed values
 
 ### DSL
 
@@ -405,219 +180,30 @@ Primary:
 - `packages/nui-language/src/dsl/dslDocument.ts`
 - `docs/dsl.md`
 
-The Language Core DSL implementation is package-owned and consumed through the
-root package entry; root `src/dsl/` forwarding paths are not retained.
+The Language Core DSL implementation owns the currently implemented nui1 source
+language. `docs/dsl.md` is the implemented user-facing DSL reference.
 
-`docs/dsl.md` は current implemented language documentation。Current
-saved-document language は nui1 only。
+The compiler publishes authored declarations, semantic products, source
+ownership, dependency information, output declarations, Module semantics, and
+runtime-lowering inputs used by downstream subsystems.
 
-Drawing Profile declarations are compiler-resolved source declarations in the
-ordinary source lexical namespace. Drawing Modifier `width`, `style`, `color`,
-and `state` contributions merge independently: the common modifier contribution
-is applied first, followed by the matching selected profile delta.
-
-Print layout source declarations are also owned by the nui1 parser/compiler
-facade: `layout` contains ordered direct `place` statements, while `print` and
-`svg` contain resolved output references and physical-unit settings. Their
-statement identities come from `statementReconciler`; lexical target/origin and
-profile resolution comes from `sourceLexicalNamespaceIndex`; numeric fields use
-the shared scalar binding compiler. `DslDocumentData` stores these three source
-models and does not own an active output selection or an export/preview runtime.
-
-Declarative geometry transformations are a separate parser/compiler product:
-`dslCallParser.ts` owns the `operation target [as stage] (...)` header and its
-source ranges, `transformationRecipes.ts` owns the host-neutral target/stage/
-operation representation, and `dslCompiler.ts` resolves targets and arguments
-without adding a drawable element for the clause. `DslDocumentData` carries the
-root source recipes alongside drawable declarations. Module-body semantic
-analysis accepts the same recipe statements; `dslCompiler.ts` compiles
-source-stage templates for language tooling and expands them per concrete
-`moduleMaterialization` instance into runtime-only recipes. The shared TS/Rust
-evaluators consume that runtime list, while named stage snapshots remain
-evaluator value data and are not materialized Canvas elements. Module-local
-ownership and stage locality remain inside the existing module
-semantic/materialization boundary; module parameters are not mutable
-transformation owners.
-
-### Multi-document import graph / public API
-
-Primary:
-
-- `packages/nui-language/src/document/multiDocumentPrimitives.ts`
-- `packages/nui-language/src/document/multiDocumentImportGraph.ts`
-- `packages/nui-language/src/document/multiDocumentPublicApi.ts`
-- `packages/nui-language/src/document/multiDocumentModuleSemantics.ts`
-- `packages/nui-language/src/document/multiDocumentLanguageQueries.ts`
-- `packages/nui-language/src/document/multiDocumentLintDiagnostics.ts`
-- `packages/nui-language/src/dsl/dslMultiDocumentSyntax.ts`
-- `packages/nui-language/src/dsl/sourceLexicalNamespaceIndex.ts`
-- `vscode-extension/src/multiDocumentHost.ts`
-- `vscode-extension/src/moduleMultiDocumentHost.ts`
-- `src/vscode/multiDocumentGraphTransport.ts`
-- `src/vscode/multiDocumentRuntimeTransport.ts`
-- `src/vscode/vscodeWebviewSession.ts`
-
-`multiDocumentImportGraph.ts` is the host-neutral owner of saved dependency graph
-construction. Hosts provide an async saved-source loader and canonical
-`DocumentId` / saved-source fingerprint facts; path resolution, filesystem I/O,
-watchers, and host lifecycle stay outside this subsystem. Roots use current source
-snapshots while imported dependencies use exact saved snapshots. Dependency
-artifacts are cached only by exact `(DocumentId, savedSourceFingerprint)`, and an
-invalid changed dependency never falls back to an older saved artifact.
-
-Graph construction preserves source-ordered import edges, reports structured
-missing/unreadable/stale/canceled/invalid failures, marks every participating
-edge of an import cycle, and fails closed. `MultiDocumentGraphCoordinator` owns
-per-root latest-request-wins installation plus the reverse dependency index used
-to invalidate exactly the active root graphs that transitively contain a changed
-saved dependency; the host decides when and how to rebuild those roots.
-
-`multiDocumentPublicApi.ts` owns the family-neutral exportable declaration catalog
-for module/modifier/profile/layout/layoutTemplate consumers. Generic file
-re-exports flatten to the original document-qualified semantic identity rather
-than manufacturing a new identity, and public/private/missing or duplicate public
-names remain explicit catalog results/diagnostics. Family-specific export syntax
-or semantics are supplied by later declaration contributors, not by this owner.
-
-Import aliases participate in the existing source lexical namespace only when the
-multi-document caller supplies their stable statement identities. The ordinary
-lexical resolver still owns alias visibility, legal lexical scope, and
-collisions; source position does not make an in-scope declaration unavailable.
-For
-`alias::member`, only the member lookup is delegated through the optional external
-namespace resolver to the imported public catalog. Existing single-document
-callers do not receive external lookup variants and remain fail-closed for import
-members.
-
-`multiDocumentModuleSemantics.ts` supplies the production Module-family
-declaration contributor and coordinates the existing graph, public API, lexical
-resolver, and central Module semantic analyzer. It analyzes dependency artifacts
-in defining-document order, preserves document-qualified Module identities, and
-passes caller expressions through the caller's source namespace while resolving
-defaults, bodies, helpers, exports, and nested calls in their defining document.
-It does not materialize or evaluate Module runtime geometry.
-
-`multiDocumentLanguageQueries.ts` is the host-neutral document-qualified
-Definition / References / Rename layer over that graph and the existing semantic
-owners. It projects exact declaration/reference occurrences onto stable
-`DocumentId`-qualified identities, preserves re-exported members as occurrences
-of the original public identity, and never recovers cross-file semantics through
-workspace text search. An open dirty document may replace a saved target only when
-the supplied current semantic view re-proves the same identity and exact range;
-otherwise navigation fails closed.
-
-Public References and Rename consume a host-supplied complete reverse-importer
-query universe. The core prefers a single exact current snapshot over saved
-snapshots for an open document, rejects conflicting/stale source proof, and
-deduplicates repeated importer candidates. Rename additionally requires each
-document semantic owner to prove the complete non-overlapping edit set against
-exact expected source text; any rejected document rejects the whole plan. Import
-alias rename remains importer-local. Concrete VS Code filesystem discovery,
-watchers, document lifecycle, and `WorkspaceEdit`/host mutation adapters remain
-outside this subsystem.
-
-`multiDocumentLintDiagnostics.ts` is the host-neutral graph-backed lint owner
-for import aliases. It consumes the existing graph, re-export occurrence index,
-lexical namespace resolver, and Module semantic analysis. Re-export usage is
-counted only from the exact import directive identity already proved by the
-occurrence index; direct imported Module calls are checked separately against
-the owning statement and the exact resolved import namespace. Any invalid,
-stale, cyclic, incomplete, or contradictory graph/semantic proof suppresses
-the `unused-import` findings. The VS Code Module host projects these qualified
-findings through its existing multi-document diagnostics projector and native
-DiagnosticCollection, while Headless MCP builds a fresh file-backed graph for
-each `document_inspect` call and includes only root-owned findings in
-`diagnostics.lint`.
-
-`vscode-extension/src/multiDocumentHost.ts` is the generic production VS Code
-adapter for that host-neutral layer. It canonicalizes file-backed `.nui` paths
-to file-URI `DocumentId`s, reads imported dependencies only through
-`workspace.fs.readFile`, and fingerprints the exact saved bytes with SHA-256.
-Each open root owns one coordinated graph built from its current `TextDocument`;
-dependency nodes remain saved-disk snapshots even when the same file is open
-and dirty. Dirty open content may contribute only an exact-current semantic view
-for language queries, never replace the dependency snapshot used to construct
-the graph. One saved artifact cache is shared by active-root and reverse-root
-builds, and exact existing graph statement identities are reused when a saved
-document is compiled as another graph root.
-
-The host obtains an exact-current compiled semantic view through the
-workspace-entry `currentCompiledSemanticSnapshotFor` proof. That workspace-only
-access exposes exact-current `currentCompiled` semantics, including partial fatal
-current compile attempts, while requiring exact source/sourceRevision proof.
-`runtimeEvaluationSnapshot()` remains the separate evaluable/last-good proof.
-Host caller source/revision mismatches fail closed; the workspace entry does not
-expose a second session lifecycle or evaluator.
-
-The host watches `**/*.nui` saves/creates/deletes and invalidates coordinator-owned
-reverse dependencies before rebuilding affected open roots. Public References and
-Rename use `workspace.findFiles("**/*.nui")` only to enumerate a complete candidate
-universe; every candidate is parsed/semantically analyzed and the query fails
-closed on incomplete or stale proof rather than using text search. Native
-Definition/References/Rename providers ask this host first for document-qualified
-results and otherwise retain the existing single-document query path. Rename
-rechecks every exact source owner immediately before producing a `WorkspaceEdit`;
-a dirty editor cannot authorize edits against an older saved dependency snapshot.
-
-`vscode-extension/src/moduleMultiDocumentHost.ts` composes that one generic
-host with the existing Module declaration contributor, graph-root
-`analyzeMultiDocumentModuleSemantics` / `createModuleRuntimeContext` compile,
-document-qualified identity projection, and Module rename proof factory. The
-factory delegates defining-document safety to `analyzeModuleSemanticRename` and
-allows importer/re-export edits only from the existing exact Module semantic
-view or graph re-export occurrences. It does not own a second graph, cache,
-resolver, occurrence index, workspace search, or rename planner.
-
-`multiDocumentGraphTransport.ts` projects only JSON-safe root graph/source data.
-`multiDocumentHost.ts` publishes building/current/invalidated/unavailable states
-by root document URI, and `VscodeWebviewSessionRegistry` fans the latest retained
-publication to every matching Canvas and Output Preview session, including a
-surface opened after the graph was built. The graph is owned once by the root
-document; individual Webview surfaces do not rebuild filesystem/import state.
-`moduleMultiDocumentHost.ts` supplies the family-owned exact graph-root compile
-and a projector that publishes `multiDocumentRuntimeTransport.ts` only for
-actual cross-document Module materialization. That JSON-safe projection uses
-the existing prepared Rust input and narrow materialization snapshots/origins;
-it does not transport the compiler, graph, parser products, Maps, or functions.
-Family-specific declaration/export/runtime semantics remain supplied by their
-own semantic owners rather than by the generic VS Code host adapter.
-
-### Lexical / name resolution
+### Lexical and name resolution
 
 Representative owners:
 
 - `packages/nui-language/src/scalars/lexicalScopeIndex.ts`
-- `packages/nui-language/src/dsl/lexicalScopeIndexAdapter.ts`
 - `packages/nui-language/src/dsl/sourceLexicalNamespaceIndex.ts`
-- `packages/nui-language/src/dsl/dslReferenceTokens.ts`
 - `packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts`
-- `packages/nui-language/src/dsl/dslLintDiagnostics.ts`
-- `packages/nui-language/src/dsl/dslModifierAuthoring.ts`
-- `packages/nui-language/src/dsl/dslModifierAuthoringIndex.ts`
-- `packages/nui-language/src/dsl/dslSourceValueStepQuery.ts`
 - `packages/nui-language/src/dsl/dslDefinitionQuery.ts`
-- `packages/nui-language/src/dsl/dslRenameQuery.ts`
 - `packages/nui-language/src/dsl/dslReferencesQuery.ts`
+- `packages/nui-language/src/dsl/dslRenameQuery.ts`
 
-既存 lexical / source namespace resolution が owner。同じ semantic concept の
-second resolver を作らない。Definition、Rename、References の source
-occurrence enumeration は `dslSemanticOccurrenceIndex.ts` が compiler-resolved
-identity と exact physical range を共有し、各 query がそれぞれの safety
-policy を持つ。
+Language Core owns lexical visibility, source namespace resolution, semantic
+occurrence identity, and source ranges.
 
-Drawing Modifier の strict property validation、authoring metadata、exact
-sub-token spans は `dslModifierAuthoring.ts` が owner であり、
-`dslModifierAuthoringIndex.ts` が exact-current source-only definition /
-reference / property view を導出する。Completion、Definition、Rename はこの
-shared source semantics を利用し、VS Code に別 parser / resolver を持たない。
-
-Source Value Step は `dslSourceValueStepQuery.ts` が host-neutral な
-exact-current edit plan を所有する。Element parameter は既存 parameter step
-resolver、typed declaration / `set` は compiler-owned `BindingId` と宣言側の
-number metadata、Drawing Modifier は shared authoring index / metadata を再利用する。
-`dslDocument.ts` は unrelated diagnostic で canonical `document` が fatal に
-なった場合も、exact-current source element products を statement index で保持し、
-query が last-good document や再parseへフォールバックせず判定できる。
+Definition, References, Rename, Completion, source stepping, and related language
+features reuse these compiler-resolved identities instead of introducing
+host-specific parsers or resolvers.
 
 ### Typed scalar expressions
 
@@ -625,17 +211,23 @@ Primary:
 
 - `packages/nui-language/src/scalars/`
 
-既存 typed expression AST、typecheck、`BindingId`、binding versions、
-dependency/runtime infrastructure を owner とする。同じ scalar semantics の
-parallel implementation を作らない。
+The scalar subsystem owns the typed expression AST, type checking, binding
+identity/versioning, dependencies, and runtime-ready expression products.
 
-Runtime-ready な numeric element / Module / layout-place / print / svg expression は
-`TypedScalarExpression` として lowering され、TS/Rust の runtime payload を
-経由して shared typed scalar evaluator まで運ぶ。legacy-only / runtime-unready
-numeric expression は既存 legacy numeric evaluator path に残し、typed numeric
-expression を source text に戻して legacy parser で再解釈しない。
+Runtime-ready expressions are lowered through the common evaluation payload.
+Typed scalar semantics are not reconstructed from source text in runtime hosts.
 
-### Module
+### Immutable geometry values
+
+Language Core also owns compiled immutable geometry-value programs used by Module
+and expression semantics.
+
+These values have source declaration identity and dependency order but are not
+ordinary drawable `ElementId` entries. Runtime occurrences use their own
+occurrence identity. A drawable declaration materializes a value into a distinct
+drawable identity through the normal evaluation boundary.
+
+## Module semantics and materialization
 
 Representative owners:
 
@@ -644,145 +236,162 @@ Representative owners:
 - `packages/nui-language/src/dsl/moduleRuntimeContext.ts`
 - `packages/nui-language/src/scalars/moduleScalarRuntime.ts`
 
-既存 Module semantic resolution / materialization / runtime infrastructure を
-再利用する。`moduleSemanticAnalysis.ts` が same-file と imported Module の
-共通 semantic owner であり、document-qualified identity と external callee
-resolver はその narrow adapter boundary である。Second Module runtime / resolver
-を作らない。Materialized Module children を source representation として
-flatten しない。
+The Module subsystem owns same-document and imported Module semantic analysis,
+materialization, source ownership, runtime occurrence identity, and Module-local
+scalar/geometry context.
 
-`moduleRuntimeContext.ts` は、同じ `MultiDocumentImportGraph` と
-`MultiDocumentModuleSemanticAnalysis` から、各 `DocumentId` の exact parsed
-statements、source lexical namespace、Module analysis、source identity を既存の
-materialization / scalar / geometry runtime へ渡す narrow adapter である。Module
-call の引数は caller document、definition body/default/local/record/nested call は
-defining document から読み、必要な場合だけ document-qualified runtime path を
-使う。Materialized origin は document-qualified statement identity、exact source
-identity、source range を保持し、`sourceOwnership` はこの証明が一致しない場合に
-fail closed する。Import source を連結したり、runtime 用に別の parser / resolver を
-複製したりしない。生成された materialized/scalar/geometry runtime output は、既存の
-production evaluator input としてそのまま評価される。
+Module calls evaluate arguments in the caller document while defaults, body
+declarations, helpers, nested calls, and other definition-owned semantics resolve
+against the defining document.
 
-### TypeScript evaluation
+Materialized Module children are runtime products. They are not flattened back
+into authored source representation.
 
-`EvaluationResult.transformationStageGeometry` is the production/reference
-parity fact for immutable named checkpoints produced by declarative
-transformation recipes. `typedDependencyGraph.ts` is the host-neutral graph
-owner: it records resolved scalar, geometry, property, gate, template, and
-stage-related dependencies and emits dependency-first element order plus cycle
-facts. `src/geometry/evaluate.ts` consumes that order, waits for construction or
-prior-stage prerequisites, and keeps authored recipe order within each owner
-branch. Rust receives the same JSON-shaped order and recipe product at the
-stable `evaluate_document(input)` boundary and returns the same stage map.
+Multi-document Module behavior composes the shared import graph, public API,
+lexical resolver, and Module semantic analyzer rather than creating a second
+Module parser or runtime.
 
-`EvaluationResult.geometryMutationExecutions` remains a compatibility fact for
-pre-existing programmatic runtime element inputs; the nui1 source compiler no
-longer emits those mutation-shaped elements for the five declarative operations.
-
-`src/geometry/geometrySourceFlow.ts` joins those runtime facts with the exact-current `CompiledDslDocument`. Construction and mutation steps resolve through `sourceOwnership`; `forGroupGeneratedRows` maps generated runtime occurrences back to their source templates. The resulting host-neutral steps carry reconciler-owned source statement identity and exact physical source span. Consumers must use this structured join rather than parsing runtime IDs, searching source text, or reconstructing evaluator semantics.
-
+## Multi-document architecture
 
 Primary:
 
-- `src/geometry/useEvaluationEngine.ts`
-- `src/geometry/evaluationEngine.ts`
-- `src/geometry/rustEvaluationEligibility.ts`
-- `src/geometry/rustEvaluationRunner.ts`
-- `src/geometry/evaluate.ts`
+- `packages/nui-language/src/document/multiDocumentImportGraph.ts`
+- `packages/nui-language/src/document/multiDocumentPublicApi.ts`
+- `packages/nui-language/src/document/multiDocumentModuleSemantics.ts`
+- `packages/nui-language/src/document/multiDocumentLanguageQueries.ts`
+- `packages/nui-language/src/document/multiDocumentLintDiagnostics.ts`
+- `vscode-extension/src/multiDocumentHost.ts`
+- `vscode-extension/src/moduleMultiDocumentHost.ts`
+
+### Import graph
+
+`multiDocumentImportGraph.ts` is the host-neutral owner of saved dependency graph
+construction.
+
+Hosts provide canonical document identity, saved source snapshots, and loading
+lifecycle. Path resolution, filesystem access, file watching, and UI state stay
+outside Language Core.
+
+Root documents use their current source snapshot. Imported dependency graph nodes
+use saved-source snapshots. Graph construction owns import edges, cycle/error
+reporting, artifact reuse, reverse dependency tracking, and root invalidation
+coordination.
+
+### Public API and document-qualified identity
+
+`multiDocumentPublicApi.ts` owns exported declaration catalogs and public/private
+visibility across imported documents.
+
+Cross-document semantics preserve the defining document identity. Re-exporting a
+declaration does not create a new semantic identity.
+
+Import aliases participate in the ordinary lexical namespace. Imported member
+lookup extends the existing resolver through a narrow external namespace
+boundary.
+
+### Cross-document language queries
+
+`multiDocumentLanguageQueries.ts` owns graph-backed Definition, References, and
+Rename semantics across documents.
+
+These operations use document-qualified semantic identity and exact source proof.
+Workspace text search is not a semantic resolver.
+
+Rename planning remains all-or-nothing across the participating documents: each
+document owner must prove its edit set against the expected source before the
+host creates a workspace edit.
+
+### VS Code multi-document adapter
+
+`vscode-extension/src/multiDocumentHost.ts` owns the production VS Code adapter:
+
+- file-backed document identity;
+- saved dependency reads;
+- saved-source fingerprinting;
+- active root graph lifecycle;
+- watcher-driven invalidation;
+- current open-document semantic projections for language queries;
+- host-side projection into native language features.
+
+`moduleMultiDocumentHost.ts` adds Module-family semantics and runtime projection
+on top of that shared graph. It does not own a second graph, cache, resolver,
+workspace search, or rename planner.
+
+Webviews receive narrow JSON-safe graph/runtime projections when they need
+cross-document runtime presentation. They do not read the filesystem or rebuild
+the import graph.
+
+## Evaluation architecture
+
+### Production evaluation context
+
+Primary:
+
 - `src/geometry/productionEvaluationContext.ts`
+- `src/geometry/rustEvaluationRunner.ts`
+- `src/geometry/evaluationTypes.ts`
 
-`productionEvaluationContext.ts` がcompiled documentのscalar program、binding
-runtime entries、text/control metadata、source/Module mutation ownersを一度だけ
-element-id keyed runtime metadataへlowerする。TypeScript evaluator は reference /
-parity / test path。`useEvaluationEngine` は`evaluationRevision` /
-`evaluationRequestRevision`を管理し、revision/request/stale semanticsをownerとする。
+The production evaluation context lowers the compiled document into runtime
+metadata and evaluator options.
 
-`src/geometry/evaluate.ts` maintains a separate computed geometry-value store
-for the immutable `coordinate` and `segment` subset. Structural point/line
-results share the coordinate and segment kernels with drawable evaluators, but
-carry no drawable metadata or identity. `buildRustEvaluationInput` projects the
-same compiled program and discriminated runtime targets through the existing
-`evaluate_document(input)` boundary; Rust stores and returns these values in a
-separate `computed_geometry_values` payload field. Neither evaluator adds these
-occurrences to drawable geometry or drawable activity-ID sets.
+It is the shared bridge from compile-time identities, scalar programs,
+dependencies, source ownership, Module runtime facts, Drawing Profile state, and
+other compiler products into runtime evaluation.
 
-The compiler-owned `geometryInputTargetsByElementId` boundary is also the bridge
-from immutable geometry values, Module geometry occurrences, and drawable stage
-values into `from(source: ...)` materialization. Immutable values themselves
-remain outside `document.elements`; a `materializedPoint`, `materializedLine`,
-or `materializedPath` declaration creates the new drawable identity and keeps
-the resolved source target in that existing sidecar. TypeScript and Rust
-resolve the target through their shared JSON-shaped evaluation boundary, then
-materialize the computed concrete geometry family under the destination
-`ElementId` without mutating or aliasing the source value or stage.
+The Rust request boundary is JSON-safe and host-neutral.
 
-Drawable geometry errors remain `ElementId`-owned, while immutable geometry-value
-errors are occurrence-owned (`sourceStatementId` plus Module instance path). Both
-error channels project through the existing runtime source diagnostic surface;
-pure value errors never enter drawable presentation identity.
+### TypeScript reference evaluation
 
-`productionEvaluationContext.ts` accepts an optional resolved
-`selectedDrawingProfileId`. An omitted profile means common-only modifier
-semantics and is the context used by Canvas; selected profiles add their
-compiler-resolved deltas at evaluation time. The TypeScript reference evaluator
-and Rust production evaluator use this same profile-aware modifier merge and
-activity behavior.
+Primary:
 
-`rustEvaluationEligibility.ts` はRust supported element/reference types、compiled
-reference validation、binding mutation、conditional / forGroup ownerのRust eligibility
-をownerとする。`rustEvaluationRunner.ts` はUI host、Node、benchmarkから独立した
-Rust request preparation / transport contractであり、既存の
-`buildRustEvaluationInput` と `evaluationPayloadToResult` を再利用する。
-`evaluationEngine.ts` はshared Rust orchestrationとreference / parity integrationを
-担当する。`buildRustEvaluationInput` は引き続きsole JSON-shaped Rust projection
-ownerである。VS CodeとHeadless MCPはそれぞれの薄いhost transportからこの共通
-boundaryを利用する。
+- `src/geometry/evaluate.ts`
+- `src/geometry/evaluationEngine.ts`
+- `src/geometry/useEvaluationEngine.ts`
+- `src/geometry/rustEvaluationEligibility.ts`
 
-`src/vscode/useVscodeMultiDocumentRuntimeEvaluation.ts` is the VS Code-specific
-consumer for a published cross-document Canvas runtime. It evaluates the
-host-prepared input through `evaluatePreparedRust` and `VscodeRustTransport`,
-uses the graph publication revision as its Canvas evaluation revision, ignores
-stale completions, and exposes an empty failed result on transport failure.
-It never reconstructs a reference evaluation or retains the preceding imported
-runtime. When no cross-document projection is active, `VSCodeApp` keeps the
-existing local `useEvaluationEngine` path.
+The TypeScript evaluator remains the reference/parity/test implementation.
 
-`vscode-extension/src/extension.ts` owns the three Canvas Bake settings as the
-VS Code configuration boundary. Hosts resolve plain Bake options before invoking
-the shared command; the shared core does not read host settings APIs.
+The typed dependency graph supplies dependency-first runtime order and cycle
+facts. Declarative transformation recipes retain authored local order within
+their owner while depending on the shared graph for prerequisites.
 
-`EvaluationResult.effectiveDrawingModifierStrokes` is the resolved, element-id keyed
-stroke presentation data crossing the evaluation boundary. The TS reference and
-Rust production evaluators resolve the same ordered modifier cascade; JSON payloads
-use `{ elementId, stroke }` entries and retain semantic theme-role colors. For
-`forGroup` runtime geometry, generated entries are propagated from the evaluator's
-structured `forGroupGeneratedRows.templateElementId` relation.
+`evaluationEngine.ts` owns shared evaluator orchestration and parity integration.
+`useEvaluationEngine.ts` owns application-side request/revision/stale-result
+lifecycle for local Webview evaluation.
 
-`EvaluationResult.preMutationGeometry` is evaluator-owned, runtime ElementId-keyed
-data. The shared TypeScript and Rust evaluators capture a deep snapshot immediately
-after each declaration successfully produces geometry, before later
-extend/trim/split/move/pathReverse mutations alter final `computedGeometry`.
-`instanceBaseGeometry` is captured at each concrete module materialization boundary
-from the existing `ModuleMaterialization` execution plan, so caller-side mutations
-after an instance do not leak into its Base shape. Both snapshot maps cross the
-same JSON payload boundary and are available to the host-neutral Bake operation;
-the existing Canvas Bezier editing helper narrows the generalized map to Bezier
-geometry locally.
+The evaluator produces runtime geometry, activity/error state, immutable value
+results, transformation-stage results, source-related runtime metadata, and
+other shared `EvaluationResult` products consumed by presentation and commands.
 
-Bake-only evaluation of explicitly included disabled geometry uses the existing
-Rust/TypeScript evaluation boundary with an explicit allow-list in the evaluation
-payload. Normal evaluation still leaves disabled elements unevaluated; the
-allow-list is only supplied by the Bake host path for its sandbox snapshot.
+### Rust production evaluation
 
-`src/commands/bakeGeometry.ts` owns host-neutral target resolution, exact primitive
-conversion, generated declaration naming, source insertion planning, and skipped
-target comments. `bakeCurrentShape` and `bakeBaseShape` dispatch through the shared
-command registry. The VS Code Webview sends the resulting `LineSplice[]` to the
-Extension Host, which applies one native TextDocument edit. Source ownership and
-normalized source position queries remain the existing SAY-41 boundary; Bake does
-not create a second runtime-to-source map.
+Primary:
 
-### Output planning / print encoding
+- `rust-evaluator/src/evaluation/`
+- `rust-evaluator/src/bin/evaluation_stdio.rs`
+- `src/node/rustEvaluationProcess.ts`
+
+`rust-evaluator` is the production CAD evaluator.
+
+Rust receives the resolved runtime payload prepared by TypeScript/Language Core.
+It does not parse `.nui` source or repeat source-name resolution.
+
+The ordinary Rust API remains the host-neutral document evaluation entry. The
+stdio binary exposes the persistent process protocol used by production Node
+hosts.
+
+VS Code and Headless MCP each own their process lifecycle but reuse the same
+Node client/protocol implementation and Rust evaluator.
+
+### Runtime source ownership
+
+Runtime-to-source operations use compiler/reconciler-owned source identity and
+structured runtime provenance.
+
+Commands such as Bake, Canvas edits, navigation, and Module Preview edits do not
+recover source ownership by parsing runtime IDs or searching source text.
+
+## Output architecture
 
 Primary:
 
@@ -790,167 +399,285 @@ Primary:
 - `rust-evaluator/src/output/payload.rs`
 - `rust-evaluator/src/output/svg.rs`
 - `rust-evaluator/src/output/pdf.rs`
-- `vscode-extension/src/outputPreviewFeature.ts` (Output Preview Extension Host owner)
-- `vscode-extension/src/outputPreviewSourceInteractionFeature.ts` (Output Preview Source interaction adapter)
+- `vscode-extension/src/outputPreviewFeature.ts`
+- `src/vscode/OutputPreviewApp.tsx`
 
-`outputCore.ts` is the host-neutral owner of the resolved output plan shared by
-SVG, PDF, and future Preview. It consumes compiler-resolved layouts/outputs,
-calls the existing `buildEvaluationOptions` boundary with the output's selected
-Drawing Profile, and consumes the resulting `EvaluationResult` without
-re-evaluating or filtering the common Canvas result. It resolves typed numeric
-output values through the compiled numeric binding/runtime products, applies
-ordered group-subtree placements, emits only line/arc/Bezier/offsetLine/polyline/text
-drawables, and calculates deterministic stroke-inclusive/text-inclusive bounds.
+Language Core parses and resolves `layout`, `print`, and `svg` declarations.
+The compiled document stores their source models and resolved references, not
+active preview UI state.
 
-The same plan owns SVG physical sizing and print tiling metadata, including
-page origins, first-page usable areas derived from physical overlap, physical
-page strides, overlap guides, joining labels, and deterministic text layout. It
-owns a stable six-role export palette whose values match the
-legacy Canvas baseline, but does not read the active Canvas theme at runtime;
-it also converts modifier widths from CSS pixels to millimetres. It has no
-React, host UI, command, dialog, or save flow ownership.
+`outputCore.ts` owns host-neutral output planning:
 
-`rust-evaluator/src/output/payload.rs` is the JSON-friendly resolved-payload
-validation boundary. `svg.rs` and `pdf.rs` are the production Rust encoding owners;
-they do not parse `.nui` source or resolve source names. SVG performs the Y-up
-to SVG Y-down conversion only at this boundary, while PDF preserves the
-physical Y-up page coordinates.
+- selected Drawing Profile application;
+- output/layout resolution;
+- ordered placements;
+- physical-unit page and SVG geometry;
+- page tiling and overlap metadata;
+- drawable filtering;
+- deterministic bounds and presentation data.
 
-Output Preview is the only user-facing save surface. Its current Webview plan
-publishes exact document-version/output-identity availability and sends the
-already-resolved `rustPayload`; the Extension Host owns the Output Preview-only
-command, save dialog, default `<document>_<output>` name, stale-session checks,
-and success/error notification. The shared `evaluation_stdio` process accepts a
-separate `exportOutput` envelope without changing the existing `{ id, input }`
-evaluation envelope or the public `evaluate_document(input)` Rust API. Encoding
-finishes in memory before the selected local file is written, so payload or PDF
-character validation errors do not touch the target.
+Rust owns final SVG/PDF payload validation and encoding. The Rust encoder does
+not parse source or resolve source names.
 
-`outputPreviewFeature.ts` owns the Output Preview Extension Host session
-lifecycle, create/reuse/hydration and pending-open delivery, Webview routing,
-Output Preview command registration, native history handoff, save flow, and
-the Source interaction adapter. It reuses the shared
-`VscodeWebviewSessionRegistry`, the root-owned Rust process boundary,
-`handoffOutputPreviewHistory`, and the host-neutral
-`outputPreviewPlaceDrag.ts` safety proof; it does not create a second session,
-process, history, or source authority. `extension.ts` remains the explicit
-composition root only for shared registry/process access and the narrow
-Canvas-to-Output-Preview / Output-Preview-to-Canvas adapters.
+Output Preview is a read-only physical presentation surface. The Webview resolves
+the active output plan and presents it; the Extension Host owns session lifecycle,
+save dialogs, target file writing, source interaction, and stale-session checks.
 
-### Rust evaluation
+Output Preview reuses the shared Rust process and canonical document/evaluation
+boundaries rather than introducing a separate export evaluator.
+
+## VS Code production host
 
 Primary:
 
-- `rust-evaluator/src/evaluation/`
-- `rust-evaluator/src/bin/evaluation_stdio.rs`
-- `rust-evaluator/examples/evaluate_fixture.rs`
-- `src/geometry/rustEvaluationRunner.ts` (request boundary)
-- `src/node/rustEvaluationProcess.ts` (shared Node stdio process boundary)
+- `vscode-extension/src/extensionEntry.ts`
+- `vscode-extension/src/extension.ts`
+- `src/vscode/main.tsx`
+- `src/vscode/webviewSurfaceRouter.tsx`
+- `src/vscode/vscodeWebviewSession.ts`
 
-`rust-evaluator/` is the host-neutral production Rust evaluator owner. Its
-`Cargo.toml` contains evaluator-only dependencies (`kurbo`, `serde`, `serde_json`)
-and does not depend on WebKit or desktop host APIs. The ordinary Rust
-API is:
+### Source authority and Webview mirrors
 
-- `nuinuicad_rust_evaluator::evaluate_document(input)`
+VS Code `TextDocument` is the production source authority for supported file-backed
+`.nui` documents.
 
-Rust evaluator は `.nui` source text を parse したり source name resolution を
-やり直す owner ではない。TypeScript compile / lowering 側で構築された resolved
-runtime payload を decode / validate / evaluate する。
+Webview document state is a disposable mirror hydrated from the authoritative
+TextDocument. It is never treated as the host-side saved/source authority.
 
-Production VS Code evaluationは Webview request から Extension Host の persistent
-`RustEvaluationProcess` / Node stdio boundaryを通り、`rust-evaluator` が所有する
-`evaluation_stdio` NDJSON protocolへ接続して、同じ
-`nuinuicad_rust_evaluator::evaluate_document`を呼び出す。Headless MCPも独立した
-Node ownerから同じ client/protocol と Rust evaluatorを利用する。既定binary discoveryは
-`rust-evaluator/target/debug/evaluation_stdio`で、
-`NUINUICAD_RUST_EVALUATION_BINARY` overrideは維持する。
+Source edits from Webviews cross the host boundary as guarded source patches and
+become native TextDocument edits. The normal TextDocument change echo then
+rehydrates the Webview mirror.
 
-Parityのcargo exampleは `rust-evaluator/examples/evaluate_fixture.rs` から同じ
-Rust evaluatorと `buildRustEvaluationInput` のprojectionを利用する。Parity harnessは
-Rust evaluator自体のcorrectness検証のため、production Rust eligibilityとは独立して
-Rust inputを構築できる。Current-release fixtureは別途production Rust eligibilityを
-assertする。
+### Webview surfaces
 
-### Rendering / hit testing
+The production Webview surfaces are:
+
+- Canvas;
+- Output Preview;
+- Module Preview.
+
+`webviewSurfaceRouter.tsx` routes the shared Webview bundle to the correct
+surface using explicit surface identity supplied by the Extension Host.
+
+Canvas and Output Preview use the shared URI/surface session registry. Module
+Preview has its own per-document target lifecycle because its semantic identity
+includes the selected Module definition.
+
+Surfaces may coexist for the same source document while remaining independent
+presentation sessions.
+
+### Canvas
 
 Primary:
 
+- `src/vscode/VSCodeApp.tsx`
 - `src/vscode/VSCodeDrawingCanvas.tsx`
+- `src/components/DrawingCanvas.tsx`
+
+Canvas presents the current evaluable runtime and owns interactive selection,
+viewport, picking, and host-neutral geometry manipulation through shared Canvas
+components.
+
+Editor/Canvas navigation is explicit. Cursor movement and Canvas selection are
+not implicitly synchronized.
+
+Canvas-origin source mutation crosses the canonical source-patch boundary. The
+Webview does not directly replace the authoritative TextDocument.
+
+Cross-document Canvas runtime is supplied by the Extension Host as a prepared
+projection. Dependency-owned imported runtime remains presentation-only unless a
+command explicitly resolves legal source ownership for a source edit.
+
+### Output Preview
+
+Primary:
+
+- `src/vscode/OutputPreviewApp.tsx`
+- `vscode-extension/src/outputPreviewFeature.ts`
+- `vscode-extension/src/outputPreviewSourceInteractionFeature.ts`
+
+Output Preview is independent from Canvas viewport and selection state. It
+renders a resolved physical output plan and delegates native save/source actions
+to the Extension Host.
+
+### Module Preview
+
+Primary:
+
 - `src/vscode/ModulePreviewApp.tsx`
-- `src/vscode/modulePreviewValueProjection.ts`
-- `src/vscode/multiDocumentRuntimeTransport.ts`
-- `src/vscode/useVscodeMultiDocumentRuntimeEvaluation.ts`
+- `src/vscode/modulePreviewLifecycle.ts`
+- `src/vscode/modulePreviewEvaluation.ts`
+- `vscode-extension/src/modulePreviewFeature.ts`
+
+Module Preview owns an ephemeral preview session for one exact Module target.
+
+The Extension Host owns target identity and current TextDocument proof. The
+Webview owns preview-only parameter/context state, last-good preview state, and
+runtime presentation.
+
+Preview parameter/context changes do not mutate canonical source. Source-writing
+interactions such as committed geometry edits or Bake resolve real authored
+source ownership and return through the normal source-patch/TextDocument
+boundary.
+
+Module Preview reuses the shared DrawingCanvas and Rust evaluation pipeline.
+
+### Native language features
+
+Primary:
+
+- `vscode-extension/src/languageAnalysisSession.ts`
+- `completionProvider.ts`
+- `signatureHelpProvider.ts`
+- `definitionProvider.ts`
+- `referenceProvider.ts`
+- `documentSymbolProvider.ts`
+- `renameProvider.ts`
+- `hoverProvider.ts`
+
+Native VS Code language providers are thin host adapters over Language Core
+queries and current-document/workspace semantic products.
+
+Single-document language queries use the URI-scoped `NuiLanguageSession`.
+Imported roots may use the active graph-backed multi-document semantic view.
+
+The host owns:
+
+- TextDocument synchronization;
+- raw/normalized position conversion;
+- VS Code DTO projection;
+- native diagnostics collections;
+- WorkspaceEdit application;
+- cancellation and stale-document checks;
+- localization/presentation.
+
+It does not own parallel parser, compiler, lexical, rename, or completion
+semantics.
+
+Runtime-valued Hover additionally calls the shared Rust runtime evaluation
+service after resolving an exact current semantic target. Other ordinary
+language providers do not start runtime evaluation.
+
+### Source authoring commands
+
+Primary:
+
+- `vscode-extension/src/sourceCreationCommandFeature.ts`
+- `vscode-extension/src/sourceCreationFlow.ts`
+- `src/commands/sourceTemplateCatalog.ts`
+- `src/commands/sourceCreationInsertion.ts`
+- `vscode-extension/src/sourceValueStepCommandFeature.ts`
+
+Native Source authoring flows resolve host-neutral plans and apply them through
+native TextDocument/snippet edits.
+
+Template catalogs and materializers own product-level insertion choices and
+source-safe structure. The VS Code adapter owns Quick Input and editor insertion
+mechanics.
+
+Source value stepping similarly uses a host-neutral edit plan and one guarded
+native source edit.
+
+### Reference Pick and coordinate conversion
+
+Primary:
+
+- `vscode-extension/src/referencePickCommandFeature.ts`
+- `src/vscode/useVSCodeReferencePickSession.ts`
+- `src/commands/coordinatePointConversion.ts`
+- `vscode-extension/src/coordinatePointConversionCommandFeature.ts`
+
+These features share the same architectural shape:
+
+- resolve a current Source/runtime target through host-neutral semantics;
+- use native or Canvas interaction as presentation;
+- keep request/session state explicit and document-scoped;
+- apply successful source changes through the canonical source-edit boundary;
+- fail closed when the source/session proof becomes stale.
+
+The interaction surface does not become a second semantic owner.
+
+### Rust process ownership
+
+Primary:
+
+- `src/node/rustEvaluationProcess.ts`
+- `vscode-extension/src/rustEvaluationProcessOwner.ts`
+
+The Extension Host owns one lazy Rust process owner shared by Canvas, Output
+Preview, Module Preview, native runtime Hover, and export encoding.
+
+Panels do not own the Rust process lifecycle.
+
+Headless MCP owns a separate lazy process owner but uses the same client/protocol
+implementation.
+
+### Protocol ownership
+
+Primary:
+
+- `src/vscode/protocol.ts`
+- feature-owned `*Protocol.ts` modules
+
+Feature-specific message slices stay with their feature owners.
+`src/vscode/protocol.ts` remains the aggregate JSON-safe authority for shared
+Webview message unions, API shape, and common surface identity.
+
+## Rendering and hit testing
+
+Primary:
+
 - `src/components/canvasHostAdapter.ts`
 - `src/components/DrawingCanvas.tsx`
 - `src/components/canvasRenderer.ts`
 - `src/components/CanvasOverlay.tsx`
-- `src/components/canvasTheme.ts`
-- `src/components/useCanvasOverlayData.ts`
 - `src/components/DrawingCanvasHitTest.ts`
+- `src/components/canvasTheme.ts`
 
-Current rendering architecture は VS Code Webview surface →
-CanvasHostAdapter → DrawingCanvas → canvasRenderer + CanvasOverlay。
-`VSCodeDrawingCanvas`が現在のstore、command、Source Editor、画像URL、
-CommandRibbonOverlayをadapterへ接続し、DrawingCanvasはhost-neutralな
-interaction/rendering ownerとしてcanvasとoverlayを描画する。ModulePreviewAppも
-同じDrawingCanvas / CanvasHostAdapterを使い、preview rootのtarget runtime
-elementsだけを描画する。Point/Bezier source gestures remain shared
-DrawingCanvas interactions with Preview-only ephemeral transforms; authored
-commits cross the Module Preview source-patch boundary described above. VS Code側
-に別のrendererやdrag transformは持たない。
+The shared rendering path is:
 
-`VSCodeDrawingCanvas` additionally accepts the narrow exact runtime projection
-for an importing root. While active, the shared renderer and hit testing use
-the prepared runtime elements, runtime evaluation revision, and rehydrated
-Module instance presentation facts. Those elements remain presentation-only:
-the canonical root store and all Source-writing commands remain unchanged, and
-dependency-owned runtime IDs cannot be dragged or committed through Canvas.
+```text
+host surface
+  -> CanvasHostAdapter
+  -> DrawingCanvas
+  -> canvasRenderer + CanvasOverlay
+```
 
-Current invariants:
+`DrawingCanvas` owns host-neutral interaction/render coordination.
+`canvasRenderer` owns main geometry presentation.
+`CanvasOverlay` and related helpers own interactive overlay presentation.
 
-- DrawingCanvasのinteraction logicはhost-neutral boundary越しに既存command/document ownerを使う。
-- `DrawingCanvas` passes resolved modifier strokes directly to the shared
-  `canvasRenderer`; the renderer is the presentation boundary for semantic theme
-  roles and does not receive modifier definitions or names. The shared
-  development/test harness uses `LEGACY_CANVAS_THEME`; VS Code resolves the
-  active Webview CSS variables and passes the host-neutral `CanvasTheme` through
-  the same adapter.
-- The VS Code Extension Host listens for active color-theme changes and sends a
-  theme invalidation to each open Canvas session. The Webview re-reads computed
-  theme variables and redraws the shared Canvas2D/SVG presentation without
-  reopening the Canvas.
-- Drag previewはephemeralで、pointerupだけがcanonical document commitを行う。
-- Runtime `CadElement[]` identityはadapterでcloneしない。
-- Performance instrumentationはproduction DrawingCanvas/evaluation/render pathを引き続き測る。
+Canvas and Module Preview reuse the same rendering and interaction core. VS Code
+does not maintain a second renderer for Preview.
 
-Command Ribbon presentation is host-neutral. `CommandRibbonView` owns only the
-accessible visual surface, command/value item rendering, icon injection, and
-pointer/wheel isolation. `CommandRibbonFloatingOverlay` owns measured
-floating-position drag and viewport clamping, including label-aware rendered
-dimensions; pointer moves remain presentation-local and the host decides what a
-pointerup commit means. `VSCodeDrawingCanvas` adapts the fixed product-owned
-horizontal Viewport, Display, and Grid Ribbons through the same boundary. The
-Viewport Ribbon includes Canvas Status and owns the former separate viewport
-controls. Their composition and order are source-owned; the Extension Host only
-persists their independent positions. The VS Code Webview icon owner uses
-explicit named Lucide imports in a small typed registry shared with Output
-Preview.
+Drag/gesture previews are ephemeral. Canonical source changes occur only at the
+explicit commit boundary.
 
-### Commands / keyboard / parameters
+Theme values are resolved by the host presentation layer and passed through a
+host-neutral Canvas theme contract.
+
+Cross-document runtime projections may replace the presented runtime for an
+importing root, but they do not replace the canonical source/document owner.
+
+## Commands, keyboard, and parameters
 
 Primary:
 
 - `src/commands/`
-- `src/commands/coordinatePointConversion.ts`
-- `src/commands/coordinatePointConversionSession.ts`
-- `src/keyboard/shortcuts.ts`
+- `src/keyboard/`
 - `packages/nui-language/src/parameters/parameterDefinitions.ts`
 
-Major business operations は command に集約する。Keyboard mapping と editable
-parameter metadata はそれぞれ既存 owner を使う。
+Major product operations are command-owned. UI entry points dispatch commands
+rather than reimplementing business logic.
 
-### State
+Keyboard bindings are a presentation/input mapping over commands and Source
+Editor transactions.
+
+Parameter metadata is Language Core/application metadata and is consumed by
+authoring, presentation, and source-editing features without making the
+Inspector a mutation owner.
+
+## State boundaries
 
 Document state:
 
@@ -960,24 +687,90 @@ UI state:
 
 - `src/state/cadUiStore.ts`
 
-Document canonical state と ephemeral UI state を混同しない。
+Canonical document state and ephemeral UI state remain separate.
 
-### Tests / parity
+Preview state, selection, viewport, command interaction state, and other
+presentation-only values do not become canonical document data.
+
+The production source authority remains the VS Code TextDocument even when a
+Webview maintains mirrored application state.
+
+## Headless MCP
+
+Primary:
+
+- `mcp-server/src/server.ts`
+- `mcp-server/src/documentSnapshot.ts`
+- `mcp-server/src/documentEvaluation.ts`
+- `src/node/rustEvaluationProcess.ts`
+
+The repository-owned MCP server is a Node stdio server.
+
+Document inspection/language operations read file-backed `.nui` source through a
+fresh snapshot boundary and reuse Language Core semantic products.
+
+Document evaluation lowers an exact compiled snapshot through the same
+production evaluation context and Rust runner used by the production
+architecture.
+
+The MCP surface returns compact JSON-safe DTOs rather than exposing internal
+`EvaluationResult` or compiler objects directly.
+
+Headless MCP does not own VS Code document mutation, Canvas state, or a second
+parser/evaluator.
+
+## VS Code attached observation bridge
+
+Primary:
+
+- `vscode-extension/src/vscodeObservationFeature.ts`
+- `vscode-extension/src/vscodeObservationState.ts`
+- `vscode-extension/src/mcpObservationBridge.ts`
+- `src/node/vscodeObservationBridge.ts`
+- `mcp-server/src/vscodeObserve.ts`
+
+The attached observation bridge is an optional read-only developer boundary for
+observing current VS Code state from MCP tooling.
+
+The Extension Host owns current observation state. The Node bridge owns local
+discovery/transport. The MCP tool projects the result into a JSON-safe read-only
+surface.
+
+The bridge does not introduce command execution, source mutation, pointer/
+keyboard automation, or a second Canvas/evaluation state model.
+
+## VS Code Explorer surface
+
+Primary:
+
+- `vscode-extension/src/elementsTreeFeature.ts`
+- `vscode-extension/src/elementsTreeProvider.ts`
+
+The native Elements Tree View projects exact-current document symbols into a VS
+Code tree.
+
+The feature owns host lifecycle and presentation only. Semantic hierarchy comes
+from Language Core document symbols.
+
+Explorer is not a parameter-editing or independent source-authority surface.
+
+## Tests and parity
 
 Representative:
 
-- Colocated TypeScript tests
-- `test/evaluationParitySupport.ts`
-- `test/fixtures/evaluation/`
-- Rust evaluator tests in `rust-evaluator/src/evaluation/`
+- colocated TypeScript tests;
+- `test/evaluationParitySupport.ts`;
+- `test/fixtures/evaluation/`;
+- Rust tests under `rust-evaluator/src/evaluation/`.
 
-`test/evaluationParitySupport.ts` の`optionsFor`は同じshared production
-evaluation context builderを呼ぶthin wrapperである。Rust parityは既存の
-`buildRustEvaluationInput(fixture.elements, optionsFor(fixture))`から
-`rust-evaluator/examples/evaluate_fixture.rs`、`evaluate_document`へ進み、Rust payload
-boundaryやbenchmark protocolはこのloweringの外側にある。
+Evaluation parity uses the same production lowering boundary before invoking the
+Rust evaluator. Test infrastructure should not invent an alternate evaluator
+input contract.
 
-### Performance comparison foundation
+Subsystem tests stay near their semantic owner where practical. Cross-cutting
+tests cover contracts that span compiler/runtime/host boundaries.
+
+## Performance foundation
 
 Primary:
 
@@ -985,526 +778,58 @@ Primary:
 - `scripts/performance/`
 - `performance/fixtures/`
 
-VS Code and compatible historical-result comparisonで共有する benchmark protocol、
-result schema、statistics、comparison logic、固定 `.nui` workload の owner。
+The performance subsystem owns benchmark protocol, result schema, statistics,
+instrumentation, capture orchestration, comparison logic, and fixed workloads.
 
-`src/performance/` は benchmark protocol、result schema、statistics、passive
-instrumentation、host-neutral benchmark execution、browser capture scenario、
-VS Code capture orchestration、result assembly を owner とする。
-`scripts/performance/` は VS Code capture CLI と result IO / comparison を担当する。
-Benchmark state は application store や Rust state に追加せず、通常 run
-ではほぼ no-op になる独立 subsystem である。
-
-### VS Code production document lifecycle
-
-Primary:
-
-- `vscode-extension/src/extension.ts`
-- `vscode-extension/src/extensionEntry.ts`
-- `vscode-extension/src/modulePreviewFeature.ts`
-- `vscode-extension/src/languageAnalysisSession.ts`
-- `vscode-extension/src/completionProvider.ts`
-- `vscode-extension/src/signatureHelpProvider.ts`
-- `vscode-extension/src/definitionProvider.ts`
-- `vscode-extension/src/referenceProvider.ts`
-- `vscode-extension/src/documentSymbolProvider.ts`
-- `vscode-extension/src/renameProvider.ts`
-- `vscode-extension/src/choiceQuickFixProvider.ts`
-- `vscode-extension/src/hoverFeature.ts`
-- `vscode-extension/src/hoverProvider.ts`
-- `vscode-extension/src/runtimeEvaluationService.ts`
-- `vscode-extension/src/referencePickCommandFeature.ts`
-- `vscode-extension/src/coordinatePointConversionCommandFeature.ts`
-- `vscode-extension/src/coordinatePointConversionPresentation.ts`
-- `vscode-extension/src/referencePickSourceBridge.ts`
-- `vscode-extension/src/sourceValueStepCommandFeature.ts`
-- `vscode-extension/src/sourceCreationCommandFeature.ts`
-- `vscode-extension/src/sourceCreationFlow.ts`
-- `vscode-extension/src/creationCommandQuickPick.ts`
-- `vscode-extension/src/sourceCreationSnippetAdapter.ts`
-- `src/commands/sourceTemplateCatalog.ts`
-- `src/commands/sourceGeometryValueTemplateCatalog.ts`
-- `src/commands/sourceGeometryValueTemplateMaterializer.ts`
-- `src/commands/sourceCalculationMeasurementTemplateCatalog.ts`
-- `src/commands/sourceCalculationMeasurementTemplateMaterializer.ts`
-- `src/commands/sourceControlFlowTemplateCatalog.ts`
-- `src/commands/sourceControlFlowTemplateMaterializer.ts`
-- `src/commands/sourceOutputTemplateCatalog.ts`
-- `src/vscode/vscodeCanvasCreationCommands.ts`
-- `src/geometry/geometryHoverPresentation.ts`
-- `src/node/rustEvaluationProcess.ts`
-- `src/vscode/VSCodeApp.tsx`
-- `src/vscode/VSCodeDrawingCanvas.tsx`
-- `src/components/CommandLineBar.tsx`
-- `src/vscode/coordinatePointConversionPick.ts`
-- `src/vscode/ModulePreviewApp.tsx`
-- `src/vscode/modulePreviewLifecycle.ts`
-- `src/vscode/modulePreviewEvaluation.ts`
-- `src/vscode/useVSCodeReferencePickSession.ts`
-- `src/vscode/VSCodeReferencePickOverlay.tsx`
-- `src/vscode/protocol.ts`
-- `src/vscode/vscodeWebviewSession.ts`
-- `src/vscode/webviewSurfaceRouter.tsx`
-
-VS Code `TextDocument` is the production source authority. The Webview
-`cadDocumentStore` is a disposable mirror hydrated from the authoritative
-document and is never restored as a host-side source. The current scope is
-`file:`-scheme `.nui` documents, including workspace and outside-workspace
-files and dirty in-memory content; untitled and non-file documents are not
-supported.
-
-Canvas and Output Preview sessions are keyed by document URI plus surface kind
-through the shared `VscodeWebviewSessionRegistry`. Module Preview has distinct
-lifecycle ownership in `modulePreviewFeature.ts`: it keeps one panel per document
-URI and stores the stable target Module definition identity so a repeated open can
-reveal and retarget the same panel without rebinding an existing panel to another
-document. The semantic Webview surface kinds are `canvas`, `outputPreview`, and
-`modulePreview`; Module Preview is Canvas-first and contains one minimal
-`Preview Values...` ingress button. The Extension Host owns the native Preview
-Values Quick Input lifecycle; no editor/Canvas split is mounted. The rendering surfaces are independent and may
-coexist for the same document. Closing the source
-`TextDocument` disposes the associated Module Preview panel as well as the
-registry-owned document surfaces.
-
-The production host still ships one `webview.js` bundle. Extension Host HTML
-bootstrap places the surface kind in explicit static metadata, and
-`webviewSurfaceRouter.tsx` validates that value before routing `canvas` to
-`VSCodeApp`, `outputPreview` to `OutputPreviewApp`, `modulePreview` to
-`ModulePreviewApp`. Malformed or unknown values fail closed.
-
-Module Preview command eligibility and execution are exact-current. Command
-Palette visibility is Source-scoped for file-scheme `.nui` documents, while the
-Source context menu uses the exact current caret target. `modulePreviewFeature.ts`
-resolves the innermost current Module using the same `queryModulePreviewTarget`
-authority as the Webview. It preserves that definition's reconciler-owned stable
-identity across source changes through `currentModulePreviewTargetByIdentity`;
-when the identity disappears or the current semantic proof is stale, it sends an
-unavailable target instead of falling back to a name or ancestor. Target delivery
-waits until the Webview has acknowledged the exact authoritative TextDocument
-version.
-
-The same Module Preview lifecycle establishes the active binding for the single
-`nuinuiCAD.modulePreview` panel. `ModulePreviewApp` keeps one
-`createModulePreviewSession()` as the semantic owner of parameter/context values,
-omission/default behavior, diagnostics, last-good state, and Preview compilation.
-The Webview projects that state through `modulePreviewValueProjection.ts` as an
-outermost-to-innermost group and definition-order parameter snapshot. The
-Extension Host validates the exact document/version/source/target/session proof,
-then owns native QuickPick/InputBox interaction. Direct value edits carry one
-stable definition statement index/name plus parameter index/name and an
-expression or explicit clear operation; they never edit canonical Source or add
-a Source Undo entry.
-
-Point, line, and path values enter the existing shared Canvas Pick Mode through
-the same exact-current value-site proof. `referencePickCandidates` remains the
-compiler-authoritative lexical-scope, visibility, canonical-reference, and
-Module-geometry-interface filter; `modulePreviewReferencePick.ts` only adapts
-its results to the common Canvas candidate shape. Confirmed references are
-converted with `referencePickSourceForReference` and sent back to the selected
-ephemeral Preview site only. Independently generated process-local statement IDs
-are not cross-runtime equality authority; exact Source revision, definition
-index/name, parameter index/name, and session proof are.
-
-Inside the Webview, `ModulePreviewApp` owns only surface composition. It uses
-`AutomationDocument` for the authoritative source mirror,
-`createModulePreviewSession` for the host-neutral ephemeral input/default/last-good
-state, `buildModulePreviewEvaluationOptions` plus `VscodeRustTransport` for the
-existing production evaluation path, and the shared `DrawingCanvas` /
-`CanvasHostAdapter` for rendering and Preview-only ephemeral interactions.
-Canonical source mutation for point/Bezier edits is performed only through the
-host-owned source-patch boundary; Preview parameter/context state and Reference
-Pick remain outside this surface lifecycle. Preview-value edits remain ephemeral
-and do not mutate the canonical `.nui` source.
-
-Explicit VS Code navigation is bidirectional and opt-in: Canvas selection does
-not follow the Editor cursor, and Editor cursor movement does not change Canvas
-selection. The TextDocument remains the source authority. The Extension Host /
-Webview boundary transports only the TextDocument version plus a normalized LF
-source position or range. Canvas source-definition responses additionally carry
-the exact selected runtime ElementId; reconciler StatementIdentity remains
-inside the source-ownership and graph context owners. Editor → Canvas runs the
-host-neutral source-target query before opening Canvas, so non-runtime source
-never creates a panel. With the production multi-document host, Canvas → Editor
-resolves that runtime element through the exact graph-backed Module context and
-target-document physical span, then rechecks the proven URI/source/dirty state
-before reveal. The legacy root-local range is used only when no such host is
-active. Both directions fail closed on stale source, version, compilation, or
-session state.
-
-Source → Canvas Reference Pick is an explicit Source command, not cursor-follow
-behavior. `referencePickCommandFeature.ts` uses the same exact host-neutral
-`queryDslReferencePickTarget` for context-menu eligibility and command execution,
-while Command Palette visibility remains at Source scope. It reuses the existing
-URI-scoped `NuiLanguageAnalysisSession` and `VscodeWebviewSessionRegistry`, creates
-or reveals the matching Canvas through `createCanvasPanel(document, true)`, and
-waits until that session has acknowledged the current authoritative document
-version before starting Pick Mode. Canvas history handoff or in-flight Canvas
-history prevents a Pick from starting.
-
-`referencePickSourceBridge.ts` captures document URI/version plus target proof and
-owns final one-edit Source mutation and Source focus/caret restoration. In the
-Webview, `useVSCodeReferencePickSession.ts` independently checks the current
-canonical source, compiled source/revision, and evaluation freshness before
-starting the shared reference-pick session. `VSCodeDrawingCanvas.tsx` renders
-`VSCodeReferencePickModeStatus.tsx`, which projects the Source target and draft
-through the shared `PickModeStatusView` inside the existing
-`data-reference-pick-ui="true"` interaction boundary. `VSCodeReferencePickOverlay.tsx`
-remains the candidate/hit-test and subordinate point/property chooser owner and
-routes Canvas pointer/keyboard interaction into the shared session; it no longer
-owns a caller-specific outer status shell. Source changes, document close, stale
-proof/version, panel disposal, stale responses, or invalidated targets cancel or
-fail closed without source mutation.
-
-`nuinuiCAD: Create Geometry…` is a native Source/Extension Host command. Its
-composition-root registration resolves the active file-backed `.nui` Source
-editor once, captures its current caret, and runs the existing native type/form
-Quick Picks, host-neutral template plan materialization, and native
-`TextEditor.insertSnippet` adapter. Creation Assist ends immediately after the
-snippet insertion; Canvas does not own generic Create Geometry or a Creation
-Assist Bottom Dock. Canvas Free Point at Pointer remains a separate
-command-owned Source-position flow, and shared Pick Mode remains a distinct
-Canvas interaction owner.
-
-`Insert Template…` is the unified native Source catalog entry. The
-host-neutral `src/commands/sourceTemplateCatalog.ts` owns its fixed family
-presentation/order, selected family identity, exhaustive family routing, and
-the shared statement-safe insertion context. Geometry routing delegates to the
-existing Create Geometry flow and its session-local MRU. Geometry Value is
-owned by `src/commands/sourceGeometryValueTemplateCatalog.ts`, which projects
-pure point/line/path constructions from Language Core's `pureValueInterface`
-and `exclusiveGroups` into typed `const` snippet plans; its declaration parts
-are materialized by `src/commands/sourceGeometryValueTemplateMaterializer.ts`.
-Calculation / Measurement is an explicit five-builtin presentation allowlist
-owned by `src/commands/sourceCalculationMeasurementTemplateCatalog.ts`; builtin
-signatures, types, and calling style remain owned by Language Core, and
-`src/commands/sourceCalculationMeasurementTemplateMaterializer.ts` projects
-those resolved definitions into typed `const` snippet parts. The family uses
-the same captured-target and native snippet boundaries. Geometry and Output /
-Print retain their existing independent owners. The separate
-`src/commands/sourceOutputTemplateCatalog.ts` owns only the five fixed Output /
-Print definitions, snippet shapes, and legality rules. All routes capture the
-Source document/version and reuse
-`src/commands/sourceCreationInsertion.ts` for a statement-safe boundary before
-native snippet insertion. Catalog state is ephemeral to the command
-invocation; source text remains canonical.
-Control Flow is an explicit six-row structural presentation allowlist owned by
-`src/commands/sourceControlFlowTemplateCatalog.ts`; its fixed group, if, range,
-collection, and carry rows are materialized by
-`src/commands/sourceControlFlowTemplateMaterializer.ts` as host-neutral
-structural parts with stable editable-field identities. The VS Code adapter
-projects those fields to linked native snippet tabstops while preserving the
-same captured-target and statement-safe insertion boundaries. Control Flow
-creates fresh Source structure and does not reuse selection-transform commands.
-
-The Preview route uses `modulePreviewProtocol.ts`,
-`useVSCodeModulePreviewReferencePickSession.ts`, and
-`modulePreviewReferencePick.ts` for exact session/value-site proof, request
-authority, and terminal delivery only. The active request supplies the common
-`DrawingCanvas` with compiler-authoritative candidates and an explicit
-non-persisted Preview value display target; the Canvas owns draft, hover,
-candidate-menu, pointer, keyboard, confirm, and cancel interaction. An
-initially invalid Preview renders the authored candidate elements/evaluation
-through the same CanvasOverlay path. The confirmed canonical reference updates
-only ephemeral Preview value state; it never enters Source or Source history.
-
-Coordinate point conversion keeps its semantic session and target/base
-revalidation in `coordinatePointConversion.ts` and
-`coordinatePointConversionSession.ts`, while the Extension Host owns the
-document-scoped request lifecycle, native QuickPick primary interaction, source
-splices, and terminal presentation. The native picker reuses
-`coordinatePointConversionReferenceSuggestions` so canonical source reference
-names and paths remain the searchable candidate model. In the Webview,
-`CommandLineBar.tsx` and `coordinatePointConversionPick.ts` remain only for the
-explicit Canvas visual-pick adapter; the normal conversion path does not depend
-on CommandLineBar rendering. The visual adapter delegates Canvas picking through
-`CanvasHostAdapter` and the shared `DrawingCanvas` point-pick path. An owned
-visual conversion commit carries its request identity across the normal
-TextDocument change echo so the terminal result remains connected to exactly
-one active request; unrelated source changes, stale evaluation, panel disposal,
-or document close fail closed.
-
-The Webview keeps the last authoritative host source snapshot separately from
-its latest host version. Navigation is allowed only when that snapshot, the
-current canonical Webview source, and the current compiled source/revision
-agree. Pending Editor → Canvas navigation is document-scoped, latest-request
-wins, waits for Webview readiness and authoritative hydration, and activates
-the Canvas only after Webview validation. Successful navigation explicitly
-focuses the actual Canvas viewport DOM node; failed or stale navigation does
-not steal destination focus.
-
-Canvas pointerup commits reuse the production store's `SourceUpdate` boundary.
-`model-patch` messages carry the existing `LineSplice[]` and are applied as one
-visible `TextEditor.edit()` transaction after version and source checks.
-`reset` is the only whole-document fallback. Successful Canvas commits are
-acknowledged only by the normal `TextEditor.edit()` →
-`onDidChangeTextDocument` → `commitText` echo path.
-
-Canvas-scoped Undo/Redo keybindings route to the active Canvas session. The
-Webview applies element-selection history locally while the current source
-checkpoint has an inner selection step; otherwise it requests native
-TextDocument Undo/Redo with an expected document version. The Extension Host
-validates the session, document, version, and visible editor, executes the
-native command, and forwards the authoritative document-change reason. The
-Webview reconciles adjacent source checkpoints and restores Canvas focus; a
-validation or checkpoint mismatch resynchronizes from the TextDocument. These
-keybindings are scoped to the Canvas webview and do not intercept Source Editor
-Undo/Redo.
-
-Editor → Canvas selection replacement uses the shared selection command owner
-and records one SAY-48 selection-history transition for a changed single- or
-multi-element target. Identical replacements are history no-ops. Canvas →
-Editor navigation does not mutate Canvas selection and therefore does not add a
-selection-history entry. Native Editor Undo/Redo and F2 retain ownership after
-successful explicit Canvas → Editor navigation because Canvas history handoff
-context is cleared before Editor focus is transferred.
-
-The Source+Canvas `Bake Current Shape` and `Bake Base Shape` commands are visible
-from native command-palette surface predicates only. The Extension Host owns the
-VS Code settings `nuinuiCAD.bake.emitSkippedComments`,
-`nuinuiCAD.bake.includeHiddenGeometry`, and
-`nuinuiCAD.bake.includeDisabledGeometry`, document-version isolation, and the
-native edit bridge. When disabled geometry is included, the host requests the
-Bake-only sandbox through the same Rust evaluation boundary. The Webview owns
-target resolution and the shared Bake conversion. Normal Canvas target resolution
-keeps the module-body to root-instance insertion redirect. Module Preview uses
-authored source ownership with Preview materialization: Module-body leaves insert
-in their real Module definition/body scope, real nested Module instances use their
-authored call-site scope, and synthetic Preview calls are never persisted. Its
-final splices use the same authoritative TextDocument transaction as point/Bezier
-commits. A source-triggered request keeps Source Editor focus where possible,
-rejects reusable module-definition bodies, and is accepted only after the same
-authoritative source/revision/evaluation checks used by navigation.
-
-`RustEvaluationProcess` and the shared lazy owner implementation live in
-`src/node/rustEvaluationProcess.ts`. The VS Code compatibility wrapper in
-`vscode-extension/src/rustEvaluationProcessOwner.ts` exposes the one active
-Extension Host owner so independently registered production features can reuse it.
-That one lazy process instance is shared by Canvas, Output Preview, Module Preview,
-native Hover runtime evaluation, and Output Preview export encoding regardless of
-document or surface identity.
-A panel does not own or kill the process. Unexpected process death rejects pending
-work, clears the dead process, and allows the next evaluation request to respawn
-it. Headless MCP owns a separate lazy owner instance but uses the same
-client/protocol implementation. The process binary is produced by `rust-evaluator`.
-The existing bounded latest-wins Rust transport, stale
-evaluation discard, `VscodeDragPreviewScheduler`, shared DrawingCanvas, and
-production compiler/evaluator remain reused from the performance PoC path.
-
-`src/vscode/` owns the Webview-side message bridge, Canvas and Module Preview
-surface composition/adapters, and benchmark result handoff. Separable
-cross-boundary message slices live with their feature owners in
-`outputPreviewProtocol.ts`, `canvasObservationProtocol.ts`,
-`runtimeDiagnosticsProtocol.ts`, `modulePreviewProtocol.ts`, and the existing
-Reference Pick / multi-document protocol modules. `src/vscode/protocol.ts`
-remains the one explicit JSON-safe aggregate authority for the two directional
-message unions, Webview API, shared surface identity, and other genuinely
-cross-feature transport facts. `vscode-extension/` owns the desktop-local
-Extension Host: Canvas lifecycle, Output Preview lifecycle through
-`outputPreviewFeature.ts`, shared Canvas/Output Preview registry composition,
-Module Preview's per-document panel/target lifecycle, TextDocument edit bridge,
-URI-scoped language analysis sessions, and its adapter into the shared persistent
-Rust stdio process boundary.
-
-`vscode-extension/src/sourceAuthoringPositionFeature.ts` is the single
-Extension Host owner for retained Source authoring positions. It records
-explicit Source authoring locations with their exact document version, fails
-closed on stale or external changes, and advances command-owned positions only
-after accepted edits while preserving the retained Undo/Redo history. The
-Canvas free-point feature and generic Canvas creation endpoint both consume this
-owner. Generic Canvas creation captures the retained position, current document
-version, Canvas session, and request identity before crossing the Webview
-boundary; the Webview resolves that position through
-`resolveSourceCreationInsertion`, and an accepted host commit advances the
-shared position from the committed statement metadata rather than using a
-document-end fallback.
-
-The Extension Host owns position-only state for Canvas Ribbons in
-`ExtensionContext.globalState`. Only the fixed `viewport`, `display`, and
-`grid` IDs with finite `x` and `y` coordinates are accepted. It hydrates Canvas
-Webviews from that state and broadcasts validated `{ ribbonId, x, y }` patches
-after pointerup. Composition, labels, icons, order, visibility, and orientation
-are product-owned; there is no contributed arbitrary Ribbon setting. Resizing
-clamps displayed positions without rewriting stored coordinates. Module Preview
-is decoupled from the Canvas Ribbon contract and does not render those controls.
-
-The extension keeps one package-owned `NuiLanguageSession` per supported
-document URI for local diagnostics and single-document language features.
-`NuiLanguageSession` owns the current source/revision proof and directly invokes
-the host-neutral language queries over its one lower-level `AutomationDocument`;
-it does not expose VS Code, Node, React, DOM, Canvas, runtime geometry, or
-evaluator services. `languageAnalysisSession.ts` is the thin VS Code composition
-layer that adds the runtime-diagnostics sidecar and adapts the workspace-only
-exact-current compiled semantic proof. `VscodeMultiDocumentHost` owns the exact
-graph/watcher lifecycle, current root generation, and diagnostics refresh
-notifications; saved dependencies remain disk-authoritative until the existing
-watcher/coordinator rebuilds affected roots. The Module adapter supplies the
-Module-family graph, semantic, and exact compiler diagnostic projection.
-`extension.ts` remains the owner of the one native `DiagnosticCollection` and
-composes that selected compiler/semantic layer with runtime diagnostics and
-Canvas-theme warnings. A root without imported dependencies stays on the local
-session path, while an imported root exposes only its exact current graph
-snapshot to Problems. During incomplete root authoring, the graph owner still
-loads root import edges and keeps the graph invalid for strict consumers;
-Completion alone may receive a current-root tolerant semantic snapshot after
-the existing dependency, public-catalog, and Module-runtime proofs succeed:
-
-```text
-VS Code TextDocument
-→ one URI-scoped multi-document host / saved graph coordinator
-├→ Module contributor → analyzeMultiDocumentModuleSemantics
-├→ graph-backed multi-document lint → DiagnosticCollection / diagnostics.lint
-├→ createModuleRuntimeContext → exact graph-root compile
-├→ completion-only current-root bridge → same graph/catalog/runtime authority
-├→ Module graph/semantic/compiler diagnostics → DiagnosticCollection
-│  ├→ queryDslCompletion → CompletionItemProvider (exact or completion-only)
-│  └→ queryDslSignatureHelp → SignatureHelpProvider
-├→ queryMultiDocumentDefinition / queryMultiDocumentReferences
-│  └→ DefinitionProvider / ReferenceProvider
-└→ planMultiDocumentRename + Module document proof → RenameProvider / WorkspaceEdit
-
-VS Code TextDocument
-→ NuiLanguageSession (single-document local/fallback)
-├→ diagnostics() → localized VS Code diagnostics
-├→ completion(offset) → CompletionItemProvider
-├→ signatureHelp(offset) → SignatureHelpProvider
-├→ definition(offset) → DefinitionProvider
-├→ references(offset) → ReferenceProvider
-├→ documentSymbols() → DocumentSymbolProvider
-├→ prepareRename()/rename() → RenameProvider / WorkspaceEdit
-├→ hover(offset)/themeRoleColors() → HoverProvider
-├→ sourceValueStepForSelection() → Source Value Step command/context adapter → one TextEditor edit
-├→ runtimeEvaluationSnapshot() → NuiRuntimeEvaluationService → EvaluationResult
-│  → geometryHoverPresentation → HoverProvider
-└→ quickFixes(input) → CodeActionProvider → guarded internal apply command → WorkspaceEdit
-
-Runtime diagnostics and Canvas-theme warnings are composed by `extension.ts`
-with whichever compiler/semantic layer the exact host generation selects; they
-are not alternate diagnostic owners.
-```
-
-`NuiLanguageSession` owns current raw source, source replacement, current
-compiler diagnostics, source revision, and fail-closed direct language queries.
-`AutomationDocument` remains its lower-level parser/compiler/document owner.
-`compilerDiagnostics.ts` is now a compatibility alias for the package-owned
-diagnostic DTO/projection; display-language localization and VS Code diagnostic
-collection ownership remain in the host. `completionProvider.ts` first asks the active
-multi-document host for its exact or completion-only current-root semantic
-snapshot, then projects
-`queryDslCompletion` candidates to `CompletionItem`s; it retains the session
-direct completion and recovery path when that snapshot is unavailable. Completion
-semantics, filtering, ranking, and truncation remain owned by the production
-query. `signatureHelpProvider.ts` uses the same exact host snapshot when
-available and otherwise calls the session's direct current-source operation; it
-does not recover stale Module metadata. `definitionProvider.ts` keeps
-the VS Code adapter thin: it synchronizes the current `TextDocument`, converts
-UTF-16 raw offsets across CRLF normalization, delegates semantic resolution to
-`NuiLanguageSession.definition`, and projects its exact ranges to a same-document
-`DefinitionLink`. `referenceProvider.ts` uses the same session/current-source
-flow and delegates to `NuiLanguageSession.references`, returning deterministic
-same-document `Location`s. `documentSymbolProvider.ts` delegates to the
-session's host-neutral document-symbol projection and recursively converts its
-normalized source ranges and symbol kinds to VS Code `DocumentSymbol`s. Rename target and edit-plan projection similarly
-remain host-neutral; VS Code `RenameProvider` and `ReferenceProvider`
-registrations are adapter boundaries, not second resolvers.
-`sourceValueStepCommandFeature.ts` similarly projects the shared exact edit plan
-to one guarded `TextEditor.edit`, then selects the replacement. Palette target
-availability and command execution both use that query; raw/normalized offset
-conversion and document version/source/expected-text checks remain host adapter
-responsibilities.
-
-Native Hover is the runtime-valued exception among these language features.
-`hoverProvider.ts` synchronizes the TextDocument and resolves only a current
-compiler-owned target through `NuiLanguageSession.hover` before invoking
-`NuiRuntimeEvaluationService`.
-The service owns document-keyed current-result/in-flight reuse and delegates to
-the shared production evaluation context, Rust eligibility/runner and the same
-Extension Host Rust process owner. `geometryHoverPresentation.ts` consumes only
-the current `CadElement` plus `EvaluationResult` to project visible/hidden,
-disabled/inactive/not-evaluated/error/unavailable states and reuses
-`geometryDisplay.ts` for geometry formatting. Cancellation, document-version or
-source-revision changes, and target changes after await all fail closed; no
-last-good runtime geometry is shown.
-
-Diagnostics, completion, definition navigation, references, document symbols,
-rename planning, and choice Quick Fix generation do not perform runtime
-evaluation or start the Rust process. Choice Quick Fix reuses the current
-compiler invalid-choice diagnostic and the existing `typedVariableQuickFixes`
-choice-replacement descriptors; it does not use the CodeMirror adapter. The
-internal apply command is authoritative only for the current open file
-document/version/source and fails closed before creating a `WorkspaceEdit`.
-
-The single-document, multi-document/workspace, and MCP language consumers use
-the supported Language Core package entries. Runtime diagnostics and Rust
-runtime evaluation remain host/runtime-owned; the package session is
-evaluator-free. Repository-wide boundary enforcement rejects direct
-package-internal imports and forwarding-shim fallbacks while allowing genuine
-root runtime/host implementations.
-
-`rust-evaluator/src/evaluation/*performance*` は Rust evaluator 単体の既存 performance
-test であり、cross-host UI comparison foundation とは別責務。
-
-### VS Code Explorer surface
-
-The native `nuinuiCAD.elements` Tree View is registered and refreshed by
-`vscode-extension/src/elementsTreeFeature.ts`; it owns the Extension Host
-lifecycle only. `vscode-extension/src/elementsTreeProvider.ts` remains the
-semantic/presentation adapter, projecting the exact-current Document Symbols
-into the tree hierarchy. It is the only view contributed to the
-`nuinuiCAD-explorer` Activity Bar container.
-
-Module Preview value editing is composed by the Extension Host using the
-product-owned native Quick Input wrappers in `nativeQuickInput.ts`. It is
-independent of the native Elements View; no parameter Webview View is
-contributed to the Explorer container. Shared Webview routing remains owned by
-`webviewSurfaceRouter.tsx` for Canvas, Output Preview, and Module Preview.
+Benchmark state remains separate from canonical application or evaluator state.
+Production instrumentation should remain passive outside benchmark capture.
 
 ## Core architecture invariants
 
-- `.nui` `sourceText` is canonical。
-- Current source と last-good compiled document は意図的に別。
-- `sourceRevision` / `compiledDocumentRevision` / `evaluationRevision` /
-  `evaluationRequestRevision` は同じ revision として扱わない。
-- Stable statement / element / binding identity を維持する。
-- Model mutation は canonical source-text patch boundary を通す。
-- Production VS Code and Headless MCP evaluation は host-neutral `rust-evaluator`
-  crate を使う。
-- TypeScript evaluator は reference / parity / test。
-- Rust は resolved runtime payload を受け取り、source parsing / source-name
-  resolution を再実装しない。
-- Existing lexical / Module / materialization / evaluation architecture を再利用する。
-- 同じ semantic concept の second parser / resolver / runtime / state model を
-  作らない。
+- `.nui` source text is canonical.
+- VS Code `TextDocument` is the production source authority.
+- Current source and last-good compiled document have separate lifecycles.
+- Source, compile, evaluation, and request revisions are distinct identities.
+- Stable statement, declaration, binding, and document-qualified identities are preserved across boundaries.
+- Source-writing model operations return through the canonical source-patch boundary.
+- Language Core is host-neutral.
+- Production evaluation uses the shared Rust evaluator.
+- TypeScript evaluation is reference/parity/test.
+- Rust consumes resolved runtime payloads and does not repeat source parsing or source-name resolution.
+- Multi-document semantics use one graph-backed document-qualified model.
+- Webviews are presentation/runtime mirrors, not filesystem/source authorities.
+- Host-specific UI and filesystem APIs remain behind adapters.
+- Existing semantic owners are reused; do not create parallel parsers, resolvers, runtimes, or state models for one feature or host.
 
 ## Maintenance
 
-`ARCHITECTURE.md` は作りっぱなしにしない。Architecture-changing task では
-同じTask内で更新する。
+Update this document in the same Task when current architecture materially changes,
+including when:
 
-更新が必要になる代表例:
+- subsystem responsibility moves;
+- a major subsystem is added or removed;
+- a primary entry point changes;
+- canonical document or data flow changes;
+- evaluation or rendering boundaries change;
+- a new architecture-level boundary is introduced;
+- an owner listed here is replaced or removed.
 
-- Subsystem 間で responsibility が移動する。
-- Major subsystem を追加 / 削除する。
-- Primary entry point が変わる。
-- Canonical document / data flow が変わる。
-- Evaluation / rendering pipeline が変わる。
-- Architecture-level boundary を新設する。
-- `ARCHITECTURE.md` に記載された owner/module を削除・置換する。
+Do not update this document for ordinary implementation detail changes that stay
+within the same ownership boundary.
 
-通常は更新不要:
+Keep this document as a navigation index. Prefer a small set of primary owners
+and boundary descriptions over exhaustive file lists or step-by-step feature
+behavior.
 
-- 同じ ownership boundary 内の ordinary bug fix。
-- Private/internal implementation detail だけの変更。
-- Architecture semantics に影響しない rename / cleanup。
+Do not record:
 
-Documentation churn 自体を目的にしない。Future proposal を current
-architecture として記載しない。
+- issue history;
+- migration history that no longer describes current architecture;
+- proposed/future architecture as if it were current;
+- incidental command labels or UI copy;
+- detailed validation sequences that belong in implementation/tests;
+- temporary compatibility notes whose only value is historical.
 
-`dslLintDiagnostics.ts` は exact-current `CompiledDslDocument` と
-`dslSemanticOccurrenceIndex.ts` の compiler-resolved occurrences だけを使って
-single-document maintenance-quality warnings を生成する。Graph-backed
-multi-document import warnings are owned by
-`multiDocumentLintDiagnostics.ts`, which requires exact graph and Module
-semantic proof before producing qualified findings. Both lint owners remain
-separate from compiler correctness diagnostics / binding issues and are
-projected through the existing VS Code DiagnosticCollection and Headless MCP
-`diagnostics.lint` surface.
+When a section grows into a feature specification, move that detail to the
+appropriate implementation/specification owner and leave only the architecture
+boundary and primary entry points here.
