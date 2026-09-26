@@ -110,6 +110,6 @@ describe("VS Code contextual Command Palette enablement", () => {
 
     expect(normalizedAgents).toContain("`menus.commandPalette[].when` owns broad surface relevance");
     expect(normalizedAgents).toContain("`contributes.commands[].enablement` owns coarse target availability");
-    expect(normalizedAgents).toContain("Command execution must still revalidate exact current state");
+    expect(normalizedAgents).toContain("Command execution remains authoritative and must revalidate exact current state");
   });
 });
