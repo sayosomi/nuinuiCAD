@@ -27,7 +27,8 @@ import type {
   GeometryValueProgramEntry,
   GeometryValueProgramNode,
   GeometryValueProgramPath,
-  GeometryValueProgramPoint
+  GeometryValueProgramPoint,
+  GeometryValueProgramTarget
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import { isDslOptionalValueType } from "../dsl/dslValueTypes";
@@ -4841,6 +4842,76 @@ export const compileModuleScalarRuntime = ({
     };
   };
 
+  const geometryValueProgramTargetForInput = (
+    source: RuntimeGeometryInputTarget,
+    context: InstanceContext | undefined,
+    executionPosition: number,
+    geometryType: "point" | "line"
+  ): GeometryValueProgramTarget | undefined => {
+    if (source.kind === "geometryValueMapPending") {
+      return {
+        kind: "geometryValue",
+        occurrence: source.occurrence,
+        statementId: source.occurrence.sourceStatementId,
+        statementIndex: executionPosition,
+        geometryType: source.geometryType === "path" ? "line" : source.geometryType,
+        ...(source.pointKey ? { pointKey: source.pointKey } : {}),
+        ...(source.stagePath ? { stagePath: source.stagePath } : {})
+      };
+    }
+    const lowered = lowerGeometryInputTarget(source);
+    if (!lowered) return undefined;
+    if (lowered.kind === "collectionIndex") {
+      return { kind: "geometryInputTarget", target: lowered, geometryType };
+    }
+    if (lowered.kind === "drawable") {
+      const statementIndex = elementOrderById.get(lowered.elementId);
+      return statementIndex === undefined ? undefined : {
+        statementId: lowered.elementId,
+        statementIndex,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(lowered.stagePath ? { stagePath: lowered.stagePath } : {})
+      };
+    }
+    if (lowered.kind === "geometryValue" || lowered.kind === "geometryValueMap") {
+      return {
+        kind: "geometryValue",
+        occurrence: lowered.occurrence,
+        statementId: lowered.occurrence.sourceStatementId,
+        statementIndex: executionPosition,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(lowered.stagePath ? { stagePath: lowered.stagePath } : {})
+      };
+    }
+    if (lowered.kind === "geometryCarry") {
+      return {
+        kind: "geometryCarry",
+        bindingId: moduleCarryBindingIdFor(context?.path ?? [], lowered.bindingId),
+        statementId: lowered.bindingId,
+        statementIndex: executionPosition,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(lowered.stagePath ? { stagePath: lowered.stagePath } : {})
+      };
+    }
+    if (lowered.kind === "forGroupOccurrence") {
+      return {
+        kind: "forGroupOccurrence",
+        templateElementId: lowered.templateElementId,
+        statementId: lowered.templateElementId,
+        statementIndex: lowered.targetSourceOrder,
+        targetSourceOrder: lowered.targetSourceOrder,
+        index: lowered.index,
+        geometryType: lowered.geometryType,
+        ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+        ...(lowered.stagePath ? { stagePath: lowered.stagePath } : {})
+      };
+    }
+    return undefined;
+  };
+
   const geometryInputTargetsByRuntimeElementId = new Map<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const isTargetList = (source: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]): source is readonly RuntimeGeometryInputTarget[] => Array.isArray(source);
   for (const [elementId, sources] of moduleGeometryRuntime?.geometryInputTargetSourcesByRuntimeElementId ?? []) {
@@ -4985,6 +5056,13 @@ export const compileModuleScalarRuntime = ({
     }
     if (!reference.target || !moduleGeometryRuntime) return undefined;
     const path = context?.path ?? [];
+    if (reference.target.kind === "collectionIndex") {
+      const indexed = moduleGeometryRuntime.resolveGeometryCollectionIndexPoint(reference.target, path);
+      if (!indexed) return undefined;
+      if ("mode" in indexed) return lowerGeometryValueAnchor(indexed, executionPosition);
+      const target = geometryValueProgramTargetForInput(indexed, context, executionPosition, "point");
+      return target ? { kind: "target", target } : undefined;
+    }
     const stagePath = "stagePath" in reference.target ? reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "point");
     if (!lowered) return undefined;
@@ -5071,6 +5149,12 @@ export const compileModuleScalarRuntime = ({
     }
     if (!reference.target || !moduleGeometryRuntime) return undefined;
     const path = context?.path ?? [];
+    if (reference.target.kind === "collectionIndex") {
+      const indexed = moduleGeometryRuntime.resolveGeometryCollectionIndexLine(reference.target, path);
+      if (!indexed) return undefined;
+      const target = geometryValueProgramTargetForInput(indexed, context, executionPosition, "line");
+      return target ? { kind: "target", target } : undefined;
+    }
     const stagePath = "stagePath" in reference.target ? reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "line");
     if (!lowered) return undefined;
@@ -5305,8 +5389,10 @@ export const compileModuleScalarRuntime = ({
       const lowered = value.initializer.expectedGeometryKind === "point"
         ? lowerGeometryValuePoint(value.initializer, context, executionPosition)
         : lowerGeometryValuePath(value.initializer, context, executionPosition);
-      if (lowered?.kind !== "target") return undefined;
-      const construction: GeometryValueProgramNode = { kind: "reference", target: lowered.target };
+      if (!lowered) return undefined;
+      const construction: GeometryValueProgramNode = lowered.kind === "target"
+        ? { kind: "reference", target: lowered.target }
+        : { kind: "coordinate", x: lowered.x, y: lowered.y };
       if (emit) {
         geometryValueProgramEntries.push({
           sourceStatementId: value.statementId,
@@ -5713,6 +5799,24 @@ export const compileModuleScalarRuntime = ({
     if (target.kind === "collectionIndex") return { ...target, members: target.members.map(replaceLazyGeometryMapPrograms), ...(target.value ? { value: replaceCollectionNode(target.value) } : {}) };
     return target;
   };
+  const replaceLazyProgramsInGeometryValueProgram = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(replaceLazyProgramsInGeometryValueProgram);
+    if (!value || typeof value !== "object") return value;
+    const record = value as Record<string, unknown>;
+    if (record.kind === "geometryInputTarget" && record.target && typeof record.target === "object") {
+      return {
+        ...record,
+        target: replaceLazyGeometryMapPrograms(record.target as GeometryInputTarget)
+      };
+    }
+    return Object.fromEntries(Object.entries(record).map(([key, nested]) => [
+      key,
+      replaceLazyProgramsInGeometryValueProgram(nested)
+    ]));
+  };
+  for (const entry of geometryValueProgramEntries) {
+    entry.construction = replaceLazyProgramsInGeometryValueProgram(entry.construction) as GeometryValueProgramNode;
+  }
   for (const [elementId, targets] of geometryInputTargetsByRuntimeElementId) {
     const replaced = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
     for (const [parameterKey, target] of targets) {

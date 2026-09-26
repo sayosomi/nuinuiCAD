@@ -18,11 +18,11 @@ import type { BindingVersionGraph } from "./bindingVersions";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { CompiledNumericBinding } from "./numericBindingCompiler";
 import type { TextTemplateAst } from "./textTemplate";
-import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "./typedExpressionAst";
+import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarProgram } from "./scalarProgram";
 import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "../dsl/transformationRecipes";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
-import type { GeometryValueProgramEntry, GeometryValueProgramNode, GeometryValueProgramPoint, GeometryValueProgramPath } from "../dsl/moduleGeometryValueProgram";
+import type { GeometryValueProgramEntry, GeometryValueProgramNode, GeometryValueProgramPoint, GeometryValueProgramPath, GeometryValueProgramTarget } from "../dsl/moduleGeometryValueProgram";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import type { GeometryValueOccurrence } from "../model/cadDocumentTypes";
 
@@ -323,7 +323,7 @@ export const geometryPropertiesIn = (expression: TypedScalarExpression): readonl
 
 type GeometryValueProgramDependency = {
   kind: "target";
-  target: ScalarExpressionResolvedGeometryTarget;
+  target: GeometryValueProgramTarget;
   guards: readonly TypedDependencyActivationGuard[];
 } | {
   kind: "scalar";
@@ -1267,10 +1267,33 @@ export const buildTypedDependencyGraph = ({
   };
   const addProgramTargetDependency = (
     from: TypedDependencyEndpoint,
-    target: ScalarExpressionResolvedGeometryTarget,
+    target: GeometryValueProgramTarget,
     guards: readonly TypedDependencyActivationGuard[],
     occurrenceNamespace?: string
   ) => {
+    if (target.kind === "geometryInputTarget") {
+      addScalarProgramDependencies(from, target.target.index, guards, occurrenceNamespace);
+      const input = target.target;
+      for (const dependency of geometryValueOccurrencesInInput(input)) {
+        const mergedGuards = [...guards, ...dependency.guards];
+        addGeometryValueDependency(from, dependency.occurrence, null, mergedGuards, occurrenceNamespace);
+      }
+      const structured: StructuredGeometryDependency[] = [];
+      collectStructuredGeometryDependencies(input, structured);
+      for (const dependency of structured) {
+        deferredStageEdges.push({
+          kind: "geometry",
+          from,
+          ownerId: dependency.id,
+          stagePath: ["final"],
+          span: null,
+          requiredness: guards.length || dependency.requiredness === "conditional" ? "conditional" : "required",
+          ...(guards.length ? { activation: { guards } } : {}),
+          occurrenceNamespace
+        });
+      }
+      return;
+    }
     if (target.kind === "geometryValue") {
       addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
     } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {

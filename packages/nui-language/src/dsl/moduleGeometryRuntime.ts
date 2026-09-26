@@ -92,6 +92,14 @@ export type ModuleGeometryRuntimeCompilation = {
     statementIndex: number,
     currentPath: readonly string[]
   ) => readonly PointAnchor[] | RuntimeGeometryInputTarget | null;
+  resolveGeometryCollectionIndexPoint: (
+    target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ) => PointAnchor | RuntimeGeometryInputTarget | null;
+  resolveGeometryCollectionIndexLine: (
+    target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ) => RuntimeGeometryInputTarget | null;
   coordinateForReference: (
     reference: ModuleGeometryReferenceSemantic,
     instancePath: readonly string[]
@@ -574,6 +582,16 @@ export const buildModuleGeometryRuntime = ({
     return undefined;
   };
 
+  const resolveGeometryCollectionIndexPoint = (
+    target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ) => geometryArrayRuntime.resolveGeometryCollectionIndexPointForValue(target, currentPath);
+
+  const resolveGeometryCollectionIndexLine = (
+    target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ) => geometryArrayRuntime.resolveGeometryCollectionIndexLineForValue(target, currentPath);
+
   return {
     diagnostics,
     resolversByRuntimeElementId,
@@ -582,6 +600,8 @@ export const buildModuleGeometryRuntime = ({
     resolvePropertyTarget,
     resolveBuiltinTarget,
     resolvePointReferenceList: (token, statementIndex, currentPath) => geometryArrayRuntime.resolvePointReferenceList(token, statementIndex, currentPath),
+    resolveGeometryCollectionIndexPoint,
+    resolveGeometryCollectionIndexLine,
     coordinateForReference,
     resolveGeometryArrayAliasesForValueId: geometryArrayRuntime.resolveGeometryArrayAliasesForValueId,
     resolveGeometryArrayCollectionForValueId: geometryArrayRuntime.resolveGeometryArrayCollectionForValueId

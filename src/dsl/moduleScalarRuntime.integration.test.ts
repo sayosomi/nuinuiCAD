@@ -891,7 +891,9 @@ describe("module scalar runtime integration", () => {
       target: { statementId: elementNamed(compiled, "SourceB").id }
     });
     const rootAliasExportTargets = [rootAEntry, rootBEntry].map((entry) =>
-      entry.construction.kind === "reference" ? entry.construction.target.statementId : undefined
+      entry.construction.kind === "reference" && entry.construction.target.kind !== "geometryInputTarget"
+        ? entry.construction.target.statementId
+        : undefined
     );
     expect(rootAliasExportTargets).toEqual([
       elementNamed(compiled, "SourceA").id,

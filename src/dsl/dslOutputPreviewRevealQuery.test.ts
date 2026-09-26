@@ -277,6 +277,8 @@ const moduleCompiled = (): Pick<
     geometryInputTargetsByRuntimeElementId: new Map(),
     geometryInputTargetSourcesByRuntimeElementId: new Map(),
     resolvePointReferenceList: () => null,
+    resolveGeometryCollectionIndexPoint: () => null,
+    resolveGeometryCollectionIndexLine: () => null,
     resolveBuiltinTarget: (_target, path, expectedGeometryType) => ({
       kind: "drawable",
       elementId: path[0] === "call-1" ? "point-1" : "point-2",

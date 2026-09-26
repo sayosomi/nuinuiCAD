@@ -70,6 +70,14 @@ export type ModuleGeometryArrayRuntimeCompilation = {
     currentPath: readonly string[],
     target?: ModuleGeometryReferenceSemantic["target"]
   ) => PointAnchor | RuntimeGeometryInputTarget | null;
+  resolveGeometryCollectionIndexLineForValue: (
+    target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ) => RuntimeGeometryInputTarget | null;
+  resolveGeometryCollectionIndexPointForValue: (
+    target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ) => PointAnchor | RuntimeGeometryInputTarget | null;
   acceptsDeferredLineListExport: (
     reference: ModuleGeometryReferenceSemantic,
     currentPath: readonly string[]
@@ -283,6 +291,8 @@ export const buildModuleGeometryArrayRuntime = ({
       resolvePointReferenceList: () => null,
       resolveLineReferenceTargetAt: () => null,
       resolvePointReferenceAt: () => null,
+      resolveGeometryCollectionIndexLineForValue: () => null,
+      resolveGeometryCollectionIndexPointForValue: () => null,
       acceptsDeferredLineListExport: () => false,
       resolveGeometryArrayAliasesForValueId: () => null,
       resolveGeometryArrayCollectionForValueId: () => null
@@ -1098,7 +1108,8 @@ export const buildModuleGeometryArrayRuntime = ({
     target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }> | undefined,
     resolved: RuntimeArrayValue | null,
     expectedGeometryKind: "point" | "line",
-    currentPath: readonly string[]
+    currentPath: readonly string[],
+    preserveMappedMemberSelection = false
   ): PointAnchor | RuntimeGeometryInputTarget | null => {
     if (!target || !resolved) return null;
     if (resolved.collection) {
@@ -1115,12 +1126,20 @@ export const buildModuleGeometryArrayRuntime = ({
     if (!aliases) return null;
     if (target.index.ast.kind === "numberLiteral") {
       const member = aliases[target.index.ast.value];
+      if (member?.kind === "mappedValue" && preserveMappedMemberSelection) {
+        return {
+          kind: "collectionIndex",
+          target,
+          members: aliases,
+          currentPath
+        } satisfies GeometryInputTargetSource;
+      }
       return member
-        ? expectedGeometryKind === "point"
-          ? member.kind === "mappedValue"
-            ? geometryInputTargetForAlias(member)
-            : pointAnchorForAlias(member) ?? null
-          : geometryInputTargetForAlias(member)
+        ? member.kind === "mappedValue"
+          ? geometryInputTargetForAlias(member)
+          : expectedGeometryKind === "point"
+            ? pointAnchorForAlias(member) ?? null
+            : geometryInputTargetForAlias(member)
         : null;
     }
     if (expectedGeometryKind === "line" && aliases.some((alias) => alias.kind === "point")) return null;
@@ -1176,6 +1195,34 @@ export const buildModuleGeometryArrayRuntime = ({
     return anchors?.[indexed.index] ?? null;
   };
 
+  const resolveGeometryCollectionIndexForValue = (
+    target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }>,
+    currentPath: readonly string[],
+    expectedGeometryKind: "point" | "line"
+  ) => indexedTargetFor(
+    target,
+    lowerValueById(target.collectionValueId, currentPath, new Set()),
+    expectedGeometryKind,
+    currentPath,
+    true
+  );
+
+  const resolveGeometryCollectionIndexLineForValue = (
+    target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ): RuntimeGeometryInputTarget | null => {
+    const indexed = resolveGeometryCollectionIndexForValue(target, currentPath, "line");
+    return indexed && "kind" in indexed ? indexed : null;
+  };
+
+  const resolveGeometryCollectionIndexPointForValue = (
+    target: Extract<ModuleGeometryReferenceSemantic["target"], { kind: "collectionIndex" }>,
+    currentPath: readonly string[]
+  ): PointAnchor | RuntimeGeometryInputTarget | null => {
+    const indexed = resolveGeometryCollectionIndexForValue(target, currentPath, "point");
+    return indexed && ("target" in indexed || "mode" in indexed || "kind" in indexed) ? indexed : null;
+  };
+
   const acceptsDeferredLineListExport = (reference: ModuleGeometryReferenceSemantic, currentPath: readonly string[]) => {
     if (reference.role !== "lineReferenceList" || reference.target?.kind !== "deferredModuleExport") return false;
     const exported = arrayExportSemantic(currentPath, reference.target.instanceStatementId, reference.target.exportName)?.exported;
@@ -1188,6 +1235,8 @@ export const buildModuleGeometryArrayRuntime = ({
     resolvePointReferenceList,
     resolveLineReferenceTargetAt,
     resolvePointReferenceAt,
+    resolveGeometryCollectionIndexLineForValue,
+    resolveGeometryCollectionIndexPointForValue,
     acceptsDeferredLineListExport,
     resolveGeometryArrayAliasesForValueId,
     resolveGeometryArrayCollectionForValueId
