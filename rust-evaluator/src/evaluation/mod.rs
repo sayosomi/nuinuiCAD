@@ -2299,6 +2299,8 @@ fn evaluate_document_input_with_scalar_program(
                         .as_ref()
                         .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
                 });
+        let geometry_input_scalar_binding_resolver: &dyn ScalarDocumentBindingResolver =
+            active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
         let current_execution_position = current_source_order
             .map(|source_order| source_order as f64)
             .unwrap_or(
@@ -2631,7 +2633,7 @@ fn evaluate_document_input_with_scalar_program(
                             &mut state,
                             &mut materialized_element,
                             &id,
-                            active_scalar_binding_resolver,
+                            Some(geometry_input_scalar_binding_resolver),
                             Some(current_execution_position),
                         ) {
                             let element_name = materialized_element
@@ -2679,7 +2681,7 @@ fn evaluate_document_input_with_scalar_program(
                     &mut state,
                     &mut element,
                     &id,
-                    active_scalar_binding_resolver,
+                    Some(geometry_input_scalar_binding_resolver),
                     Some(current_execution_position),
                 ) {
                     let element_name = element.get("name").and_then(Value::as_str).unwrap_or(&id);
