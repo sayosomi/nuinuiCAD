@@ -107,12 +107,15 @@ fn validate_typed_expression_runtime_targets(
     elements_by_id: &HashMap<&str, &Value>,
     valid_binding_ids: &HashSet<&str>,
 ) -> Result<(), String> {
-    let mut pending = vec![expression];
-    while let Some(node) = pending.pop() {
+    let mut pending = vec![(expression, Vec::<&str>::new())];
+    let mut declared_local_binding_ids = HashSet::new();
+    while let Some((node, local_binding_ids)) = pending.pop() {
         match node {
             TypedScalarExpression::Reference { binding_id, .. } => {
                 if let Some(binding_id) = binding_id {
-                    if !valid_binding_ids.contains(binding_id.as_str()) {
+                    if !valid_binding_ids.contains(binding_id.as_str())
+                        && !local_binding_ids.contains(&binding_id.as_str())
+                    {
                         return Err(payload_error(
                             "numeric binding typedExpression reference bindingId does not exist in the scalar program",
                         ));
@@ -122,6 +125,7 @@ fn validate_typed_expression_runtime_targets(
             TypedScalarExpression::GeometryProperty {
                 element_id,
                 for_group_template_element_id,
+                for_group_index,
                 ..
             } => {
                 let target_element_id = for_group_template_element_id
@@ -132,16 +136,21 @@ fn validate_typed_expression_runtime_targets(
                         "numeric binding typedExpression geometry target does not match an element",
                     ));
                 }
+                if let Some(index) = for_group_index {
+                    pending.push((index, local_binding_ids));
+                }
             }
-            TypedScalarExpression::CollectionIndex { index, .. } => pending.push(index),
+            TypedScalarExpression::CollectionIndex { index, .. } => {
+                pending.push((index, local_binding_ids));
+            }
             TypedScalarExpression::Unary { operand, .. }
             | TypedScalarExpression::Group {
                 expression: operand,
                 ..
-            } => pending.push(operand),
+            } => pending.push((operand, local_binding_ids)),
             TypedScalarExpression::Binary { left, right, .. } => {
-                pending.push(left);
-                pending.push(right);
+                pending.push((left, local_binding_ids.clone()));
+                pending.push((right, local_binding_ids));
             }
             TypedScalarExpression::ValueIf {
                 condition,
@@ -149,22 +158,57 @@ fn validate_typed_expression_runtime_targets(
                 else_branch,
                 ..
             } => {
-                pending.push(condition);
-                pending.push(then_branch);
-                pending.push(else_branch);
+                pending.push((condition, local_binding_ids.clone()));
+                pending.push((then_branch, local_binding_ids.clone()));
+                pending.push((else_branch, local_binding_ids));
             }
             TypedScalarExpression::ValueMatch {
                 scrutinee, arms, ..
             } => {
-                pending.push(scrutinee);
+                let scrutinee_type = declared_scalar_expression_type(scrutinee);
+                pending.push((scrutinee, local_binding_ids.clone()));
                 for arm in arms {
-                    pending.push(&arm.expression);
+                    let has_binder_metadata = arm.binder_id.is_some() && arm.binder_type.is_some();
+                    if arm.binder_id.is_some() != arm.binder_type.is_some()
+                        || arm.binder.is_some() != has_binder_metadata
+                    {
+                        return Err(payload_error(
+                            "numeric binding typedExpression value-match binder metadata is incomplete",
+                        ));
+                    }
+
+                    let mut arm_binding_ids = local_binding_ids.clone();
+                    if let (Some(binder_id), Some(binder_type)) =
+                        (arm.binder_id.as_deref(), arm.binder_type.as_ref())
+                    {
+                        if binder_id.is_empty()
+                            || arm.label != "some"
+                            || matches!(arm.binder.as_deref(), None | Some(""))
+                            || !matches!(
+                                scrutinee_type.as_ref(),
+                                Some(ScalarType::Optional { value_type }) if value_type.as_ref() == binder_type
+                            )
+                        {
+                            return Err(payload_error(
+                                "numeric binding typedExpression value-match binder metadata does not match its optional some arm",
+                            ));
+                        }
+                        if valid_binding_ids.contains(binder_id)
+                            || !declared_local_binding_ids.insert(binder_id)
+                        {
+                            return Err(payload_error(
+                                "numeric binding typedExpression value-match binderId must be unique and local",
+                            ));
+                        }
+                        arm_binding_ids.push(binder_id);
+                    }
+                    pending.push((&arm.expression, arm_binding_ids));
                 }
             }
             TypedScalarExpression::Call { args, .. } => {
                 for argument in args {
                     if let TypedBuiltinArgument::Scalar { expression } = argument {
-                        pending.push(expression);
+                        pending.push((expression, local_binding_ids.clone()));
                     } else if let TypedBuiltinArgument::GeometryReference {
                         target: Some(target),
                         ..
@@ -530,6 +574,63 @@ mod tests {
         })
     }
 
+    fn typed_reference(name: &str, binding_id: &str, scalar_type: Value) -> Value {
+        json!({
+            "kind": "reference",
+            "span": {"start": 0, "end": 10},
+            "nameSpan": {"start": 1, "end": 6},
+            "name": name,
+            "bindingId": binding_id,
+            "type": scalar_type
+        })
+    }
+
+    fn number_type() -> Value {
+        json!({"kind": "number"})
+    }
+
+    fn optional_number_type() -> Value {
+        json!({"kind": "optional", "valueType": number_type()})
+    }
+
+    fn typed_value_match(binder_id: &str, binder_name: &str, some_expression: Value) -> Value {
+        json!({
+            "kind": "valueMatch",
+            "span": {"start": 0, "end": 60},
+            "scrutinee": typed_reference("maybe", "binding:maybe", optional_number_type()),
+            "arms": [
+                {
+                    "label": "none",
+                    "labelSpan": {"start": 20, "end": 24},
+                    "expression": number_literal(0.0)
+                },
+                {
+                    "label": "some",
+                    "labelSpan": {"start": 30, "end": 34},
+                    "binder": binder_name,
+                    "binderSpan": {"start": 35, "end": 35 + binder_name.len()},
+                    "binderId": binder_id,
+                    "binderType": number_type(),
+                    "expression": some_expression
+                }
+            ],
+            "type": number_type()
+        })
+    }
+
+    fn numeric_match_entry(typed_expression: Value) -> Value {
+        numeric_entry(
+            "match @maybe { none => 0 some value => @value }",
+            Some(typed_expression),
+            json!([{
+                "bindingId": "binding:maybe",
+                "name": "maybe",
+                "expressionStart": 6,
+                "expressionEnd": 12
+            }]),
+        )
+    }
+
     fn iteration_reference_expression() -> Value {
         json!({
             "kind": "reference",
@@ -692,6 +793,183 @@ mod tests {
             &HashSet::new(),
         );
         assert!(decoded.is_ok());
+    }
+
+    #[test]
+    fn accepts_typed_expression_references_to_their_value_match_arm_binder() {
+        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let expression = typed_value_match(
+            "optional-match-binder:local",
+            "value",
+            typed_reference("value", "optional-match-binder:local", number_type()),
+        );
+
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_match_entry(expression)]),
+            &elements_by_id,
+            &HashSet::from(["binding:maybe"]),
+        );
+
+        assert!(decoded.is_ok());
+    }
+
+    #[test]
+    fn rejects_typed_expression_references_to_a_value_match_binder_outside_its_arm() {
+        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let local_match =
+            typed_value_match("optional-match-binder:local", "value", number_literal(1.0));
+        let expression = json!({
+            "kind": "binary",
+            "span": {"start": 0, "end": 80},
+            "operator": "+",
+            "left": local_match,
+            "right": typed_reference(
+                "value",
+                "optional-match-binder:local",
+                number_type()
+            ),
+            "type": number_type()
+        });
+
+        let result = validate_numeric_bindings_payload(
+            &json!([numeric_match_entry(expression)]),
+            &elements_by_id,
+            &HashSet::from(["binding:maybe"]),
+        );
+
+        assert!(
+            matches!(result, Err(error) if error.contains("does not exist in the scalar program"))
+        );
+    }
+
+    #[test]
+    fn rejects_typed_expression_references_to_undeclared_value_match_binder_ids() {
+        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let expression = typed_value_match(
+            "optional-match-binder:local",
+            "value",
+            typed_reference("value", "optional-match-binder:forged", number_type()),
+        );
+
+        let result = validate_numeric_bindings_payload(
+            &json!([numeric_match_entry(expression)]),
+            &elements_by_id,
+            &HashSet::from(["binding:maybe"]),
+        );
+
+        assert!(
+            matches!(result, Err(error) if error.contains("does not exist in the scalar program"))
+        );
+    }
+
+    #[test]
+    fn rejects_value_match_binder_ids_that_collide_with_scalar_program_ids() {
+        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let expression = typed_value_match(
+            "binding:maybe",
+            "value",
+            typed_reference("value", "binding:maybe", number_type()),
+        );
+
+        let result = validate_numeric_bindings_payload(
+            &json!([numeric_match_entry(expression)]),
+            &elements_by_id,
+            &HashSet::from(["binding:maybe"]),
+        );
+
+        assert!(
+            matches!(result, Err(error) if error.contains("binderId must be unique and local"))
+        );
+    }
+
+    #[test]
+    fn accepts_nested_value_match_binders_in_their_lexical_scopes() {
+        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let inner_expression = typed_value_match(
+            "optional-match-binder:inner",
+            "inner",
+            json!({
+                "kind": "binary",
+                "span": {"start": 0, "end": 20},
+                "operator": "+",
+                "left": typed_reference(
+                    "outer",
+                    "optional-match-binder:outer",
+                    number_type()
+                ),
+                "right": typed_reference(
+                    "inner",
+                    "optional-match-binder:inner",
+                    number_type()
+                ),
+                "type": number_type()
+            }),
+        );
+        let expression =
+            typed_value_match("optional-match-binder:outer", "outer", inner_expression);
+
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_match_entry(expression)]),
+            &elements_by_id,
+            &HashSet::from(["binding:maybe"]),
+        );
+
+        assert!(decoded.is_ok());
+    }
+
+    #[test]
+    fn rejects_nested_value_match_binder_after_leaving_its_arm() {
+        let element = point_with_expression("match @maybe { none => 0 some value => @value }");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let inner_expression = typed_value_match(
+            "optional-match-binder:inner",
+            "inner",
+            json!({
+                "kind": "binary",
+                "span": {"start": 0, "end": 20},
+                "operator": "+",
+                "left": typed_reference(
+                    "outer",
+                    "optional-match-binder:outer",
+                    number_type()
+                ),
+                "right": typed_reference(
+                    "inner",
+                    "optional-match-binder:inner",
+                    number_type()
+                ),
+                "type": number_type()
+            }),
+        );
+        let outer_arm_expression = json!({
+            "kind": "binary",
+            "span": {"start": 0, "end": 80},
+            "operator": "+",
+            "left": inner_expression,
+            "right": typed_reference(
+                "inner",
+                "optional-match-binder:inner",
+                number_type()
+            ),
+            "type": number_type()
+        });
+        let expression =
+            typed_value_match("optional-match-binder:outer", "outer", outer_arm_expression);
+
+        let result = validate_numeric_bindings_payload(
+            &json!([numeric_match_entry(expression)]),
+            &elements_by_id,
+            &HashSet::from(["binding:maybe"]),
+        );
+
+        assert!(
+            matches!(result, Err(error) if error.contains("does not exist in the scalar program"))
+        );
     }
 
     #[test]
