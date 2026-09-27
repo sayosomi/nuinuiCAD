@@ -76,6 +76,9 @@ export const hasCanonicalForGroupExecutionOwners = (
     const expected = buildForGroupExecutionOwners(
       graph, elements, statementInfoByElementId, statementIdByStatementIndex, prejoinedOwnerStatementIds
     );
+    const moduleGraphOwners = graph.moduleForGroupExecutionOwnersByStatementId ?? new Map();
+    if (moduleGraphOwners.size !== prejoinedOwnerStatementIds.size ||
+      [...prejoinedOwnerStatementIds].some((ownerStatementId) => !moduleGraphOwners.has(ownerStatementId))) return false;
     const ordinaryActual = [...ownersByElementId.values()].filter((owner) =>
       !prejoinedOwnerStatementIds.has(owner.ownerStatementId)
     );
@@ -87,11 +90,30 @@ export const hasCanonicalForGroupExecutionOwners = (
     })) return false;
 
     const prejoinedByOwnerId = new Map<string, Extract<BindingControlOwner, { kind: "forGroup" }>>();
-    for (const version of graph.versions) for (const owner of version.control.ownerChain) {
-      if (owner.kind !== "forGroup" || !prejoinedOwnerStatementIds.has(owner.ownerStatementId)) continue;
+    const addPrejoinedOwner = (owner: Extract<BindingControlOwner, { kind: "forGroup" }>): boolean => {
       const previous = prejoinedByOwnerId.get(owner.ownerStatementId);
       if (previous && (previous.scopeId !== owner.scopeId || previous.exitSourceOrder !== owner.exitSourceOrder || previous.iterationBindingId !== owner.iterationBindingId)) return false;
       prejoinedByOwnerId.set(owner.ownerStatementId, owner);
+      return true;
+    };
+    for (const version of graph.versions) for (const owner of version.control.ownerChain) {
+      if (owner.kind !== "forGroup" || !prejoinedOwnerStatementIds.has(owner.ownerStatementId)) continue;
+      if (!addPrejoinedOwner(owner)) return false;
+    }
+    for (const plan of graph.immutableForGroups?.values() ?? []) {
+      const owner = plan.executionOwner;
+      if (!owner || !prejoinedOwnerStatementIds.has(plan.ownerStatementId)) continue;
+      if (!addPrejoinedOwner({
+        kind: "forGroup",
+        ownerStatementId: plan.ownerStatementId,
+        scopeId: owner.scopeId,
+        exitSourceOrder: owner.exitSourceOrder,
+        ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+        ...(owner.iterationBindingId ? { iterationBindingId: owner.iterationBindingId } : {})
+      })) return false;
+    }
+    for (const [ownerStatementId, owner] of moduleGraphOwners) {
+      if (ownerStatementId !== owner.ownerStatementId || !addPrejoinedOwner(owner)) return false;
     }
     const prejoinedActual = [...ownersByElementId.values()].filter((owner) =>
       prejoinedOwnerStatementIds.has(owner.ownerStatementId)

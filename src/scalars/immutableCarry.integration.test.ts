@@ -48,6 +48,10 @@ describe("immutable statement-for carries", () => {
       "}",
       "const result: number = @total"
     ].join("\n"));
+    const carries = [...(compiled.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries);
+    expect(carries).toHaveLength(2);
+    expect(carries.every((carry) => carry.nextBindingId?.startsWith("binding:next:") && !carry.nextBindingId.startsWith("module-binding:"))).toBe(true);
     const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect(evaluation.errors).toEqual([]);
     const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;

@@ -4213,9 +4213,23 @@ export const compileDslDocument = (
       }
     };
   }
+  const moduleForGroupExecutionOwnersByStatementId = new Map<string, Extract<import("../scalars/bindingVersions").BindingControlOwner, { kind: "forGroup" }>>();
+  for (const owner of moduleScalarCompilation?.forGroupMutationOwnerByElementId.values() ?? []) {
+    moduleForGroupExecutionOwnersByStatementId.set(owner.ownerStatementId, {
+      kind: "forGroup",
+      ownerStatementId: owner.ownerStatementId,
+      scopeId: owner.scopeId,
+      exitSourceOrder: owner.exitSourceOrder,
+      ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+      ...(owner.iterationBindingId ? { iterationBindingId: owner.iterationBindingId } : {})
+    });
+  }
   const bindingVersions = bindingVersionsBase
     ? {
         ...bindingVersionsBase,
+        ...(moduleForGroupExecutionOwnersByStatementId.size
+          ? { moduleForGroupExecutionOwnersByStatementId }
+          : {}),
         ...(immutableForGroups.size ? { immutableForGroups } : {})
       }
     : undefined;
