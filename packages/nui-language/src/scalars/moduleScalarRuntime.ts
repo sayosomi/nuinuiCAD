@@ -2275,12 +2275,13 @@ export const compileModuleScalarRuntime = ({
       if (fieldBindingsByPath.size > 0) recordParameterFieldBindingsByPath.set(parameter.parameterIndex, fieldBindingsByPath);
     }
     for (const local of definition.localScalars) {
-      if (!local.type || (local.type.kind !== "number" && local.type.kind !== "string" && local.type.kind !== "boolean" && local.type.kind !== "choice")) continue;
+      const type = scalarExpressionTypeOfDslValueType(local.type);
+      if (!type) continue;
       const info: BindingInfo = {
         id: bindingIdFor("local", context, local.statementId),
         declarationVersionId: declarationVersionIdFor("local", context, local.statementId),
         name: local.name,
-        type: local.type,
+        type,
         bindingKind: local.bindingKind,
         sourceScopeId: definitionSourceScopeIndex?.scopeOfStatement.get(local.statementIndex) ?? bodyScopeId,
         scopeId: moduleScopeIdFor(path, definitionSourceScopeIndex?.scopeOfStatement.get(local.statementIndex) ?? bodyScopeId),
