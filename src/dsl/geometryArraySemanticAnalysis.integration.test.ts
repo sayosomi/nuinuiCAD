@@ -59,6 +59,88 @@ describe("geometry array source semantic integration", () => {
     });
   });
 
+  it("accepts canonical optional values as generic collection literal members", () => {
+    const { namespace, analysis } = analyze([
+      "nui 1",
+      "record Pair(x: number)",
+      "const pair: Pair = Pair(x: 1)",
+      "point Anchor = coordinate(x: 1, y: 2)",
+      "const presentNumber: number? = 2",
+      "const absentNumber: number? = none",
+      "const noneNumbers: number?[] = [none]",
+      "const presentNumbers: number?[] = [2]",
+      "const mixedNumbers: number?[] = [2, none, 3]",
+      "const numberAliases: number?[] = [@presentNumber, @absentNumber]",
+      "const emptyNumbers: number?[] = []",
+      "const booleans: boolean?[] = [true, none, false]",
+      "const choices: choice(left, right)?[] = [left, none, right]",
+      "const points: point?[] = [@Anchor, none]",
+      "const pairs: Pair?[] = [@pair, none]"
+    ].join("\n"));
+
+    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const value = (name: string) => analysis.genericValues.find((candidate) => candidate.name === name)?.value;
+    expect(value("noneNumbers")).toMatchObject({
+      kind: "literal",
+      valueType: { kind: "array", elementType: { kind: "optional", valueType: { kind: "number" } } },
+      members: [{ elementType: { kind: "optional", valueType: { kind: "number" } } }]
+    });
+    expect(value("presentNumbers")).toMatchObject({
+      kind: "literal",
+      members: [{ elementType: { kind: "number" } }]
+    });
+    expect(value("mixedNumbers")).toMatchObject({
+      kind: "literal",
+      members: [
+        { elementType: { kind: "number" } },
+        { elementType: { kind: "optional", valueType: { kind: "number" } } },
+        { elementType: { kind: "number" } }
+      ]
+    });
+    expect(value("numberAliases")).toMatchObject({
+      kind: "literal",
+      members: [
+        { elementType: { kind: "optional", valueType: { kind: "number" } } },
+        { elementType: { kind: "optional", valueType: { kind: "number" } } }
+      ]
+    });
+    expect(value("emptyNumbers")).toMatchObject({ kind: "literal", members: [] });
+    expect(value("booleans")).toMatchObject({
+      kind: "literal",
+      members: [
+        { elementType: { kind: "boolean" } },
+        { elementType: { kind: "optional", valueType: { kind: "boolean" } } },
+        { elementType: { kind: "boolean" } }
+      ]
+    });
+    expect(value("choices")).toMatchObject({
+      kind: "literal",
+      members: [
+        { elementType: { kind: "choice", options: ["left", "right"] } },
+        { elementType: { kind: "optional", valueType: { kind: "choice", options: ["left", "right"] } } },
+        { elementType: { kind: "choice", options: ["left", "right"] } }
+      ]
+    });
+    expect(value("points")).toMatchObject({ kind: "literal", members: [{ elementType: { kind: "point" } }, { elementType: { kind: "optional", valueType: { kind: "point" } } }] });
+    expect(value("pairs")).toMatchObject({ kind: "literal", members: [{ elementType: { kind: "record", name: "Pair" } }, { elementType: { kind: "optional", valueType: { kind: "record", name: "Pair" } } }] });
+  });
+
+  it("keeps invalid optional collection literals and choice options diagnosed", () => {
+    const { namespace } = analyze([
+      "nui 1",
+      "const wrongNumber: number?[] = [\"wrong\"]",
+      "const wrongChoice: choice(left, right)?[] = [up]",
+      "const noneRequired: number[] = [none]"
+    ].join("\n"));
+    const memberDiagnostics = namespace.diagnostics.filter((diagnostic) => diagnostic.code === "array-member-type-mismatch");
+
+    expect(memberDiagnostics).toHaveLength(3);
+    expect(memberDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "array-member-type-mismatch", exactSpanOnly: true })
+    ]));
+  });
+
   it("uses nominal record identity for collection members and declarations", () => {
     const result = analyze([
       "nui 1",

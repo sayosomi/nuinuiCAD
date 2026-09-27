@@ -2486,6 +2486,29 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "count"), 3);
   }, 30000);
 
+  it("matches optional collection literal length evaluation across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const xs: number?[] = [none]",
+      "const present: number?[] = [2]",
+      "const mixed: number?[] = [2, none]",
+      "const result: number = @xs.length",
+      "const presentResult: number = @present.length",
+      "const mixedResult: number = @mixed.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "result"), 1);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentResult"), 1);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "mixedResult"), 2);
+    }
+  }, 30000);
+
   it("matches scalar and choice value-if evaluation while skipping the unselected branch", () => {
     const fixture = fixtureFromSource([
       "nui 1",
