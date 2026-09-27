@@ -466,6 +466,128 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     );
   }, 60000);
 
+  it("preserves collection statement-for binder values independently of generated ordinals", async () => {
+    const evaluateSource = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return {
+        fixture,
+        options,
+        ts: evaluationPayloadToResult(tsPayload),
+        rust: evaluationPayloadToResult(rustPayload)
+      };
+    };
+    const markRows = (result: ReturnType<typeof evaluationPayloadToResult>) =>
+      result.forGroupGeneratedRows.filter((row) => row.elementName.includes("Mark"));
+    const markValues = (result: ReturnType<typeof evaluationPayloadToResult>) =>
+      markRows(result).map((row) => {
+        const geometry = result.computedGeometry.get(row.generatedElementId);
+        if (geometry?.kind !== "point") throw new Error("generated Mark must have computed point geometry");
+        return {
+          iterationIndex: row.iterationIndex,
+          occurrenceIndex: row.occurrencePath[0]?.iterationIndex,
+          x: geometry.x
+        };
+      });
+    const expectValuesAndOrdinals = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      expected: readonly number[]
+    ) => {
+      expect(result.errors).toEqual([]);
+      const rows = markRows(result);
+      expect(rows.map((row) => row.iterationIndex)).toEqual(expected.map((_, index) => index));
+      expect(rows.map((row) => row.occurrencePath.map((step) => step.iterationIndex)))
+        .toEqual(expected.map((_, index) => [index]));
+      expect(markValues(result).map((row) => row.x)).toEqual(expected);
+      expect(rows.every((row) => row.generatedElementId.endsWith(`:${row.iterationIndex}`))).toBe(true);
+    };
+
+    const singleton = await evaluateSource([
+      "nui 1",
+      "const xs: number[] = [2]",
+      "for x in @xs {",
+      "  point Mark = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n"));
+    for (const result of [singleton.ts, singleton.rust]) expectValuesAndOrdinals(result, [2]);
+
+    const multiMember = await evaluateSource([
+      "nui 1",
+      "const negative: number = -3",
+      "const xs: number[] = [2, 7, @negative]",
+      "for x in @xs {",
+      "  point Mark = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n"));
+    for (const result of [multiMember.ts, multiMember.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
+
+    const iterationBinding = singleton.fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find((binding) =>
+      binding.kind === "iteration" && binding.name === "x"
+    );
+    const compiledNumericBinding = [...(singleton.fixture.compiled?.doc.numericBindings?.values() ?? [])]
+      .find((binding) => binding.parameterKey === "x");
+    expect(iterationBinding).toBeDefined();
+    expect(compiledNumericBinding?.references.map((reference) => reference.bindingId)).toEqual([iterationBinding?.id]);
+    const rustInput = buildRustEvaluationInput(singleton.fixture.elements, singleton.options);
+    const markTemplate = singleton.fixture.elements.find((element) => element.name === "Mark");
+    const payloadNumericBinding = rustInput.scalarExpressionPayload?.numericBindings.find((entry) =>
+      entry.elementId === markTemplate?.id && entry.parameterKey === "x"
+    );
+    expect(payloadNumericBinding?.references.map((reference) => reference.bindingId)).toEqual([iterationBinding?.id]);
+
+    const range = await evaluateSource([
+      "nui 1",
+      "for x in range(min: 2, max: 2, step: 1) {",
+      "  point Mark = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n"));
+    for (const result of [range.ts, range.rust]) expectValuesAndOrdinals(result, [2]);
+    expect(markRows(range.ts).map((row) => row.variableValue)).toEqual([2]);
+
+    const carried = await evaluateSource([
+      "nui 1",
+      "const negative: number = -3",
+      "const xs: number[] = [2, 7, @negative]",
+      "for x in @xs carry total: number = 0 {",
+      "  next total = @total + 1",
+      "  point Mark = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n"));
+    for (const result of [carried.ts, carried.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
+
+    const paddedAlias = await evaluateSource([
+      "nui 1",
+      "// harmless source padding",
+      "const negative: number = -3",
+      "const xs: number[] = [2, 7, @negative]",
+      "const alias: number[] = @xs",
+      "const unrelated: number = 100",
+      "for x in @alias {",
+      "  point Mark = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n"));
+    for (const result of [paddedAlias.ts, paddedAlias.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
+    expect(markValues(paddedAlias.ts).map((row) => row.x)).toEqual(markValues(multiMember.ts).map((row) => row.x));
+    expect(markValues(paddedAlias.rust).map((row) => row.x)).toEqual(markValues(multiMember.rust).map((row) => row.x));
+
+    const modulePlacement = await evaluateSource([
+      "nui 1",
+      "module M() {",
+      "  const negative: number = -3",
+      "  const items: number[] = [2, 7, @negative]",
+      "  for x in @items {",
+      "    point Mark = coordinate(x: @x, y: 0)",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+    for (const result of [modulePlacement.ts, modulePlacement.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
+  }, 60000);
+
   it("materializes Module-export geometry aliases and root alias chains across the persistent Rust stdio boundary", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

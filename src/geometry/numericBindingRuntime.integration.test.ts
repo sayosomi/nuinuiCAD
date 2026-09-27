@@ -59,6 +59,73 @@ describe("general numeric typed binding runtime", () => {
     expect(geometry.x).toBe(12.3456);
   });
 
+  it("uses canonical iteration bindings for numeric collection members while keeping generated ordinals", () => {
+    const compiled = compile([
+      "nui 1",
+      "const negative: number = -3",
+      "const xs: number[] = [2, 7, @negative]",
+      "for x in @xs {",
+      "  point Mark = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n"));
+    const iterationBinding = compiled.bindingAnalysis?.catalog.bindings.find((binding) =>
+      binding.kind === "iteration" && binding.name === "x"
+    );
+    const numericBinding = [...(compiled.numericBindings?.values() ?? [])].find((binding) =>
+      binding.parameterKey === "x"
+    );
+    expect(iterationBinding?.declaredType).toEqual({ kind: "number" });
+    expect(numericBinding?.typedExpression).toBeDefined();
+    expect(numericBinding?.references.map((reference) => reference.bindingId)).toEqual([iterationBinding?.id]);
+
+    const pointTemplate = point(compiled, "Mark");
+    const runtimeEntries = buildNumericBindingRuntimeEntries({
+      numericBindings: compiled.numericBindings ?? new Map(),
+      elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex
+    }, compiled.document.elements);
+    expect(runtimeEntries.find((entry) => entry.elementId === pointTemplate.id && entry.parameterKey === "x")?.references[0]?.bindingId)
+      .toBe(iterationBinding?.id);
+
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    const rows = (result.forGroupGeneratedRows ?? []).filter((row) => row.elementName.includes("Mark"));
+    expect(result.errors).toEqual([]);
+    expect(rows.map((row) => row.iterationIndex)).toEqual([0, 1, 2]);
+    expect(rows.map((row) => row.variableValue)).toEqual([0, 1, 2]);
+    expect(rows.map((row) => row.occurrencePath.map((step) => step.iterationIndex))).toEqual([[0], [1], [2]]);
+    expect(rows.map((row) => {
+      const geometry = result.computedGeometry.get(row.generatedElementId);
+      if (geometry?.kind !== "point") throw new Error("expected generated point geometry");
+      return geometry.x;
+    })).toEqual([2, 7, -3]);
+    expect(rows.map((row) => row.generatedElementId.endsWith(`:${row.iterationIndex}`))).toEqual([true, true, true]);
+  });
+
+  it("keeps non-number iteration references and bare iteration names fail-closed", () => {
+    const compileAttempt = (source: string) => compileCanonicalText(
+      regenerateCanonicalFromModel(emptyDocument(), 1),
+      source
+    );
+    const nonNumber = compileAttempt([
+      "nui 1",
+      'const xs: string[] = ["two"]',
+      "for x in @xs {",
+      "  point Mark = coordinate(x: @x, y: 0)",
+      "}"
+    ].join("\n"));
+    expect(nonNumber.status).toBe("fatal");
+    expect(nonNumber.diagnostics.some((diagnostic) => diagnostic.code === "numeric-binding-type-mismatch")).toBe(true);
+
+    const bare = compileAttempt([
+      "nui 1",
+      "const xs: number[] = [2]",
+      "for x in @xs {",
+      "  point Mark = coordinate(x: x, y: 0)",
+      "}"
+    ].join("\n"));
+    expect(bare.status).toBe("fatal");
+    expect(bare.diagnostics.some((diagnostic) => diagnostic.code === "numeric-binding-iteration-reference")).toBe(true);
+  });
+
   it("keeps arithmetic typed-number construction arguments numeric", () => {
     const compiled = compile([
       "nui 1",

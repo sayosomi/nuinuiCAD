@@ -311,10 +311,22 @@ const hasRustSupportedCompiledReferences = (
         ]
       )
     : [];
+  const forGroupIterationBindingIds = [
+    ...[...elementsById.values()]
+      .filter((element) => element.type === "forGroup")
+      .map((element) => `binding:iteration:${element.id}`),
+    ...[
+      ...(options.forGroupMutationOwnerByElementId?.values() ?? []),
+      ...(options.moduleForGroupExecutionOwnerByElementId?.values() ?? [])
+    ].map((owner) => owner.iterationBindingId ?? `binding:iteration:${owner.ownerStatementId}`)
+  ];
   const availableBindingIds = new Set(
-    usesMutationPayload
-      ? [...options.bindingVersions!.versionIdsByBindingId.keys(), ...immutableCarryBindingIds]
-      : Array.isArray(scalarStatements) ? scalarStatements.map((statement) => statement.bindingId) : []
+    [
+      ...(usesMutationPayload
+        ? [...options.bindingVersions!.versionIdsByBindingId.keys(), ...immutableCarryBindingIds]
+        : Array.isArray(scalarStatements) ? scalarStatements.map((statement) => statement.bindingId) : []),
+      ...forGroupIterationBindingIds
+    ]
   );
   const hasBinding = (bindingId: string) => availableBindingIds.has(bindingId);
   const propertyEntries = [

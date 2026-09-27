@@ -212,6 +212,12 @@ impl<'a> IterationScalarBindingResolver<'a> {
         iteration_binding_ids: &[String],
         iteration_value_overrides: &[Option<ScalarEvaluation>],
     ) -> Self {
+        let mut values = iteration_local_variables(iteration_variables).0;
+        for (binding_id, variable) in iteration_binding_ids.iter().zip(iteration_variables) {
+            if let Some(value) = variable.get("value").and_then(Value::as_f64) {
+                values.insert(binding_id.clone(), value);
+            }
+        }
         let typed_values = iteration_binding_ids
             .iter()
             .zip(iteration_value_overrides)
@@ -224,7 +230,7 @@ impl<'a> IterationScalarBindingResolver<'a> {
             .collect();
         Self {
             base,
-            values: iteration_local_variables(iteration_variables).0,
+            values,
             typed_values,
         }
     }

@@ -100,9 +100,8 @@ const occurrenceIndexMatchesIn = (
 };
 
 /**
- * Compiles only typed scalar occurrences in a materialized numeric value.
- * Iteration references remain in the legacy numeric evaluator, so a single
- * expression can combine the typed and runtime-only systems.
+ * Compiles canonical scalar occurrences in a materialized numeric value,
+ * including module-owned iteration bindings.
  */
 export const numericSourceForModuleSite = (
   element: CadElement,
@@ -110,9 +109,8 @@ export const numericSourceForModuleSite = (
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   loweredExpression?: TypedScalarExpression
 ): CompiledNumericBinding | undefined => {
-  // Iteration values remain owned by the legacy numeric evaluator. A mixed
-  // expression may retain source-splice references, but must not be partially
-  // lowered to the standalone typed evaluator.
+  // Materialized references retain the semantic target selected by Module
+  // analysis, including its canonical iteration BindingId.
   let runtimeReady = true;
   const parameterKey = site.parameterKey;
   if (!parameterKey) return undefined;
@@ -139,12 +137,12 @@ export const numericSourceForModuleSite = (
     const match = matches[matchIndex];
     if (!match) return undefined;
     const target = reference.target;
-    if (!target || (target.kind !== "parameter" && target.kind !== "moduleLocal" && target.kind !== "documentBinding")) {
+    if (!target || (target.kind !== "parameter" && target.kind !== "moduleLocal" && target.kind !== "documentBinding" && target.kind !== "iteration")) {
       runtimeReady = false;
       continue;
     }
     const binding = bindingForTarget(target as ModuleScalarSourceTarget, reference.name, reference.span.start);
-    if (!binding || binding.kind !== "typed") {
+    if (!binding || (binding.kind !== "typed" && binding.kind !== "iteration")) {
       runtimeReady = false;
       continue;
     }

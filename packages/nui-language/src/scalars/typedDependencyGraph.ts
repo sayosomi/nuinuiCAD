@@ -453,9 +453,8 @@ type TypedNumericBindingReference = {
  * A BindingId may occur more than once in one expression, so matching only by
  * BindingId would be ambiguous. The compiler emits both external lists in
  * source order; consume one source occurrence per typed occurrence and fail
- * closed if that invariant is ever broken. Local iteration bindings can also
- * appear in the typed AST, but are intentionally absent from the compiled
- * external occurrence list and remain owned by the legacy numeric runtime.
+ * closed if that invariant is ever broken. Canonical iteration references
+ * are included in the external occurrence list and use the same mapping.
  */
 const typedNumericBindingReferences = (
   source: CompiledNumericBinding
@@ -469,7 +468,7 @@ const typedNumericBindingReferences = (
   }
   const typedReferences = referencesIn(source.typedExpression)
     .filter((reference): reference is TypedDependencyReferenceNode =>
-      reference.bindingId !== null && sourceReferencesByBindingId.has(reference.bindingId)
+      reference.bindingId !== null
     );
   const result: TypedNumericBindingReference[] = [];
   for (const typed of typedReferences) {

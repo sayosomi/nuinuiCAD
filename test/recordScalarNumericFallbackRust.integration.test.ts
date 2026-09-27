@@ -29,11 +29,15 @@ describe("SAY-128 record scalar mixed numeric fallback parity", () => {
     const numeric = compiled.numericBindings?.get(propertyBindingOccurrenceKey(pointStatementIndex, "x"));
     const amount = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "config.amount")!;
     const offset = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "offset")!;
+    const iteration = compiled.bindingAnalysis!.catalog.bindings.find((binding) =>
+      binding.kind === "iteration" && binding.name === "i"
+    )!;
 
     expect(numeric?.typedExpression).toBeUndefined();
     expect(numeric?.references.map((reference) => [reference.name, reference.bindingId])).toEqual([
       ["config.amount", amount.id],
-      ["offset", offset.id]
+      ["offset", offset.id],
+      ["i", iteration.id]
     ]);
     expect(numeric?.references[0].physicalNameSpan).toBeNull();
     expect(numeric?.references[1].physicalNameSpan).not.toBeNull();
@@ -43,7 +47,7 @@ describe("SAY-128 record scalar mixed numeric fallback parity", () => {
       entry.parameterKey === "x" && entry.references.some((reference) => reference.name === "config.amount")
     );
     expect(payloadBinding?.typedExpression).toBeUndefined();
-    expect(payloadBinding?.references.map((reference) => reference.name)).toEqual(["config.amount", "offset"]);
+    expect(payloadBinding?.references.map((reference) => reference.name)).toEqual(["config.amount", "offset", "i"]);
 
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, optionsFor(fixture));
     const rustPayload = evaluateWithRustFixture(process.cwd(), fixture);

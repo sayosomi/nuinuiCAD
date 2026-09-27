@@ -262,19 +262,24 @@ fn decode_numeric_bindings(
         .iter()
         .filter_map(|element| Some((element.get("id")?.as_str()?, element)))
         .collect();
-    let valid_binding_ids: HashSet<&str> = scalar_program
-        .map(|program| {
-            program
-                .statements
-                .iter()
-                .map(|statement| statement.binding_id.as_str())
-                .collect()
-        })
-        .unwrap_or_else(|| {
-            binding_versions
-                .map(|versions| versions.binding_ids.iter().map(String::as_str).collect())
-                .unwrap_or_default()
-        });
+    let mut valid_binding_ids = decoded_binding_ids(scalar_program, binding_versions);
+    if let Some(versions) = binding_versions {
+        valid_binding_ids.extend(versions.binding_ids.iter().map(String::as_str));
+        valid_binding_ids.extend(
+            versions
+                .for_group_owners_by_element_id
+                .values()
+                .map(|owner| owner.iteration_binding_id.as_str()),
+        );
+    }
+    let canonical_document_iteration_ids = input
+        .elements
+        .iter()
+        .filter(|element| element_type(element) == Some("forGroup"))
+        .filter_map(element_id)
+        .map(|owner_id| format!("binding:iteration:{owner_id}"))
+        .collect::<Vec<_>>();
+    valid_binding_ids.extend(canonical_document_iteration_ids.iter().map(String::as_str));
     validate_numeric_bindings_payload(payload, &elements_by_id, &valid_binding_ids)
         .map(Some)
         .map_err(|message| EvaluationCommandError {
