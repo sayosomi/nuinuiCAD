@@ -118,6 +118,73 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("preserves optional scalar types for root carries and escaped values", () => {
+    const initializedWithNone = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry maybe: number? = none {",
+      "  next maybe = 3",
+      "}",
+      "const resolved: number = @maybe ?? 0"
+    ].join("\n"));
+    expect(initializedWithNone.diagnostics).toEqual([]);
+    const initialPlan = [...(initializedWithNone.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries)[0];
+    expect(initialPlan?.declaredType).toEqual({ kind: "optional", valueType: { kind: "number" } });
+    const initialEvaluation = evaluateElements(initializedWithNone.document.elements, optionsFor(initializedWithNone));
+    expect(initialEvaluation.errors).toEqual([]);
+    const initialResultId = initializedWithNone.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "resolved")!.id;
+    expect(initialEvaluation.computedScalarBindings?.get(initialResultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 3 }
+    });
+
+    const transitioned = compile([
+      "nui 1",
+      "const start: number? = none",
+      "for i in range(min: 0, max: 2, step: 1) carry maybe: number? = @start {",
+      "  next maybe = if (@i == 0) { 9 } else { if (@i == 1) { none } else { 12 } }",
+      "}",
+      "const resolved: number = @maybe ?? 0"
+    ].join("\n"));
+    expect(transitioned.diagnostics).toEqual([]);
+    const transitionPlan = [...(transitioned.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries)[0];
+    expect(transitionPlan?.declaredType).toEqual({ kind: "optional", valueType: { kind: "number" } });
+    const maybeBindings = transitioned.bindingAnalysis!.catalog.bindings.filter((binding) =>
+      binding.name === "maybe" || binding.name === "maybe:next"
+    );
+    expect(maybeBindings).toHaveLength(2);
+    expect(maybeBindings.map((binding) => binding.declaredType)).toEqual([
+      { kind: "optional", valueType: { kind: "number" } },
+      { kind: "optional", valueType: { kind: "number" } }
+    ]);
+    const transitionEvaluation = evaluateElements(transitioned.document.elements, optionsFor(transitioned));
+    expect(transitionEvaluation.errors).toEqual([]);
+    const transitionResultId = transitioned.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "resolved")!.id;
+    expect(transitionEvaluation.computedScalarBindings?.get(transitionResultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 12 }
+    });
+
+    const presentInitializer = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry maybe: number? = 5 {",
+      "  next maybe = 6",
+      "}",
+      "const resolved: number = @maybe ?? 0"
+    ].join("\n"));
+    expect(presentInitializer.diagnostics).toEqual([]);
+
+    const requiredUse = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry maybe: number? = none {",
+      "  next maybe = 6",
+      "}",
+      "const invalid: number = @maybe"
+    ].join("\n"));
+    expect(requiredUse.status).toBe("fatal");
+  });
+
   it("swaps collection carries through the shared collection runtime", () => {
     const compiled = compile([
       "nui 1",
