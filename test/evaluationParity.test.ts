@@ -654,6 +654,32 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("executes optional Module scalar carries through TypeScript and persistent Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(seed: number?) {",
+      "  for i in range(min: 0, max: 2, step: 1) carry state: number? = none carry alias: number? = @seed carry observed: number = -1 {",
+      "    next state = if (@i == 1) { none } else { @i }",
+      "    next alias = 3",
+      "    next observed = @state ?? -1",
+      "  }",
+      "  export const output: number = (@state ?? -1) + (@alias ?? 0) + @observed",
+      "}",
+      "instance A = M(seed: 8)",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "result"), 4);
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+    }
+  }, 30000);
+
   it("materializes Module-export geometry aliases and root alias chains across the persistent Rust stdio boundary", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

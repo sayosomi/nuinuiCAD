@@ -456,8 +456,9 @@ export const analyzeModuleBody = ({
 
     if (statement.kind === "element" && statement.type === "forGroup" && statementId) {
       for (const [carryIndex, carry] of (statement.forCarries ?? []).entries()) {
-        const valueType = dslRequiredValueTypeOf(carry.valueType);
-        const scalarType = scalarExpressionTypeOfDslValueType(valueType);
+        const authoredValueType = carry.valueType;
+        const requiredValueType = dslRequiredValueTypeOf(authoredValueType);
+        const scalarType = scalarExpressionTypeOfDslValueType(authoredValueType);
         const nextStatement = definition.bodyStatementIndexes
           .map((candidateIndex) => ({ candidateIndex, candidate: statements[candidateIndex] }))
           .find(({ candidate }) =>
@@ -465,7 +466,7 @@ export const analyzeModuleBody = ({
             candidate.enclosing?.statementIndex === statementIndex &&
             candidate.name === carry.name
           );
-        if (!valueType || !nextStatement || nextStatement.candidate.kind !== "next") continue;
+        if (!authoredValueType || !requiredValueType || !nextStatement || nextStatement.candidate.kind !== "next") continue;
         if (scalarType) {
           const initializer = analyzeExpression(
             statementIndex,
@@ -499,15 +500,15 @@ export const analyzeModuleBody = ({
             carryIndex,
             name: carry.name,
             type: scalarType,
-            valueType,
+            valueType: authoredValueType,
             initializer,
             next,
             nextStatementIndex: nextStatement.candidateIndex
           });
           continue;
         }
-        if (!isDslGeometryValueType(valueType)) continue;
-        const expectedGeometryKind = valueType.kind === "point" ? "point" : "line";
+        if (!isDslGeometryValueType(requiredValueType)) continue;
+        const expectedGeometryKind = requiredValueType.kind === "point" ? "point" : "line";
         const initializer = resolveGeometry(
           statementIndex,
           definition.statementIndex,
@@ -515,9 +516,9 @@ export const analyzeModuleBody = ({
           carry.initializerSpan,
           expectedGeometryKind,
           {
-            expectedInterfaceType: valueType.kind,
-            expectedValueType: valueType,
-            role: valueType.kind === "point" ? "pointReference" : "lineReference",
+            expectedInterfaceType: requiredValueType.kind,
+            expectedValueType: authoredValueType,
+            role: requiredValueType.kind === "point" ? "pointReference" : "lineReference",
             scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
             bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
             geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
@@ -530,9 +531,9 @@ export const analyzeModuleBody = ({
           nextStatement.candidate.expressionSpan,
           expectedGeometryKind,
           {
-            expectedInterfaceType: valueType.kind,
-            expectedValueType: valueType,
-            role: valueType.kind === "point" ? "pointReference" : "lineReference",
+            expectedInterfaceType: requiredValueType.kind,
+            expectedValueType: authoredValueType,
+            role: requiredValueType.kind === "point" ? "pointReference" : "lineReference",
             scalarResolver: (reference) => resolveBodyScalar(nextStatement.candidateIndex, reference),
             bareScalarResolver: (reference) => resolveBodyBareScalar(nextStatement.candidateIndex, reference),
             geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference)
@@ -546,7 +547,7 @@ export const analyzeModuleBody = ({
           carryIndex,
           name: carry.name,
           type: null,
-          valueType,
+          valueType: authoredValueType,
           geometryInitializer: initializer,
           geometryNext: next,
           nextStatementIndex: nextStatement.candidateIndex
