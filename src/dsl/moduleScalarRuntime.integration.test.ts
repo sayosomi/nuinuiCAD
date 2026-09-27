@@ -2826,6 +2826,22 @@ describe("module scalar runtime integration", () => {
     ].join("\n"), "module-carry-multiple", 10);
   });
 
+  it("executes optional Module scalar carries through none and present transitions", () => {
+    expectModuleCarryResult([
+      "nui 1",
+      "module M(seed: number?) {",
+      "  for i in range(min: 0, max: 2, step: 1) carry state: number? = none carry alias: number? = @seed carry observed: number = -1 {",
+      "    next state = if (@i == 1) { none } else { @i }",
+      "    next alias = 3",
+      "    next observed = @state ?? -1",
+      "  }",
+      "  export const output: number = (@state ?? -1) + (@alias ?? 0) + @observed",
+      "}",
+      "instance A = M(seed: 8)",
+      "const result: number = @A::output"
+    ].join("\n"), "module-optional-carry", 4);
+  });
+
   it("continues rejecting an unmatched immutable-for execution owner", () => {
     const compiled = compileWithIds([
       "nui 1",

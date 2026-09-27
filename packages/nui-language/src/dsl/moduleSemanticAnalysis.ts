@@ -1047,7 +1047,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (declaration.kind === "carry" && declaration.statement.kind === "element") {
       const carryIndex = declaration.statement.forCarries?.findIndex((candidate) => candidate.name === declaration.name) ?? -1;
       const carry = carryIndex >= 0 ? declaration.statement.forCarries?.[carryIndex] : undefined;
-      const type = carry ? scalarExpressionTypeOfDslValueType(dslRequiredValueTypeOf(carry.valueType)) : null;
+      const type = carry ? scalarExpressionTypeOfDslValueType(carry.valueType) : null;
       if (boundaryOwnerIndex !== null && declarationOwner !== boundaryOwnerIndex) {
         return {
           target: null,

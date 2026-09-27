@@ -118,6 +118,74 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("preserves authored optional scalar types while analyzing Module carries", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(seed: number?) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry empty: number? = none carry present: number? = 7 carry alias: number? = @seed {",
+      "    next empty = @i",
+      "    next present = none",
+      "    next alias = @i",
+      "  }",
+      "}",
+      "instance Use = M(seed: 8)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const carries = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.immutableCarries!;
+    const optionalNumber = { kind: "optional", valueType: { kind: "number" } };
+    expect(carries).toHaveLength(3);
+    for (const carry of carries) {
+      expect(carry.valueType).toEqual(optionalNumber);
+      expect(carry.type).toEqual(optionalNumber);
+    }
+    expect(carries.map((carry) => [carry.name, carry.initializer?.type, carry.next?.type])).toEqual([
+      ["empty", optionalNumber, { kind: "number" }],
+      ["present", { kind: "number" }, optionalNumber],
+      ["alias", optionalNumber, { kind: "number" }]
+    ]);
+  });
+
+  it("rejects optional geometry carry initialization at the required geometry boundary", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(seed: point?) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry cursor: point? = none {",
+      "    next cursor = @seed",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "optional-value-required" })
+    ]));
+    const carries = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.immutableCarries ?? [];
+    expect(carries).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "cursor" })
+    ]));
+  });
+
+  it("does not implicitly unwrap an optional Module carry for a required scalar", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) carry maybe: number? = none {",
+      "    next maybe = @i",
+      "  }",
+      "  const required: number = @maybe",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-scalar-type-mismatch" })
+    ]));
+    expect(compiled.diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "none-requires-optional-type" })
+    ]));
+  });
+
   it("rejects hasValue instead of creating a Module presence proof", () => {
     const compiled = compileWithIds([
       "nui 1",
