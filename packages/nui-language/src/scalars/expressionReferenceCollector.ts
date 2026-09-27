@@ -3,18 +3,25 @@ import type { ScalarExpressionAst } from "./expressionAst";
 export type ScalarExpressionReference = {
   name: string;
   span: { start: number; end: number };
+  /** Present only when the occurrence is resolved by a scalar expression-local binder. */
+  localBindingName?: string;
 };
 
 /** Collects scalar `@name` references without binding || runtime knowledge. */
 export const collectScalarExpressionReferences = (
-  ast: ScalarExpressionAst
+  ast: ScalarExpressionAst,
+  options: { includeLocalBindings?: boolean } = {}
 ): readonly ScalarExpressionReference[] => {
   const references: ScalarExpressionReference[] = [];
   const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (node.kind) {
-      case "reference":
-        if (!boundNames.has(node.name)) references.push({ name: node.name, span: node.span });
+      case "reference": {
+        const localBindingName = boundNames.has(node.name) ? node.name : undefined;
+        if (localBindingName === undefined || options.includeLocalBindings) {
+          references.push({ name: node.name, span: node.span, ...(localBindingName === undefined ? {} : { localBindingName }) });
+        }
         return;
+      }
       case "collectionIndex":
         references.push({ name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 } });
         visit(node.index, boundNames);

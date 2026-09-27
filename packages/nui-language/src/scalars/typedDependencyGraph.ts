@@ -215,11 +215,20 @@ const scopeActivationToSource = (
 
 export const referencesIn = (expression: TypedScalarExpression): readonly TypedDependencyReferenceNode[] => {
   const result: TypedDependencyReferenceNode[] = [];
-  const visit = (node: TypedScalarExpression, lazy = false, activation?: TypedDependencyActivation): void => {
-    if (node.kind === "reference") result.push({ ...node, ...(lazy ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
-    else if (node.kind === "unary") visit(node.operand, lazy, activation);
+  const visit = (
+    node: TypedScalarExpression,
+    lazy = false,
+    activation?: TypedDependencyActivation,
+    localBindingIds: ReadonlySet<BindingId> = new Set()
+  ): void => {
+    if (node.kind === "reference") {
+      if (node.bindingId === null || !localBindingIds.has(node.bindingId)) {
+        result.push({ ...node, ...(lazy ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
+      }
+    }
+    else if (node.kind === "unary") visit(node.operand, lazy, activation, localBindingIds);
     else if (node.kind === "binary") {
-      visit(node.left, lazy, activation);
+      visit(node.left, lazy, activation, localBindingIds);
       if (node.operator === "??") {
         const rightSelection = node.left.kind === "noneLiteral" ? "selected" :
           node.left.kind === "numberLiteral" || node.left.kind === "stringLiteral" || node.left.kind === "booleanLiteral" || node.left.kind === "choiceLiteral" ? "unselected" : undefined;
@@ -227,39 +236,44 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
           controllerId: `scalar:${node.span.start}`,
           branch: "right",
           ...(rightSelection ? { staticSelection: rightSelection } : { controllerExpression: node.left })
-        }));
-      } else visit(node.right, lazy, activation);
+        }), localBindingIds);
+      } else visit(node.right, lazy, activation, localBindingIds);
     }
-    else if (node.kind === "group") visit(node.expression, lazy, activation);
+    else if (node.kind === "group") visit(node.expression, lazy, activation, localBindingIds);
     else if (node.kind === "valueIf") {
-      visit(node.condition, lazy, activation);
+      visit(node.condition, lazy, activation, localBindingIds);
       const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
       visit(node.thenBranch, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: "then",
         ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "selected" : "unselected" })
-      }));
+      }), localBindingIds);
       visit(node.elseBranch, true, appendActivationGuard(activation, {
         controllerId: `scalar:${node.span.start}`,
         branch: "else",
         ...(selection === undefined ? { controllerExpression: node.condition } : { staticSelection: selection ? "unselected" : "selected" })
-      }));
+      }), localBindingIds);
     }
     else if (node.kind === "valueMatch") {
-      visit(node.scrutinee, lazy, activation);
+      visit(node.scrutinee, lazy, activation, localBindingIds);
       const selectedLabel = node.scrutinee.kind === "choiceLiteral" ? node.scrutinee.value : undefined;
-      node.arms.forEach((arm) => visit(arm.expression, true, appendActivationGuard(activation, {
-        controllerId: `scalar:${node.span.start}`,
-        branch: `match:${arm.label}`,
-        ...(selectedLabel === undefined
-          ? { controllerExpression: node.scrutinee }
-          : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
-      })));
+      node.arms.forEach((arm) => {
+        const armLocalBindingIds = arm.binderId
+          ? new Set([...localBindingIds, arm.binderId])
+          : localBindingIds;
+        visit(arm.expression, true, appendActivationGuard(activation, {
+          controllerId: `scalar:${node.span.start}`,
+          branch: `match:${arm.label}`,
+          ...(selectedLabel === undefined
+            ? { controllerExpression: node.scrutinee }
+            : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
+        }), armLocalBindingIds);
+      });
     }
-    else if (node.kind === "collectionIndex") visit(node.index, lazy, activation);
-    else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation);
+    else if (node.kind === "collectionIndex") visit(node.index, lazy, activation, localBindingIds);
+    else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation, localBindingIds);
     else if (node.kind === "call") node.args.forEach((argument) => {
-      if (argument.kind === "scalar") visit(argument.expression, lazy, activation);
+      if (argument.kind === "scalar") visit(argument.expression, lazy, activation, localBindingIds);
     });
   };
   visit(expression);

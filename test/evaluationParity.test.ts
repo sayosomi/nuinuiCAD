@@ -2,7 +2,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
-import { emptyDocument, moduleCarryBindingIdFor } from "@nuinuicad/nui-language";
+import { emptyDocument, moduleCarryBindingIdFor, propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
@@ -4138,6 +4138,69 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(scalarBindingFor(fixture, payload, "choiceResult")).toMatchObject({ status: "ok", value: { kind: "string", value: "left" } });
     }
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
+  it("resolves inline optional match binders in numeric geometry inputs through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const amount: number? = 2",
+      "const absent: number? = none",
+      "const heldNumber: number = match @amount { none => 0 some selectedValue => @selectedValue }",
+      "point Direct = coordinate(x: match @amount { none => 0 some mm => @mm }, y: 0)",
+      "point NoneCase = coordinate(x: match @absent { none => 9 some elementCount => @elementCount }, y: 0)",
+      "point Intermediate = coordinate(x: @heldNumber, y: 0)",
+      "point Lazy = coordinate(x: match @absent { none => 11 some neverSelected => @neverSelected / 0 }, y: 0)",
+      "point Anchor = coordinate(x: 1, y: 2)",
+      "point Translated = offset(from: @Anchor, dx: match @amount { none => 0 some shiftAmount => @shiftAmount }, dy: 1)"
+    ].join("\n"));
+    const doc = fixture.compiled!.doc;
+    expect(fixture.compiled!.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const numericBindingFor = (statementName: string, parameterKey: string) => {
+      const statementIndex = doc.statements.findIndex((statement) => statement.name === statementName);
+      if (statementIndex < 0) throw new Error(`statement "${statementName}" not found`);
+      return doc.numericBindings?.get(propertyBindingOccurrenceKey(statementIndex, parameterKey));
+    };
+    expect(numericBindingFor("Direct", "x")?.references.map((reference) => reference.name)).toEqual(["amount"]);
+    expect(numericBindingFor("NoneCase", "x")?.references.map((reference) => reference.name)).toEqual(["absent"]);
+    expect(numericBindingFor("Lazy", "x")?.references.map((reference) => reference.name)).toEqual(["absent"]);
+    expect(numericBindingFor("Translated", "dx")?.references.map((reference) => reference.name)).toEqual(["amount"]);
+    expect(numericBindingFor("Direct", "x")?.typedExpression).toBeDefined();
+
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      for (const [name, point] of [
+        ["Direct", { x: 2, y: 0 }],
+        ["NoneCase", { x: 9, y: 0 }],
+        ["Intermediate", { x: 2, y: 0 }],
+        ["Lazy", { x: 11, y: 0 }],
+        ["Translated", { x: 3, y: 3 }]
+      ] as const) {
+        const element = fixture.elements.find((candidate) => candidate.name === name)!;
+        expect(result.computedGeometry.get(element.id)).toMatchObject({ kind: "point", ...point });
+      }
+    }
+
+    const unresolved = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "const amount: number? = 2",
+      "point Invalid = coordinate(x: @missing + match @amount { none => 0 some payload => @payload }, y: 0)"
+    ].join("\n"));
+    const unresolvedDiagnostics = unresolved.diagnostics.filter((diagnostic) =>
+      diagnostic.code === "numeric-binding-unresolved"
+    );
+    expect(unresolvedDiagnostics).toHaveLength(1);
+    expect(unresolvedDiagnostics[0]).toMatchObject({
+      presentation: { key: "diagnostic.numeric-binding-unresolved", parameters: { name: "missing" } }
+    });
   }, 30000);
 
   it("asserts module geometry builtin lowering values and parity through both evaluators", () => {

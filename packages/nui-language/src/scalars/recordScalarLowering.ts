@@ -978,7 +978,7 @@ export const prepareRecordScalarExpressionFromCatalog = ({
       case "geometryProperty": {
         const resolution = referencesBySpanStart.get(node.span.start);
         if (!resolution || resolution.kind !== "resolvedType") {
-          return node.occurrenceIndex ? { ...node, occurrenceIndex: rewrite(node.occurrenceIndex) } : node;
+          return node.occurrenceIndex ? { ...node, occurrenceIndex: rewrite(node.occurrenceIndex, boundNames) } : node;
         }
         references.push(resolution);
         return {
@@ -993,25 +993,28 @@ export const prepareRecordScalarExpressionFromCatalog = ({
         if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for collection index at ${node.span.start}`);
         referenceCursor += 1;
         references.push(resolution);
-        return { ...node, index: rewrite(node.index) };
+        return { ...node, index: rewrite(node.index, boundNames) };
       }
       case "optionalMember":
         return node;
-      case "unary": return { ...node, operand: rewrite(node.operand) };
-      case "binary": return { ...node, left: rewrite(node.left), right: rewrite(node.right) };
-      case "group": return { ...node, expression: rewrite(node.expression) };
+      case "unary": return { ...node, operand: rewrite(node.operand, boundNames) };
+      case "binary": return { ...node, left: rewrite(node.left, boundNames), right: rewrite(node.right, boundNames) };
+      case "group": return { ...node, expression: rewrite(node.expression, boundNames) };
       case "valueIf": return {
         ...node,
-        condition: rewrite(node.condition),
-        thenBranch: rewrite(node.thenBranch),
-        elseBranch: node.elseBranch ? rewrite(node.elseBranch) : null
+        condition: rewrite(node.condition, boundNames),
+        thenBranch: rewrite(node.thenBranch, boundNames),
+        elseBranch: node.elseBranch ? rewrite(node.elseBranch, boundNames) : null
       };
       case "valueMatch": return {
         ...node,
-        scrutinee: rewrite(node.scrutinee),
-        arms: node.arms.map((arm) => ({ ...arm, expression: rewrite(arm.expression) }))
+        scrutinee: rewrite(node.scrutinee, boundNames),
+        arms: node.arms.map((arm) => ({
+          ...arm,
+          expression: rewrite(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)
+        }))
       };
-      case "call": return { ...node, args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression) })) };
+      case "call": return { ...node, args: node.args.map((argument) => ({ ...argument, expression: rewrite(argument.expression, boundNames) })) };
       default: return node;
     }
   };

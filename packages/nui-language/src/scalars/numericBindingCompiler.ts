@@ -32,6 +32,7 @@ import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { parseScalarExpression } from "./expressionParser";
+import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { getBuiltinFunctionDefinition, isScalarBuiltinParameterType, type BuiltinParameterType } from "./builtinFunctions";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
@@ -431,6 +432,13 @@ export const compileNumericBindings = ({
     const source = logicalText.slice(valueSpan.start, valueSpan.end);
     const scannedReferences = scanExpressionReferences(source);
     const scalarParseResult = parseScalarExpression(source, { start: 0, end: source.length });
+    const localReferenceKeys = new Set(
+      scalarParseResult.ast
+        ? collectScalarExpressionReferences(scalarParseResult.ast, { includeLocalBindings: true })
+          .filter((reference) => reference.localBindingName !== undefined)
+          .map((reference) => `${reference.name}:${reference.span.start}:${reference.span.end}`)
+        : []
+    );
     const refs = [
       ...referencesIn(source, valueSpan),
       ...(scalarParseResult.ast ? occurrenceIndexReferencesIn(scalarParseResult.ast, valueSpan) : [])
@@ -438,7 +446,10 @@ export const compileNumericBindings = ({
       .filter((reference, index, all) => index === 0 ||
         reference.span.start !== all[index - 1]!.span.start ||
         reference.span.end !== all[index - 1]!.span.end ||
-        reference.name !== all[index - 1]!.name);
+        reference.name !== all[index - 1]!.name)
+      .filter((reference) => !localReferenceKeys.has(
+        `${reference.name}:${reference.span.start - valueSpan.start}:${reference.span.end - valueSpan.start}`
+      ));
     const hasGeometryProperty = scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
     // Qualified frontend references are not typed scalar bindings. They stay
     // on their existing owner; unlike a genuinely ref-free expression, they
