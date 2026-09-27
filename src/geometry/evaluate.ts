@@ -570,12 +570,12 @@ export const evaluateElements = (
     if (iterationVariables.length === 0) return base;
     return (bindingId) => {
       const binding = [...iterationVariables].reverse().find((candidate) =>
-        candidate.id === bindingId ||
+        candidate.bindingId === bindingId || candidate.id === bindingId ||
         `binding:iteration:${candidate.id.replace(/:iteration$/, "")}` === bindingId ||
         candidate.name === bindingId
       );
       return binding
-        ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value: binding.value } }
+        ? binding.scalarValueOverride ?? { status: "ok", type: { kind: "number" }, value: { kind: "number", value: binding.value } }
         : base(bindingId);
     };
   };
@@ -1864,10 +1864,15 @@ export const evaluateElements = (
     const localVariableValues = new Map<string, number>();
     const localVariableNames = new Map<string, string>();
     for (const binding of bindings) {
+      const scalarValue = binding.scalarValueOverride;
+      if (scalarValue && (scalarValue.status !== "ok" || scalarValue.value.kind !== "number")) continue;
+      const value = scalarValue?.status === "ok" && scalarValue.value.kind === "number"
+        ? scalarValue.value.value
+        : binding.value;
       localVariableNames.set(binding.id, binding.name);
       localVariableNames.set(binding.name, binding.name);
-      localVariableValues.set(binding.id, binding.value);
-      localVariableValues.set(binding.name, binding.value);
+      localVariableValues.set(binding.id, value);
+      localVariableValues.set(binding.name, value);
     }
     return { localVariableValues, localVariableNames };
   };
@@ -2135,6 +2140,9 @@ export const evaluateElements = (
       if (effectiveShowGenerated) forGroupEffectiveShowGeneratedIds.add(element.id);
 
       const mutationOwner = options.forGroupMutationOwnerByElementId?.get((sourceElement ?? element).id);
+      const moduleMutationOwner = options.moduleForGroupExecutionOwnerByElementId?.get((sourceElement ?? element).id);
+      const iterationBindingId = mutationOwner?.iterationBindingId ?? moduleMutationOwner?.iterationBindingId ??
+        `binding:iteration:${(sourceElement ?? element).id}`;
       const immutableForGroupPlan = options.bindingVersions?.immutableForGroups?.get(
         mutationOwner?.ownerStatementId ?? (sourceElement ?? element).id
       );
@@ -2256,6 +2264,10 @@ export const evaluateElements = (
               templateForGroupId: sourceElement?.id,
               iterationIndex: context.iterationIndex,
               variableValue: context.iterationValue,
+              iterationBindingId,
+              ...(iterationValueOverrides?.[context.iterationIndex] !== undefined
+                ? { scalarValueOverride: iterationValueOverrides[context.iterationIndex] }
+                : {}),
               ancestorElementIdMap,
               ancestorOccurrencePath
             });
@@ -2308,6 +2320,10 @@ export const evaluateElements = (
           templateForGroupId: sourceElement?.id,
           iterationIndex,
           variableValue,
+          iterationBindingId,
+          ...(iterationValueOverrides?.[iterationIndex] !== undefined
+            ? { scalarValueOverride: iterationValueOverrides[iterationIndex] }
+            : {}),
           ancestorElementIdMap,
           ancestorOccurrencePath
         });

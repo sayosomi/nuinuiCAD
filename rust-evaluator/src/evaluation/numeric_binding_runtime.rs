@@ -530,6 +530,17 @@ mod tests {
         })
     }
 
+    fn iteration_reference_expression() -> Value {
+        json!({
+            "kind": "reference",
+            "span": {"start": 0, "end": 2},
+            "nameSpan": {"start": 1, "end": 2},
+            "name": "x",
+            "bindingId": "binding:iteration:loop",
+            "type": {"kind": "number"}
+        })
+    }
+
     fn numeric_entry(
         expression: &str,
         typed_expression: Option<Value>,
@@ -681,6 +692,91 @@ mod tests {
             &HashSet::new(),
         );
         assert!(decoded.is_ok());
+    }
+
+    #[test]
+    fn resolves_typed_numeric_iteration_binding_ids_from_iteration_overrides() {
+        let element = point_with_expression("@x");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let valid_ids = HashSet::from(["binding:iteration:loop"]);
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_entry(
+                "@x",
+                Some(iteration_reference_expression()),
+                json!([{
+                    "bindingId": "binding:iteration:loop",
+                    "name": "x",
+                    "expressionStart": 0,
+                    "expressionEnd": 2
+                }])
+            )]),
+            &elements_by_id,
+            &valid_ids,
+        )
+        .unwrap();
+        let result = apply_numeric_bindings(
+            &element,
+            Some(&decoded),
+            &StubResolver(ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(2.0),
+            }),
+            None,
+            &state(element.clone()),
+        )
+        .unwrap();
+        assert_eq!(result["x"], json!(2.0));
+    }
+
+    #[test]
+    fn resolves_typed_numeric_iteration_binding_ids_to_range_values() {
+        use super::super::for_group::IterationScalarBindingResolver;
+
+        let element = point_with_expression("@x");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let valid_ids = HashSet::from(["binding:iteration:loop"]);
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_entry(
+                "@x",
+                Some(iteration_reference_expression()),
+                json!([{
+                    "bindingId": "binding:iteration:loop",
+                    "name": "x",
+                    "expressionStart": 0,
+                    "expressionEnd": 2
+                }])
+            )]),
+            &elements_by_id,
+            &valid_ids,
+        )
+        .unwrap();
+        let fallback = ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(-1.0),
+        };
+        let iteration = vec![json!({
+            "id": "loop:iteration",
+            "name": "x",
+            "value": 2.0
+        })];
+        let iteration_binding_ids = vec!["binding:iteration:loop".to_owned()];
+        let iteration_value_overrides = vec![None];
+        let base_resolver = StubResolver(fallback);
+        let resolver = IterationScalarBindingResolver::new(
+            &base_resolver,
+            &iteration,
+            &iteration_binding_ids,
+            &iteration_value_overrides,
+        );
+        let result = apply_numeric_bindings(
+            &element,
+            Some(&decoded),
+            &resolver,
+            None,
+            &state(element.clone()),
+        )
+        .unwrap();
+        assert_eq!(result["x"], json!(2.0));
     }
 
     #[test]

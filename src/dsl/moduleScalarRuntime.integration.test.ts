@@ -726,6 +726,43 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(p.id)).toMatchObject({ kind: "point", x: 9, y: 2 });
   });
 
+  it("lowers materialized Module numeric iteration references through their canonical BindingId", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  const negative: number = -3",
+      "  const items: number[] = [2, 7, @negative]",
+      "  for x in @items {",
+      "    point Mark = coordinate(x: @x, y: 0)",
+      "  }",
+      "}",
+      "instance Use = M()"
+    ].join("\n"), "module-iteration-numeric-binding");
+    expectValid(compiled);
+
+    const materializedNumericBindings = compiled.materializedNumericBindings ?? [];
+    const mark = elementNamed(compiled, "Mark");
+    const xBinding = materializedNumericBindings.find((entry) =>
+      entry.elementId === mark.id && entry.binding.parameterKey === "x"
+    )?.binding;
+    const iterationBindingIds = new Set((compiled.bindingAnalysis?.catalog.bindings ?? [])
+      .filter((binding) => binding.kind === "iteration" && binding.name === "x")
+      .map((binding) => binding.id));
+    expect(xBinding?.typedExpression).toBeDefined();
+    expect(xBinding?.references).toHaveLength(1);
+    expect(iterationBindingIds.has(xBinding?.references[0]?.bindingId ?? "")).toBe(true);
+
+    const result = evaluateCompiled(compiled);
+    const rows = (result.forGroupGeneratedRows ?? []).filter((row) => row.elementName.includes("Mark"));
+    expect(result.errors).toEqual([]);
+    expect(rows.map((row) => row.iterationIndex)).toEqual([0, 1, 2]);
+    expect(rows.map((row) => result.computedGeometry.get(row.generatedElementId))).toEqual([
+      expect.objectContaining({ kind: "point", x: 2, y: 0 }),
+      expect.objectContaining({ kind: "point", x: 7, y: 0 }),
+      expect.objectContaining({ kind: "point", x: -3, y: 0 })
+    ]);
+  });
+
   it("keeps an empty scalar program for ref-free typed numeric module expressions", () => {
     const compiled = compileWithIds([
       "nui 1",

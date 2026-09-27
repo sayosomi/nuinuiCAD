@@ -563,11 +563,25 @@ export const compileNumericBindings = ({
       }
       continue;
     }
-    // Runtime iteration bindings remain owned by the numeric evaluator, while
-    // typed bindings use the shared compile-time checker below.
+    // Numeric iteration bindings use the same canonical typed path as other
+    // scalar bindings. Non-numeric geometry positions are rejected by the
+    // declared-type check below rather than falling through to ordinal lookup.
     const hasLegacyOwnedReference = candidate.references.some((_, index) => {
       const resolution = resolutions.get(`${candidate.key}:${index}`);
-      return resolution?.kind === "resolved" && resolution.binding.kind !== "typed";
+      return resolution?.kind === "resolved" && resolution.binding.kind !== "typed" &&
+        !(resolution.binding.kind === "iteration" && scalarTypeOfDslValueType(resolution.binding.declaredType)?.kind === "number");
+    });
+    const hasNumericIterationReference = candidate.references.some((_, index) => {
+      const resolution = resolutions.get(`${candidate.key}:${index}`);
+      return resolution?.kind === "resolved" && resolution.binding.kind === "iteration" &&
+        scalarTypeOfDslValueType(resolution.binding.declaredType)?.kind === "number";
+    });
+    const hasOtherCanonicalReference = candidate.references.some((_, index) => {
+      const resolution = resolutions.get(`${candidate.key}:${index}`);
+      return resolution?.kind === "resolved" && !(
+        resolution.binding.kind === "iteration" &&
+        scalarTypeOfDslValueType(resolution.binding.declaredType)?.kind === "number"
+      );
     });
 
     let rejected = false;
@@ -594,14 +608,10 @@ export const compileNumericBindings = ({
         return;
       }
       const binding = resolution.binding;
-      if (binding.kind !== "typed") {
-        // Runtime iteration references keep the existing numeric evaluator path
-        // even when another occurrence in this same expression is a
-        // compiled typed slot.
-        return;
+      if (binding.kind === "typed") {
+        const entry = bindingAnalysis.entriesById.get(binding.id);
+        if (entry?.status.kind === "invalid") { rejected = true; return; } // binding diagnostics already own this cause.
       }
-      const entry = bindingAnalysis.entriesById.get(binding.id);
-      if (entry?.status.kind === "invalid") { rejected = true; return; } // binding diagnostics already own this cause.
       const declaredType = scalarTypeOfDslValueType(binding.declaredType);
       const isControllerReference = controllerReferenceSpans.has(`${reference.span.start - candidate.valueSpan.start}:${reference.span.end - candidate.valueSpan.start}`);
       if (declaredType?.kind !== "number" && !isControllerReference) {
@@ -640,8 +650,7 @@ export const compileNumericBindings = ({
       if (!typedParsed.ast) {
         const issue = typedParsed.diagnostics[0];
         // Legacy measurement/function syntax remains owned by the numeric
-        // evaluator when no standalone typed route is possible. Mixed
-        // typed/iteration expressions retain their existing source-splice path.
+        // evaluator when no standalone typed route is possible.
         if (issue && typedRefs.length > 0) diagnostics.push(diagnosticAt(
           spans,
           candidate.statement,
@@ -654,8 +663,8 @@ export const compileNumericBindings = ({
         // Map references in the normalized legacy expression, not the source
         // AST: geometry-property normalization removes an `@` and can shift
         // every later binding's offset. Record properties remain sigil form
-        // here and join the same source-splice path when an iteration/local
-        // binding keeps the expression on the legacy numeric runtime.
+        // here and join the same source-splice path when a legacy-only numeric
+        // expression remains.
         typedReferenceSpans = scanExpressionReferences(candidate.expression).flatMap((match) => {
           if (match.kind === "binding") {
             return [{ name: match.query, span: { start: match.from, end: match.to } }];
@@ -700,6 +709,10 @@ export const compileNumericBindings = ({
           }
         );
         const hasGeometryProperty = geometryPropertyResolution.geometryPropertyReferences.size > 0;
+        // Preserve the established source-splice route for mixed scalar
+        // expressions: adding a canonical iteration occurrence must not move
+        // existing fallback references into the typed evaluator.
+        const hasMixedIterationExpression = hasNumericIterationReference && hasOtherCanonicalReference;
         const typedChecked = typecheckScalarExpression(prepared.ast, {
           expectedType: { kind: "number" },
           references: prepared.references,
@@ -738,6 +751,7 @@ export const compileNumericBindings = ({
         }
         if (
           (hasGeometryProperty || !hasLegacyOwnedReference) &&
+          !hasMixedIterationExpression &&
           geometryPropertyResolution.issues.length === 0 &&
           typedChecked.type?.kind === "number"
         ) {
