@@ -6226,7 +6226,7 @@ export const compileModuleScalarRuntime = ({
             declaredType: carry.valueType,
             initializerTarget,
             nextTarget,
-            nextSourceOrder: executionPositionForValue(context.path, carry.nextStatementIndex)
+            nextSourceOrder: executionOrderForValue(context.path, carry.nextStatementIndex)
           }
         ]
       });

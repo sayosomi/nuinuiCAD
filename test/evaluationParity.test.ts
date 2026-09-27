@@ -654,6 +654,231 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("executes Module point geometry carries with canonical integer source order", async () => {
+    const exactSource = [
+      "nui 1",
+      "module M() {",
+      "  point P = coordinate(x: 2, y: 3)",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: point = @P {",
+      "    next last = @P",
+      "    point Mark = coordinate(x: 0, y: 0)",
+      "  }",
+      "}",
+      "instance A = M()"
+    ];
+    const fixture = fixtureFromSource(exactSource.join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const compiledGeometryCarries = [...(fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.geometryCarries ?? []);
+    expect(compiledGeometryCarries).toHaveLength(1);
+    const compiledCarry = compiledGeometryCarries[0]!;
+    expect(compiledCarry.nextSourceOrder).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(compiledCarry.nextSourceOrder)).toBe(true);
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const serializedCarry = rustInput.bindingVersions?.immutableForGroups
+      ?.flatMap((plan) => plan.geometryCarries ?? [])
+      .find((carry) => carry.bindingId === compiledCarry.bindingId);
+    expect(serializedCarry).toMatchObject({
+      bindingId: compiledCarry.bindingId,
+      nextSourceOrder: compiledCarry.nextSourceOrder
+    });
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const instance = fixture.compiled?.doc.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === "A");
+    if (!instance) throw new Error("missing Module instance A");
+    const instancePathFor = (elementId: string) => options.moduleMaterialization?.originByRuntimeElementId.get(elementId)?.instancePath;
+    const point = fixture.elements.find((element) => element.name.endsWith("P") &&
+      instancePathFor(element.id)?.includes(instance.statementId));
+    const loop = fixture.elements.find((element) => element.type === "forGroup" &&
+      instancePathFor(element.id)?.includes(instance.statementId));
+    if (!point || !loop || loop.type !== "forGroup") throw new Error("missing materialized Module P or carry loop");
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(point.id)).toMatchObject({ kind: "point", x: 2, y: 3 });
+      const marks = result.forGroupGeneratedRows?.filter((row) =>
+        row.forGroupId === loop.id && row.elementName.endsWith("Mark")
+      ) ?? [];
+      expect(marks).toHaveLength(1);
+      expect(result.computedGeometry.get(marks[0]!.generatedElementId)).toMatchObject({
+        kind: "point",
+        x: 0,
+        y: 0
+      });
+    }
+
+    // Consume the final carried point through the existing compiled geometry
+    // carry target identity; the exact reduced repro above stays unchanged.
+    const observableSource = [
+      ...exactSource.slice(0, 7),
+      "  line CarryResult = segment(start: @last, end: (0, 0))",
+      ...exactSource.slice(7)
+    ].join("\n");
+    const observableFixture = fixtureFromSource(observableSource);
+    const observableOptions = optionsFor(observableFixture);
+    expect(observableFixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(observableFixture)).toBe(true);
+    const observableInstance = observableFixture.compiled?.doc.moduleSemanticAnalysis?.instances
+      .find((candidate) => candidate.name === "A");
+    if (!observableInstance) throw new Error("missing observable Module instance A");
+    const observableInstancePathFor = (elementId: string) =>
+      observableOptions.moduleMaterialization?.originByRuntimeElementId.get(elementId)?.instancePath;
+    const carryResult = observableFixture.elements.find((element) => element.type === "line" &&
+      element.name.endsWith("CarryResult") && observableInstancePathFor(element.id)?.includes(observableInstance.statementId));
+    if (!carryResult) throw new Error("missing materialized Module CarryResult line");
+    const observableCarry = [...(observableFixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.geometryCarries ?? [])[0];
+    if (!observableCarry) throw new Error("missing observable Module geometry carry");
+    expect(observableOptions.geometryInputTargetsByElementId?.get(carryResult.id)?.get("startPoint")).toMatchObject({
+      kind: "geometryCarry",
+      bindingId: observableCarry.bindingId
+    });
+    const observableTs = evaluateElementsReferencePayload(observableFixture.elements, observableOptions);
+    const observableRust = await rustStdio!.evaluate(observableFixture.elements, observableOptions);
+    expect(normalizeParityPayload(observableRust)).toEqual(normalizeParityPayload(observableTs));
+    for (const payload of [observableTs, observableRust]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(carryResult.id)).toMatchObject({
+        kind: "line",
+        start: { x: 2, y: 3 }
+      });
+    }
+
+    const rootFixture = fixtureFromSource([
+      "nui 1",
+      "point P = coordinate(x: 2, y: 3)",
+      "for i in range(min: 0, max: 0, step: 1) carry last: point = @P {",
+      "  next last = @P",
+      "}",
+      "line CarryResult = segment(start: @last, end: (0, 0))"
+    ].join("\n"));
+    const rootOptions = optionsFor(rootFixture);
+    expect(isRustEligibleFixture(rootFixture)).toBe(true);
+    const rootCarryResult = rootFixture.elements.find((element) => element.type === "line" && element.name === "CarryResult");
+    if (!rootCarryResult) throw new Error("missing root CarryResult line");
+    const rootTs = evaluateElementsReferencePayload(rootFixture.elements, rootOptions);
+    const rootRust = await rustStdio!.evaluate(rootFixture.elements, rootOptions);
+    expect(normalizeParityPayload(rootRust)).toEqual(normalizeParityPayload(rootTs));
+    for (const payload of [rootTs, rootRust]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(rootCarryResult.id)).toMatchObject({
+        kind: "line",
+        start: { x: 2, y: 3 }
+      });
+    }
+
+    const malformedInput = structuredClone(rustInput);
+    const malformedCarry = malformedInput.bindingVersions?.immutableForGroups
+      ?.flatMap((plan) => plan.geometryCarries ?? [])
+      .find((carry) => carry.bindingId === compiledCarry.bindingId);
+    if (!malformedCarry) throw new Error("missing serialized Module geometry carry to corrupt");
+    malformedCarry.nextSourceOrder = 2.5;
+    await expect(rustStdio!.evaluateInput(malformedInput)).rejects.toThrow(
+      /scalar-payload-invalid-source-order.*immutable geometry carry nextSourceOrder must be a non-negative integer/
+    );
+  }, 60000);
+
+  it("keeps Module geometry carry identity and order paired across instances", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(seed: point) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: point = @seed {",
+      "    next last = @seed",
+      "    point Mark = coordinate(x: 0, y: 0)",
+      "  }",
+      "  line CarryResult = segment(start: @last, end: (0, 0))",
+      "}",
+      "point SeedA = coordinate(x: 2, y: 3)",
+      "point SeedB = coordinate(x: 9, y: 7)",
+      "instance A = M(seed: @SeedA)",
+      "instance B = M(seed: @SeedB)",
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const sourceCarry = fixture.compiled?.doc.moduleSemanticAnalysis?.definitions
+      .find((definition) => definition.name === "M")?.immutableCarries?.find((carry) => !carry.type);
+    if (!sourceCarry) throw new Error("missing canonical Module geometry carry");
+    const instances = fixture.compiled?.doc.moduleSemanticAnalysis?.instances
+      .filter((instance) => instance.name === "A" || instance.name === "B") ?? [];
+    const carryForInstance = (name: "A" | "B") => {
+      const instance = instances.find((candidate) => candidate.name === name);
+      if (!instance) throw new Error(`missing Module instance ${name}`);
+      const loop = fixture.elements.find((element) => element.type === "forGroup" &&
+        options.moduleMaterialization?.originByRuntimeElementId.get(element.id)?.instancePath.includes(instance.statementId));
+      if (!loop || loop.type !== "forGroup") throw new Error(`missing materialized carry loop for ${name}`);
+      const instancePath = options.moduleMaterialization?.originByRuntimeElementId.get(loop.id)?.instancePath;
+      const owner = options.moduleForGroupExecutionOwnerByElementId?.get(loop.id);
+      if (!instancePath || !owner) throw new Error(`missing runtime identity for carry loop ${name}`);
+      const probe = fixture.elements.find((element) => element.type === "line" &&
+        element.name.endsWith("CarryResult") &&
+        options.moduleMaterialization?.originByRuntimeElementId.get(element.id)?.instancePath.includes(instance.statementId));
+      if (!probe) throw new Error(`missing materialized CarryResult line for ${name}`);
+      const plan = options.bindingVersions?.immutableForGroups?.get(owner.ownerStatementId);
+      const carry = plan?.geometryCarries?.[0];
+      if (!carry) throw new Error(`missing geometry carry plan for ${name}`);
+      expect(carry.bindingId).toBe(moduleCarryBindingIdFor(instancePath, `${sourceCarry.bindingId}:${sourceCarry.name}`));
+      expect(carry.nextSourceOrder).toBeGreaterThanOrEqual(0);
+      expect(Number.isInteger(carry.nextSourceOrder)).toBe(true);
+      expect(options.geometryInputTargetsByElementId?.get(probe.id)?.get("startPoint")).toMatchObject({
+        kind: "geometryCarry",
+        bindingId: carry.bindingId
+      });
+      return { loop, owner, carry, probe };
+    };
+    const carryA = carryForInstance("A");
+    const carryB = carryForInstance("B");
+    expect(carryA.carry.bindingId).not.toBe(carryB.carry.bindingId);
+    expect(carryA.carry.nextSourceOrder).not.toBe(carryB.carry.nextSourceOrder);
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const compiledPairs = [...(options.bindingVersions?.immutableForGroups ?? [])]
+      .flatMap(([ownerStatementId, plan]) => (plan.geometryCarries ?? []).map((carry) =>
+        `${ownerStatementId}\u0000${carry.bindingId}\u0000${carry.nextSourceOrder}`
+      )).sort();
+    const serializedPairs = (rustInput.bindingVersions?.immutableForGroups ?? [])
+      .flatMap((plan) => (plan.geometryCarries ?? []).map((carry) =>
+        `${plan.ownerStatementId}\u0000${carry.bindingId}\u0000${carry.nextSourceOrder}`
+      )).sort();
+    expect(compiledPairs).toHaveLength(2);
+    expect(serializedPairs).toEqual(compiledPairs);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      for (const [instanceCarry, expected] of [[carryA, { x: 2, y: 3 }], [carryB, { x: 9, y: 7 }]] as const) {
+        expect(result.computedGeometry.get(instanceCarry.probe.id)).toMatchObject({
+          kind: "line",
+          start: expected
+        });
+      }
+      for (const loop of [carryA.loop, carryB.loop]) {
+        const marks = result.forGroupGeneratedRows?.filter((row) =>
+          row.forGroupId === loop.id && row.elementName.endsWith("Mark")
+        ) ?? [];
+        expect(marks).toHaveLength(1);
+        expect(result.computedGeometry.get(marks[0]!.generatedElementId)).toMatchObject({
+          kind: "point",
+          x: 0,
+          y: 0
+        });
+      }
+    }
+  }, 60000);
+
   it("executes optional Module scalar carries through TypeScript and persistent Rust", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
