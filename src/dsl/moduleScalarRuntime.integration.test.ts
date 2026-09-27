@@ -132,6 +132,54 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
   expect(compiled.document).not.toBeNull();
 };
 
+const expectModuleCarryResult = (source: string, prefix: string, expectedValue: number) => {
+  const compiled = compileWithIds(source, prefix);
+  expectValid(compiled);
+  const loop = compiled.document!.elements.find((element) => element.type === "forGroup");
+  if (!loop || loop.type !== "forGroup") throw new Error("expected a materialized Module forGroup");
+  const owner = compiled.moduleForGroupExecutionOwnerByElementId?.get(loop.id);
+  if (!owner) throw new Error(`missing compiler-projected Module owner for ${loop.id}`);
+  expect(Number.isInteger(owner.exitSourceOrder)).toBe(true);
+  expect(owner.exitSourceOrder).toBeGreaterThanOrEqual(0);
+  const plan = compiled.bindingVersions?.immutableForGroups?.get(owner.ownerStatementId);
+  if (!plan?.executionOwner) throw new Error(`missing immutable-for execution owner for ${owner.ownerStatementId}`);
+  expect(plan.executionOwner).toMatchObject({
+    scopeId: owner.scopeId,
+    exitSourceOrder: owner.exitSourceOrder,
+    iterationBindingId: owner.iterationBindingId
+  });
+  expect(compiled.bindingVersions?.moduleForGroupExecutionOwnersByStatementId?.get(owner.ownerStatementId)).toMatchObject({
+    kind: owner.kind,
+    ownerStatementId: owner.ownerStatementId,
+    scopeId: owner.scopeId,
+    exitSourceOrder: owner.exitSourceOrder,
+    ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+    ...(owner.iterationBindingId ? { iterationBindingId: owner.iterationBindingId } : {})
+  });
+
+  const options = buildEvaluationOptions({
+    compiledDocument: compiled as LastGoodDslDocument,
+    evaluationLimitIndex: compiled.document!.evaluationLimitIndex
+  });
+  expect(options.moduleForGroupExecutionOwnerByElementId?.get(loop.id)).toMatchObject(owner);
+  const rustInput = buildRustEvaluationInput(compiled.document!.elements, options);
+  expect(rustInput.bindingVersions?.forGroupOwners).toContainEqual(expect.objectContaining({
+    ownerStatementId: owner.ownerStatementId,
+    elementId: loop.id,
+    moduleExecutionOwner: true
+  }));
+
+  const result = evaluateCompiled(compiled);
+  expect(result.errors).toEqual([]);
+  const resultBinding = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "result");
+  if (!resultBinding) throw new Error("missing Module carry result binding");
+  expect(result.computedScalarBindings?.get(resultBinding.id)).toMatchObject({
+    status: "ok",
+    value: { kind: "number", value: expectedValue }
+  });
+  return { compiled, loop, owner, result };
+};
+
 describe("module scalar runtime integration", () => {
   it("resolves generated drawable occurrences by explicit and loop-variable index", () => {
     const compiled = compileWithIds([
@@ -2730,6 +2778,78 @@ describe("module scalar runtime integration", () => {
     expect(valuesFor(loopB)).toEqual([7, 9]);
   });
 
+  it.each([
+    { label: "without unrelated body content", body: [] as string[] },
+    { label: "with an unrelated scalar declaration", body: ["const scratch: number = 99"] },
+    { label: "with an unrelated drawable", body: ["point Scratch = coordinate(x: 0, y: 0)"] }
+  ])("projects carry-only Module ownership $label", ({ body }) => {
+    const source = [
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) carry n: number = 7 {",
+      ...body.map((line) => `    ${line}`),
+      "    next n = @n + 1",
+      "  }",
+      "  export const output: number = @n",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n");
+    expectModuleCarryResult(source, "module-carry-only", 8);
+  });
+
+  it("preserves empty and multi-iteration carry-only Module semantics", () => {
+    const empty = expectModuleCarryResult([
+      "nui 1",
+      "module M() {",
+      "  const items: number[] = []",
+      "  for item in @items carry n: number = 7 {",
+      "    next n = @n + 1",
+      "  }",
+      "  export const output: number = @n",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"), "module-carry-empty", 7);
+    expect(empty.result.forGroupGeneratedRows).toEqual([]);
+
+    expectModuleCarryResult([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 2, step: 1) carry n: number = 7 {",
+      "    next n = @n + 1",
+      "  }",
+      "  export const output: number = @n",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"), "module-carry-multiple", 10);
+  });
+
+  it("continues rejecting an unmatched immutable-for execution owner", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry n: number = 7 {",
+      "  next n = @n + 1",
+      "}",
+      "const result: number = @n"
+    ].join("\n"), "unmatched-for-group-owner");
+    expectValid(compiled);
+    const [plan] = compiled.bindingVersions?.immutableForGroups?.values() ?? [];
+    if (!plan) throw new Error("expected the compiler-owned immutable-for plan");
+    const malformedGraph = {
+      ...compiled.bindingVersions!,
+      versions: [],
+      immutableForGroups: new Map([["unmatched-owner", { ...plan, ownerStatementId: "unmatched-owner" }]])
+    };
+    expect(() => buildForGroupExecutionOwners(
+      malformedGraph,
+      compiled.document!.elements,
+      compiled.statementMap!.byElementId,
+      compiled.statementMap!.statementIdByStatementIndex
+    )).toThrow("forGroup mutation owner has no matching forGroup element: unmatched-owner");
+  });
+
   it("inherits a document forGroup caller and its iteration binding into a root module call", () => {
     const compiled = compileWithIds([
       "nui 1",
@@ -3556,10 +3676,19 @@ describe("module scalar runtime integration", () => {
       if (!loop || loop.type !== "forGroup") throw new Error(`missing materialized carry loop for ${name}`);
       const instancePath = compiled.moduleMaterialization?.originByRuntimeElementId.get(loop.id)?.instancePath;
       if (!instancePath) throw new Error(`missing materialized instance path for ${name}`);
-      return { carryId: moduleCarryBindingIdFor(instancePath, sourceCarry.bindingId), nextBindingId: moduleCarryBindingIdFor(instancePath, sourceNextBindingId) };
+      const executionOwner = compiled.moduleForGroupExecutionOwnerByElementId?.get(loop.id);
+      if (!executionOwner) throw new Error(`missing projected execution owner for ${name}`);
+      return {
+        carryId: moduleCarryBindingIdFor(instancePath, sourceCarry.bindingId),
+        nextBindingId: moduleCarryBindingIdFor(instancePath, sourceNextBindingId),
+        executionOwner
+      };
     });
     expect(new Set(carryPlans.map((carry) => carry.bindingId))).toEqual(new Set(instances.map((instance) => instance.carryId)));
     expect(new Set(carryPlans.map((carry) => carry.nextBindingId))).toEqual(new Set(instances.map((instance) => instance.nextBindingId)));
+    expect(new Set(instances.map((instance) => instance.executionOwner.ownerStatementId)).size).toBe(2);
+    expect(new Set(instances.map((instance) => instance.executionOwner.scopeId)).size).toBe(2);
+    expect(new Set(instances.map((instance) => instance.executionOwner.iterationBindingId)).size).toBe(2);
     expect(carryPlans.every((carry) => carry.bindingId.startsWith("module-binding:") && carry.nextBindingId?.startsWith("module-binding:"))).toBe(true);
     expect(carryPlans.some((carry) => carry.bindingId === sourceCarry.bindingId || carry.nextBindingId === sourceNextBindingId)).toBe(false);
     const valueFor = (name: string) => {

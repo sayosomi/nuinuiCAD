@@ -6116,6 +6116,9 @@ export const compileModuleScalarRuntime = ({
         .find((candidate): candidate is Extract<BindingControlOwner, { kind: "forGroup" }> =>
           candidate.kind === "forGroup" && candidate.ownerStatementId === ownerStatementId
         );
+      const fallbackScopeId = moduleScopeIdFor(context.path, `for:${carry.statementId}`);
+      const fallbackExitSourceOrder = scopeExitOrderById.get(fallbackScopeId)
+        ?? executionOrderForValue(context.path, carry.statementIndex);
       const executionOwner = owner
         ? {
             scopeId: owner.scopeId,
@@ -6124,8 +6127,8 @@ export const compileModuleScalarRuntime = ({
             iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
           }
         : {
-            scopeId: moduleScopeIdFor(context.path, `for:${carry.statementId}`),
-            exitSourceOrder: executionPositionForValue(context.path, carry.statementIndex),
+            scopeId: fallbackScopeId,
+            exitSourceOrder: Math.max(0, Math.floor(fallbackExitSourceOrder)),
             entrySourceOrder: executionPositionForValue(context.path, carry.statementIndex) - 0.5,
             iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
           };
@@ -6246,9 +6249,31 @@ export const compileModuleScalarRuntime = ({
         .flatMap((control) => control.ownerChain)
         .find((candidate) => candidate.ownerStatementId === qualifiedOwnerId &&
           candidate.kind === (sourceOwnerKind === "forGroup" ? "forGroup" : "conditionalBranch"));
-      if (!owner) continue;
-      if (owner.kind === "conditionalBranch") conditionalOwnerStatementIdByElementId.set(runtime.elementId, owner.ownerStatementId);
-      else forGroupMutationOwnerByElementId.set(runtime.elementId, { ...owner, elementId: runtime.elementId });
+      if (sourceOwnerKind === "conditionalGroup") {
+        if (owner?.kind === "conditionalBranch") conditionalOwnerStatementIdByElementId.set(runtime.elementId, owner.ownerStatementId);
+        continue;
+      }
+
+      const immutableForGroup = immutableForGroups.get(qualifiedOwnerId);
+      const immutableExecutionOwner = immutableForGroup?.ownerStatementId === qualifiedOwnerId
+        ? immutableForGroup.executionOwner
+        : undefined;
+      // Keep ordinary control metadata authoritative when it exists. The
+      // canonical immutable-for plan supplies the same qualified loop owner
+      // only for carry-only loops without an ordinary control owner; downstream
+      // owner validation still checks consistency when both sources exist.
+      const projectedOwner = owner?.kind === "forGroup"
+        ? owner
+        : immutableExecutionOwner
+          ? {
+              kind: "forGroup" as const,
+              ownerStatementId: qualifiedOwnerId,
+              ...immutableExecutionOwner
+            }
+          : undefined;
+      if (projectedOwner) {
+        forGroupMutationOwnerByElementId.set(runtime.elementId, { ...projectedOwner, elementId: runtime.elementId });
+      }
     }
   }
 
