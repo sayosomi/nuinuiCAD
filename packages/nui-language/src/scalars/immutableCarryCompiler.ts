@@ -7,6 +7,7 @@ import { parseRecordConstructorFields, type RecordDefinitionSemantic } from "../
 import type { BindingId, BindingSeed, SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { bindingIdForStableStatementId } from "./bindingCatalog";
 import type { AdditionalScalarInitializer } from "./typedDeclarationAnalysis";
+import type { ScalarExpressionType } from "./types";
 
 export type ImmutableCarryInput = {
   bindingId: BindingId;
@@ -14,7 +15,7 @@ export type ImmutableCarryInput = {
   ownerStatementIndex: number;
   nextStatementIndex: number;
   nextSourceOrder: number;
-  declaredType: NonNullable<ReturnType<typeof scalarTypeOfDslValueType>>;
+  declaredType: ScalarExpressionType;
 };
 
 export const immutableCarryCollectionValueId = (bindingId: BindingId): string =>
@@ -289,7 +290,7 @@ export const compileImmutableCarries = ({
       const bindingId = bindingIdForStableStatementId(declaration.statementId);
       bindingByDeclaration.set(declaration.statementId, bindingId);
       names.set(carry.name, bindingId);
-      const scalarType = scalarTypeOfDslValueType(carry.valueType);
+      const scalarType = scalarExpressionTypeOfDslValueType(carry.valueType);
       declarations.push({
         bindingId,
         ownerStatementIndex: statementIndex,
@@ -429,7 +430,7 @@ export const compileImmutableCarries = ({
     const valueType = declaration?.statement.kind === "element"
       ? declaration.statement.forCarries?.find((carry) => carry.name === statement.name)?.valueType
       : null;
-    const scalarType = scalarTypeOfDslValueType(valueType ?? null);
+    const scalarType = scalarExpressionTypeOfDslValueType(valueType ?? null);
     if (!scalarType) continue;
     const nextBindingId = `binding:next:${stableStatementIdByIndex.get(ownerStatementIndex) ?? ownerStatementIndex}:${statementIndex}`;
     const nextScopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(statementIndex) ?? sourceNamespace.scopeIndex.rootScopeId;

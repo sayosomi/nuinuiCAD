@@ -654,6 +654,30 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("executes root optional scalar carry transitions through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const start: number? = none",
+      "for i in range(min: 0, max: 2, step: 1) carry maybe: number? = @start {",
+      "  next maybe = if (@i == 0) { 9 } else { if (@i == 1) { none } else { 12 } }",
+      "}",
+      "const resolved: number = @maybe ?? 0"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const carry = [...(options.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries)[0];
+    expect(carry?.declaredType).toEqual({ kind: "optional", valueType: { kind: "number" } });
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "resolved"), 12);
+    }
+  }, 30000);
+
   it("materializes Module-export geometry aliases and root alias chains across the persistent Rust stdio boundary", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

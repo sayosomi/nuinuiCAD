@@ -19,7 +19,7 @@ import { isScalarExpressionCandidateSource, parseScalarExpression } from "./expr
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
-import type { ScalarType } from "./types";
+import type { ScalarExpressionType, ScalarType } from "./types";
 import type { ScalarExpressionResolvedCollectionIndex, ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
@@ -61,7 +61,7 @@ export type AdditionalScalarInitializer = {
   ast?: ScalarExpressionAst;
   /** Embedded scalar expressions may have a result type distinct from the
    * synthetic binding used to type their lexical references. */
-  expectedType?: ScalarType;
+  expectedType?: ScalarExpressionType;
   /** Compiler-only metadata for root record field projections. */
   recordControlFlowProjection?: RecordScalarControlFlowProjection;
 };
