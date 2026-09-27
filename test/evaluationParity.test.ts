@@ -588,6 +588,72 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     for (const result of [modulePlacement.ts, modulePlacement.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
   }, 60000);
 
+  it("executes the carry-only Module owner case through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) carry n: number = 7 {",
+      "    next n = @n + 1",
+      "  }",
+      "  export const output: number = @n",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const loop = fixture.elements.find((element) => element.type === "forGroup");
+    if (!loop || loop.type !== "forGroup") throw new Error("missing carry-only Module forGroup");
+    const owner = options.moduleForGroupExecutionOwnerByElementId?.get(loop.id);
+    if (!owner) throw new Error("missing canonical carry-only Module execution owner");
+    const plan = options.bindingVersions?.immutableForGroups?.get(owner.ownerStatementId);
+    if (!plan?.executionOwner) throw new Error("missing carry-only Module immutable-for plan");
+    expect(plan.executionOwner).toMatchObject({
+      scopeId: owner.scopeId,
+      exitSourceOrder: owner.exitSourceOrder,
+      iterationBindingId: owner.iterationBindingId
+    });
+    expect(options.bindingVersions?.moduleForGroupExecutionOwnersByStatementId?.get(owner.ownerStatementId)).toMatchObject({
+      kind: owner.kind,
+      ownerStatementId: owner.ownerStatementId,
+      scopeId: owner.scopeId,
+      exitSourceOrder: owner.exitSourceOrder,
+      ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+      ...(owner.iterationBindingId ? { iterationBindingId: owner.iterationBindingId } : {})
+    });
+    expect(options.bindingVersions?.versions.some((version) =>
+      version.control.ownerChain.some((candidate) => candidate.kind === "forGroup" && candidate.ownerStatementId === owner.ownerStatementId)
+    )).toBe(false);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    expect(rustInput.bindingVersions?.forGroupOwners).toContainEqual(expect.objectContaining({
+      ownerStatementId: owner.ownerStatementId,
+      elementId: loop.id,
+      moduleExecutionOwner: true
+    }));
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    const normalizeModulePayload = (payload: unknown): unknown => {
+      const normalized = normalizeParityPayload(payload);
+      if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) return normalized;
+      const record = normalized as Record<string, unknown>;
+      const sortEntries = (value: unknown, key: string) => Array.isArray(value)
+        ? [...value].sort((left, right) => String((left as Record<string, unknown>)[key]).localeCompare(String((right as Record<string, unknown>)[key])))
+        : value;
+      return {
+        ...record,
+        computedScalarBindings: sortEntries(record.computedScalarBindings, "bindingId"),
+        computedScalarBindingVersions: sortEntries(record.computedScalarBindingVersions, "versionId")
+      };
+    };
+    expect(normalizeModulePayload(rustPayload)).toEqual(normalizeModulePayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "result"), 8);
+    }
+  }, 30000);
+
   it("materializes Module-export geometry aliases and root alias chains across the persistent Rust stdio boundary", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
