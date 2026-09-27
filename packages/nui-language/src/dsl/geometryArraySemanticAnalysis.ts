@@ -889,9 +889,22 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         const expectedElement = enrichedExpectedType.elementType;
         const token = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
         if (token.kind !== "error" && token.span.start === 0 && token.span.end === member.text.length) {
-          if (expectedElement.kind === "choice") {
-            if (token.kind === "choice" && isChoiceOptionMember(expectedElement, token.raw)) {
+          if (token.kind === "choice" && token.raw === "none") {
+            if (isDslOptionalValueType(expectedElement)) {
               return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
+            }
+            return collectionMemberDiagnostic(
+              "array-member-type-mismatch",
+              `array member「${member.text}」の型が宣言型と一致しません。`,
+              member.span,
+              { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+            );
+          }
+
+          const requiredExpectedElement = dslRequiredValueTypeOf(expectedElement);
+          if (requiredExpectedElement?.kind === "choice") {
+            if (token.kind === "choice" && isChoiceOptionMember(requiredExpectedElement, token.raw)) {
+              return { kind: "resolved", value: { elementType: requiredExpectedElement, target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
             }
             return collectionMemberDiagnostic(
               "array-member-type-mismatch",
@@ -900,8 +913,17 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
               { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
             );
           }
-          if (isDslScalarValueType(expectedElement) && token.kind === expectedElement.kind) {
-            return { kind: "resolved", value: { elementType: scalarLiteralType(token.kind), target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
+          if (token.kind !== "choice") {
+            const literalType = scalarLiteralType(token.kind);
+            if (!isDslNonArrayValueTypeAssignable(literalType, expectedElement)) {
+              return collectionMemberDiagnostic(
+                "array-member-type-mismatch",
+                `array member「${member.text}」の型が宣言型と一致しません。`,
+                member.span,
+                { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+              );
+            }
+            return { kind: "resolved", value: { elementType: literalType, target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
           }
           return collectionMemberDiagnostic(
             "array-member-type-mismatch",
