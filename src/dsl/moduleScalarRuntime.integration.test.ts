@@ -10,7 +10,7 @@ import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from ".
 import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
-import { moduleRecordExportFieldBindingIdFor } from "@nuinuicad/nui-language";
+import { moduleCarryBindingIdFor, moduleRecordExportFieldBindingIdFor } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { GeometryInputTarget } from "../types/geometry";
@@ -3503,6 +3503,28 @@ describe("module scalar runtime integration", () => {
     expectValid(compiled);
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
+    const carryPlans = [...(compiled.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries);
+    expect(carryPlans).toHaveLength(2);
+    const sourceCarry = compiled.moduleSemanticAnalysis?.definitions
+      .find((definition) => definition.name === "Counter")?.immutableCarries?.[0];
+    expect(sourceCarry).toBeDefined();
+    if (!sourceCarry) throw new Error("expected the Module source carry semantic");
+    const sourceNextBindingId = `binding:next:${sourceCarry.statementId}:${sourceCarry.nextStatementIndex}`;
+    const instances = ["A", "B"].map((name) => {
+      const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === name);
+      if (!instance) throw new Error(`missing Module instance ${name}`);
+      const loop = compiled.document!.elements.find((element) => element.type === "forGroup" &&
+        compiled.moduleMaterialization?.originByRuntimeElementId.get(element.id)?.instancePath.includes(instance.statementId));
+      if (!loop || loop.type !== "forGroup") throw new Error(`missing materialized carry loop for ${name}`);
+      const instancePath = compiled.moduleMaterialization?.originByRuntimeElementId.get(loop.id)?.instancePath;
+      if (!instancePath) throw new Error(`missing materialized instance path for ${name}`);
+      return { carryId: moduleCarryBindingIdFor(instancePath, sourceCarry.bindingId), nextBindingId: moduleCarryBindingIdFor(instancePath, sourceNextBindingId) };
+    });
+    expect(new Set(carryPlans.map((carry) => carry.bindingId))).toEqual(new Set(instances.map((instance) => instance.carryId)));
+    expect(new Set(carryPlans.map((carry) => carry.nextBindingId))).toEqual(new Set(instances.map((instance) => instance.nextBindingId)));
+    expect(carryPlans.every((carry) => carry.bindingId.startsWith("module-binding:") && carry.nextBindingId?.startsWith("module-binding:"))).toBe(true);
+    expect(carryPlans.some((carry) => carry.bindingId === sourceCarry.bindingId || carry.nextBindingId === sourceNextBindingId)).toBe(false);
     const valueFor = (name: string) => {
       const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
       return binding ? result.computedScalarBindings?.get(binding.id) : undefined;

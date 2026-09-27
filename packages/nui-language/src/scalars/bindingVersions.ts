@@ -85,6 +85,9 @@ export type BindingVersionGraph = {
   timelinesByBindingId: ReadonlyMap<BindingId, BindingVersionTimeline>;
   /** Module calls can require ordered execution even when no set exists. */
   requiresExecutionOrdering?: boolean;
+  /** Canonical materialized Module loop owners, including owners with no scalar
+   * version. Runtime element joins are checked against this compiler snapshot. */
+  moduleForGroupExecutionOwnersByStatementId?: ReadonlyMap<string, Extract<BindingControlOwner, { kind: "forGroup" }>>;
   /** Immutable statement-for carry plans. This is a value snapshot/commit
    * contract, not a version timeline and is deliberately separate from the
    * retired let/set mutation model. */

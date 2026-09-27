@@ -2,7 +2,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
-import { emptyDocument } from "@nuinuicad/nui-language";
+import { emptyDocument, moduleCarryBindingIdFor } from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
@@ -3025,14 +3025,30 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("executes collection-backed statement-for loops through the persistent Rust stdio boundary", async () => {
-    const evaluateSource = async (source: string) => {
+    const normalizeModuleCarryPayload = (payload: unknown): unknown => {
+      const normalized = normalizeParityPayload(payload);
+      if (!normalized || typeof normalized !== "object" || Array.isArray(normalized)) return normalized;
+      const sortEntries = (value: unknown, key: string) => Array.isArray(value)
+        ? [...value].sort((left, right) => String((left as Record<string, unknown>)[key]).localeCompare(String((right as Record<string, unknown>)[key])))
+        : value;
+      const record = normalized as Record<string, unknown>;
+      return {
+        ...record,
+        computedScalarBindings: sortEntries(record.computedScalarBindings, "bindingId"),
+        computedScalarBindingVersions: sortEntries(record.computedScalarBindingVersions, "versionId")
+      };
+    };
+    const evaluateSource = async (source: string, sortModuleScalarOutputs = false) => {
       const fixture = fixtureFromSource(source);
       const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
       const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
       const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
-      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      const normalize = sortModuleScalarOutputs ? normalizeModuleCarryPayload : normalizeParityPayload;
+      expect(normalize(rustPayload)).toEqual(normalize(tsPayload));
       return {
         fixture,
+        options,
         tsPayload,
         rustPayload,
         ts: evaluationPayloadToResult(tsPayload),
@@ -3094,6 +3110,171 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect([...result.computedGeometry.keys()].some((id) => id.includes(`@${loop.id}:`))).toBe(false);
     }
 
+    const emptyModule = await evaluateSource([
+      "nui 1",
+      "module M() {",
+      "  const items: number[] = []",
+      "  for item in @items carry total: number = 7 {",
+      "    next total = @total + 1",
+      "    point Mark = coordinate(x: 0, y: 0)",
+      "  }",
+      "  export const output: number = @total",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"));
+    for (const [result, payload] of [
+      [emptyModule.ts, emptyModule.tsPayload],
+      [emptyModule.rust, emptyModule.rustPayload]
+    ] as const) {
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(emptyModule.fixture, payload, "result"), 7);
+      expect(result.forGroupGeneratedRows).toEqual([]);
+    }
+    const emptyModuleCarry = [...(emptyModule.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries)[0];
+    if (!emptyModuleCarry?.nextBindingId) throw new Error("expected the compiled Module carry next binding identity");
+    const emptyModuleInput = buildRustEvaluationInput(emptyModule.fixture.elements, emptyModule.options);
+    const serializedEmptyModuleCarries = emptyModuleInput.bindingVersions?.immutableForGroups?.flatMap((plan) => plan.carries) ?? [];
+    expect(serializedEmptyModuleCarries).toHaveLength(1);
+    expect(serializedEmptyModuleCarries[0]).toMatchObject({
+      bindingId: emptyModuleCarry.bindingId,
+      nextBindingId: emptyModuleCarry.nextBindingId
+    });
+
+    const rootCarry = await evaluateSource([
+      "nui 1",
+      "for i in range(min: 0, max: 2, step: 1) carry total: number = 0 {",
+      "  next total = @total + 1",
+      "}",
+      "const result: number = @total"
+    ].join("\n"));
+    const rootCarryPlan = [...(rootCarry.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries)[0];
+    if (!rootCarryPlan?.nextBindingId) throw new Error("expected the root carry next binding identity");
+    expect(rootCarryPlan.nextBindingId).toMatch(/^binding:next:/);
+    const rootCarryInput = buildRustEvaluationInput(rootCarry.fixture.elements, rootCarry.options);
+    const serializedRootCarry = rootCarryInput.bindingVersions?.immutableForGroups?.flatMap((plan) => plan.carries)[0];
+    expect(serializedRootCarry).toMatchObject({
+      bindingId: rootCarryPlan.bindingId,
+      nextBindingId: rootCarryPlan.nextBindingId
+    });
+    for (const [result, payload] of [
+      [rootCarry.ts, rootCarry.tsPayload],
+      [rootCarry.rust, rootCarry.rustPayload]
+    ] as const) {
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(rootCarry.fixture, payload, "result"), 3);
+    }
+
+    const moduleCarry = await evaluateSource([
+      "nui 1",
+      "module M(start: number) {",
+      "  const items: number[] = [0, 1, 2]",
+      "  for item in @items carry total: number = @start {",
+      "    next total = @total + 1",
+      "    point Mark = coordinate(x: @start, y: 0)",
+      "  }",
+      "  export const output: number = @total",
+      "}",
+      "instance A = M(start: 5)",
+      "instance B = M(start: 20)",
+      "const resultA: number = @A::output",
+      "const resultB: number = @B::output"
+    ].join("\n"), true);
+    const moduleCarryPlans = [...(moduleCarry.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.carries);
+    expect(moduleCarryPlans).toHaveLength(2);
+    expect(moduleCarryPlans.every((carry) => carry.bindingId.startsWith("module-binding:") && carry.nextBindingId?.startsWith("module-binding:"))).toBe(true);
+    expect(moduleCarryPlans.every((carry) => Number.isInteger(carry.nextSourceOrder) && carry.nextSourceOrder >= 0)).toBe(true);
+    expect(new Set(moduleCarryPlans.map((carry) => carry.bindingId)).size).toBe(2);
+    expect(new Set(moduleCarryPlans.map((carry) => carry.nextBindingId)).size).toBe(2);
+    const moduleCarryInput = buildRustEvaluationInput(moduleCarry.fixture.elements, moduleCarry.options);
+    const serializedModuleCarryPlans = moduleCarryInput.bindingVersions?.immutableForGroups?.flatMap((plan) => plan.carries) ?? [];
+    expect(serializedModuleCarryPlans).toHaveLength(2);
+    const identityPairs = (carries: typeof moduleCarryPlans) => new Set(carries.map((carry) =>
+      JSON.stringify([carry.bindingId, carry.nextBindingId])
+    ));
+    expect(identityPairs(serializedModuleCarryPlans)).toEqual(identityPairs(moduleCarryPlans));
+    expect(serializedModuleCarryPlans.map(({ bindingId, nextBindingId, nextSourceOrder }) =>
+      JSON.stringify([bindingId, nextBindingId, nextSourceOrder])
+    ).sort()).toEqual(moduleCarryPlans.map(({ bindingId, nextBindingId, nextSourceOrder }) =>
+      JSON.stringify([bindingId, nextBindingId, nextSourceOrder])
+    ).sort());
+
+    const moduleInstances = moduleCarry.fixture.compiled?.doc.moduleSemanticAnalysis?.instances
+      .filter((instance) => instance.name === "A" || instance.name === "B") ?? [];
+    const loopForInstance = (name: string) => {
+      const instance = moduleInstances.find((candidate) => candidate.name === name);
+      if (!instance) throw new Error(`missing Module instance ${name}`);
+      const loop = moduleCarry.fixture.elements.find((element) => element.type === "forGroup" &&
+        moduleCarry.options.moduleMaterialization?.originByRuntimeElementId.get(element.id)?.instancePath.includes(instance.statementId));
+      if (!loop || loop.type !== "forGroup") throw new Error(`missing materialized carry loop for ${name}`);
+      return loop;
+    };
+    const moduleRowsFor = (result: ReturnType<typeof evaluationPayloadToResult>, loopId: string) =>
+      result.forGroupGeneratedRows?.filter((row) => row.forGroupId === loopId && row.elementName.endsWith("Mark")) ?? [];
+    const markCoordinates = (result: ReturnType<typeof evaluationPayloadToResult>, loopId: string) =>
+      moduleRowsFor(result, loopId).map((row) => {
+        const geometry = result.computedGeometry.get(row.generatedElementId);
+        if (geometry?.kind !== "point") throw new Error("generated Module Mark must have point geometry");
+        return [row.iterationIndex, geometry.x, geometry.y];
+      });
+    const loopA = loopForInstance("A");
+    const loopB = loopForInstance("B");
+    const carryForLoop = (loopId: string) => {
+      const owner = moduleCarry.options.moduleForGroupExecutionOwnerByElementId?.get(loopId);
+      if (!owner) throw new Error(`missing Module carry owner for ${loopId}`);
+      const plan = moduleCarry.fixture.compiled?.doc.bindingVersions?.immutableForGroups?.get(owner.ownerStatementId);
+      if (!plan?.carries[0]) throw new Error(`missing Module carry plan for ${loopId}`);
+      return plan.carries[0];
+    };
+    const carryA = carryForLoop(loopA.id);
+    const carryB = carryForLoop(loopB.id);
+    for (const [loop, carry] of [[loopA, carryA], [loopB, carryB]] as const) {
+      const projectedOwner = moduleCarry.options.moduleForGroupExecutionOwnerByElementId?.get(loop.id);
+      if (!projectedOwner) throw new Error(`missing projected owner for ${loop.id}`);
+      const graphOwner = moduleCarry.options.bindingVersions?.versions
+        .flatMap((version) => version.control.ownerChain)
+        .find((owner) => owner.kind === "forGroup" && owner.ownerStatementId === projectedOwner.ownerStatementId);
+      const moduleGraphOwner = moduleCarry.options.bindingVersions?.moduleForGroupExecutionOwnersByStatementId?.get(projectedOwner.ownerStatementId);
+      const plan = moduleCarry.options.bindingVersions?.immutableForGroups?.get(projectedOwner.ownerStatementId);
+      if (!moduleGraphOwner || !plan?.executionOwner) throw new Error(`missing graph execution owner for ${loop.id}`);
+      expect(projectedOwner).toMatchObject(moduleGraphOwner);
+      if (graphOwner?.kind === "forGroup") expect(moduleGraphOwner).toMatchObject(graphOwner);
+      expect(plan?.carries).toContainEqual(expect.objectContaining({ bindingId: carry.bindingId }));
+      expect(carry.nextSourceOrder).toBeLessThan(plan.executionOwner.exitSourceOrder);
+      expect(plan.executionOwner).toMatchObject({
+        scopeId: moduleGraphOwner.scopeId,
+        exitSourceOrder: moduleGraphOwner.exitSourceOrder,
+        iterationBindingId: moduleGraphOwner.iterationBindingId
+      });
+    }
+    const sourceCarry = moduleCarry.fixture.compiled?.doc.moduleSemanticAnalysis?.definitions
+      .find((definition) => definition.name === "M")?.immutableCarries?.[0];
+    if (!sourceCarry) throw new Error("missing canonical Module source carry");
+    for (const [loop, carry] of [[loopA, carryA], [loopB, carryB]] as const) {
+      const instancePath = moduleCarry.options.moduleMaterialization?.originByRuntimeElementId.get(loop.id)?.instancePath;
+      if (!instancePath) throw new Error(`missing Module instance path for ${loop.id}`);
+      expect(carry.bindingId).toBe(moduleCarryBindingIdFor(instancePath, sourceCarry.bindingId));
+      expect(carry.nextBindingId).toBe(moduleCarryBindingIdFor(
+        instancePath,
+        `binding:next:${sourceCarry.statementId}:${sourceCarry.nextStatementIndex}`
+      ));
+    }
+    expect(carryA.bindingId).not.toBe(carryB.bindingId);
+    expect(carryA.nextBindingId).not.toBe(carryB.nextBindingId);
+    for (const [result, payload] of [
+      [moduleCarry.ts, moduleCarry.tsPayload],
+      [moduleCarry.rust, moduleCarry.rustPayload]
+    ] as const) {
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(moduleCarry.fixture, payload, "resultA"), 8);
+      expectScalarNumberClose(scalarBindingFor(moduleCarry.fixture, payload, "resultB"), 23);
+      expect(markCoordinates(result, loopA.id)).toEqual([[0, 5, 0], [1, 5, 0], [2, 5, 0]]);
+      expect(markCoordinates(result, loopB.id)).toEqual([[0, 20, 0], [1, 20, 0], [2, 20, 0]]);
+    }
+
     const gated = await evaluateSource([
       "nui 1",
       "const items: number[] = [1, 2]",
@@ -3148,6 +3329,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     ].join("\n"));
     const moduleAnalysis = moduleCollections.fixture.compiled?.doc.moduleSemanticAnalysis;
     const moduleOptions = optionsFor(moduleCollections.fixture);
+    expect(isRustEligibleFixture(moduleCollections.fixture)).toBe(true);
     const moduleLoops = moduleCollections.fixture.elements.filter((element) => element.type === "forGroup");
     const moduleLoopFor = (instanceName: string, elementKind: "number" | "string") => {
       const instance = moduleAnalysis?.instances.find((candidate) => candidate.name === instanceName);
@@ -3162,6 +3344,20 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const secondNumberLoop = moduleLoopFor("Second", "number");
     const firstStringLoop = moduleLoopFor("First", "string");
     const secondStringLoop = moduleLoopFor("Second", "string");
+    expect([...moduleOptions.moduleForGroupExecutionOwnerByElementId!.keys()].sort()).toEqual(moduleLoops.map((loop) => loop.id).sort());
+    for (const owner of moduleOptions.moduleForGroupExecutionOwnerByElementId!.values()) {
+      const graphOwner = moduleOptions.bindingVersions?.versions
+        .flatMap((version) => version.control.ownerChain)
+        .find((candidate) => candidate.kind === "forGroup" && candidate.ownerStatementId === owner.ownerStatementId);
+      const moduleGraphOwner = moduleOptions.bindingVersions?.moduleForGroupExecutionOwnersByStatementId?.get(owner.ownerStatementId);
+      expect(moduleGraphOwner).toBeDefined();
+      expect(moduleGraphOwner).toMatchObject({
+        scopeId: owner.scopeId,
+        exitSourceOrder: owner.exitSourceOrder,
+        iterationBindingId: owner.iterationBindingId
+      });
+      if (graphOwner?.kind === "forGroup") expect(moduleGraphOwner).toMatchObject(graphOwner);
+    }
     expect(new Set([firstNumberLoop.iterationSourceValueId, secondNumberLoop.iterationSourceValueId]).size).toBe(2);
     expect(new Set([firstStringLoop.iterationSourceValueId, secondStringLoop.iterationSourceValueId]).size).toBe(2);
     for (const result of [moduleCollections.ts, moduleCollections.rust]) {

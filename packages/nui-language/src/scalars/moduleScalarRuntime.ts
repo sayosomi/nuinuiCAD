@@ -3935,6 +3935,31 @@ export const compileModuleScalarRuntime = ({
       firstAvailableAfterScalars
     );
   };
+  const executionOrderForValue = (path: readonly string[], statementIndex: number): number => {
+    const context = contextsByKey.get(pathKey(path));
+    const pathEvents = eventOrderByPathAndStatementIndex.get(pathKey(path));
+    const priorParameterEvents = context
+      ? [
+          ...[...context.parameters.values()].map((parameter) => eventOrderByBindingId.get(parameter.id)),
+          ...[...context.recordParameters.values()].flatMap((fields) =>
+            [...fields.values()].map((field) => eventOrderByBindingId.get(field.id))
+          ),
+          ...[...context.recordParameterFieldBindingsByPath.values()].flatMap((fields) =>
+            [...fields.values()].map((field) => eventOrderByBindingId.get(field.id))
+          )
+        ].filter((order): order is number => order !== undefined)
+      : [];
+    const priorPathEvents = [...(pathEvents?.entries() ?? [])]
+      .filter(([sourceStatementIndex]) => sourceStatementIndex < statementIndex)
+      .map(([, order]) => order);
+    const lastPriorEvent = Math.max(...priorParameterEvents, ...priorPathEvents);
+    // Rust evaluates a carry's next expression against binding versions whose
+    // source order is strictly before this boundary. Use the next integer after
+    // the last preceding Module runtime event, which is the compiler-owned
+    // discrete execution order and retains the reference path's before-next
+    // position without serializing a fractional source position.
+    return Number.isFinite(lastPriorEvent) ? lastPriorEvent + 1 : 0;
+  };
   const runtimeEventPositionForValue = (path: readonly string[], statementIndex: number): number => {
     if (path.length === 0) return executionPositionForValue(path, statementIndex);
     const pathEvents = eventOrderByPathAndStatementIndex.get(pathKey(path));
@@ -5940,6 +5965,45 @@ export const compileModuleScalarRuntime = ({
     if (exactOrder !== undefined) nextSourceOrder = exactOrder;
     else sourceOrderByStatementIndex.set(statementIndex, nextSourceOrder);
   }
+  // A Module carry's loop boundary is also the boundary for every owner-chain
+  // entry produced below. Clamp it before control metadata is qualified so
+  // BindingVersionGraph, the Module owner projection, and the immutable carry
+  // plan all transport one canonical execution boundary.
+  for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
+    const definitionScopeIndex = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
+    for (const carry of context.definition.immutableCarries ?? []) {
+      if (!carry.type || !carry.initializer || !carry.next) continue;
+      const binding = context.carries.get(carry.bindingId);
+      if (!binding || !moduleInitializers.has(binding.id) || !moduleCarryNextExpressions.has(binding.id)) continue;
+      const loopScopeId = `for:${carry.statementId}`;
+      const parameterBindingIds = new Set([
+        ...[...context.parameters.values()].map((parameter) => parameter.id),
+        ...[...context.recordParameters.values()].flatMap((fields) => [...fields.values()].map((field) => field.id)),
+        ...[...context.recordParameterFieldBindingsByPath.values()].flatMap((fields) => [...fields.values()].map((field) => field.id))
+      ]);
+      const isInsideLoopScope = (statementIndex: number): boolean => {
+        let scopeId = definitionScopeIndex?.scopeOfStatement.get(statementIndex);
+        while (scopeId) {
+          if (scopeId === loopScopeId) return true;
+          scopeId = definitionScopeIndex?.scopes.get(scopeId)?.parentId ?? undefined;
+        }
+        return false;
+      };
+      const firstPostLoopBindingOrder = allBindingInfos
+        .filter((local) => local.contextKey === context.key && !parameterBindingIds.has(local.id) &&
+          local.statementIndex > carry.statementIndex && !isInsideLoopScope(local.statementIndex))
+        .map((local) => local.eventOrder)
+        .filter((order): order is number => order !== undefined)
+        .sort((left, right) => left - right)[0];
+      if (firstPostLoopBindingOrder === undefined) continue;
+      const qualifiedLoopScopeId = moduleScopeIdFor(context.path, loopScopeId);
+      scopeExitOrderById.set(
+        qualifiedLoopScopeId,
+        Math.min(scopeExitOrderById.get(qualifiedLoopScopeId) ?? firstPostLoopBindingOrder, firstPostLoopBindingOrder)
+      );
+    }
+  }
   const controlByScopeId = new Map<string, BindingControlMetadata>();
   const conditionalOwnerStatementIdByElementId = new Map<ElementId, string>();
   const forGroupMutationOwnerByElementId = new Map<ElementId, Extract<BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>();
@@ -6036,26 +6100,7 @@ export const compileModuleScalarRuntime = ({
         kind: "linear"
       });
     }
-    for (const body of context.definition.bodyStatements) {
-      if (!moduleBodyStatementIsReachable(context, body)) continue;
-      if (body.statementKind !== "element") continue;
-      const runtime = bodyRuntimeEntry(context, body);
-      if (!runtime) continue;
-      const sourceOwnerId = body.statementId;
-      const sourceStatement = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements[body.statementIndex] ?? statements[body.statementIndex];
-      const sourceOwnerKind = sourceStatement?.kind === "element" ? sourceStatement.type : null;
-      if (sourceOwnerKind !== "conditionalGroup" && sourceOwnerKind !== "forGroup") continue;
-      const qualifiedOwnerId = moduleOwnerIdFor(context.path, sourceOwnerId);
-      const owner = [...controlByScopeId.values()]
-        .flatMap((control) => control.ownerChain)
-        .find((candidate) => candidate.ownerStatementId === qualifiedOwnerId &&
-          candidate.kind === (sourceOwnerKind === "forGroup" ? "forGroup" : "conditionalBranch"));
-      if (!owner) continue;
-      if (owner.kind === "conditionalBranch") conditionalOwnerStatementIdByElementId.set(runtime.elementId, owner.ownerStatementId);
-      else forGroupMutationOwnerByElementId.set(runtime.elementId, { ...owner, elementId: runtime.elementId });
-    }
   }
-
   const immutableForGroups = new Map<string, ImmutableForGroupPlan>();
   for (const context of contextsByKey.values()) {
     if (!contextIsReachable(context)) continue;
@@ -6071,30 +6116,10 @@ export const compileModuleScalarRuntime = ({
         .find((candidate): candidate is Extract<BindingControlOwner, { kind: "forGroup" }> =>
           candidate.kind === "forGroup" && candidate.ownerStatementId === ownerStatementId
         );
-      const definitionScopeIndex = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
-      const loopScopeId = `for:${carry.statementId}`;
-      const isInsideLoopScope = (statementIndex: number): boolean => {
-        let scopeId = definitionScopeIndex?.scopeOfStatement.get(statementIndex);
-        while (scopeId) {
-          if (scopeId === loopScopeId) return true;
-          scopeId = definitionScopeIndex?.scopes.get(scopeId)?.parentId ?? undefined;
-        }
-        return false;
-      };
-      const firstPostLoopBindingOrder = [...context.locals.values()]
-        .filter((local) => local.statementIndex > carry.statementIndex && !isInsideLoopScope(local.statementIndex))
-        .map((local) => eventOrderByBindingId.get(local.id))
-        .filter((order): order is number => order !== undefined)
-        .sort((left, right) => left - right)[0];
-      const executionExitSourceOrder = firstPostLoopBindingOrder === undefined
-        ? undefined
-        : firstPostLoopBindingOrder - 0.5;
       const executionOwner = owner
         ? {
             scopeId: owner.scopeId,
-            exitSourceOrder: executionExitSourceOrder === undefined
-              ? owner.exitSourceOrder
-              : Math.min(owner.exitSourceOrder, executionExitSourceOrder),
+            exitSourceOrder: owner.exitSourceOrder,
             ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
             iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
           }
@@ -6112,10 +6137,14 @@ export const compileModuleScalarRuntime = ({
           ...(existing?.carries ?? []),
           {
             bindingId: binding.id,
+            nextBindingId: moduleCarryBindingIdFor(
+              context.path,
+              `binding:next:${carry.statementId}:${carry.nextStatementIndex}`
+            ),
             initializer,
             declaredType: carry.type,
             nextExpression,
-            nextSourceOrder: executionPositionForValue(context.path, carry.nextStatementIndex)
+            nextSourceOrder: executionOrderForValue(context.path, carry.nextStatementIndex)
           }
         ],
         ...(existing?.geometryCarries ? { geometryCarries: existing.geometryCarries } : {}),
@@ -6198,6 +6227,28 @@ export const compileModuleScalarRuntime = ({
           }
         ]
       });
+    }
+  }
+  // Project the compiler-owned Module loop boundary after carry overrides
+  // have been applied, so runtime owner joins and the graph's owner snapshot
+  // are derived from the same control metadata.
+  for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
+    for (const body of context.definition.bodyStatements) {
+      if (!moduleBodyStatementIsReachable(context, body) || body.statementKind !== "element") continue;
+      const runtime = bodyRuntimeEntry(context, body);
+      if (!runtime) continue;
+      const sourceStatement = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements[body.statementIndex] ?? statements[body.statementIndex];
+      const sourceOwnerKind = sourceStatement?.kind === "element" ? sourceStatement.type : null;
+      if (sourceOwnerKind !== "conditionalGroup" && sourceOwnerKind !== "forGroup") continue;
+      const qualifiedOwnerId = moduleOwnerIdFor(context.path, body.statementId);
+      const owner = [...controlByScopeId.values()]
+        .flatMap((control) => control.ownerChain)
+        .find((candidate) => candidate.ownerStatementId === qualifiedOwnerId &&
+          candidate.kind === (sourceOwnerKind === "forGroup" ? "forGroup" : "conditionalBranch"));
+      if (!owner) continue;
+      if (owner.kind === "conditionalBranch") conditionalOwnerStatementIdByElementId.set(runtime.elementId, owner.ownerStatementId);
+      else forGroupMutationOwnerByElementId.set(runtime.elementId, { ...owner, elementId: runtime.elementId });
     }
   }
 
