@@ -146,7 +146,7 @@ describe("module semantic analysis", () => {
     ]);
   });
 
-  it("preserves optional geometry carry declarations while projecting their interface", () => {
+  it("rejects optional geometry carry initialization at the required geometry boundary", () => {
     const compiled = compileWithIds([
       "nui 1",
       "module M(seed: point?) {",
@@ -157,11 +157,13 @@ describe("module semantic analysis", () => {
       "instance Use = M()"
     ].join("\n"));
 
-    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
-    const carry = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.immutableCarries![0]!;
-    expect(carry.valueType).toEqual({ kind: "optional", valueType: { kind: "point" } });
-    expect(carry.geometryInitializer).toMatchObject({ resolution: "resolved", valueType: { kind: "optional", valueType: { kind: "point" } } });
-    expect(carry.geometryNext).toMatchObject({ resolution: "resolved", valueType: { kind: "optional", valueType: { kind: "point" } } });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "optional-value-required" })
+    ]));
+    const carries = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "M")!.immutableCarries ?? [];
+    expect(carries).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "cursor" })
+    ]));
   });
 
   it("does not implicitly unwrap an optional Module carry for a required scalar", () => {

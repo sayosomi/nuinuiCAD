@@ -517,7 +517,7 @@ export const analyzeModuleBody = ({
           expectedGeometryKind,
           {
             expectedInterfaceType: requiredValueType.kind,
-            expectedValueType: authoredValueType,
+            expectedValueType: requiredValueType,
             role: requiredValueType.kind === "point" ? "pointReference" : "lineReference",
             scalarResolver: (reference) => resolveBodyScalar(statementIndex, reference),
             bareScalarResolver: (reference) => resolveBodyBareScalar(statementIndex, reference),
@@ -532,7 +532,7 @@ export const analyzeModuleBody = ({
           expectedGeometryKind,
           {
             expectedInterfaceType: requiredValueType.kind,
-            expectedValueType: authoredValueType,
+            expectedValueType: requiredValueType,
             role: requiredValueType.kind === "point" ? "pointReference" : "lineReference",
             scalarResolver: (reference) => resolveBodyScalar(nextStatement.candidateIndex, reference),
             bareScalarResolver: (reference) => resolveBodyBareScalar(nextStatement.candidateIndex, reference),
@@ -547,7 +547,7 @@ export const analyzeModuleBody = ({
           carryIndex,
           name: carry.name,
           type: null,
-          valueType: authoredValueType,
+          valueType: requiredValueType,
           geometryInitializer: initializer,
           geometryNext: next,
           nextStatementIndex: nextStatement.candidateIndex
