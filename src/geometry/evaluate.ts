@@ -663,7 +663,7 @@ export const evaluateElements = (
       lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, lookupBinding),
       lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, lookupBinding),
       ...(scalarBindingResolver?.resolveCollectionIndex ? {
-        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarType, collectionLength: number | null, targetSourceOrder: number) =>
+        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number) =>
           scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
       } : {}),
       ...(scalarBindingResolver?.resolveCollectionLength ? {
@@ -718,7 +718,7 @@ export const evaluateElements = (
       lookupGeometryProperty: (reference: Parameters<typeof resolveDocumentGeometryProperty>[1]) => resolveGeometryPropertyForEvaluation(reference, evaluationSourceOrder, lookupBinding),
       lookupGeometryTarget: (target: Parameters<typeof resolveDocumentGeometryTarget>[1]) => resolveGeometryTargetForEvaluation(target, evaluationSourceOrder, lookupBinding),
       ...(scalarBindingResolver?.resolveCollectionIndex ? {
-        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarType, collectionLength: number | null, targetSourceOrder: number) =>
+        lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number) =>
           scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, evaluationSourceOrder)
       } : {}),
       ...(scalarBindingResolver?.resolveCollectionLength ? {

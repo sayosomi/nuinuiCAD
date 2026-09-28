@@ -47,7 +47,7 @@ import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslS
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
-import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, isDslValueTypeAssignable, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, isDslValueTypeAssignable, nominalRecordTypeOfDslValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
 import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
 import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import { type DslArrayMappedValue, type DslArraySemanticValue } from "./geometryArraySemantics";
@@ -81,6 +81,7 @@ import { bindingIdForStableStatementId, type Binding, type BindingId, type Bindi
 import { scopeChain } from "../scalars/lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramCollection, ScalarProgramCollectionMember, ScalarProgramPositionMap } from "../scalars/scalarProgram";
 import type { ScalarExpressionType, ScalarValue } from "../scalars/types";
+import { scalarValueMatchesType } from "../scalars/types";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import type {
   MaterializedNumericBindingSource,
@@ -2004,7 +2005,7 @@ export const compileDslDocument = (
                   // use the established synthetic marker at runtime so the
                   // two order domains are not compared as if they were one.
                   targetSourceOrder: -1,
-                  type: scalarTypeOfDslValueType(field.type)
+                  type: scalarExpressionTypeOfDslValueType(field.type)
                 };
               }
             }
@@ -2034,7 +2035,7 @@ export const compileDslDocument = (
             : undefined;
           const valueType = dslRequiredValueTypeOf(carry?.valueType);
           if (valueType && isDslArrayValueType(valueType)) {
-            const elementType = scalarTypeOfDslValueType(valueType.elementType);
+            const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
             return {
               kind: "resolvedCollectionIndex" as const,
               collectionValueId: immutableCarryCollectionValueId(`binding:${lookup.declaration.statementId}`),
@@ -2053,7 +2054,7 @@ export const compileDslDocument = (
               collectionValueId: carryCollectionIdForDeclaration(field),
               collectionLength: null,
               targetSourceOrder: lookup.declaration.statementIndex,
-              type: scalarTypeOfDslValueType(fieldType.elementType)
+              type: scalarExpressionTypeOfDslValueType(fieldType.elementType)
             };
           }
         }
@@ -2094,7 +2095,7 @@ export const compileDslDocument = (
           }
         }
         if (!value || !sourceLexicalNamespace.geometryArraySemanticAnalysis || !("valueType" in value)) return null;
-        const scalarElementType = scalarTypeOfDslValueType(value.valueType.elementType);
+        const scalarElementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
         if (!scalarElementType) return null;
         return {
           kind: "resolvedCollectionIndex" as const,
@@ -2311,6 +2312,24 @@ export const compileDslDocument = (
       return binding;
     };
     const values: ScalarProgramCollection[] = [];
+    const scalarValueForCollectionLiteral = (sourceText: string, type: ScalarExpressionType): ScalarValue | null => {
+      if (sourceText.trim() === "none") return type.kind === "optional" ? { kind: "none" } : null;
+      const literal = scanScalarLiteral(sourceText, { start: 0, end: sourceText.length });
+      if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== sourceText.length) return null;
+      const choiceType = type.kind === "choice"
+        ? type
+        : type.kind === "optional" && type.valueType.kind === "choice"
+          ? type.valueType
+          : null;
+      const value: ScalarValue | null = literal.kind === "number"
+        ? { kind: "number", value: literal.value }
+        : literal.kind === "string"
+          ? { kind: "string", value: literal.cooked }
+          : literal.kind === "boolean"
+            ? { kind: "boolean", value: literal.value }
+            : choiceType ? { kind: "choice", value: literal.raw, options: choiceType.options } : null;
+      return value && scalarValueMatchesType(type, value) ? value : null;
+    };
     const append = (valueId: string, collectionValue: NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId: string, sourceOrder: number): void => {
       if (collectionValue.kind === "coalesce") {
         const leftValueId = `${valueId}:left`;
@@ -2385,7 +2404,7 @@ export const compileDslDocument = (
             : undefined;
           return nested
             ? leafFields(nested, path)
-            : scalarTypeOfDslValueType(field.type) ? [{ path, field, type: scalarTypeOfDslValueType(field.type)! }] : [];
+            : scalarExpressionTypeOfDslValueType(field.type) ? [{ path, field, type: scalarExpressionTypeOfDslValueType(field.type)! }] : [];
         });
         const fields = leafFields(definition);
         const members: ScalarProgramCollectionMember[] = [];
@@ -2407,7 +2426,7 @@ export const compileDslDocument = (
         values.push({ valueId, kind: "literal", members });
         return;
       }
-      const elementType = scalarTypeOfDslValueType(collectionValue.valueType.elementType);
+      const elementType = scalarExpressionTypeOfDslValueType(collectionValue.valueType.elementType);
       if (!elementType) return;
       if (collectionValue.kind === "map") {
         if (collectionValue.sourceElementType.kind === "record" || collectionValue.resultElementType.kind === "record") return;
@@ -2426,16 +2445,7 @@ export const compileDslDocument = (
           continue;
         }
         if (member.target.kind === "scalarValue" && member.target.statementId === sourceStatementId) {
-          const literal = scanScalarLiteral(member.sourceText, { start: 0, end: member.sourceText.length });
-          if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== member.sourceText.length) return;
-          const choiceType = elementType?.kind === "choice" ? elementType : null;
-          const scalarValue: ScalarValue | null = literal.kind === "number"
-            ? { kind: "number", value: literal.value }
-            : literal.kind === "string"
-              ? { kind: "string", value: literal.cooked }
-              : literal.kind === "boolean"
-                ? { kind: "boolean", value: literal.value }
-                : choiceType ? { kind: "choice", value: literal.raw, options: choiceType.options } : null;
+          const scalarValue = scalarValueForCollectionLiteral(member.sourceText, elementType);
           if (!scalarValue) return;
           members.push({ kind: "literal", type: elementType, value: scalarValue });
           continue;
@@ -2449,7 +2459,7 @@ export const compileDslDocument = (
     };
     for (const value of collectionAnalysis.genericValues) {
       if (value.ownerModuleDefinitionStatementIndex !== null) continue;
-      const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
+      const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       const collectionValue = value.value;
       if (!collectionValue) continue;
       if (value.valueType.elementType.kind === "record") {
@@ -2498,17 +2508,7 @@ export const compileDslDocument = (
           continue;
         }
         if (member.target.kind === "scalarValue" && member.target.statementId === value.statementId) {
-          const literal = scanScalarLiteral(member.sourceText, { start: 0, end: member.sourceText.length });
-          if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== member.sourceText.length) break;
-          const scalarValue: ScalarValue | null = literal.kind === "number"
-            ? { kind: "number", value: literal.value }
-            : literal.kind === "string"
-              ? { kind: "string", value: literal.cooked }
-              : literal.kind === "boolean"
-                ? { kind: "boolean", value: literal.value }
-                : elementType.kind === "choice"
-                  ? { kind: "choice", value: literal.raw, options: elementType.options }
-                  : null;
+          const scalarValue = scalarValueForCollectionLiteral(member.sourceText, elementType);
           if (!scalarValue) break;
           members.push({ kind: "literal", type: elementType, value: scalarValue });
           continue;
@@ -2584,12 +2584,12 @@ export const compileDslDocument = (
       const nested = recordDefinitionFor(field.type);
       return nested
         ? recordFieldsFor(nested, path)
-        : scalarTypeOfDslValueType(field.type) ? [{ path, type: scalarTypeOfDslValueType(field.type)! }] : [];
+        : scalarExpressionTypeOfDslValueType(field.type) ? [{ path, type: scalarExpressionTypeOfDslValueType(field.type)! }] : [];
     });
     const descriptorFor = (declaration: typeof immutableCarryCompilation.declarations[number], raw: string, valueId: string): ScalarProgramCollection | null => {
       const valueType = dslRequiredValueTypeOf(declaration.valueType);
-      if (!valueType || !isDslArrayValueType(valueType) || (!scalarTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")) return null;
-      const elementType = scalarTypeOfDslValueType(valueType.elementType);
+      if (!valueType || !isDslArrayValueType(valueType) || (!scalarExpressionTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")) return null;
+      const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
       const trimmed = raw.trim();
       const source = bindingForReference(trimmed, declaration.ownerStatementIndex);
       if (source && isDslArrayValueType(source.valueType)) {
@@ -2604,9 +2604,18 @@ export const compileDslDocument = (
       if (!parsedArray.expression || parsedArray.expression.kind !== "literal") return null;
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of parsedArray.expression.members) {
+        if (member.text.trim() === "none") {
+          if (elementType?.kind !== "optional") return null;
+          members.push({ kind: "literal", type: elementType, value: { kind: "none" } });
+          continue;
+        }
         const literal = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
         if (literal.kind !== "error" && literal.span.start === 0 && literal.span.end === member.text.length) {
-          const choiceType = elementType?.kind === "choice" ? elementType : null;
+          const choiceType = elementType?.kind === "choice"
+            ? elementType
+            : elementType?.kind === "optional" && elementType.valueType.kind === "choice"
+              ? elementType.valueType
+              : null;
           const scalarValue: ScalarValue | null = literal.kind === "number"
             ? { kind: "number", value: literal.value }
             : literal.kind === "string"
@@ -2614,7 +2623,7 @@ export const compileDslDocument = (
               : literal.kind === "boolean"
                 ? { kind: "boolean", value: literal.value }
                 : choiceType ? { kind: "choice", value: literal.raw, options: choiceType.options } : null;
-          if (!elementType || !scalarValue || scalarValue.kind !== elementType.kind || (scalarValue.kind === "choice" && elementType.kind === "choice" && !elementType.options.includes(scalarValue.value))) return null;
+          if (!elementType || !scalarValue || !scalarValueMatchesType(elementType, scalarValue)) return null;
           members.push({ kind: "literal", type: elementType, value: scalarValue });
           continue;
         }
@@ -2643,7 +2652,7 @@ export const compileDslDocument = (
     };
     for (const declaration of immutableCarryCompilation.declarations) {
       const valueType = dslRequiredValueTypeOf(declaration.valueType);
-      if (!valueType || !isDslArrayValueType(valueType) || isDslGeometryValueType(valueType.elementType) || (!scalarTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")) continue;
+      if (!valueType || !isDslArrayValueType(valueType) || isDslGeometryValueType(valueType.elementType) || (!scalarExpressionTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")) continue;
       const next = immutableCarryCompilation.nexts.find((candidate) =>
         candidate.ownerStatementIndex === declaration.ownerStatementIndex &&
         candidate.carryName === (declaration.fieldPath ? declaration.name.slice(0, declaration.name.indexOf(".")) : declaration.name) &&

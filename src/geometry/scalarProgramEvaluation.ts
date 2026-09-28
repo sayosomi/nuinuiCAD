@@ -22,7 +22,7 @@ import {
 import type { ForGroupExecutionRunOutcome } from "@nuinuicad/nui-language";
 import type { ScalarProgram, ScalarProgramCollection } from "@nuinuicad/nui-language";
 import type { BindingId } from "@nuinuicad/nui-language";
-import type { ScalarEvaluation, ScalarExpressionResolvedOptionalMemberTarget, ScalarType } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarExpressionResolvedOptionalMemberTarget, ScalarExpressionType } from "@nuinuicad/nui-language";
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode, TypedScalarExpression } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 import type { EffectiveElementActivity } from "@nuinuicad/nui-language";
@@ -37,7 +37,7 @@ export type ScalarBindingResolver = {
   resolveCollectionIndex?: (
     collectionValueId: string,
     index: number,
-    elementType: ScalarType,
+    elementType: ScalarExpressionType,
     collectionLength: number | null,
     targetSourceOrder: number,
     sourceOrder: number

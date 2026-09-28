@@ -2917,6 +2917,51 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches optional scalar collection indexing through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const values: number?[] = [7]",
+      "const selected: number? = @values[0]",
+      "const noneValues: number?[] = [none]",
+      "const selectedNone: number? = @noneValues[0]",
+      "const mixed: number?[] = [2, none, 5]",
+      "const first: number? = @mixed[0]",
+      "const middle: number? = @mixed[1]",
+      "const last: number? = @mixed[2]",
+      "const alias: number?[] = @mixed",
+      "const aliasFirst: number? = @alias[0]",
+      "const aliasNone: number? = @alias[1]",
+      "const requiredValues: number[] = [3, 8]",
+      "const required: number = @requiredValues[1]",
+      "const widened: number? = @requiredValues[0]",
+      "const count: number = @values.length"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const optionalNumber = { kind: "optional", valueType: { kind: "number" } } as const;
+    const expected = new Map<string, ReturnType<typeof scalarBindingFor>>([
+      ["selected", { status: "ok", type: optionalNumber, value: { kind: "number", value: 7 } }],
+      ["selectedNone", { status: "ok", type: optionalNumber, value: { kind: "none" } }],
+      ["first", { status: "ok", type: optionalNumber, value: { kind: "number", value: 2 } }],
+      ["middle", { status: "ok", type: optionalNumber, value: { kind: "none" } }],
+      ["last", { status: "ok", type: optionalNumber, value: { kind: "number", value: 5 } }],
+      ["aliasFirst", { status: "ok", type: optionalNumber, value: { kind: "number", value: 2 } }],
+      ["aliasNone", { status: "ok", type: optionalNumber, value: { kind: "none" } }],
+      ["required", { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 8 } }],
+      ["widened", { status: "ok", type: optionalNumber, value: { kind: "number", value: 3 } }],
+      ["count", { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 1 } }]
+    ]);
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      for (const [name, value] of expected) expect(scalarBindingFor(fixture, payload, name)).toEqual(value);
+    }
+  }, 30000);
+
   it("matches scalar and choice value-if evaluation while skipping the unselected branch", () => {
     const fixture = fixtureFromSource([
       "nui 1",

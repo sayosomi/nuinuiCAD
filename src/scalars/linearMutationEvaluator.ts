@@ -18,7 +18,7 @@ import {
   type ForGroupExecutionRunOutcome,
   type ForGroupIterationContext
 } from "@nuinuicad/nui-language";
-import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType } from "@nuinuicad/nui-language";
+import { scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType } from "@nuinuicad/nui-language";
 import { isScalarExpressionTypeAssignable } from "@nuinuicad/nui-language";
 import type { ScalarProgramCollection } from "@nuinuicad/nui-language";
 import type {
@@ -486,10 +486,10 @@ export const createIncrementalLinearMutationEvaluator = (
     resolveCollectionValueId: (collectionValueId) => activeCollectionCarryValueIds.get(collectionValueId),
     resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) => {
       const lookup = collectionResolver?.environmentFor(sourceOrder).lookupCollectionIndex;
-      if (!lookup || !["number", "string", "boolean", "choice"].includes(elementType.kind)) {
+      if (!lookup) {
         return { status: "error", type: elementType, issueCode: "evaluation-collection-index-unavailable" };
       }
-      return lookup(collectionValueId, index, elementType as ScalarType, collectionLength, targetSourceOrder);
+      return lookup(collectionValueId, index, elementType, collectionLength, targetSourceOrder);
     },
     resolveCollectionLength: (collectionValueId, sourceOrder) =>
       collectionResolver?.environmentFor(sourceOrder).lookupCollectionLength?.(collectionValueId),

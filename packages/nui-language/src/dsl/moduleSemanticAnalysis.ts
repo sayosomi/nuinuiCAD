@@ -1159,7 +1159,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         valueType,
         optional: isDslOptionalValueType(parameter.parameter.valueType)
       };
-      const elementType = scalarTypeOfDslValueType(valueType.elementType);
+      const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
       if (!elementType) {
         return invalid(target, "invalid", "module-collection-index-type", `collection「${reference.name}」の element 型は scalar ではありません。`);
       }
@@ -1206,7 +1206,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           memberSpan: qualified.memberSpan,
           ...(input.documentId ? { instanceIdentity: qualifySemanticIdentity(input.documentId, qualified.instance.statementId) } : {})
         };
-        const elementType = scalarTypeOfDslValueType(exported.valueType.elementType);
+        const elementType = scalarExpressionTypeOfDslValueType(exported.valueType.elementType);
         if (!elementType) return invalid(target, "invalid", "module-collection-index-type", `module export「${qualified.exportName}」の element 型は scalar ではありません。`, qualified.memberSpan);
         return {
           target,
@@ -1248,7 +1248,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
       return invalid(null, "outerCapture", "module-outer-capture", `module body から outer collection「${reference.name}」を暗黙 capture できません。`, reference.span, relatedForDeclaration(lookup.declaration));
     }
-    const elementType = scalarTypeOfDslValueType(valueType.elementType);
+    const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
     const target: ModuleScalarSourceTarget = {
       kind: "collectionValue",
       statementId: value.statementId,
