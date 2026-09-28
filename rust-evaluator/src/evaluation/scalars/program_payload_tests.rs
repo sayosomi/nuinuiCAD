@@ -86,6 +86,28 @@ fn validates_and_retains_optional_collection_match_binder_metadata() {
 }
 
 #[test]
+fn validates_optional_collection_match_collection_binder_identity() {
+    let mut program = optional_match_program();
+    let some_arm = &mut program["collectionValues"][0]["arms"][1];
+    some_arm.as_object_mut().unwrap().remove("binderId");
+    some_arm.as_object_mut().unwrap().remove("binderType");
+    some_arm["collectionBinderId"] = json!("optional-match-binder:1:2:3");
+
+    let program = validate_scalar_program_payload(&program).unwrap();
+    let ValidatedScalarProgramCollectionValue::Match { arms, .. } =
+        &program.collection_values[0].value
+    else {
+        panic!("expected a collection match value");
+    };
+    assert_eq!(arms[1].binder_id, None);
+    assert_eq!(arms[1].binder_type, None);
+    assert_eq!(
+        arms[1].collection_binder_id.as_deref(),
+        Some("optional-match-binder:1:2:3")
+    );
+}
+
+#[test]
 fn rejects_incomplete_or_type_mismatched_optional_match_binder_metadata() {
     let mut missing_type = optional_match_program();
     missing_type["collectionValues"][0]["arms"][1]
@@ -97,4 +119,15 @@ fn rejects_incomplete_or_type_mismatched_optional_match_binder_metadata() {
     let mut wrong_type = optional_match_program();
     wrong_type["collectionValues"][0]["arms"][1]["binderType"] = json!({"kind": "string"});
     assert!(validate_scalar_program_payload(&wrong_type).is_err());
+
+    let mut missing_both = optional_match_program();
+    missing_both["collectionValues"][0]["arms"][1]
+        .as_object_mut()
+        .unwrap()
+        .remove("binderId");
+    missing_both["collectionValues"][0]["arms"][1]
+        .as_object_mut()
+        .unwrap()
+        .remove("binderType");
+    assert!(validate_scalar_program_payload(&missing_both).is_err());
 }

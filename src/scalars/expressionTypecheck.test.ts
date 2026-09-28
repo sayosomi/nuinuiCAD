@@ -921,6 +921,38 @@ describe("typecheckScalarExpression / optional values and coalescing", () => {
     expect(someExpression).toMatchObject({ kind: "reference", bindingId: expect.stringContaining("optional-match-binder:") });
   });
 
+  it("keeps optional collection match binders out of scalar values while preserving their identity", () => {
+    const optionalNumbers: ScalarExpressionType = {
+      kind: "optional",
+      valueType: { kind: "array", elementType: { kind: "number" } }
+    };
+    const checkBinder = (binder: string) => check(
+      `match @items { none => 0 some ${binder} => 7 }`,
+      { kind: "number" },
+      [{
+        kind: "resolvedOptionalCollectionMatch",
+        type: optionalNumbers,
+        valueType: { kind: "array", elementType: { kind: "number" } },
+        collectionValueId: "collection:items",
+        collectionLength: 1,
+        targetSourceOrder: 0
+      }]
+    );
+
+    const unused = checkBinder("unused");
+    const renamed = checkBinder("collection");
+    expect(unused.type).toEqual({ kind: "number" });
+    expect(unused.diagnostics).toEqual([]);
+    expect(unused.typed).toMatchObject({ kind: "valueMatch", arms: [
+      { label: "none" },
+      { label: "some", binder: "unused", expression: { kind: "numberLiteral", value: 7 } }
+    ] });
+    if (unused.typed.kind !== "valueMatch" || renamed.typed.kind !== "valueMatch") throw new Error("expected valueMatch expressions");
+    expect(unused.typed.arms[1]).not.toHaveProperty("binderType");
+    expect(unused.typed.arms[1]?.binderId).toMatch(/^optional-match-binder:/);
+    expect(renamed.typed.arms[1]?.binderId).toBe(unused.typed.arms[1]?.binderId);
+  });
+
   it("rejects incomplete optional match coverage and non-optional scrutinees", () => {
     const optionalNumber: ScalarExpressionType = { kind: "optional", valueType: { kind: "number" } };
     const missing = check("match @value { some x => @x }", { kind: "number" }, [{ kind: "resolvedType", bindingId: "binding:value", type: optionalNumber }]);

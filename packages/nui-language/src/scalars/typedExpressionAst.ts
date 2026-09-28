@@ -7,7 +7,7 @@ import type { BindingId } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
 import type { BuiltinFunctionName } from "./builtinFunctions";
 import type { ChoiceScalarType, ScalarExpressionType, ScalarType } from "./types";
-import type { DslOptionalValueType } from "../dsl/dslValueTypes";
+import type { DslArrayValueType, DslOptionalValueType } from "../dsl/dslValueTypes";
 import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ElementId } from "../types/geometry";
 import type { GeometryValueOccurrence } from "../types/geometry";
@@ -68,7 +68,25 @@ export interface TypedScalarReferenceNode {
   readonly name: string;
   readonly bindingId: BindingId | null;
   readonly type: ScalarExpressionType | null;
+  /** Present only for a whole optional collection used as a match scrutinee.
+   * The evaluator consumes the collection's optional length as the match
+   * presence signal; the collection itself remains in the collection path. */
+  readonly optionalCollectionMatch?: {
+    readonly collectionValueId: string;
+    readonly collectionLength: number | null;
+    readonly targetSourceOrder: number;
+    readonly valueType: DslArrayValueType;
+  };
 }
+
+export type ScalarExpressionResolvedOptionalCollectionMatch = {
+  readonly kind: "resolvedOptionalCollectionMatch";
+  readonly type: DslOptionalValueType;
+  readonly valueType: DslArrayValueType;
+  readonly collectionValueId: string;
+  readonly collectionLength: number | null;
+  readonly targetSourceOrder: number;
+};
 
 export type ScalarExpressionResolvedCollectionIndex = {
   readonly kind: "resolvedCollectionIndex";
@@ -151,6 +169,7 @@ export type ScalarExpressionResolvedReference =
       readonly kind: "resolvedGeometry";
       readonly target: ScalarExpressionResolvedGeometryTarget | null;
     }
+  | ScalarExpressionResolvedOptionalCollectionMatch
   | ScalarExpressionResolvedCollectionIndex;
 
 /** Compiler/frontend-resolved metadata for a scalar geometry-property read.

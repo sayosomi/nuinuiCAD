@@ -72,7 +72,14 @@ export type ScalarProgramCollection =
       valueId: string;
       kind: "match";
       scrutinee: TypedScalarExpression;
-      arms: readonly { label: string; valueId: string; binderId?: BindingId; binderType?: ScalarType }[];
+      arms: readonly {
+        label: string;
+        valueId: string;
+        binderId?: BindingId;
+        binderType?: ScalarType;
+        /** Optional-match binders whose values stay in the collection graph. */
+        collectionBinderId?: BindingId;
+      }[];
       sourceOrder: number;
     }
   | {

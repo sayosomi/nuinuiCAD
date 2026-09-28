@@ -35,6 +35,10 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   readonly ast: ScalarExpressionAst;
   readonly statementIndex: number;
   readonly scalarReferenceResolutions: readonly BindingResolution[];
+  /** Whole optional collection match scrutinees are resolved through the
+   * collection semantic path and therefore do not consume scalar-reference
+   * resolutions. Keep this traversal aligned with that ordinary stream. */
+  readonly optionalCollectionMatchReferenceStarts?: ReadonlySet<number>;
   /** Collection-index base references are ordinary resolutions only when
    * collection resolution failed. They are consumed for cursor alignment,
    * but are not geometry arguments themselves. */
@@ -114,6 +118,7 @@ export const resolveBuiltinGeometryArguments = ({
   ast,
   scalarReferenceResolutions,
   collectionIndexBaseReferenceOccurrenceIndexes,
+  optionalCollectionMatchReferenceStarts,
   sourceDeclarationsByStatementId,
   additionalGeometryResolver,
   resolveSourceGeometryPath,
@@ -334,7 +339,9 @@ export const resolveBuiltinGeometryArguments = ({
   const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (node.kind) {
       case "reference":
-        if (!boundNames.has(node.name)) nextReference(node.name, node.span);
+        if (!boundNames.has(node.name) && !optionalCollectionMatchReferenceStarts?.has(node.span.start)) {
+          nextReference(node.name, node.span);
+        }
         return;
       case "collectionIndex":
         if (!boundNames.has(node.name) && collectionIndexBaseReferenceOccurrenceIndexes?.has(referenceCursor)) {

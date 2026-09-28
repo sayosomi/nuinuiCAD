@@ -212,6 +212,28 @@ describe("geometry array source semantic integration", () => {
     });
   });
 
+  it("resolves a whole optional collection binder as a required collection alias", () => {
+    const compiled = compile([
+      "nui 1",
+      "const present: number[]? = [7]",
+      "const alias: number[]? = @present",
+      "const selected: number[] = match @alias { none => [0] some items => @items }",
+      "const selectedLength: number = @selected.length"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const match = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.find((value) => value.name === "selected")?.value;
+    expect(match).toMatchObject({ kind: "match", arms: [{ label: "none" }, { label: "some", binderId: expect.stringContaining("optional-match-binder:") }] });
+    if (match?.kind !== "match") throw new Error("expected optional collection match semantics");
+    const binderId = match.arms.find((arm) => arm.label === "some")?.binderId;
+    if (!binderId) throw new Error("expected stable collection binder id");
+    expect(compiled.scalarProgram?.collectionValues).toContainEqual({
+      valueId: binderId,
+      kind: "alias",
+      targetValueId: "statement:2"
+    });
+  });
+
   it("keeps collection member and whole-value assignment fail-closed", () => {
     const { namespace } = analyze([
       "nui 1",
@@ -225,6 +247,29 @@ describe("geometry array source semantic integration", () => {
       expect.objectContaining({ code: "array-member-type-mismatch", exactSpanOnly: true }),
       expect.objectContaining({ code: "array-assignability-mismatch", exactSpanOnly: true })
     ]));
+  });
+
+  it("does not implicitly unwrap optional collections in required whole-value assignments", () => {
+    const { namespace } = analyze([
+      "nui 1",
+      "const optional: number[]? = [1]",
+      "const required: number[] = @optional"
+    ].join("\n"));
+
+    expect(namespace.diagnostics).toContainEqual(expect.objectContaining({
+      code: "array-assignability-mismatch",
+      exactSpanOnly: true
+    }));
+  });
+
+  it("does not resolve a shadowed required collection binder as an optional source", () => {
+    const compiled = compile([
+      "nui 1",
+      "const optional: number[]? = [7]",
+      "const selected: number[] = match @optional { none => [0] some optional => match @optional { none => [1] some nested => @nested } }"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(true);
   });
 
   it("preserves generic array member and reference facts in diagnostic presentation", () => {

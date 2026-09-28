@@ -105,7 +105,11 @@ pub(super) fn select_collection_match_arm<'a>(
     let Some(arm) = arms.iter().find(|arm| arm.label == label) else {
         return Err(mismatch());
     };
-    let local_binding = if let Some(value) = present_value {
+    let local_binding = if arm.collection_binder_id.is_some() {
+        // Collection binders are materialized by the collection-value alias
+        // graph and must never be converted into scalar local bindings here.
+        None
+    } else if let Some(value) = present_value {
         if let (Some(binding_id), Some(binding_type)) = (&arm.binder_id, &arm.binder_type) {
             if !matches!(&static_type, ScalarType::Optional { value_type } if value_type.as_ref() == binding_type)
                 || !scalar_value_matches_type(binding_type, &value)

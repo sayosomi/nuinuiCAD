@@ -3409,6 +3409,82 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches whole optional collection scrutinees and required some binders through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const present: number[]? = [7]",
+      "const absent: number[]? = none",
+      "const alias: number[]? = @present",
+      "const unusedSome: number = match @present { none => 0 some unused => 7 }",
+      "const noneArm: number = match @absent { none => 9 some unused => 0 }",
+      "const wholeCollection: number[] = match @present { none => [0] some items => @items }",
+      "const wholeAliasCollection: number[] = match @alias { none => [0] some collection => @collection }",
+      "const wholeNoneCollection: number[] = match @absent { none => [9] some ignored => @ignored }",
+      "const wholeLength: number = @wholeCollection.length",
+      "const wholeIndex: number = @wholeCollection[0]",
+      "const wholeAliasIndex: number = @wholeAliasCollection[0]",
+      "const wholeNoneIndex: number = @wholeNoneCollection[0]",
+      "const someLength: number = match @present { none => 0 some items => @items.length }",
+      "const someIndex: number = match @present { none => 0 some values => @values[0] }",
+      "const aliasLength: number = match @alias { none => 0 some collection => @collection.length }",
+      "const renamedBinder: number = match @present { none => 0 some renamed => @renamed[0] }"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      for (const [name, expected] of [
+        ["unusedSome", 7],
+        ["noneArm", 9],
+        ["wholeLength", 1],
+        ["wholeIndex", 7],
+        ["wholeAliasIndex", 7],
+        ["wholeNoneIndex", 9],
+        ["someLength", 1],
+        ["someIndex", 7],
+        ["aliasLength", 1],
+        ["renamedBinder", 7]
+      ] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+    }
+  }, 30000);
+
+  it("matches Module optional collection binders through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(optional: number[]?) {",
+      "  const alias: number[]? = @optional",
+      "  const unused: number = match @optional { none => 0 some ignored => 7 }",
+      "  const length: number = match @alias { none => 0 some values => @values.length }",
+      "  const first: number = match @optional { none => 0 some items => @items[0] }",
+      "  const copied: number[] = match @alias { none => [3] some collection => @collection }",
+      "  export const result: number = @unused + @length + @first + @copied[0]",
+      "}",
+      "instance Present = M(optional: [7, 8])",
+      "instance Absent = M(optional: none)",
+      "const presentResult: number = @Present::result",
+      "const absentResult: number = @Absent::result"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentResult"), 23);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "absentResult"), 3);
+    }
+  }, 30000);
+
   it("resolves optional geometry collection length through persistent Rust stdio", async () => {
     const cases: Array<{
       name: string;

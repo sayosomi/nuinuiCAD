@@ -1056,6 +1056,7 @@ export const prepareRecordScalarExpression = ({
   sourceNamespace,
   plan,
   referenceResolutions,
+  collectionIndexResolutionSpanStarts,
   skipPropertySpanStarts,
   additionalPropertyResolver
 }: {
@@ -1065,6 +1066,7 @@ export const prepareRecordScalarExpression = ({
   sourceNamespace: SourceLexicalNamespaceIndex;
   plan: RecordScalarLoweringPlan;
   referenceResolutions: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  collectionIndexResolutionSpanStarts?: ReadonlySet<number>;
   skipPropertySpanStarts?: ReadonlySet<number>;
   additionalPropertyResolver?: (node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>) => AdditionalRecordScalarPropertyResolution | null;
 }): PreparedRecordScalarExpression => {
@@ -1147,7 +1149,17 @@ export const prepareRecordScalarExpression = ({
           }))
         };
       case "collectionIndex": {
-        if (boundNames.has(node.name)) return { ...node, index: rewrite(node.index, boundNames) };
+        if (boundNames.has(node.name)) {
+          if (collectionIndexResolutionSpanStarts?.has(node.span.start)) {
+            const resolution = referenceResolutions[referenceCursor];
+            if (resolution?.kind !== "resolvedCollectionIndex") {
+              throw new Error(`recordScalarLowering: no collection match resolution supplied at ${node.span.start}`);
+            }
+            referenceCursor += 1;
+            references.push(resolution);
+          }
+          return { ...node, index: rewrite(node.index, boundNames) };
+        }
         const resolution = referenceResolutions[referenceCursor];
         if (!resolution) throw new Error(`recordScalarLowering: no resolution supplied for collection index at ${node.span.start}`);
         referenceCursor += 1;

@@ -242,6 +242,7 @@ const offsetExpression = (expression: GeometryArrayExpression, offset: number): 
             arms: expression.arms.map((arm) => ({
               ...arm,
               labelSpan: { start: arm.labelSpan.start + offset, end: arm.labelSpan.end + offset },
+              ...(arm.binderSpan ? { binderSpan: { start: arm.binderSpan.start + offset, end: arm.binderSpan.end + offset } } : {}),
               expression: offsetExpression(arm.expression, offset)
             }))
           }
@@ -1034,10 +1035,46 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       resolveMember: (member, localBindings) => resolveGenericArrayMember(
         semantic.statementIndex, semantic.statementId, enrichedExpectedType.elementType, member, localBindings
       ),
-      resolveArrayReference: (sourceText, sourceSpan) => {
+      resolveOptionalCollectionMatchScrutinee: (sourceText, _sourceSpan, localBindings) => {
+        const path = referencePath(sourceText);
+        if (!path || path.segments.length === 0) return null;
+        if (path.segments.length === 1 && !path.absolute) {
+          if (localBindings?.some((binding) => binding.name === path.segments[0])) return null;
+          const parameter = moduleParameterByName(statements, stableStatementIdByIndex, semantic.statementIndex, path.segments[0]!);
+          if (parameter && isDslOptionalValueType(parameter.parameter.valueType)) {
+            const required = dslRequiredValueTypeOf(parameter.parameter.valueType);
+            return required && isDslArrayValueType(required) ? required : null;
+          }
+        }
+        const lookup = input.resolvePath(semantic.statementIndex, path);
+        if (lookup.kind === "resolved") {
+          const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
+          return target && isDslOptionalValueType(target.declaredValueType) ? target.valueType : null;
+        }
+        if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2 && lookup.segmentIndex === 1) {
+          const instance = lookup.declaration.statement.kind === "moduleInstance" ? lookup.declaration.statement : null;
+          if (!instance) return null;
+          const definitionLookup = input.resolvePath(lookup.declaration.statementIndex, parseDslReferenceToken(instance.moduleName));
+          if (definitionLookup.kind !== "resolved" || definitionLookup.declaration.statement.kind !== "moduleDefinition") return null;
+          const exportedIndex = statements.findIndex((candidate) =>
+            candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === path.segments[1] &&
+            candidate.enclosing?.statementIndex === definitionLookup.declaration.statementIndex
+          );
+          const target = exportedIndex >= 0 ? genericValuesByStatementIndex.get(exportedIndex) : null;
+          return target && isDslOptionalValueType(target.declaredValueType) ? target.valueType : null;
+        }
+        return null;
+      },
+      resolveArrayReference: (sourceText, sourceSpan, localBindings) => {
         const path = referencePath(sourceText);
         if (!path || path.segments.length === 0) return { kind: "invalid", diagnostic: { code: "array-invalid-reference", message: "array alias の参照が不正です。", span: sourceSpan } };
         if (path.segments.length === 1 && !path.absolute) {
+          const localBinding = [...(localBindings ?? [])].reverse().find((candidate) => candidate.name === path.segments[0]);
+          if (localBinding) {
+            return localBinding.collectionValueType
+              ? { kind: "resolved", targetValueId: localBinding.bindingId, valueType: localBinding.collectionValueType }
+              : { kind: "invalid", diagnostic: { code: "array-reference-not-array", message: `参照先「${sourceText}」は collection binder ではありません。`, span: sourceSpan } };
+          }
           const parameter = moduleParameterByName(statements, stableStatementIdByIndex, semantic.statementIndex, path.segments[0]!);
           const parameterType = parameter
             ? genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null

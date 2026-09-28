@@ -452,6 +452,9 @@ export type ModuleScalarReference = {
   collectionLength?: number | null;
   targetSourceOrder?: number | null;
   collectionElementType?: ScalarExpressionType | null;
+  /** Present when a whole optional collection is the scrutinee of `match`.
+   * The collection keeps its canonical identity in the collection runtime. */
+  optionalCollectionMatch?: import("../scalars/typedExpressionAst").ScalarExpressionResolvedOptionalCollectionMatch;
 };
 
 export type ModuleScalarExpressionSemantic = {
