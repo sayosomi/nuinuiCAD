@@ -879,6 +879,45 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 60000);
 
+  it("evaluates optional record Module parameter members through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record R(x: number)",
+      "module M(v: R?) {",
+      "  export const answer: number = @v?.x ?? 11",
+      "}",
+      "const callerPresent: R? = R(x: 9)",
+      "const callerAbsent: R? = none",
+      "instance Inline = M(v: R(x: 7))",
+      "instance Omitted = M()",
+      "instance ExplicitNone = M(v: none)",
+      "instance AliasPresent = M(v: @callerPresent)",
+      "instance AliasAbsent = M(v: @callerAbsent)",
+      "const inlineResult: number = @Inline::answer",
+      "const omittedResult: number = @Omitted::answer",
+      "const noneResult: number = @ExplicitNone::answer",
+      "const aliasPresentResult: number = @AliasPresent::answer",
+      "const aliasAbsentResult: number = @AliasAbsent::answer"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "inlineResult"), 7);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "omittedResult"), 11);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "noneResult"), 11);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "aliasPresentResult"), 9);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "aliasAbsentResult"), 11);
+    }
+  }, 30000);
+
   it("executes optional Module scalar carries through TypeScript and persistent Rust", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

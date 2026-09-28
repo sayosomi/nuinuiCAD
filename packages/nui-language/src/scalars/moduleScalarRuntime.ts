@@ -1193,7 +1193,10 @@ export const lowerExpression = (
   collectionLengthForTarget?: (target: Extract<ModuleGeometryPropertySourceTarget, { kind: "collectionValueLength" | "collectionParameterLength" | "deferredModuleCollectionExportLength" }>) => number | undefined,
   geometryBuiltinForTarget?: (occurrence: ModuleGeometryBuiltinArgumentSemantic) => ScalarExpressionResolvedGeometryTarget | undefined,
   collectionValueIdFor: (valueId: string) => string = (valueId: string) => valueId,
-  collectionSourceOrderFor: (sourceOrder: number) => number = (sourceOrder: number) => sourceOrder
+  collectionSourceOrderFor: (sourceOrder: number) => number = (sourceOrder: number) => sourceOrder,
+  recordParameterCollectionForTarget?: (
+    target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget
+  ) => { collectionValueId: string; targetSourceOrder: number } | undefined
 ): { expression: TypedScalarExpression; references: InitializerReference[] } => {
   const runtimeAst = lowerRecordPropertyAst(semantic.ast, semantic);
   const references = semanticReferencesUsedByAst(semantic, runtimeAst);
@@ -1222,6 +1225,16 @@ export const lowerExpression = (
         collectionValueId: collectionValueIdFor(target.record.collectionValueId),
         collectionLength: target.record.collectionLength,
         targetSourceOrder: collectionSourceOrderFor(target.record.targetSourceOrder),
+        fieldPath
+      };
+    }
+    if (target.record.kind === "recordParameter") {
+      const recordParameter = recordParameterCollectionForTarget?.(target);
+      if (!recordParameter) return null;
+      return {
+        collectionValueId: recordParameter.collectionValueId,
+        collectionLength: 1,
+        targetSourceOrder: recordParameter.targetSourceOrder,
         fieldPath
       };
     }
@@ -1693,11 +1706,11 @@ export const lowerExpression = (
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
       if (!resolved) return { node, references: [] };
       if (resolved.kind === "expression") {
-        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor);
+        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor, recordParameterCollectionForTarget);
         return { node: lowered.expression, references: lowered.references };
       }
       const loweredOccurrenceIndex = resolved.kind === "forGroupOccurrence" && resolved.index
-        ? lowerExpression(resolved.index, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor)
+        ? lowerExpression(resolved.index, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor, recordParameterCollectionForTarget)
         : undefined;
       return {
         node: {
@@ -3061,7 +3074,8 @@ export const compileModuleScalarRuntime = ({
               (sourceTarget) => collectionLengthForTargetContext(sourceTarget, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
               (id) => collectionValueIdFor(id, context),
-              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+              (target) => recordParameterCollectionForTargetContext(target, context)
             ).expression
           : lowerExpression(
               semantic,
@@ -3240,7 +3254,8 @@ export const compileModuleScalarRuntime = ({
               (target) => collectionLengthForTargetContext(target, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
               (id) => collectionValueIdFor(id, context),
-              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+              (target) => recordParameterCollectionForTargetContext(target, context)
             ).expression
           : lowerExpression(
               field.body,
@@ -3376,6 +3391,12 @@ export const compileModuleScalarRuntime = ({
           sourceOrder = context
             ? Math.max(0, Math.floor(executionPositionForValue(context.path, target.record.targetSourceOrder)))
             : target.record.targetSourceOrder;
+        } else if (target.record.kind === "recordParameter" && context) {
+          const recordParameter = recordParameterCollectionForTargetContext(target, context);
+          if (recordParameter) {
+            sourceValueId = recordParameter.collectionValueId;
+            sourceOrder = Math.max(0, Math.floor(recordParameter.targetSourceOrder));
+          }
         }
         if (!sourceValueId || sourceOrder === null) continue;
         const field = fieldPath[fieldPath.length - 1]!;
@@ -3417,7 +3438,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (id) => collectionValueIdFor(id, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         ).expression;
         moduleCollectionValues.push({ valueId, kind: "if", condition, thenValueId, elseValueId, sourceOrder: executionPositionForValue(context.path, sourceOrder) });
         return;
@@ -3438,7 +3460,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (id) => collectionValueIdFor(id, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         ).expression;
         moduleCollectionValues.push({
           valueId,
@@ -3543,7 +3566,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         );
         moduleCollectionValues.push({
           valueId,
@@ -4006,9 +4030,36 @@ export const compileModuleScalarRuntime = ({
         const orders = [...(fieldBindings?.values() ?? [])]
           .map((binding) => eventOrderByBindingId.get(binding.id))
           .filter((order): order is number => order !== undefined);
-        return orders.length > 0 ? Math.min(...orders) : undefined;
+        if (orders.length > 0) return Math.min(...orders);
+        return context
+          ? eventOrderByPathAndStatementIndex
+            .get(pathKey(context.path.slice(0, -1)))
+            ?.get(context.instance.statementIndex)
+          : undefined;
       }
     }
+  };
+  const recordParameterCollectionForTargetContext = (
+    target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget,
+    context: InstanceContext
+  ): { collectionValueId: string; targetSourceOrder: number } | undefined => {
+    const recordParameter = target.record;
+    if (recordParameter.kind !== "recordParameter") return undefined;
+    const owner = contextCandidatesFor(context).find((candidate) =>
+      candidate.definition.statementId === recordParameter.definitionStatementId &&
+      (!recordParameter.definitionIdentity || candidate.definitionDocumentId === recordParameter.definitionIdentity.documentId)
+    );
+    if (!owner) return undefined;
+    const targetSourceOrder = recordFieldSourceOrderForContext(target, owner.path);
+    if (targetSourceOrder === undefined) return undefined;
+    return {
+      collectionValueId: moduleRecordParameterCollectionValueIdFor(
+        owner.path,
+        recordParameter.definitionStatementId,
+        recordParameter.parameterIndex
+      ),
+      targetSourceOrder
+    };
   };
   const resolvedGeometryPropertyForContext = (
     target: ModuleGeometryPropertySourceTarget,
@@ -4170,7 +4221,8 @@ export const compileModuleScalarRuntime = ({
             (target) => collectionLengthForTargetContext(target, context),
             (candidate) => resolvedGeometryBuiltinForContext(candidate, context),
             (valueId) => collectionValueIdFor(valueId, context),
-            (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+            (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+            (target) => recordParameterCollectionForTargetContext(target, context)
           ).expression
         : null;
       return {
@@ -4279,7 +4331,8 @@ export const compileModuleScalarRuntime = ({
       (target) => collectionLengthForTargetContext(target, context),
       (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
       (valueId) => collectionValueIdFor(valueId, context),
-      (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+      (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+      (target) => recordParameterCollectionForTargetContext(target, context)
     );
     moduleInitializers.set(ownerBindingId, lowered.expression);
     for (const reference of lowered.references) moduleReferences.push({ ...reference, fromBindingId: ownerBindingId });
@@ -4373,7 +4426,8 @@ export const compileModuleScalarRuntime = ({
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
         (valueId) => collectionValueIdFor(valueId, context),
-        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+        (target) => recordParameterCollectionForTargetContext(target, context)
       );
       moduleCarryNextExpressions.set(info.id, loweredNext.expression);
     }
@@ -4417,7 +4471,8 @@ export const compileModuleScalarRuntime = ({
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
         (valueId) => collectionValueIdFor(valueId, context),
-        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+        (target) => recordParameterCollectionForTargetContext(target, context)
       );
       for (const reference of lowered.references) {
         if (reference.resolution.kind !== "resolved" || reference.resolution.binding.kind !== "typed" || !reference.span) continue;
@@ -4467,7 +4522,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         );
         if (element.type === "conditionalGroup" && site.parameterKey === "condition") {
           materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: loweredSiteExpression.expression });
@@ -4690,7 +4746,8 @@ export const compileModuleScalarRuntime = ({
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
         (valueId) => collectionValueIdFor(valueId, context),
-        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+        (target) => recordParameterCollectionForTargetContext(target, context)
       ).expression
     : lowerExpression(
         expression,
@@ -4808,7 +4865,8 @@ export const compileModuleScalarRuntime = ({
               (target) => collectionLengthForTargetContext(target, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
               (valueId) => collectionValueIdFor(valueId, context),
-              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+              (target) => recordParameterCollectionForTargetContext(target, context)
             ).expression
           : lowerExpression(
               source.index,
@@ -4844,7 +4902,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         )
       : lowerExpression(
           source.target.index,
@@ -5050,7 +5109,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? runtimeEventPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? runtimeEventPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         )
       : lowerExpression(
           semantic,
