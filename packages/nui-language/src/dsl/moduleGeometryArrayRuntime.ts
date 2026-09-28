@@ -411,9 +411,18 @@ export const buildModuleGeometryArrayRuntime = ({
     const instance = instanceSource.moduleSemanticAnalysis.instancesByStatementId.get(context.instanceStatementId);
     const binding = instance?.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
     const parameter = definitionSource.analysis?.moduleParametersBySlot.get(`${definitionStatementId}:${parameterIndex}`);
-    if (!instance || !binding || !parameter || binding.argumentIndex === null || binding.state === "omitted" || binding.value?.kind === "none") {
+    if (!instance || !binding || !parameter || binding.argumentIndex === null || binding.state === "omitted") {
       parameterValueCache.set(key, null);
       return null;
+    }
+    if (binding.value?.kind === "none") {
+      const value: RuntimeArrayValue = {
+        type: parameter.type,
+        members: [],
+        collection: { kind: "none" }
+      };
+      parameterValueCache.set(key, value);
+      return value;
     }
     const statement = instanceSource.statements[instance.statementIndex];
     if (statement?.kind !== "moduleInstance") {

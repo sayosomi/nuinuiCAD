@@ -3504,7 +3504,17 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(isRustEligibleFixture(fixture)).toBe(true);
 
     const rustInput = buildRustEvaluationInput(fixture.elements, options);
-    console.log("SAY415 Rust collection nodes", JSON.stringify(rustInput.geometryCollectionNodes));
+    const collectionValues = rustInput.scalarProgram?.collectionValues ?? rustInput.bindingVersions?.collectionValues ?? [];
+    const moduleCollectionAliases = collectionValues.filter((value) =>
+      value.kind === "alias" && value.valueId.startsWith("module-collection-binder:")
+    );
+    const geometryCollectionNodesById = new Map(
+      (rustInput.geometryCollectionNodes ?? []).map(({ collectionValueId, value }) => [collectionValueId, value])
+    );
+    expect(moduleCollectionAliases.every((alias) => geometryCollectionNodesById.has(alias.targetValueId))).toBe(true);
+    expect(moduleCollectionAliases.some((alias) =>
+      geometryCollectionNodesById.get(alias.targetValueId)?.kind === "none"
+    )).toBe(true);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = await rustStdio!.evaluateInput(rustInput);
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
