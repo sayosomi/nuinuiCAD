@@ -291,6 +291,8 @@ const projectRecordFieldExpression = (
   const arms = expression.arms.map((arm) => ({
     label: arm.label,
     labelSpan: arm.labelSpan,
+    ...(arm.binder !== undefined ? { binder: arm.binder } : {}),
+    ...(arm.binderSpan !== undefined ? { binderSpan: arm.binderSpan } : {}),
     expression: arm.expression ? projectRecordFieldExpression(arm.expression, field) : null
   }));
   return arms.every((arm) => arm.expression)
@@ -298,7 +300,13 @@ const projectRecordFieldExpression = (
         kind: "valueMatch",
         span: expression.span,
         scrutinee,
-        arms: arms as { label: string; labelSpan: DslSpan; expression: ScalarExpressionAst }[]
+        arms: arms as {
+          label: string;
+          labelSpan: DslSpan;
+          binder?: string;
+          binderSpan?: DslSpan;
+          expression: ScalarExpressionAst;
+        }[]
       }
     : null;
 };

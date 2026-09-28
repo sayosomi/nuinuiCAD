@@ -152,6 +152,35 @@ describe("record source-semantic document integration", () => {
     expect(compiled.sourceLexicalNamespace?.recordSemanticAnalysis?.valuesByStatementId.get("stable-5")?.valueExpression?.kind).toBe("match");
   });
 
+  it("compiles record-valued optional matches with unused and referenced authored binders", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number)",
+      "const present: number? = 7",
+      "const absent: number? = none",
+      "const selectedPresent: Pair = match @present { none => Pair(x: 0) some renamedUnused => Pair(x: 1) }",
+      "const selectedAbsent: Pair = match @absent { none => Pair(x: 2) some absentUnused => Pair(x: 3) }",
+      "const selectedBound: Pair = match @present { none => Pair(x: 0) some inputAmount => Pair(x: @inputAmount + 4) }",
+      "const selectedX: number = @selectedBound.x"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("optional-match-missing-binder");
+    const records = compiled.sourceLexicalNamespace?.recordSemanticAnalysis;
+    expect(records?.valuesByStatementId.get("stable-4")?.valueExpression).toMatchObject({
+      kind: "match",
+      arms: [{ label: "none" }, { label: "some", binder: "renamedUnused" }]
+    });
+    expect(records?.valuesByStatementId.get("stable-5")?.valueExpression).toMatchObject({
+      kind: "match",
+      arms: [{ label: "none" }, { label: "some", binder: "absentUnused" }]
+    });
+    expect(records?.valuesByStatementId.get("stable-6")?.valueExpression).toMatchObject({
+      kind: "match",
+      arms: [{ label: "none" }, { label: "some", binder: "inputAmount" }]
+    });
+  });
+
   it("accepts a statically indexed record collection member in a record branch", () => {
     const compiled = compile([
       "nui 1",

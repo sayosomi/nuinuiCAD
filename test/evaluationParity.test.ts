@@ -3265,6 +3265,49 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches record-valued optional-match binder lowering through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record R(x: number)",
+      "const present: number? = 7",
+      "const absent: number? = none",
+      "const selectedPresent: R = match @present { none => R(x: 0) some renamedUnused => R(x: 1) }",
+      "const selectedAbsent: R = match @absent { none => R(x: 2) some absentUnused => R(x: 3) }",
+      "const selectedBound: R = match @present { none => R(x: 0) some inputAmount => R(x: @inputAmount + 5) }",
+      "const selectedLazy: R = match @absent { none => R(x: 11) some dormantValue => R(x: 1 / 0) }",
+      "const presentResult: number = @selectedPresent.x",
+      "const absentResult: number = @selectedAbsent.x",
+      "const boundResult: number = @selectedBound.x",
+      "const lazyResult: number = @selectedLazy.x"
+    ].join("\n"));
+    expect(fixture.compiled!.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.compiled!.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("optional-match-missing-binder");
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const tsResult = evaluationPayloadToResult(tsPayload);
+    expect(tsResult.errors).toEqual([]);
+    for (const [name, expected] of [
+      ["presentResult", 1],
+      ["absentResult", 2],
+      ["boundResult", 12],
+      ["lazyResult", 11]
+    ] as const) {
+      expectScalarNumberClose(scalarBindingFor(fixture, tsPayload, name), expected);
+    }
+
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    expect(rustResult.errors).toEqual([]);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "presentResult"), 1);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "absentResult"), 2);
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "boundResult"), 12);
+    // The division-by-zero expression belongs to the unselected some arm.
+    expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "lazyResult"), 11);
+  }, 30000);
+
   it("matches optional coalescing for geometry, nominal records, and scalar collections", () => {
     const fixture = fixtureFromSource([
       "nui 1",
