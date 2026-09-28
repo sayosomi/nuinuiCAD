@@ -5587,6 +5587,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // established diagnostic behavior.
   const rootGeometryReferencesByStatementId = new Map<StatementIdentity, ModuleGeometryReferenceSite[]>();
   const rootGeometryValueScalarSites = new Map<StatementIdentity, ModuleScalarExpressionSite>();
+  const rootElementScalarExpressionsByStatementId = new Map<StatementIdentity, ModuleScalarExpressionSite[]>();
   const rootParentReferencesByStatementId = new Map<StatementIdentity, ModuleParentReferenceSite>();
   const rootRecordValuesByStatementId = new Map<StatementIdentity, ModuleRecordValueSemantic>();
   const rootMappedRecordCollectionBodies: ModuleSemanticAnalysis["mappedRecordCollectionBodies"][number][] = [];
@@ -6041,6 +6042,51 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     if (statement.kind !== "element" || (!isGeometryDeclarationCategory(statement.category) && statement.category !== "mutation") || !statement.type) continue;
     const definitionsByKey = new Map(getParameterDefinitions({ type: statement.type, intermediatePoints: [] } as never).map((definition) => [definition.key, definition]));
+    const scalarSites: ModuleScalarExpressionSite[] = [];
+    for (const arg of spec.args) {
+      if (arg.special) continue;
+      const parameterKey = arg.parameterKey ?? arg.arg;
+      const parameter = definitionsByKey.get(parameterKey);
+      const expectedType = scalarTypeForParameterDefinition(parameter);
+      const valueSpan = statement.payloadSpans[arg.arg] ?? statement.payloadSpans[parameterKey];
+      if (!parameter || expectedType?.kind !== "number" || !valueSpan) continue;
+      const raw = input.logicalTextByStatementIndex?.get(statementIndex)?.slice(valueSpan.start, valueSpan.end)
+        ?? statement.attrs.find((attr) => attr.key === arg.arg)?.value
+        ?? "";
+      const diagnosticsBefore = localDiagnosticsByStatement.get(statementIndex)?.length ?? 0;
+      const expression = analyzeExpression(
+        statementIndex,
+        null,
+        raw,
+        valueSpan,
+        expectedType,
+        (reference) => resolveSourceScalar(statementIndex, null, reference.name, null, reference.span),
+        undefined,
+        (reference) => resolveGeometryProperty(statementIndex, null, reference),
+        (reference) => resolveGeometry(
+          statementIndex,
+          null,
+          reference.name.startsWith("@") ? reference.name : `@${reference.name}`,
+          reference.span,
+          reference.expectedGeometryType,
+          { expectedInterfaceType: reference.expectedGeometryType, role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference" }
+        )
+      );
+      const diagnostics = localDiagnosticsByStatement.get(statementIndex);
+      if (diagnostics && diagnostics.length > diagnosticsBefore) {
+        const added = diagnostics.splice(diagnosticsBefore);
+        const retained = expression?.optionalMembers?.length ? added : [];
+        if (retained.length > 0) diagnostics.push(...retained);
+        if (diagnostics.length === 0) localDiagnosticsByStatement.delete(statementIndex);
+      }
+      if (expression?.type?.kind === "number") {
+        scalarSites.push({ parameterKey, span: valueSpan, expression });
+      }
+    }
+    if (scalarSites.length > 0) {
+      scalarSites.sort((left, right) => left.span.start - right.span.start);
+      rootElementScalarExpressionsByStatementId.set(statementIdAt(stableStatementIdByIndex, statementIndex), scalarSites);
+    }
     const sites: ModuleGeometryReferenceSite[] = [];
     for (const arg of spec.args) {
       if (arg.special || !arg.parameterKey && !definitionsByKey.has(arg.arg)) continue;
@@ -7299,6 +7345,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     mappedRecordCollectionBodies: rootMappedRecordCollectionBodies,
     callEdges,
     rootScalarExpressionsByStatementId,
+    rootElementScalarExpressionsByStatementId,
     rootGeometryReferencesByStatementId,
     rootRecordValuesByStatementId,
     geometryValues,
@@ -7587,6 +7634,12 @@ export const decorateDocumentQualifiedModuleSemantics = (
       { ...site, expression: mapExpression(site.expression) }
     ] as const)
   );
+  const rootElementScalarExpressionsByStatementId = new Map(
+    [...analysis.rootElementScalarExpressionsByStatementId].map(([statementId, sites]) => [
+      statementId,
+      sites.map((site) => ({ ...site, expression: mapExpression(site.expression) }))
+    ] as const)
+  );
   const rootGeometryReferencesByStatementId = new Map(
     [...analysis.rootGeometryReferencesByStatementId].map(([statementId, sites]) => [
       statementId,
@@ -7635,6 +7688,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
     instancesByStatementId: new Map(instances.map((instance) => [instance.statementId, instance] as const)),
     callEdges,
     rootScalarExpressionsByStatementId,
+    rootElementScalarExpressionsByStatementId,
     rootGeometryReferencesByStatementId,
     rootRecordValuesByStatementId,
     mappedRecordCollectionBodies: analysis.mappedRecordCollectionBodies.map((mapped) => ({

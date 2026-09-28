@@ -1830,6 +1830,21 @@ describe("module scalar runtime integration", () => {
     expect(presentX.typedExpression.left.target.collectionValueId).toBe(
       recordFieldCollectionValueIdFor(parameterCollection.valueId, recordField.identity)
     );
+    if (absentX?.typedExpression?.kind !== "binary" || absentX.typedExpression.left.kind !== "optionalMember") {
+      throw new Error("expected a typed optional member in the Absent point x binding");
+    }
+    expect(absentX.typedExpression.left.target).toMatchObject({
+      kind: "recordField",
+      field: {
+        recordStatementId: recordField.identity.recordStatementId,
+        fieldIndex: recordField.identity.fieldIndex
+      }
+    });
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(presentPoint.id)).toMatchObject({ kind: "point", x: 7 });
+    expect(result.computedGeometry.get(absentPoint.id)).toMatchObject({ kind: "point", x: 11 });
 
   });
 

@@ -1126,6 +1126,8 @@ export type ModuleSemanticAnalysis = {
   callEdges: readonly ModuleCallEdge[];
   /** Source-only qualified scalar references in root typed declarations. */
   rootScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, ModuleScalarExpressionSite>;
+  /** Source-only numeric scalar expressions in root geometry inputs. */
+  rootElementScalarExpressionsByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleScalarExpressionSite[]>;
   /** Source-only qualified geometry references in the root document. */
   rootGeometryReferencesByStatementId: ReadonlyMap<StatementIdentity, readonly ModuleGeometryReferenceSite[]>;
   /** Source-only nominal-record values, including projected control flow. */

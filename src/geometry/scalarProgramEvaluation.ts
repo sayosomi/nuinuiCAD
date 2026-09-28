@@ -22,7 +22,7 @@ import {
 import type { ForGroupExecutionRunOutcome } from "@nuinuicad/nui-language";
 import type { ScalarProgram, ScalarProgramCollection } from "@nuinuicad/nui-language";
 import type { BindingId } from "@nuinuicad/nui-language";
-import type { ScalarEvaluation, ScalarType } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarExpressionResolvedOptionalMemberTarget, ScalarType } from "@nuinuicad/nui-language";
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarGeometryPropertyReferenceNode, TypedScalarExpression } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 import type { EffectiveElementActivity } from "@nuinuicad/nui-language";
@@ -49,6 +49,11 @@ export type ScalarBindingResolver = {
     sourceOrder: number
   ) => ScalarEvaluation;
   resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined;
+  resolveOptionalMember?: (
+    target: ScalarExpressionResolvedOptionalMemberTarget,
+    type: import("@nuinuicad/nui-language").ScalarExpressionType,
+    sourceOrder: number
+  ) => ScalarEvaluation;
   resolveGeometryCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined;
   finalize: () => ScalarProgramEvaluation;
 };
@@ -60,6 +65,7 @@ export type LinearScalarBindingResolver = {
   resolveCollectionIndex?: ScalarBindingResolver["resolveCollectionIndex"];
   resolveCollectionRecordField?: ScalarBindingResolver["resolveCollectionRecordField"];
   resolveCollectionLength?: ScalarBindingResolver["resolveCollectionLength"];
+  resolveOptionalMember?: ScalarBindingResolver["resolveOptionalMember"];
   resolveGeometryCollectionLength?: ScalarBindingResolver["resolveGeometryCollectionLength"];
   finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
   runForGroup: (
@@ -387,7 +393,9 @@ export const createDocumentScalarBindingResolver = (
         collectionResolver.environmentFor(sourceOrder).lookupCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder),
       resolveCollectionRecordField: (collectionValueId, index, field, sourceOrder) =>
         collectionResolver.recordFieldFor(collectionValueId, index, field, sourceOrder),
-      resolveCollectionLength: (collectionValueId, sourceOrder) => collectionResolver.environmentFor(sourceOrder).lookupCollectionLength!(collectionValueId)
+      resolveCollectionLength: (collectionValueId, sourceOrder) => collectionResolver.environmentFor(sourceOrder).lookupCollectionLength!(collectionValueId),
+      resolveOptionalMember: (target, type, sourceOrder) =>
+        collectionResolver.environmentFor(sourceOrder).lookupOptionalMember!(target, type)
     } : {}),
     ...(resolveGeometryCollectionLength ? { resolveGeometryCollectionLength } : {}),
     finalize: () => finalizeScalarProgramEvaluation(program, evaluator)
@@ -446,7 +454,9 @@ export const createDocumentLinearScalarBindingResolver = (
         evaluator.resolveCollectionIndex(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder),
       resolveCollectionRecordField: (collectionValueId, index, field, sourceOrder) =>
         collectionResolver.recordFieldFor(collectionValueId, index, field, sourceOrder),
-      resolveCollectionLength: (collectionValueId, sourceOrder) => evaluator.resolveCollectionLength(collectionValueId, sourceOrder)
+      resolveCollectionLength: (collectionValueId, sourceOrder) => evaluator.resolveCollectionLength(collectionValueId, sourceOrder),
+      resolveOptionalMember: (target, type, sourceOrder) =>
+        collectionResolver.environmentFor(sourceOrder).lookupOptionalMember!(target, type)
     } : {}),
     ...(resolveGeometryCollectionLength ? { resolveGeometryCollectionLength } : {}),
     finalize: evaluator.finalize,
