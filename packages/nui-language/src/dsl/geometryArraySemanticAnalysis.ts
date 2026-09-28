@@ -6,10 +6,11 @@ import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceT
 import { coordinateComponent } from "./dslParameterSpanScanner";
 import type { SourceLexicalLookupWithExternal } from "./sourceLexicalNamespaceIndex";
 import { geometryArrayTypeOfModuleParameter } from "./geometryArraySourceAnnotations";
-import { parseGeometryArrayExpression, type GeometryArrayExpression } from "./geometryArrayExpression";
+import { parseGeometryArrayExpression, type GeometryArrayExpression, type GeometryArrayLiteralMember } from "./geometryArrayExpression";
 import {
   resolveDslArrayExpression,
   resolveGeometryArrayExpression,
+  type DslArrayLiteralValue,
   type DslArraySemanticValue,
   type DslArrayMemberResolution,
   type GeometryArrayMemberResolution,
@@ -100,6 +101,7 @@ export type GeometryArraySemanticAnalysis = {
   genericValuesByStatementIndex: ReadonlyMap<number, GenericArrayValueSemantic>;
   genericModuleParameters: readonly GenericArrayModuleParameterSemantic[];
   genericModuleParametersBySlot: ReadonlyMap<string, GenericArrayModuleParameterSemantic>;
+  moduleArgumentCollectionLiteralsByStatementIndex: ReadonlyMap<number, ReadonlyMap<number, DslArrayLiteralValue<GenericArraySourceTarget>>>;
   diagnostics: readonly DslDiagnostic[];
 };
 
@@ -343,6 +345,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
   const genericValuesByStatementIndex = new Map<number, GenericArrayValueSemantic>();
   const genericModuleParameters: GenericArrayModuleParameterSemantic[] = [];
   const genericModuleParametersBySlot = new Map<string, GenericArrayModuleParameterSemantic>();
+  const moduleArgumentCollectionLiteralsByStatementIndex = new Map<number, Map<number, DslArrayLiteralValue<GenericArraySourceTarget>>>();
 
   const resolvedArrayRecordIdentity = (
     type: DslNonArrayValueType,
@@ -861,6 +864,149 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     semantic.value = resolved.value;
   }
 
+  const resolveGenericArrayMember = (
+    statementIndex: number,
+    statementId: string,
+    expectedElement: DslNonArrayValueType,
+    member: GeometryArrayLiteralMember,
+    localBindings?: readonly { name: string; bindingId: string }[]
+  ): DslArrayMemberResolution<GenericArraySourceTarget> => {
+    const token = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
+    if (token.kind !== "error" && token.span.start === 0 && token.span.end === member.text.length) {
+      if (token.kind === "choice" && token.raw === "none") {
+        if (isDslOptionalValueType(expectedElement)) {
+          return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarValue", statementId: statementId, statementIndex: statementIndex } } };
+        }
+        return collectionMemberDiagnostic(
+          "array-member-type-mismatch",
+          `array member「${member.text}」の型が宣言型と一致しません。`,
+          member.span,
+          { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+        );
+      }
+
+      const requiredExpectedElement = dslRequiredValueTypeOf(expectedElement);
+      if (requiredExpectedElement?.kind === "choice") {
+        if (token.kind === "choice" && isChoiceOptionMember(requiredExpectedElement, token.raw)) {
+          return { kind: "resolved", value: { elementType: requiredExpectedElement, target: { kind: "scalarValue", statementId: statementId, statementIndex: statementIndex } } };
+        }
+        return collectionMemberDiagnostic(
+          "array-member-type-mismatch",
+          `choice literal「${member.text}」は宣言された choice の option ではありません。`,
+          member.span,
+          { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+        );
+      }
+      if (token.kind !== "choice") {
+        const literalType = scalarLiteralType(token.kind);
+        if (!isDslNonArrayValueTypeAssignable(literalType, expectedElement)) {
+          return collectionMemberDiagnostic(
+            "array-member-type-mismatch",
+            `array member「${member.text}」の型が宣言型と一致しません。`,
+            member.span,
+            { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+          );
+        }
+        return { kind: "resolved", value: { elementType: literalType, target: { kind: "scalarValue", statementId: statementId, statementIndex: statementIndex } } };
+      }
+      return collectionMemberDiagnostic(
+        "array-member-type-mismatch",
+        `array member「${member.text}」の型が宣言型と一致しません。`,
+        member.span,
+        { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
+      );
+    }
+
+    const sourceReference = parsedSourceReference(member.text);
+    if (!sourceReference) return collectionMemberDiagnostic("array-invalid-member", "array member は scalar/geometry/record reference または scalar literal で指定してください。", member.span);
+    const path = parseDslReferenceToken(sourceReference.pathText);
+    if (path.segments.length === 0) return collectionMemberDiagnostic("array-invalid-member", "array member の参照が不正です。", member.span);
+    if (!path.absolute && path.segments.length === 1) {
+      const localBinding = [...(localBindings ?? [])].reverse().find((candidate) => candidate.name === path.segments[0]);
+      if (localBinding) {
+        if (!isDslScalarValueType(expectedElement)) {
+          return collectionMemberDiagnostic(
+            "array-member-type-mismatch",
+            "optional match binder は scalar array member にのみ使用できます。",
+            member.span
+          );
+        }
+        return {
+          kind: "resolved",
+          value: { elementType: expectedElement, target: { kind: "scalarBinding", bindingId: localBinding.bindingId } }
+        };
+      }
+    }
+    if (path.segments.length === 1 && !path.absolute) {
+      const moduleParameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
+      if (moduleParameter) {
+        if (isDslArrayValueType(moduleParameter.parameter.valueType)) return collectionMemberDiagnostic("nested-array-member", "配列を array literal member として入れ子にすることはできません。", member.span);
+        if (moduleParameter.parameter.valueType) {
+          const actual = recordTypeWithIdentity(
+            moduleParameter.parameter.valueType,
+            moduleParameter.parameter.valueType.kind === "record"
+              ? input.recordSemanticAnalysis?.moduleParameters.find((candidate) => candidate.definitionStatementId === moduleParameter.definitionStatementId && candidate.parameterIndex === moduleParameter.parameterIndex)?.typeIdentity ?? null
+              : null
+          );
+          return { kind: "resolved", value: { elementType: actual, target: { kind: "moduleParameterValue", definitionStatementId: moduleParameter.definitionStatementId, parameterIndex: moduleParameter.parameterIndex } } };
+        }
+      }
+    }
+    const lookup = input.resolvePath(statementIndex, path);
+    if (lookup.kind !== "resolved") {
+      const message = lookup.kind === "forward"
+        ? `array member「${member.text}」はこの位置より後で宣言されています。`
+        : lookup.kind === "ambiguous"
+          ? `array member 参照が曖昧です: ${member.text}`
+          : `未解決の array member です: ${member.text}`;
+      return collectionMemberDiagnostic(
+        `array-member-${lookup.kind}`,
+        message,
+        member.span,
+        { key: `diagnostic.array-member-${lookup.kind}`, parameters: { member: member.text } }
+      );
+    }
+    const target = lookup.declaration;
+    if (target.statement.kind === "typedDeclaration") {
+      if (isDslArrayValueType(target.statement.valueType)) return collectionMemberDiagnostic("nested-array-member", "配列を array literal member として入れ子にすることはできません。", member.span);
+      if (!target.statement.valueType) {
+        return collectionMemberDiagnostic(
+          "array-member-invalid-type",
+          `参照先「${member.text}」の型を解決できません。`,
+          member.span,
+          { key: "diagnostic.array-member-invalid-type", parameters: { member: member.text } }
+        );
+      }
+      const actual = recordTypeWithIdentity(
+        target.statement.valueType,
+        target.statement.valueType.kind === "record" ? input.recordSemanticAnalysis?.valuesByStatementIndex.get(target.statementIndex)?.typeIdentity ?? null : null
+      );
+      const targetKind = actual.kind === "record" ? "recordValue" : isDslGeometryValueType(actual) ? "geometryValue" : "scalarValue";
+      const targetValue = targetKind === "recordValue"
+        ? { kind: "recordValue" as const, statementId: target.statementId, statementIndex: target.statementIndex }
+        : targetKind === "geometryValue"
+          ? { kind: "geometryValue" as const, statementId: target.statementId, statementIndex: target.statementIndex, interfaceType: actual.kind as ModuleGeometryInterfaceType }
+          : { kind: "scalarValue" as const, statementId: target.statementId, statementIndex: target.statementIndex };
+      return { kind: "resolved", value: { elementType: actual, target: targetValue } };
+    }
+    const interfaceType = moduleGeometryInterfaceTypeOfElement(target.statement);
+    if (interfaceType) {
+      const geometryType: DslNonArrayValueType = { kind: interfaceType };
+      return { kind: "resolved", value: { elementType: geometryType, target: { kind: "geometry", statementId: target.statementId, statementIndex: target.statementIndex, interfaceType } } };
+    }
+    const recordValue = input.recordSemanticAnalysis?.valuesByStatementIndex.get(target.statementIndex);
+    if (recordValue?.typeIdentity) {
+      const recordType: DslNonArrayValueType = { kind: "record", name: recordValue.typeReference.sourceName, identity: recordValue.typeIdentity };
+      return { kind: "resolved", value: { elementType: recordType, target: { kind: "recordValue", statementId: target.statementId, statementIndex: target.statementIndex } } };
+    }
+    return collectionMemberDiagnostic(
+      "array-member-not-value",
+      `参照先「${member.text}」は array member に使用できる value ではありません。`,
+      member.span,
+      { key: "diagnostic.array-member-not-value", parameters: { member: member.text } }
+    );
+  };
+
   for (const semantic of genericValues) {
     const statement = statements[semantic.statementIndex];
     if (!statement || statement.kind !== "typedDeclaration") continue;
@@ -885,143 +1031,9 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       expectedType: enrichedExpectedType,
       expectedValueType: semantic.declaredValueType,
       expression,
-      resolveMember: (member, localBindings) => {
-        const expectedElement = enrichedExpectedType.elementType;
-        const token = scanScalarLiteral(member.text, { start: 0, end: member.text.length });
-        if (token.kind !== "error" && token.span.start === 0 && token.span.end === member.text.length) {
-          if (token.kind === "choice" && token.raw === "none") {
-            if (isDslOptionalValueType(expectedElement)) {
-              return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
-            }
-            return collectionMemberDiagnostic(
-              "array-member-type-mismatch",
-              `array member「${member.text}」の型が宣言型と一致しません。`,
-              member.span,
-              { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
-            );
-          }
-
-          const requiredExpectedElement = dslRequiredValueTypeOf(expectedElement);
-          if (requiredExpectedElement?.kind === "choice") {
-            if (token.kind === "choice" && isChoiceOptionMember(requiredExpectedElement, token.raw)) {
-              return { kind: "resolved", value: { elementType: requiredExpectedElement, target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
-            }
-            return collectionMemberDiagnostic(
-              "array-member-type-mismatch",
-              `choice literal「${member.text}」は宣言された choice の option ではありません。`,
-              member.span,
-              { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
-            );
-          }
-          if (token.kind !== "choice") {
-            const literalType = scalarLiteralType(token.kind);
-            if (!isDslNonArrayValueTypeAssignable(literalType, expectedElement)) {
-              return collectionMemberDiagnostic(
-                "array-member-type-mismatch",
-                `array member「${member.text}」の型が宣言型と一致しません。`,
-                member.span,
-                { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
-              );
-            }
-            return { kind: "resolved", value: { elementType: literalType, target: { kind: "scalarValue", statementId: semantic.statementId, statementIndex: semantic.statementIndex } } };
-          }
-          return collectionMemberDiagnostic(
-            "array-member-type-mismatch",
-            `array member「${member.text}」の型が宣言型と一致しません。`,
-            member.span,
-            { key: "diagnostic.array-member-type-mismatch", parameters: { member: member.text } }
-          );
-        }
-
-        const sourceReference = parsedSourceReference(member.text);
-        if (!sourceReference) return collectionMemberDiagnostic("array-invalid-member", "array member は scalar/geometry/record reference または scalar literal で指定してください。", member.span);
-        const path = parseDslReferenceToken(sourceReference.pathText);
-        if (path.segments.length === 0) return collectionMemberDiagnostic("array-invalid-member", "array member の参照が不正です。", member.span);
-        if (!path.absolute && path.segments.length === 1) {
-          const localBinding = [...(localBindings ?? [])].reverse().find((candidate) => candidate.name === path.segments[0]);
-          if (localBinding) {
-            if (!isDslScalarValueType(expectedElement)) {
-              return collectionMemberDiagnostic(
-                "array-member-type-mismatch",
-                "optional match binder は scalar array member にのみ使用できます。",
-                member.span
-              );
-            }
-            return {
-              kind: "resolved",
-              value: { elementType: expectedElement, target: { kind: "scalarBinding", bindingId: localBinding.bindingId } }
-            };
-          }
-        }
-        if (path.segments.length === 1 && !path.absolute) {
-          const moduleParameter = moduleParameterByName(statements, stableStatementIdByIndex, semantic.statementIndex, path.segments[0]!);
-          if (moduleParameter) {
-            if (isDslArrayValueType(moduleParameter.parameter.valueType)) return collectionMemberDiagnostic("nested-array-member", "配列を array literal member として入れ子にすることはできません。", member.span);
-            if (moduleParameter.parameter.valueType) {
-              const actual = recordTypeWithIdentity(
-                moduleParameter.parameter.valueType,
-                moduleParameter.parameter.valueType.kind === "record"
-                  ? input.recordSemanticAnalysis?.moduleParameters.find((candidate) => candidate.definitionStatementId === moduleParameter.definitionStatementId && candidate.parameterIndex === moduleParameter.parameterIndex)?.typeIdentity ?? null
-                  : null
-              );
-              return { kind: "resolved", value: { elementType: actual, target: { kind: "moduleParameterValue", definitionStatementId: moduleParameter.definitionStatementId, parameterIndex: moduleParameter.parameterIndex } } };
-            }
-          }
-        }
-        const lookup = input.resolvePath(semantic.statementIndex, path);
-        if (lookup.kind !== "resolved") {
-          const message = lookup.kind === "forward"
-            ? `array member「${member.text}」はこの位置より後で宣言されています。`
-            : lookup.kind === "ambiguous"
-              ? `array member 参照が曖昧です: ${member.text}`
-              : `未解決の array member です: ${member.text}`;
-          return collectionMemberDiagnostic(
-            `array-member-${lookup.kind}`,
-            message,
-            member.span,
-            { key: `diagnostic.array-member-${lookup.kind}`, parameters: { member: member.text } }
-          );
-        }
-        const target = lookup.declaration;
-        if (target.statement.kind === "typedDeclaration") {
-          if (isDslArrayValueType(target.statement.valueType)) return collectionMemberDiagnostic("nested-array-member", "配列を array literal member として入れ子にすることはできません。", member.span);
-          if (!target.statement.valueType) {
-            return collectionMemberDiagnostic(
-              "array-member-invalid-type",
-              `参照先「${member.text}」の型を解決できません。`,
-              member.span,
-              { key: "diagnostic.array-member-invalid-type", parameters: { member: member.text } }
-            );
-          }
-          const actual = recordTypeWithIdentity(
-            target.statement.valueType,
-            target.statement.valueType.kind === "record" ? input.recordSemanticAnalysis?.valuesByStatementIndex.get(target.statementIndex)?.typeIdentity ?? null : null
-          );
-          const targetKind = actual.kind === "record" ? "recordValue" : isDslGeometryValueType(actual) ? "geometryValue" : "scalarValue";
-          const targetValue = targetKind === "recordValue"
-            ? { kind: "recordValue" as const, statementId: target.statementId, statementIndex: target.statementIndex }
-            : targetKind === "geometryValue"
-              ? { kind: "geometryValue" as const, statementId: target.statementId, statementIndex: target.statementIndex, interfaceType: actual.kind as ModuleGeometryInterfaceType }
-              : { kind: "scalarValue" as const, statementId: target.statementId, statementIndex: target.statementIndex };
-          return { kind: "resolved", value: { elementType: actual, target: targetValue } };
-        }
-        const interfaceType = moduleGeometryInterfaceTypeOfElement(target.statement);
-        if (interfaceType) {
-          const geometryType: DslNonArrayValueType = { kind: interfaceType };
-          return { kind: "resolved", value: { elementType: geometryType, target: { kind: "geometry", statementId: target.statementId, statementIndex: target.statementIndex, interfaceType } } };
-        }
-        const recordValue = input.recordSemanticAnalysis?.valuesByStatementIndex.get(target.statementIndex);
-        if (recordValue?.typeIdentity) {
-          const recordType: DslNonArrayValueType = { kind: "record", name: recordValue.typeReference.sourceName, identity: recordValue.typeIdentity };
-          return { kind: "resolved", value: { elementType: recordType, target: { kind: "recordValue", statementId: target.statementId, statementIndex: target.statementIndex } } };
-        }
-        return collectionMemberDiagnostic(
-          "array-member-not-value",
-          `参照先「${member.text}」は array member に使用できる value ではありません。`,
-          member.span,
-          { key: "diagnostic.array-member-not-value", parameters: { member: member.text } }
-        );
-      },
+      resolveMember: (member, localBindings) => resolveGenericArrayMember(
+        semantic.statementIndex, semantic.statementId, enrichedExpectedType.elementType, member, localBindings
+      ),
       resolveArrayReference: (sourceText, sourceSpan) => {
         const path = referencePath(sourceText);
         if (!path || path.segments.length === 0) return { kind: "invalid", diagnostic: { code: "array-invalid-reference", message: "array alias の参照が不正です。", span: sourceSpan } };
@@ -1155,10 +1167,9 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     semantic.value = resolved.value;
   }
 
-  // Module array parameters use the same source-level collection contract.
-  // The Module semantic pass owns ordinary argument binding; this narrow
-  // collection check supplies the missing value-type comparison without
-  // introducing a Module-only collection resolver.
+  // Module array arguments use the shared collection resolver. The Module
+  // semantic pass owns binding; this pass retains resolved literal members
+  // and checks existing whole-value aliases at the call site.
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleInstance") continue;
     const calleeLookup = input.resolvePath(statementIndex, parseDslReferenceToken(statement.moduleName));
@@ -1166,25 +1177,59 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     const parameters = calleeLookup.declaration.statement.parameters;
     const positional = statement.arguments.filter((argument) => argument.label === null);
     let positionalIndex = 0;
-    for (const parameter of parameters) {
+    for (const [parameterIndex, parameter] of parameters.entries()) {
       const argument = statement.arguments.find((candidate) => candidate.label === parameter.name) ?? positional[positionalIndex++];
       if (!arrayValueTypeOfParameter(parameter)) continue;
       if (!argument) continue;
+      if (argument.value.trim() === "none") continue;
       const reference = referencePath(argument.value);
       if (!reference) {
-        diagnostics.push(diagnostic(
-          statement,
-          argument.valueSpan,
-          "array-argument-invalid",
-          `array parameter「${parameter.name}」には compatible な whole-value collection reference が必要です。`,
-          { key: "diagnostic.array-argument-invalid", parameters: { parameter: parameter.name } }
-        ));
+        const parsed = parseGeometryArrayExpression(argument.value);
+        const expectedType = genericModuleParametersBySlot.get(`${calleeLookup.declaration.statementId}:${parameterIndex}`)?.valueType
+          ?? arrayValueTypeOfParameter(parameter);
+        if (parsed.expression?.kind !== "literal" || parsed.diagnostics.length > 0 || !expectedType) {
+          diagnostics.push(diagnostic(
+            statement,
+            argument.valueSpan,
+            "array-argument-invalid",
+            `array parameter「${parameter.name}」には compatible な collection value が必要です。`,
+            { key: "diagnostic.array-argument-invalid", parameters: { parameter: parameter.name } }
+          ));
+          continue;
+        }
+        const expression = offsetExpression(parsed.expression, argument.valueSpan.start);
+        const resolved = resolveDslArrayExpression<GenericArraySourceTarget>({
+          expectedType,
+          expectedValueType: parameter.valueType ?? expectedType,
+          expression,
+          resolveMember: (member) => resolveGenericArrayMember(
+            statementIndex,
+            statementIdAt(stableStatementIdByIndex, statementIndex, "module instance"),
+            expectedType.elementType,
+            member
+          ),
+          resolveArrayReference: (_sourceText, sourceSpan) => ({
+            kind: "invalid",
+            diagnostic: { code: "array-reference-invalid", message: "array reference is not valid in a collection literal.", span: sourceSpan }
+          })
+        });
+        for (const issue of resolved.diagnostics) {
+          diagnostics.push(diagnostic(statement, issue.span, issue.code, issue.message, issue.presentation));
+        }
+        if (resolved.value?.kind === "literal") {
+          let byArgument = moduleArgumentCollectionLiteralsByStatementIndex.get(statementIndex);
+          if (!byArgument) {
+            byArgument = new Map();
+            moduleArgumentCollectionLiteralsByStatementIndex.set(statementIndex, byArgument);
+          }
+          byArgument.set(statement.arguments.indexOf(argument), resolved.value);
+        }
         continue;
       }
       const lookup = input.resolvePath(statementIndex, reference);
       if (lookup.kind !== "resolved") continue;
       const actual = genericValuesByStatementIndex.get(lookup.declaration.statementIndex)?.valueType;
-      const expected = genericModuleParametersBySlot.get(`${calleeLookup.declaration.statementId}:${parameters.indexOf(parameter)}`)?.valueType
+      const expected = genericModuleParametersBySlot.get(`${calleeLookup.declaration.statementId}:${parameterIndex}`)?.valueType
         ?? arrayValueTypeOfParameter(parameter);
       if (!actual || !expected || !isDslNonArrayValueTypeAssignable(actual.elementType, expected.elementType)) {
         diagnostics.push(diagnostic(
@@ -1209,6 +1254,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     genericValuesByStatementIndex,
     genericModuleParameters,
     genericModuleParametersBySlot,
+    moduleArgumentCollectionLiteralsByStatementIndex,
     diagnostics
   };
 };

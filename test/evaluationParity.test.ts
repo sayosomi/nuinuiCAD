@@ -3047,6 +3047,42 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("evaluates inline and optional Module collection arguments through persistent Rust parity", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const values: number[] = [12]",
+      "module M(items: number[], optionalItems: number[]?) {",
+      "  export const selected: number = @items[0]",
+      "  const resolvedOptional: number[] = @optionalItems ?? [17]",
+      "  export const optionalSelected: number = @resolvedOptional[0]",
+      "}",
+      "instance RequiredLiteral = M(items: [7])",
+      "instance OptionalLiteral = M(items: [8], optionalItems: [9])",
+      "instance OptionalNone = M(items: [10], optionalItems: none)",
+      "instance OptionalOmitted = M(items: [11])",
+      "instance Alias = M(items: @values)",
+      "const requiredValue: number = @RequiredLiteral::selected",
+      "const optionalLiteralValue: number = @OptionalLiteral::optionalSelected",
+      "const optionalNoneValue: number = @OptionalNone::optionalSelected",
+      "const optionalOmittedValue: number = @OptionalOmitted::optionalSelected",
+      "const aliasValue: number = @Alias::selected"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "requiredValue"), 7);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "optionalLiteralValue"), 9);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "optionalNoneValue"), 17);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "optionalOmittedValue"), 17);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "aliasValue"), 12);
+    }
+  }, 30000);
+
   it("matches terminal Module descendant completion across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

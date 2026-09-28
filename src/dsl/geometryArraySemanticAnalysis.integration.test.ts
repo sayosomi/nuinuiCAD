@@ -715,6 +715,55 @@ describe("geometry array source semantic integration", () => {
     }));
   });
 
+  it("accepts inline collection arguments and preserves optional Module argument semantics", () => {
+    const compiled = compile([
+      "nui 1",
+      "const numbers: number[] = [4]",
+      "module M(required: number[], optional: number[]?) {",
+      "  const selected: number = @required[0]",
+      "  const resolved: number[] = @optional ?? []",
+      "  const count: number = @resolved.length",
+      "}",
+      "instance Literal = M(required: [7], optional: [8])",
+      "instance ExplicitNone = M(required: [9], optional: none)",
+      "instance Omitted = M(required: [10])",
+      "instance Alias = M(required: @numbers)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const instances = compiled.moduleSemanticAnalysis!.instances;
+    const binding = (instanceName: string, parameterName: string) =>
+      instances.find((instance) => instance.name === instanceName)!.parameterBindings.find((candidate) => candidate.parameterName === parameterName)!;
+    expect(binding("Literal", "required").value).toMatchObject({
+      kind: "collectionLiteral",
+      value: { kind: "literal", valueType: { elementType: { kind: "number" } }, members: [{ sourceText: "7" }] }
+    });
+    expect(binding("Literal", "optional").value).toMatchObject({
+      kind: "collectionLiteral",
+      value: { kind: "literal", valueType: { elementType: { kind: "number" } }, members: [{ sourceText: "8" }] }
+    });
+    expect(binding("ExplicitNone", "optional").value).toMatchObject({ kind: "none" });
+    expect(binding("Omitted", "optional")).toMatchObject({ state: "omitted", value: { kind: "none" } });
+    expect(binding("Alias", "required").value).toMatchObject({
+      kind: "collection",
+      targetValueId: "statement:1"
+    });
+  });
+
+  it("rejects incompatible inline collection members and non-collection Module arguments", () => {
+    const { namespace } = analyze([
+      "nui 1",
+      "module M(values: number[]) {",
+      "}",
+      "instance WrongMember = M(values: [\"a\"])",
+      "instance WrongValue = M(values: 1)"
+    ].join("\n"));
+    expect(namespace.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "array-member-type-mismatch", exactSpanOnly: true }),
+      expect.objectContaining({ code: "array-argument-invalid", exactSpanOnly: true })
+    ]));
+  });
+
   it("checks qualified whole-value collection exports without flattening identity", () => {
     const { namespace } = analyze([
       "nui 1",

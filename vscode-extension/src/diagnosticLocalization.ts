@@ -129,7 +129,7 @@ export const diagnosticTranslationCatalog = {
   "diagnostic.array-member-not-value": { en: "Reference '{member}' cannot be used as an array member value.", ja: "参照先「{member}」は array member に使用できる value ではありません。" },
   "diagnostic.array-member-type-mismatch": { en: "Array member '{member}' does not match the declared element type.", ja: "array member「{member}」の型が宣言型と一致しません。" },
   "diagnostic.nested-array-member": { en: "Array literals cannot contain nested arrays.", ja: "配列を array literal member として入れ子にすることはできません。" },
-  "diagnostic.array-argument-invalid": { en: "Array parameter '{parameter}' requires a compatible whole-value collection reference.", ja: "array parameter「{parameter}」には compatible な whole-value collection reference が必要です。" },
+  "diagnostic.array-argument-invalid": { en: "Array parameter '{parameter}' requires a compatible collection value.", ja: "array parameter「{parameter}」には compatible な collection value が必要です。" },
   "diagnostic.array-argument-type-mismatch": { en: "Array argument '{argument}' does not match parameter '{parameter}'.", ja: "array argument「{argument}」の型が parameter「{parameter}」と一致しません。" },
   "diagnostic.array-assignability-mismatch": { en: "Array type '{actual}' is not assignable to '{expected}'.", ja: "array型「{actual}」を「{expected}」に代入できません。" },
   "diagnostic.array-value-for-unsupported": { en: "This collection does not support value-for.", ja: "この collection では value-for を使用できません。" },

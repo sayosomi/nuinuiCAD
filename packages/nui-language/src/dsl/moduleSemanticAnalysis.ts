@@ -6173,10 +6173,17 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const collectionArgumentSemantic = (
     statementIndex: number,
     ownerIndex: number | null,
+    argumentIndex: number,
     source: string,
     span: DslSpan,
     expectedType: import("./dslValueTypes").DslArrayValueType
   ): ModuleArgumentSemantic | null => {
+    const literal = sourceNamespace.geometryArraySemanticAnalysis
+      ?.moduleArgumentCollectionLiteralsByStatementIndex.get(statementIndex)
+      ?.get(argumentIndex);
+    if (literal) {
+      return { kind: "collectionLiteral", source, span, valueType: expectedType, value: literal };
+    }
     const parsed = parseDslSourceReference(source.trim());
     if (parsed.kind !== "valid" || parsed.reference.property) return null;
     const path = parseDslReferenceToken(parsed.reference.pathText);
@@ -6356,6 +6363,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             value = collectionArgumentSemantic(
               statementIndex,
               ownerIndex,
+              argumentIndex!,
               argument.value,
               argument.valueSpan,
               parameterArrayType
@@ -7527,7 +7535,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
   const mapArgument = (argument: ModuleArgumentSemantic): ModuleArgumentSemantic => {
     if (argument.kind === "scalar") return { ...argument, expression: mapExpression(argument.expression) };
     if (argument.kind === "geometry") return { ...argument, reference: mapGeometryReference(argument.reference) };
-    if (argument.kind === "collection") return argument;
+    if (argument.kind === "collection" || argument.kind === "collectionLiteral") return argument;
     if (argument.kind === "none") return argument;
     return { ...argument, reference: mapRecordReference(argument.reference) };
   };

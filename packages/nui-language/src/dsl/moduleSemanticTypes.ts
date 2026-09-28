@@ -1,6 +1,8 @@
 import type { DslGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import type { DslArrayValueType, DslValueType } from "./dslValueTypes";
+import type { DslArrayLiteralValue } from "./geometryArraySemantics";
+import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { BindingId } from "../scalars/bindingCatalog";
@@ -865,6 +867,13 @@ export type ModuleArgumentSemantic =
       span: DslSpan;
       targetValueId: string;
       valueType: DslArrayValueType;
+    }
+  | {
+      kind: "collectionLiteral";
+      source: string;
+      span: DslSpan;
+      valueType: DslArrayValueType;
+      value: DslArrayLiteralValue<GenericArraySourceTarget>;
     };
 
 /** One entry per callee parameter, already in parameter source order. */
