@@ -39,6 +39,94 @@ describe("record source-semantic document integration", () => {
     });
   });
 
+  it("compiles optional nested-record constructors and preserves nominal field identity", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Inner(x: number)",
+      "record Other(x: number)",
+      "record Box(inner: Inner?)",
+      "record RequiredBox(inner: Inner)",
+      "const inner: Inner = Inner(x: 7)",
+      "const direct: Box = Box(inner: Inner(x: 8))",
+      "const aliased: Box = Box(inner: @inner)",
+      "const explicitNone: Box = Box(inner: none)",
+      "const omitted: Box = Box()",
+      "const required: RequiredBox = RequiredBox(inner: @inner)",
+      "const nestedX: number? = @aliased.inner?.x"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const records = compiled.sourceLexicalNamespace?.recordSemanticAnalysis;
+    const optionalInnerType = {
+      kind: "optional",
+      valueType: { kind: "record", name: "Inner", identity: "stable-1" }
+    };
+    expect(records?.definitionsByStatementId.get("stable-3")?.fields[0]?.type).toEqual(optionalInnerType);
+    expect(records?.valuesByStatementId.get("stable-6")?.constructor?.fields[0]?.expectedType).toEqual(optionalInnerType);
+    expect(records?.valuesByStatementId.get("stable-8")?.constructor?.fields[0]).toMatchObject({
+      value: "none",
+      expectedType: optionalInnerType
+    });
+    expect(records?.valuesByStatementId.get("stable-9")?.constructor?.fields[0]).toMatchObject({
+      value: "none",
+      expectedType: optionalInnerType
+    });
+    expect(records?.valuesByStatementId.get("stable-10")?.constructor?.fields[0]?.expectedType).toEqual({
+      kind: "record",
+      name: "Inner",
+      identity: "stable-1"
+    });
+
+    const nestedXBinding = compiled.bindingAnalysis?.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "nestedX"
+    );
+    const nestedX = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === nestedXBinding?.id);
+    expect(nestedX?.declaration.initializer).toMatchObject({
+      kind: "optionalMember",
+      target: { kind: "recordField" }
+    });
+  });
+
+  it("rejects a different nominal nested record despite structural field compatibility", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Inner(x: number)",
+      "record Other(x: number)",
+      "record Box(inner: Inner?)",
+      "const other: Other = Other(x: 9)",
+      "const wrong: Box = Box(inner: @other)"
+    ].join("\n"));
+
+    const errorCodes = compiled.diagnostics
+      .filter((diagnostic) => diagnostic.severity === "error")
+      .map((diagnostic) => diagnostic.code);
+    expect(errorCodes).toContain("module-record-reference-invalid");
+  });
+
+  it("supports optional nested-record fields with Module-local record values", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Inner(x: number)",
+      "record Box(inner: Inner?)",
+      "module Example() {",
+      "  const inner: Inner = Inner(x: 7)",
+      "  const box: Box = Box(inner: @inner)",
+      "  export const x: number? = @box.inner?.x",
+      "}",
+      "instance Used = Example()",
+      "const result: number = @Used::x"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis?.definitionsByStatementId.get("stable-3")?.recordValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: expect.objectContaining({ name: "inner" }) }),
+        expect.objectContaining({ value: expect.objectContaining({ name: "box" }) })
+      ])
+    );
+    expect(compiled.moduleSemanticAnalysis?.instances.some((instance) => instance.name === "Used")).toBe(true);
+  });
+
   it("validates generalized immutable record fields and composes nested geometry members", () => {
     const compiled = compile([
       "nui 1",

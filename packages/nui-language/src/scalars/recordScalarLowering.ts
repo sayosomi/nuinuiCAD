@@ -28,7 +28,7 @@ import type { ScalarExpressionAst } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
 import type { ScalarExpressionType } from "./types";
-import { isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
+import { dslRequiredValueTypeOf, isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 
 export type RecordScalarFieldInitializer = {
   bindingId: BindingId;
@@ -363,8 +363,9 @@ export const planRecordScalarLowering = ({
     const path = [...prefix, field.identity];
     const scalar = scalarExpressionTypeOfDslValueType(field.type);
     if (scalar) return [{ field, path, type: scalar }];
-    if (!isDslRecordValueType(field.type)) return [];
-    const nested = analysis.definitionsByStatementId.get(field.type.identity ?? "");
+    const recordType = dslRequiredValueTypeOf(field.type);
+    if (!isDslRecordValueType(recordType)) return [];
+    const nested = analysis.definitionsByStatementId.get(recordType.identity ?? "");
     return nested ? scalarFieldPathsFor(nested, path) : [];
   });
 
@@ -378,8 +379,9 @@ export const planRecordScalarLowering = ({
       current = fields.find((candidate) => candidate.field.fieldIndex === wanted.fieldIndex) ?? null;
       if (!current) return null;
       if (index === path.length - 1) return { field: current, path };
-      const definition = current.expectedType.kind === "record"
-        ? analysis.definitionsByStatementId.get(current.expectedType.identity ?? "")
+      const recordType = dslRequiredValueTypeOf(current.expectedType);
+      const definition = isDslRecordValueType(recordType)
+        ? analysis.definitionsByStatementId.get(recordType.identity ?? "")
         : null;
       if (!definition) return null;
       const nested = parseRecordConstructorFields({ initializer: current.value, initializerSpan: current.valueSpan, definition });
