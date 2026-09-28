@@ -10,7 +10,13 @@ import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from ".
 import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
-import { moduleCarryBindingIdFor, moduleRecordExportFieldBindingIdFor } from "@nuinuicad/nui-language";
+import {
+  moduleCarryBindingIdFor,
+  moduleRecordExportFieldBindingIdFor,
+  moduleRecordParameterScalarBindingIdForPath,
+  moduleScalarBindingIdFor,
+  recordFieldCollectionValueIdFor
+} from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { GeometryInputTarget } from "../types/geometry";
@@ -1659,6 +1665,103 @@ describe("module scalar runtime integration", () => {
     });
   });
 
+  it("lowers optional Module record members through instance-local record collections", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record R(x: number)",
+      "module M(v: R?) {",
+      "  export const answer: number = @v?.x ?? 11",
+      "  const local: R? = R(x: 31)",
+      "  const localAbsent: R? = none",
+      "  export const localAnswer: number = @local?.x ?? 37",
+      "  export const localAbsentAnswer: number = @localAbsent?.x ?? 43",
+      "}",
+      "const callerPresent: R? = R(x: 9)",
+      "const callerAbsent: R? = none",
+      "instance Inline = M(v: R(x: 7))",
+      "instance Omitted = M()",
+      "instance ExplicitNone = M(v: none)",
+      "instance AliasPresent = M(v: @callerPresent)",
+      "instance AliasAbsent = M(v: @callerAbsent)",
+      "const inlineResult: number = @Inline::answer",
+      "const omittedResult: number = @Omitted::answer",
+      "const noneResult: number = @ExplicitNone::answer",
+      "const aliasPresentResult: number = @AliasPresent::answer",
+      "const aliasAbsentResult: number = @AliasAbsent::answer",
+      "module Required(v: R) {",
+      "  export const answer: number = @v.x",
+      "}",
+      "instance RequiredUse = Required(v: R(x: 13))",
+      "const requiredResult: number = @RequiredUse::answer",
+      "const rootPresent: R? = R(x: 19)",
+      "const rootAbsent: R? = none",
+      "const rootPresentResult: number = @rootPresent?.x ?? 11",
+      "const rootAbsentResult: number = @rootAbsent?.x ?? 11"
+    ].join("\n"), "say408-optional-record-module-parameter");
+    expectValid(compiled);
+
+    const inlineInstance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === "Inline")!;
+    const definition = compiled.moduleSemanticAnalysis!.definitionsByStatementId.get(inlineInstance.callee!.definitionStatementId)!;
+    const answer = definition.localScalars.find((candidate) => candidate.name === "answer")!;
+    const answerBindingId = moduleScalarBindingIdFor([inlineInstance.statementId], definition.statementId, answer.statementId);
+    const answerInitializer = compiled.scalarProgram!.statements.find((statement) => statement.bindingId === answerBindingId)?.declaration.initializer;
+    expect(answerInitializer?.kind).toBe("binary");
+    if (answerInitializer?.kind !== "binary" || answerInitializer.left.kind !== "optionalMember") {
+      throw new Error("expected the Module answer initializer to begin with an optional member read");
+    }
+    expect(answerInitializer.left.target?.kind).toBe("recordField");
+    if (answerInitializer.left.target?.kind !== "recordField") {
+      throw new Error("expected a resolved optional record-field target");
+    }
+
+    const recordAnalysis = compiled.sourceLexicalNamespace!.recordSemanticAnalysis!;
+    const parameter = recordAnalysis.moduleParameters.find((candidate) =>
+      candidate.definitionStatementId === definition.statementId && candidate.parameterIndex === 0
+    );
+    if (!parameter?.typeIdentity) throw new Error("expected the Module record parameter identity");
+    const field = recordAnalysis.definitionsByStatementId.get(parameter.typeIdentity)!.fields[0]!;
+    const parameterFieldBindingId = moduleRecordParameterScalarBindingIdForPath(
+      [inlineInstance.statementId],
+      definition.statementId,
+      parameter.parameterIndex,
+      [field.identity]
+    );
+    const parameterCollection = compiled.scalarProgram!.collectionValues!.find((collection) =>
+      collection.valueId.startsWith("module-record-parameter:") &&
+      collection.kind === "literal" &&
+      collection.members.some((member) => member.kind === "record" && member.fields.some((candidate) =>
+        candidate.bindingId === parameterFieldBindingId
+      ))
+    );
+    expect(parameterCollection).toBeDefined();
+    if (!parameterCollection) throw new Error("expected the Inline instance's whole-record parameter collection");
+    expect(parameterCollection.valueId).toMatch(/^module-record-parameter:/);
+    expect(answerInitializer.left.target.collectionValueId).toBe(
+      recordFieldCollectionValueIdFor(parameterCollection.valueId, field.identity)
+    );
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(valueFor("inlineResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+    expect(valueFor("omittedResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 11 } });
+    expect(valueFor("noneResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 11 } });
+    expect(valueFor("aliasPresentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+    expect(valueFor("aliasAbsentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 11 } });
+    expect(valueFor("requiredResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 13 } });
+    expect(valueFor("rootPresentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 19 } });
+    expect(valueFor("rootAbsentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 11 } });
+    expect(valueFor("Inline::localAnswer")).toMatchObject({ status: "ok", value: { kind: "number", value: 31 } });
+    expect(valueFor("Omitted::localAnswer")).toMatchObject({ status: "ok", value: { kind: "number", value: 31 } });
+    expect(valueFor("Inline::localAbsentAnswer")).toMatchObject({ status: "ok", value: { kind: "number", value: 43 } });
+  });
+
   it("retains genuine Module record and scalar binding errors", () => {
     const unknownField = compileWithIds([
       "nui 1",
@@ -1672,6 +1775,31 @@ describe("module scalar runtime integration", () => {
       expect.objectContaining({ code: "module-record-field-unknown" })
     ]));
     expect(unknownField.bindingIssueDiagnostics ?? []).toEqual([]);
+
+    const unknownOptionalField = compileWithIds([
+      "nui 1",
+      "record Config(amount: number)",
+      "module Extracted(config: Config?) {",
+      "const inside: number = @config?.missing ?? 0",
+      "}",
+      "instance Part = Extracted(config: Config(amount: 12))"
+    ].join("\n"), "say408-unknown-optional-record-field");
+    expect(unknownOptionalField.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-record-field-unknown" })
+    ]));
+
+    const nominalMismatch = compileWithIds([
+      "nui 1",
+      "record Config(amount: number)",
+      "record Other(amount: number)",
+      "module Extracted(config: Config?) {",
+      "const inside: number = @config?.amount ?? 0",
+      "}",
+      "instance Part = Extracted(config: Other(amount: 12))"
+    ].join("\n"), "say408-nominal-record-mismatch");
+    expect(nominalMismatch.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-record-reference-invalid" })
+    ]));
 
     const unguardedOptional = compileWithIds([
       "nui 1",
