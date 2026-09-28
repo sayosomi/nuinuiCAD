@@ -83,7 +83,7 @@ import {
   recordFieldCollectionValueIdFor
 } from "./recordScalarLowering";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
-import { isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
 import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 import type { GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
 import { immutableCarryCollectionValueId } from "./immutableCarryCompiler";
@@ -2046,8 +2046,9 @@ export const compileModuleScalarRuntime = ({
     const path = [...prefix, field.identity];
     const scalar = scalarExpressionTypeOfDslValueType(field.type);
     if (scalar) return [{ field: field.identity, path, type: scalar }];
-    if (field.type.kind !== "record") return [];
-    const nested = recordAnalysis?.definitionsByStatementId.get(field.type.identity ?? "");
+    const recordType = dslRequiredValueTypeOf(field.type);
+    if (!isDslRecordValueType(recordType)) return [];
+    const nested = recordAnalysis?.definitionsByStatementId.get(recordType.identity ?? "");
     return nested ? scalarFieldPathsFor(nested, path, recordAnalysis) : [];
   });
   const constructorFieldAtPath = (

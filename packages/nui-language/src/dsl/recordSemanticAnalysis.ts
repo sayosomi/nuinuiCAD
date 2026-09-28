@@ -658,9 +658,9 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
   }
 
   // Declaration parsing intentionally leaves nominal record references
-  // unresolved. Enrich every record field (including record elements inside a
-  // collection) with the same stable definition identity used by record
-  // values and Module parameters before downstream member resolution runs.
+  // unresolved. Enrich every record field, including references nested under
+  // optional and array wrappers, with the same stable definition identity used
+  // by record values and Module parameters before downstream member resolution.
   for (const definition of definitionsByStatementIndex.values()) {
     const statement = statements[definition.statementIndex];
     if (!statement || statement.kind !== "recordDefinition") continue;
@@ -676,9 +676,13 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         // reported with the original field span.
         return type;
       }
-      if (isDslArrayValueType(type) && type.elementType.kind === "record") {
-        const element = resolveFieldType(type.elementType, span);
-        return element === type.elementType ? type : { ...type, elementType: element as typeof type.elementType };
+      if (isDslOptionalValueType(type)) {
+        const valueType = resolveFieldType(type.valueType, span);
+        return valueType === type.valueType ? type : { ...type, valueType: valueType as typeof type.valueType };
+      }
+      if (isDslArrayValueType(type)) {
+        const elementType = resolveFieldType(type.elementType, span);
+        return elementType === type.elementType ? type : { ...type, elementType: elementType as typeof type.elementType };
       }
       return type;
     };

@@ -3509,6 +3509,29 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("evaluates optional nested-record fields through TypeScript and persistent Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Inner(x: number)",
+      "record Box(inner: Inner?)",
+      "const inner: Inner = Inner(x: 7)",
+      "const direct: Box = Box(inner: Inner(x: 7))",
+      "const directX: number? = @direct.inner?.x"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expect(evaluationPayloadToResult(tsPayload).errors).toEqual([]);
+    expect(evaluationPayloadToResult(rustPayload).errors).toEqual([]);
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "directX"), 7);
+    }
+  }, 30000);
+
   it("matches general optional member chaining for geometry, records, and collections", () => {
     const fixture = fixtureFromSource([
       "nui 1",

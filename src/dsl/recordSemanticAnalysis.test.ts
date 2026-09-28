@@ -85,6 +85,35 @@ describe("record nominal semantic analysis", () => {
     ]);
   });
 
+  it("preserves nominal identity through optional and array record field wrappers", () => {
+    const { records, namespace } = analyze([
+      "nui 1",
+      "record Inner(x: number)",
+      "record Box(inner: Inner?, related: Inner?[], collection: Inner[]?)"
+    ].join("\n"));
+
+    expect(namespace.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const fields = records.definitionsByStatementId.get("stable-2")?.fields;
+    expect(fields?.find((field) => field.name === "inner")?.type).toEqual({
+      kind: "optional",
+      valueType: { kind: "record", name: "Inner", identity: "stable-1" }
+    });
+    expect(fields?.find((field) => field.name === "related")?.type).toEqual({
+      kind: "array",
+      elementType: {
+        kind: "optional",
+        valueType: { kind: "record", name: "Inner", identity: "stable-1" }
+      }
+    });
+    expect(fields?.find((field) => field.name === "collection")?.type).toEqual({
+      kind: "optional",
+      valueType: {
+        kind: "array",
+        elementType: { kind: "record", name: "Inner", identity: "stable-1" }
+      }
+    });
+  });
+
   it("resolves record type and constructor names declared later", () => {
     const { namespace } = analyze([
       "nui 1",
