@@ -695,50 +695,84 @@ fn decode_version(
     ))
 }
 
-fn collect_references<'a>(expression: &'a TypedScalarExpression, output: &mut Vec<&'a str>) {
-    let mut work = vec![expression];
+fn collect_references<'a>(
+    expression: &'a TypedScalarExpression,
+    output: &mut Vec<(&'a str, bool)>,
+) {
+    enum WorkItem<'a> {
+        Visit(&'a TypedScalarExpression),
+        EnterLocal(&'a str),
+        ExitLocal(&'a str),
+    }
+
+    let mut work = vec![WorkItem::Visit(expression)];
+    let mut active_local_bindings = HashMap::<&str, usize>::new();
     while let Some(node) = work.pop() {
         match node {
-            TypedScalarExpression::Reference {
-                binding_id: Some(id),
-                ..
-            } => output.push(id),
-            TypedScalarExpression::CollectionIndex { index, .. } => work.push(index),
-            TypedScalarExpression::Unary { operand, .. }
-            | TypedScalarExpression::Group {
-                expression: operand,
-                ..
-            } => work.push(operand),
-            TypedScalarExpression::Binary { left, right, .. } => {
-                work.push(left);
-                work.push(right);
+            WorkItem::EnterLocal(binding_id) => {
+                *active_local_bindings.entry(binding_id).or_default() += 1;
             }
-            TypedScalarExpression::ValueIf {
-                condition,
-                then_branch,
-                else_branch,
-                ..
-            } => {
-                work.push(condition);
-                work.push(then_branch);
-                work.push(else_branch);
-            }
-            TypedScalarExpression::ValueMatch {
-                scrutinee, arms, ..
-            } => {
-                work.push(scrutinee);
-                for arm in arms {
-                    work.push(&arm.expression);
+            WorkItem::ExitLocal(binding_id) => {
+                let remove = if let Some(count) = active_local_bindings.get_mut(binding_id) {
+                    *count -= 1;
+                    *count == 0
+                } else {
+                    false
+                };
+                if remove {
+                    active_local_bindings.remove(binding_id);
                 }
             }
-            TypedScalarExpression::Call { args, .. } => {
-                for argument in args {
-                    if let TypedBuiltinArgument::Scalar { expression } = argument {
-                        work.push(expression);
+            WorkItem::Visit(node) => match node {
+                TypedScalarExpression::Reference {
+                    binding_id: Some(id),
+                    ..
+                } => output.push((id, active_local_bindings.contains_key(id.as_str()))),
+                TypedScalarExpression::CollectionIndex { index, .. } => {
+                    work.push(WorkItem::Visit(index))
+                }
+                TypedScalarExpression::Unary { operand, .. }
+                | TypedScalarExpression::Group {
+                    expression: operand,
+                    ..
+                } => work.push(WorkItem::Visit(operand)),
+                TypedScalarExpression::Binary { left, right, .. } => {
+                    work.push(WorkItem::Visit(left));
+                    work.push(WorkItem::Visit(right));
+                }
+                TypedScalarExpression::ValueIf {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    work.push(WorkItem::Visit(condition));
+                    work.push(WorkItem::Visit(then_branch));
+                    work.push(WorkItem::Visit(else_branch));
+                }
+                TypedScalarExpression::ValueMatch {
+                    scrutinee, arms, ..
+                } => {
+                    for arm in arms.iter().rev() {
+                        if let Some(binding_id) = arm.binder_id.as_deref() {
+                            work.push(WorkItem::ExitLocal(binding_id));
+                            work.push(WorkItem::Visit(&arm.expression));
+                            work.push(WorkItem::EnterLocal(binding_id));
+                        } else {
+                            work.push(WorkItem::Visit(&arm.expression));
+                        }
+                    }
+                    work.push(WorkItem::Visit(scrutinee));
+                }
+                TypedScalarExpression::Call { args, .. } => {
+                    for argument in args {
+                        if let TypedBuiltinArgument::Scalar { expression } = argument {
+                            work.push(WorkItem::Visit(expression));
+                        }
                     }
                 }
-            }
-            _ => {}
+                _ => {}
+            },
         }
     }
 }
@@ -1207,8 +1241,8 @@ pub(crate) fn validate_binding_versions_payload(
         if let Some(expression) = expression {
             let mut references = Vec::new();
             collect_references(expression, &mut references);
-            for reference in references {
-                if binding_ids.contains(reference) {
+            for (reference, is_match_arm_local) in references {
+                if is_match_arm_local || binding_ids.contains(reference) {
                     continue;
                 }
                 if listed_iteration_binding_ids.contains(reference) {
@@ -1226,8 +1260,9 @@ pub(crate) fn validate_binding_versions_payload(
             for expression in [&carry.initializer, &carry.next_expression] {
                 let mut references = Vec::new();
                 collect_references(expression, &mut references);
-                for reference in references {
-                    if binding_ids.contains(reference)
+                for (reference, is_match_arm_local) in references {
+                    if is_match_arm_local
+                        || binding_ids.contains(reference)
                         || listed_iteration_binding_ids.contains(reference)
                     {
                         continue;
