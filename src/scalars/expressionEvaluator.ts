@@ -51,7 +51,7 @@ export interface ScalarEvaluationEnvironment {
   lookupCollectionIndex?: (
     collectionValueId: string,
     index: number,
-    elementType: ScalarType,
+    elementType: ScalarExpressionType,
     collectionLength: number | null,
     targetSourceOrder: number
   ) => ScalarEvaluation;
@@ -245,7 +245,6 @@ const evaluateCollectionIndex = (
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
   if (node.type === null || node.collectionValueId === null || node.targetSourceOrder === null) return staticTypeNullError();
-  if (isDslOptionalValueType(node.type)) return { status: "error", type: node.type, issueCode: "evaluation-collection-index-unavailable" };
   const index = evaluateTypedExpression(node.index, environment);
   if (index.status === "error") return propagateError(node.type, index);
   if (

@@ -400,7 +400,7 @@ export const createScalarProgramCollectionResolver = (
   const indexFor = (
     collectionValueId: string,
     index: number,
-    elementType: ScalarType,
+    elementType: ScalarExpressionType,
     collectionLength: number | null,
     targetSourceOrder: number,
     sourceOrder: number,

@@ -12,7 +12,7 @@ import type {
   TypedBuiltinArgument,
   TypedScalarExpression
 } from "@nuinuicad/nui-language";
-import type { ScalarEvaluation, ScalarType } from "@nuinuicad/nui-language";
+import type { ScalarEvaluation, ScalarExpressionType, ScalarType } from "@nuinuicad/nui-language";
 import type { ComputedGeometry, ComputedLine, ComputedPoint } from "../types/geometry";
 
 type TypedExpressionVector = {
@@ -312,7 +312,7 @@ describe("evaluateTypedExpression / exhaustive choice value-match", () => {
 });
 
 describe("evaluateTypedExpression / collection index", () => {
-  const collectionIndex = (index: TypedScalarExpression, type: ScalarType = { kind: "number" }): TypedScalarExpression => ({
+  const collectionIndex = (index: TypedScalarExpression, type: ScalarExpressionType = { kind: "number" }): TypedScalarExpression => ({
     kind: "collectionIndex",
     span: { start: 0, end: 0 },
     nameSpan: { start: 1, end: 6 },
@@ -332,6 +332,21 @@ describe("evaluateTypedExpression / collection index", () => {
         return { status: "ok", type: { kind: "number" }, value: { kind: "number", value: 20 } };
       }
     })).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 20 } });
+  });
+
+  it.each([
+    ["present optional number", { kind: "number", value: 7 }],
+    ["none optional number", { kind: "none" }]
+  ] as const)("returns a %s member with its exact optional element type", (_label, value) => {
+    const optionalNumber = { kind: "optional", valueType: { kind: "number" } } as const;
+    expect(evaluateTypedExpression(collectionIndex(numberLiteral(0), optionalNumber), {
+      lookupBinding: () => ({ status: "error", type: { kind: "number" }, issueCode: "unused" }),
+      lookupCollectionIndex: (_valueId, _index, elementType) => ({
+        status: "ok",
+        type: elementType,
+        value
+      })
+    })).toEqual({ status: "ok", type: optionalNumber, value });
   });
 
   it.each([-1, 3, 1.5, Number.POSITIVE_INFINITY, Number.NaN])("rejects invalid runtime index %j", (value) => {

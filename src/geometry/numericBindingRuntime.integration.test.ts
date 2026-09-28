@@ -199,6 +199,75 @@ describe("general numeric typed binding runtime", () => {
     expect((result.computedGeometry.get(point(compiled, "Combined").id) as { x: number }).x).toBe(10);
   });
 
+  it("preserves optional scalar collection-index types, values, aliases, widening, and length", () => {
+    const compiled = compile([
+      "nui 1",
+      "const values: number?[] = [7]",
+      "const selected: number? = @values[0]",
+      "const noneValues: number?[] = [none]",
+      "const selectedNone: number? = @noneValues[0]",
+      "const mixed: number?[] = [2, none, 5]",
+      "const first: number? = @mixed[0]",
+      "const middle: number? = @mixed[1]",
+      "const last: number? = @mixed[2]",
+      "const alias: number?[] = @mixed",
+      "const aliasFirst: number? = @alias[0]",
+      "const aliasNone: number? = @alias[1]",
+      "const requiredValues: number[] = [3, 8]",
+      "const required: number = @requiredValues[1]",
+      "const widened: number? = @requiredValues[0]",
+      "const count: number = @values.length"
+    ].join("\n"));
+    const errors = compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+    expect(errors).toEqual([]);
+
+    const initializerFor = (name: string) => {
+      const statement = compiled.scalarProgram?.statements.find((candidate) =>
+        compiled.bindingAnalysis?.catalog.bindingsById.get(candidate.bindingId)?.name === name
+      );
+      return statement?.declaration.initializer;
+    };
+    const optionalNumber = { kind: "optional", valueType: { kind: "number" } } as const;
+    expect(initializerFor("selected")).toMatchObject({ kind: "collectionIndex", type: optionalNumber });
+    expect(initializerFor("required")).toMatchObject({ kind: "collectionIndex", type: { kind: "number" } });
+    expect(initializerFor("widened")).toMatchObject({ kind: "collectionIndex", type: { kind: "number" } });
+
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([]);
+    const evaluationFor = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(evaluationFor("selected")).toEqual({
+      status: "ok", type: optionalNumber, value: { kind: "number", value: 7 }
+    });
+    expect(evaluationFor("selectedNone")).toEqual({
+      status: "ok", type: optionalNumber, value: { kind: "none" }
+    });
+    expect(evaluationFor("first")).toEqual({ status: "ok", type: optionalNumber, value: { kind: "number", value: 2 } });
+    expect(evaluationFor("middle")).toEqual({ status: "ok", type: optionalNumber, value: { kind: "none" } });
+    expect(evaluationFor("last")).toEqual({ status: "ok", type: optionalNumber, value: { kind: "number", value: 5 } });
+    expect(evaluationFor("aliasFirst")).toEqual({ status: "ok", type: optionalNumber, value: { kind: "number", value: 2 } });
+    expect(evaluationFor("aliasNone")).toEqual({ status: "ok", type: optionalNumber, value: { kind: "none" } });
+    expect(evaluationFor("required")).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 8 } });
+    expect(evaluationFor("widened")).toEqual({ status: "ok", type: optionalNumber, value: { kind: "number", value: 3 } });
+    expect(evaluationFor("count")).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value: 1 } });
+  });
+
+  it.each([
+    ["required number", "const invalid: number = @values[0]"],
+    ["incompatible optional string", "const invalid: string? = @values[0]"]
+  ])("keeps optional collection indexing invalid for a %s target", (_label, declaration) => {
+    const result = compileCanonicalText(
+      regenerateCanonicalFromModel(emptyDocument(), 1),
+      ["nui 1", "const values: number?[] = [7]", declaration].join("\n")
+    );
+    expect(result.status).toBe("fatal");
+    const codes = result.diagnostics.filter((diagnostic) => diagnostic.severity === "error").map((diagnostic) => diagnostic.code);
+    expect(codes).toContain("scalar-type-mismatch");
+    expect(codes).not.toContain("scalar-namespace-type-mismatch");
+  });
+
   it("uses an immutable binding at each geometry statement", () => {
     const compiled = compile([
       "nui 1",

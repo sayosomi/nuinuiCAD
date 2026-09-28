@@ -52,6 +52,7 @@ import {
 } from "./scalarProgram";
 import type { ScalarExpressionType, ScalarType } from "./types";
 import type { ScalarValue } from "./types";
+import { scalarValueMatchesType } from "./types";
 import type {
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedGeometryTarget,
@@ -2901,20 +2902,28 @@ export const compileModuleScalarRuntime = ({
 
   const scalarCollectionMemberFromLiteral = (
     sourceText: string,
-    type: ScalarType
+    type: ScalarExpressionType
   ): ScalarProgramCollectionMember | null => {
+    if (sourceText.trim() === "none") {
+      return type.kind === "optional" ? { kind: "literal", type, value: { kind: "none" } } : null;
+    }
     const literal = scanScalarLiteral(sourceText, { start: 0, end: sourceText.length });
     if (literal.kind === "error" || literal.span.start !== 0 || literal.span.end !== sourceText.length) return null;
+    const choiceType = type.kind === "choice"
+      ? type
+      : type.kind === "optional" && type.valueType.kind === "choice"
+        ? type.valueType
+        : null;
     const value: ScalarValue | null = literal.kind === "number"
       ? { kind: "number", value: literal.value }
       : literal.kind === "string"
         ? { kind: "string", value: literal.cooked }
         : literal.kind === "boolean"
           ? { kind: "boolean", value: literal.value }
-          : type.kind === "choice" && literal.kind === "choice"
-            ? { kind: "choice", value: literal.raw, options: type.options }
+          : choiceType && literal.kind === "choice"
+            ? { kind: "choice", value: literal.raw, options: choiceType.options }
             : null;
-    return value ? { kind: "literal", type, value } : null;
+    return value && scalarValueMatchesType(type, value) ? { kind: "literal", type, value } : null;
   };
 
   const recordCollectionMemberForTarget = (
@@ -3510,7 +3519,7 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "none" });
         return;
       }
-      const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
+      const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       if (value.valueType.elementType.kind === "record") {
         const members = value.members.flatMap((member) => {
           const record = recordCollectionMemberForTarget(member.target, value.valueType.elementType.kind === "record" ? value.valueType.elementType.identity ?? "" : "", context);
@@ -3597,7 +3606,7 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "none" });
         continue;
       }
-      const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
+      const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       if (value.valueType.elementType.kind === "record") {
         const members = value.value.members.flatMap((member) => {
           const record = recordCollectionMemberForTarget(member.target, value.valueType.elementType.kind === "record" ? value.valueType.elementType.identity ?? "" : "", context);
@@ -3891,7 +3900,7 @@ export const compileModuleScalarRuntime = ({
         foreignCollectionValues.push({ valueId, kind: "none" });
         return;
       }
-      const elementType = scalarTypeOfDslValueType(value.valueType.elementType);
+      const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       if (!elementType) return;
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of value.members) {
