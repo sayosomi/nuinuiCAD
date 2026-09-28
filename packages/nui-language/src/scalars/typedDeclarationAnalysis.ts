@@ -282,20 +282,25 @@ const referenceResolutionsForAst = (
       const resolved = collectionResolutions.get(node.span.start);
       if (resolved) output.push(resolved);
       else output.push(ordinary[cursor++]!);
-      visit(node.index);
+      visit(node.index, boundNames);
       return;
     }
     if (node.kind === "geometryProperty") {
-      if (node.occurrenceIndex) visit(node.occurrenceIndex);
+      if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames);
       return;
     }
     if (node.kind === "optionalMember") return;
-    if (node.kind === "unary") return visit(node.operand);
-    if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
-    if (node.kind === "group") return visit(node.expression);
-    if (node.kind === "valueIf") { visit(node.condition); visit(node.thenBranch); if (node.elseBranch) visit(node.elseBranch); return; }
+    if (node.kind === "unary") return visit(node.operand, boundNames);
+    if (node.kind === "binary") { visit(node.left, boundNames); visit(node.right, boundNames); return; }
+    if (node.kind === "group") return visit(node.expression, boundNames);
+    if (node.kind === "valueIf") {
+      visit(node.condition, boundNames);
+      visit(node.thenBranch, boundNames);
+      if (node.elseBranch) visit(node.elseBranch, boundNames);
+      return;
+    }
     if (node.kind === "valueMatch") { visit(node.scrutinee, boundNames); node.arms.forEach((arm) => visit(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames)); return; }
-    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression));
+    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression, boundNames));
   };
   visit(ast);
   if (cursor !== ordinary.length) throw new Error("typedDeclarationAnalysis: scalar reference resolution sequence is out of sync");

@@ -157,6 +157,45 @@ describe("record scalar lowering planner", () => {
     expect(first).not.toBe(second);
   });
 
+  it("preserves authored optional-match binder metadata when projecting record fields", () => {
+    const source = [
+      "nui 1",
+      "record Pair(x: number)",
+      "const present: number? = 7",
+      "const side: choice(left, right) = left",
+      "const selected: Pair = match @present { none => Pair(x: 0) some payloadValue => Pair(x: @payloadValue) }",
+      "const byChoice: Pair = match @side { left => Pair(x: 1) right => Pair(x: 2) }"
+    ].join("\n");
+    const { sourceNamespace, records } = analyze(source);
+    const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
+    const projectedOptionalMatch = plan.initializers.find((initializer) =>
+      initializer.recordValueStatementId === "stable-4"
+    )?.ast;
+    const projectedChoiceMatch = plan.initializers.find((initializer) =>
+      initializer.recordValueStatementId === "stable-5"
+    )?.ast;
+
+    expect(projectedOptionalMatch?.kind).toBe("valueMatch");
+    if (projectedOptionalMatch?.kind !== "valueMatch") throw new Error("expected projected optional valueMatch");
+    const [noneArm, someArm] = projectedOptionalMatch.arms;
+    const authoredMatch = records.valuesByStatementId.get("stable-4")?.valueExpression;
+    const authoredBinderSpan = authoredMatch?.kind === "match" ? authoredMatch.arms[1]?.binderSpan : undefined;
+    expect(noneArm).not.toHaveProperty("binder");
+    expect(noneArm).not.toHaveProperty("binderSpan");
+    expect(someArm).toMatchObject({
+      binder: "payloadValue",
+      binderSpan: authoredBinderSpan,
+      expression: { kind: "reference", name: "payloadValue" }
+    });
+
+    expect(projectedChoiceMatch?.kind).toBe("valueMatch");
+    if (projectedChoiceMatch?.kind !== "valueMatch") throw new Error("expected projected choice valueMatch");
+    for (const arm of projectedChoiceMatch.arms) {
+      expect(arm).not.toHaveProperty("binder");
+      expect(arm).not.toHaveProperty("binderSpan");
+    }
+  });
+
   it("prepares a record field as an ordinary typed scalar reference while preserving field identity and spans", () => {
     const { sourceNamespace, records } = analyze([
       "nui 1",
