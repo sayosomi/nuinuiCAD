@@ -1934,7 +1934,10 @@ export const evaluateElements = (
               target,
               numericSourceOrder,
               (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding)
-            )
+            ),
+        numericSourceOrder === undefined || !scalarBindingResolver?.resolveOptionalMember
+          ? undefined
+          : (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, numericSourceOrder)
       );
       if (!materialized.ok) {
         errors.push(materialized.error);

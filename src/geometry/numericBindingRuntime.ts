@@ -11,7 +11,12 @@ import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
 import type { GeometryBuiltinTargetLookupResult } from "../scalars/expressionEvaluator";
-import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "@nuinuicad/nui-language";
+import type {
+  ScalarExpressionResolvedGeometryTarget,
+  ScalarExpressionResolvedOptionalMemberTarget,
+  ScalarExpressionType,
+  TypedScalarExpression
+} from "@nuinuicad/nui-language";
 import { getParameterValue, setParameterValue } from "@nuinuicad/nui-language";
 import { isNumericExpression } from "./numericExpressions";
 import { geometryError } from "./evaluationContext";
@@ -104,6 +109,10 @@ type NumericBindingGeometryResolveFn = (
 type NumericBindingGeometryTargetResolveFn = (
   target: ScalarExpressionResolvedGeometryTarget
 ) => GeometryBuiltinTargetLookupResult | undefined;
+type NumericBindingOptionalMemberResolveFn = (
+  target: ScalarExpressionResolvedOptionalMemberTarget,
+  type: ScalarExpressionType
+) => ScalarEvaluation;
 
 export type NumericMaterializationResult =
   | { ok: true; element: CadElement }
@@ -120,7 +129,8 @@ export const materializeNumericBindingElement = (
   entries: readonly NumericBindingRuntimeEntry[] | undefined,
   resolveBinding: NumericBindingResolveFn,
   resolveGeometryProperty?: NumericBindingGeometryResolveFn,
-  resolveGeometryTarget?: NumericBindingGeometryTargetResolveFn
+  resolveGeometryTarget?: NumericBindingGeometryTargetResolveFn,
+  resolveOptionalMember?: NumericBindingOptionalMemberResolveFn
 ): NumericMaterializationResult => {
   if (!entries?.length) return { ok: true, element };
   let materialized = element;
@@ -133,7 +143,8 @@ export const materializeNumericBindingElement = (
       const evaluation = evaluateTypedExpression(entry.typedExpression, {
         lookupBinding: resolveBinding,
         ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {}),
-        ...(resolveGeometryTarget ? { lookupGeometryTarget: resolveGeometryTarget } : {})
+        ...(resolveGeometryTarget ? { lookupGeometryTarget: resolveGeometryTarget } : {}),
+        ...(resolveOptionalMember ? { lookupOptionalMember: resolveOptionalMember } : {})
       });
       if (evaluation.status !== "ok" || evaluation.type.kind !== "number" || evaluation.value.kind !== "number" || !Number.isFinite(evaluation.value.value)) {
         return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };

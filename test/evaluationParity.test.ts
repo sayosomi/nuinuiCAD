@@ -918,6 +918,50 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("evaluates optional record members in numeric geometry inputs through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record R(x: number)",
+      "const value: R? = R(x: 7)",
+      "const missing: R? = none",
+      "point RootPresent = coordinate(x: @value?.x ?? 11, y: 0)",
+      "point RootAbsent = coordinate(x: @missing?.x ?? 11, y: 0)",
+      "module M(v: R?) {",
+      "  point P = coordinate(x: @v?.x ?? 11, y: 0)",
+      "}",
+      "instance Present = M(v: R(x: 7))",
+      "instance Absent = M()"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const rustPayload = await rustStdio!.evaluateInput(buildRustEvaluationInput(fixture.elements, options));
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const semantic = fixture.compiled!.doc.moduleSemanticAnalysis!;
+    const rootPresent = fixture.elements.find((element) => element.name === "RootPresent")!;
+    const rootAbsent = fixture.elements.find((element) => element.name === "RootAbsent")!;
+    const modulePointFor = (instanceName: string) => {
+      const instance = semantic.instances.find((candidate) => candidate.name === instanceName)!;
+      const element = fixture.elements.find((candidate) =>
+        candidate.name === "P" && options.moduleMaterialization?.originByRuntimeElementId.get(candidate.id)?.instancePath[0] === instance.statementId
+      );
+      if (!element) throw new Error(`missing materialized point for ${instanceName}`);
+      return element;
+    };
+    const presentPoint = modulePointFor("Present");
+    const absentPoint = modulePointFor("Absent");
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(rootPresent.id)).toMatchObject({ kind: "point", x: 7 });
+      expect(result.computedGeometry.get(rootAbsent.id)).toMatchObject({ kind: "point", x: 11 });
+      expect(result.computedGeometry.get(presentPoint.id)).toMatchObject({ kind: "point", x: 7 });
+      expect(result.computedGeometry.get(absentPoint.id)).toMatchObject({ kind: "point", x: 11 });
+    }
+  }, 30000);
+
   it("executes optional Module scalar carries through TypeScript and persistent Rust", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

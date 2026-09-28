@@ -3765,6 +3765,9 @@ export const compileModuleScalarRuntime = ({
       appendRecordFieldProjection(site.expression, null);
       appendOptionalMemberProjection(site.expression, null);
     }
+    for (const sites of moduleSemanticAnalysis.rootElementScalarExpressionsByStatementId.values()) {
+      for (const site of sites) appendOptionalMemberProjection(site.expression, null);
+    }
     return moduleCollectionValues;
   };
   const foreignCollectionValues: ScalarProgramCollection[] = [];
@@ -4730,6 +4733,38 @@ export const compileModuleScalarRuntime = ({
     if (target.kind === "iteration") return documentIterationBindingForTarget(target);
     return undefined;
   };
+
+  const statementIndexByIdentity = new Map(
+    [...stableStatementIdByIndex].map(([statementIndex, statementId]) => [statementId, statementIndex] as const)
+  );
+  for (const [statementId, sites] of moduleSemanticAnalysis.rootElementScalarExpressionsByStatementId) {
+    const statementIndex = statementIndexByIdentity.get(statementId);
+    if (statementIndex === undefined) continue;
+    const elementId = reconciledContainers.elementIdByStatementIndex.get(statementIndex);
+    if (!elementId) continue;
+    const element = elements.find((candidate) => candidate.id === elementId);
+    if (!element) continue;
+    for (const site of sites) {
+      if (!site.parameterKey || !site.expression.optionalMembers?.length) continue;
+      const lowered = lowerExpression(
+        site.expression,
+        (target, _name, targetStatementIndex) => rootBindingForTarget(target, targetStatementIndex),
+        bindingsById,
+        rootGeometryPropertyFor,
+        rootCollectionLengthFor,
+        resolvedGeometryBuiltinForRoot,
+        (valueId) => collectionValueIdFor(valueId, null),
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+      );
+      const numeric = numericSourceForModuleSite(
+        element,
+        site,
+        (target, _name, targetStatementIndex) => rootBindingForTarget(target, targetStatementIndex),
+        lowered.expression
+      );
+      if (numeric) materializedNumericBindings.push({ elementId, binding: numeric });
+    }
+  }
 
   const moduleCollectionValues = buildModuleCollectionValues();
 

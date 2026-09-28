@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
-import { emptyDocument } from "@nuinuicad/nui-language";
+import { emptyDocument, recordFieldCollectionValueIdFor, recordValueCollectionIdFor } from "@nuinuicad/nui-language";
 import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 
@@ -17,7 +17,8 @@ const optionsFor = (compiled: LastGoodDslDocument): EvaluateElementsOptions => (
   statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
   numericBindingEntries: buildNumericBindingRuntimeEntries({
     numericBindings: compiled.numericBindings ?? new Map(),
-    elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex
+    elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
+    materializedNumericBindings: compiled.materializedNumericBindings
   }, compiled.document.elements)
 });
 
@@ -28,6 +29,52 @@ const point = (compiled: LastGoodDslDocument, name: string) => {
 };
 
 describe("general numeric typed binding runtime", () => {
+  it.each([
+    ["R(x: 7)", 7],
+    ["none", 11]
+  ] as const)("materializes a root optional record member initialized with %s in numeric geometry input", (initializer, expected) => {
+    const compiled = compile([
+      "nui 1",
+      "record R(x: number)",
+      `const value: R? = ${initializer}`,
+      "point P = coordinate(x: @value?.x ?? 11, y: 0)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const pointElement = point(compiled, "P");
+    const numeric = (compiled.materializedNumericBindings ?? []).find((entry) =>
+      entry.elementId === pointElement.id && entry.binding.parameterKey === "x"
+    )?.binding;
+    expect(numeric?.typedExpression).toMatchObject({
+      kind: "binary",
+      left: { kind: "optionalMember", target: { kind: "recordField" } }
+    });
+    if (numeric?.typedExpression?.kind !== "binary" || numeric.typedExpression.left.kind !== "optionalMember") {
+      throw new Error("expected a materialized typed optional-member expression");
+    }
+    const target = numeric.typedExpression.left.target;
+    expect(target?.kind).toBe("recordField");
+    if (initializer !== "none") {
+      const recordValue = compiled.moduleSemanticAnalysis!.rootRecordValuesByStatementId.values().next().value;
+      if (!recordValue || target?.kind !== "recordField") throw new Error("expected a compiler-resolved root record-field target");
+      expect(target.collectionValueId).toBe(recordFieldCollectionValueIdFor(
+        recordValueCollectionIdFor([], recordValue.value.statementId),
+        target.field
+      ));
+      const fieldDefinition = compiled.sourceLexicalNamespace!.recordSemanticAnalysis!.definitionsByStatementId
+        .get(target.field.recordStatementId)?.fields.find((field) => field.fieldIndex === target.field.fieldIndex);
+      expect(fieldDefinition?.identity).toMatchObject({
+        recordStatementId: target.field.recordStatementId,
+        fieldIndex: target.field.fieldIndex
+      });
+      expect(target.targetSourceOrder).toBeGreaterThanOrEqual(0);
+    }
+
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([]);
+    expect((result.computedGeometry.get(pointElement.id) as { x: number }).x).toBe(expected);
+  });
+
   it.each([
     ["2 ^ 3", 8],
     ["5 % 3", 2],
@@ -136,6 +183,20 @@ describe("general numeric typed binding runtime", () => {
     const geometry = result.computedGeometry.get(point(compiled, "B").id) as { x: number };
     expect(result.errors).toEqual([]);
     expect(geometry.x).toBe(5);
+  });
+
+  it("keeps numeric collection indexing and length available through the typed materialization boundary", () => {
+    const compiled = compile([
+      "nui 1",
+      "const values: number[] = [3, 8]",
+      "const item: number = @values[1]",
+      "const count: number = @values.length",
+      "point Combined = coordinate(x: @item + @count, y: 0)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.errors).toEqual([]);
+    expect((result.computedGeometry.get(point(compiled, "Combined").id) as { x: number }).x).toBe(10);
   });
 
   it("uses an immutable binding at each geometry statement", () => {
