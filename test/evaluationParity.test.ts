@@ -3485,6 +3485,134 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches optional Module geometry collection binders through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "module M(optional: point[]?) {",
+      "  const binderLength: number = match @optional { none => 0 some items => @items.length }",
+      "  export const result: number = @binderLength",
+      "}",
+      "instance Present = M(optional: [@A, @B])",
+      "instance Absent = M(optional: none)",
+      "const presentResult: number = @Present::result",
+      "const absentResult: number = @Absent::result"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    console.log("SAY415 Rust collection nodes", JSON.stringify(rustInput.geometryCollectionNodes));
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentResult"), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "absentResult"), 0);
+    }
+  }, 30000);
+
+  it("keeps present empty optional collections on the some arm through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const xs: number[]? = []",
+      "const absent: number[]? = none",
+      "const result: number = match @xs { none => 1 some items => 2 }",
+      "const presentLength: number = match @xs { none => -1 some items => @items.length }",
+      "const absentResult: number = match @absent { none => 1 some items => 2 }"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "result"), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentLength"), 0);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "absentResult"), 1);
+    }
+  }, 30000);
+
+  it("matches optional geometry collection binders through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const points: point[]? = [@A, @B]",
+      "const absent: point[]? = none",
+      "const selected: point[] = match @points { none => [] some items => @items }",
+      "const absentSelected: point[] = match @absent { none => [@A] some items => @items }",
+      "const presentLength: number = match @points { none => -1 some items => @items.length }",
+      "const absentArm: number = match @absent { none => 1 some items => @items.length }",
+      "line Selected = segment(start: @selected[0], end: @selected[1])",
+      "line AbsentSelected = segment(start: @absentSelected[0], end: @absentSelected[0])"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    const selected = fixture.elements.find((element) => element.name === "Selected")!;
+    const absentSelected = fixture.elements.find((element) => element.name === "AbsentSelected")!;
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentLength"), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "absentArm"), 1);
+      expect(result.computedGeometry.get(selected.id)).toMatchObject({
+        kind: "line",
+        start: { x: 1, y: 2 },
+        end: { x: 3, y: 4 }
+      });
+      expect(result.computedGeometry.get(absentSelected.id)).toMatchObject({
+        kind: "line",
+        start: { x: 1, y: 2 },
+        end: { x: 1, y: 2 }
+      });
+    }
+  }, 30000);
+
+  it("matches optional nominal-record collection binders through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const first: Pair = Pair(x: 1, label: "first")',
+      'const second: Pair = Pair(x: 2, label: "second")',
+      "const pairs: Pair[]? = [@first, @second]",
+      "const absent: Pair[]? = none",
+      "const selected: Pair[] = match @pairs { none => [] some items => @items }",
+      "const presentLength: number = match @pairs { none => -1 some items => @items.length }",
+      "const indexedX: number = @selected[1].x",
+      "const selectedLabel: string = @selected[1].label",
+      "const absentArm: number = match @absent { none => 1 some items => @items.length }"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentLength"), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "indexedX"), 2);
+      expect(scalarBindingFor(fixture, payload, "selectedLabel")).toMatchObject({
+        status: "ok",
+        value: { kind: "string", value: "second" }
+      });
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "absentArm"), 1);
+    }
+  }, 30000);
+
   it("resolves optional geometry collection length through persistent Rust stdio", async () => {
     const cases: Array<{
       name: string;

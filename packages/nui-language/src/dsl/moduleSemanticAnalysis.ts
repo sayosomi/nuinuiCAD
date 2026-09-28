@@ -1276,6 +1276,47 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   ): ModuleOptionalCollectionMatchResolution | null => {
     const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
     if (!collectionAnalysis) return null;
+    const referencePath = parseDslReferenceToken(reference.name);
+    const parameter = referencePath.segments.length === 1 && !referencePath.absolute
+      ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, referencePath.segments[0]!)
+      : null;
+    const parameterValueType = parameter?.parameter.valueType ?? null;
+    const requiredParameterValueType = dslRequiredValueTypeOf(parameterValueType);
+    if (
+      parameter &&
+      isDslOptionalValueType(parameterValueType) &&
+      requiredParameterValueType &&
+      isDslArrayValueType(requiredParameterValueType) &&
+      isDslGeometryValueType(requiredParameterValueType.elementType)
+    ) {
+      const valueType = requiredParameterValueType as DslArrayValueType;
+      const collectionValueId = `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`;
+      const target: ModuleScalarSourceTarget = {
+        kind: "collectionParameter",
+        definitionStatementId: parameter.definitionStatementId,
+        parameterIndex: parameter.parameterIndex,
+        valueType,
+        optional: true
+      };
+      return {
+        reference: {
+          target,
+          type: scalarExpressionTypeOfDslValueType(valueType.elementType),
+          resolution: "resolved",
+          collectionValueId,
+          collectionLength: null,
+          targetSourceOrder: -1
+        },
+        match: {
+          kind: "resolvedOptionalCollectionMatch",
+          type: parameterValueType,
+          valueType,
+          collectionValueId,
+          collectionLength: null,
+          targetSourceOrder: -1
+        }
+      };
+    }
     const resolvedCollection = resolveCollectionIndex(statementIndex, ownerIndex, reference);
     const target = resolvedCollection.target;
     let optionalValueType: DslValueType | null = null;
@@ -1294,7 +1335,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       collectionLength = null;
       targetSourceOrder = -1;
     } else if (target?.kind === "collectionValue") {
-      optionalValueType = collectionAnalysis.genericValuesByStatementId.get(target.statementId)?.declaredValueType ?? null;
+      const collection = collectionValueSemanticForStatement(collectionAnalysis, target.statementIndex);
+      optionalValueType = collection?.statementId === target.statementId ? collection.declaredValueType : null;
       collectionValueId = target.statementId;
       collectionLength = collectionLengthForValueId(collectionAnalysis, target.statementId);
       targetSourceOrder = target.statementIndex;

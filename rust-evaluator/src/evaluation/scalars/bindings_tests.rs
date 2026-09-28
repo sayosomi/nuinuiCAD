@@ -10,10 +10,11 @@ use std::collections::HashMap;
 use super::bindings::{scalar_evaluation_json, ScalarBindingResolver};
 use super::program_payload::{ValidatedScalarProgram, ValidatedScalarProgramStatement};
 use super::types::{
-    ScalarEvaluation, ScalarEvaluationErrorContext, ScalarSpan, ScalarType, ScalarValue,
-    TypedScalarExpression,
+    ScalarEvaluation, ScalarEvaluationErrorContext, ScalarExpressionResolvedOptionalMemberTarget,
+    ScalarSpan, ScalarType, ScalarValue, TypedScalarExpression,
 };
-use crate::evaluation::types::EvaluationState;
+use crate::evaluation::scalar_expression_runtime;
+use crate::evaluation::types::{EvaluationState, GeometryInputCollectionNode, GeometryInputTarget};
 
 const SPAN: ScalarSpan = ScalarSpan { start: 0, end: 0 };
 
@@ -32,6 +33,26 @@ fn reference(name: &str, binding_id: &str) -> TypedScalarExpression {
         name: name.to_owned(),
         binding_id: Some(binding_id.to_owned()),
         r#type: Some(ScalarType::Number),
+    }
+}
+
+fn optional_collection_length(collection_value_id: &str) -> TypedScalarExpression {
+    TypedScalarExpression::OptionalMember {
+        span: SPAN,
+        receiver_span: SPAN,
+        operator_span: SPAN,
+        member_span: SPAN,
+        member: "length".to_owned(),
+        target: Some(
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
+                collection_value_id: collection_value_id.to_owned(),
+                collection_length: None,
+                target_source_order: 0.0,
+            },
+        ),
+        r#type: Some(ScalarType::Optional {
+            value_type: Box::new(ScalarType::Number),
+        }),
     }
 }
 
@@ -111,6 +132,131 @@ fn resolves_bindings_out_of_array_order_and_caches_each_at_most_once() {
             assert_eq!(value, ScalarValue::Number(10.0));
         }
         other => panic!("expected Ok, got {other:?}"),
+    }
+}
+
+#[test]
+fn geometry_collection_match_selects_optional_some_and_none_arms() {
+    let program = program(Vec::new());
+    let resolver = ScalarBindingResolver::new(&program);
+    let mut state = empty_state();
+    let none_scrutinee = optional_collection_length("absent-source");
+    let some_scrutinee = optional_collection_length("present-source");
+    state.geometry_collection_nodes.insert(
+        "absent-source".to_owned(),
+        GeometryInputCollectionNode::None,
+    );
+    state.geometry_collection_nodes.insert(
+        "present-source".to_owned(),
+        GeometryInputCollectionNode::Leaf {
+            targets: Vec::new(),
+        },
+    );
+    for (value_id, scrutinee, expected_length) in [
+        ("absent-result", none_scrutinee, Some(1.0)),
+        ("present-result", some_scrutinee, Some(2.0)),
+    ] {
+        state.geometry_collection_nodes.insert(
+            value_id.to_owned(),
+            GeometryInputCollectionNode::Match {
+                scrutinee,
+                source_order: 1.0,
+                arms: vec![
+                    (
+                        "none".to_owned(),
+                        GeometryInputCollectionNode::Leaf {
+                            targets: vec![GeometryInputTarget::Coordinate {
+                                anchor: serde_json::json!({"x": 1.0, "y": 1.0}),
+                            }],
+                        },
+                    ),
+                    (
+                        "some".to_owned(),
+                        GeometryInputCollectionNode::Leaf {
+                            targets: vec![
+                                GeometryInputTarget::Coordinate {
+                                    anchor: serde_json::json!({"x": 2.0, "y": 2.0}),
+                                },
+                                GeometryInputTarget::Coordinate {
+                                    anchor: serde_json::json!({"x": 3.0, "y": 3.0}),
+                                },
+                            ],
+                        },
+                    ),
+                ],
+            },
+        );
+        assert_eq!(
+            scalar_expression_runtime::lookup_geometry_collection_length(
+                &state,
+                &resolver,
+                value_id,
+                &mut std::collections::HashSet::new(),
+            ),
+            expected_length
+        );
+    }
+}
+
+#[test]
+fn geometry_collection_optional_match_selects_indexed_some_and_none_members() {
+    let program = program(Vec::new());
+    let resolver = ScalarBindingResolver::new(&program);
+    let mut state = empty_state();
+    state.geometry_collection_nodes.insert(
+        "absent-source".to_owned(),
+        GeometryInputCollectionNode::None,
+    );
+    state.geometry_collection_nodes.insert(
+        "present-source".to_owned(),
+        GeometryInputCollectionNode::Leaf {
+            targets: vec![GeometryInputTarget::Coordinate {
+                anchor: serde_json::json!({"x": 7.0, "y": 8.0}),
+            }],
+        },
+    );
+
+    for (value_id, scrutinee, expected_x) in [
+        ("absent-result", "absent-source", 1.0),
+        ("present-result", "present-source", 7.0),
+    ] {
+        state.geometry_collection_nodes.insert(
+            value_id.to_owned(),
+            GeometryInputCollectionNode::Match {
+                scrutinee: optional_collection_length(scrutinee),
+                source_order: 1.0,
+                arms: vec![
+                    (
+                        "none".to_owned(),
+                        GeometryInputCollectionNode::Leaf {
+                            targets: vec![GeometryInputTarget::Coordinate {
+                                anchor: serde_json::json!({"x": 1.0, "y": 2.0}),
+                            }],
+                        },
+                    ),
+                    (
+                        "some".to_owned(),
+                        GeometryInputCollectionNode::Leaf {
+                            targets: vec![GeometryInputTarget::Coordinate {
+                                anchor: serde_json::json!({"x": 7.0, "y": 8.0}),
+                            }],
+                        },
+                    ),
+                ],
+            },
+        );
+
+        let target =
+            super::super::line_geometry_input::resolve_geometry_collection_iteration_member(
+                &state, &resolver, value_id, 0,
+            )
+            .expect("optional geometry collection match selects a member");
+        match target {
+            GeometryInputTarget::Coordinate { anchor } => {
+                assert_eq!(anchor["x"], expected_x);
+            }
+            other => panic!("expected coordinate target, got {other:?}"),
+        }
     }
 }
 

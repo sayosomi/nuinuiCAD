@@ -17,7 +17,7 @@ import {
   type GeometryArraySemanticValue
 } from "./geometryArraySemantics";
 import type { DslArrayMappedValue, GeometryArrayMappedValue } from "./geometryArraySemantics";
-import { geometryArrayTypeName, isDslNonArrayValueTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
+import { geometryArrayTypeName, geometryArrayTypeOfDslValueType, isDslNonArrayValueTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
 import { moduleGeometryInterfaceTypeOf, moduleGeometryInterfaceTypeOfElement, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import {
   isDslArrayValueType,
@@ -725,12 +725,74 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           }
         };
       },
-      resolveArrayReference: (sourceText, sourceSpan) => {
+      resolveOptionalCollectionMatchScrutinee: (sourceText, _sourceSpan, localBindings) => {
+        const path = referencePath(sourceText);
+        if (!path || path.segments.length === 0) return null;
+        if (path.segments.length === 1 && !path.absolute) {
+          if (localBindings?.some((binding) => binding.name === path.segments[0])) return null;
+          const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
+          const parameterType = parameter?.parameter.valueType;
+          const requiredParameterType = dslRequiredValueTypeOf(parameterType);
+          if (
+            parameter &&
+            isDslOptionalValueType(parameterType) &&
+            requiredParameterType &&
+            isDslArrayValueType(requiredParameterType) &&
+            isDslGeometryValueType(requiredParameterType.elementType)
+          ) {
+            return {
+              collectionValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+              valueType: requiredParameterType
+            };
+          }
+        }
+
+        const lookup = input.resolvePath(statementIndex, path);
+        let target = lookup.kind === "resolved"
+          ? valuesByStatementIndex.get(lookup.declaration.statementIndex) ?? null
+          : null;
+        let collectionValueId = target?.statementId ?? null;
+        if (
+          !target &&
+          lookup.kind === "invalidTraversal" &&
+          lookup.declaration.kind === "moduleInstance" &&
+          path.segments.length === 2 &&
+          lookup.segmentIndex === 1
+        ) {
+          const instance = lookup.declaration.statement.kind === "moduleInstance" ? lookup.declaration.statement : null;
+          const definitionLookup = instance
+            ? input.resolvePath(lookup.declaration.statementIndex, parseDslReferenceToken(instance.moduleName))
+            : null;
+          if (instance && definitionLookup?.kind === "resolved" && definitionLookup.declaration.statement.kind === "moduleDefinition") {
+            const exportedIndex = statements.findIndex((candidate) =>
+              candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === path.segments[1] &&
+              candidate.enclosing?.statementIndex === definitionLookup.declaration.statementIndex
+            );
+            target = exportedIndex >= 0 ? valuesByStatementIndex.get(exportedIndex) ?? null : null;
+            if (target) collectionValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!);
+          }
+        }
+        const requiredValueType = target && isDslOptionalValueType(target.declaredValueType)
+          ? dslRequiredValueTypeOf(target.declaredValueType)
+          : null;
+        return requiredValueType && isDslArrayValueType(requiredValueType) &&
+          isDslGeometryValueType(requiredValueType.elementType) && collectionValueId
+          ? { collectionValueId, valueType: requiredValueType }
+          : null;
+      },
+      resolveArrayReference: (sourceText, sourceSpan, localBindings) => {
         const path = referencePath(sourceText);
         if (!path || path.segments.length === 0) {
           return { kind: "invalid", diagnostic: { code: "geometry-array-invalid-reference", message: "geometry array alias の参照が不正です。", span: sourceSpan } };
         }
         if (path.segments.length === 1 && !path.absolute) {
+          const localBinding = [...(localBindings ?? [])].reverse().find((binding) => binding.name === path.segments[0]);
+          if (localBinding) {
+            const type = geometryArrayTypeOfDslValueType(localBinding.valueType);
+            return type
+              ? { kind: "resolved", targetValueId: localBinding.collectionValueId, type, valueType: localBinding.valueType }
+              : { kind: "invalid", diagnostic: { code: "geometry-array-reference-not-array", message: `参照先「${sourceText}」は geometry array ではありません。`, span: sourceSpan } };
+          }
           const moduleParameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
           if (moduleParameter) {
             const parameterType = geometryArrayTypeOfModuleParameter(moduleParameter.parameter);

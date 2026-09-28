@@ -209,13 +209,30 @@ export type GeometryArrayReferenceResolution =
   | { kind: "deferred"; targetValueId: string }
   | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
 
+export type GeometryArrayCollectionMatchBinder = {
+  name: string;
+  bindingId: string;
+  collectionValueId: string;
+  valueType: DslArrayValueType;
+};
+
 export type ResolveGeometryArrayExpressionInput<TTarget> = {
   expectedType: GeometryArrayType;
   expectedValueType?: DslValueType;
   requireOptional?: boolean;
   expression: GeometryArrayExpression;
   resolveMember: (member: GeometryArrayLiteralMember) => GeometryArrayMemberResolution<TTarget>;
-  resolveArrayReference: (sourceText: string, sourceSpan: DslSpan) => GeometryArrayReferenceResolution;
+  resolveArrayReference: (
+    sourceText: string,
+    sourceSpan: DslSpan,
+    localBindings?: readonly GeometryArrayCollectionMatchBinder[]
+  ) => GeometryArrayReferenceResolution;
+  resolveOptionalCollectionMatchScrutinee?: (
+    sourceText: string,
+    sourceSpan: DslSpan,
+    localBindings?: readonly GeometryArrayCollectionMatchBinder[]
+  ) => { collectionValueId: string; valueType: DslArrayValueType } | null;
+  localBindings?: readonly GeometryArrayCollectionMatchBinder[];
   resolveValueFor?: (expression: Extract<GeometryArrayExpression, { kind: "valueFor" }>) =>
     | { kind: "resolved"; value: GeometryArrayMappedValue }
     | { kind: "invalid"; diagnostic: GeometryArraySemanticDiagnostic };
@@ -527,11 +544,34 @@ export const resolveGeometryArrayExpression = <TTarget>(
       : { value: null, valueType: null, diagnostics: branchDiagnostics };
   }
   if (input.expression.kind === "match") {
-    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; value: GeometryArraySemanticValue<TTarget> }[] = [];
+    const values: { label: string; labelSpan: DslSpan; binder?: string; binderSpan?: DslSpan; binderId?: string; value: GeometryArraySemanticValue<TTarget> }[] = [];
+    const collectionMatch = input.resolveOptionalCollectionMatchScrutinee?.(
+      input.expression.scrutineeText,
+      input.expression.scrutineeSpan,
+      input.localBindings
+    ) ?? null;
     for (const arm of input.expression.arms) {
-      const result = resolveGeometryArrayExpression({ ...input, expression: arm.expression });
+      const binderId = collectionMatch && arm.label === "some" && arm.binder
+        ? optionalMatchBinderId(input.expression.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
+        : undefined;
+      const result = resolveGeometryArrayExpression({
+        ...input,
+        expression: arm.expression,
+        ...(binderId && arm.binder && collectionMatch
+          ? { localBindings: [
+              ...(input.localBindings ?? []),
+              { name: arm.binder, bindingId: binderId, collectionValueId: collectionMatch.collectionValueId, valueType: collectionMatch.valueType }
+            ] }
+          : {})
+      });
       diagnostics.push(...result.diagnostics);
-      if (result.value) values.push({ label: arm.label, labelSpan: arm.labelSpan, ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}), value: result.value });
+      if (result.value) values.push({
+        label: arm.label,
+        labelSpan: arm.labelSpan,
+        ...(arm.binder ? { binder: arm.binder, binderSpan: arm.binderSpan } : {}),
+        ...(binderId ? { binderId } : {}),
+        value: result.value
+      });
     }
     return values.length === input.expression.arms.length && diagnostics.length === 0
       ? { value: { kind: "match", span: input.expression.span, type: input.expectedType, scrutineeText: input.expression.scrutineeText, scrutineeSpan: input.expression.scrutineeSpan, arms: values }, valueType: expectedValueType, diagnostics }
@@ -551,7 +591,7 @@ export const resolveGeometryArrayExpression = <TTarget>(
       : { value: null, valueType: null, diagnostics: [resolution.diagnostic] };
   }
   if (input.expression.kind === "reference") {
-    const resolution = input.resolveArrayReference(input.expression.text, input.expression.span);
+    const resolution = input.resolveArrayReference(input.expression.text, input.expression.span, input.localBindings);
     if (resolution.kind === "invalid") return { value: null, valueType: null, diagnostics: [resolution.diagnostic] };
     const actualValueType = resolution.kind === "resolved"
       ? resolution.valueType ?? { kind: "array", elementType: { kind: resolution.type.elementType } } satisfies DslArrayValueType

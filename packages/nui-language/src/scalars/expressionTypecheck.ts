@@ -64,7 +64,10 @@ export const optionalCollectionMatchPresenceProjection = (
       kind: "collectionLength",
       collectionValueId: match.collectionValueId,
       collectionLength: match.collectionLength,
-      targetSourceOrder: match.targetSourceOrder
+      // The compiler has already resolved this optional-match dependency.
+      // Collection nodes use document statement positions, while scalar
+      // binding versions can use a reduced execution order.
+      targetSourceOrder: -1
     },
     type: { kind: "optional", valueType: NUMBER_TYPE }
   };

@@ -1026,13 +1026,24 @@ export const analyzeTypedDeclarations = ({
       {
         currentElement: { parentGroupId: ownerContainerId ?? undefined },
         nameContext,
-        additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
-          ? ({ node }) => additionalGeometryPropertyResolver({
-              statementIndex: binding.statementIndex,
-              node,
-              collectionMatchBinders: collectionMatchBindersByNodeStartByBindingId.get(binding.id)?.get(node.span.start) ?? []
-            })
-          : undefined,
+        additionalGeometryPropertyResolver: ({ node }) => {
+          const collectionMatchBinders = collectionMatchBindersByNodeStartByBindingId.get(binding.id)?.get(node.span.start) ?? [];
+          const binder = [...collectionMatchBinders].reverse().find((candidate) => candidate.name === node.elementName);
+          if (binder && node.property === "length") {
+            return {
+              kind: "collection",
+              collectionValueId: binder.bindingId,
+              collectionLength: binder.collectionLength,
+              targetSourceOrder: binder.targetSourceOrder,
+              type: { kind: "number" }
+            };
+          }
+          return additionalGeometryPropertyResolver?.({
+            statementIndex: binding.statementIndex,
+            node,
+            collectionMatchBinders
+          }) ?? null;
+        },
         additionalScalarPropertyResolver: additionalRecordPropertyResolver
           ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
           : undefined,

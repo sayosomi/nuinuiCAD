@@ -2809,16 +2809,6 @@ export const compileDslDocument = (
         additionalGeometryResolver: rootGeometryBuiltinResolver,
         additionalOptionalCollectionMatchResolver: rootOptionalCollectionMatchResolver,
         additionalGeometryPropertyResolver: (input) => {
-          const binder = [...(input.collectionMatchBinders ?? [])].reverse().find((candidate) => candidate.name === input.node.elementName);
-          if (binder && input.node.property === "length") {
-            return {
-              kind: "collection",
-              collectionValueId: binder.bindingId,
-              collectionLength: binder.collectionLength,
-              targetSourceOrder: binder.targetSourceOrder,
-              type: { kind: "number" }
-            };
-          }
           return immutableCarryCompilation?.collectionLengthPropertyResolver?.(input)
             ?? rootGeometryValuePropertyResolver?.(input)
             ?? null;

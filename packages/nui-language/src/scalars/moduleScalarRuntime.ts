@@ -5011,7 +5011,7 @@ export const compileModuleScalarRuntime = ({
     return arms.every((arm) => arm !== null)
       ? {
           kind: "match",
-          scrutinee: lowerCollectionScalar(node.scrutinee, sourceContext),
+          scrutinee: optionalCollectionMatchPresenceProjection(lowerCollectionScalar(node.scrutinee, sourceContext)),
           sourceOrder: executionPositionForValue(node.sourcePath, node.sourceOrder),
           arms: arms as { label: string; value: GeometryInputCollectionNode }[]
         }
@@ -5259,6 +5259,15 @@ export const compileModuleScalarRuntime = ({
   }
   for (const context of contextsByKey.values()) {
     if (contextIsDisabled(context) || !contextIsReachable(context)) continue;
+    const contextCollectionAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+    for (const parameter of contextCollectionAnalysis?.moduleParameters ?? []) {
+      if (parameter.definitionStatementId !== context.definition.statementId) continue;
+      registerGeometryCollectionNode(
+        `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+        context.path,
+        context
+      );
+    }
     for (const value of context.definition.localGeometryValues) {
       registerGeometryCollectionNode(value.statementId, context.path, context);
     }
@@ -5268,6 +5277,11 @@ export const compileModuleScalarRuntime = ({
         registerGeometryCollectionNode(value.statementId, context.path, context);
       }
     }
+  }
+  for (const collection of moduleCollectionValues) {
+    if (collection.kind !== "alias") continue;
+    const target = geometryCollectionNodesByValueId.get(collection.targetValueId);
+    if (target) geometryCollectionNodesByValueId.set(collection.valueId, target);
   }
 
   for (const [bindingId, initializer, statementIndex] of documentBindingAnalysis

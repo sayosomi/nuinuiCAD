@@ -2227,6 +2227,30 @@ describe("module scalar runtime integration", () => {
     expect(scalarValue("absentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
   });
 
+  it("matches optional Module geometry collection parameters with required binders", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(optional: point[]?) {",
+      "  const binderLength: number = match @optional { none => 0 some items => @items.length }",
+      "  export const result: number = @binderLength",
+      "}",
+      "instance Present = M(optional: [(1, 2), (3, 4)])",
+      "instance Absent = M(optional: none)",
+      "const presentResult: number = @Present::result",
+      "const absentResult: number = @Absent::result"
+    ].join("\n"), "optional-module-geometry-collection-match-binder");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(scalarValue("presentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarValue("absentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 0 } });
+  });
+
   it.each([
     [
       "geometry",
