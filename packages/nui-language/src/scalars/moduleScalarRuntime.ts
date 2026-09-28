@@ -1706,11 +1706,11 @@ export const lowerExpression = (
       const resolved = semanticProperty?.target && geometryPropertyForTarget?.(semanticProperty.target);
       if (!resolved) return { node, references: [] };
       if (resolved.kind === "expression") {
-        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor);
+        const lowered = lowerExpression(resolved.expression, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor, recordParameterCollectionForTarget);
         return { node: lowered.expression, references: lowered.references };
       }
       const loweredOccurrenceIndex = resolved.kind === "forGroupOccurrence" && resolved.index
-        ? lowerExpression(resolved.index, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor)
+        ? lowerExpression(resolved.index, bindingForTarget, catalogBindings, geometryPropertyForTarget, collectionLengthForTarget, geometryBuiltinForTarget, collectionValueIdFor, collectionSourceOrderFor, recordParameterCollectionForTarget)
         : undefined;
       return {
         node: {
@@ -3074,7 +3074,8 @@ export const compileModuleScalarRuntime = ({
               (sourceTarget) => collectionLengthForTargetContext(sourceTarget, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
               (id) => collectionValueIdFor(id, context),
-              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+              (target) => recordParameterCollectionForTargetContext(target, context)
             ).expression
           : lowerExpression(
               semantic,
@@ -3253,7 +3254,8 @@ export const compileModuleScalarRuntime = ({
               (target) => collectionLengthForTargetContext(target, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
               (id) => collectionValueIdFor(id, context),
-              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+              (target) => recordParameterCollectionForTargetContext(target, context)
             ).expression
           : lowerExpression(
               field.body,
@@ -3436,7 +3438,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (id) => collectionValueIdFor(id, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         ).expression;
         moduleCollectionValues.push({ valueId, kind: "if", condition, thenValueId, elseValueId, sourceOrder: executionPositionForValue(context.path, sourceOrder) });
         return;
@@ -3457,7 +3460,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (id) => collectionValueIdFor(id, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         ).expression;
         moduleCollectionValues.push({
           valueId,
@@ -3562,7 +3566,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         );
         moduleCollectionValues.push({
           valueId,
@@ -4216,7 +4221,8 @@ export const compileModuleScalarRuntime = ({
             (target) => collectionLengthForTargetContext(target, context),
             (candidate) => resolvedGeometryBuiltinForContext(candidate, context),
             (valueId) => collectionValueIdFor(valueId, context),
-            (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+            (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+            (target) => recordParameterCollectionForTargetContext(target, context)
           ).expression
         : null;
       return {
@@ -4420,7 +4426,8 @@ export const compileModuleScalarRuntime = ({
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
         (valueId) => collectionValueIdFor(valueId, context),
-        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+        (target) => recordParameterCollectionForTargetContext(target, context)
       );
       moduleCarryNextExpressions.set(info.id, loweredNext.expression);
     }
@@ -4464,7 +4471,8 @@ export const compileModuleScalarRuntime = ({
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
         (valueId) => collectionValueIdFor(valueId, context),
-        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+        (target) => recordParameterCollectionForTargetContext(target, context)
       );
       for (const reference of lowered.references) {
         if (reference.resolution.kind !== "resolved" || reference.resolution.binding.kind !== "typed" || !reference.span) continue;
@@ -4514,7 +4522,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         );
         if (element.type === "conditionalGroup" && site.parameterKey === "condition") {
           materializedConditionalGroupConditions.push({ elementId: runtime.elementId, expression: loweredSiteExpression.expression });
@@ -4737,7 +4746,8 @@ export const compileModuleScalarRuntime = ({
         (target) => collectionLengthForTargetContext(target, context),
         (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
         (valueId) => collectionValueIdFor(valueId, context),
-        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+        (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+        (target) => recordParameterCollectionForTargetContext(target, context)
       ).expression
     : lowerExpression(
         expression,
@@ -4855,7 +4865,8 @@ export const compileModuleScalarRuntime = ({
               (target) => collectionLengthForTargetContext(target, context),
               (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
               (valueId) => collectionValueIdFor(valueId, context),
-              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+              (target) => recordParameterCollectionForTargetContext(target, context)
             ).expression
           : lowerExpression(
               source.index,
@@ -4891,7 +4902,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         )
       : lowerExpression(
           source.target.index,
@@ -5097,7 +5109,8 @@ export const compileModuleScalarRuntime = ({
           (target) => collectionLengthForTargetContext(target, context),
           (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
           (valueId) => collectionValueIdFor(valueId, context),
-          (sourceOrder) => sourceOrder >= 0 ? runtimeEventPositionForValue(context.path, sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? runtimeEventPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
         )
       : lowerExpression(
           semantic,

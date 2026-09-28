@@ -1762,6 +1762,77 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("Inline::localAbsentAnswer")).toMatchObject({ status: "ok", value: { kind: "number", value: 43 } });
   });
 
+  it("lowers optional record parameters in materialized Module body scalar expressions", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record R(x: number)",
+      "module M(v: R?) {",
+      "  point P = coordinate(x: @v?.x ?? 11, y: 0)",
+      "}",
+      "instance Present = M(v: R(x: 7))",
+      "instance Absent = M()"
+    ].join("\n"), "say408-module-body-optional-record-parameter");
+    expectValid(compiled);
+
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    const parameter = compiled.sourceLexicalNamespace!.recordSemanticAnalysis!.moduleParameters.find((candidate) =>
+      candidate.definitionStatementId === definition.statementId && candidate.parameterIndex === 0
+    );
+    if (!parameter?.typeIdentity) throw new Error("expected the Module record parameter identity");
+    const recordField = compiled.sourceLexicalNamespace!.recordSemanticAnalysis!.definitionsByStatementId
+      .get(parameter.typeIdentity)!.fields[0]!;
+    const materializedPoints = compiled.document!.elements.filter((element) => element.name === "P");
+    expect(materializedPoints).toHaveLength(2);
+
+    const pointFor = (instanceName: string) => {
+      const instance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === instanceName)!;
+      return materializedPoints.find((element) =>
+        compiled.moduleMaterialization?.originByRuntimeElementId.get(element.id)?.instancePath[0] === instance.statementId
+      )!;
+    };
+    const presentPoint = pointFor("Present");
+    const absentPoint = pointFor("Absent");
+    const xBindingFor = (elementId: string) => (compiled.materializedNumericBindings ?? []).find((entry) =>
+      entry.elementId === elementId && entry.binding.parameterKey === "x"
+    )?.binding;
+    const presentX = xBindingFor(presentPoint.id);
+    const absentX = xBindingFor(absentPoint.id);
+    expect(presentX?.typedExpression).toMatchObject({
+      kind: "binary",
+      left: { kind: "optionalMember", target: { kind: "recordField" } }
+    });
+    expect(absentX?.typedExpression).toMatchObject({
+      kind: "binary",
+      left: { kind: "optionalMember", target: { kind: "recordField" } }
+    });
+
+    const presentInstance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === "Present")!;
+    const parameterFieldBindingId = moduleRecordParameterScalarBindingIdForPath(
+      [presentInstance.statementId],
+      definition.statementId,
+      parameter.parameterIndex,
+      [recordField.identity]
+    );
+    const parameterCollection = compiled.scalarProgram!.collectionValues!.find((collection) =>
+      collection.kind === "literal" && collection.members.some((member) =>
+        member.kind === "record" && member.fields.some((field) => field.bindingId === parameterFieldBindingId)
+      )
+    );
+    expect(parameterCollection).toBeDefined();
+    if (!parameterCollection) throw new Error("expected the Present instance's whole-record parameter collection");
+    if (presentX?.typedExpression?.kind !== "binary" || presentX.typedExpression.left.kind !== "optionalMember") {
+      throw new Error("expected a typed optional member in the Present point x binding");
+    }
+    expect(presentX.typedExpression.left.target?.kind).toBe("recordField");
+    if (presentX.typedExpression.left.target?.kind !== "recordField") {
+      throw new Error("expected the Present optional member to resolve to a record field");
+    }
+    expect(presentX.typedExpression.left.target.collectionValueId).toBe(
+      recordFieldCollectionValueIdFor(parameterCollection.valueId, recordField.identity)
+    );
+
+  });
+
   it("retains genuine Module record and scalar binding errors", () => {
     const unknownField = compileWithIds([
       "nui 1",
