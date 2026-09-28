@@ -208,7 +208,7 @@ const geometryCollectionCatalogInventory = [
   { code: "array-member-not-value", parameters: { member: "@Module" }, english: "Reference '@Module' cannot be used as an array member value.", japanese: "参照先「@Module」は array member に使用できる value ではありません。" },
   { code: "array-member-type-mismatch", parameters: { member: "\"wrong\"" }, english: "Array member '\"wrong\"' does not match the declared element type.", japanese: "array member「\"wrong\"」の型が宣言型と一致しません。" },
   { code: "nested-array-member", parameters: undefined, english: "Array literals cannot contain nested arrays.", japanese: "配列を array literal member として入れ子にすることはできません。" },
-  { code: "array-argument-invalid", parameters: { parameter: "values" }, english: "Array parameter 'values' requires a compatible whole-value collection reference.", japanese: "array parameter「values」には compatible な whole-value collection reference が必要です。" },
+  { code: "array-argument-invalid", parameters: { parameter: "values" }, english: "Array parameter 'values' requires a compatible collection value.", japanese: "array parameter「values」には compatible な collection value が必要です。" },
   { code: "array-argument-type-mismatch", parameters: { argument: "@labels", parameter: "values" }, english: "Array argument '@labels' does not match parameter 'values'.", japanese: "array argument「@labels」の型が parameter「values」と一致しません。" },
   { code: "array-assignability-mismatch", parameters: { actual: "string[]", expected: "number[]" }, english: "Array type 'string[]' is not assignable to 'number[]'.", japanese: "array型「string[]」を「number[]」に代入できません。" },
   { code: "array-value-for-unsupported", parameters: undefined, english: "This collection does not support value-for.", japanese: "この collection では value-for を使用できません。" },
@@ -380,9 +380,9 @@ describe("diagnostic presentation localization", () => {
         source: "nui 1\nmodule M(values: number[]) {\n}\ninstance use = M(values: 1)",
         code: "array-argument-invalid",
         parameters: { parameter: "values" },
-        fallback: "array parameter「values」には compatible な whole-value collection reference が必要です。",
-        english: "Array parameter 'values' requires a compatible whole-value collection reference.",
-        japanese: "array parameter「values」には compatible な whole-value collection reference が必要です。"
+        fallback: "array parameter「values」には compatible な collection value が必要です。",
+        english: "Array parameter 'values' requires a compatible collection value.",
+        japanese: "array parameter「values」には compatible な collection value が必要です。"
       },
       {
         family: "array argument type mismatch",

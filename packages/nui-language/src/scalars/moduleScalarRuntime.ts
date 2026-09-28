@@ -2970,16 +2970,18 @@ export const compileModuleScalarRuntime = ({
 
   const scalarCollectionBindingForTarget = (
     target: import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget,
-    context: InstanceContext
+    context: InstanceContext | null
   ): BindingId | undefined => {
-    if (target.kind === "scalarBinding") return moduleCollectionBinderIdFor(context.path, target.bindingId);
+    if (target.kind === "scalarBinding") return context ? moduleCollectionBinderIdFor(context.path, target.bindingId) : undefined;
     if (target.kind === "moduleParameterValue") {
-      return contextCandidatesFor(context)
+      return context
+        ? contextCandidatesFor(context)
         .find((candidate) => candidate.definition.statementId === target.definitionStatementId)
-        ?.parameters.get(target.parameterIndex)?.id;
+        ?.parameters.get(target.parameterIndex)?.id
+        : undefined;
     }
     if (target.kind !== "scalarValue") return undefined;
-    const local = contextCandidatesFor(context).map((candidate) => candidate.locals.get(target.statementId)).find(Boolean);
+    const local = context ? contextCandidatesFor(context).map((candidate) => candidate.locals.get(target.statementId)).find(Boolean) : undefined;
     return local?.id
       ?? baseCatalog.bindingsById.get(`binding:${target.statementId}`)?.id
       ?? [...foreignSourceScalars.values()].flatMap((foreign) => {
@@ -3638,6 +3640,32 @@ export const compileModuleScalarRuntime = ({
           kind: "alias",
           targetValueId: collectionValueIdFor(binding.value.targetValueId, context.parentKey ? contextsByKey.get(context.parentKey) ?? null : null)
         });
+      } else if (binding?.value?.kind === "collectionLiteral") {
+        const callerContext = context.parentKey ? contextsByKey.get(context.parentKey) ?? null : null;
+        const literal = binding.value.value;
+        if (literal.valueType.elementType.kind === "record") {
+          const members = literal.members.flatMap((member) => {
+            const record = recordCollectionMemberForTarget(member.target, literal.valueType.elementType.kind === "record" ? literal.valueType.elementType.identity ?? "" : "", callerContext);
+            return record ? [record] : [];
+          });
+          if (members.length === literal.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
+          continue;
+        }
+        const elementType = scalarExpressionTypeOfDslValueType(literal.valueType.elementType);
+        if (elementType) {
+          const members: ScalarProgramCollectionMember[] = [];
+          for (const member of literal.members) {
+            const scalarLiteral = scalarCollectionMemberFromLiteral(member.sourceText, elementType);
+            if (scalarLiteral) {
+              members.push(scalarLiteral);
+              continue;
+            }
+            const bindingId = scalarCollectionBindingForTarget(member.target, callerContext);
+            if (!bindingId) break;
+            members.push({ kind: "binding", type: elementType, bindingId });
+          }
+          if (members.length === literal.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
+        }
       } else {
         // An omitted or explicit-none optional collection is the ordinary
         // shared none value, not a missing alias target.
@@ -4159,6 +4187,7 @@ export const compileModuleScalarRuntime = ({
       while (owner) {
         if (owner.definition.statementId === definitionStatementId) {
           const binding = owner.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
+          if (binding?.value?.kind === "collectionLiteral") return binding.value.value.members.length;
           if (binding?.value?.kind !== "collection") return undefined;
           return collectionLengthForValueIdAt(binding.value.targetValueId, owner, nextVisited);
         }
@@ -4191,7 +4220,9 @@ export const compileModuleScalarRuntime = ({
       const binding = candidates[0]?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === target.parameterIndex);
       return binding?.value?.kind === "collection"
         ? collectionLengthForValueIdAt(binding.value.targetValueId, candidates[0]!, new Set())
-        : undefined;
+        : binding?.value?.kind === "collectionLiteral"
+          ? binding.value.value.members.length
+          : undefined;
     }
     const child = runtimeContextForSourceInstance(context, target.instanceStatementId, target.instanceIdentity?.documentId);
     return child
