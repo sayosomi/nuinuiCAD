@@ -22,6 +22,7 @@ import {
   type ModuleGeometryPropertyReferenceInput,
   type ModuleGeometryPropertyReferenceResolution,
   type ModuleCollectionIndexReferenceResolution,
+  type ModuleOptionalCollectionMatchResolution,
   type ModuleScalarLocalDiagnostic,
   type ModuleScalarReferenceResolution,
   type ModuleOptionalMemberReferenceInput
@@ -69,6 +70,7 @@ import {
   isDslValueTypeAssignable,
   scalarExpressionTypeOfDslValueType,
   scalarTypeOfDslValueType,
+  type DslArrayValueType,
   type DslValueType
 } from "./dslValueTypes";
 import { isDslNonArrayValueTypeAssignable } from "./geometryArrayTypes";
@@ -1267,6 +1269,103 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     };
   };
 
+  const resolveOptionalCollectionMatch = (
+    statementIndex: number,
+    ownerIndex: number | null,
+    reference: { name: string; span: DslSpan }
+  ): ModuleOptionalCollectionMatchResolution | null => {
+    const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    if (!collectionAnalysis) return null;
+    const referencePath = parseDslReferenceToken(reference.name);
+    const parameter = referencePath.segments.length === 1 && !referencePath.absolute
+      ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, referencePath.segments[0]!)
+      : null;
+    const parameterValueType = parameter?.parameter.valueType ?? null;
+    const requiredParameterValueType = dslRequiredValueTypeOf(parameterValueType);
+    if (
+      parameter &&
+      isDslOptionalValueType(parameterValueType) &&
+      requiredParameterValueType &&
+      isDslArrayValueType(requiredParameterValueType) &&
+      isDslGeometryValueType(requiredParameterValueType.elementType)
+    ) {
+      const valueType = requiredParameterValueType as DslArrayValueType;
+      const collectionValueId = `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`;
+      const target: ModuleScalarSourceTarget = {
+        kind: "collectionParameter",
+        definitionStatementId: parameter.definitionStatementId,
+        parameterIndex: parameter.parameterIndex,
+        valueType,
+        optional: true
+      };
+      return {
+        reference: {
+          target,
+          type: scalarExpressionTypeOfDslValueType(valueType.elementType),
+          resolution: "resolved",
+          collectionValueId,
+          collectionLength: null,
+          targetSourceOrder: -1
+        },
+        match: {
+          kind: "resolvedOptionalCollectionMatch",
+          type: parameterValueType,
+          valueType,
+          collectionValueId,
+          collectionLength: null,
+          targetSourceOrder: -1
+        }
+      };
+    }
+    const resolvedCollection = resolveCollectionIndex(statementIndex, ownerIndex, reference);
+    const target = resolvedCollection.target;
+    let optionalValueType: DslValueType | null = null;
+    let collectionValueId = resolvedCollection.collectionValueId;
+    let collectionLength = resolvedCollection.collectionLength;
+    let targetSourceOrder = resolvedCollection.targetSourceOrder;
+    if (target?.kind === "collectionParameter") {
+      const parameter = moduleParameterByName(
+        statements,
+        stableStatementIdByIndex,
+        statementIndex,
+        parseDslReferenceToken(reference.name).segments[0] ?? ""
+      );
+      optionalValueType = parameter?.parameter.valueType ?? null;
+      collectionValueId = `${target.definitionStatementId}:parameter:${target.parameterIndex}`;
+      collectionLength = null;
+      targetSourceOrder = -1;
+    } else if (target?.kind === "collectionValue") {
+      const collection = collectionValueSemanticForStatement(collectionAnalysis, target.statementIndex);
+      optionalValueType = collection?.statementId === target.statementId ? collection.declaredValueType : null;
+      collectionValueId = target.statementId;
+      collectionLength = collectionLengthForValueId(collectionAnalysis, target.statementId);
+      targetSourceOrder = target.statementIndex;
+    }
+    if (!isDslOptionalValueType(optionalValueType)) return null;
+    const valueType = dslRequiredValueTypeOf(optionalValueType);
+    if (!isDslArrayValueType(valueType) || !collectionValueId || targetSourceOrder === null) return null;
+    const baseReference = { ...resolvedCollection };
+    delete baseReference.diagnostic;
+    return {
+      reference: {
+        ...baseReference,
+        type: scalarExpressionTypeOfDslValueType(valueType.elementType),
+        resolution: "resolved",
+        collectionValueId,
+        collectionLength,
+        targetSourceOrder
+      },
+      match: {
+        kind: "resolvedOptionalCollectionMatch",
+        type: optionalValueType,
+        valueType: valueType as DslArrayValueType,
+        collectionValueId,
+        collectionLength,
+        targetSourceOrder
+      }
+    };
+  };
+
   const resolveDefaultScalar = (definition: DefinitionState, parameterIndex: number, reference: { name: string; span: DslSpan }): ReferenceResolution => {
     const ownParameter = definition.parameterByName.get(reference.name);
     if (ownParameter) {
@@ -1375,6 +1474,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           : resolution;
       },
       resolveCollectionIndex: (reference) => resolveCollectionIndex(
+        statementIndex,
+        ownerIndex,
+        reference
+      ),
+      resolveOptionalCollectionMatch: (reference) => resolveOptionalCollectionMatch(
         statementIndex,
         ownerIndex,
         reference
@@ -3913,6 +4017,35 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     reference: ModuleGeometryPropertyReferenceInput
   ): ModuleGeometryPropertyReferenceResolution => {
     const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
+    const collectionMatchBinder = [...(reference.collectionMatchBinders ?? [])].reverse().find((binder) =>
+      binder.name === reference.elementName
+    );
+    if (collectionMatchBinder) {
+      if (reference.property === "length") {
+        return {
+          target: {
+            kind: "collectionValueLength",
+            statementId: collectionMatchBinder.bindingId,
+            statementIndex: collectionMatchBinder.targetSourceOrder,
+            valueId: collectionMatchBinder.bindingId,
+            valueType: collectionMatchBinder.valueType,
+            length: collectionMatchBinder.collectionLength
+          },
+          type: { kind: "number" },
+          resolution: "resolved"
+        };
+      }
+      return {
+        target: null,
+        type: null,
+        resolution: "invalid",
+        diagnostic: issue(
+          "module-geometry-property-reference",
+          reference.span,
+          `collection match binder「${reference.elementName}」はlength access またはindexing で利用してください。`
+        )
+      };
+    }
     if (reference.property === "length" && collectionAnalysis) {
       const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, reference.elementName, reference.elementNameSpan);
       if (qualified?.kind === "deferred") {
@@ -6655,12 +6788,41 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return;
     }
     if (value.kind === "match") {
-      value.scrutinee = analyzeScalar(
+      const analyzedScrutinee = analyzeScalar(
         source.slice(value.scrutineeSpan.start, value.scrutineeSpan.end),
         value.scrutineeSpan,
         null,
         localBindings
-      ) ?? undefined;
+      );
+      if (analyzedScrutinee?.ast.kind === "reference") {
+        const optionalCollectionMatch = resolveOptionalCollectionMatch(statementIndex, ownerIndex, {
+          name: analyzedScrutinee.ast.name,
+          span: analyzedScrutinee.ast.span
+        });
+        if (optionalCollectionMatch) {
+          const referenceSpanStart = analyzedScrutinee.ast.span.start;
+          value.scrutinee = {
+            ...analyzedScrutinee,
+            type: optionalCollectionMatch.match.type,
+            references: analyzedScrutinee.references.map((reference) => reference.span.start === referenceSpanStart
+              ? {
+                  ...reference,
+                  target: optionalCollectionMatch.reference.target,
+                  resolution: "resolved",
+                  collectionValueId: optionalCollectionMatch.match.collectionValueId,
+                  collectionLength: optionalCollectionMatch.match.collectionLength,
+                  targetSourceOrder: optionalCollectionMatch.match.targetSourceOrder,
+                  collectionElementType: optionalCollectionMatch.reference.type,
+                  optionalCollectionMatch: optionalCollectionMatch.match
+                }
+              : reference)
+          };
+        } else {
+          value.scrutinee = analyzedScrutinee;
+        }
+      } else {
+        value.scrutinee = analyzedScrutinee ?? undefined;
+      }
       if (value.scrutinee) {
         const addMatchDiagnostic = (diagnostic: { code: string; span: DslSpan; message: string; presentation?: DslDiagnosticPresentation }) => addDiagnostic(issue(
           diagnostic.code,

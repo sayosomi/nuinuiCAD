@@ -20,11 +20,17 @@ import { typecheckScalarExpression } from "./expressionTypecheck";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { ScalarProgramPositionMap } from "./scalarProgram";
 import type { ScalarExpressionType, ScalarType } from "./types";
-import type { ScalarExpressionResolvedCollectionIndex, ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
+import type {
+  ScalarExpressionResolvedCollectionIndex,
+  ScalarExpressionResolvedOptionalCollectionMatch,
+  ScalarExpressionResolvedReference,
+  TypedScalarExpression
+} from "./typedExpressionAst";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import { createElementNameContext } from "../model/elementNames";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
+import { optionalMatchBinderId } from "./optionalMatchBinder";
 import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import {
@@ -84,6 +90,7 @@ export type PrepareScalarExpression = (input: {
   statementIndex: number;
   ast: ScalarExpressionAst;
   referenceResolutions: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
+  collectionIndexResolutionSpanStarts?: ReadonlySet<number>;
   /** Raw dotted-property nodes already owned as geometry builtin operands. */
   geometryPropertySpanStarts: ReadonlySet<number>;
 }) => {
@@ -93,9 +100,24 @@ export type PrepareScalarExpression = (input: {
   dependencies?: readonly PreparedScalarExpressionDependency[];
 };
 
+type OptionalCollectionMatchResolver = (input: {
+  statementIndex: number;
+  node: Extract<ScalarExpressionAst, { kind: "reference" }>;
+}) => ScalarExpressionResolvedOptionalCollectionMatch | null;
+
+export type CollectionMatchBinder = {
+  name: string;
+  bindingId: BindingId;
+  valueType: import("../dsl/dslValueTypes").DslArrayValueType;
+  collectionValueId: string;
+  collectionLength: number | null;
+  targetSourceOrder: number;
+};
+
 type CollectionIndexResolver = (input: {
   statementIndex: number;
   node: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>;
+  collectionMatchBinders?: readonly CollectionMatchBinder[];
 }) => ScalarExpressionResolvedCollectionIndex | null;
 
 type ParsedInitializer = { ast: ScalarExpressionAst; references: readonly TypedDeclarationReference[] };
@@ -111,13 +133,16 @@ export const collectReferences = (ast: ScalarExpressionAst): readonly { name: st
 
 type TypedDeclarationReference = { name: string; span: { start: number; end: number }; lazy: boolean };
 
-const collectTypedDeclarationReferences = (ast: ScalarExpressionAst): readonly TypedDeclarationReference[] => {
+const collectTypedDeclarationReferences = (
+  ast: ScalarExpressionAst,
+  optionalCollectionMatchReferenceStarts: ReadonlySet<number> = new Set()
+): readonly TypedDeclarationReference[] => {
   const optionalReceiverSpans: DslSpan[] = [];
   const references: TypedDeclarationReference[] = [];
   const visit = (node: ScalarExpressionAst, lazy: boolean, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (node.kind) {
       case "reference":
-        if (!boundNames.has(node.name)) references.push({ name: node.name, span: node.span, lazy });
+        if (!boundNames.has(node.name) && !optionalCollectionMatchReferenceStarts.has(node.span.start)) references.push({ name: node.name, span: node.span, lazy });
         return;
       case "collectionIndex":
         if (!boundNames.has(node.name)) references.push({ name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 }, lazy });
@@ -227,12 +252,23 @@ const shouldEmitRecordProjectionDiagnostic = (
 const collectionIndexResolutionsFor = (
   ast: ScalarExpressionAst,
   statementIndex: number,
-  resolver: CollectionIndexResolver | undefined
+  resolver: CollectionIndexResolver | undefined,
+  collectionMatchBindersByNodeStart: ReadonlyMap<number, readonly CollectionMatchBinder[]>
 ): ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex> => {
   const resolutions = new Map<number, ScalarExpressionResolvedCollectionIndex>();
   const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     if (node.kind === "collectionIndex") {
-      const resolution = resolver?.({ statementIndex, node });
+      const localCollectionBinders = collectionMatchBindersByNodeStart.get(node.span.start) ?? [];
+      const local = [...localCollectionBinders].reverse().find((binder) => binder.name === node.name);
+      const resolution = local
+        ? {
+            kind: "resolvedCollectionIndex" as const,
+            collectionValueId: local.bindingId,
+            collectionLength: local.collectionLength,
+            targetSourceOrder: local.targetSourceOrder,
+            type: scalarExpressionTypeOfDslValueType(local.valueType.elementType)
+          }
+        : resolver?.({ statementIndex, node, collectionMatchBinders: localCollectionBinders });
       if (resolution) resolutions.set(node.span.start, resolution);
       visit(node.index);
       return;
@@ -272,12 +308,18 @@ const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<num
 const referenceResolutionsForAst = (
   ast: ScalarExpressionAst,
   collectionResolutions: ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex>,
-  ordinary: readonly (BindingResolution | ScalarExpressionResolvedReference)[]
+  ordinary: readonly (BindingResolution | ScalarExpressionResolvedReference)[],
+  optionalCollectionMatchResolutions: ReadonlyMap<number, ScalarExpressionResolvedOptionalCollectionMatch>
 ): readonly (BindingResolution | ScalarExpressionResolvedReference)[] => {
   const output: (BindingResolution | ScalarExpressionResolvedReference)[] = [];
   let cursor = 0;
   const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
-    if (node.kind === "reference") { if (!boundNames.has(node.name)) output.push(ordinary[cursor++]!); return; }
+    if (node.kind === "reference") {
+      if (boundNames.has(node.name)) return;
+      const optionalCollectionMatch = optionalCollectionMatchResolutions.get(node.span.start);
+      output.push(optionalCollectionMatch ?? ordinary[cursor++]!);
+      return;
+    }
     if (node.kind === "collectionIndex") {
       const resolved = collectionResolutions.get(node.span.start);
       if (resolved) output.push(resolved);
@@ -305,6 +347,81 @@ const referenceResolutionsForAst = (
   visit(ast);
   if (cursor !== ordinary.length) throw new Error("typedDeclarationAnalysis: scalar reference resolution sequence is out of sync");
   return output;
+};
+
+const optionalCollectionMatchResolutionsForAst = (
+  ast: ScalarExpressionAst,
+  statementIndex: number,
+  resolver: OptionalCollectionMatchResolver | undefined
+): ReadonlyMap<number, ScalarExpressionResolvedOptionalCollectionMatch> => {
+  const resolutions = new Map<number, ScalarExpressionResolvedOptionalCollectionMatch>();
+  const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
+    if (node.kind === "valueMatch") {
+      if (node.scrutinee.kind === "reference" && !boundNames.has(node.scrutinee.name)) {
+        const resolution = resolver?.({ statementIndex, node: node.scrutinee });
+        if (resolution) resolutions.set(node.scrutinee.span.start, resolution);
+      }
+      visit(node.scrutinee, boundNames);
+      node.arms.forEach((arm) => visit(
+        arm.expression,
+        arm.binder ? new Set([...boundNames, arm.binder]) : boundNames
+      ));
+      return;
+    }
+    if (node.kind === "optionalMember") return;
+    if (node.kind === "unary") return visit(node.operand, boundNames);
+    if (node.kind === "binary") { visit(node.left, boundNames); visit(node.right, boundNames); return; }
+    if (node.kind === "group") return visit(node.expression, boundNames);
+    if (node.kind === "valueIf") { visit(node.condition, boundNames); visit(node.thenBranch, boundNames); if (node.elseBranch) visit(node.elseBranch, boundNames); return; }
+    if (node.kind === "collectionIndex") return visit(node.index, boundNames);
+    if (node.kind === "geometryProperty") { if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames); return; }
+    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression, boundNames));
+  };
+  visit(ast);
+  return resolutions;
+};
+
+const collectionMatchBindersByNodeStartForAst = (
+  ast: ScalarExpressionAst,
+  optionalCollectionMatchResolutions: ReadonlyMap<number, ScalarExpressionResolvedOptionalCollectionMatch>
+): ReadonlyMap<number, readonly CollectionMatchBinder[]> => {
+  const byNodeStart = new Map<number, readonly CollectionMatchBinder[]>();
+  const visit = (node: ScalarExpressionAst, binders: readonly CollectionMatchBinder[]): void => {
+    if (node.kind === "geometryProperty" || node.kind === "collectionIndex") {
+      byNodeStart.set(node.span.start, binders);
+      if (node.kind === "geometryProperty" && node.occurrenceIndex) visit(node.occurrenceIndex, binders);
+      if (node.kind === "collectionIndex") visit(node.index, binders);
+      return;
+    }
+    if (node.kind === "valueMatch") {
+      visit(node.scrutinee, binders);
+      const collectionMatch = node.scrutinee.kind === "reference"
+        ? optionalCollectionMatchResolutions.get(node.scrutinee.span.start)
+        : undefined;
+      for (const arm of node.arms) {
+        const binder = collectionMatch && arm.label === "some" && arm.binder
+          ? {
+              name: arm.binder,
+              bindingId: optionalMatchBinderId(node.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end),
+              valueType: collectionMatch.valueType,
+              collectionValueId: collectionMatch.collectionValueId,
+              collectionLength: collectionMatch.collectionLength,
+              targetSourceOrder: collectionMatch.targetSourceOrder
+            }
+          : null;
+        visit(arm.expression, binder ? [...binders, binder] : binders);
+      }
+      return;
+    }
+    if (node.kind === "optionalMember") return;
+    if (node.kind === "unary") return visit(node.operand, binders);
+    if (node.kind === "binary") { visit(node.left, binders); visit(node.right, binders); return; }
+    if (node.kind === "group") return visit(node.expression, binders);
+    if (node.kind === "valueIf") { visit(node.condition, binders); visit(node.thenBranch, binders); if (node.elseBranch) visit(node.elseBranch, binders); return; }
+    if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression, binders));
+  };
+  visit(ast, []);
+  return byNodeStart;
 };
 
 /** Shared "why this reference isn't usable" message for a non-resolved
@@ -457,6 +574,7 @@ export const analyzeTypedDeclarations = ({
   additionalBindingResolver,
   additionalGeometryResolver,
   additionalCollectionIndexResolver,
+  additionalOptionalCollectionMatchResolver,
   additionalGeometryPropertyResolver,
   resolveGeometryStageSelection,
   additionalInitializers,
@@ -480,6 +598,7 @@ export const analyzeTypedDeclarations = ({
     readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
   additionalCollectionIndexResolver?: CollectionIndexResolver;
+  additionalOptionalCollectionMatchResolver?: OptionalCollectionMatchResolver;
   additionalInitializers?: readonly AdditionalScalarInitializer[];
   /** Synthetic bindings used to typecheck an embedded expression but never
    * emitted as standalone scalar-program declarations. */
@@ -492,6 +611,7 @@ export const analyzeTypedDeclarations = ({
   additionalGeometryPropertyResolver?: (input: {
     statementIndex: number;
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+    collectionMatchBinders?: readonly CollectionMatchBinder[];
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
   resolveGeometryStageSelection?: (input: {
     elementId: string;
@@ -549,7 +669,7 @@ export const analyzeTypedDeclarations = ({
     ...(additionalInitializers ?? [])
   ];
   const recordPrepare: PrepareScalarExpression | undefined = recordAnalysis && sourceNamespace && recordPlan
-    ? ({ statementIndex, ast, referenceResolutions, geometryPropertySpanStarts }) =>
+    ? ({ statementIndex, ast, referenceResolutions, geometryPropertySpanStarts, collectionIndexResolutionSpanStarts }) =>
         prepareRecordScalarExpression({
           ast,
           statementIndex,
@@ -557,6 +677,7 @@ export const analyzeTypedDeclarations = ({
           sourceNamespace,
           plan: recordPlan,
           referenceResolutions,
+          collectionIndexResolutionSpanStarts,
           skipPropertySpanStarts: geometryPropertySpanStarts,
           additionalPropertyResolver: (node) => additionalRecordPropertyResolver?.({ statementIndex, node }) ?? null
         })
@@ -651,6 +772,23 @@ export const analyzeTypedDeclarations = ({
   }
   if (diagnostics.length > 0) return { diagnostics };
 
+  const optionalCollectionMatchResolutionByBindingId = new Map<BindingId, ReadonlyMap<number, ScalarExpressionResolvedOptionalCollectionMatch>>();
+  const collectionMatchBindersByNodeStartByBindingId = new Map<BindingId, ReadonlyMap<number, readonly CollectionMatchBinder[]>>();
+  for (const binding of catalog.bindings) {
+    const parsed = parsedByBindingId.get(binding.id);
+    if (!parsed || !isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
+    const optionalCollectionMatches = optionalCollectionMatchResolutionsForAst(
+      parsed.ast,
+      binding.statementIndex,
+      additionalOptionalCollectionMatchResolver
+    );
+    optionalCollectionMatchResolutionByBindingId.set(binding.id, optionalCollectionMatches);
+    collectionMatchBindersByNodeStartByBindingId.set(
+      binding.id,
+      collectionMatchBindersByNodeStartForAst(parsed.ast, optionalCollectionMatches)
+    );
+  }
+
   const collectionIndexResolutionByBindingId = new Map<BindingId, ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex>>();
   const ordinaryReferencesByBindingId = new Map<BindingId, readonly TypedDeclarationReference[]>();
   const collectionIndexBaseReferenceOccurrenceIndexesByBindingId = new Map<BindingId, ReadonlySet<number>>();
@@ -659,7 +797,12 @@ export const analyzeTypedDeclarations = ({
     if (!parsed || !isScalarTypedBinding(binding) || !analyzesInitializer(binding.id, binding.resolutionMode)) continue;
     collectionIndexResolutionByBindingId.set(
       binding.id,
-      collectionIndexResolutionsFor(parsed.ast, binding.statementIndex, additionalCollectionIndexResolver)
+      collectionIndexResolutionsFor(
+        parsed.ast,
+        binding.statementIndex,
+        additionalCollectionIndexResolver,
+        collectionMatchBindersByNodeStartByBindingId.get(binding.id) ?? new Map()
+      )
     );
   }
   const requests: InitializerResolutionRequest[] = [];
@@ -669,7 +812,11 @@ export const analyzeTypedDeclarations = ({
     if (!parsed) throw new Error(`typedDeclarationAnalysis: missing parsed initializer for ${binding.id}`);
     const collectionIndexBaseStarts = collectionIndexBaseStartsFor(parsed.ast);
     const scopeId = scopeIndex.scopeOfStatement.get(binding.statementIndex) ?? scopeIndex.rootScopeId;
-    const ordinaryReferences = parsed.references.filter((reference) => !collectionIndexResolutionByBindingId.get(binding.id)?.has(reference.span.start));
+    const optionalCollectionMatchStarts = new Set(optionalCollectionMatchResolutionByBindingId.get(binding.id)?.keys() ?? []);
+    const ordinaryReferences = parsed.references.filter((reference) =>
+      !collectionIndexResolutionByBindingId.get(binding.id)?.has(reference.span.start) &&
+      !optionalCollectionMatchStarts.has(reference.span.start)
+    );
     ordinaryReferencesByBindingId.set(binding.id, ordinaryReferences);
     const collectionIndexBaseReferenceOccurrenceIndexes = new Set<number>();
     ordinaryReferences.forEach((reference, occurrenceIndex) => {
@@ -704,6 +851,9 @@ export const analyzeTypedDeclarations = ({
       statementIndex: binding.statementIndex,
       scalarReferenceResolutions: resolvedByBindingId.get(binding.id) ?? [],
       collectionIndexBaseReferenceOccurrenceIndexes: collectionIndexBaseReferenceOccurrenceIndexesByBindingId.get(binding.id),
+      optionalCollectionMatchReferenceStarts: new Set(
+        optionalCollectionMatchResolutionByBindingId.get(binding.id)?.keys() ?? []
+      ),
       sourceDeclarationsByStatementId,
       additionalGeometryResolver: additionalGeometryResolver
         ? ({ node, occurrenceIndex, expectedGeometryType }) => additionalGeometryResolver({
@@ -747,7 +897,11 @@ export const analyzeTypedDeclarations = ({
         referenceResolutions: referenceResolutionsForAst(
           parsed.ast,
           collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),
-          geometryResolution.references
+          geometryResolution.references,
+          optionalCollectionMatchResolutionByBindingId.get(binding.id) ?? new Map()
+        ),
+        collectionIndexResolutionSpanStarts: new Set(
+          collectionIndexResolutionByBindingId.get(binding.id)?.keys() ?? []
         ),
         geometryPropertySpanStarts: new Set(geometryResolution.geometryPropertyTargets.keys())
       });
@@ -872,9 +1026,24 @@ export const analyzeTypedDeclarations = ({
       {
         currentElement: { parentGroupId: ownerContainerId ?? undefined },
         nameContext,
-        additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
-          ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex: binding.statementIndex, node })
-          : undefined,
+        additionalGeometryPropertyResolver: ({ node }) => {
+          const collectionMatchBinders = collectionMatchBindersByNodeStartByBindingId.get(binding.id)?.get(node.span.start) ?? [];
+          const binder = [...collectionMatchBinders].reverse().find((candidate) => candidate.name === node.elementName);
+          if (binder && node.property === "length") {
+            return {
+              kind: "collection",
+              collectionValueId: binder.bindingId,
+              collectionLength: binder.collectionLength,
+              targetSourceOrder: binder.targetSourceOrder,
+              type: { kind: "number" }
+            };
+          }
+          return additionalGeometryPropertyResolver?.({
+            statementIndex: binding.statementIndex,
+            node,
+            collectionMatchBinders
+          }) ?? null;
+        },
         additionalScalarPropertyResolver: additionalRecordPropertyResolver
           ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
           : undefined,
@@ -889,7 +1058,8 @@ export const analyzeTypedDeclarations = ({
       references: prepared?.references ?? referenceResolutionsForAst(
         parsed.ast,
         collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),
-        geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? []
+        geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? [],
+        optionalCollectionMatchResolutionByBindingId.get(binding.id) ?? new Map()
       ),
       geometryBuiltinArguments: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets,
       geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences

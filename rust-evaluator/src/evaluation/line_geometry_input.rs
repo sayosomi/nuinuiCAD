@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
-use super::scalars::{ScalarDocumentBindingResolver, ScalarEvaluation, ScalarValue};
+use super::scalars::{ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue};
 use super::types::{
     ElementId, EvaluationCommandError, EvaluationState, GeometryInputCollectionNode,
     GeometryInputTarget, GeometryValueOccurrence,
@@ -10,6 +10,25 @@ use super::types::{
 
 pub(crate) type GeometryInputTargets =
     HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>;
+
+fn geometry_collection_match_arm_label(evaluation: ScalarEvaluation) -> Result<String, String> {
+    match evaluation {
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Choice { .. },
+            value: ScalarValue::Choice { value, .. },
+        } => Ok(value),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Optional { .. },
+            value: ScalarValue::None,
+        } => Ok("none".to_owned()),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Optional { .. },
+            ..
+        } => Ok("some".to_owned()),
+        ScalarEvaluation::Error { issue_code, .. } => Err(issue_code),
+        ScalarEvaluation::Ok { .. } => Err("evaluation-runtime-value-type-mismatch".to_owned()),
+    }
+}
 
 pub(crate) fn decode_geometry_collection_nodes(
     value: Option<&Value>,
@@ -142,21 +161,12 @@ fn resolve_geometry_collection_node_member(
             source_order,
             arms,
         } => {
-            let label = match evaluate_document_typed_expression(
+            let label = geometry_collection_match_arm_label(evaluate_document_typed_expression(
                 scrutinee,
                 resolver,
                 state,
                 Some(*source_order),
-            ) {
-                ScalarEvaluation::Ok {
-                    value: ScalarValue::Choice { value, .. },
-                    ..
-                } => value,
-                ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
-                ScalarEvaluation::Ok { .. } => {
-                    return Err("evaluation-runtime-value-type-mismatch".to_owned())
-                }
-            };
+            ))?;
             let (_, branch) = arms
                 .iter()
                 .find(|(candidate, _)| candidate == &label)
@@ -949,21 +959,12 @@ fn materialize_collection_node(
             let Some(resolver) = resolver else {
                 return Err("evaluation-binding-unavailable".to_owned());
             };
-            let label = match evaluate_document_typed_expression(
+            let label = geometry_collection_match_arm_label(evaluate_document_typed_expression(
                 scrutinee,
                 resolver,
                 state,
                 Some(*source_order),
-            ) {
-                ScalarEvaluation::Ok {
-                    value: ScalarValue::Choice { value, .. },
-                    ..
-                } => value,
-                ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
-                ScalarEvaluation::Ok { .. } => {
-                    return Err("evaluation-runtime-value-type-mismatch".to_owned())
-                }
-            };
+            ))?;
             let (_, branch) = arms
                 .iter()
                 .find(|(candidate, _)| candidate == &label)

@@ -241,15 +241,25 @@ fn geometry_collection_length_for_node(
             source_order,
             arms,
         } => {
-            let ScalarEvaluation::Ok {
-                value: ScalarValue::Choice { value, .. },
-                ..
-            } = evaluate_document_typed_expression(scrutinee, resolver, state, Some(*source_order))
-            else {
-                return GeometryCollectionLengthLookup::Unavailable;
+            let evaluation =
+                evaluate_document_typed_expression(scrutinee, resolver, state, Some(*source_order));
+            let label = match evaluation {
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Choice { .. },
+                    value: ScalarValue::Choice { value, .. },
+                } => value,
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Optional { .. },
+                    value: ScalarValue::None,
+                } => "none".to_owned(),
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Optional { .. },
+                    ..
+                } => "some".to_owned(),
+                _ => return GeometryCollectionLengthLookup::Unavailable,
             };
             arms.iter()
-                .find(|(label, _)| label == &value)
+                .find(|(arm_label, _)| arm_label == &label)
                 .map(|(_, branch)| geometry_collection_length_for_node(branch, resolver, state))
                 .unwrap_or(GeometryCollectionLengthLookup::Unavailable)
         }

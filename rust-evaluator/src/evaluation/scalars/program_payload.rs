@@ -11,7 +11,9 @@ use super::expression_payload::validate_typed_expression_payload;
 use super::issue::{ScalarPayloadIssue, ScalarPayloadIssueCode as Code};
 use super::json_helpers::{as_object, issue, reject_unexpected_fields, require_field};
 use super::scalar_payload::{decode_scalar_type, decode_scalar_value, scalar_value_matches_type};
-use super::types::{BindingId, ScalarType, TypedScalarExpression};
+use super::types::{
+    BindingId, ScalarExpressionResolvedOptionalMemberTarget, ScalarType, TypedScalarExpression,
+};
 
 #[derive(Debug)]
 pub(crate) struct ValidatedScalarProgram {
@@ -73,6 +75,19 @@ pub(crate) struct ValidatedScalarProgramMatchArm {
     pub(crate) value_id: String,
     pub(crate) binder_id: Option<BindingId>,
     pub(crate) binder_type: Option<ScalarType>,
+    pub(crate) collection_binder_id: Option<BindingId>,
+}
+
+fn is_optional_collection_presence_projection(expression: &TypedScalarExpression) -> bool {
+    matches!(
+        expression,
+        TypedScalarExpression::OptionalMember {
+            member,
+            target: Some(ScalarExpressionResolvedOptionalMemberTarget::CollectionLength { .. }),
+            r#type: Some(ScalarType::Optional { value_type }),
+            ..
+        } if member == "length" && matches!(value_type.as_ref(), ScalarType::Number)
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -570,7 +585,13 @@ pub(crate) fn decode_collection_values(
                     let arm = as_object(arm, "scalar program collection match arm")?;
                     reject_unexpected_fields(
                         arm,
-                        &["label", "valueId", "binderId", "binderType"],
+                        &[
+                            "label",
+                            "valueId",
+                            "binderId",
+                            "binderType",
+                            "collectionBinderId",
+                        ],
                         "scalar program collection match arm",
                     )?;
                     let label = non_empty_string(
@@ -591,10 +612,31 @@ pub(crate) fn decode_collection_values(
                         })
                         .transpose()?;
                     let binder_type = arm.get("binderType").map(decode_scalar_type).transpose()?;
+                    let collection_binder_id = arm
+                        .get("collectionBinderId")
+                        .map(|value| {
+                            non_empty_string(
+                                value,
+                                "scalar program collection match arm collectionBinderId",
+                            )
+                            .map(str::to_owned)
+                        })
+                        .transpose()?;
                     if binder_id.is_some() != binder_type.is_some() {
                         return Err(issue(
                             Code::InvalidFieldType,
                             "scalar program collection match arm binderId and binderType must be provided together",
+                        ));
+                    }
+                    if collection_binder_id.is_some()
+                        && (label != "some"
+                            || binder_id.is_some()
+                            || binder_type.is_some()
+                            || !is_optional_collection_presence_projection(&scrutinee))
+                    {
+                        return Err(issue(
+                            Code::InvalidFieldType,
+                            "scalar program collection match collectionBinderId requires a whole optional collection presence projection on a some arm without scalar binder metadata",
                         ));
                     }
                     if let Some(binder_type) = &binder_type {
@@ -607,6 +649,7 @@ pub(crate) fn decode_collection_values(
                             ));
                         }
                     } else if label == "some"
+                        && collection_binder_id.is_none()
                         && matches!(scrutinee_type.as_ref(), Some(ScalarType::Optional { .. }))
                     {
                         return Err(issue(
@@ -619,6 +662,7 @@ pub(crate) fn decode_collection_values(
                         value_id,
                         binder_id,
                         binder_type,
+                        collection_binder_id,
                     });
                 }
                 let source_order =

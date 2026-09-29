@@ -25,6 +25,7 @@ import { resolveTransformationStageSelection } from "./transformationRecipes";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
+import { optionalCollectionMatchPresenceProjection } from "../scalars/expressionTypecheck";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
 import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import {
@@ -47,8 +48,8 @@ import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslS
 import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
-import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslRecordValueType, isDslValueTypeAssignable, nominalRecordTypeOfDslValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
-import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId } from "./geometryArraySemanticAnalysis";
+import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, isDslValueTypeAssignable, nominalRecordTypeOfDslValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
+import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId, moduleParameterByName } from "./geometryArraySemanticAnalysis";
 import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import { type DslArrayMappedValue, type DslArraySemanticValue } from "./geometryArraySemantics";
 import {
@@ -2109,6 +2110,58 @@ export const compileDslDocument = (
       }
     : undefined;
 
+  const rootCollectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  const rootOptionalCollectionMatchResolver = rootCollectionAnalysis
+    ? ({ statementIndex, node }: {
+        statementIndex: number;
+        node: Extract<ScalarExpressionAst, { kind: "reference" }>;
+      }) => {
+        const parameter = stableStatementIdByIndex
+          ? moduleParameterByName(parsed.statements, stableStatementIdByIndex, statementIndex, node.name)
+          : null;
+        const parameterType = parameter?.parameter.valueType;
+        const requiredParameterType = dslRequiredValueTypeOf(parameterType);
+        if (parameter && isDslOptionalValueType(parameterType) && requiredParameterType && isDslArrayValueType(requiredParameterType)) {
+          const valueType = rootCollectionAnalysis.genericModuleParametersBySlot.get(
+            `${parameter.definitionStatementId}:${parameter.parameterIndex}`
+          )?.valueType ?? requiredParameterType;
+          return {
+            kind: "resolvedOptionalCollectionMatch" as const,
+            type: parameterType,
+            valueType,
+            collectionValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+            collectionLength: null,
+            targetSourceOrder: -1
+          };
+        }
+        const lookup = resolveSourceLexicalPath(
+          sourceLexicalNamespace,
+          statementIndex,
+          parseDslReferenceToken(node.name)
+        );
+        if (
+          lookup.kind !== "resolved" ||
+          lookup.declaration.kind !== "typedDeclaration" ||
+          lookup.declaration.statement.kind !== "typedDeclaration"
+        ) return null;
+        const declaredType = lookup.declaration.statement.valueType;
+        if (!isDslOptionalValueType(declaredType) || !isDslArrayValueType(declaredType.valueType)) return null;
+        const collection = collectionValueSemanticForStatement(
+          rootCollectionAnalysis,
+          lookup.declaration.statementIndex
+        );
+        if (!collection) return null;
+        return {
+          kind: "resolvedOptionalCollectionMatch" as const,
+          type: declaredType,
+          valueType: declaredType.valueType,
+          collectionValueId: collection.statementId,
+          collectionLength: collectionLengthForValueId(rootCollectionAnalysis, collection.statementId),
+          targetSourceOrder: collection.statementIndex
+        };
+      }
+    : undefined;
+
   // A record collection binder is a read-only projection of the current
   // member.  Give its scalar leaves the same stable binder-field identities
   // used by the existing record collection runtime; the execution owner will
@@ -2287,7 +2340,11 @@ export const compileDslDocument = (
     }
   };
 
-  const rootScalarCollectionValues = (analysis: BindingAnalysis, moduleAnalysis?: ModuleSemanticAnalysis): readonly ScalarProgramCollection[] => {
+  const rootScalarCollectionValues = (
+    analysis: BindingAnalysis,
+    moduleAnalysis?: ModuleSemanticAnalysis,
+    typedInitializers?: ReadonlyMap<BindingId, TypedScalarExpression>
+  ): readonly ScalarProgramCollection[] => {
     const collectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
     if (!collectionAnalysis || !stableStatementIdByIndex) return [];
     const collectionControlFlowBindings = new Map(analysis.catalog.bindingsById);
@@ -2312,6 +2369,7 @@ export const compileDslDocument = (
       return binding;
     };
     const values: ScalarProgramCollection[] = [];
+    const registeredOptionalCollectionBinderIds = new Set<string>();
     const scalarValueForCollectionLiteral = (sourceText: string, type: ScalarExpressionType): ScalarValue | null => {
       if (sourceText.trim() === "none") return type.kind === "optional" ? { kind: "none" } : null;
       const literal = scanScalarLiteral(sourceText, { start: 0, end: sourceText.length });
@@ -2360,19 +2418,35 @@ export const compileDslDocument = (
       }
       if (collectionValue.kind === "match") {
         if (!collectionValue.scrutinee) return;
-        const binderType = collectionValue.scrutinee.type?.kind === "optional"
+        const collectionMatchSourceValueId = collectionValue.scrutinee.references
+          .find((reference) => reference.span.start === collectionValue.scrutinee!.ast.span.start)
+          ?.optionalCollectionMatch?.collectionValueId;
+        const binderType = !collectionMatchSourceValueId && collectionValue.scrutinee.type?.kind === "optional"
           ? scalarTypeOfDslValueType(collectionValue.scrutinee.type.valueType)
           : null;
         const arms = collectionValue.arms.map((arm) => {
           const armValueId = `${valueId}:arm:${arm.label}`;
           append(armValueId, arm.value as NonNullable<typeof collectionAnalysis.genericValues[number]["value"]>, sourceStatementId, sourceOrder);
+          if (
+            arm.label === "some" &&
+            arm.binderId &&
+            collectionMatchSourceValueId &&
+            !registeredOptionalCollectionBinderIds.has(arm.binderId)
+          ) {
+            values.push({ valueId: arm.binderId, kind: "alias", targetValueId: collectionMatchSourceValueId });
+            registeredOptionalCollectionBinderIds.add(arm.binderId);
+          }
           return {
             label: arm.label,
             valueId: armValueId,
-            ...(arm.label === "some" && arm.binderId && binderType ? { binderId: arm.binderId, binderType } : {})
+            ...(arm.label === "some" && arm.binderId && collectionMatchSourceValueId
+              ? { collectionBinderId: arm.binderId }
+              : arm.label === "some" && arm.binderId && binderType
+                ? { binderId: arm.binderId, binderType }
+                : {})
           };
         });
-        const scrutinee = lowerExpression(
+        const loweredScrutinee = lowerExpression(
           collectionValue.scrutinee,
           bindingForCollectionControlFlowTarget,
           collectionControlFlowBindings,
@@ -2382,6 +2456,7 @@ export const compileDslDocument = (
           (id) => id,
           (order) => order
         ).expression;
+        const scrutinee = optionalCollectionMatchPresenceProjection(loweredScrutinee);
         values.push({ valueId, kind: "match", scrutinee, arms, sourceOrder });
         return;
       }
@@ -2522,6 +2597,39 @@ export const compileDslDocument = (
         values.push({ valueId: value.statementId, kind: "literal", members });
       }
     }
+    const registeredCollectionIds = new Set(values.map((value) => value.valueId));
+    const appendOptionalCollectionBinderAliases = (expression: TypedScalarExpression): void => {
+      if (expression.kind === "valueMatch") {
+        const collectionTarget = expression.scrutinee.kind === "optionalMember" && expression.scrutinee.target?.kind === "collectionLength"
+          ? expression.scrutinee.target.collectionValueId
+          : null;
+        if (collectionTarget) {
+          for (const arm of expression.arms) {
+            if (arm.label !== "some" || !arm.binderId || arm.binderType || registeredCollectionIds.has(arm.binderId)) continue;
+            values.push({ valueId: arm.binderId, kind: "alias", targetValueId: collectionTarget });
+            registeredCollectionIds.add(arm.binderId);
+          }
+        }
+        appendOptionalCollectionBinderAliases(expression.scrutinee);
+        expression.arms.forEach((arm) => appendOptionalCollectionBinderAliases(arm.expression));
+        return;
+      }
+      if (expression.kind === "optionalMember") return;
+      if (expression.kind === "unary") return appendOptionalCollectionBinderAliases(expression.operand);
+      if (expression.kind === "binary") { appendOptionalCollectionBinderAliases(expression.left); appendOptionalCollectionBinderAliases(expression.right); return; }
+      if (expression.kind === "group") return appendOptionalCollectionBinderAliases(expression.expression);
+      if (expression.kind === "valueIf") {
+        appendOptionalCollectionBinderAliases(expression.condition);
+        appendOptionalCollectionBinderAliases(expression.thenBranch);
+        appendOptionalCollectionBinderAliases(expression.elseBranch);
+        return;
+      }
+      if (expression.kind === "collectionIndex") return appendOptionalCollectionBinderAliases(expression.index);
+      if (expression.kind === "call") expression.args.forEach((argument) => {
+        if (argument.kind === "scalar") appendOptionalCollectionBinderAliases(argument.expression);
+      });
+    };
+    for (const expression of typedInitializers?.values() ?? []) appendOptionalCollectionBinderAliases(expression);
     return values;
   };
 
@@ -2699,8 +2807,12 @@ export const compileDslDocument = (
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
         additionalGeometryResolver: rootGeometryBuiltinResolver,
-        additionalGeometryPropertyResolver: (input) =>
-          immutableCarryCompilation?.collectionLengthPropertyResolver?.(input) ?? rootGeometryValuePropertyResolver?.(input) ?? null,
+        additionalOptionalCollectionMatchResolver: rootOptionalCollectionMatchResolver,
+        additionalGeometryPropertyResolver: (input) => {
+          return immutableCarryCompilation?.collectionLengthPropertyResolver?.(input)
+            ?? rootGeometryValuePropertyResolver?.(input)
+            ?? null;
+        },
         resolveGeometryStageSelection: ({ elementId, members }) => resolveTransformationStageSelection({
           ownerId: elementId,
           members,
@@ -2738,7 +2850,7 @@ export const compileDslDocument = (
     ? immutableCarryCollectionRuntime(documentScalarAnalysis.bindingAnalysis)
     : { values: [], carries: [] };
   let documentScalarProgram = documentScalarAnalysis
-    ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis), ...carryCollectionRuntime.values] })
+    ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, undefined, documentScalarAnalysis.typedInitializerByBindingId), ...carryCollectionRuntime.values] })
     : undefined;
   const logicalTextByStatementIndex = new Map<number, string>();
   for (const [statementIndex, statement] of parsed.statements.entries()) {
@@ -3266,6 +3378,7 @@ export const compileDslDocument = (
         spans,
         includeStatement,
         sourceNamespace: sourceLexicalNamespace,
+        additionalOptionalCollectionMatchResolver: rootOptionalCollectionMatchResolver,
         additionalBindings: [
           ...rootValueForBodyBindingSeeds,
           ...iterationRecordFieldBindingSeeds,
@@ -3531,7 +3644,7 @@ export const compileDslDocument = (
         ? immutableCarryCollectionRuntime(documentScalarAnalysis.bindingAnalysis)
         : { values: [], carries: [] };
       documentScalarProgram = documentScalarAnalysis
-        ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, moduleSemanticCompilation), ...carryCollectionRuntime.values] })
+        ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, moduleSemanticCompilation, documentScalarAnalysis.typedInitializerByBindingId), ...carryCollectionRuntime.values] })
         : undefined;
     }
   }

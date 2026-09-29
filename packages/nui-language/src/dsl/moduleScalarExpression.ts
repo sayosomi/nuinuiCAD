@@ -3,12 +3,14 @@ import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import { typecheckScalarExpression } from "../scalars/expressionTypecheck";
 import { getBuiltinFunctionDefinition, type BuiltinFunctionName } from "../scalars/builtinFunctions";
+import { optionalMatchBinderId } from "../scalars/optionalMatchBinder";
 import type {
   ScalarExpressionResolvedGeometryProperty,
   ScalarExpressionResolvedGeometryTarget,
   ScalarExpressionResolvedReference,
   ScalarExpressionResolvedCollectionIndex,
-  ScalarExpressionResolvedOptionalMember
+  ScalarExpressionResolvedOptionalMember,
+  ScalarExpressionResolvedOptionalCollectionMatch
 } from "../scalars/typedExpressionAst";
 import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { DslDiagnosticPresentation } from "./dslTypes";
@@ -25,7 +27,7 @@ import type {
   ModuleSourceTarget
 } from "./moduleSemanticTypes";
 import { unwrapModuleGeometrySourceTarget } from "./moduleSemanticTypes";
-import { isDslGeometryValueType } from "./dslValueTypes";
+import { isDslGeometryValueType, scalarExpressionTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
 
 export type ModuleGeometryPropertyReferenceInput = {
   elementName: string;
@@ -39,6 +41,7 @@ export type ModuleGeometryPropertyReferenceInput = {
   /** Optional chaining may traverse the one general optional wrapper while
    * ordinary `.` access remains non-unwrapping. */
   allowOptionalTraversal?: boolean;
+  collectionMatchBinders?: readonly ModuleCollectionMatchBinder[];
 };
 
 export type ModuleOptionalMemberReferenceInput = {
@@ -69,6 +72,20 @@ export type ModuleCollectionIndexReferenceResolution = ModuleScalarReferenceReso
   collectionValueId: string | null;
   collectionLength: number | null;
   targetSourceOrder: number | null;
+};
+
+export type ModuleOptionalCollectionMatchResolution = {
+  readonly reference: ModuleCollectionIndexReferenceResolution;
+  readonly match: ScalarExpressionResolvedOptionalCollectionMatch;
+};
+
+export type ModuleCollectionMatchBinder = {
+  readonly name: string;
+  readonly bindingId: string;
+  readonly valueType: DslArrayValueType;
+  readonly collectionValueId: string;
+  readonly collectionLength: number | null;
+  readonly targetSourceOrder: number;
 };
 
 export type ModuleGeometryPropertyReferenceResolution = {
@@ -179,6 +196,7 @@ const resolveAndTypecheck = ({
   expectedType,
   resolveReference,
   resolveCollectionIndex,
+  resolveOptionalCollectionMatch,
   resolveBareReference,
   resolveGeometryProperty,
   resolveOptionalMember,
@@ -189,14 +207,9 @@ const resolveAndTypecheck = ({
   expectedType: ScalarExpressionType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveCollectionIndex?: (reference: { name: string; span: DslSpan }) => ModuleCollectionIndexReferenceResolution;
+  resolveOptionalCollectionMatch?: (reference: { name: string; span: DslSpan }) => ModuleOptionalCollectionMatchResolution | null;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
-  resolveGeometryProperty?: (reference: {
-    elementName: string;
-    property: string;
-    elementNameSpan: DslSpan;
-    propertySpan: DslSpan;
-    span: DslSpan;
-  }) => ModuleGeometryPropertyReferenceResolution;
+  resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   resolveOptionalMember?: (reference: ModuleOptionalMemberReferenceInput) => ModuleOptionalMemberReference;
   resolveGeometryBuiltin?: ModuleGeometryBuiltinReferenceResolver;
 }): { semantic: ModuleScalarExpressionSemantic; diagnostics: ModuleScalarLocalDiagnostic[] } => {
@@ -209,6 +222,7 @@ const resolveAndTypecheck = ({
   const optionalMembers: ModuleOptionalMemberReference[] = [];
   const resolvedTypes: ScalarExpressionResolvedReference[] = [];
   const resolvedChoiceTypes = new Map<number, ScalarType>();
+  const optionalCollectionMatchesBySpanStart = new Map<number, ModuleOptionalCollectionMatchResolution>();
   let invalidGeometryProperty = false;
 
   const resolveNodeReference = (node: Extract<ScalarExpressionAst, { kind: "reference" }>): ScalarExpressionType | null => {
@@ -220,7 +234,11 @@ const resolveAndTypecheck = ({
     return resolution.target ? scalarTypeFromTarget(resolution.target, resolution) : null;
   };
 
-  const resolve = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): ScalarExpressionAst => {
+  const resolve = (
+    node: ScalarExpressionAst,
+    boundNames: ReadonlySet<string> = new Set(),
+    collectionMatchBinders: ReadonlyMap<string, ModuleCollectionMatchBinder> = new Map()
+  ): ScalarExpressionAst => {
     switch (node.kind) {
       case "numberLiteral":
       case "stringLiteral":
@@ -250,10 +268,52 @@ const resolveAndTypecheck = ({
         return node;
       }
       case "reference":
-        if (!boundNames.has(node.name)) resolveNodeReference(node);
+        if (!boundNames.has(node.name)) {
+          const collectionMatch = optionalCollectionMatchesBySpanStart.get(node.span.start);
+          if (!collectionMatch) {
+            resolveNodeReference(node);
+          } else {
+            const found = { name: node.name, nameSpan: node.nameSpan, span: node.span };
+            resolvedReferences.push({
+              ...found,
+              target: collectionMatch.reference.target,
+              resolution: collectionMatch.reference.resolution,
+              collectionValueId: collectionMatch.match.collectionValueId,
+              collectionLength: collectionMatch.match.collectionLength,
+              targetSourceOrder: collectionMatch.match.targetSourceOrder,
+              collectionElementType: scalarExpressionTypeOfDslValueType(collectionMatch.match.valueType.elementType),
+              optionalCollectionMatch: collectionMatch.match
+            });
+            resolvedTypes.push(collectionMatch.match);
+          }
+        }
         return node;
       case "collectionIndex": {
-        if (boundNames.has(node.name)) return { ...node, index: resolve(node.index, boundNames) };
+        if (boundNames.has(node.name)) {
+          const binder = collectionMatchBinders.get(node.name);
+          if (binder) {
+            const elementType = scalarExpressionTypeOfDslValueType(binder.valueType.elementType);
+            resolvedReferences.push({
+              name: node.name,
+              nameSpan: node.nameSpan,
+              span: node.span,
+              target: null,
+              resolution: "resolved",
+              collectionValueId: binder.bindingId,
+              collectionLength: binder.collectionLength,
+              targetSourceOrder: binder.targetSourceOrder,
+              collectionElementType: elementType
+            });
+            resolvedTypes.push({
+              kind: "resolvedCollectionIndex",
+              collectionValueId: binder.bindingId,
+              collectionLength: binder.collectionLength,
+              targetSourceOrder: binder.targetSourceOrder,
+              type: elementType
+            });
+          }
+          return { ...node, index: resolve(node.index, boundNames, collectionMatchBinders) };
+        }
         const base = { name: node.name, span: { start: node.span.start, end: node.nameSpan.end + 1 } };
         const resolution = resolveCollectionIndex
           ? resolveCollectionIndex(base)
@@ -282,7 +342,7 @@ const resolveAndTypecheck = ({
           type: resolution.type
         };
         resolvedTypes.push(resolvedIndex);
-        resolve(node.index, boundNames);
+        resolve(node.index, boundNames, collectionMatchBinders);
         return node;
       }
       case "call": {
@@ -321,8 +381,8 @@ const resolveAndTypecheck = ({
                 expectedGeometryType: parameterType,
                 reference
               });
-              if (sourceArgument.kind === "collectionIndex") resolve(sourceArgument.index, boundNames);
-              if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) resolve(sourceArgument.occurrenceIndex, boundNames);
+              if (sourceArgument.kind === "collectionIndex") resolve(sourceArgument.index, boundNames, collectionMatchBinders);
+              if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) resolve(sourceArgument.occurrenceIndex, boundNames, collectionMatchBinders);
               if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
                 resolvedTypes.push({
                   kind: "resolvedGeometry",
@@ -331,7 +391,7 @@ const resolveAndTypecheck = ({
               }
               return argument;
             }
-            return { ...argument, expression: resolve(sourceArgument, boundNames) };
+            return { ...argument, expression: resolve(sourceArgument, boundNames, collectionMatchBinders) };
           })
         };
       }
@@ -370,9 +430,10 @@ const resolveAndTypecheck = ({
             span: node.span,
             ...(node.occurrenceIndex ? { occurrenceIndex: node.occurrenceIndex } : {}),
             ...(node.occurrenceIndexSpan ? { occurrenceIndexSpan: node.occurrenceIndexSpan } : {}),
-            ...(node.occurrenceRange ? { occurrenceRange: node.occurrenceRange } : {})
+            ...(node.occurrenceRange ? { occurrenceRange: node.occurrenceRange } : {}),
+            collectionMatchBinders: [...collectionMatchBinders.values()]
           });
-          if (node.occurrenceIndex) resolve(node.occurrenceIndex, boundNames);
+          if (node.occurrenceIndex) resolve(node.occurrenceIndex, boundNames, collectionMatchBinders);
           geometryProperties.push({
             geometryName: node.elementName,
             property: node.property,
@@ -411,26 +472,56 @@ const resolveAndTypecheck = ({
           if (!resolution.target) invalidGeometryProperty = true;
           return node;
         }
-      case "group": return { ...node, expression: resolve(node.expression, boundNames) };
-      case "unary": return { ...node, operand: resolve(node.operand, boundNames) };
+      case "group": return { ...node, expression: resolve(node.expression, boundNames, collectionMatchBinders) };
+      case "unary": return { ...node, operand: resolve(node.operand, boundNames, collectionMatchBinders) };
       case "valueIf": {
-        const condition = resolve(node.condition, boundNames);
+        const condition = resolve(node.condition, boundNames, collectionMatchBinders);
         return {
           ...node,
           condition,
-          thenBranch: resolve(node.thenBranch, boundNames),
-          elseBranch: node.elseBranch ? resolve(node.elseBranch, boundNames) : null
+          thenBranch: resolve(node.thenBranch, boundNames, collectionMatchBinders),
+          elseBranch: node.elseBranch ? resolve(node.elseBranch, boundNames, collectionMatchBinders) : null
         };
       }
-      case "valueMatch":
+      case "valueMatch": {
+        const collectionMatch = node.scrutinee.kind === "reference" && !boundNames.has(node.scrutinee.name)
+          ? resolveOptionalCollectionMatch?.({ name: node.scrutinee.name, span: node.scrutinee.span }) ?? null
+          : null;
+        if (collectionMatch && node.scrutinee.kind === "reference" && !boundNames.has(node.scrutinee.name)) {
+          optionalCollectionMatchesBySpanStart.set(node.scrutinee.span.start, collectionMatch);
+        }
+        const scrutinee = resolve(node.scrutinee, boundNames, collectionMatchBinders);
         return {
           ...node,
-          scrutinee: resolve(node.scrutinee, boundNames),
-          arms: node.arms.map((arm) => ({ ...arm, expression: resolve(arm.expression, arm.binder ? new Set([...boundNames, arm.binder]) : boundNames) }))
+          scrutinee,
+          arms: node.arms.map((arm) => {
+            const binderId = collectionMatch && arm.label === "some" && arm.binder
+              ? optionalMatchBinderId(node.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
+              : null;
+            const localBinders = binderId && arm.binder && collectionMatch
+              ? new Map([...collectionMatchBinders, [arm.binder, {
+                  name: arm.binder,
+                  bindingId: binderId,
+                  valueType: collectionMatch.match.valueType,
+                  collectionValueId: binderId,
+                  collectionLength: collectionMatch.match.collectionLength,
+                  targetSourceOrder: collectionMatch.match.targetSourceOrder
+                }]])
+              : collectionMatchBinders;
+            return {
+              ...arm,
+              expression: resolve(
+                arm.expression,
+                arm.binder ? new Set([...boundNames, arm.binder]) : boundNames,
+                localBinders
+              )
+            };
+          })
         };
+      }
       case "binary": {
-        const left = resolve(node.left, boundNames);
-        return { ...node, left, right: resolve(node.right, boundNames) };
+        const left = resolve(node.left, boundNames, collectionMatchBinders);
+        return { ...node, left, right: resolve(node.right, boundNames, collectionMatchBinders) };
       }
     }
   };
@@ -614,6 +705,7 @@ export const parseAndCheckModuleScalarExpression = ({
   expectedType,
   resolveReference,
   resolveCollectionIndex,
+  resolveOptionalCollectionMatch,
   resolveBareReference,
   resolveGeometryProperty,
   resolveOptionalMember,
@@ -625,6 +717,7 @@ export const parseAndCheckModuleScalarExpression = ({
   expectedType: ScalarExpressionType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
   resolveCollectionIndex?: (reference: { name: string; span: DslSpan }) => ModuleCollectionIndexReferenceResolution;
+  resolveOptionalCollectionMatch?: (reference: { name: string; span: DslSpan }) => ModuleOptionalCollectionMatchResolution | null;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
   resolveOptionalMember?: (reference: ModuleOptionalMemberReferenceInput) => ModuleOptionalMemberReference;
@@ -643,6 +736,7 @@ export const parseAndCheckModuleScalarExpression = ({
     expectedType,
     resolveReference,
     resolveCollectionIndex,
+    resolveOptionalCollectionMatch,
     resolveBareReference,
     resolveGeometryProperty,
     resolveOptionalMember,

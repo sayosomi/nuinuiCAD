@@ -723,6 +723,10 @@ export const evaluateElements = (
       } : {}),
       ...(scalarBindingResolver?.resolveCollectionLength ? {
         lookupCollectionLength: (collectionValueId: string) => scalarBindingResolver.resolveCollectionLength!(collectionValueId, evaluationSourceOrder)
+      } : {}),
+      ...(scalarBindingResolver?.resolveOptionalMember ? {
+        lookupOptionalMember: (target: import("@nuinuicad/nui-language").ScalarExpressionResolvedOptionalMemberTarget, type: import("@nuinuicad/nui-language").ScalarExpressionType) =>
+          scalarBindingResolver.resolveOptionalMember!(target, type, evaluationSourceOrder)
       } : {})
     });
     const materializeCollectionNode = (node: import("../types/geometry").GeometryInputCollectionNode): GeometryInputTarget[] | null => {

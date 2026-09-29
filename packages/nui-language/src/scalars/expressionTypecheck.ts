@@ -46,6 +46,33 @@ import { optionalMatchBinderId } from "./optionalMatchBinder";
 const NUMBER_TYPE: Extract<ScalarType, { kind: "number" }> = { kind: "number" };
 const BOOLEAN_TYPE: Extract<ScalarType, { kind: "boolean" }> = { kind: "boolean" };
 
+/** Project a resolved whole optional collection reference to the optional
+ * length value used solely as an optional-match presence signal. */
+export const optionalCollectionMatchPresenceProjection = (
+  expression: TypedScalarExpression
+): TypedScalarExpression => {
+  if (expression.kind !== "reference" || !expression.optionalCollectionMatch) return expression;
+  const match = expression.optionalCollectionMatch;
+  return {
+    kind: "optionalMember",
+    span: expression.span,
+    receiverSpan: expression.span,
+    operatorSpan: { start: expression.span.end, end: expression.span.end },
+    memberSpan: { start: expression.span.end, end: expression.span.end },
+    member: "length",
+    target: {
+      kind: "collectionLength",
+      collectionValueId: match.collectionValueId,
+      collectionLength: match.collectionLength,
+      // The compiler has already resolved this optional-match dependency.
+      // Collection nodes use document statement positions, while scalar
+      // binding versions can use a reduced execution order.
+      targetSourceOrder: -1
+    },
+    type: { kind: "optional", valueType: NUMBER_TYPE }
+  };
+};
+
 interface TraversalState {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
@@ -54,7 +81,7 @@ interface TraversalState {
   cursor: number;
   readonly diagnostics: ScalarExpressionTypecheckDiagnostic[];
   readonly resolveChoiceLiteral?: ScalarExpressionTypecheckContext["resolveChoiceLiteral"];
-  readonly localBindings: Map<string, { id: string; type: ScalarType }>;
+  readonly localBindings: Map<string, { id: string; type: ScalarType } | { id: string; collectionValueType: import("../dsl/dslValueTypes").DslArrayValueType }>;
 }
 
 type ScalarCallArgumentStyle = "positional" | "named" | "mixed";
@@ -68,10 +95,7 @@ const scalarCallArgumentStyle = (args: readonly { kind: "positional" | "named" }
 /** Exported for reuse by other diagnostic-message producers (e.g. the
  * property binding compiler) that need the same type description text -
  * kept as one implementation rather than a duplicated formatter. */
-export const describeScalarType = (type: ScalarExpressionType): string =>
-  type.kind === "optional"
-    ? `${describeScalarType(type.valueType as ScalarType)}?`
-    : type.kind === "choice" ? `choice(${type.options.join(", ")})` : type.kind;
+export const describeScalarType = (type: ScalarExpressionType): string => dslValueTypeName(type);
 
 /**
  * Validate the closed-world cases of a choice match without depending on the
@@ -165,9 +189,9 @@ export const validateOptionalMatchExhaustiveness = ({
   matchSpan: ScalarSpan;
   arms: readonly { label: string; labelSpan: ScalarSpan; binder?: string; binderSpan?: ScalarSpan }[];
   addDiagnostic: (diagnostic: ScalarExpressionTypecheckDiagnostic) => void;
-}): { scrutineeIsOptional: boolean; exhaustive: boolean; underlyingType: ScalarType | null } => {
+}): { scrutineeIsOptional: boolean; exhaustive: boolean; underlyingType: import("../dsl/dslValueTypes").DslRequiredValueType | null } => {
   const underlyingType = scrutineeType && isDslOptionalValueType(scrutineeType)
-    ? scalarTypeOfDslValueType(scrutineeType.valueType)
+    ? dslRequiredValueTypeOf(scrutineeType)
     : null;
   if (!underlyingType) {
     if (scrutineeType !== null) {
@@ -456,6 +480,15 @@ const checkNode = (
     case "reference": {
       const local = state.localBindings.get(node.name);
       if (local) {
+        if ("collectionValueType" in local) {
+          addDiagnostic(state, {
+            code: "scalar-type-mismatch",
+            span: node.span,
+            message: `collection value ${dslValueTypeName(local.collectionValueType)} はscalar expressionとして使用できません。`,
+            presentation: { key: "diagnostic.scalar-type-mismatch", parameters: { expected: "scalar", actual: dslValueTypeName(local.collectionValueType) } }
+          });
+          return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
+        }
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: local.id, type: local.type };
       }
       const resolution = nextReferenceResolution(state, node.name, node.span.start);
@@ -464,6 +497,22 @@ const checkNode = (
       }
       if (resolution.kind === "resolvedType") {
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: resolution.bindingId, type: resolution.type };
+      }
+      if (resolution.kind === "resolvedOptionalCollectionMatch") {
+        return {
+          kind: "reference",
+          span: node.span,
+          nameSpan: node.nameSpan,
+          name: node.name,
+          bindingId: null,
+          type: resolution.type,
+          optionalCollectionMatch: {
+            collectionValueId: resolution.collectionValueId,
+            collectionLength: resolution.collectionLength,
+            targetSourceOrder: resolution.targetSourceOrder,
+            valueType: resolution.valueType
+          }
+        };
       }
       if (resolution.kind !== "resolved") {
         return { kind: "reference", span: node.span, nameSpan: node.nameSpan, name: node.name, bindingId: null, type: null };
@@ -656,10 +705,10 @@ const checkNode = (
     }
 
     case "valueMatch": {
-      const scrutinee = checkNode(node.scrutinee, null, state);
-      const optional = scrutinee.type && isDslOptionalValueType(scrutinee.type)
+      const checkedScrutinee = checkNode(node.scrutinee, null, state);
+      const optional = checkedScrutinee.type && isDslOptionalValueType(checkedScrutinee.type)
         ? validateOptionalMatchExhaustiveness({
-            scrutineeType: scrutinee.type,
+            scrutineeType: checkedScrutinee.type,
             scrutineeSpan: node.scrutinee.span,
             matchSpan: node.span,
             arms: node.arms,
@@ -667,22 +716,29 @@ const checkNode = (
           })
         : { scrutineeIsOptional: false, exhaustive: false, underlyingType: null };
       const choice = optional.scrutineeIsOptional ? { scrutineeIsChoice: false, exhaustive: false } : validateChoiceMatchExhaustiveness({
-        scrutineeType: plainScalarType(scrutinee.type) ?? null,
+        scrutineeType: plainScalarType(checkedScrutinee.type) ?? null,
         scrutineeSpan: node.scrutinee.span,
         matchSpan: node.span,
         arms: node.arms,
         addDiagnostic: (diagnostic) => addDiagnostic(state, diagnostic)
       });
 
+      const collectionMatch = checkedScrutinee.kind === "reference" ? checkedScrutinee.optionalCollectionMatch : undefined;
+      const scrutinee = optionalCollectionMatchPresenceProjection(checkedScrutinee);
+
       const armResults = node.arms.map((arm) => {
-        const binderType = optional.scrutineeIsOptional && arm.label === "some" && arm.binder ? optional.underlyingType : null;
-        const binderId = binderType && arm.binder
+        const someValueType = optional.scrutineeIsOptional && arm.label === "some" && arm.binder
+          ? scalarTypeOfDslValueType(optional.underlyingType)
+          : null;
+        const isCollectionBinder = Boolean(collectionMatch && optional.scrutineeIsOptional && arm.label === "some" && arm.binder);
+        const binderId = optional.scrutineeIsOptional && arm.label === "some" && arm.binder && (someValueType || isCollectionBinder)
           ? optionalMatchBinderId(node.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
           : undefined;
-        if (binderType && arm.binder && binderId) state.localBindings.set(arm.binder, { id: binderId, type: binderType });
+        if (someValueType && arm.binder && binderId) state.localBindings.set(arm.binder, { id: binderId, type: someValueType });
+        else if (isCollectionBinder && arm.binder && binderId && collectionMatch) state.localBindings.set(arm.binder, { id: binderId, collectionValueType: collectionMatch.valueType });
         const expression = checkNode(arm.expression, expectedType, state);
-        if (binderType && arm.binder) state.localBindings.delete(arm.binder);
-        return { arm, expression, ...(binderId ? { binderId, binderType } : {}) };
+        if ((someValueType || isCollectionBinder) && arm.binder) state.localBindings.delete(arm.binder);
+        return { arm, expression, ...(binderId ? { binderId } : {}), ...(someValueType ? { binderType: someValueType } : {}) };
       });
       let armResultsValid = armResults.every(({ expression }) => expression.type !== null);
       let type: ScalarExpressionType | null = null;
@@ -719,12 +775,12 @@ const checkNode = (
           armResultsValid = false;
         }
       }
-      if (!(optional.scrutineeIsOptional ? optional.exhaustive : choice.scrutineeIsChoice && choice.exhaustive) || !armResultsValid || scrutinee.type === null) type = null;
+      if (!(optional.scrutineeIsOptional ? optional.exhaustive : choice.scrutineeIsChoice && choice.exhaustive) || !armResultsValid || checkedScrutinee.type === null) type = null;
       return {
         kind: "valueMatch",
         span: node.span,
         scrutinee,
-        arms: armResults.map(({ arm, expression, binderId, binderType }) => ({ ...arm, ...(binderId && binderType ? { binderId, binderType } : {}), expression })),
+        arms: armResults.map(({ arm, expression, binderId, binderType }) => ({ ...arm, ...(binderId ? { binderId } : {}), ...(binderType ? { binderType } : {}), expression })),
         type
       };
     }
