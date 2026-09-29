@@ -3427,7 +3427,7 @@ export const compileModuleScalarRuntime = ({
         binderId: moduleCollectionBinderIdFor(path, body.binderId),
         binderFields,
         fields,
-        sourceOrder: context ? executionPositionForValue(context.path, value.sourceOrder) : executionPositionForValue([], value.sourceOrder)
+        sourceOrder: context ? executionOrderForValue(context.path, value.sourceOrder) : executionPositionForValue([], value.sourceOrder)
       });
     };
     const appendRecordFieldProjection = (
