@@ -961,6 +961,58 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("indexes Module record-parameter collection fields through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "module Read(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  export const first: number = @input.xs[0]",
+      "  export const second: number = @input.xs[1]",
+      "  export const aliasFirst: number = @alias.xs[0]",
+      "  export const aliasSecond: number = @alias.xs[1]",
+      "  export const inputLength: number = @input.xs.length",
+      "}",
+      "instance Short = Read(input: Bundle(xs: [5, 11]))",
+      "instance Long = Read(input: Bundle(xs: [2, 17, 31]))",
+      "const shortFirst: number = @Short::first",
+      "const shortSecond: number = @Short::second",
+      "const shortAliasFirst: number = @Short::aliasFirst",
+      "const shortAliasSecond: number = @Short::aliasSecond",
+      "const shortLength: number = @Short::inputLength",
+      "const longFirst: number = @Long::first",
+      "const longSecond: number = @Long::second",
+      "const longAliasFirst: number = @Long::aliasFirst",
+      "const longAliasSecond: number = @Long::aliasSecond",
+      "const longLength: number = @Long::inputLength"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      for (const [name, expected] of [
+        ["shortFirst", 5],
+        ["shortSecond", 11],
+        ["shortAliasFirst", 5],
+        ["shortAliasSecond", 11],
+        ["shortLength", 2],
+        ["longFirst", 2],
+        ["longSecond", 17],
+        ["longAliasFirst", 2],
+        ["longAliasSecond", 17],
+        ["longLength", 3]
+      ] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+    }
+  }, 30000);
+
   it("evaluates optional record members in numeric geometry inputs through persistent Rust stdio", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
