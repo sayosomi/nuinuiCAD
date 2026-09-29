@@ -5131,4 +5131,53 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(label).toMatchObject({ status: "ok", value: { kind: "string", value: "ok" } });
     }
   }, 30000);
+
+  it("resolves Module collection-valued record field lengths through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Box(xs: number[], ys: number[])",
+      "module Example(input: Box) {",
+      "  const empty: Box = Box(xs: [], ys: [])",
+      "  const one: Box = Box(xs: [7], ys: [8])",
+      "  const two: Box = Box(xs: [7, 13], ys: [2, 4])",
+      "  const three: Box = Box(xs: [7, 13, 19], ys: [3, 5, 7])",
+      "  const alias: Box = @two",
+      "  const boxes: Box[] = [@two, @three]",
+      "  const selectedFieldLength: number = @boxes[1].xs.length",
+      "  const emptyLength: number = @empty.xs.length",
+      "  const oneLength: number = @one.xs.length",
+      "  const twoLength: number = @two.xs.length",
+      "  const threeLength: number = @three.xs.length",
+      "  const aliasLength: number = @alias.xs.length",
+      "  const twoFieldLength: number = @two.ys.length",
+      "  const threeFieldLength: number = @three.ys.length",
+      "  const inputLength: number = @input.xs.length",
+      "  const ordinary: number[] = [1, 2, 3]",
+      "  const ordinaryLength: number = @ordinary.length",
+      "}",
+      "instance Use = Example(input: Box(xs: [17, 19, 23, 29], ys: [1]))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      for (const [name, expected] of [
+        ["emptyLength", 0],
+        ["oneLength", 1],
+        ["twoLength", 2],
+        ["threeLength", 3],
+        ["aliasLength", 2],
+        ["selectedFieldLength", 3],
+        ["twoFieldLength", 2],
+        ["threeFieldLength", 3],
+        ["inputLength", 4],
+        ["ordinaryLength", 3]
+      ] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+    }
+  }, 30000);
 });

@@ -7659,7 +7659,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
         expression: expression.expression ? mapRecordValueExpression(expression.expression) : null
       };
     }
-    return { ...expression, value: mapRecordFieldValue(expression.value) };
+    return { ...expression, value: mapRecordFieldValue(expression.value) as typeof expression.value };
   };
   const mapRecordValueExpression = (expression: ModuleRecordValueExpressionSemantic): ModuleRecordValueExpressionSemantic => {
     if (expression.kind === "constructor") {
