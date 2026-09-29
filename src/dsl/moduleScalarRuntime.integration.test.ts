@@ -3795,6 +3795,69 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
   });
 
+  it("emits stable integer order for one Module record-map instance and preserves the root map", () => {
+    const source = [
+      "nui 1",
+      "record Pair(amount: number, label: string)",
+      "record Box(xs: number[])",
+      'const source: Pair = Pair(amount: 2, label: "first")',
+      "const sourceValues: Pair[] = [@source]",
+      "const rootMapped: Pair[] = for item in @sourceValues { @item }",
+      "module Identity(items: Pair[]) {",
+      "  const identity: Pair[] = for item in @items { @item }",
+      "  const identityAmount: number = @identity[0].amount",
+      "  const identityLabel: string = @identity[0].label",
+      "  const boxFirst: Box = Box(xs: [3])",
+      "  const boxSecond: Box = Box(xs: [3, 5])",
+      "  const boxes: Box[] = [@boxFirst, @boxSecond]",
+      "  const selectedLength: number = @boxes[1].xs.length",
+      "  point Result = coordinate(x: @identityAmount, y: @selectedLength)",
+      "}",
+      "instance Only = Identity(items: @sourceValues)",
+      "const rootSelected: Pair = @rootMapped[0]",
+      "const rootAmount: number = @rootSelected.amount",
+      "const rootLabel: string = @rootSelected.label"
+    ].join("\n");
+    const prefix = "say421-one-module-record-map";
+    const compiled = compileWithIds(source, prefix);
+    const repeated = compileWithIds(source, prefix);
+    expectValid(compiled);
+    expectValid(repeated);
+
+    const recordMaps = compiled.scalarProgram?.collectionValues?.filter((value) => value.kind === "recordMap") ?? [];
+    const repeatedRecordMaps = repeated.scalarProgram?.collectionValues?.filter((value) => value.kind === "recordMap") ?? [];
+    expect(recordMaps).toHaveLength(2);
+    const descriptorOrder = (maps: typeof recordMaps) => maps.map(({ valueId, sourceOrder }) => ({ valueId, sourceOrder }));
+    expect(descriptorOrder(recordMaps)).toEqual(descriptorOrder(repeatedRecordMaps));
+    for (const recordMap of recordMaps) {
+      expect(Number.isInteger(recordMap.sourceOrder)).toBe(true);
+      expect(recordMap.sourceOrder).toBeGreaterThanOrEqual(0);
+    }
+    const rootMap = recordMaps.find((value) => value.valueId === `${prefix}:5`);
+    expect(rootMap).toBeDefined();
+    const moduleMaps = recordMaps.filter((value) => value.valueId !== `${prefix}:5`);
+    expect(moduleMaps).toHaveLength(1);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueFor("rootAmount")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(valueFor("rootLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "first" } });
+    const moduleLabel = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+      candidate.kind === "typed" && candidate.name === "identityLabel"
+    );
+    expect(result.computedScalarBindings?.get(moduleLabel!.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "string", value: "first" }
+    });
+    const resultPoint = compiled.document!.elements.find((element) => element.name === "Result");
+    expect(resultPoint).toBeDefined();
+    expect(result.computedGeometry.get(resultPoint!.id)).toMatchObject({ kind: "point", x: 2, y: 2 });
+  });
+
   it("does not evaluate an unrequested failing mapped record field", () => {
     const compiled = compileWithIds([
       "nui 1",
@@ -3834,26 +3897,40 @@ describe("module scalar runtime integration", () => {
     )).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
   });
 
-  it("evaluates nominal-record value-for maps independently for Module instances", () => {
-    const compiled = compileWithIds([
+  it("evaluates and orders nominal-record value-for maps independently for Module instances", () => {
+    const source = [
       "nui 1",
-      "record Pair(x: number)",
-      "const first: Pair = Pair(x: 2)",
-      "const second: Pair = Pair(x: 5)",
+      "record Pair(x: number, label: string)",
+      'const first: Pair = Pair(x: 2, label: "first")',
+      'const second: Pair = Pair(x: 5, label: "second")',
       "const left: Pair[] = [@first]",
       "const right: Pair[] = [@second]",
-      "module Mapper(items: Pair[]) {",
-      "  const mapped: Pair[] = for item in @items { Pair(x: @item.x + 3) }",
+      "module Mapper(items: Pair[], offset: number) {",
+      "  const mapped: Pair[] = for item in @items { Pair(x: @item.x + @offset, label: @item.label) }",
       "  export const output: Pair = @mapped[0]",
       "}",
-      "instance A = Mapper(items: @left)",
-      "instance B = Mapper(items: @right)",
+      "instance A = Mapper(items: @left, offset: 3)",
+      "instance B = Mapper(items: @right, offset: 3)",
       "const aOutput: Pair = @A::output",
       "const bOutput: Pair = @B::output",
       "const aValue: number = @aOutput.x",
-      "const bValue: number = @bOutput.x"
-    ].join("\n"), "value-for-record-module");
+      "const bValue: number = @bOutput.x",
+      "const aLabel: string = @aOutput.label",
+      "const bLabel: string = @bOutput.label"
+    ].join("\n");
+    const prefix = "value-for-record-module";
+    const compiled = compileWithIds(source, prefix);
+    const repeated = compileWithIds(source, prefix);
     expectValid(compiled);
+    expectValid(repeated);
+    const recordMaps = compiled.scalarProgram?.collectionValues?.filter((value) => value.kind === "recordMap") ?? [];
+    const repeatedRecordMaps = repeated.scalarProgram?.collectionValues?.filter((value) => value.kind === "recordMap") ?? [];
+    expect(recordMaps).toHaveLength(2);
+    expect(recordMaps.map(({ valueId, sourceOrder }) => ({ valueId, sourceOrder }))).toEqual(
+      repeatedRecordMaps.map(({ valueId, sourceOrder }) => ({ valueId, sourceOrder }))
+    );
+    expect(recordMaps.every((value) => Number.isInteger(value.sourceOrder) && value.sourceOrder >= 0)).toBe(true);
+    expect(recordMaps[0]!.sourceOrder).toBeLessThan(recordMaps[1]!.sourceOrder);
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
     const valueFor = (name: string) => {
@@ -3862,6 +3939,8 @@ describe("module scalar runtime integration", () => {
     };
     expect(valueFor("aValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
     expect(valueFor("bValue")).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
+    expect(valueFor("aLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "first" } });
+    expect(valueFor("bLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
   });
 
   it("resolves qualified Module scalar exports through a root value-for body", () => {

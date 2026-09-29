@@ -3360,6 +3360,75 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("lowers Module nominal-record maps with integer order through persistent Rust stdio", async () => {
+    const source = [
+      "nui 1",
+      "record Pair(amount: number, label: string)",
+      'const first: Pair = Pair(amount: 2, label: "first")',
+      'const second: Pair = Pair(amount: 7, label: "second")',
+      "const left: Pair[] = [@first]",
+      "const right: Pair[] = [@second]",
+      "const rootMapped: Pair[] = for item in @left { @item }",
+      "module Mapper(items: Pair[], offset: number) {",
+      "  const mapped: Pair[] = for item in @items { Pair(amount: @item.amount + @offset, label: @item.label) }",
+      "  export const output: Pair = @mapped[0]",
+      "}",
+      "instance A = Mapper(items: @left, offset: 10)",
+      "instance B = Mapper(items: @right, offset: 20)",
+      "const rootOutput: Pair = @rootMapped[0]",
+      "const rootAmount: number = @rootOutput.amount",
+      "const aOutput: Pair = @A::output",
+      "const bOutput: Pair = @B::output",
+      "const aAmount: number = @aOutput.amount",
+      "const bAmount: number = @bOutput.amount",
+      "const aLabel: string = @aOutput.label",
+      "const bLabel: string = @bOutput.label"
+    ].join("\n");
+    const fixture = fixtureFromSource(source);
+    const repeated = fixtureFromSource(source);
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const recordMapsFor = (doc: NonNullable<typeof fixture.compiled>["doc"]) =>
+      doc.scalarProgram?.collectionValues?.filter((value) => value.kind === "recordMap") ?? [];
+    const recordMaps = recordMapsFor(fixture.compiled!.doc);
+    const repeatedRecordMaps = recordMapsFor(repeated.compiled!.doc);
+    expect(recordMaps).toHaveLength(3);
+    const descriptorOrder = (maps: typeof recordMaps) => maps.map(({ valueId, sourceOrder }) => ({ valueId, sourceOrder }));
+    expect(recordMaps.map(({ sourceOrder }) => sourceOrder)).toEqual(
+      repeatedRecordMaps.map(({ sourceOrder }) => sourceOrder)
+    );
+    for (const recordMap of recordMaps) {
+      expect(Number.isInteger(recordMap.sourceOrder)).toBe(true);
+      expect(recordMap.sourceOrder).toBeGreaterThanOrEqual(0);
+    }
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const rustRecordMaps = (rustInput.scalarProgram?.collectionValues ?? rustInput.bindingVersions?.collectionValues ?? [])
+      .filter((value) => value.kind === "recordMap");
+    expect(descriptorOrder(rustRecordMaps)).toEqual(descriptorOrder(recordMaps));
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    expect(evaluationPayloadToResult(tsPayload).errors).toEqual([]);
+    expect(evaluationPayloadToResult(rustPayload).errors).toEqual([]);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "rootAmount"), 2);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "aAmount"), 12);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "bAmount"), 27);
+      expect(scalarBindingFor(fixture, payload, "aLabel")).toMatchObject({
+        status: "ok",
+        value: { kind: "string", value: "first" }
+      });
+      expect(scalarBindingFor(fixture, payload, "bLabel")).toMatchObject({
+        status: "ok",
+        value: { kind: "string", value: "second" }
+      });
+    }
+  }, 30000);
+
   it("matches record-valued optional-match binder lowering through persistent Rust stdio", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
