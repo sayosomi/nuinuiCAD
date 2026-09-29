@@ -15,7 +15,8 @@ import {
   moduleRecordExportFieldBindingIdFor,
   moduleRecordParameterScalarBindingIdForPath,
   moduleScalarBindingIdFor,
-  recordFieldCollectionValueIdFor
+  recordFieldCollectionValueIdFor,
+  recordFieldContentsCollectionValueIdFor
 } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
@@ -1178,6 +1179,140 @@ describe("module scalar runtime integration", () => {
     expect(collectionFor("twoFieldLength")).not.toHaveProperty("valueId", twoFieldCollection.valueId);
     expect(collectionFor("twoFieldLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal" }, { kind: "literal" }] });
     expect(collectionFor("threeFieldLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal" }, { kind: "literal" }, { kind: "literal" }] });
+  });
+
+  it("preserves parent-local record aliases and collection fields when forwarding to a child Module", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Bundle(scalar: number, xs: number[])",
+      "module Leaf(input: Bundle) {",
+      "  const childAlias: Bundle = @input",
+      "  export const childScalar: number = @childAlias.scalar",
+      "  export const childLength: number = @childAlias.xs.length",
+      "}",
+      "module Parent(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Direct = Leaf(input: @input)",
+      "  instance Forwarded = Leaf(input: @alias)",
+      "  export const sameModuleScalar: number = @alias.scalar",
+      "  export const sameModuleLength: number = @alias.xs.length",
+      "  export const directLength: number = @Direct::childLength",
+      "  export const forwardedScalar: number = @Forwarded::childScalar",
+      "  export const forwardedLength: number = @Forwarded::childLength",
+      "}",
+      "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
+      "instance Large = Parent(input: Bundle(scalar: 203, xs: [3, 7, 13, 19]))",
+      "const smallSameModuleScalar: number = @Small::sameModuleScalar",
+      "const smallSameModuleLength: number = @Small::sameModuleLength",
+      "const smallDirectLength: number = @Small::directLength",
+      "const smallForwardedScalar: number = @Small::forwardedScalar",
+      "const smallForwardedLength: number = @Small::forwardedLength",
+      "const largeSameModuleScalar: number = @Large::sameModuleScalar",
+      "const largeSameModuleLength: number = @Large::sameModuleLength",
+      "const largeDirectLength: number = @Large::directLength",
+      "const largeForwardedScalar: number = @Large::forwardedScalar",
+      "const largeForwardedLength: number = @Large::forwardedLength"
+    ].join("\n"), "say420-record-forward");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, name).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    for (const [name, value] of [
+      ["smallSameModuleScalar", 101],
+      ["smallSameModuleLength", 2],
+      ["smallDirectLength", 2],
+      ["smallForwardedScalar", 101],
+      ["smallForwardedLength", 2],
+      ["largeSameModuleScalar", 203],
+      ["largeSameModuleLength", 4],
+      ["largeDirectLength", 4],
+      ["largeForwardedScalar", 203],
+      ["largeForwardedLength", 4]
+    ] as const) {
+      expect(scalarValue(name), name).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value }
+      });
+    }
+
+    const scalarCollections = compiled.scalarProgram?.collectionValues ?? [];
+    const collectionById = new Map(scalarCollections.map((collection) => [collection.valueId, collection]));
+    const recordAnalysis = compiled.sourceLexicalNamespace!.recordSemanticAnalysis!;
+    const bundle = [...recordAnalysis.definitionsByStatementId.values()].find((definition) => definition.name === "Bundle");
+    const xsField = bundle?.fields.find((field) => field.name === "xs");
+    const xsPath = xsField ? [xsField.identity] : [];
+    expect(xsPath).toHaveLength(1);
+    if (!xsField) throw new Error("missing Bundle.xs field identity");
+
+    const parentDefinition = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Parent");
+    const parentAlias = parentDefinition?.recordValues.find((value) => value.value.name === "alias");
+    expect(parentAlias).toBeDefined();
+    if (!parentAlias) throw new Error("missing Parent.alias record value");
+
+    const parentAliasCollections = scalarCollections.filter((collection) => {
+      if (collection.kind !== "alias" || !collection.valueId.startsWith("record-value:")) return false;
+      const identity = JSON.parse(collection.valueId.slice("record-value:".length)) as unknown;
+      return Array.isArray(identity) && identity[1] === parentAlias.value.statementId;
+    });
+    expect(parentAliasCollections).toHaveLength(2);
+    const parentAliasIds = new Set(parentAliasCollections.map((collection) => collection.valueId));
+    for (const parentAliasCollection of parentAliasCollections) {
+      if (parentAliasCollection.kind !== "alias") throw new Error("expected Parent.alias producer to be an alias");
+      expect(collectionById.has(parentAliasCollection.targetValueId)).toBe(true);
+    }
+
+    const forwardedParameterAliases = scalarCollections.filter((collection) =>
+      collection.kind === "alias" &&
+      collection.valueId.startsWith("module-record-parameter:") &&
+      parentAliasIds.has(collection.targetValueId)
+    );
+    expect(forwardedParameterAliases).toHaveLength(2);
+    for (const forwardedParameterAlias of forwardedParameterAliases) {
+      if (forwardedParameterAlias.kind !== "alias") throw new Error("expected forwarded child parameter alias");
+      expect(collectionById.has(forwardedParameterAlias.targetValueId)).toBe(true);
+
+      const parentFieldContentsId = recordFieldContentsCollectionValueIdFor(forwardedParameterAlias.targetValueId, xsPath);
+      const childFieldContentsId = recordFieldContentsCollectionValueIdFor(forwardedParameterAlias.valueId, xsPath);
+      const parentFieldContents = collectionById.get(parentFieldContentsId);
+      const childFieldContents = collectionById.get(childFieldContentsId);
+      expect(parentFieldContents).toMatchObject({ kind: "alias", targetValueId: expect.any(String) });
+      expect(childFieldContents).toMatchObject({ kind: "alias", targetValueId: parentFieldContentsId });
+      if (parentFieldContents?.kind !== "alias") throw new Error("missing Parent.alias collection-field producer");
+      expect(collectionById.has(parentFieldContents.targetValueId)).toBe(true);
+    }
+
+    const options = buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: compiled.document!.evaluationLimitIndex
+    });
+    const rustInput = buildRustEvaluationInput(compiled.document!.elements, options);
+    expect(rustInput.bindingVersions?.collectionValues).toBeDefined();
+    const bindingCollections = rustInput.bindingVersions!.collectionValues ?? [];
+    expect(bindingCollections).toEqual(scalarCollections);
+    const bindingCollectionById = new Map(bindingCollections.map((collection) => [collection.valueId, collection]));
+    for (const parentAliasCollection of parentAliasCollections) {
+      expect(bindingCollectionById.has(parentAliasCollection.valueId)).toBe(true);
+    }
+    for (const forwardedParameterAlias of forwardedParameterAliases) {
+      if (forwardedParameterAlias.kind !== "alias") throw new Error("expected forwarded child parameter alias");
+      expect(bindingCollectionById.get(forwardedParameterAlias.valueId)).toMatchObject({
+        kind: "alias",
+        targetValueId: forwardedParameterAlias.targetValueId
+      });
+      expect(bindingCollectionById.has(forwardedParameterAlias.targetValueId)).toBe(true);
+    }
+    for (const scalarCollection of scalarCollections.filter((collection) =>
+      collection.valueId.startsWith("record-field-contents:")
+    )) {
+      expect(bindingCollectionById.has(scalarCollection.valueId)).toBe(true);
+    }
   });
 
   it("evaluates nested record members and record collection length/index", () => {

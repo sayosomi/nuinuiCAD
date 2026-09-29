@@ -2897,10 +2897,11 @@ export const compileModuleScalarRuntime = ({
     const recordValueIdentity = recordValueCollectionIdentityFor(valueId);
     if (recordValueIdentity) {
       if (recordValueIdentity.path.length > 0) return valueId;
-      if (context && contextCandidatesFor(context).some((candidate) =>
+      const owner = context && contextCandidatesFor(context).find((candidate) =>
         candidate.definition.recordValues.some((value) => value.value.statementId === recordValueIdentity.statementId)
-      )) {
-        return recordValueCollectionIdFor(context.path, recordValueIdentity.statementId);
+      );
+      if (owner) {
+        return recordValueCollectionIdFor(owner.path, recordValueIdentity.statementId);
       }
       return valueId;
     }
@@ -3226,7 +3227,17 @@ export const compileModuleScalarRuntime = ({
     ): void => {
       const typeIdentity = recordValue.value.typeIdentity;
       const expression = recordValue.valueExpression;
-      if (!typeIdentity || !expression) return;
+      if (!typeIdentity) return;
+      const valueId = recordValueCollectionIdFor(context?.path ?? [], recordValue.value.statementId);
+      if (!expression) {
+        if (!context || !recordValue.target || registeredRecordValueIds.has(valueId)) return;
+        registeredRecordValueIds.add(valueId);
+        const targetValueId = recordTargetValueIdFor(recordValue.target, context);
+        if (targetValueId && targetValueId !== valueId) {
+          moduleCollectionValues.push({ valueId, kind: "alias", targetValueId });
+        }
+        return;
+      }
       const target: Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> = recordValue.target?.kind === "recordValue"
         ? recordValue.target
         : {
@@ -3234,10 +3245,10 @@ export const compileModuleScalarRuntime = ({
             statementId: recordValue.value.statementId,
             statementIndex: recordValue.value.statementIndex,
             typeIdentity
-          };
+        };
       appendRecordValueExpression(
         expression,
-        recordValueCollectionIdFor(context?.path ?? [], recordValue.value.statementId),
+        valueId,
         target,
         typeIdentity,
         context

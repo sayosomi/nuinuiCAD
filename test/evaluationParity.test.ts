@@ -918,6 +918,49 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("forwards parent-local Module record aliases with collection fields through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Bundle(scalar: number, xs: number[])",
+      "module Leaf(input: Bundle) {",
+      "  const childAlias: Bundle = @input",
+      "  export const childScalar: number = @childAlias.scalar",
+      "  export const childLength: number = @childAlias.xs.length",
+      "}",
+      "module Parent(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Child = Leaf(input: @alias)",
+      "  export const childScalar: number = @Child::childScalar",
+      "  export const childLength: number = @Child::childLength",
+      "}",
+      "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
+      "instance Large = Parent(input: Bundle(scalar: 203, xs: [3, 7, 13, 19]))",
+      "const smallScalar: number = @Small::childScalar",
+      "const smallLength: number = @Small::childLength",
+      "const largeScalar: number = @Large::childScalar",
+      "const largeLength: number = @Large::childLength"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      for (const [name, expected] of [
+        ["smallScalar", 101],
+        ["smallLength", 2],
+        ["largeScalar", 203],
+        ["largeLength", 4]
+      ] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+    }
+  }, 30000);
+
   it("evaluates optional record members in numeric geometry inputs through persistent Rust stdio", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
