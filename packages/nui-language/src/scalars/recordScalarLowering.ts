@@ -182,6 +182,17 @@ export const recordFieldCollectionValueIdFor = (
       fieldPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])
     ])}`;
 
+/** Stable identity for the collection contents stored in a record field.
+ * This is distinct from `recordFieldCollectionValueIdFor`, which identifies a
+ * projection of field values across a record collection. */
+export const recordFieldContentsCollectionValueIdFor = (
+  recordCollectionValueId: string,
+  fieldPath: readonly RecordFieldIdentity[]
+): string => `record-field-contents:${JSON.stringify([
+  recordCollectionValueId,
+  fieldPath.map((field) => [field.recordStatementId, field.fieldIndex])
+])}`;
+
 const recordFieldPathKey = (path: readonly RecordFieldIdentity[]) => JSON.stringify(
   path.map((field) => [field.recordStatementId, field.fieldIndex])
 );

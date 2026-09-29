@@ -1,7 +1,7 @@
 import type { DslGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslModuleParameterType, DslSpan, DslStatement } from "./dslTypes";
 import type { DslArrayValueType, DslValueType } from "./dslValueTypes";
-import type { DslArrayLiteralValue } from "./geometryArraySemantics";
+import type { DslArrayLiteralValue, DslArraySemanticValue } from "./geometryArraySemantics";
 import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { ScalarExpressionType, ScalarType } from "../scalars/types";
@@ -488,7 +488,7 @@ export type ModuleRecordFieldValueExpressionSemantic =
   | { kind: "scalar"; expression: ModuleScalarExpressionSemantic }
   | { kind: "geometry"; expression: ModuleGeometryValueExpressionSemantic | null }
   | { kind: "record"; expression: ModuleRecordValueExpressionSemantic | null }
-  | { kind: "collection"; valueType: DslArrayValueType; value: unknown };
+  | { kind: "collection"; valueType: DslArrayValueType; value: DslArraySemanticValue<GenericArraySourceTarget> | null };
 
 export type ModuleRecordReferenceSemantic = {
   source: string;

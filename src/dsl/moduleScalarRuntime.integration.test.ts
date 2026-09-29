@@ -1096,6 +1096,90 @@ describe("module scalar runtime integration", () => {
     });
   });
 
+  it("uses each Module record field collection's own cardinality", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Box(xs: number[], ys: number[])",
+      "module Example(input: Box) {",
+      "  const empty: Box = Box(xs: [], ys: [])",
+      "  const one: Box = Box(xs: [7], ys: [8])",
+      "  const two: Box = Box(xs: [7, 13], ys: [2, 4])",
+      "  const three: Box = Box(xs: [7, 13, 19], ys: [3, 5, 7])",
+      "  const alias: Box = @two",
+      "  const boxes: Box[] = [@two, @three]",
+      "  const selectedFieldLength: number = @boxes[1].xs.length",
+      "  const emptyLength: number = @empty.xs.length",
+      "  const oneLength: number = @one.xs.length",
+      "  const twoLength: number = @two.xs.length",
+      "  const threeLength: number = @three.xs.length",
+      "  const aliasLength: number = @alias.xs.length",
+      "  const twoFieldLength: number = @two.ys.length",
+      "  const threeFieldLength: number = @three.ys.length",
+      "  const inputLength: number = @input.xs.length",
+      "  const ordinary: number[] = [1, 2, 3]",
+      "  const ordinaryLength: number = @ordinary.length",
+      "}",
+      "instance Use = Example(input: Box(xs: [17, 19, 23, 29], ys: [1]))"
+    ].join("\n"), "module-record-field-collection-cardinality");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    for (const [name, value] of [
+      ["emptyLength", 0],
+      ["oneLength", 1],
+      ["twoLength", 2],
+      ["threeLength", 3],
+      ["aliasLength", 2],
+      ["selectedFieldLength", 3],
+      ["twoFieldLength", 2],
+      ["threeFieldLength", 3],
+      ["inputLength", 4],
+      ["ordinaryLength", 3]
+    ] as const) {
+      expect(scalarValue(name), name).toMatchObject({ status: "ok", value: { kind: "number", value } });
+    }
+
+    const lengthInitializer = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      const initializer = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === binding?.id)?.declaration.initializer;
+      expect(initializer).toMatchObject({ kind: "geometryProperty", collectionLength: null });
+      if (!initializer || initializer.kind !== "geometryProperty" || !initializer.collectionValueId) {
+        throw new Error(`expected ${name} to lower to a collection-length property`);
+      }
+      expect(initializer.collectionValueId).toMatch(/^record-field-contents:/);
+      expect(initializer.collectionValueId).not.toMatch(/^record-field-collection:/);
+      return initializer.collectionValueId;
+    };
+    const collectionFor = (name: string) => {
+      const valueId = lengthInitializer(name);
+      const collection = compiled.scalarProgram?.collectionValues?.find((candidate) => candidate.valueId === valueId);
+      expect(collection).toBeDefined();
+      return collection!;
+    };
+    expect(collectionFor("emptyLength")).toMatchObject({ kind: "literal", members: [] });
+    expect(collectionFor("oneLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal", value: { kind: "number", value: 7 } }] });
+    expect(collectionFor("twoLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal" }, { kind: "literal" }] });
+    expect(collectionFor("threeLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal" }, { kind: "literal" }, { kind: "literal" }] });
+
+    const aliasFieldCollection = collectionFor("aliasLength");
+    const twoFieldCollection = collectionFor("twoLength");
+    expect(aliasFieldCollection).toMatchObject({ kind: "alias", targetValueId: twoFieldCollection.valueId });
+    expect(lengthInitializer("selectedFieldLength")).toBe(lengthInitializer("threeLength"));
+    expect(collectionFor("twoFieldLength")).not.toHaveProperty("valueId", twoFieldCollection.valueId);
+    expect(collectionFor("twoFieldLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal" }, { kind: "literal" }] });
+    expect(collectionFor("threeFieldLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal" }, { kind: "literal" }, { kind: "literal" }] });
+  });
+
   it("evaluates nested record members and record collection length/index", () => {
     const compiled = compileWithIds([
       "nui 1",

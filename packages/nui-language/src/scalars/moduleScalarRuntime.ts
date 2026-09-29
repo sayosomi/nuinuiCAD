@@ -80,7 +80,8 @@ import {
   recordScalarBindingIdFor,
   recordScalarDeclarationVersionIdFor,
   recordValueCollectionIdFor,
-  recordFieldCollectionValueIdFor
+  recordFieldCollectionValueIdFor,
+  recordFieldContentsCollectionValueIdFor
 } from "./recordScalarLowering";
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
@@ -1544,14 +1545,31 @@ export const lowerExpression = (
       const propertyName = property.target.property?.split(".").at(-1);
       if (recordCollection && propertyName === "length") {
         const fieldPath = recordCollection.fieldPath;
-        const field = fieldPath[fieldPath.length - 1]!;
-        geometryPropertyReferences.set(property.span.start, {
-          kind: "collection",
-          collectionValueId: collectionValueIdFor(recordFieldCollectionValueIdFor(recordCollection.collectionValueId, field, fieldPath)),
-          collectionLength: recordCollection.collectionLength,
-          targetSourceOrder: recordCollection.targetSourceOrder,
-          type: { kind: "number" }
-        });
+        let recordValueCollectionId: string | null = null;
+        if (property.target.record.kind === "recordValue" || property.target.record.kind === "recordParameter") {
+          recordValueCollectionId = recordCollection.collectionValueId;
+        } else if (property.target.record.kind === "recordCollectionIndex") {
+          const index = property.target.record.index.ast.kind === "numberLiteral"
+            ? property.target.record.index.ast.value
+            : null;
+          const selectedRecord = index !== null && Number.isInteger(index) && index >= 0
+            ? property.target.record.members?.[index]
+            : undefined;
+          if (selectedRecord) {
+            recordValueCollectionId = collectionValueIdFor(
+              recordValueCollectionIdFor([], selectedRecord.statementId)
+            );
+          }
+        }
+        if (recordValueCollectionId) {
+          geometryPropertyReferences.set(property.span.start, {
+            kind: "collection",
+            collectionValueId: recordFieldContentsCollectionValueIdFor(recordValueCollectionId, fieldPath),
+            collectionLength: null,
+            targetSourceOrder: recordCollection.targetSourceOrder,
+            type: { kind: "number" }
+          });
+        }
       }
       continue;
     }
@@ -3613,6 +3631,247 @@ export const compileModuleScalarRuntime = ({
       }
       moduleCollectionValues.push({ valueId, kind: "literal", members });
     };
+    const registeredRecordFieldContentsIds = new Set<string>();
+    const appendRecordFieldContentsForExpression = (
+      expression: ModuleRecordValueExpressionSemantic,
+      fieldPath: readonly RecordFieldIdentity[],
+      valueId: string,
+      context: InstanceContext,
+      contextAnalysis: GeometryArraySemanticAnalysis,
+      sourceOrder: number
+    ): void => {
+      if (registeredRecordFieldContentsIds.has(valueId)) return;
+      registeredRecordFieldContentsIds.add(valueId);
+      const appendNone = (id: string) => moduleCollectionValues.push({ valueId: id, kind: "none" });
+      const lowerControlExpression = (semantic: ModuleScalarExpressionSemantic | null) => semantic
+        ? lowerExpression(
+            semantic,
+            (target) => resolvedBindingForContext(target, context),
+            bindingsById,
+            (target) => resolvedGeometryPropertyForContext(target, context),
+            (target) => collectionLengthForTargetContext(target, context),
+            (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+            (id) => collectionValueIdFor(id, context),
+            (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+            (target) => recordParameterCollectionForTargetContext(target, context)
+          ).expression
+        : null;
+
+      if (expression.kind === "constructor") {
+        const fieldValue = recordFieldValueExpressionAt(expression, fieldPath);
+        if (fieldValue?.kind === "collection" && fieldValue.value) {
+          appendConditional(fieldValue.value, valueId, context, contextAnalysis, sourceOrder);
+        } else {
+          appendNone(valueId);
+        }
+        return;
+      }
+      if (expression.kind === "reference") {
+        const targetValueId = expression.reference.target
+          ? recordTargetValueIdFor(expression.reference.target, context)
+          : null;
+        if (targetValueId) {
+          moduleCollectionValues.push({
+            valueId,
+            kind: "alias",
+            targetValueId: recordFieldContentsCollectionValueIdFor(targetValueId, fieldPath)
+          });
+        } else {
+          appendNone(valueId);
+        }
+        return;
+      }
+      if (expression.kind === "collectionIndex") {
+        const target = expression.reference.target;
+        const index = target?.kind === "recordCollectionIndex" && target.index.ast.kind === "numberLiteral"
+          ? target.index.ast.value
+          : null;
+        const selected = target?.kind === "recordCollectionIndex" && index !== null && Number.isInteger(index) && index >= 0
+          ? target.members?.[index]
+          : undefined;
+        const targetValueId = selected ? recordTargetValueIdFor(selected, context) : null;
+        if (targetValueId) {
+          moduleCollectionValues.push({
+            valueId,
+            kind: "alias",
+            targetValueId: recordFieldContentsCollectionValueIdFor(targetValueId, fieldPath)
+          });
+        } else {
+          appendNone(valueId);
+        }
+        return;
+      }
+      if (expression.kind === "none") {
+        appendNone(valueId);
+        return;
+      }
+      if (expression.kind === "coalesce") {
+        const leftValueId = `${valueId}:left`;
+        const rightValueId = `${valueId}:right`;
+        if (expression.left) appendRecordFieldContentsForExpression(expression.left, fieldPath, leftValueId, context, contextAnalysis, sourceOrder);
+        else appendNone(leftValueId);
+        if (expression.right) appendRecordFieldContentsForExpression(expression.right, fieldPath, rightValueId, context, contextAnalysis, sourceOrder);
+        else appendNone(rightValueId);
+        moduleCollectionValues.push({
+          valueId,
+          kind: "coalesce",
+          leftValueId,
+          rightValueId,
+          sourceOrder: executionPositionForValue(context.path, sourceOrder)
+        });
+        return;
+      }
+      if (expression.kind === "if") {
+        const thenValueId = `${valueId}:then`;
+        const elseValueId = `${valueId}:else`;
+        if (expression.thenBranch) appendRecordFieldContentsForExpression(expression.thenBranch, fieldPath, thenValueId, context, contextAnalysis, sourceOrder);
+        else appendNone(thenValueId);
+        if (expression.elseBranch) appendRecordFieldContentsForExpression(expression.elseBranch, fieldPath, elseValueId, context, contextAnalysis, sourceOrder);
+        else appendNone(elseValueId);
+        const condition = lowerControlExpression(expression.condition);
+        if (condition) {
+          moduleCollectionValues.push({
+            valueId,
+            kind: "if",
+            condition,
+            thenValueId,
+            elseValueId,
+            sourceOrder: executionPositionForValue(context.path, sourceOrder)
+          });
+        } else {
+          appendNone(valueId);
+        }
+        return;
+      }
+
+      const arms: { label: string; valueId: string; binderId?: string }[] = [];
+      for (const arm of expression.arms) {
+        const armValueId = `${valueId}:arm:${arm.label}`;
+        if (arm.expression) appendRecordFieldContentsForExpression(arm.expression, fieldPath, armValueId, context, contextAnalysis, sourceOrder);
+        else appendNone(armValueId);
+        const binderId = arm.label === "some" && arm.binder
+          ? optionalMatchBinderId(expression.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
+          : undefined;
+        arms.push({ label: arm.label, valueId: armValueId, ...(binderId ? { binderId } : {}) });
+      }
+      const loweredScrutinee = lowerControlExpression(expression.scrutinee);
+      if (!loweredScrutinee) {
+        appendNone(valueId);
+        return;
+      }
+      const matchBinderType = optionalCollectionMatchBinderType(loweredScrutinee);
+      const scrutinee = remapTypedExpressionCollectionValueIds(
+        optionalCollectionMatchPresenceProjection(loweredScrutinee),
+        (id) => collectionValueIdFor(id, context)
+      );
+      if (matchBinderType?.kind === "collection") {
+        for (const arm of arms) {
+          if (arm.label === "some" && arm.binderId) {
+            appendOptionalCollectionBinderAlias(arm.binderId, matchBinderType.collectionValueId, context);
+          }
+        }
+      }
+      moduleCollectionValues.push({
+        valueId,
+        kind: "match",
+        scrutinee,
+        arms: arms.map((arm) => collectionMatchArm(
+          arm.label,
+          arm.valueId,
+          arm.binderId,
+          loweredScrutinee,
+          (binderId) => moduleCollectionBinderIdFor(context.path, binderId)
+        )),
+        sourceOrder: executionPositionForValue(context.path, sourceOrder)
+      });
+    };
+
+    for (const context of contextsByKey.values()) {
+      const contextAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+      const recordAnalysis = sourceNamespaceForContext(context)?.recordSemanticAnalysis;
+      if (!contextAnalysis || !recordAnalysis) continue;
+      for (const recordValue of context.definition.recordValues) {
+        const typeIdentity = recordValue.value.typeIdentity;
+        const expression = recordValue.valueExpression;
+        const definition = typeIdentity ? recordAnalysis.definitionsByStatementId.get(typeIdentity) : undefined;
+        if (!definition) continue;
+        const recordValueId = recordValueCollectionIdFor(context.path, recordValue.value.statementId);
+        for (const { path: fieldPath, valueType } of recordFieldPathsFor(definition, recordAnalysis)) {
+          const requiredType = dslRequiredValueTypeOf(valueType) ?? valueType;
+          if (!isDslArrayValueType(requiredType)) continue;
+          const valueId = recordFieldContentsCollectionValueIdFor(recordValueId, fieldPath);
+          if (expression) {
+            appendRecordFieldContentsForExpression(
+              expression,
+              fieldPath,
+              valueId,
+              context,
+              contextAnalysis,
+              recordValue.value.statementIndex
+            );
+          } else {
+            const targetValueId = recordValue.target
+              ? recordTargetValueIdFor(recordValue.target, context)
+              : null;
+            if (targetValueId) {
+              moduleCollectionValues.push({
+                valueId,
+                kind: "alias",
+                targetValueId: recordFieldContentsCollectionValueIdFor(targetValueId, fieldPath)
+              });
+            } else {
+              moduleCollectionValues.push({ valueId, kind: "none" });
+            }
+          }
+        }
+      }
+    }
+
+    for (const context of contextsByKey.values()) {
+      const contextAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+      const recordAnalysis = sourceNamespaceForContext(context)?.recordSemanticAnalysis;
+      if (!contextAnalysis || !recordAnalysis) continue;
+      for (const parameter of context.definition.parameters) {
+        const recordParameter = recordAnalysis.moduleParameters.find((candidate) =>
+          candidate.definitionStatementId === context.definition.statementId && candidate.parameterIndex === parameter.parameterIndex
+        );
+        const definition = recordParameter?.typeIdentity
+          ? recordAnalysis.definitionsByStatementId.get(recordParameter.typeIdentity)
+          : undefined;
+        const binding = context.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
+        if (!definition || binding?.value?.kind !== "record") continue;
+        const valueId = moduleRecordParameterCollectionValueIdFor(
+          context.path,
+          parameter.definitionStatementId,
+          parameter.parameterIndex
+        );
+        const reference = binding.value.reference;
+        for (const { path: fieldPath, valueType } of recordFieldPathsFor(definition, recordAnalysis)) {
+          const requiredType = dslRequiredValueTypeOf(valueType) ?? valueType;
+          if (!isDslArrayValueType(requiredType)) continue;
+          const fieldValueId = recordFieldContentsCollectionValueIdFor(valueId, fieldPath);
+          if (reference.target) {
+            const targetValueId = recordTargetValueIdFor(reference.target, context);
+            moduleCollectionValues.push(targetValueId
+              ? {
+                  valueId: fieldValueId,
+                  kind: "alias",
+                  targetValueId: recordFieldContentsCollectionValueIdFor(targetValueId, fieldPath)
+                }
+              : { valueId: fieldValueId, kind: "none" });
+          } else if (reference.constructor) {
+            appendRecordFieldContentsForExpression({
+              kind: "constructor",
+              span: reference.span,
+              constructor: reference.constructor
+            }, fieldPath, fieldValueId, context, contextAnalysis, context.instance.statementIndex);
+          } else {
+            moduleCollectionValues.push({ valueId: fieldValueId, kind: "none" });
+          }
+        }
+      }
+    }
+
     for (const context of contextsByKey.values()) {
     const contextAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
     if (!contextAnalysis) continue;
