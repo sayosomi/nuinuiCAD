@@ -1181,6 +1181,165 @@ describe("module scalar runtime integration", () => {
     expect(collectionFor("threeFieldLength")).toMatchObject({ kind: "literal", members: [{ kind: "literal" }, { kind: "literal" }, { kind: "literal" }] });
   });
 
+  it("indexes Module record-parameter collection fields through canonical field contents", () => {
+    const source = [
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "module Read(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  const constructed: Bundle = Bundle(xs: [31, 47])",
+      "  export const first: number = @input.xs[0]",
+      "  export const second: number = @input.xs[1]",
+      "  export const aliasFirst: number = @alias.xs[0]",
+      "  export const aliasSecond: number = @alias.xs[1]",
+      "  export const inputLength: number = @input.xs.length",
+      "  export const aliasLength: number = @alias.xs.length",
+      "  export const constructedSecond: number = @constructed.xs[1]",
+      "}",
+      "instance Short = Read(input: Bundle(xs: [5, 11]))",
+      "instance Long = Read(input: Bundle(xs: [2, 17, 31]))",
+      "const shortFirst: number = @Short::first",
+      "const shortSecond: number = @Short::second",
+      "const shortAliasFirst: number = @Short::aliasFirst",
+      "const shortAliasSecond: number = @Short::aliasSecond",
+      "const shortLength: number = @Short::inputLength",
+      "const shortAliasLength: number = @Short::aliasLength",
+      "const shortConstructedSecond: number = @Short::constructedSecond",
+      "const longFirst: number = @Long::first",
+      "const longSecond: number = @Long::second",
+      "const longAliasFirst: number = @Long::aliasFirst",
+      "const longAliasSecond: number = @Long::aliasSecond",
+      "const longLength: number = @Long::inputLength",
+      "const longAliasLength: number = @Long::aliasLength",
+      "const longConstructedSecond: number = @Long::constructedSecond"
+    ].join("\n");
+    const compiled = compileWithIds(source, "say422-module-record-field-index");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, name).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    for (const [name, value] of [
+      ["shortFirst", 5],
+      ["shortSecond", 11],
+      ["shortAliasFirst", 5],
+      ["shortAliasSecond", 11],
+      ["shortLength", 2],
+      ["shortAliasLength", 2],
+      ["shortConstructedSecond", 47],
+      ["longFirst", 2],
+      ["longSecond", 17],
+      ["longAliasFirst", 2],
+      ["longAliasSecond", 17],
+      ["longLength", 3],
+      ["longAliasLength", 3],
+      ["longConstructedSecond", 47]
+    ] as const) {
+      expect(scalarValue(name), name).toMatchObject({ status: "ok", value: { kind: "number", value } });
+    }
+
+    const collectionValues = compiled.scalarProgram?.collectionValues ?? [];
+    const collectionById = new Map(collectionValues.map((collection) => [collection.valueId, collection]));
+    const fieldIndicesFor = (candidate: typeof compiled) =>
+      (candidate.scalarProgram?.statements ?? []).flatMap((statement) => {
+        const initializer = statement.declaration.initializer;
+        return initializer.kind === "collectionIndex" && initializer.collectionValueId?.startsWith("record-field-contents:")
+          ? [{ bindingId: statement.bindingId, sourceOrder: statement.sourceOrder, index: initializer }]
+          : [];
+      });
+    const fieldIndices = fieldIndicesFor(compiled);
+    expect(fieldIndices).toHaveLength(10);
+    for (const { sourceOrder, index } of fieldIndices) {
+      expect(Number.isInteger(sourceOrder)).toBe(true);
+      expect(sourceOrder).toBeGreaterThanOrEqual(0);
+      expect(index.type).toEqual({ kind: "number" });
+      expect(index.targetSourceOrder).toEqual(expect.any(Number));
+      expect(Number.isFinite(index.targetSourceOrder)).toBe(true);
+      expect(index.targetSourceOrder).toBeGreaterThanOrEqual(0);
+      const producer = collectionById.get(index.collectionValueId!);
+      expect(producer).toBeDefined();
+      expect(producer).toMatchObject({ valueId: index.collectionValueId });
+    }
+    const parameterFieldIndices = fieldIndices.filter(({ index }) => {
+      const identity = JSON.parse(index.collectionValueId!.slice("record-field-contents:".length)) as unknown[];
+      return typeof identity[0] === "string" && identity[0].startsWith("module-record-parameter:");
+    });
+    expect(parameterFieldIndices).toHaveLength(4);
+    const firstInputIndex = parameterFieldIndices[0]!.index;
+    const fieldContentsIdentity = JSON.parse(firstInputIndex.collectionValueId!.slice("record-field-contents:".length)) as unknown[];
+    expect(fieldContentsIdentity[0]).toMatch(/^module-record-parameter:/);
+
+    const options = buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: compiled.document!.evaluationLimitIndex
+    });
+    const rustInput = buildRustEvaluationInput(compiled.document!.elements, options);
+    const bindingCollections = rustInput.bindingVersions?.collectionValues ?? [];
+    expect(bindingCollections).toEqual(collectionValues);
+    for (const { index } of fieldIndices) {
+      expect(bindingCollections.some((collection) => collection.valueId === index.collectionValueId)).toBe(true);
+    }
+
+    const metadataFor = (candidate: typeof compiled) => fieldIndicesFor(candidate)
+      .map(({ bindingId, sourceOrder, index }) => {
+        const producer = candidate.scalarProgram?.collectionValues?.find((collection) => collection.valueId === index.collectionValueId);
+        const producerSourceOrder = producer && "sourceOrder" in producer ? producer.sourceOrder : null;
+        return [
+          bindingId,
+          sourceOrder,
+          index.collectionValueId,
+          index.collectionLength,
+          index.targetSourceOrder,
+          index.type,
+          producerSourceOrder
+        ];
+      })
+      .sort(([left], [right]) => String(left).localeCompare(String(right)));
+    const repeated = compileWithIds(source, "say422-module-record-field-index");
+    expect(metadataFor(repeated)).toEqual(metadataFor(compiled));
+  });
+
+  it("preserves Module record-field collection-index errors for empty and invalid indexes", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "module Read(input: Bundle, values: number[]) {",
+      "  const negative: number = -1",
+      "  const fractional: number = 0.5",
+      "  export const first: number = @input.xs[0]",
+      "  export const negativeIndex: number = @values[@negative]",
+      "  export const fractionalIndex: number = @values[@fractional]",
+      "  export const outOfRange: number = @input.xs[2]",
+      "}",
+      "instance Empty = Read(input: Bundle(xs: []), values: [])",
+      "instance Pair = Read(input: Bundle(xs: [5, 11]), values: [5, 11])",
+      "const emptyIndex: number = @Empty::first",
+      "const negativeIndex: number = @Pair::negativeIndex",
+      "const fractionalIndex: number = @Pair::fractionalIndex",
+      "const outOfRange: number = @Pair::outOfRange"
+    ].join("\n"), "say422-module-record-field-index-invalid");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, name).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    for (const name of ["emptyIndex", "negativeIndex", "fractionalIndex", "outOfRange"]) {
+      expect(scalarValue(name), name).toMatchObject({ status: "error", issueCode: "evaluation-collection-index-invalid" });
+    }
+  });
+
   it("preserves parent-local record aliases and collection fields when forwarding to a child Module", () => {
     const compiled = compileWithIds([
       "nui 1",

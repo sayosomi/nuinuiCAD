@@ -1019,7 +1019,12 @@ const lowerRecordPropertyAst = (
         // transport. This lets a non-optional record produced by `??` expose
         // its scalar fields without widening ScalarExpressionType with a
         // second non-scalar optional model.
-        if (target?.kind === "recordField" && target.record.kind === "recordValue" && target.record.valueExpressionKind === "coalesce") {
+        if (
+          target?.kind === "recordField" &&
+          target.record.kind === "recordValue" &&
+          target.record.valueExpressionKind === "coalesce" &&
+          target.collectionIndex === undefined
+        ) {
           return {
             kind: "collectionIndex",
             span: node.span,
@@ -1036,6 +1041,27 @@ const lowerRecordPropertyAst = (
             name: node.elementName,
             index: node.occurrenceIndex
           };
+        }
+        if (
+          target?.kind === "recordField" &&
+          target.collectionIndex !== undefined &&
+          (target.record.kind === "recordValue" || target.record.kind === "recordParameter")
+        ) {
+          const indexedProperty = /^(.*)\[(\d+)\]$/.exec(node.property);
+          if (indexedProperty) {
+            const fieldPathName = indexedProperty[1]!;
+            const indexSpan = {
+              start: node.propertySpan.start + fieldPathName.length + 1,
+              end: node.propertySpan.end - 1
+            };
+            return {
+              kind: "collectionIndex",
+              span: node.span,
+              nameSpan: { start: node.elementNameSpan.start, end: indexSpan.start - 1 },
+              name: `${node.elementName}.${fieldPathName}`,
+              index: { kind: "numberLiteral", span: indexSpan, value: target.collectionIndex }
+            };
+          }
         }
         return {
           kind: "reference",
@@ -1645,6 +1671,9 @@ export const lowerExpression = (
         const recordCollectionTarget = recordFieldTarget?.record.kind === "recordCollectionIndex" && !recordFieldTarget.record.members
           ? recordFieldTarget.record
           : null;
+        const recordParameterTarget = recordFieldTarget?.record.kind === "recordParameter"
+          ? recordCollectionTargetFor(recordFieldTarget)
+          : null;
         const recordFieldPath = recordCollectionTarget ? recordFieldTarget!.fieldPath ?? [recordFieldTarget!.field] : null;
         const recordValueFieldPath = recordValueTarget ? recordFieldTarget!.fieldPath ?? [recordFieldTarget!.field] : null;
         const recordFieldCollectionValueId = recordCollectionTarget && recordFieldPath
@@ -1654,6 +1683,10 @@ export const lowerExpression = (
                 : [recordCollectionTarget.collectionValueId, "path", recordFieldPath.map((field) => [field.recordStatementId, field.fieldIndex])]
             )}`
           : null;
+        const recordParameterFieldPath = recordParameterTarget?.fieldPath;
+        const recordParameterFieldContentsCollectionValueId = recordParameterTarget && recordParameterFieldPath
+          ? recordFieldContentsCollectionValueIdFor(recordParameterTarget.collectionValueId, recordParameterFieldPath)
+          : null;
         const recordValueFieldCollectionValueId = recordValueTarget && recordValueFieldPath
           ? recordFieldCollectionValueIdFor(
               recordValueCollectionIdFor([], recordValueTarget.statementId),
@@ -1661,11 +1694,32 @@ export const lowerExpression = (
               recordValueFieldPath
             )
           : null;
+        const recordValueFieldContentsCollectionValueId =
+          recordValueTarget &&
+          recordValueFieldPath &&
+          recordFieldTarget?.collectionIndex !== undefined
+            ? recordFieldContentsCollectionValueIdFor(
+                collectionValueIdFor(recordValueCollectionIdFor([], recordValueTarget.statementId)),
+                recordValueFieldPath
+              )
+            : null;
         typecheckResolutions.push({
           kind: "resolvedCollectionIndex",
-          collectionValueId: collectionValueIdFor(recordFieldCollectionValueId ?? recordValueFieldCollectionValueId ?? reference?.collectionValueId ?? ""),
-          collectionLength: recordCollectionTarget?.collectionLength ?? (recordValueTarget ? 1 : reference?.collectionLength ?? null),
+          collectionValueId: collectionValueIdFor(
+            recordFieldCollectionValueId ??
+            recordValueFieldContentsCollectionValueId ??
+            recordValueFieldCollectionValueId ??
+            recordParameterFieldContentsCollectionValueId ??
+            reference?.collectionValueId ??
+            ""
+          ),
+          collectionLength: recordCollectionTarget?.collectionLength ?? (
+            recordValueTarget && recordFieldTarget?.collectionIndex === undefined
+              ? 1
+              : reference?.collectionLength ?? null
+          ),
           targetSourceOrder: (() => {
+            if (recordParameterTarget) return recordParameterTarget.targetSourceOrder;
             const sourceOrder = recordCollectionTarget?.targetSourceOrder ?? recordValueTarget?.statementIndex ?? reference?.targetSourceOrder ?? -1;
             return sourceOrder >= 0 ? collectionSourceOrderFor(sourceOrder) : sourceOrder;
           })(),
