@@ -3623,6 +3623,36 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("preserves optional scalar fields selected from nominal-record collections through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record R(x: number?)",
+      "const first: R = R(x: 7)",
+      "const absent: R = R(x: none)",
+      "const third: R = R(x: 23)",
+      "const xs: R[] = [@first, @absent, @third]",
+      "const selected: R = @xs[0]",
+      "const selectedAbsent: R = @xs[1]",
+      "const selectedThird: R = @xs[2]",
+      "const presentResult: number = @selected.x ?? 19",
+      "const absentResult: number = @selectedAbsent.x ?? 19",
+      "const laterResult: number = @selectedThird.x ?? 19"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "presentResult"), 7);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "absentResult"), 19);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "laterResult"), 23);
+    }
+  }, 30000);
+
   it("resolves optional geometry collection length through persistent Rust stdio", async () => {
     const cases: Array<{
       name: string;

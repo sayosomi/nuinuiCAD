@@ -1074,13 +1074,13 @@ export type ModuleDefinitionSemantic = {
     binderFields: readonly {
       field: RecordFieldIdentity;
       fieldName: string;
-      type: ScalarType;
+      type: ScalarExpressionType;
       fieldPath?: readonly RecordFieldIdentity[];
     }[];
     fields: readonly {
       field: RecordFieldIdentity;
       fieldName: string;
-      type: ScalarType;
+      type: ScalarExpressionType;
       body: ModuleScalarExpressionSemantic;
       fieldPath?: readonly RecordFieldIdentity[];
     }[];

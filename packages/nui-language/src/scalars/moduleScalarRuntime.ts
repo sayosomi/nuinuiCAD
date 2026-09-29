@@ -3364,8 +3364,11 @@ export const compileModuleScalarRuntime = ({
           context
         );
         const field = fieldPath[fieldPath.length - 1]!;
+        const valueId = recordFieldCollectionValueIdFor(sourceValueId, field, fieldPath);
+        if (registeredRecordFieldProjectionIds.has(valueId)) return;
+        registeredRecordFieldProjectionIds.add(valueId);
         moduleCollectionValues.push({
-          valueId: recordFieldCollectionValueIdFor(sourceValueId, field, fieldPath),
+          valueId,
           kind: "recordField",
           sourceValueId,
           field: {
@@ -3387,8 +3390,11 @@ export const compileModuleScalarRuntime = ({
         const fieldPath = recordCollectionTarget.fieldPath ?? [recordCollectionTarget.field];
         const sourceValueId = collectionValueIdFor(recordCollectionTarget.record.collectionValueId, context);
         const field = fieldPath[fieldPath.length - 1]!;
+        const valueId = recordFieldCollectionValueIdFor(sourceValueId, field, fieldPath);
+        if (registeredRecordFieldProjectionIds.has(valueId)) return;
+        registeredRecordFieldProjectionIds.add(valueId);
         moduleCollectionValues.push({
-          valueId: recordFieldCollectionValueIdFor(sourceValueId, field, fieldPath),
+          valueId,
           kind: "recordField",
           sourceValueId,
           field: {
@@ -3412,8 +3418,11 @@ export const compileModuleScalarRuntime = ({
         if (!identity) return;
         const sourceValueId = collectionValueIdFor(identity.collectionValueId, context);
         const field = identity.fieldPath[identity.fieldPath.length - 1]!;
+        const valueId = recordFieldCollectionValueIdFor(sourceValueId, field, identity.fieldPath);
+        if (registeredRecordFieldProjectionIds.has(valueId)) return;
+        registeredRecordFieldProjectionIds.add(valueId);
         moduleCollectionValues.push({
-          valueId: recordFieldCollectionValueIdFor(sourceValueId, field, identity.fieldPath),
+          valueId,
           kind: "recordField",
           sourceValueId,
           field: {

@@ -118,6 +118,25 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("keeps indexed optional record field diagnostics on their existing owners", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record R(x: number?)",
+      "const first: R = R(x: 7)",
+      "module Select(items: R[]) {",
+      "  const selected: R = @items[0]",
+      "  const required: number = @selected.x",
+      "  const unknown: number = @selected.missing",
+      "}",
+      "instance Use = Select(items: [@first])"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-scalar-type-mismatch" }),
+      expect.objectContaining({ code: "module-record-field-unknown" })
+    ]));
+  });
+
   it("preserves authored optional scalar types while analyzing Module carries", () => {
     const compiled = compileWithIds([
       "nui 1",
