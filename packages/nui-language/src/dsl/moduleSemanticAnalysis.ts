@@ -5342,9 +5342,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const scalarRecordFieldPathsFor = (
     definition: RecordDefinitionSemantic,
     prefix: readonly RecordFieldIdentity[] = []
-  ): readonly { field: RecordFieldSemantic; path: readonly RecordFieldIdentity[]; type: ScalarType }[] => definition.fields.flatMap((field) => {
+  ): readonly { field: RecordFieldSemantic; path: readonly RecordFieldIdentity[]; type: ScalarExpressionType }[] => definition.fields.flatMap((field) => {
     const path = [...prefix, field.identity];
-    const type = scalarTypeOfDslValueType(field.type);
+    const type = scalarExpressionTypeOfDslValueType(field.type);
     if (type) return [{ field, path, type }];
     if (field.type.kind !== "record") return [];
     const nested = recordDefinitionFor(field.type.identity ?? null);
@@ -5353,7 +5353,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   const moduleRecordFieldExpressionFor = (
     expression: ModuleRecordValueExpressionSemantic,
-    field: { identity: RecordFieldIdentity; name: string; type: ScalarType; fieldPath?: readonly RecordFieldIdentity[] }
+    field: { identity: RecordFieldIdentity; name: string; type: ScalarExpressionType; fieldPath?: readonly RecordFieldIdentity[] }
   ): ModuleScalarExpressionSemantic | null => {
     const fieldPath = field.fieldPath ?? [field.identity];
     const constructorFieldAtPath = (
@@ -5762,15 +5762,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       suppressScalarRecordFieldDiagnostics = previousSuppressScalarRecordFieldDiagnostics;
     }
     if (!valueExpression || !definition) continue;
-    const fieldExpressions = definition.fields.map((field) => ({
-      field: field.identity,
-      expression: scalarTypeOfDslValueType(field.type)
-        ? moduleRecordFieldExpressionFor(valueExpression!, { ...field, type: scalarTypeOfDslValueType(field.type)! })
-        : null,
-      valueExpression: valueExpression.kind === "constructor"
-        ? valueExpression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex)?.valueExpression ?? null
-        : null
-    }));
+    const fieldExpressions = definition.fields.map((field) => {
+      const type = scalarExpressionTypeOfDslValueType(field.type);
+      return {
+        field: field.identity,
+        expression: type ? moduleRecordFieldExpressionFor(valueExpression!, { ...field, type }) : null,
+        valueExpression: valueExpression.kind === "constructor"
+          ? valueExpression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex)?.valueExpression ?? null
+          : null
+      };
+    });
     const target: ModuleRecordSourceTarget = {
       kind: "recordValue",
       statementId: value.statementId,
@@ -7315,15 +7316,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             )
           : [];
         const fieldExpressions = valueExpression && recordDefinitionFor(value.typeIdentity)
-          ? recordDefinitionFor(value.typeIdentity)!.fields.map((field) => ({
-              field: field.identity,
-              expression: scalarTypeOfDslValueType(field.type)
-                ? moduleRecordFieldExpressionFor(valueExpression, { ...field, type: scalarTypeOfDslValueType(field.type)! })
-                : null,
-              valueExpression: valueExpression.kind === "constructor"
-                ? valueExpression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex)?.valueExpression ?? null
-                : null
-            }))
+          ? recordDefinitionFor(value.typeIdentity)!.fields.map((field) => {
+              const type = scalarExpressionTypeOfDslValueType(field.type);
+              return {
+                field: field.identity,
+                expression: type ? moduleRecordFieldExpressionFor(valueExpression, { ...field, type }) : null,
+                valueExpression: valueExpression.kind === "constructor"
+                  ? valueExpression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex)?.valueExpression ?? null
+                  : null
+              };
+            })
           : value.constructor
             ? fields.map((field) => ({
                 field: field.field,

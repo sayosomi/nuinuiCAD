@@ -1124,6 +1124,69 @@ describe("module scalar runtime integration", () => {
     expect(scalarValue("selectedLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
   });
 
+  it("preserves optional scalar field projections through record collection indexing", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record R(x: number?, required: number)",
+      "const first: R = R(x: 7, required: 13)",
+      "const second: R = R(x: none, required: 17)",
+      "const third: R = R(x: 23, required: 23)",
+      "const xs: R[] = [@first, @second, @third]",
+      "const selectedFirst: R = @xs[0]",
+      "const selectedSecond: R = @xs[1]",
+      "const selectedThird: R = @xs[2]",
+      "const presentResult: number = @selectedFirst.x ?? 19",
+      "const absentResult: number = @selectedSecond.x ?? 19",
+      "const laterResult: number = @selectedThird.x ?? 19",
+      "const requiredIndexedResult: number = @xs[2].required",
+      "const requiredAliasResult: number = @selectedSecond.required",
+      "const directResult: number = @first.x ?? 29",
+      "const directAlias: R = @first",
+      "const directAliasResult: number = @directAlias.x ?? 31"
+    ].join("\n"), "say416-optional-record-collection-field");
+    expectValid(compiled);
+
+    const recordAnalysis = compiled.sourceLexicalNamespace!.recordSemanticAnalysis!;
+    const definition = recordAnalysis.definitionsByStatementIndex.get(1)!;
+    const optionalField = definition.fields.find((field) => field.name === "x")!;
+    const sourceCollection = compiled.scalarProgram!.collectionValues!.find((collection) =>
+      collection.kind === "literal" && collection.members.length === 3 &&
+      collection.members.every((member) => member.kind === "record")
+    );
+    expect(sourceCollection).toBeDefined();
+    if (!sourceCollection) throw new Error("expected the three-member nominal-record collection");
+    const expectedProjectionId = recordFieldCollectionValueIdFor(sourceCollection.valueId, optionalField.identity);
+    const optionalFieldProjection = compiled.scalarProgram!.collectionValues!.find((collection) =>
+      collection.kind === "recordField" && collection.valueId === expectedProjectionId
+    );
+    expect(optionalFieldProjection).toMatchObject({
+      kind: "recordField",
+      sourceValueId: sourceCollection.valueId,
+      field: {
+        recordStatementId: optionalField.identity.recordStatementId,
+        fieldIndex: optionalField.identity.fieldIndex,
+        type: { kind: "optional", valueType: { kind: "number" } }
+      }
+    });
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    expect(scalarValue("presentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+    expect(scalarValue("absentResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 19 } });
+    expect(scalarValue("laterResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 23 } });
+    expect(scalarValue("requiredIndexedResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 23 } });
+    expect(scalarValue("requiredAliasResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 17 } });
+    expect(scalarValue("directResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+    expect(scalarValue("directAliasResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 7 } });
+  });
+
   it("evaluates nested fields in mapped record collections", () => {
     const compiled = compileWithIds([
       "nui 1",
