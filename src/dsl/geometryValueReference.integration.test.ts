@@ -540,6 +540,113 @@ describe("immutable single-geometry reference values", () => {
     expect(errorCodes(forwardTarget)).not.toContain("module-forward-geometry-reference");
   });
 
+  it("resolves same-scope forward typed aliases using the target geometry value identity", () => {
+    const exact = compile([
+      "nui 1",
+      "const b: point = @a",
+      "const a: point = coordinate(x: 2, y: 3)"
+    ].join("\n"));
+    expect(errorCodes(exact)).toEqual([]);
+    const exactValues = exact.moduleSemanticAnalysis?.geometryValues ?? [];
+    const exactB = exactValues.find((value) => value.name === "b");
+    const exactA = exactValues.find((value) => value.name === "a");
+    expect(exactB?.initializer?.target).toMatchObject({
+      kind: "geometryValue",
+      statementId: exactA?.statementId,
+      statementIndex: exactA?.statementIndex,
+      declaredInterfaceType: "point",
+      backingTarget: null
+    });
+
+    const reversed = compile([
+      "nui 1",
+      "const a: point = coordinate(x: 2, y: 3)",
+      "const b: point = @a"
+    ].join("\n"));
+    expect(errorCodes(reversed)).toEqual([]);
+
+    const paddedChain = compile([
+      "nui 1",
+      "const unrelatedScalar: number = 17",
+      "point unrelatedGeometry = coordinate(x: 90, y: 80)",
+      "",
+      "const first: point = @second",
+      "",
+      "const padding: number = 23",
+      "const second: point = @third",
+      "point anotherUnrelatedGeometry = coordinate(x: 70, y: 60)",
+      "",
+      "const third: point = coordinate(x: 2, y: 3)"
+    ].join("\n"));
+    expect(errorCodes(paddedChain)).toEqual([]);
+    const chainValues = paddedChain.moduleSemanticAnalysis?.geometryValues ?? [];
+    const first = chainValues.find((value) => value.name === "first");
+    const second = chainValues.find((value) => value.name === "second");
+    const third = chainValues.find((value) => value.name === "third");
+    expect(first?.initializer?.target).toMatchObject({
+      kind: "geometryValue",
+      statementId: second?.statementId,
+      declaredInterfaceType: "point",
+      backingTarget: null
+    });
+    expect(second?.initializer?.target).toMatchObject({
+      kind: "geometryValue",
+      statementId: third?.statementId,
+      declaredInterfaceType: "point",
+      backingTarget: null
+    });
+  });
+
+  it("keeps incompatible forward alias types and true alias cycles invalid", () => {
+    const incompatible = compile([
+      "nui 1",
+      "const edge: line = @laterPoint",
+      "const laterPoint: point = coordinate(x: 2, y: 3)"
+    ].join("\n"));
+    expect(errorCodes(incompatible)).toContain("module-geometry-type-mismatch");
+
+    const cycle = compile([
+      "nui 1",
+      "const first: point = @second",
+      "const second: point = @first"
+    ].join("\n"));
+    expect(errorCodes(cycle)).toContain("dependency-cycle");
+  });
+
+  it("retains Module ownership and outer-capture checks for forward typed aliases", () => {
+    const sameModule = compile([
+      "nui 1",
+      "module M() {",
+      "  const later: point = @earlier",
+      "  const earlier: point = coordinate(x: 2, y: 3)",
+      "  line Use = segment(start: @later, end: (0, 0))",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+    expect(errorCodes(sameModule)).toEqual([]);
+    const moduleDefinition = sameModule.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "M");
+    const localLater = moduleDefinition?.localGeometryValues.find((value) => value.name === "later");
+    const localEarlier = moduleDefinition?.localGeometryValues.find((value) => value.name === "earlier");
+    expect(localLater?.initializer?.target).toMatchObject({
+      kind: "geometryValue",
+      statementId: localEarlier?.statementId,
+      declaredInterfaceType: "point",
+      backingTarget: null,
+      ownerModuleDefinitionStatementId: moduleDefinition?.statementId,
+      ownerModuleDefinitionStatementIndex: moduleDefinition?.statementIndex
+    });
+
+    const outerCapture = compile([
+      "nui 1",
+      "const outside: point = coordinate(x: 2, y: 3)",
+      "module M() {",
+      "  const inside: point = @outside",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+    expect(errorCodes(outerCapture)).toContain("module-outer-capture");
+  });
+
   it("does not recover a narrower Module type from an alias backing target", () => {
     const compiled = compile([
       "nui 1",

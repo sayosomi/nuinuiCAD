@@ -342,6 +342,41 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     await evaluate(sourceFor(false));
     await evaluate(sourceFor(true));
 
+    const typedAliasToLaterValue = fixtureFromSource([
+      "nui 1",
+      "const b: point = @a",
+      "point Use = from(source: @b)",
+      "const a: point = coordinate(x: 2, y: 3)"
+    ].join("\n"));
+    const typedAliasOptions = optionsFor(typedAliasToLaterValue);
+    const typedAliasValues = typedAliasToLaterValue.compiled?.doc.moduleSemanticAnalysis?.geometryValues ?? [];
+    const typedAliasB = typedAliasValues.find((value) => value.name === "b");
+    const typedAliasA = typedAliasValues.find((value) => value.name === "a");
+    const typedAliasEntry = typedAliasB
+      ? typedAliasOptions.geometryValueProgram?.find((entry) => entry.sourceStatementId === typedAliasB.statementId)
+      : undefined;
+    expect(typedAliasToLaterValue.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(typedAliasB?.initializer?.target).toMatchObject({
+      kind: "geometryValue",
+      statementId: typedAliasA?.statementId,
+      backingTarget: null
+    });
+    expect(typedAliasEntry?.construction).toMatchObject({
+      kind: "reference",
+      target: { kind: "geometryValue", statementId: typedAliasA?.statementId }
+    });
+    expect(isRustEligibleFixture(typedAliasToLaterValue)).toBe(true);
+    const typedAliasTsPayload = evaluateElementsReferencePayload(typedAliasToLaterValue.elements, typedAliasOptions);
+    const typedAliasRustPayload = await rustStdio!.evaluate(typedAliasToLaterValue.elements, typedAliasOptions);
+    expect(normalizeParityPayload(typedAliasRustPayload)).toEqual(normalizeParityPayload(typedAliasTsPayload));
+    const typedAliasUse = typedAliasToLaterValue.elements.find((element) => element.name === "Use")!;
+    for (const payload of [typedAliasTsPayload, typedAliasRustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.computedGeometry.get(typedAliasUse.id)).toMatchObject({ kind: "point", x: 2, y: 3 });
+    }
+
     const inactiveLaterBranch = fixtureFromSource([
       "nui 1",
       "const flag: boolean = false",
