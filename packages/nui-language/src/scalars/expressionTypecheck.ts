@@ -543,6 +543,32 @@ const checkNode = (
       };
     }
 
+    case "recordFieldCollectionIndex": {
+      const receiver = node.receiver;
+      const occurrenceIndex = receiver.occurrenceIndex
+        ? checkNode(receiver.occurrenceIndex, NUMBER_TYPE, state)
+        : null;
+      const occurrenceIndexOk = occurrenceIndex === null || checkOperandType(state, occurrenceIndex, NUMBER_TYPE);
+      const name = `${receiver.elementName}.${receiver.property}`;
+      const resolution = nextReferenceResolution(state, name, node.span.start);
+      const index = checkNode(node.index, NUMBER_TYPE, state);
+      const indexOk = checkOperandType(state, index, NUMBER_TYPE);
+      const collection = resolution.kind === "resolvedCollectionIndex"
+        ? resolution as ScalarExpressionResolvedCollectionIndex
+        : null;
+      return {
+        kind: "collectionIndex",
+        span: node.span,
+        nameSpan: { start: receiver.elementNameSpan.start, end: receiver.propertySpan.end },
+        name,
+        collectionValueId: collection?.collectionValueId ?? null,
+        collectionLength: collection?.collectionLength ?? null,
+        targetSourceOrder: collection?.targetSourceOrder ?? null,
+        index,
+        type: collection && occurrenceIndexOk && indexOk ? collection.type : null
+      };
+    }
+
     case "geometryProperty": {
       const resolved = state.geometryPropertyReferences?.get(node.span.start) ?? null;
       const occurrenceIndex = node.occurrenceIndex

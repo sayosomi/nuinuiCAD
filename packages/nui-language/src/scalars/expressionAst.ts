@@ -104,6 +104,19 @@ export interface ScalarGeometryPropertyReferenceNode {
   readonly occurrenceRange?: ScalarSpan;
 }
 
+/** A second collection index applied to a field on an indexed nominal record.
+ * The parser keeps the record occurrence access intact; semantic lowering
+ * resolves the field identity and turns this into the existing collection
+ * index representation. */
+export interface ScalarRecordFieldCollectionIndexNode {
+  readonly kind: "recordFieldCollectionIndex";
+  readonly span: ScalarSpan;
+  readonly receiver: ScalarGeometryPropertyReferenceNode;
+  readonly index: ScalarExpressionAst;
+  /** Bracket range, including both `[` and `]`. */
+  readonly indexRange: ScalarSpan;
+}
+
 /** A first-class optional member/property access (`receiver?.member`). */
 export interface ScalarOptionalMemberExpressionNode {
   readonly kind: "optionalMember";
@@ -198,6 +211,7 @@ export type ScalarExpressionAst =
   | ScalarReferenceNode
   | ScalarCollectionIndexNode
   | ScalarGeometryPropertyReferenceNode
+  | ScalarRecordFieldCollectionIndexNode
   | ScalarOptionalMemberExpressionNode
   | ScalarUnaryExpressionNode
   | ScalarBinaryExpressionNode

@@ -29,6 +29,10 @@ export const collectScalarExpressionReferences = (
       case "geometryProperty":
         if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames);
         return;
+      case "recordFieldCollectionIndex":
+        if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);
+        visit(node.index, boundNames);
+        return;
       case "optionalMember":
         visit(node.receiver, boundNames);
         return;

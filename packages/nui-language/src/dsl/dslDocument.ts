@@ -1186,6 +1186,7 @@ export const compileDslDocument = (
       case "valueMatch": return containsOptionalMember(ast.scrutinee) || ast.arms.some((arm) => containsOptionalMember(arm.expression));
       case "collectionIndex": return containsOptionalMember(ast.index);
       case "geometryProperty": return Boolean(ast.occurrenceIndex && containsOptionalMember(ast.occurrenceIndex));
+      case "recordFieldCollectionIndex": return Boolean(ast.receiver.occurrenceIndex && containsOptionalMember(ast.receiver.occurrenceIndex)) || containsOptionalMember(ast.index);
       case "call": return ast.args.some((argument) => containsOptionalMember(argument.expression));
       default: return false;
     }
@@ -1197,6 +1198,7 @@ export const compileDslDocument = (
     if (!ast) return false;
     switch (ast.kind) {
       case "collectionIndex": return true;
+      case "recordFieldCollectionIndex": return true;
       case "unary": return containsCollectionIndex(ast.operand);
       case "binary": return containsCollectionIndex(ast.left) || containsCollectionIndex(ast.right);
       case "group": return containsCollectionIndex(ast.expression);
@@ -2110,6 +2112,51 @@ export const compileDslDocument = (
       }
     : undefined;
 
+  const rootRecordFieldCollectionIndexResolver = sourceLexicalNamespace
+    ? ({ statementIndex, node }: {
+        statementIndex: number;
+        node: Extract<ScalarExpressionAst, { kind: "recordFieldCollectionIndex" }>;
+      }): import("../scalars/typedExpressionAst").ScalarExpressionResolvedCollectionIndex | null => {
+        const lookup = resolveSourceLexicalPath(
+          sourceLexicalNamespace,
+          statementIndex,
+          parseDslReferenceToken(node.receiver.elementName)
+        );
+        if (
+          lookup.kind !== "resolved" ||
+          lookup.declaration.kind !== "typedDeclaration" ||
+          lookup.declaration.statement.kind !== "typedDeclaration"
+        ) return null;
+        const collection = sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementIndex.get(
+          lookup.declaration.statementIndex
+        );
+        let valueType: import("./dslValueTypes").DslValueType | null = collection?.valueType.elementType ?? null;
+        let field: import("./recordSemanticAnalysis").RecordFieldSemantic | undefined;
+        const propertyPath = node.receiver.property.split(".");
+        for (const [index, part] of propertyPath.entries()) {
+          if (!isDslRecordValueType(valueType)) return null;
+          const definition: import("./recordSemanticAnalysis").RecordDefinitionSemantic | undefined =
+            sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(valueType.identity ?? "");
+          field = definition?.fields.find((candidate) => candidate.name === part);
+          if (!field) return null;
+          valueType = field.type;
+          if (index < propertyPath.length - 1 && !isDslRecordValueType(valueType)) return null;
+        }
+        if (!field || !isDslArrayValueType(field.type)) return null;
+        const type = scalarExpressionTypeOfDslValueType(field.type.elementType);
+        if (!type) return null;
+        return {
+          kind: "resolvedCollectionIndex" as const,
+          // Root semantic lowering fills the selected record's canonical
+          // record-field-contents ID after the occurrence index is resolved.
+          collectionValueId: "",
+          collectionLength: null,
+          targetSourceOrder: -1,
+          type
+        };
+      }
+    : undefined;
+
   const rootCollectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
   const rootOptionalCollectionMatchResolver = rootCollectionAnalysis
     ? ({ statementIndex, node }: {
@@ -2819,6 +2866,7 @@ export const compileDslDocument = (
           recipes: compiled.transformationRecipes ?? []
         }),
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
+        additionalRecordFieldCollectionIndexResolver: rootRecordFieldCollectionIndexResolver,
         additionalBindings: [
           ...rootValueForBodyBindingSeeds,
           ...iterationRecordFieldBindingSeeds,
@@ -3395,6 +3443,7 @@ export const compileDslDocument = (
           ...iterationRecordFieldBindingSeeds.map((seed) => seed.id)
         ]),
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
+        additionalRecordFieldCollectionIndexResolver: rootRecordFieldCollectionIndexResolver,
         additionalRecordValueResolver: (value) => {
           const reference = value.reference;
           if (!reference || value.typeIdentity === null) return null;

@@ -1340,6 +1340,76 @@ describe("module scalar runtime integration", () => {
     }
   });
 
+  it("uses numeric type checks and ordinary out-of-range errors for indexed record-field collections", () => {
+    const invalidType = compileWithIds([
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "const source: Bundle = Bundle(xs: [3, 5])",
+      "const records: Bundle[] = [@source]",
+      "module Read(items: Bundle[], index: string) {",
+      "  const invalid: number = @items[0].xs[@index]",
+      "}",
+      'instance Use = Read(items: @records, index: "zero")'
+    ].join("\n"), "say425-indexed-record-field-nonnumeric");
+    expect(invalidType.diagnostics.some((diagnostic) =>
+      diagnostic.severity === "error" &&
+      diagnostic.expectedType?.kind === "number" &&
+      diagnostic.actualType?.kind === "string"
+    )).toBe(true);
+
+    const outOfRange = compileWithIds([
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "const source: Bundle = Bundle(xs: [3, 5])",
+      "const records: Bundle[] = [@source]",
+      "module Read(items: Bundle[]) {",
+      "  const invalidRecordIndex: number = 9",
+      "  export const invalidFieldIndex: number = @items[0].xs[2]",
+      "  export const invalidDynamicRecordIndex: number = @items[@invalidRecordIndex].xs[0]",
+      "  export const invalidLiteralRecordIndex: number = @items[9].xs[0]",
+      "}",
+      "instance Use = Read(items: @records)",
+      "const invalidFieldResult: number = @Use::invalidFieldIndex",
+      "const invalidDynamicRecordResult: number = @Use::invalidDynamicRecordIndex",
+      "const invalidLiteralRecordResult: number = @Use::invalidLiteralRecordIndex"
+    ].join("\n"), "say425-indexed-record-field-out-of-range");
+    expect(outOfRange.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluated = evaluateCompiled(outOfRange);
+    for (const name of ["invalidFieldResult", "invalidDynamicRecordResult", "invalidLiteralRecordResult"]) {
+      const resultBinding = outOfRange.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(resultBinding).toBeDefined();
+      expect(evaluated.computedScalarBindings?.get(resultBinding!.id)).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-collection-index-invalid"
+      });
+    }
+  });
+
+  it("indexes collection fields on an ordinary root record collection", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "const source: Bundle = Bundle(xs: [3, 5])",
+      "const records: Bundle[] = [@source]",
+      "const first: number = @records[0].xs[0]",
+      "const second: number = @records[0].xs[1]"
+    ].join("\n"), "say425-root-record-collection");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluated = evaluateCompiled(compiled);
+    for (const [name, expected] of [["first", 3], ["second", 5]] as const) {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      expect(binding).toBeDefined();
+      const initializer = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === binding!.id)?.declaration.initializer;
+      expect(initializer?.kind).toBe("collectionIndex");
+      if (initializer?.kind !== "collectionIndex") throw new Error(`expected a collection index for ${name}`);
+      expect(initializer.collectionValueId).toMatch(/^record-field-contents:/);
+      expect(compiled.scalarProgram?.collectionValues?.some((collection) => collection.valueId === initializer.collectionValueId)).toBe(true);
+      expect(evaluated.computedScalarBindings?.get(binding!.id)).toMatchObject({ status: "ok", value: { kind: "number", value: expected } });
+    }
+  });
+
   it("preserves parent-local record aliases and collection fields when forwarding to a child Module", () => {
     const compiled = compileWithIds([
       "nui 1",
@@ -3962,8 +4032,15 @@ describe("module scalar runtime integration", () => {
       "module Mapper(items: Bundle[]) {",
       "  const mapped: Bundle[] = for item in @items { @item }",
       "  const transformed: Bundle[] = for item in @items { Bundle(amount: @item.amount + 10, label: @item.label, xs: [31]) }",
+      "  const selectedRecordIndex: number = 2",
+      "  const selectedFieldIndex: number = 1",
       "  export const selectedAmount: number = @mapped[2].amount",
       "  export const selectedLabel: string = @mapped[2].label",
+      "  export const mappedFirst: number = @mapped[2].xs[0]",
+      "  export const mappedSecond: number = @mapped[2].xs[1]",
+      "  export const indexedFirst: number = @items[2].xs[0]",
+      "  export const indexedSecond: number = @items[2].xs[1]",
+      "  export const dynamicSelected: number = @items[@selectedRecordIndex].xs[@selectedFieldIndex]",
       "  const emptyLengthValue: number = @mapped[0].xs.length",
       "  const oneLengthValue: number = @mapped[1].xs.length",
       "  const multiLengthValue: number = @mapped[2].xs.length",
@@ -3980,6 +4057,11 @@ describe("module scalar runtime integration", () => {
       "instance B = Mapper(items: @inputB)",
       "const aAmount: number = @A::selectedAmount",
       "const aLabel: string = @A::selectedLabel",
+      "const aMappedFirst: number = @A::mappedFirst",
+      "const aMappedSecond: number = @A::mappedSecond",
+      "const aIndexedFirst: number = @A::indexedFirst",
+      "const aIndexedSecond: number = @A::indexedSecond",
+      "const aDynamicSelected: number = @A::dynamicSelected",
       "const aEmptyLength: number = @A::emptyLength",
       "const aOneLength: number = @A::oneLength",
       "const aMultiLength: number = @A::multiLength",
@@ -4008,6 +4090,25 @@ describe("module scalar runtime integration", () => {
     expect(mappedFieldContents.some((value) => value.kind === "literal" && value.members.length === 1)).toBe(true);
     for (const value of mappedFieldContents) {
       if (value.kind === "alias") expect(collectionById.has(value.targetValueId)).toBe(true);
+    }
+    const indexedFieldContents = compiled.scalarProgram?.statements.flatMap((statement) => {
+      const initializer = statement.declaration.initializer;
+      return initializer.kind === "collectionIndex" && initializer.collectionValueId?.startsWith("record-field-contents:")
+        ? [initializer]
+        : [];
+    }) ?? [];
+    expect(indexedFieldContents).toHaveLength(10);
+    const literalFieldIndexes = indexedFieldContents.filter((initializer) => initializer.index.kind === "numberLiteral");
+    expect(literalFieldIndexes.map((initializer) => (initializer.index.kind === "numberLiteral" ? initializer.index.value : null)))
+      .toEqual([0, 1, 0, 1, 0, 1, 0, 1]);
+    for (const initializer of indexedFieldContents) {
+      expect(collectionById.has(initializer.collectionValueId!)).toBe(true);
+      expect(initializer.collectionValueId).toMatch(/^record-field-contents:/);
+    }
+    const dynamicFieldIndexes = indexedFieldContents.filter((initializer) => initializer.index.kind !== "numberLiteral");
+    expect(dynamicFieldIndexes).toHaveLength(2);
+    for (const initializer of dynamicFieldIndexes) {
+      expect(collectionById.get(initializer.collectionValueId!)).toMatchObject({ kind: "if" });
     }
     const fieldLengthProducerFor = (name: string) => {
       const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
@@ -4043,6 +4144,11 @@ describe("module scalar runtime integration", () => {
       ["rootLabel", "multi"],
       ["aAmount", 2],
       ["aLabel", "multi"],
+      ["aMappedFirst", 3],
+      ["aMappedSecond", 5],
+      ["aIndexedFirst", 3],
+      ["aIndexedSecond", 5],
+      ["aDynamicSelected", 5],
       ["aEmptyLength", 0],
       ["aOneLength", 1],
       ["aMultiLength", 2],

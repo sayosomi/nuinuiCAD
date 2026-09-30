@@ -138,6 +138,24 @@ Record collection `.length` does not evaluate field bodies, and indexing is
 zero-based with the normal runtime bounds checks. Nested arrays remain
 unsupported.
 
+A collection-valued field on a selected record can be indexed with the same
+zero-based collection rules. The first index selects the record; the second
+selects an item from that record's field contents:
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+record Bundle(xs: number[])
+const source: Bundle = Bundle(xs: [3, 5])
+const values: Bundle[] = [@source]
+module Read(items: Bundle[]) {
+  const mapped: Bundle[] = for item in @items { @item }
+  export const first: number = @mapped[0].xs[0]
+  export const second: number = @mapped[0].xs[1]
+}
+instance Use = Read(items: @values)
+```
+
 ## Notes
 
 Record values group immutable data; they do not become geometry elements or a

@@ -834,6 +834,11 @@ export const resolveRecordScalarProperties = ({
       case "geometryProperty":
         resolveProperty(node);
         return;
+      case "recordFieldCollectionIndex":
+        resolveProperty(node.receiver);
+        if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex);
+        visit(node.index);
+        return;
       case "optionalMember":
         return;
       case "unary":
@@ -970,6 +975,11 @@ export const prepareRecordScalarExpressionFromCatalog = ({
         visitProperty(node);
         if (node.occurrenceIndex) classify(node.occurrenceIndex);
         return;
+      case "recordFieldCollectionIndex":
+        visitProperty(node.receiver);
+        if (node.receiver.occurrenceIndex) classify(node.receiver.occurrenceIndex);
+        classify(node.index);
+        return;
       case "optionalMember":
         return;
       case "unary": classify(node.operand); return;
@@ -1016,6 +1026,26 @@ export const prepareRecordScalarExpressionFromCatalog = ({
         references.push(resolution);
         return { ...node, index: rewrite(node.index, boundNames) };
       }
+      case "recordFieldCollectionIndex":
+        {
+          const occurrenceIndex = node.receiver.occurrenceIndex
+            ? rewrite(node.receiver.occurrenceIndex, boundNames)
+            : undefined;
+          // Catalog-only consumers do not have the closed record-collection
+          // resolver used by Module/root scalar declarations. Preserve the
+          // reference sequence with a type-null slot so unsupported hosts can
+          // report a normal unresolved/type-mismatch result instead of
+          // shifting the following index expression's references.
+          references.push({ kind: "resolvedType", bindingId: null, type: null });
+          return {
+            ...node,
+            receiver: {
+              ...node.receiver,
+              ...(occurrenceIndex ? { occurrenceIndex } : {})
+            },
+            index: rewrite(node.index, boundNames)
+          };
+        }
       case "optionalMember":
         return node;
       case "unary": return { ...node, operand: rewrite(node.operand, boundNames) };
@@ -1176,6 +1206,27 @@ export const prepareRecordScalarExpression = ({
         referenceCursor += 1;
         references.push(resolution);
         return { ...node, index: rewrite(node.index, boundNames) };
+      }
+      case "recordFieldCollectionIndex": {
+        const occurrenceIndex = node.receiver.occurrenceIndex
+          ? rewrite(node.receiver.occurrenceIndex, boundNames)
+          : undefined;
+        const resolution = referenceResolutions[referenceCursor];
+        if (resolution?.kind !== "resolvedCollectionIndex") {
+          throw new Error(`recordScalarLowering: no record-field collection resolution supplied at ${node.span.start}`);
+        }
+        referenceCursor += 1;
+        references.push(resolution);
+        return {
+          ...node,
+          receiver: {
+            ...node.receiver,
+            ...(occurrenceIndex
+              ? { occurrenceIndex }
+              : {})
+          },
+          index: rewrite(node.index, boundNames)
+        };
       }
       case "optionalMember":
         return node;

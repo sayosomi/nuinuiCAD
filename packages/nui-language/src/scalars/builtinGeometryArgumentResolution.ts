@@ -350,6 +350,11 @@ export const resolveBuiltinGeometryArguments = ({
         visit(node.index, boundNames);
         return;
       case "geometryProperty":
+        return;
+      case "recordFieldCollectionIndex":
+        if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);
+        visit(node.index, boundNames);
+        return;
       case "numberLiteral":
       case "stringLiteral":
       case "booleanLiteral":

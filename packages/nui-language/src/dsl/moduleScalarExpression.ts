@@ -206,7 +206,7 @@ const resolveAndTypecheck = ({
   sourceText?: string;
   expectedType: ScalarExpressionType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
-  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }) => ModuleCollectionIndexReferenceResolution;
+  resolveCollectionIndex?: (reference: { name: string; span: DslSpan; recordField?: ModuleRecordFieldSourceTarget }) => ModuleCollectionIndexReferenceResolution;
   resolveOptionalCollectionMatch?: (reference: { name: string; span: DslSpan }) => ModuleOptionalCollectionMatchResolution | null;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
@@ -344,6 +344,99 @@ const resolveAndTypecheck = ({
         resolvedTypes.push(resolvedIndex);
         resolve(node.index, boundNames, collectionMatchBinders);
         return node;
+      }
+      case "recordFieldCollectionIndex": {
+        const receiver = node.receiver;
+        const occurrenceIndex = receiver.occurrenceIndex
+          ? resolve(receiver.occurrenceIndex, boundNames, collectionMatchBinders)
+          : undefined;
+        const baseName = `${receiver.elementName}.${receiver.property}`;
+        const baseSpan = receiver.span;
+        const nameSpan = { start: receiver.elementNameSpan.start, end: receiver.propertySpan.end };
+        let propertyResolution: ModuleGeometryPropertyReferenceResolution = {
+          target: null,
+          type: null,
+          resolution: "invalid",
+          diagnostic: localIssue("module-geometry-property-reference", receiver.span, "record field を解決できません。")
+        };
+
+        if (resolveGeometryProperty) {
+          propertyResolution = resolveGeometryProperty({
+            elementName: receiver.elementName,
+            property: receiver.property,
+            elementNameSpan: receiver.elementNameSpan,
+            propertySpan: receiver.propertySpan,
+            span: receiver.span,
+            ...(occurrenceIndex ? { occurrenceIndex } : {}),
+            ...(receiver.occurrenceIndexSpan ? { occurrenceIndexSpan: receiver.occurrenceIndexSpan } : {}),
+            ...(receiver.occurrenceRange ? { occurrenceRange: receiver.occurrenceRange } : {}),
+            collectionMatchBinders: [...collectionMatchBinders.values()]
+          });
+        }
+
+        geometryProperties.push({
+          geometryName: receiver.elementName,
+          property: receiver.property,
+          elementNameSpan: receiver.elementNameSpan,
+          propertySpan: receiver.propertySpan,
+          span: receiver.span,
+          target: propertyResolution.target,
+          type: propertyResolution.type,
+          resolution: propertyResolution.resolution
+        });
+        if (propertyResolution.diagnostic) diagnostics.push(propertyResolution.diagnostic);
+        if (!propertyResolution.target) invalidGeometryProperty = true;
+
+        const collectionResolution = propertyResolution.target
+          ? resolveCollectionIndex
+            ? resolveCollectionIndex({
+                name: baseName,
+                span: baseSpan,
+                ...(propertyResolution.target.kind === "recordField" ? { recordField: propertyResolution.target } : {})
+              })
+            : {
+                target: propertyResolution.target.kind === "recordField" ? propertyResolution.target : null,
+                type: null,
+                resolution: "invalid" as const,
+                collectionValueId: null,
+                collectionLength: null,
+                targetSourceOrder: null,
+                diagnostic: localIssue("module-collection-index-unavailable", baseSpan, `collection「${baseName}」を解決できません。`)
+              }
+          : {
+              target: null,
+              type: null,
+              resolution: "invalid" as const,
+              collectionValueId: null,
+              collectionLength: null,
+              targetSourceOrder: null
+            };
+
+        resolvedReferences.push({
+          name: baseName,
+          nameSpan,
+          span: baseSpan,
+          target: collectionResolution.target,
+          resolution: collectionResolution.resolution,
+          collectionValueId: collectionResolution.collectionValueId,
+          collectionLength: collectionResolution.collectionLength,
+          targetSourceOrder: collectionResolution.targetSourceOrder,
+          collectionElementType: collectionResolution.type
+        });
+        resolvedTypes.push({
+          kind: "resolvedCollectionIndex",
+          collectionValueId: collectionResolution.collectionValueId ?? "",
+          collectionLength: collectionResolution.collectionLength,
+          targetSourceOrder: collectionResolution.targetSourceOrder ?? -1,
+          type: collectionResolution.type
+        });
+        if (collectionResolution.diagnostic) diagnostics.push(collectionResolution.diagnostic);
+
+        return {
+          ...node,
+          receiver: occurrenceIndex ? { ...receiver, occurrenceIndex } : receiver,
+          index: resolve(node.index, boundNames, collectionMatchBinders)
+        };
       }
       case "call": {
         const definition = getBuiltinFunctionDefinition(node.name);
@@ -716,7 +809,7 @@ export const parseAndCheckModuleScalarExpression = ({
   span: DslSpan;
   expectedType: ScalarExpressionType | null;
   resolveReference: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution;
-  resolveCollectionIndex?: (reference: { name: string; span: DslSpan }) => ModuleCollectionIndexReferenceResolution;
+  resolveCollectionIndex?: (reference: { name: string; span: DslSpan; recordField?: ModuleRecordFieldSourceTarget }) => ModuleCollectionIndexReferenceResolution;
   resolveOptionalCollectionMatch?: (reference: { name: string; span: DslSpan }) => ModuleOptionalCollectionMatchResolution | null;
   resolveBareReference?: (reference: { name: string; span: DslSpan }) => ModuleScalarReferenceResolution | null;
   resolveGeometryProperty?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
