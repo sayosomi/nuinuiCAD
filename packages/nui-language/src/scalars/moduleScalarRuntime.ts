@@ -2809,12 +2809,16 @@ export const compileModuleScalarRuntime = ({
     }
     for (const fields of context.recordParameters.values()) {
       for (const field of fields.values()) {
-        if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex, callerPath);
+        if (bindingInfoById.get(field.id)?.contextKey === context.key) {
+          pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex, callerPath);
+        }
       }
     }
     for (const fields of context.recordParameterFieldBindingsByPath.values()) {
       for (const field of fields.values()) {
-        if (bindingInfoById.has(field.id)) pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex, callerPath);
+        if (bindingInfoById.get(field.id)?.contextKey === context.key) {
+          pushEvent({ kind: "binding", bindingId: field.id }, context.instance.statementIndex, callerPath);
+        }
       }
     }
     const pendingRecordValues = [...context.definition.recordValues].sort((left, right) => left.value.statementIndex - right.value.statementIndex);
