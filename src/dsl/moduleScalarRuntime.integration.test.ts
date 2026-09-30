@@ -1360,6 +1360,7 @@ describe("module scalar runtime integration", () => {
       "instance B = Direct(start: 17, xs: [17, 19])",
       "instance AliasUse = Alias(start: 29, xs: [29, 31])",
       "const reducedFirst: number = @Use::output.xs[0]",
+      "const reducedMultiDigit: number = @Use::output.xs[123]",
       "const reducedLength: number = @Use::output.xs.length",
       "const first: number = @A::output.xs[0]",
       "const second: number = @A::output.xs[1]",
@@ -1404,6 +1405,10 @@ describe("module scalar runtime integration", () => {
       status: "error",
       issueCode: "evaluation-collection-index-invalid"
     });
+    expect(scalarValue("reducedMultiDigit")).toMatchObject({
+      status: "error",
+      issueCode: "evaluation-collection-index-invalid"
+    });
 
     const collectionValues = compiled.scalarProgram?.collectionValues ?? [];
     const collectionIds = new Set(collectionValues.map((value) => value.valueId));
@@ -1413,6 +1418,12 @@ describe("module scalar runtime integration", () => {
       );
       return compiled.scalarProgram?.statements.find((statement) => statement.bindingId === binding?.id)?.declaration.initializer;
     };
+    const sourceStatementFor = (name: string) => {
+      const start = source.indexOf(`const ${name}:`);
+      if (start < 0) throw new Error(`expected source declaration for ${name}`);
+      const end = source.indexOf("\n", start);
+      return source.slice(start, end < 0 ? source.length : end);
+    };
     const sourceOrderFor = (name: string) => {
       const initializer = initializerFor(name);
       if (!initializer || (initializer.kind !== "collectionIndex" && initializer.kind !== "geometryProperty")) {
@@ -1420,7 +1431,7 @@ describe("module scalar runtime integration", () => {
       }
       return initializer.targetSourceOrder;
     };
-    for (const name of ["reducedFirst", "first", "second", "otherFirst", "aliasFirst", "outOfRange"]) {
+    for (const name of ["reducedFirst", "reducedMultiDigit", "first", "second", "otherFirst", "aliasFirst", "outOfRange"]) {
       const initializer = initializerFor(name);
       expect(initializer).toMatchObject({ kind: "collectionIndex" });
       if (initializer?.kind !== "collectionIndex") throw new Error(`expected ${name} to lower to a collection index`);
@@ -1430,6 +1441,26 @@ describe("module scalar runtime integration", () => {
       expect(Number.isInteger(initializer.targetSourceOrder)).toBe(true);
       expect(initializer.targetSourceOrder).toBeGreaterThanOrEqual(0);
     }
+    const oneDigitInitializer = initializerFor("reducedFirst");
+    expect(oneDigitInitializer?.kind).toBe("collectionIndex");
+    if (oneDigitInitializer?.kind !== "collectionIndex" || oneDigitInitializer.index.kind !== "numberLiteral") {
+      throw new Error("expected reducedFirst to lower to a numeric collection index");
+    }
+    {
+      const source = sourceStatementFor("reducedFirst");
+      expect(source.slice(oneDigitInitializer.index.span.start, oneDigitInitializer.index.span.end)).toBe("0");
+    }
+
+    const multiDigitInitializer = initializerFor("reducedMultiDigit");
+    expect(multiDigitInitializer?.kind).toBe("collectionIndex");
+    if (multiDigitInitializer?.kind !== "collectionIndex" || multiDigitInitializer.index.kind !== "numberLiteral") {
+      throw new Error("expected reducedMultiDigit to lower to a numeric collection index");
+    }
+    {
+      const source = sourceStatementFor("reducedMultiDigit");
+      expect(source.slice(multiDigitInitializer.index.span.start, multiDigitInitializer.index.span.end)).toBe("123");
+    }
+
     for (const name of ["reducedLength", "length", "otherLength", "aliasLength"]) {
       const initializer = initializerFor(name);
       expect(initializer).toMatchObject({ kind: "geometryProperty", collectionLength: null });

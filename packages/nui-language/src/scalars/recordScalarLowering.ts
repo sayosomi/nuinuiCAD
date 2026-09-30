@@ -1156,7 +1156,7 @@ export const prepareRecordScalarExpression = ({
                 const match = /\[(\d+)\]$/.exec(node.property);
                 return match
                 ? {
-                      start: node.propertySpan.start + match[1]!.length + 1,
+                      start: node.propertySpan.end - 1 - match[1]!.length,
                       end: node.propertySpan.end - 1
                     }
                   : node.span;
