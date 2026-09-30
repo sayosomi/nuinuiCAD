@@ -1340,6 +1340,111 @@ describe("module scalar runtime integration", () => {
     }
   });
 
+  it("projects qualified Module exported record collection fields through canonical field contents", () => {
+    const source = [
+      "nui 1",
+      "record Bundle(amount: number, xs: number[])",
+      "module M() {",
+      "  export const output: Bundle = Bundle(amount: 3, xs: [5, 11])",
+      "}",
+      "module Direct(start: number, xs: number[]) {",
+      "  export const output: Bundle = Bundle(amount: @start, xs: @xs)",
+      "  export const ordinary: number[] = [1, 2]",
+      "}",
+      "module Alias(start: number, xs: number[]) {",
+      "  const local: Bundle = Bundle(amount: @start, xs: @xs)",
+      "  export const output: Bundle = @local",
+      "}",
+      "instance Use = M()",
+      "instance A = Direct(start: 5, xs: [5, 11])",
+      "instance B = Direct(start: 17, xs: [17, 19])",
+      "instance AliasUse = Alias(start: 29, xs: [29, 31])",
+      "const reducedFirst: number = @Use::output.xs[0]",
+      "const reducedLength: number = @Use::output.xs.length",
+      "const first: number = @A::output.xs[0]",
+      "const second: number = @A::output.xs[1]",
+      "const length: number = @A::output.xs.length",
+      "const otherFirst: number = @B::output.xs[0]",
+      "const otherLength: number = @B::output.xs.length",
+      "const aliasFirst: number = @AliasUse::output.xs[0]",
+      "const aliasLength: number = @AliasUse::output.xs.length",
+      "const directScalar: number = @A::output.amount",
+      "const ordinaryExportIndex: number = @A::ordinary[1]",
+      "const ordinaryExportLength: number = @A::ordinary.length",
+      "const outOfRange: number = @A::output.xs[4]"
+    ].join("\n");
+    const compiled = compileWithIds(source, "say423-qualified-record-collection-field");
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, name).toBeDefined();
+      return evaluated.computedScalarBindings?.get(binding!.id);
+    };
+    for (const [name, expected] of [
+      ["reducedFirst", 5],
+      ["reducedLength", 2],
+      ["first", 5],
+      ["second", 11],
+      ["length", 2],
+      ["otherFirst", 17],
+      ["otherLength", 2],
+      ["aliasFirst", 29],
+      ["aliasLength", 2],
+      ["directScalar", 5],
+      ["ordinaryExportIndex", 2],
+      ["ordinaryExportLength", 2],
+    ] as const) {
+      expect(scalarValue(name), name).toMatchObject({ status: "ok", value: { kind: "number", value: expected } });
+    }
+    expect(scalarValue("outOfRange")).toMatchObject({
+      status: "error",
+      issueCode: "evaluation-collection-index-invalid"
+    });
+
+    const collectionValues = compiled.scalarProgram?.collectionValues ?? [];
+    const collectionIds = new Set(collectionValues.map((value) => value.valueId));
+    const initializerFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      return compiled.scalarProgram?.statements.find((statement) => statement.bindingId === binding?.id)?.declaration.initializer;
+    };
+    const sourceOrderFor = (name: string) => {
+      const initializer = initializerFor(name);
+      if (!initializer || (initializer.kind !== "collectionIndex" && initializer.kind !== "geometryProperty")) {
+        throw new Error(`expected ${name} to have collection source-order metadata`);
+      }
+      return initializer.targetSourceOrder;
+    };
+    for (const name of ["reducedFirst", "first", "second", "otherFirst", "aliasFirst", "outOfRange"]) {
+      const initializer = initializerFor(name);
+      expect(initializer).toMatchObject({ kind: "collectionIndex" });
+      if (initializer?.kind !== "collectionIndex") throw new Error(`expected ${name} to lower to a collection index`);
+      expect(initializer.collectionValueId).toMatch(/^record-field-contents:/);
+      expect(collectionIds.has(initializer.collectionValueId!)).toBe(true);
+      expect(initializer.targetSourceOrder).toEqual(expect.any(Number));
+      expect(Number.isInteger(initializer.targetSourceOrder)).toBe(true);
+      expect(initializer.targetSourceOrder).toBeGreaterThanOrEqual(0);
+    }
+    for (const name of ["reducedLength", "length", "otherLength", "aliasLength"]) {
+      const initializer = initializerFor(name);
+      expect(initializer).toMatchObject({ kind: "geometryProperty", collectionLength: null });
+      if (initializer?.kind !== "geometryProperty") throw new Error(`expected ${name} to lower to collection length`);
+      expect(initializer.collectionValueId).toMatch(/^record-field-contents:/);
+      expect(collectionIds.has(initializer.collectionValueId!)).toBe(true);
+      expect(Number.isInteger(initializer.targetSourceOrder)).toBe(true);
+      expect(initializer.targetSourceOrder).toBeGreaterThanOrEqual(0);
+    }
+    expect(sourceOrderFor("reducedFirst")).toBe(sourceOrderFor("reducedLength"));
+    expect(sourceOrderFor("first")).toBe(sourceOrderFor("length"));
+    expect(sourceOrderFor("otherFirst")).toBe(sourceOrderFor("otherLength"));
+    expect(sourceOrderFor("aliasFirst")).toBe(sourceOrderFor("aliasLength"));
+  });
+
   it("uses numeric type checks and ordinary out-of-range errors for indexed record-field collections", () => {
     const invalidType = compileWithIds([
       "nui 1",

@@ -134,6 +134,8 @@ export type PreparedRecordScalarExpression = RecordScalarPropertyResolution & {
 
 export type AdditionalRecordScalarPropertyResolution = {
   resolution: ScalarExpressionResolvedReference;
+  /** Static collection index already resolved from a nominal-record field path. */
+  collectionIndex?: number;
   dependency?: {
     bindingId: BindingId;
     name: string;
@@ -1147,6 +1149,18 @@ export const prepareRecordScalarExpression = ({
         const additional = resolveAdditionalProperty(node);
         const resolution = additional?.resolution ?? propertyResolution.referencesBySpanStart.get(node.span.start);
         if (resolution?.kind === "resolvedCollectionIndex") {
+          const staticCollectionIndex = additional?.collectionIndex;
+          const indexSpan = staticCollectionIndex === undefined
+            ? node.span
+            : (() => {
+                const match = /\[(\d+)\]$/.exec(node.property);
+                return match
+                ? {
+                      start: node.propertySpan.start + match[1]!.length + 1,
+                      end: node.propertySpan.end - 1
+                    }
+                  : node.span;
+              })();
           references.push(resolution);
           return {
             kind: "collectionIndex",
@@ -1155,7 +1169,7 @@ export const prepareRecordScalarExpression = ({
             name: node.elementName,
             index: node.occurrenceIndex
               ? rewrite(node.occurrenceIndex)
-              : { kind: "numberLiteral", span: node.span, value: 0 }
+              : { kind: "numberLiteral", span: indexSpan, value: staticCollectionIndex ?? 0 }
           };
         }
         if (!resolution || resolution.kind !== "resolvedType") return node;

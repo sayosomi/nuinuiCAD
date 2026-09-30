@@ -315,6 +315,44 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("retains deferred Module record export targets for caller-side collection fields", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "module M() {",
+      "  export const output: Bundle = Bundle(xs: [5, 11])",
+      "}",
+      "instance Use = M()",
+      "const first: number = @Use::output.xs[0]",
+      "const second: number = @Use::output.xs[1]",
+      "const length: number = @Use::output.xs.length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) =>
+      diagnostic.severity === "error" && diagnostic.code !== "geometry-property-invalid"
+    )).toEqual([]);
+
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const first = analysis.rootScalarExpressionsByStatementId.get("statement:test:6")!.expression.geometryProperties.find((property) => property.property === "xs[0]");
+    const second = analysis.rootScalarExpressionsByStatementId.get("statement:test:7")!.expression.geometryProperties.find((property) => property.property === "xs[1]");
+    const length = analysis.rootScalarExpressionsByStatementId.get("statement:test:8")!.expression.geometryProperties.find((property) =>
+      property.target?.kind === "recordField" && property.target.record.kind === "deferredModuleRecordExport" && property.target.property === "length"
+    );
+    for (const [property, collectionIndex] of [[first, 0], [second, 1]] as const) {
+      expect(property?.target).toMatchObject({
+        kind: "recordField",
+        record: { kind: "deferredModuleRecordExport", exportName: "output" },
+        fieldName: "xs",
+        collectionIndex
+      });
+    }
+    expect(length?.target).toMatchObject({
+      kind: "recordField",
+      record: { kind: "deferredModuleRecordExport", exportName: "output" },
+      fieldName: "xs",
+      property: "length"
+    });
+  });
+
   it("resolves optional record values through coalescing and member access", () => {
     const compiled = compileWithIds([
       "nui 1",

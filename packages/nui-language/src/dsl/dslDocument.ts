@@ -68,6 +68,7 @@ import { parseRecordConstructorFields } from "./recordSemanticAnalysis";
 import { buildRootGeometryValueProgram } from "./moduleGeometryValueProgram";
 import { compileModuleScalarRuntime, lowerExpression, moduleRecordCollectionBinderFieldIdForPath, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import {
+  recordFieldContentsCollectionValueIdFor,
   recordFieldCollectionValueIdFor,
   recordScalarBindingIdFor,
   recordScalarBindingIdForPath,
@@ -3165,6 +3166,24 @@ export const compileDslDocument = (
         const exported = definition?.exports.find((entry) => entry.name === path.segments[1]) ?? null;
         return instance && definition ? { instance, definition, exported } : null;
       };
+      const rootRecordFieldContentsForTarget = (
+        target: Extract<ModuleScalarSourceTarget, { kind: "recordField" }>
+      ) => {
+        if (target.record.kind !== "deferredModuleRecordExport") return null;
+        const instance = moduleRuntimeContext?.instanceFor(target.record.instanceIdentity)
+          ?? moduleSemanticCompilation.instancesByStatementId.get(target.record.instanceStatementId);
+        if (!instance) return null;
+        const instancePath = moduleRuntimeContext
+          ? moduleRuntimeContext.runtimePathForInstance([], instance)
+          : [instance.statementId];
+        return {
+          collectionValueId: recordFieldContentsCollectionValueIdFor(
+            recordValueCollectionIdFor(instancePath, target.record.exportedStatementId),
+            target.fieldPath ?? [target.field]
+          ),
+          targetSourceOrder: target.record.instanceStatementIndex
+        };
+      };
       const additionalBindingResolver: SourceNamespaceBindingResolver = (name, statementIndex) => {
         const carryBinding = immutableCarryCompilation?.resolver(
           name,
@@ -3274,6 +3293,22 @@ export const compileDslDocument = (
         const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
         const target = property?.target;
         if (!property?.type || !target) return null;
+        if (
+          target.kind === "recordField" &&
+          target.record.kind === "deferredModuleRecordExport" &&
+          target.property === "length" &&
+          isDslArrayValueType(target.valueType)
+        ) {
+          const fieldContents = rootRecordFieldContentsForTarget(target);
+          if (!fieldContents) return null;
+          return {
+            kind: "collection" as const,
+            collectionValueId: fieldContents.collectionValueId,
+            collectionLength: null,
+            targetSourceOrder: fieldContents.targetSourceOrder,
+            type: { kind: "number" as const }
+          };
+        }
         if (target.kind === "geometryCarry") {
           return {
             kind: "geometryCarry",
@@ -3490,6 +3525,23 @@ export const compileDslDocument = (
           const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           if (property?.target?.kind !== "recordField" || !property.type) return null;
           if (scalarTypeOfDslValueType(property.target.valueType) === null) return null;
+          if (
+            property.target.record.kind === "deferredModuleRecordExport" &&
+            property.target.collectionIndex !== undefined
+          ) {
+            const fieldContents = rootRecordFieldContentsForTarget(property.target);
+            if (!fieldContents) return null;
+            return {
+              resolution: {
+                kind: "resolvedCollectionIndex" as const,
+                collectionValueId: fieldContents.collectionValueId,
+                collectionLength: null,
+                targetSourceOrder: fieldContents.targetSourceOrder,
+                type: property.type
+              },
+              collectionIndex: property.target.collectionIndex
+            };
+          }
           if (property.target.record.kind === "recordValueForBinder") {
             const fieldPath = property.target.fieldPath ?? [property.target.field];
             const bindingId = moduleRecordCollectionBinderFieldIdForPath([], property.target.record.binderId, fieldPath);
