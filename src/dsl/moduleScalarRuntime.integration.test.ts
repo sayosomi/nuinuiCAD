@@ -3358,6 +3358,83 @@ describe("module scalar runtime integration", () => {
     });
   });
 
+  it("resolves a qualified Module scalar export directly in numeric geometry inputs", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  export const value: number = 2",
+      "}",
+      "instance I = M()",
+      "point Use = coordinate(x: @I::value, y: 0)",
+      "const alias: number = @I::value",
+      "point ViaAlias = coordinate(x: @alias, y: 0)",
+      "const ordinary: number = 7",
+      "point Ordinary = coordinate(x: @ordinary, y: 0)"
+    ].join("\n"), "say430-direct-qualified-numeric-input");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Use").id)).toMatchObject({ kind: "point", x: 2, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "ViaAlias").id)).toMatchObject({ kind: "point", x: 2, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "Ordinary").id)).toMatchObject({ kind: "point", x: 7, y: 0 });
+  });
+
+  it("keeps direct qualified numeric geometry references isolated per Module instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(amount: number) {",
+      "  export const value: number = @amount",
+      "}",
+      "instance I = M(amount: 2)",
+      "instance J = M(amount: 5)",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "point FromI = coordinate(x: @I::value, y: 0)",
+      "point FromJ = coordinate(x: @J::value, y: 0)",
+      "point Shifted = offset(from: @Origin, dx: @I::value, dy: @J::value)"
+    ].join("\n"), "say430-instance-isolation-numeric-inputs");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "FromI").id)).toMatchObject({ kind: "point", x: 2, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "FromJ").id)).toMatchObject({ kind: "point", x: 5, y: 0 });
+    expect(result.computedGeometry.get(elementNamed(compiled, "Shifted").id)).toMatchObject({ kind: "point", x: 2, y: 5 });
+
+    const exportBindingIdFor = (instanceName: string) => {
+      const instance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === instanceName);
+      if (!instance?.callee) throw new Error(`missing Module instance ${instanceName}`);
+      const definition = compiled.moduleSemanticAnalysis!.definitionsByStatementId.get(instance.callee.definitionStatementId);
+      const exported = definition?.localScalars.find((candidate) => candidate.name === "value");
+      if (!definition || !exported) throw new Error(`missing canonical scalar export for ${instanceName}`);
+      return moduleScalarBindingIdFor([instance.statementId], definition.statementId, exported.statementId);
+    };
+    const numericReferences = [...(compiled.numericBindings?.values() ?? [])].flatMap((binding) => binding.references);
+    expect(numericReferences.filter((reference) => reference.name === "I::value").map((reference) => reference.bindingId))
+      .toEqual([exportBindingIdFor("I"), exportBindingIdFor("I")]);
+    expect(numericReferences.filter((reference) => reference.name === "J::value").map((reference) => reference.bindingId))
+      .toEqual([exportBindingIdFor("J"), exportBindingIdFor("J")]);
+  });
+
+  it("reports invalid qualified numeric geometry references through source namespace diagnostics", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  const privateValue: number = 3",
+      "  export const value: number = 2",
+      "}",
+      "instance I = M()",
+      "point Private = coordinate(x: @I::privateValue, y: 0)",
+      "point Missing = coordinate(x: @I::doesNotExist, y: 0)"
+    ].join("\n"), "say430-invalid-qualified-numeric-inputs");
+
+    expect(compiled.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(expect.arrayContaining([
+      "module-private-member",
+      "scalar-namespace-type-mismatch"
+    ]));
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.message.includes("recordScalarLowering: no resolution supplied"))).toBe(false);
+  });
+
   it("resolves an exported scalar from a module instance in a root scalar initializer", () => {
     const compiled = compileWithIds([
       "nui 1",

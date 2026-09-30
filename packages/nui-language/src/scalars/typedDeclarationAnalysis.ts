@@ -484,6 +484,28 @@ export const unresolvedReferenceMessage = (name: string, resolution: BindingReso
   return `未定義の変数 "${name}" を参照しています。`;
 };
 
+/** Shared diagnostic mapping for source-namespace references that are not
+ * usable scalar bindings. */
+export const namespaceResolutionDiagnostic = (
+  name: string,
+  resolution: Extract<BindingResolution, { kind: "namespace" }>
+): { code: string; message: string } | null => {
+  if (resolution.reason === "ambiguous") return null;
+  const privateMember = resolution.reason === "private"
+    ? parseDslReferenceToken(name).segments.at(-1) ?? name
+    : null;
+  return {
+    code: resolution.reason === "private"
+      ? "module-private-member"
+      : resolution.reason === "forward" ? "forward-binding-reference" : "scalar-namespace-type-mismatch",
+    message: resolution.reason === "forward"
+      ? `"${name}" はこの位置より後で宣言されているため、まだ参照できません。`
+      : privateMember
+        ? `module member「${privateMember}」はexportされていないため参照できません。`
+        : `"${name}" は${resolution.declarationKind ?? "scalar以外の宣言"}のため、scalar expressionでは参照できません。`
+  };
+};
+
 const sourceNamespaceBindingResolverFor = (
   sourceNamespace: SourceLexicalNamespaceIndex,
   typedStatementIndexes: ReadonlySet<number>,
@@ -761,7 +783,12 @@ export const analyzeTypedDeclarations = ({
       if (!expectedType) return false;
       if (expectedType.kind !== "number") return true;
       if (hasTypedNumericOperator) return true;
-      return scanExpressionReferences(attr.value).some((match) => match.kind === "elementProperty" && match.sigil);
+      return scanExpressionReferences(attr.value).some((match) =>
+        (match.kind === "elementProperty" && match.sigil) ||
+        // Ensure the source namespace catalog exists when a qualified scalar
+        // reference is the only scalar consumer in the document.
+        (match.kind === "binding" && match.qualifiedPath)
+      );
     });
   });
   if (
@@ -975,22 +1002,14 @@ export const analyzeTypedDeclarations = ({
     const statement = statements[reference.site.statementIndex];
     const span = ordinaryReferencesByBindingId.get(reference.fromBindingId)?.[reference.occurrenceIndex]?.span;
     if (!statement || !span) continue;
-    const privateMember = reference.resolution.reason === "private"
-      ? parseDslReferenceToken(reference.name).segments.at(-1) ?? reference.name
-      : null;
-    const message = reference.resolution.reason === "forward"
-      ? `"${reference.name}" はこの位置より後で宣言されているため、まだ参照できません。`
-      : privateMember
-        ? `module member「${privateMember}」はexportされていないため参照できません。`
-        : `"${reference.name}" は${reference.resolution.declarationKind ?? "scalar以外の宣言"}のため、scalar expressionでは参照できません。`;
+    const issue = namespaceResolutionDiagnostic(reference.name, reference.resolution);
+    if (!issue) continue;
     diagnostics.push(compileDiagnostic(
       spans,
       statement,
       span,
-      reference.resolution.reason === "private"
-        ? "module-private-member"
-        : reference.resolution.reason === "forward" ? "forward-binding-reference" : "scalar-namespace-type-mismatch",
-      message,
+      issue.code,
+      issue.message,
       { bindingId: reference.fromBindingId }
     ));
   }

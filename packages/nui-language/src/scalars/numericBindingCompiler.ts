@@ -29,7 +29,7 @@ import type { BindingId } from "./bindingCatalog";
 import { resolveReferencesAtSites, type BindingResolution, type SiteReferenceRequest } from "./bindingResolution";
 import type { BindingReferenceSite } from "./bindingResolution";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
-import { unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
+import { namespaceResolutionDiagnostic, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
 import { scanExpressionReferences } from "../dsl/expressionReferenceToken";
 import { parseScalarExpression } from "./expressionParser";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
@@ -128,12 +128,12 @@ const diagnosticAt = (
   };
 };
 
-// Geometry properties are not binding occurrences. Use the shared scanner so
-// scoped `@Group::Element.property` references are excluded exactly like the
-// existing `@Element.property` spelling.
+// Geometry properties are not binding occurrences. Keep every scalar binding
+// token, including qualified frontend references, on the shared source-ordered
+// resolution path so the scalar AST receives a matching resolution sidecar.
 const referencesIn = (source: string, outer: DslSpan): CandidateReference[] => {
   return scanExpressionReferences(source)
-    .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding" && !match.qualifiedPath)
+    .filter((match): match is Extract<typeof match, { kind: "binding" }> => match.kind === "binding")
     .map((match) => ({
       name: match.query,
       span: { start: outer.start + match.from, end: outer.start + match.to },
@@ -469,9 +469,6 @@ export const compileNumericBindings = ({
         `${reference.name}:${reference.span.start - valueSpan.start}:${reference.span.end - valueSpan.start}`
       ));
     const hasGeometryProperty = scannedReferences.some((match) => match.kind === "elementProperty" && match.sigil);
-    // Qualified frontend references are not typed scalar bindings. They stay
-    // on their existing owner; unlike a genuinely ref-free expression, they
-    // must not be offered to the typed checker without a resolution entry.
     if (!elementId && scannedReferences.length > 0 && !refs.length && !hasGeometryProperty) return;
     const bareReferences = bareReferencesIn(scalarParseResult.ast, valueSpan);
     candidates.push({
@@ -631,8 +628,20 @@ export const compileNumericBindings = ({
         return;
       }
       if (resolution.kind !== "resolved") {
+        if (resolution.kind === "namespace" && resolution.declarationKind === "moduleInstance" && reference.name.includes("::")) {
+          const issue = namespaceResolutionDiagnostic(reference.name, resolution);
+          if (issue) diagnostics.push(diagnosticAt(
+            spans,
+            candidate.statement,
+            reference.span,
+            issue.code,
+            issue.message
+          ));
+        }
         // Binding analysis already emits the duplicate/self invalidation
-        // diagnostic.  Do not report the same underlying cause again here.
+        // diagnostic. Namespace results use the same diagnostic mapping as
+        // typed declarations because numeric occurrences are not initializer
+        // references in BindingAnalysis.
         rejected = true;
         return;
       }
