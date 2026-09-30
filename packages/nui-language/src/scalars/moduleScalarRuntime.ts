@@ -256,6 +256,9 @@ const scalarTypeOf = (type: ModuleDefinitionSemantic["parameters"][number]["type
 const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
 const moduleCollectionValueIdFor = (path: readonly string[], valueId: string) =>
   `module-collection:${encodeIdentityTuple([...path, valueId])}`;
+
+const mappedRecordMemberValueIdFor = (collectionValueId: string, index: number): string =>
+  recordValueCollectionIdFor([collectionValueId, String(index)], collectionValueId);
 const moduleRecordParameterCollectionValueIdFor = (
   path: readonly string[],
   definitionStatementId: string,
@@ -1585,6 +1588,8 @@ export const lowerExpression = (
             recordValueCollectionId = collectionValueIdFor(
               recordValueCollectionIdFor([], selectedRecord.statementId)
             );
+          } else if (index !== null && Number.isInteger(index) && index >= 0) {
+            recordValueCollectionId = recordParameterCollectionForTarget?.(property.target)?.collectionValueId ?? null;
           }
         }
         if (recordValueCollectionId) {
@@ -3172,6 +3177,182 @@ export const compileModuleScalarRuntime = ({
       return null;
     };
 
+    const recordTargetForGenericArraySourceTarget = (
+      target: import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget,
+      context: InstanceContext | null
+    ): ModuleRecordSourceTarget | null => {
+      const recordAnalysis = (context ? sourceNamespaceForContext(context) : sourceNamespace)?.recordSemanticAnalysis;
+      if (target.kind === "recordValue") {
+        const recordValue = recordAnalysis?.valuesByStatementId.get(target.statementId);
+        return recordValue?.typeIdentity
+          ? {
+              kind: "recordValue",
+              statementId: target.statementId,
+              statementIndex: target.statementIndex,
+              typeIdentity: recordValue.typeIdentity
+            }
+          : null;
+      }
+      if (target.kind === "moduleParameterValue") {
+        const parameter = recordAnalysis?.moduleParameters.find((candidate) =>
+          candidate.definitionStatementId === target.definitionStatementId && candidate.parameterIndex === target.parameterIndex
+        );
+        return parameter?.typeIdentity
+          ? {
+              kind: "recordParameter",
+              definitionStatementId: target.definitionStatementId,
+              parameterIndex: target.parameterIndex,
+              typeIdentity: parameter.typeIdentity
+            }
+          : null;
+      }
+      return null;
+    };
+
+    const recordTargetForCollectionMember = (
+      collectionValueId: string,
+      index: number,
+      context: InstanceContext | null,
+      seen: ReadonlySet<string> = new Set()
+    ): ModuleRecordSourceTarget | null => {
+      const visitKey = `${collectionValueId}:${index}`;
+      if (seen.has(visitKey)) return null;
+      const nextSeen = new Set([...seen, visitKey]);
+      const parameterMatch = /^(.*):parameter:(\d+)$/.exec(collectionValueId);
+      if (parameterMatch && context) {
+        const definitionStatementId = parameterMatch[1]!;
+        const parameterIndex = Number(parameterMatch[2]);
+        const owner = contextCandidatesFor(context).find((candidate) => candidate.definition.statementId === definitionStatementId);
+        const binding = owner?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
+        const callerContext = owner?.parentKey ? contextsByKey.get(owner.parentKey) ?? null : null;
+        if (binding?.value?.kind === "collectionLiteral") {
+          const member = binding.value.value.members[index];
+          return member ? recordTargetForGenericArraySourceTarget(member.target, callerContext) : null;
+        }
+        if (binding?.value?.kind === "collection") {
+          return recordTargetForCollectionMember(binding.value.targetValueId, index, callerContext, nextSeen);
+        }
+      }
+
+      const analyses = [
+        context ? sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis : undefined,
+        sourceNamespace?.geometryArraySemanticAnalysis
+      ];
+      const value = analyses
+        .map((analysis) => analysis?.genericValuesByStatementId.get(collectionValueId))
+        .find((candidate) => candidate !== undefined);
+      if (!value?.value) return null;
+      const genericValue = value.value;
+      if (genericValue.kind === "alias") {
+        return recordTargetForCollectionMember(genericValue.targetValueId, index, context, nextSeen);
+      }
+      if (genericValue.kind === "literal") {
+        const member = genericValue.members[index];
+        return member ? recordTargetForGenericArraySourceTarget(member.target, context) : null;
+      }
+      if (genericValue.kind === "map" && genericValue.sourceElementType.kind === "record" && genericValue.resultElementType.kind === "record") {
+        const body = context
+          ? context.definition.mappedRecordCollectionBodies?.find((candidate) => candidate.binderId === genericValue.binderId)
+          : moduleSemanticAnalysis.mappedRecordCollectionBodies.find((candidate) => candidate.binderId === genericValue.binderId);
+        if (body?.expression.kind === "reference" && body.expression.reference.target?.kind === "recordValueForBinder") {
+          return recordTargetForCollectionMember(genericValue.sourceValueId, index, context, nextSeen);
+        }
+      }
+      return null;
+    };
+
+    const recordValueSemanticForTarget = (
+      target: Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>,
+      context: InstanceContext | null
+    ): ModuleRecordValueSemantic | undefined => {
+      if (context) {
+        for (const candidate of contextCandidatesFor(context)) {
+          const recordValue = candidate.definition.recordValues.find((value) => value.value.statementId === target.statementId);
+          if (recordValue) return recordValue;
+        }
+      }
+      return moduleSemanticAnalysis.rootRecordValuesByStatementId.get(target.statementId);
+    };
+
+    const appendCanonicalRecordFieldContentsForTarget = (
+      target: ModuleRecordSourceTarget,
+      fieldPath: readonly RecordFieldIdentity[],
+      context: InstanceContext,
+      contextAnalysis: GeometryArraySemanticAnalysis,
+      sourceOrder: number
+    ): string | null => {
+      const recordValueId = recordTargetValueIdFor(target, context);
+      if (!recordValueId) return null;
+      const valueId = recordFieldContentsCollectionValueIdFor(recordValueId, fieldPath);
+      if (registeredRecordFieldContentsIds.has(valueId)) return valueId;
+      registeredRecordFieldContentsIds.add(valueId);
+
+      if (target.kind === "recordValue") {
+        const recordValue = recordValueSemanticForTarget(target, context);
+        const expression = recordValue?.valueExpression;
+        const fieldValue = expression ? recordFieldValueExpressionAt(expression, fieldPath) : null;
+        if (fieldValue?.kind === "collection" && fieldValue.value) {
+          appendConditional(fieldValue.value, valueId, context, contextAnalysis, sourceOrder);
+          return valueId;
+        }
+        if (expression?.kind === "reference" && expression.reference.target) {
+          const forwardedTarget = expression.reference.target;
+          const forwardedValueId = recordTargetValueIdFor(forwardedTarget, context);
+          if (forwardedValueId) {
+            const targetFieldValueId = recordFieldContentsCollectionValueIdFor(forwardedValueId, fieldPath);
+            moduleCollectionValues.push({ valueId, kind: "alias", targetValueId: targetFieldValueId });
+            return valueId;
+          }
+        }
+      }
+
+      moduleCollectionValues.push({ valueId, kind: "none" });
+      return valueId;
+    };
+
+    const appendMappedRecordFieldContents = (
+      mappedValue: import("../dsl/geometryArraySemantics").DslArrayMappedValue,
+      mappedBody: NonNullable<ModuleDefinitionSemantic["mappedRecordCollectionBodies"]>[number],
+      fieldPath: readonly RecordFieldIdentity[],
+      index: number,
+      context: InstanceContext
+    ): void => {
+      const contextAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+      if (!contextAnalysis) return;
+      const collectionValueId = collectionValueIdFor(mappedBody.statementId, context);
+      const mappedRecordValueId = mappedRecordMemberValueIdFor(collectionValueId, index);
+      const valueId = recordFieldContentsCollectionValueIdFor(mappedRecordValueId, fieldPath);
+      if (registeredRecordFieldContentsIds.has(valueId)) return;
+      registeredRecordFieldContentsIds.add(valueId);
+
+      const fieldValue = recordFieldValueExpressionAt(mappedBody.expression, fieldPath);
+      if (fieldValue?.kind === "collection" && fieldValue.value) {
+        appendConditional(fieldValue.value, valueId, context, contextAnalysis, mappedBody.statementIndex);
+        return;
+      }
+
+      const sourceTarget = mappedBody.expression.kind === "reference" &&
+        mappedBody.expression.reference.target?.kind === "recordValueForBinder"
+        ? recordTargetForCollectionMember(mappedValue.sourceValueId, index, context)
+        : mappedBody.expression.kind === "reference" && mappedBody.expression.reference.target
+          ? mappedBody.expression.reference.target
+          : null;
+      if (sourceTarget) {
+        const sourceContentsValueId = appendCanonicalRecordFieldContentsForTarget(
+          sourceTarget,
+          fieldPath,
+          context,
+          contextAnalysis,
+          mappedBody.statementIndex
+        );
+        if (sourceContentsValueId) {
+          moduleCollectionValues.push({ valueId, kind: "alias", targetValueId: sourceContentsValueId });
+          return;
+        }
+      }
+      moduleCollectionValues.push({ valueId, kind: "none" });
+    };
+
     const appendRecordValueExpression = (
       expression: ModuleRecordValueExpressionSemantic,
       valueId: string,
@@ -3471,6 +3652,23 @@ export const compileModuleScalarRuntime = ({
       )?.target;
       if (recordCollectionTarget?.kind === "recordField" && recordCollectionTarget.record.kind === "recordCollectionIndex") {
         const fieldPath = recordCollectionTarget.fieldPath ?? [recordCollectionTarget.field];
+        const requiredFieldType = dslRequiredValueTypeOf(recordCollectionTarget.valueType) ?? recordCollectionTarget.valueType;
+        if (context && isDslArrayValueType(requiredFieldType)) {
+          const index = recordCollectionTarget.record.index.ast.kind === "numberLiteral"
+            ? recordCollectionTarget.record.index.ast.value
+            : null;
+          const mappedValue = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis
+            ?.genericValuesByStatementId.get(recordCollectionTarget.record.collectionValueId)?.value;
+          const mappedBody = mappedValue?.kind === "map" &&
+            mappedValue.sourceElementType.kind === "record" &&
+            mappedValue.resultElementType.kind === "record"
+            ? context.definition.mappedRecordCollectionBodies?.find((candidate) => candidate.binderId === mappedValue.binderId)
+            : undefined;
+          if (index !== null && Number.isInteger(index) && index >= 0 && mappedValue?.kind === "map" && mappedBody) {
+            appendMappedRecordFieldContents(mappedValue, mappedBody, fieldPath, index, context);
+            return;
+          }
+        }
         const sourceValueId = collectionValueIdFor(recordCollectionTarget.record.collectionValueId, context);
         const field = fieldPath[fieldPath.length - 1]!;
         const valueId = recordFieldCollectionValueIdFor(sourceValueId, field, fieldPath);
@@ -4546,6 +4744,29 @@ export const compileModuleScalarRuntime = ({
     target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget,
     context: InstanceContext
   ): { collectionValueId: string; targetSourceOrder: number } | undefined => {
+    if (target.record.kind === "recordCollectionIndex") {
+      const valueType = dslRequiredValueTypeOf(target.valueType) ?? target.valueType;
+      const index = target.record.index.ast.kind === "numberLiteral" ? target.record.index.ast.value : null;
+      const collection = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis
+        ?.genericValuesByStatementId.get(target.record.collectionValueId);
+      const mapValue = collection?.value;
+      if (
+        !isDslArrayValueType(valueType) ||
+        index === null || !Number.isInteger(index) || index < 0 ||
+        mapValue?.kind !== "map" ||
+        mapValue.sourceElementType.kind !== "record" ||
+        mapValue.resultElementType.kind !== "record"
+      ) return undefined;
+      const mappedBody = context.definition.mappedRecordCollectionBodies?.find((candidate) =>
+        candidate.binderId === mapValue.binderId
+      );
+      if (!mappedBody) return undefined;
+      const collectionValueId = collectionValueIdFor(target.record.collectionValueId, context);
+      return {
+        collectionValueId: mappedRecordMemberValueIdFor(collectionValueId, index),
+        targetSourceOrder: executionPositionForValue(context.path, target.record.targetSourceOrder)
+      };
+    }
     const recordParameter = target.record;
     if (recordParameter.kind !== "recordParameter") return undefined;
     const owner = contextCandidatesFor(context).find((candidate) =>

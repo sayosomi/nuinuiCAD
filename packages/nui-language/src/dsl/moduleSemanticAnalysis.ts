@@ -5700,6 +5700,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         binderId: mapped.binderId,
         sourceTypeIdentity,
         resultTypeIdentity,
+        expression,
         binderFields: scalarRecordFieldPathsFor(sourceDefinition).map(({ field, path: fieldPath, type }) => ({
           field: field.identity,
           fieldName: field.name,
@@ -7723,6 +7724,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
     })),
     mappedRecordCollectionBodies: (definition.mappedRecordCollectionBodies ?? []).map((mapped) => ({
       ...mapped,
+      expression: mapRecordValueExpression(mapped.expression),
       fields: mapped.fields.map((field) => ({ ...field, body: mapExpression(field.body) }))
     })),
     mappedGeometryCollectionBodies: (definition.mappedGeometryCollectionBodies ?? []).map((mapped) => ({
@@ -7865,6 +7867,7 @@ export const decorateDocumentQualifiedModuleSemantics = (
     rootRecordValuesByStatementId,
     mappedRecordCollectionBodies: analysis.mappedRecordCollectionBodies.map((mapped) => ({
       ...mapped,
+      expression: mapRecordValueExpression(mapped.expression),
       fields: mapped.fields.map((field) => ({ ...field, body: mapExpression(field.body) }))
     })),
     geometryValues,

@@ -1071,6 +1071,9 @@ export type ModuleDefinitionSemantic = {
     binderId: BindingId;
     sourceTypeIdentity: RecordTypeIdentity;
     resultTypeIdentity: RecordTypeIdentity;
+    /** Whole mapped record expression retained so collection-valued result
+     * fields can reuse the canonical record-field-contents runtime graph. */
+    expression: ModuleRecordValueExpressionSemantic;
     binderFields: readonly {
       field: RecordFieldIdentity;
       fieldName: string;

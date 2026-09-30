@@ -5344,4 +5344,101 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       }
     }
   }, 30000);
+
+  it("matches collection-valued fields selected from Module record maps through persistent Rust stdio", async () => {
+    const source = [
+      "nui 1",
+      "record Bundle(amount: number, label: string, xs: number[])",
+      'const empty: Bundle = Bundle(amount: 0, label: "empty", xs: [])',
+      'const one: Bundle = Bundle(amount: 1, label: "one", xs: [7])',
+      'const multi: Bundle = Bundle(amount: 2, label: "multi", xs: [3, 5])',
+      'const otherFirst: Bundle = Bundle(amount: 7, label: "other first", xs: [19])',
+      'const otherSecond: Bundle = Bundle(amount: 8, label: "other second", xs: [23, 29])',
+      'const other: Bundle = Bundle(amount: 9, label: "other", xs: [11, 13, 17])',
+      "const inputA: Bundle[] = [@empty, @one, @multi]",
+      "const inputB: Bundle[] = [@otherFirst, @otherSecond, @other]",
+      "const rootMapped: Bundle[] = for item in @inputA { @item }",
+      "const rootSelected: Bundle = @rootMapped[2]",
+      "const rootAmount: number = @rootSelected.amount",
+      "const rootLabel: string = @rootSelected.label",
+      "module Mapper(items: Bundle[]) {",
+      "  const mapped: Bundle[] = for item in @items { @item }",
+      "  const transformed: Bundle[] = for item in @items { Bundle(amount: @item.amount + 10, label: @item.label, xs: [31]) }",
+      "  const emptyLengthValue: number = @mapped[0].xs.length",
+      "  const oneLengthValue: number = @mapped[1].xs.length",
+      "  const multiLengthValue: number = @mapped[2].xs.length",
+      "  const transformedLengthValue: number = @transformed[2].xs.length",
+      "  export const selectedAmount: number = @mapped[2].amount",
+      "  export const selectedLabel: string = @mapped[2].label",
+      "  export const emptyLength: number = @emptyLengthValue",
+      "  export const oneLength: number = @oneLengthValue",
+      "  export const multiLength: number = @multiLengthValue",
+      "  export const transformedAmount: number = @transformed[2].amount",
+      "  export const transformedLabel: string = @transformed[2].label",
+      "  export const transformedLength: number = @transformedLengthValue",
+      "}",
+      "instance A = Mapper(items: @inputA)",
+      "instance B = Mapper(items: @inputB)",
+      "const aAmount: number = @A::selectedAmount",
+      "const aLabel: string = @A::selectedLabel",
+      "const aEmptyLength: number = @A::emptyLength",
+      "const aOneLength: number = @A::oneLength",
+      "const aMultiLength: number = @A::multiLength",
+      "const aTransformedAmount: number = @A::transformedAmount",
+      "const aTransformedLabel: string = @A::transformedLabel",
+      "const aTransformedLength: number = @A::transformedLength",
+      "const bMultiLength: number = @B::multiLength",
+    ].join("\n");
+    const fixture = fixtureFromSource(source);
+    const repeated = fixtureFromSource(source);
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const collectionValues = fixture.compiled!.doc.scalarProgram?.collectionValues ?? [];
+    const repeatedCollectionValues = repeated.compiled!.doc.scalarProgram?.collectionValues ?? [];
+    const recordMaps = collectionValues.filter((value) => value.kind === "recordMap");
+    const repeatedRecordMaps = repeatedCollectionValues.filter((value) => value.kind === "recordMap");
+    expect(recordMaps).toHaveLength(5);
+    expect(recordMaps.map(({ sourceOrder }) => sourceOrder)).toEqual(
+      repeatedRecordMaps.map(({ sourceOrder }) => sourceOrder)
+    );
+    expect(recordMaps.every(({ sourceOrder }) => Number.isInteger(sourceOrder) && sourceOrder >= 0)).toBe(true);
+
+    const collectionById = new Map(collectionValues.map((value) => [value.valueId, value]));
+    const fieldContents = collectionValues.filter((value) => value.valueId.startsWith("record-field-contents:"));
+    expect(fieldContents.length).toBeGreaterThan(0);
+    for (const value of fieldContents) {
+      if (value.kind === "alias") expect(collectionById.has(value.targetValueId)).toBe(true);
+    }
+    const fieldContentLiterals = fieldContents.filter((value) => value.kind === "literal");
+    expect(fieldContentLiterals).toContainEqual(expect.objectContaining({ kind: "literal", members: [] }));
+    expect(fieldContentLiterals).toContainEqual(expect.objectContaining({ kind: "literal", members: [{ kind: "literal", type: { kind: "number" }, value: { kind: "number", value: 7 } }] }));
+    expect(fieldContentLiterals).toContainEqual(expect.objectContaining({ kind: "literal", members: [{ kind: "literal", type: { kind: "number" }, value: { kind: "number", value: 31 } }] }));
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const rustCollectionValues = rustInput.scalarProgram?.collectionValues ?? rustInput.bindingVersions?.collectionValues ?? [];
+    expect(rustCollectionValues).toEqual(collectionValues);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      for (const [name, expected] of [
+        ["rootAmount", 2],
+        ["rootLabel", "multi"],
+        ["aAmount", 2],
+        ["aLabel", "multi"],
+        ["aEmptyLength", 0],
+        ["aOneLength", 1],
+        ["aMultiLength", 2],
+        ["aTransformedAmount", 12],
+        ["aTransformedLabel", "multi"],
+        ["aTransformedLength", 1],
+        ["bMultiLength", 3]
+      ] as const) {
+        if (typeof expected === "number") expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+        else expect(scalarBindingFor(fixture, payload, name)).toMatchObject({ status: "ok", value: { kind: "string", value: expected } });
+      }
+    }
+  }, 30000);
 });
