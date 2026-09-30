@@ -1070,7 +1070,9 @@ const lowerRecordPropertyAst = (
         if (
           target?.kind === "recordField" &&
           target.collectionIndex !== undefined &&
-          (target.record.kind === "recordValue" || target.record.kind === "recordParameter")
+          (target.record.kind === "recordValue" ||
+            target.record.kind === "recordParameter" ||
+            target.record.kind === "deferredModuleRecordExport")
         ) {
           const indexedProperty = /^(.*)\[(\d+)\]$/.exec(node.property);
           if (indexedProperty) {
@@ -1309,6 +1311,16 @@ export const lowerExpression = (
         collectionValueId: recordParameter.collectionValueId,
         collectionLength: 1,
         targetSourceOrder: recordParameter.targetSourceOrder,
+        fieldPath
+      };
+    }
+    if (target.record.kind === "deferredModuleRecordExport") {
+      const recordValue = recordParameterCollectionForTarget?.(target);
+      if (!recordValue) return null;
+      return {
+        collectionValueId: recordValue.collectionValueId,
+        collectionLength: 1,
+        targetSourceOrder: recordValue.targetSourceOrder,
         fieldPath
       };
     }
@@ -1609,6 +1621,8 @@ export const lowerExpression = (
         let recordValueCollectionId: string | null = null;
         if (property.target.record.kind === "recordValue" || property.target.record.kind === "recordParameter") {
           recordValueCollectionId = recordCollection.collectionValueId;
+        } else if (property.target.record.kind === "deferredModuleRecordExport") {
+          recordValueCollectionId = recordCollection.collectionValueId;
         } else if (property.target.record.kind === "recordCollectionIndex") {
           const index = property.target.record.index.ast.kind === "numberLiteral"
             ? property.target.record.index.ast.value
@@ -1701,7 +1715,14 @@ export const lowerExpression = (
           return;
         }
         const reference = semanticReferenceFor(node.span.start);
-        const recordFieldTarget = reference?.target?.kind === "recordField" ? reference.target : null;
+        const geometryPropertyTarget = semantic.geometryProperties.find((property) =>
+          property.span.start === node.span.start && property.target?.kind === "recordField"
+        )?.target;
+        const recordFieldTarget = reference?.target?.kind === "recordField"
+          ? reference.target
+          : geometryPropertyTarget?.kind === "recordField"
+            ? geometryPropertyTarget
+            : null;
         const recordValueTarget = recordFieldTarget?.record.kind === "recordValue"
           ? recordFieldTarget.record
           : null;
@@ -1709,6 +1730,9 @@ export const lowerExpression = (
           ? recordFieldTarget.record
           : null;
         const recordParameterTarget = recordFieldTarget?.record.kind === "recordParameter"
+          ? recordCollectionTargetFor(recordFieldTarget)
+          : null;
+        const deferredRecordCollectionTarget = recordFieldTarget?.record.kind === "deferredModuleRecordExport"
           ? recordCollectionTargetFor(recordFieldTarget)
           : null;
         const recordFieldPath = recordCollectionTarget ? recordFieldTarget!.fieldPath ?? [recordFieldTarget!.field] : null;
@@ -1724,6 +1748,14 @@ export const lowerExpression = (
         const recordParameterFieldContentsCollectionValueId = recordParameterTarget && recordParameterFieldPath
           ? recordFieldContentsCollectionValueIdFor(recordParameterTarget.collectionValueId, recordParameterFieldPath)
           : null;
+        const deferredRecordFieldContentsCollectionValueId =
+          deferredRecordCollectionTarget &&
+          recordFieldTarget?.collectionIndex !== undefined
+            ? recordFieldContentsCollectionValueIdFor(
+                deferredRecordCollectionTarget.collectionValueId,
+                recordFieldTarget.fieldPath ?? [recordFieldTarget.field]
+              )
+            : null;
         const recordValueFieldCollectionValueId = recordValueTarget && recordValueFieldPath
           ? recordFieldCollectionValueIdFor(
               recordValueCollectionIdFor([], recordValueTarget.statementId),
@@ -1747,6 +1779,7 @@ export const lowerExpression = (
             recordValueFieldContentsCollectionValueId ??
             recordValueFieldCollectionValueId ??
             recordParameterFieldContentsCollectionValueId ??
+            deferredRecordFieldContentsCollectionValueId ??
             reference?.collectionValueId ??
             ""
           ),
@@ -1757,7 +1790,9 @@ export const lowerExpression = (
           ),
           targetSourceOrder: (() => {
             if (recordParameterTarget) return recordParameterTarget.targetSourceOrder;
-            const sourceOrder = recordCollectionTarget?.targetSourceOrder ?? recordValueTarget?.statementIndex ?? reference?.targetSourceOrder ?? -1;
+            if (deferredRecordCollectionTarget) return deferredRecordCollectionTarget.targetSourceOrder;
+            const sourceOrder = recordCollectionTarget?.targetSourceOrder ?? recordValueTarget?.statementIndex ??
+              reference?.targetSourceOrder ?? -1;
             return sourceOrder >= 0 ? collectionSourceOrderFor(sourceOrder) : sourceOrder;
           })(),
           type: recordFieldTarget?.type ?? reference?.collectionElementType ?? null
@@ -3091,6 +3126,36 @@ export const compileModuleScalarRuntime = ({
     return valueId;
   };
 
+  const recordTargetValueIdFor = (
+    target: ModuleRecordSourceTarget,
+    context: InstanceContext | null
+  ): string | null => {
+    if (target.kind === "recordValue") {
+      return collectionValueIdFor(recordValueCollectionIdFor([], target.statementId), context);
+    }
+    if (target.kind === "recordParameter") {
+      const owner = context
+        ? contextCandidatesFor(context).find((candidate) => candidate.definition.statementId === target.definitionStatementId)
+        : null;
+      return owner
+        ? moduleRecordParameterCollectionValueIdFor(owner.path, target.definitionStatementId, target.parameterIndex)
+        : null;
+    }
+    if (target.kind === "recordCollectionIndex") {
+      return collectionValueIdFor(target.collectionValueId, context);
+    }
+    if (target.kind === "deferredModuleRecordExport") {
+      const child = runtimeContextForSourceInstance(context, target.instanceStatementId, target.instanceIdentity?.documentId);
+      const exported = child?.definition.exports.find((candidate) =>
+        candidate.kind === "record" && candidate.name === target.exportName && candidate.exportedStatementId === target.exportedStatementId
+      );
+      return child && exported?.kind === "record"
+        ? recordTargetValueIdFor(exported.backingTarget, child)
+        : null;
+    }
+    return null;
+  };
+
   const scalarCollectionMemberFromLiteral = (
     sourceText: string,
     type: ScalarExpressionType
@@ -3222,36 +3287,6 @@ export const compileModuleScalarRuntime = ({
       return fields.length === scalarFieldPathsFor(definition).length
         ? { kind: "record", typeIdentity, fields }
         : null;
-    };
-
-    const recordTargetValueIdFor = (
-      target: ModuleRecordSourceTarget,
-      context: InstanceContext | null
-    ): string | null => {
-      if (target.kind === "recordValue") {
-        return collectionValueIdFor(recordValueCollectionIdFor([], target.statementId), context);
-      }
-      if (target.kind === "recordParameter") {
-        const owner = context
-          ? contextCandidatesFor(context).find((candidate) => candidate.definition.statementId === target.definitionStatementId)
-          : null;
-        return owner
-          ? moduleRecordParameterCollectionValueIdFor(owner.path, target.definitionStatementId, target.parameterIndex)
-          : null;
-      }
-      if (target.kind === "recordCollectionIndex") {
-        return collectionValueIdFor(target.collectionValueId, context);
-      }
-      if (target.kind === "deferredModuleRecordExport") {
-        const child = runtimeContextForSourceInstance(context, target.instanceStatementId, target.instanceIdentity?.documentId);
-        const exported = child?.definition.exports.find((candidate) =>
-          candidate.kind === "record" && candidate.name === target.exportName && candidate.exportedStatementId === target.exportedStatementId
-        );
-        return child && exported?.kind === "record"
-          ? recordTargetValueIdFor(exported.backingTarget, child)
-          : null;
-      }
-      return null;
     };
 
     const recordTargetForGenericArraySourceTarget = (
@@ -5027,9 +5062,10 @@ export const compileModuleScalarRuntime = ({
   };
   const recordParameterCollectionForTargetContext = (
     target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget,
-    context: InstanceContext
+    context: InstanceContext | null
   ): { collectionValueId: string; targetSourceOrder: number } | undefined => {
     if (target.record.kind === "recordCollectionIndex") {
+      if (!context) return undefined;
       const valueType = dslRequiredValueTypeOf(target.valueType) ?? target.valueType;
       const index = target.record.index.ast.kind === "numberLiteral" ? target.record.index.ast.value : null;
       const collection = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis
@@ -5052,8 +5088,16 @@ export const compileModuleScalarRuntime = ({
         targetSourceOrder: executionPositionForValue(context.path, target.record.targetSourceOrder)
       };
     }
+    if (target.record.kind === "deferredModuleRecordExport") {
+      const collectionValueId = recordTargetValueIdFor(target.record, context);
+      const targetSourceOrder = recordFieldSourceOrderForContext(target, context?.path ?? []);
+      return collectionValueId && targetSourceOrder !== undefined
+        ? { collectionValueId, targetSourceOrder }
+        : undefined;
+    }
     const recordParameter = target.record;
     if (recordParameter.kind !== "recordParameter") return undefined;
+    if (!context) return undefined;
     const owner = contextCandidatesFor(context).find((candidate) =>
       candidate.definition.statementId === recordParameter.definitionStatementId &&
       (!recordParameter.definitionIdentity || candidate.definitionDocumentId === recordParameter.definitionIdentity.documentId)
@@ -5957,7 +6001,8 @@ export const compileModuleScalarRuntime = ({
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
           (valueId) => collectionValueIdFor(valueId, null),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, null)
         );
     const members = source.members.flatMap((member) => {
       const lowered = geometryInputTargetForAlias(member);
@@ -6145,7 +6190,8 @@ export const compileModuleScalarRuntime = ({
           rootCollectionLengthFor,
           resolvedGeometryBuiltinForRoot,
           (valueId) => collectionValueIdFor(valueId, null),
-          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, null)
         );
         initializers.set(bindingId, lowered.expression);
       } else {
