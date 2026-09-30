@@ -961,6 +961,175 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("preserves borrowed record-field event ownership across sibling Grandchild instances over persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Bundle(scalar: number, xs: number[])",
+      "module Grandchild(input: Bundle) {",
+      "  export const scalar: number = @input.scalar",
+      "  export const length: number = @input.xs.length",
+      "  export const first: number = @input.xs[0]",
+      "  export const second: number = @input.xs[1]",
+      "}",
+      "module Child(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Direct = Grandchild(input: @input)",
+      "  instance FromAlias = Grandchild(input: @alias)",
+      "  export const directScalar: number = @Direct::scalar",
+      "  export const directLength: number = @Direct::length",
+      "  export const directFirst: number = @Direct::first",
+      "  export const directSecond: number = @Direct::second",
+      "  export const aliasScalar: number = @FromAlias::scalar",
+      "  export const aliasLength: number = @FromAlias::length",
+      "  export const aliasFirst: number = @FromAlias::first",
+      "  export const aliasSecond: number = @FromAlias::second",
+      "}",
+      "module Parent(input: Bundle) {",
+      "  instance ChildLevel = Child(input: @input)",
+      "  export const directScalar: number = @ChildLevel::directScalar",
+      "  export const directLength: number = @ChildLevel::directLength",
+      "  export const directFirst: number = @ChildLevel::directFirst",
+      "  export const directSecond: number = @ChildLevel::directSecond",
+      "  export const aliasScalar: number = @ChildLevel::aliasScalar",
+      "  export const aliasLength: number = @ChildLevel::aliasLength",
+      "  export const aliasFirst: number = @ChildLevel::aliasFirst",
+      "  export const aliasSecond: number = @ChildLevel::aliasSecond",
+      "}",
+      "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
+      "const smallDirectScalar: number = @Small::directScalar",
+      "const smallDirectLength: number = @Small::directLength",
+      "const smallDirectFirst: number = @Small::directFirst",
+      "const smallDirectSecond: number = @Small::directSecond",
+      "const smallAliasScalar: number = @Small::aliasScalar",
+      "const smallAliasLength: number = @Small::aliasLength",
+      "const smallAliasFirst: number = @Small::aliasFirst",
+      "const smallAliasSecond: number = @Small::aliasSecond"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.compiled?.bindingIssueDiagnostics?.filter((diagnostic) => diagnostic.severity === "error") ?? []).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    const scalarResult = (payload: typeof tsPayload, name: string) => {
+      const value = scalarBindingFor(fixture, payload, name);
+      if (value?.status === "ok" && value.value.kind === "number") return value.value.value;
+      if (value?.status === "error") return { status: value.status, issueCode: value.issueCode };
+      return { status: value?.status };
+    };
+    const names = [
+      "smallDirectScalar",
+      "smallDirectLength",
+      "smallDirectFirst",
+      "smallDirectSecond",
+      "smallAliasScalar",
+      "smallAliasLength",
+      "smallAliasFirst",
+      "smallAliasSecond"
+    ] as const;
+    const outcomes = [tsPayload, rustPayload].map((payload) => {
+      const result = evaluationPayloadToResult(payload);
+      return {
+        errorCount: result.errors.length,
+        values: names.map((name) => scalarResult(payload, name))
+      };
+    });
+    expect(outcomes).toEqual([
+      {
+        errorCount: 0,
+        values: [101, 2, 5, 11, 101, 2, 5, 11]
+      },
+      {
+        errorCount: 0,
+        values: [101, 2, 5, 11, 101, 2, 5, 11]
+      }
+    ]);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
+  it("forwards whole-record values through all Parent and Child alias routes over persistent Rust stdio", async () => {
+    const routes = [
+      { name: "directDirect", childInstance: "Direct", childRoute: "direct" },
+      { name: "directAlias", childInstance: "Direct", childRoute: "alias" },
+      { name: "aliasDirect", childInstance: "FromAlias", childRoute: "direct" },
+      { name: "aliasAlias", childInstance: "FromAlias", childRoute: "alias" }
+    ] as const;
+    const fields = ["Scalar", "Length", "First", "Second"] as const;
+    const topLevels = [
+      {
+        name: "Small",
+        prefix: "small",
+        input: "Bundle(scalar: 101, xs: [5, 11])",
+        expected: { Scalar: 101, Length: 2, First: 5, Second: 11 }
+      },
+      {
+        name: "Large",
+        prefix: "large",
+        input: "Bundle(scalar: 203, xs: [3, 7, 13, 19])",
+        expected: { Scalar: 203, Length: 4, First: 3, Second: 7 }
+      }
+    ] as const;
+    const titleCase = (name: string) => `${name[0]!.toUpperCase()}${name.slice(1)}`;
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Bundle(scalar: number, xs: number[])",
+      "module Grandchild(input: Bundle) {",
+      "  export const scalar: number = @input.scalar",
+      "  export const length: number = @input.xs.length",
+      "  export const first: number = @input.xs[0]",
+      "  export const second: number = @input.xs[1]",
+      "}",
+      "module Child(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Direct = Grandchild(input: @input)",
+      "  instance FromAlias = Grandchild(input: @alias)",
+      "  export const directScalar: number = @Direct::scalar",
+      "  export const directLength: number = @Direct::length",
+      "  export const directFirst: number = @Direct::first",
+      "  export const directSecond: number = @Direct::second",
+      "  export const aliasScalar: number = @FromAlias::scalar",
+      "  export const aliasLength: number = @FromAlias::length",
+      "  export const aliasFirst: number = @FromAlias::first",
+      "  export const aliasSecond: number = @FromAlias::second",
+      "}",
+      "module Parent(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Direct = Child(input: @input)",
+      "  instance FromAlias = Child(input: @alias)",
+      ...routes.flatMap((route) => fields.map((field) =>
+        `  export const ${route.name}${field}: number = @${route.childInstance}::${route.childRoute}${field}`
+      )),
+      "}",
+      ...topLevels.map((instance) => `instance ${instance.name} = Parent(input: ${instance.input})`),
+      ...topLevels.flatMap((instance) => routes.flatMap((route) => fields.map((field) =>
+        `const ${instance.prefix}${titleCase(route.name)}${field}: number = @${instance.name}::${route.name}${field}`
+      )))
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(fixture.compiled?.bindingIssueDiagnostics?.filter((diagnostic) => diagnostic.severity === "error") ?? []).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      for (const instance of topLevels) {
+        for (const route of routes) {
+          for (const field of fields) {
+            const name = `${instance.prefix}${titleCase(route.name)}${field}`;
+            expectScalarNumberClose(scalarBindingFor(fixture, payload, name), instance.expected[field]);
+          }
+        }
+      }
+    }
+  }, 30000);
+
   it("indexes Module record-parameter collection fields through persistent Rust stdio", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

@@ -1680,6 +1680,165 @@ describe("module scalar runtime integration", () => {
     }
   });
 
+  it("preserves borrowed record-field event ownership across sibling Grandchild instances", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Bundle(scalar: number, xs: number[])",
+      "module Grandchild(input: Bundle) {",
+      "  export const scalar: number = @input.scalar",
+      "  export const length: number = @input.xs.length",
+      "  export const first: number = @input.xs[0]",
+      "  export const second: number = @input.xs[1]",
+      "}",
+      "module Child(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Direct = Grandchild(input: @input)",
+      "  instance FromAlias = Grandchild(input: @alias)",
+      "  export const directScalar: number = @Direct::scalar",
+      "  export const directLength: number = @Direct::length",
+      "  export const directFirst: number = @Direct::first",
+      "  export const directSecond: number = @Direct::second",
+      "  export const aliasScalar: number = @FromAlias::scalar",
+      "  export const aliasLength: number = @FromAlias::length",
+      "  export const aliasFirst: number = @FromAlias::first",
+      "  export const aliasSecond: number = @FromAlias::second",
+      "}",
+      "module Parent(input: Bundle) {",
+      "  instance ChildLevel = Child(input: @input)",
+      "  export const directScalar: number = @ChildLevel::directScalar",
+      "  export const directLength: number = @ChildLevel::directLength",
+      "  export const directFirst: number = @ChildLevel::directFirst",
+      "  export const directSecond: number = @ChildLevel::directSecond",
+      "  export const aliasScalar: number = @ChildLevel::aliasScalar",
+      "  export const aliasLength: number = @ChildLevel::aliasLength",
+      "  export const aliasFirst: number = @ChildLevel::aliasFirst",
+      "  export const aliasSecond: number = @ChildLevel::aliasSecond",
+      "}",
+      "instance Small = Parent(input: Bundle(scalar: 101, xs: [5, 11]))",
+      "const smallDirectScalar: number = @Small::directScalar",
+      "const smallDirectLength: number = @Small::directLength",
+      "const smallDirectFirst: number = @Small::directFirst",
+      "const smallDirectSecond: number = @Small::directSecond",
+      "const smallAliasScalar: number = @Small::aliasScalar",
+      "const smallAliasLength: number = @Small::aliasLength",
+      "const smallAliasFirst: number = @Small::aliasFirst",
+      "const smallAliasSecond: number = @Small::aliasSecond"
+    ].join("\n"), "say426-three-level-record-forward-sibling-alias");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, name).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    const scalarResult = (name: string) => {
+      const value = scalarValue(name);
+      if (value?.status === "ok" && value.value.kind === "number") return value.value.value;
+      if (value?.status === "error") return { status: value.status, issueCode: value.issueCode };
+      return { status: value?.status };
+    };
+    const names = [
+      "smallDirectScalar",
+      "smallDirectLength",
+      "smallDirectFirst",
+      "smallDirectSecond",
+      "smallAliasScalar",
+      "smallAliasLength",
+      "smallAliasFirst",
+      "smallAliasSecond"
+    ] as const;
+    expect({ errorCount: result.errors.length, values: names.map(scalarResult) }).toEqual({
+      errorCount: 0,
+      values: [101, 2, 5, 11, 101, 2, 5, 11]
+    });
+  });
+
+  it("forwards whole-record values through all Parent and Child alias routes", () => {
+    const routes = [
+      { name: "directDirect", childInstance: "Direct", childRoute: "direct" },
+      { name: "directAlias", childInstance: "Direct", childRoute: "alias" },
+      { name: "aliasDirect", childInstance: "FromAlias", childRoute: "direct" },
+      { name: "aliasAlias", childInstance: "FromAlias", childRoute: "alias" }
+    ] as const;
+    const fields = ["Scalar", "Length", "First", "Second"] as const;
+    const topLevels = [
+      {
+        name: "Small",
+        prefix: "small",
+        input: "Bundle(scalar: 101, xs: [5, 11])",
+        expected: { Scalar: 101, Length: 2, First: 5, Second: 11 }
+      },
+      {
+        name: "Large",
+        prefix: "large",
+        input: "Bundle(scalar: 203, xs: [3, 7, 13, 19])",
+        expected: { Scalar: 203, Length: 4, First: 3, Second: 7 }
+      }
+    ] as const;
+    const titleCase = (name: string) => `${name[0]!.toUpperCase()}${name.slice(1)}`;
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Bundle(scalar: number, xs: number[])",
+      "module Grandchild(input: Bundle) {",
+      "  export const scalar: number = @input.scalar",
+      "  export const length: number = @input.xs.length",
+      "  export const first: number = @input.xs[0]",
+      "  export const second: number = @input.xs[1]",
+      "}",
+      "module Child(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Direct = Grandchild(input: @input)",
+      "  instance FromAlias = Grandchild(input: @alias)",
+      "  export const directScalar: number = @Direct::scalar",
+      "  export const directLength: number = @Direct::length",
+      "  export const directFirst: number = @Direct::first",
+      "  export const directSecond: number = @Direct::second",
+      "  export const aliasScalar: number = @FromAlias::scalar",
+      "  export const aliasLength: number = @FromAlias::length",
+      "  export const aliasFirst: number = @FromAlias::first",
+      "  export const aliasSecond: number = @FromAlias::second",
+      "}",
+      "module Parent(input: Bundle) {",
+      "  const alias: Bundle = @input",
+      "  instance Direct = Child(input: @input)",
+      "  instance FromAlias = Child(input: @alias)",
+      ...routes.flatMap((route) => fields.map((field) =>
+        `  export const ${route.name}${field}: number = @${route.childInstance}::${route.childRoute}${field}`
+      )),
+      "}",
+      ...topLevels.map((instance) => `instance ${instance.name} = Parent(input: ${instance.input})`),
+      ...topLevels.flatMap((instance) => routes.flatMap((route) => fields.map((field) =>
+        `const ${instance.prefix}${titleCase(route.name)}${field}: number = @${instance.name}::${route.name}${field}`
+      )))
+    ].join("\n"), "say426-three-level-record-forward-four-routes");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, name).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    for (const instance of topLevels) {
+      for (const route of routes) {
+        for (const field of fields) {
+          const name = `${instance.prefix}${titleCase(route.name)}${field}`;
+          expect(scalarValue(name), name).toMatchObject({
+            status: "ok",
+            value: { kind: "number", value: instance.expected[field] }
+          });
+        }
+      }
+    }
+  });
+
   it("evaluates nested record members and record collection length/index", () => {
     const compiled = compileWithIds([
       "nui 1",
