@@ -119,6 +119,11 @@ struct DependencyReadinessContext<'a> {
     geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
 }
 
+struct GeometryDependencyReadinessContext<'a> {
+    branch_selections: &'a HashMap<String, String>,
+    state: &'a EvaluationState,
+}
+
 pub(crate) fn decode_conditional_dependency_graph(
     payload: Option<&Value>,
 ) -> Result<Option<ConditionalDependencyGraph>, String> {
@@ -288,6 +293,17 @@ fn activation_path_is_active(
 }
 
 impl ConditionalDependencyGraph {
+    pub(crate) fn has_root_geometry_property_dependency(&self, binding_id: &str) -> bool {
+        self.edges.iter().any(|edge| {
+            edge.from.kind == "binding"
+                && edge.from.id == binding_id
+                && matches!(
+                    edge.to.kind.as_str(),
+                    "geometry-value" | "geometry-stage" | "module-occurrence"
+                )
+        })
+    }
+
     pub(crate) fn has_activation(&self) -> bool {
         self.edges.iter().any(|edge| {
             edge.activation
@@ -374,6 +390,100 @@ impl ConditionalDependencyGraph {
             },
             &mut HashSet::new(),
         )
+    }
+
+    pub(crate) fn geometry_prerequisites_are_ready(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        state: &EvaluationState,
+    ) -> bool {
+        let context = GeometryDependencyReadinessContext {
+            branch_selections,
+            state,
+        };
+        self.edges
+            .iter()
+            .filter(|edge| {
+                endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
+            })
+            .all(|edge| {
+                self.geometry_prerequisite_is_ready_inner(
+                    &endpoint_key(&edge.to),
+                    &context,
+                    &mut HashSet::new(),
+                )
+            })
+    }
+
+    fn geometry_prerequisite_is_ready_inner(
+        &self,
+        endpoint_id: &str,
+        context: &GeometryDependencyReadinessContext<'_>,
+        visiting: &mut HashSet<String>,
+    ) -> bool {
+        if !visiting.insert(endpoint_id.to_owned()) {
+            return false;
+        }
+        let endpoint = self
+            .edges
+            .iter()
+            .flat_map(|edge| [&edge.from, &edge.to])
+            .find(|endpoint| endpoint_key(endpoint) == endpoint_id);
+        let Some(endpoint) = endpoint else {
+            visiting.remove(endpoint_id);
+            return false;
+        };
+        let ready = match endpoint.kind.as_str() {
+            // Geometry-value prerequisites are released in the same canonical
+            // rank-sorted pass; only drawable prerequisites can be pending on
+            // the element loop when this readiness snapshot is taken.
+            "geometry-value" => true,
+            "geometry-stage" => match endpoint.owner_id.as_ref() {
+                Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => context
+                    .state
+                    .base_transformation_geometry
+                    .contains_key(owner_id),
+                Some(owner_id) if endpoint.stage_path == ["final".to_owned()] => {
+                    context.state.computed_geometry.contains_key(owner_id)
+                }
+                Some(owner_id) => {
+                    context
+                        .state
+                        .transformation_stage_geometry
+                        .contains_key(&format!(
+                            "{}\u{0}*\u{0}{}",
+                            owner_id,
+                            endpoint.stage_path.join(".")
+                        ))
+                }
+                None => false,
+            },
+            "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+            "module-occurrence" => context.state.instance_base_geometry.contains_key(
+                endpoint
+                    .id
+                    .strip_prefix("module-occurrence:")
+                    .unwrap_or(&endpoint.id),
+            ),
+            "binding" => self
+                .edges
+                .iter()
+                .filter(|edge| {
+                    endpoint_key(&edge.from) == endpoint_id
+                        && edge_is_active(edge, context.branch_selections)
+                })
+                .all(|edge| {
+                    self.geometry_prerequisite_is_ready_inner(
+                        &endpoint_key(&edge.to),
+                        context,
+                        visiting,
+                    )
+                }),
+            _ => true,
+        };
+        visiting.remove(endpoint_id);
+        ready
     }
 
     fn endpoint_is_ready_inner(
