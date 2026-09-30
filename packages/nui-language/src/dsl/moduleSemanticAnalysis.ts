@@ -2758,30 +2758,36 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return semantic(null, "outerCapture", null, derivedRole);
       }
       const value = geometryValuesByStatementIndex.get(lookup.declaration.statementIndex);
-      const actualValueType = value?.declaredValueType ?? lookup.declaration.statement.valueType;
+      const actualValueType = lookup.declaration.statement.valueType;
       const actualRequiredValueType = dslRequiredValueTypeOf(actualValueType);
       const actualInterfaceType = actualRequiredValueType && isDslGeometryValueType(actualRequiredValueType)
         ? actualRequiredValueType.kind
         : value?.declaredInterfaceType ?? expected;
-      const target = value
-        ? {
-            kind: "geometryValue" as const,
-            statementId: statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex),
-            statementIndex: lookup.declaration.statementIndex,
-            declaredInterfaceType: actualInterfaceType,
-            backingTarget: value.backingTarget,
-            ownerModuleDefinitionStatementId: value.ownerModuleDefinitionStatementId,
-            ownerModuleDefinitionStatementIndex: value.ownerModuleDefinitionStatementIndex,
-            ...(pointKey ? { pointKey } : {})
-          }
-        : null;
+      const targetStatementId = statementIdAt(stableStatementIdByIndex, lookup.declaration.statementIndex);
+      const target: ModuleGeometrySourceTarget = {
+        kind: "geometryValue",
+        statementId: targetStatementId,
+        statementIndex: lookup.declaration.statementIndex,
+        declaredInterfaceType: actualInterfaceType,
+        backingTarget: value?.backingTarget ?? null,
+        ownerModuleDefinitionStatementId: value
+          ? value.ownerModuleDefinitionStatementId
+          : declarationOwner === null
+            ? null
+            : statementIdAt(stableStatementIdByIndex, declarationOwner),
+        ownerModuleDefinitionStatementIndex: value
+          ? value.ownerModuleDefinitionStatementIndex
+          : declarationOwner,
+        ...(pointKey ? { pointKey } : {}),
+        ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, targetStatementId) } : {})
+      };
       const expectedValueType = options.expectedValueType ?? { kind: options.expectedInterfaceType ?? (expected === "point" ? "point" : "path") } satisfies DslValueType;
       const optionalSourceRequiresResolution = isDslOptionalValueType(actualValueType) && !isDslOptionalValueType(expectedValueType);
       const compatible = pointKey
-        ? Boolean(target && actualInterfaceType !== "point" && isLineEndpointPointKey(pointKey))
+        ? actualInterfaceType !== "point" && isLineEndpointPointKey(pointKey)
         : Boolean(!optionalSourceRequiresResolution && actualValueType && actualRequiredValueType && isDslValueTypeAssignable(actualValueType, expectedValueType));
       const optionalRequirementSatisfied = !options.requireOptional || isDslOptionalValueType(actualValueType);
-      if (!target || !compatible || !optionalRequirementSatisfied) {
+      if (!compatible || !optionalRequirementSatisfied) {
         const code = options.requireOptional && !optionalRequirementSatisfied
           ? "coalesce-left-not-optional"
           : optionalSourceRequiresResolution
