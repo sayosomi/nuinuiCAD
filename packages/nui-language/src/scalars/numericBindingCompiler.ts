@@ -155,6 +155,10 @@ const controllerReferenceSpansIn = (ast: ScalarExpressionAst | null): ReadonlySe
       case "geometryProperty":
         if (node.occurrenceIndex) collect(node.occurrenceIndex);
         return;
+      case "recordFieldCollectionIndex":
+        if (node.receiver.occurrenceIndex) collect(node.receiver.occurrenceIndex);
+        collect(node.index);
+        return;
       case "unary":
         collect(node.operand);
         return;
@@ -237,6 +241,10 @@ const controllerReferenceSpansIn = (ast: ScalarExpressionAst | null): ReadonlySe
       case "collectionIndex":
         visit(node.index);
         return;
+      case "recordFieldCollectionIndex":
+        if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex);
+        visit(node.index);
+        return;
       case "call":
         node.args.forEach((argument) => visit(argument.expression));
         return;
@@ -271,6 +279,11 @@ const occurrenceIndexReferencesIn = (ast: ScalarExpressionAst, outer: DslSpan): 
       if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
       return;
     }
+    if (node.kind === "recordFieldCollectionIndex") {
+      if (node.receiver.occurrenceIndex) visitIndex(node.receiver.occurrenceIndex);
+      visitIndex(node.index);
+      return;
+    }
     if (node.kind === "unary") return visitIndex(node.operand);
     if (node.kind === "binary") { visitIndex(node.left); visitIndex(node.right); return; }
     if (node.kind === "group") return visitIndex(node.expression);
@@ -281,6 +294,11 @@ const occurrenceIndexReferencesIn = (ast: ScalarExpressionAst, outer: DslSpan): 
   const visit = (node: ScalarExpressionAst): void => {
     if (node.kind === "geometryProperty") {
       if (node.occurrenceIndex) visitIndex(node.occurrenceIndex);
+      return;
+    }
+    if (node.kind === "recordFieldCollectionIndex") {
+      if (node.receiver.occurrenceIndex) visitIndex(node.receiver.occurrenceIndex);
+      visitIndex(node.index);
       return;
     }
     if (node.kind === "unary") return visit(node.operand);

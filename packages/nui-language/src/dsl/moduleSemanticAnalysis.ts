@@ -1112,7 +1112,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const resolveCollectionIndex = (
     statementIndex: number,
     ownerIndex: number | null,
-    reference: { name: string; span: DslSpan }
+    reference: { name: string; span: DslSpan; recordField?: ModuleRecordFieldSourceTarget }
   ): ModuleCollectionIndexReferenceResolution => {
     const invalid = (
       target: ModuleScalarSourceTarget | null,
@@ -1134,6 +1134,34 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const collectionAnalysis = sourceNamespace.geometryArraySemanticAnalysis;
     if (!collectionAnalysis) {
       return invalid(null, "undefined", "module-collection-index-unavailable", `collection「${reference.name}」を解決できません。`);
+    }
+    if (reference.recordField) {
+      const field = reference.recordField;
+      const elementType = isDslArrayValueType(field.valueType)
+        ? scalarExpressionTypeOfDslValueType(field.valueType.elementType)
+        : null;
+      if (!elementType) {
+        return invalid(
+          field,
+          "invalid",
+          "module-collection-index-type",
+          `record field「${field.fieldName}」は scalar element collection ではありません。`
+        );
+      }
+      return {
+        target: field,
+        type: elementType,
+        resolution: "resolved",
+        // The runtime lowering fills this with the canonical field-contents
+        // collection ID after it resolves the selected record occurrence.
+        collectionValueId: null,
+        collectionLength: null,
+        targetSourceOrder: field.record.kind === "recordCollectionIndex"
+          ? field.record.targetSourceOrder
+          : field.record.kind === "recordValue"
+            ? field.record.statementIndex
+            : -1
+      };
     }
     const path = parseDslReferenceToken(reference.name);
     const parameter = path.segments.length === 1 && !path.absolute

@@ -1746,6 +1746,13 @@ Module-parameter, local, export, qualified, and cross-document paths as a
 whole collection reference. An optional Module collection parameter must first
 be resolved through the general optional-value operations.
 
+After selecting a nominal record from a record collection, a collection-valued
+field can use the same indexing form. For example,
+`@records[recordIndex].xs[fieldIndex]` first selects the record occurrence and
+then indexes the contents of that record's `xs` field. The field index follows
+the same numeric type, zero-based bounds, and runtime error rules as any other
+collection index; it does not project the field across all records.
+
 The index must evaluate to a finite integer in the inclusive lower bound `0`
 and exclusive upper bound `@collection.length`. Negative, fractional,
 non-finite, and out-of-range indexes are evaluation errors; the runtime never

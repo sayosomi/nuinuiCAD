@@ -86,6 +86,8 @@ export const containsScalarNamedCall = (ast: ScalarExpressionAst): boolean => {
       return containsScalarNamedCall(ast.index);
     case "geometryProperty":
       return ast.occurrenceIndex ? containsScalarNamedCall(ast.occurrenceIndex) : false;
+    case "recordFieldCollectionIndex":
+      return Boolean(ast.receiver.occurrenceIndex && containsScalarNamedCall(ast.receiver.occurrenceIndex)) || containsScalarNamedCall(ast.index);
     case "optionalMember":
       return containsScalarNamedCall(ast.receiver);
     case "valueIf":
@@ -243,18 +245,41 @@ class Parser {
   private parsePostfix(base: ScalarExpressionAst): ScalarExpressionAst {
     let expression = base;
     for (;;) {
-      const property = this.peek();
-      if (property?.kind !== "optionalPostfixProperty") return expression;
-      this.consume();
-      expression = {
-        kind: "optionalMember",
-        span: { start: expression.span.start, end: property.span.end },
-        receiver: expression,
-        operatorSpan: property.operatorSpan,
-        memberSpan: property.propertySpan,
-        member: property.property
-      };
+      const postfix = this.peek();
+      if (postfix?.kind === "optionalPostfixProperty") {
+        this.consume();
+        expression = {
+          kind: "optionalMember",
+          span: { start: expression.span.start, end: postfix.span.end },
+          receiver: expression,
+          operatorSpan: postfix.operatorSpan,
+          memberSpan: postfix.propertySpan,
+          member: postfix.property
+        };
+        continue;
+      }
+      if (postfix?.kind === "leftBracket" && expression.kind === "geometryProperty" && expression.occurrenceIndex) {
+        expression = this.parseRecordFieldCollectionIndex(expression);
+        continue;
+      }
+      return expression;
     }
+  }
+
+  private parseRecordFieldCollectionIndex(receiver: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>): ScalarExpressionAst {
+    const opening = this.consume();
+    if (this.peek()?.kind === "rightBracket") return fail("empty-index", tokenSpan(opening), "collection index の式が必要です。");
+    const index = this.parseTier(0);
+    const closing = this.peek();
+    if (!closing || closing.kind !== "rightBracket") return fail("unterminated-index", tokenSpan(opening), "閉じ括弧 ']' がありません。");
+    this.consume();
+    return {
+      kind: "recordFieldCollectionIndex",
+      span: { start: receiver.span.start, end: closing.span.end },
+      receiver,
+      index,
+      indexRange: { start: tokenSpan(opening).start, end: tokenSpan(closing).end }
+    };
   }
 
   private parsePrimary(): ScalarExpressionAst {

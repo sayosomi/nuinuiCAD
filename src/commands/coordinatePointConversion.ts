@@ -189,6 +189,7 @@ const constantNumericAst = (ast: ScalarExpressionAst): boolean => {
     case "reference":
     case "geometryProperty":
     case "collectionIndex":
+    case "recordFieldCollectionIndex":
       return false;
   }
 };

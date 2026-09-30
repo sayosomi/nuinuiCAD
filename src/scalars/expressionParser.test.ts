@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isScalarExpressionCandidateSource, MAX_SCALAR_EXPRESSION_DEPTH, parseScalarExpression } from "@nuinuicad/nui-language";
+import { collectScalarExpressionReferences, isScalarExpressionCandidateSource, MAX_SCALAR_EXPRESSION_DEPTH, parseScalarExpression } from "@nuinuicad/nui-language";
 import type { ScalarExpressionAst, ScalarExpressionDiagnostic } from "@nuinuicad/nui-language";
 
 const fullSpan = (source: string) => ({ start: 0, end: source.length });
@@ -284,6 +284,56 @@ describe("parseScalarExpression / @qualifiedName reference", () => {
         right: { kind: "numberLiteral", span: { start: 16, end: 17 }, value: 1 }
       }
     });
+  });
+
+  it("parses an index after a collection-valued field on an indexed record with exact ranges", () => {
+    const source = "@records[0].xs[1]";
+    expect(parseOk(source)).toEqual({
+      kind: "recordFieldCollectionIndex",
+      span: fullSpan(source),
+      receiver: {
+        kind: "geometryProperty",
+        span: { start: 0, end: 14 },
+        elementNameSpan: { start: 1, end: 8 },
+        propertySpan: { start: 12, end: 14 },
+        elementName: "records",
+        property: "xs",
+        occurrenceIndex: { kind: "numberLiteral", span: { start: 9, end: 10 }, value: 0 },
+        occurrenceIndexSpan: { start: 9, end: 10 },
+        occurrenceRange: { start: 8, end: 11 }
+      },
+      index: { kind: "numberLiteral", span: { start: 15, end: 16 }, value: 1 },
+      indexRange: { start: 14, end: 17 }
+    });
+  });
+
+  it("keeps both index expressions in source order and does not generalize indexing to arbitrary receivers", () => {
+    const source = "@records[@recordIndex].xs[@fieldIndex + 1]";
+    const ast = parseOk(source);
+    expect(ast).toMatchObject({
+      kind: "recordFieldCollectionIndex",
+      receiver: {
+        kind: "geometryProperty",
+        occurrenceIndex: { kind: "reference", name: "recordIndex" }
+      },
+      index: {
+        kind: "binary",
+        operator: "+",
+        left: { kind: "reference", name: "fieldIndex" },
+        right: { kind: "numberLiteral", value: 1 }
+      }
+    });
+    expect(collectScalarExpressionReferences(ast)).toEqual([
+      {
+        name: "recordIndex",
+        span: { start: source.indexOf("@recordIndex"), end: source.indexOf("@recordIndex") + "@recordIndex".length }
+      },
+      {
+        name: "fieldIndex",
+        span: { start: source.indexOf("@fieldIndex"), end: source.indexOf("@fieldIndex") + "@fieldIndex".length }
+      }
+    ]);
+    expect(parseErr("(value)[0]").code).toBe("trailing-token");
   });
 
   it.each([

@@ -5345,6 +5345,69 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches chained indexed record-field collections through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record Bundle(xs: number[])",
+      "const source: Bundle = Bundle(xs: [3, 5])",
+      "const values: Bundle[] = [@source]",
+      "const rootFirst: number = @values[0].xs[0]",
+      "const rootSecond: number = @values[0].xs[1]",
+      "module M(items: Bundle[]) {",
+      "  const mapped: Bundle[] = for item in @items { @item }",
+      "  const recordIndex: number = 0",
+      "  const fieldIndex: number = 1",
+      "  export const first: number = @mapped[0].xs[0]",
+      "  export const second: number = @mapped[0].xs[1]",
+      "  export const ordinaryFirst: number = @items[0].xs[0]",
+      "  export const ordinarySecond: number = @items[0].xs[1]",
+      "  export const dynamic: number = @items[@recordIndex].xs[@fieldIndex]",
+      "}",
+      "instance Use = M(items: @values)",
+      "const rootFirstResult: number = @rootFirst",
+      "const rootSecondResult: number = @rootSecond",
+      "const firstResult: number = @Use::first",
+      "const secondResult: number = @Use::second",
+      "const ordinaryFirstResult: number = @Use::ordinaryFirst",
+      "const ordinarySecondResult: number = @Use::ordinarySecond",
+      "const dynamicResult: number = @Use::dynamic"
+    ].join("\n"));
+    const diagnostics = fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? [];
+    expect(diagnostics).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const options = optionsFor(fixture);
+    const collectionValues = fixture.compiled!.doc.scalarProgram?.collectionValues ?? [];
+    const fieldIndexes = fixture.compiled!.doc.scalarProgram?.statements.flatMap((statement) => {
+      const initializer = statement.declaration.initializer;
+      return initializer.kind === "collectionIndex" && initializer.collectionValueId?.startsWith("record-field-contents:")
+        ? [initializer]
+        : [];
+    }) ?? [];
+    expect(fieldIndexes).toHaveLength(7);
+    expect(fieldIndexes.every((initializer) => collectionValues.some((value) => value.valueId === initializer.collectionValueId))).toBe(true);
+    expect(fieldIndexes.map((initializer) => initializer.collectionValueId?.startsWith("record-field-contents:"))).toEqual(Array(7).fill(true));
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const rustCollectionValues = rustInput.scalarProgram?.collectionValues ?? rustInput.bindingVersions?.collectionValues ?? [];
+    expect(rustCollectionValues).toEqual(collectionValues);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      for (const [name, expected] of [
+        ["rootFirstResult", 3],
+        ["rootSecondResult", 5],
+        ["firstResult", 3],
+        ["secondResult", 5],
+        ["ordinaryFirstResult", 3],
+        ["ordinarySecondResult", 5],
+        ["dynamicResult", 5]
+      ] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+    }
+  }, 30000);
+
   it("matches collection-valued fields selected from Module record maps through persistent Rust stdio", async () => {
     const source = [
       "nui 1",

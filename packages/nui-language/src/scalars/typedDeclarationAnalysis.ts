@@ -120,6 +120,11 @@ type CollectionIndexResolver = (input: {
   collectionMatchBinders?: readonly CollectionMatchBinder[];
 }) => ScalarExpressionResolvedCollectionIndex | null;
 
+type RecordFieldCollectionIndexResolver = (input: {
+  statementIndex: number;
+  node: Extract<ScalarExpressionAst, { kind: "recordFieldCollectionIndex" }>;
+}) => ScalarExpressionResolvedCollectionIndex | null;
+
 type ParsedInitializer = { ast: ScalarExpressionAst; references: readonly TypedDeclarationReference[] };
 
 /** Pure AST walker with no declaration-specific logic - reused as-is by
@@ -150,6 +155,10 @@ const collectTypedDeclarationReferences = (
         return;
       case "geometryProperty":
         if (node.occurrenceIndex) visit(node.occurrenceIndex, lazy, boundNames);
+        return;
+      case "recordFieldCollectionIndex":
+        if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, lazy, boundNames);
+        visit(node.index, lazy, boundNames);
         return;
       case "optionalMember":
         optionalReceiverSpans.push(node.receiver.span);
@@ -212,6 +221,9 @@ export const containsNonNumericScalarSyntax = (ast: ScalarExpressionAst): boolea
       return true;
     case "collectionIndex":
       return containsNonNumericScalarSyntax(ast.index);
+    case "recordFieldCollectionIndex":
+      return Boolean(ast.receiver.occurrenceIndex && containsNonNumericScalarSyntax(ast.receiver.occurrenceIndex)) ||
+        containsNonNumericScalarSyntax(ast.index);
     case "optionalMember":
       return true;
     case "call":
@@ -253,6 +265,7 @@ const collectionIndexResolutionsFor = (
   ast: ScalarExpressionAst,
   statementIndex: number,
   resolver: CollectionIndexResolver | undefined,
+  recordFieldResolver: RecordFieldCollectionIndexResolver | undefined,
   collectionMatchBindersByNodeStart: ReadonlyMap<number, readonly CollectionMatchBinder[]>
 ): ReadonlyMap<number, ScalarExpressionResolvedCollectionIndex> => {
   const resolutions = new Map<number, ScalarExpressionResolvedCollectionIndex>();
@@ -273,6 +286,13 @@ const collectionIndexResolutionsFor = (
       visit(node.index);
       return;
     }
+    if (node.kind === "recordFieldCollectionIndex") {
+      const resolution = recordFieldResolver?.({ statementIndex, node });
+      if (resolution) resolutions.set(node.span.start, resolution);
+      if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);
+      visit(node.index, boundNames);
+      return;
+    }
     if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
@@ -291,6 +311,11 @@ const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<num
     if (node.kind === "collectionIndex") {
       starts.add(node.span.start);
       visit(node.index);
+      return;
+    }
+    if (node.kind === "recordFieldCollectionIndex") {
+      if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);
+      visit(node.index, boundNames);
       return;
     }
     if (node.kind === "optionalMember") return;
@@ -324,6 +349,18 @@ const referenceResolutionsForAst = (
       const resolved = collectionResolutions.get(node.span.start);
       if (resolved) output.push(resolved);
       else output.push(ordinary[cursor++]!);
+      visit(node.index, boundNames);
+      return;
+    }
+    if (node.kind === "recordFieldCollectionIndex") {
+      if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);
+      output.push(collectionResolutions.get(node.span.start) ?? {
+        kind: "resolvedCollectionIndex",
+        collectionValueId: "",
+        collectionLength: null,
+        targetSourceOrder: -1,
+        type: null
+      });
       visit(node.index, boundNames);
       return;
     }
@@ -374,6 +411,11 @@ const optionalCollectionMatchResolutionsForAst = (
     if (node.kind === "group") return visit(node.expression, boundNames);
     if (node.kind === "valueIf") { visit(node.condition, boundNames); visit(node.thenBranch, boundNames); if (node.elseBranch) visit(node.elseBranch, boundNames); return; }
     if (node.kind === "collectionIndex") return visit(node.index, boundNames);
+    if (node.kind === "recordFieldCollectionIndex") {
+      if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);
+      visit(node.index, boundNames);
+      return;
+    }
     if (node.kind === "geometryProperty") { if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames); return; }
     if (node.kind === "call") node.args.forEach((argument) => visit(argument.expression, boundNames));
   };
@@ -391,6 +433,12 @@ const collectionMatchBindersByNodeStartForAst = (
       byNodeStart.set(node.span.start, binders);
       if (node.kind === "geometryProperty" && node.occurrenceIndex) visit(node.occurrenceIndex, binders);
       if (node.kind === "collectionIndex") visit(node.index, binders);
+      return;
+    }
+    if (node.kind === "recordFieldCollectionIndex") {
+      byNodeStart.set(node.span.start, binders);
+      if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, binders);
+      visit(node.index, binders);
       return;
     }
     if (node.kind === "valueMatch") {
@@ -574,6 +622,7 @@ export const analyzeTypedDeclarations = ({
   additionalBindingResolver,
   additionalGeometryResolver,
   additionalCollectionIndexResolver,
+  additionalRecordFieldCollectionIndexResolver,
   additionalOptionalCollectionMatchResolver,
   additionalGeometryPropertyResolver,
   resolveGeometryStageSelection,
@@ -598,6 +647,7 @@ export const analyzeTypedDeclarations = ({
     readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
   additionalCollectionIndexResolver?: CollectionIndexResolver;
+  additionalRecordFieldCollectionIndexResolver?: RecordFieldCollectionIndexResolver;
   additionalOptionalCollectionMatchResolver?: OptionalCollectionMatchResolver;
   additionalInitializers?: readonly AdditionalScalarInitializer[];
   /** Synthetic bindings used to typecheck an embedded expression but never
@@ -801,6 +851,7 @@ export const analyzeTypedDeclarations = ({
         parsed.ast,
         binding.statementIndex,
         additionalCollectionIndexResolver,
+        additionalRecordFieldCollectionIndexResolver,
         collectionMatchBindersByNodeStartByBindingId.get(binding.id) ?? new Map()
       )
     );
