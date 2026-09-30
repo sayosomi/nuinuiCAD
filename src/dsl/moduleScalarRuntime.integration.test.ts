@@ -3943,6 +3943,124 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("bLabel")).toMatchObject({ status: "ok", value: { kind: "string", value: "second" } });
   });
 
+  it("preserves collection-valued fields selected from Module record maps", () => {
+    const source = [
+      "nui 1",
+      "record Bundle(amount: number, label: string, xs: number[])",
+      'const empty: Bundle = Bundle(amount: 0, label: "empty", xs: [])',
+      'const one: Bundle = Bundle(amount: 1, label: "one", xs: [7])',
+      'const multi: Bundle = Bundle(amount: 2, label: "multi", xs: [3, 5])',
+      'const otherFirst: Bundle = Bundle(amount: 7, label: "other first", xs: [19])',
+      'const otherSecond: Bundle = Bundle(amount: 8, label: "other second", xs: [23, 29])',
+      'const other: Bundle = Bundle(amount: 9, label: "other", xs: [11, 13, 17])',
+      "const inputA: Bundle[] = [@empty, @one, @multi]",
+      "const inputB: Bundle[] = [@otherFirst, @otherSecond, @other]",
+      "const rootMapped: Bundle[] = for item in @inputA { @item }",
+      "const rootSelected: Bundle = @rootMapped[2]",
+      "const rootAmount: number = @rootSelected.amount",
+      "const rootLabel: string = @rootSelected.label",
+      "module Mapper(items: Bundle[]) {",
+      "  const mapped: Bundle[] = for item in @items { @item }",
+      "  const transformed: Bundle[] = for item in @items { Bundle(amount: @item.amount + 10, label: @item.label, xs: [31]) }",
+      "  export const selectedAmount: number = @mapped[2].amount",
+      "  export const selectedLabel: string = @mapped[2].label",
+      "  const emptyLengthValue: number = @mapped[0].xs.length",
+      "  const oneLengthValue: number = @mapped[1].xs.length",
+      "  const multiLengthValue: number = @mapped[2].xs.length",
+      "  export const emptyLength: number = @emptyLengthValue",
+      "  export const oneLength: number = @oneLengthValue",
+      "  export const multiLength: number = @multiLengthValue",
+      "  export const transformedAmount: number = @transformed[2].amount",
+      "  export const transformedLabel: string = @transformed[2].label",
+      "  const transformedLengthValue: number = @transformed[2].xs.length",
+      "  export const transformedLength: number = @transformedLengthValue",
+      "  point Result = coordinate(x: @selectedAmount, y: @multiLength)",
+      "}",
+      "instance A = Mapper(items: @inputA)",
+      "instance B = Mapper(items: @inputB)",
+      "const aAmount: number = @A::selectedAmount",
+      "const aLabel: string = @A::selectedLabel",
+      "const aEmptyLength: number = @A::emptyLength",
+      "const aOneLength: number = @A::oneLength",
+      "const aMultiLength: number = @A::multiLength",
+      "const aTransformedAmount: number = @A::transformedAmount",
+      "const aTransformedLabel: string = @A::transformedLabel",
+      "const aTransformedLength: number = @A::transformedLength",
+      "const bMultiLength: number = @B::multiLength",
+    ].join("\n");
+    const prefix = "say424-module-record-map-collection-field";
+    const compiled = compileWithIds(source, prefix);
+    const repeated = compileWithIds(source, prefix);
+    expectValid(compiled);
+    expectValid(repeated);
+
+    const recordMaps = compiled.scalarProgram?.collectionValues?.filter((value) => value.kind === "recordMap") ?? [];
+    const repeatedRecordMaps = repeated.scalarProgram?.collectionValues?.filter((value) => value.kind === "recordMap") ?? [];
+    expect(recordMaps).toHaveLength(5);
+    expect(recordMaps.map(({ valueId, sourceOrder }) => ({ valueId, sourceOrder }))).toEqual(
+      repeatedRecordMaps.map(({ valueId, sourceOrder }) => ({ valueId, sourceOrder }))
+    );
+    expect(recordMaps.every(({ sourceOrder }) => Number.isInteger(sourceOrder) && sourceOrder >= 0)).toBe(true);
+    const collectionValues = compiled.scalarProgram?.collectionValues ?? [];
+    const collectionById = new Map(collectionValues.map((value) => [value.valueId, value]));
+    const mappedFieldContents = collectionValues.filter((value) => value.valueId.startsWith("record-field-contents:"));
+    expect(mappedFieldContents.some((value) => value.kind === "alias")).toBe(true);
+    expect(mappedFieldContents.some((value) => value.kind === "literal" && value.members.length === 1)).toBe(true);
+    for (const value of mappedFieldContents) {
+      if (value.kind === "alias") expect(collectionById.has(value.targetValueId)).toBe(true);
+    }
+    const fieldLengthProducerFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) =>
+        candidate.kind === "typed" && candidate.name === name
+      );
+      expect(binding, name).toBeDefined();
+      const initializer = compiled.scalarProgram?.statements.find((statement) => statement.bindingId === binding?.id)
+        ?.declaration.initializer;
+      expect(initializer?.kind, name).toBe("geometryProperty");
+      if (initializer?.kind !== "geometryProperty" || !initializer.collectionValueId) {
+        throw new Error(`expected ${name} to use a canonical collection-length target`);
+      }
+      expect(initializer.collectionValueId).toMatch(/^record-field-contents:/);
+      const producer = collectionById.get(initializer.collectionValueId);
+      expect(producer).toBeDefined();
+      return producer!;
+    };
+    expect(fieldLengthProducerFor("multiLengthValue").kind).toBe("alias");
+    expect(fieldLengthProducerFor("transformedLengthValue")).toMatchObject({ kind: "literal", members: [{ kind: "literal", value: { kind: "number", value: 31 } }] });
+    const mapValueIds = new Set(recordMaps.map((value) => value.valueId));
+    expect(collectionValues.filter((value) =>
+      value.kind === "recordField" && mapValueIds.has(value.sourceValueId) && value.field.fieldIndex === 2
+    )).toEqual([]);
+
+    const result = evaluateCompiled(compiled);
+    const valueFor = (name: string) => {
+      const binding = compiled.bindingAnalysis!.catalog.bindings.find((candidate) => candidate.kind === "typed" && candidate.name === name);
+      expect(binding).toBeDefined();
+      return result.computedScalarBindings?.get(binding!.id);
+    };
+    for (const [name, expected] of [
+      ["rootAmount", 2],
+      ["rootLabel", "multi"],
+      ["aAmount", 2],
+      ["aLabel", "multi"],
+      ["aEmptyLength", 0],
+      ["aOneLength", 1],
+      ["aMultiLength", 2],
+      ["aTransformedAmount", 12],
+      ["aTransformedLabel", "multi"],
+      ["aTransformedLength", 1],
+      ["bMultiLength", 3]
+    ] as const) {
+      const value = valueFor(name);
+      if (typeof expected === "number") expect(value).toMatchObject({ status: "ok", value: { kind: "number", value: expected } });
+      else expect(value).toMatchObject({ status: "ok", value: { kind: "string", value: expected } });
+    }
+    expect(result.errors).toEqual([]);
+    const resultPoint = compiled.document!.elements.find((element) => element.name === "Result");
+    expect(resultPoint).toBeDefined();
+    expect(result.computedGeometry.get(resultPoint!.id)).toMatchObject({ kind: "point", x: 2, y: 2 });
+  });
+
   it("resolves qualified Module scalar exports through a root value-for body", () => {
     const compiled = compileWithIds([
       "nui 1",
