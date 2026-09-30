@@ -58,7 +58,9 @@ pub(crate) struct ScalarMutationResolver<'a> {
 pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) program: &'a [GeometryValueProgramEntry],
     pub(crate) execution_positions: &'a [f64],
+    pub(crate) binding_execution_positions: &'a HashMap<String, f64>,
     pub(crate) release_allowed: &'a [bool],
+    pub(crate) source_position_fence: bool,
     pub(crate) evaluated: &'a mut [bool],
 }
 
@@ -105,8 +107,14 @@ impl<'a> ScalarMutationResolver<'a> {
                 break;
             }
             self.retire_before(version_source_order);
+            let version = &self.program.versions[self.next_version_index];
+            let version_geometry_execution_position = geometry_values
+                .binding_execution_positions
+                .get(&version.binding_id)
+                .copied()
+                .unwrap_or(geometry_execution_position);
             self.evaluate_geometry_values_through(
-                geometry_execution_position,
+                version_geometry_execution_position,
                 version_source_order,
                 &mut geometry_values,
                 state,
@@ -165,7 +173,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     .copied()
                     .unwrap_or(true)
                 || release_position > geometry_execution_position
-                || entry.source_execution_position > source_order as f64
+                || (geometry_values.source_position_fence
+                    && entry.source_execution_position > source_order as f64)
             {
                 continue;
             }

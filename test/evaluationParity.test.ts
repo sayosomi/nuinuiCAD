@@ -2,7 +2,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
-import { emptyDocument, moduleCarryBindingIdFor, propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
+import {
+  emptyDocument,
+  geometryValueOccurrenceKey,
+  moduleCarryBindingIdFor,
+  propertyBindingOccurrenceKey,
+  resolveTypedDependencyGraphRuntime
+} from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
 import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
@@ -160,6 +166,140 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   }, 30000);
 
   it("keeps immutable geometry values on the canonical dependency execution timeline", async () => {
+    const evaluatePureCoordinate = async (source: string, expectForwardSourcePosition: boolean) => {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      const use = fixture.elements.find((element) => element.name === "Use");
+      const selBinding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+        (binding) => binding.kind === "typed" && binding.name === "sel"
+      );
+      const selEntry = selBinding
+        ? options.geometryValueProgram?.find((entry) => entry.sourceStatementIndex === selBinding.statementIndex)
+        : undefined;
+      const graph = fixture.compiled?.doc.typedDependencyGraph;
+      if (!use || !selEntry || !graph) throw new Error("expected Use and sel geometry value with a compiled dependency graph");
+
+      const useSourcePosition = options.scalarExecutionPositionByElementId?.get(use.id) ??
+        options.statementInfoByElementId?.get(use.id)?.statementIndex;
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(useSourcePosition).toBeDefined();
+      expect(selEntry.sourceExecutionPosition).toBeDefined();
+      if (useSourcePosition !== undefined && selEntry.sourceExecutionPosition !== undefined) {
+        expect(selEntry.sourceExecutionPosition > useSourcePosition).toBe(expectForwardSourcePosition);
+      }
+      const hasLinearMutationTimeline = Boolean(
+        options.conditionalOwnerStatementIdByElementId?.size ||
+        options.forGroupMutationOwnerByElementId?.size ||
+        options.moduleConditionalOwnerStatementIdByElementId?.size ||
+        options.moduleForGroupExecutionOwnerByElementId?.size ||
+        options.bindingVersions?.immutableForGroups?.size ||
+        options.bindingVersions?.moduleForGroupExecutionOwnersByStatementId?.size ||
+        options.bindingVersions?.versions.some((version) =>
+          version.predecessorId !== undefined || version.control.ownerChain.length > 0
+        )
+      );
+      expect(hasLinearMutationTimeline).toBe(false);
+
+      const dependencyOrder = resolveTypedDependencyGraphRuntime(graph, new Map()).dependencyOrder;
+      const valueRank = dependencyOrder.indexOf(`geometry-value:${geometryValueOccurrenceKey(selEntry.occurrence)}`);
+      const consumerRank = dependencyOrder.indexOf(`element:${use.id}`);
+      expect(valueRank).toBeGreaterThanOrEqual(0);
+      expect(consumerRank).toBeGreaterThanOrEqual(0);
+      expect(valueRank).toBeLessThan(consumerRank);
+
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return {
+        use,
+        ts: evaluationPayloadToResult(tsPayload),
+        rust: evaluationPayloadToResult(rustPayload)
+      };
+    };
+    const pureCoordinateSource = (forward: boolean, padded: boolean) => {
+      const lines = ["nui 1"];
+      if (padded) lines.push("", "const UnrelatedBefore: number = 7", "", "const UnrelatedBeforeUse: number = 8", "");
+      if (forward) {
+        lines.push("point Use = from(source: @sel)");
+        if (padded) lines.push("", "const UnrelatedBetween: number = 11", "");
+        lines.push("const sel: point = coordinate(x: 3, y: 4)");
+      } else {
+        lines.push("const sel: point = coordinate(x: 3, y: 4)");
+        if (padded) lines.push("", "const UnrelatedBetween: number = 11", "");
+        lines.push("point Use = from(source: @sel)");
+      }
+      return lines.join("\n");
+    };
+    for (const [forward, padded] of [[true, false], [true, true], [false, false], [false, true]] as const) {
+      const result = await evaluatePureCoordinate(pureCoordinateSource(forward, padded), forward);
+      for (const evaluated of [result.ts, result.rust]) {
+        expect(evaluated.errors).toEqual([]);
+        expect(evaluated.warnings).toEqual([]);
+        expect(evaluated.computedGeometry.get(result.use.id)).toMatchObject({ kind: "point", x: 3, y: 4 });
+      }
+    }
+
+    const selectedLazySource = [
+      "nui 1",
+      "const sel: point = coordinate(x: 3, y: 4)",
+      "const Selected: point =",
+      "  if (true) {",
+      "    @sel",
+      "  } else {",
+      "    coordinate(x: 1, y: 2)",
+      "  }",
+      "line Use = segment(start: @Selected, end: (0, 0))"
+    ].join("\n");
+    const selectedLazyValue = fixtureFromSource(selectedLazySource);
+    const selectedLazyOptions = optionsFor(selectedLazyValue);
+    const selectedLazyTsPayload = evaluateElementsReferencePayload(selectedLazyValue.elements, selectedLazyOptions);
+    const selectedLazyRustPayload = await rustStdio!.evaluate(selectedLazyValue.elements, selectedLazyOptions);
+    expect(selectedLazyValue.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(selectedLazyValue)).toBe(true);
+    expect(normalizeParityPayload(selectedLazyRustPayload)).toEqual(normalizeParityPayload(selectedLazyTsPayload));
+    const selectedUse = selectedLazyValue.elements.find((element) => element.name === "Use")!;
+    for (const payload of [selectedLazyTsPayload, selectedLazyRustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.warnings).toEqual([]);
+      expect(result.computedGeometry.get(selectedUse.id)).toMatchObject({
+        kind: "line",
+        start: { x: 3, y: 4 },
+        end: { x: 0, y: 0 }
+      });
+    }
+
+    const unavailableForwardValue = fixtureFromSource([
+      "nui 1",
+      "point Use = from(source: @sel)",
+      "const sel: point = @Disabled",
+      "point Disabled = coordinate(x: 3, y: 4, enabled: false)"
+    ].join("\n"));
+    const unavailableForwardOptions = optionsFor(unavailableForwardValue);
+    const unavailableForwardTsPayload = evaluateElementsReferencePayload(unavailableForwardValue.elements, unavailableForwardOptions);
+    const unavailableForwardRustPayload = await rustStdio!.evaluate(unavailableForwardValue.elements, unavailableForwardOptions);
+    expect(unavailableForwardValue.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(unavailableForwardValue)).toBe(true);
+    expect(normalizeParityPayload(unavailableForwardRustPayload)).toEqual(normalizeParityPayload(unavailableForwardTsPayload));
+    const unavailableForwardUse = unavailableForwardValue.elements.find((element) => element.name === "Use")!;
+    const disabledProducer = unavailableForwardValue.elements.find((element) => element.name === "Disabled")!;
+    for (const payload of [unavailableForwardTsPayload, unavailableForwardRustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.computedGeometry.has(unavailableForwardUse.id)).toBe(false);
+      expect(result.errors).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          elementId: unavailableForwardUse.id,
+          missingDependencyId: unavailableForwardUse.id,
+          message: expect.stringContaining("source geometry")
+        })
+      ]));
+      expect(result.geometryValueErrors).toEqual(expect.arrayContaining([
+        expect.objectContaining({ message: "Geometry value reference is unavailable at runtime." })
+      ]));
+      expect(result.computedGeometry.has(disabledProducer.id)).toBe(false);
+    }
+
     const sourceFor = (padding: boolean) => [
       "nui 1",
       ...(padding ? ["const PaddingBefore: number = 3"] : []),

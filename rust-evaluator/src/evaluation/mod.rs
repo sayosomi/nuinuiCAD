@@ -1855,6 +1855,28 @@ fn evaluate_document_input_with_scalar_program(
     // resolver instance is reused for both materialization below and the
     // final computed_scalar_bindings output, so no binding is ever
     // evaluated more than once.
+    // An ordered resolver can exist for declarative geometry values alone;
+    // only control/carry state makes geometry-value release source-ordered.
+    let linear_mutation_ordering_active = binding_versions.as_ref().is_some_and(|versions| {
+        !versions.immutable_for_groups.is_empty()
+            || !versions.conditional_owners_by_element_id.is_empty()
+            || !versions.for_group_owners_by_element_id.is_empty()
+            || versions.versions.iter().any(|version| {
+                version
+                    .control
+                    .get("ownerChain")
+                    .and_then(Value::as_array)
+                    .is_some_and(|owners| !owners.is_empty())
+            })
+    });
+    let has_root_geometry_property_timeline = binding_versions.as_ref().is_some_and(|versions| {
+        versions.versions.iter().any(|version| {
+            version.control.get("scopeId").and_then(Value::as_str) == Some("root")
+                && conditional_dependency_graph.as_ref().is_some_and(|graph| {
+                    graph.has_root_geometry_property_dependency(&version.binding_id)
+                })
+        })
+    });
     let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
     let mut scalar_mutation_resolver = binding_versions.as_ref().map(ScalarMutationResolver::new);
     let entries_by_element_id: HashMap<ElementId, Vec<ValidatedPropertyBinding>> =
@@ -2003,12 +2025,53 @@ fn evaluate_document_input_with_scalar_program(
                 .unwrap_or(entry.execution_position)
         })
         .collect::<Vec<_>>();
+    let binding_execution_positions = binding_versions
+        .as_ref()
+        .map(|versions| {
+            versions
+                .versions
+                .iter()
+                .filter_map(|version| {
+                    dependency_rank_by_endpoint_id
+                        .get(&format!("binding:{}", version.binding_id))
+                        .map(|rank| (version.binding_id.clone(), *rank as f64))
+                })
+                .collect::<HashMap<_, _>>()
+        })
+        .unwrap_or_default();
     let mut pending_indices = evaluation_indices.clone();
     let original_pending_order = pending_indices
         .iter()
         .enumerate()
         .map(|(order, index)| (*index, order))
         .collect::<HashMap<usize, usize>>();
+    if !linear_mutation_ordering_active
+        && !has_root_geometry_property_timeline
+        && !geometry_value_program.is_empty()
+    {
+        if let Some(graph) = conditional_dependency_graph.as_ref() {
+            let rank = graph
+                .project(
+                    &graph_element_ids,
+                    evaluation_limit_index,
+                    &conditional_branch_selections,
+                )
+                .evaluation_order
+                .iter()
+                .enumerate()
+                .filter_map(|(rank, id)| element_index_by_id.get(id).map(|index| (*index, rank)))
+                .collect::<HashMap<usize, usize>>();
+            pending_indices.sort_by_key(|index| {
+                (
+                    rank.get(index).copied().unwrap_or(usize::MAX),
+                    original_pending_order
+                        .get(index)
+                        .copied()
+                        .unwrap_or(usize::MAX),
+                )
+            });
+        }
+    }
     let mut scheduled_indices = Vec::with_capacity(pending_indices.len());
 
     'elements: while !pending_indices.is_empty() {
@@ -2021,9 +2084,6 @@ fn evaluate_document_input_with_scalar_program(
                 .and_then(|resolver| resolver.source_order_for_element(id))
                 .or_else(|| source_statement_indices.get(id).copied())
         });
-        let pending_source_position = pending_source_order
-            .map(|source_order| source_order as f64)
-            .unwrap_or(scheduled_indices.len() as f64);
         let pending_geometry_position = pending_element_id
             .as_ref()
             .and_then(|id| dependency_rank_by_endpoint_id.get(&format!("element:{id}")))
@@ -2041,48 +2101,35 @@ fn evaluate_document_input_with_scalar_program(
                 }
             }
         }
-        if let Some(source_order) = pending_source_order {
-            if let Some(resolver) = scalar_mutation_resolver.as_mut() {
-                resolver.advance_before_with_geometry_values(
-                    source_order,
-                    pending_geometry_position,
-                    &mut state,
-                    GeometryValueReleaseContext {
-                        program: &geometry_value_program,
-                        execution_positions: &geometry_value_execution_positions,
-                        release_allowed: &release_allowed,
-                        evaluated: &mut evaluated_geometry_value_entries,
-                    },
-                );
-            }
-        } else {
-            let resolver = scalar_binding_resolver
-                .as_ref()
-                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-                .unwrap_or(&empty_geometry_value_resolver);
-            let mut entry_indices = (0..geometry_value_program.len()).collect::<Vec<_>>();
-            entry_indices.sort_by(|left, right| {
-                geometry_value_execution_positions[*left]
-                    .total_cmp(&geometry_value_execution_positions[*right])
-                    .then_with(|| left.cmp(right))
-            });
-            for geometry_value_index in entry_indices {
-                let entry = &geometry_value_program[geometry_value_index];
-                if evaluated_geometry_value_entries[geometry_value_index]
-                    || !release_allowed[geometry_value_index]
-                    || geometry_value_execution_positions[geometry_value_index]
-                        > pending_geometry_position
-                    || entry.source_execution_position > pending_source_position
-                {
-                    continue;
+        if !linear_mutation_ordering_active {
+            if let Some(graph) = conditional_dependency_graph.as_ref() {
+                for (index, entry) in geometry_value_program.iter().enumerate() {
+                    if !graph.geometry_prerequisites_are_ready(
+                        &geometry_value_endpoint_id(&entry.occurrence),
+                        &conditional_branch_selections,
+                        &state,
+                    ) {
+                        release_allowed[index] = false;
+                    }
                 }
-                if !entry.lazy {
-                    geometry_value_runtime::evaluate_geometry_value_entry(
-                        entry, resolver, &mut state,
-                    );
-                }
-                evaluated_geometry_value_entries[geometry_value_index] = true;
             }
+        }
+        if let (Some(source_order), Some(resolver)) =
+            (pending_source_order, scalar_mutation_resolver.as_mut())
+        {
+            resolver.advance_before_with_geometry_values(
+                source_order,
+                pending_geometry_position,
+                &mut state,
+                GeometryValueReleaseContext {
+                    program: &geometry_value_program,
+                    execution_positions: &geometry_value_execution_positions,
+                    binding_execution_positions: &binding_execution_positions,
+                    release_allowed: &release_allowed,
+                    source_position_fence: linear_mutation_ordering_active,
+                    evaluated: &mut evaluated_geometry_value_entries,
+                },
+            );
         }
         if let (Some(graph), Some(_)) = (
             conditional_dependency_graph
@@ -2121,7 +2168,9 @@ fn evaluate_document_input_with_scalar_program(
                         .copied()
                         .map(|index| (index, &geometry_value_program[index]));
                     if let Some((_, entry)) = controller_entry {
-                        if entry.source_execution_position > controller_source_position_limit {
+                        if linear_mutation_ordering_active
+                            && entry.source_execution_position > controller_source_position_limit
+                        {
                             continue;
                         }
                         if let Some(mutation_resolver) = scalar_mutation_resolver.as_mut() {
@@ -2279,33 +2328,36 @@ fn evaluate_document_input_with_scalar_program(
                 }
             }
         }
+        if !linear_mutation_ordering_active {
+            if let Some(graph) = conditional_dependency_graph.as_ref() {
+                for (index, entry) in geometry_value_program.iter().enumerate() {
+                    if !graph.geometry_prerequisites_are_ready(
+                        &geometry_value_endpoint_id(&entry.occurrence),
+                        &conditional_branch_selections,
+                        &state,
+                    ) {
+                        geometry_value_release_allowed[index] = false;
+                    }
+                }
+            }
+        }
         if let Some(source_order) = current_source_order {
-            scalar_mutation_resolver
-                .as_mut()
-                .expect("source order requires a scalar mutation resolver")
-                .advance_before_with_geometry_values(
+            if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+                resolver.advance_before_with_geometry_values(
                     source_order,
                     current_geometry_execution_position,
                     &mut state,
                     GeometryValueReleaseContext {
                         program: &geometry_value_program,
                         execution_positions: &geometry_value_execution_positions,
+                        binding_execution_positions: &binding_execution_positions,
                         release_allowed: &geometry_value_release_allowed,
+                        source_position_fence: linear_mutation_ordering_active,
                         evaluated: &mut evaluated_geometry_value_entries,
                     },
                 );
+            }
         }
-        let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
-            scalar_mutation_resolver
-                .as_ref()
-                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-                .or_else(|| {
-                    scalar_binding_resolver
-                        .as_ref()
-                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-                });
-        let geometry_input_scalar_binding_resolver: &dyn ScalarDocumentBindingResolver =
-            active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
         let current_execution_position = current_source_order
             .map(|source_order| source_order as f64)
             .unwrap_or(
@@ -2314,7 +2366,11 @@ fn evaluate_document_input_with_scalar_program(
                     .copied()
                     .unwrap_or(evaluation_position) as f64,
             );
-        if scalar_mutation_resolver.is_none() {
+        if !linear_mutation_ordering_active && scalar_mutation_resolver.is_none() {
+            let resolver = scalar_binding_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .unwrap_or(&empty_geometry_value_resolver);
             let mut geometry_value_indices = (0..geometry_value_program.len()).collect::<Vec<_>>();
             geometry_value_indices.sort_by(|left, right| {
                 geometry_value_execution_positions[*left]
@@ -2327,13 +2383,10 @@ fn evaluate_document_input_with_scalar_program(
                     || !geometry_value_release_allowed[geometry_value_index]
                     || geometry_value_execution_positions[geometry_value_index]
                         > current_geometry_execution_position
-                    || entry.source_execution_position > current_execution_position
                 {
                     continue;
                 }
                 if !entry.lazy {
-                    let resolver =
-                        active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
                     geometry_value_runtime::evaluate_geometry_value_entry(
                         entry, resolver, &mut state,
                     );
@@ -2341,6 +2394,17 @@ fn evaluate_document_input_with_scalar_program(
                 evaluated_geometry_value_entries[geometry_value_index] = true;
             }
         }
+        let active_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
+            scalar_mutation_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .or_else(|| {
+                    scalar_binding_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                });
+        let geometry_input_scalar_binding_resolver: &dyn ScalarDocumentBindingResolver =
+            active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
         macro_rules! complete_attempt_and_continue {
             () => {{
                 completed_element_ids.insert(id.clone());
@@ -2770,15 +2834,13 @@ fn evaluate_document_input_with_scalar_program(
                 GeometryValueReleaseContext {
                     program: &geometry_value_program,
                     execution_positions: &geometry_value_execution_positions,
+                    binding_execution_positions: &binding_execution_positions,
                     release_allowed: &vec![true; geometry_value_program.len()],
+                    source_position_fence: linear_mutation_ordering_active,
                     evaluated: &mut evaluated_geometry_value_entries,
                 },
             );
         } else {
-            let remaining_geometry_value_resolver = scalar_binding_resolver
-                .as_ref()
-                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
-                .unwrap_or(&empty_geometry_value_resolver);
             let mut geometry_value_indices = (0..geometry_value_program.len()).collect::<Vec<_>>();
             geometry_value_indices.sort_by(|left, right| {
                 geometry_value_execution_positions[*left]
@@ -2791,6 +2853,10 @@ fn evaluate_document_input_with_scalar_program(
                     continue;
                 }
                 if !entry.lazy {
+                    let remaining_geometry_value_resolver = scalar_binding_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                        .unwrap_or(&empty_geometry_value_resolver);
                     geometry_value_runtime::evaluate_geometry_value_entry(
                         entry,
                         remaining_geometry_value_resolver,

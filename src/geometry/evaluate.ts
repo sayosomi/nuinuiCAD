@@ -352,6 +352,19 @@ export const evaluateElements = (
   // property bindings exist - computedScalarBindings is Task 21's own
   // contract && must not depend on Task 23's property wiring.
   const linearMutationEnabled = options.bindingVersions?.requiresExecutionOrdering === true;
+  // Geometry values and root declarations can request an ordered scalar
+  // resolver without introducing a mutable source timeline.
+  const linearMutationOrderingActive = linearMutationEnabled && Boolean(
+    options.conditionalOwnerStatementIdByElementId?.size ||
+    options.forGroupMutationOwnerByElementId?.size ||
+    options.moduleConditionalOwnerStatementIdByElementId?.size ||
+    options.moduleForGroupExecutionOwnerByElementId?.size ||
+    options.bindingVersions?.immutableForGroups?.size ||
+    options.bindingVersions?.moduleForGroupExecutionOwnersByStatementId?.size ||
+    options.bindingVersions?.versions.some((version) =>
+      version.predecessorId !== undefined || version.control.ownerChain.length > 0
+    )
+  );
   if (linearMutationEnabled && !options.statementInfoByElementId &&
     !options.sourceExecutionPositionByElementId && !options.scalarExecutionPositionByElementId) {
     throw new Error("evaluateElements: binding mutation requires compiled source execution positions");
@@ -1749,6 +1762,7 @@ export const evaluateElements = (
   const geometryValueProgram = options.geometryValueProgram ?? [];
   const evaluatedGeometryValueEntries = new Set<number>();
   let geometryValueEndpointRankById = new Map<string, number>();
+  let geometryValuePrerequisitesReady: (endpointId: string) => boolean = () => true;
   const evaluateGeometryValuesThrough = (
     executionPosition: number,
     sourceExecutionPosition: number,
@@ -1770,7 +1784,9 @@ export const evaluateElements = (
         : false;
       if (evaluatedGeometryValueEntries.has(index) ||
           releasePosition > executionPosition ||
-          (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPosition ||
+          (linearMutationOrderingActive &&
+            (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPosition) ||
+          (Number.isFinite(executionPosition) && !geometryValuePrerequisitesReady(endpointId)) ||
           pendingController) continue;
       if (!entry.lazy) evaluateGeometryValueEntry(entry);
       evaluatedGeometryValueEntries.add(index);
@@ -2850,6 +2866,26 @@ export const evaluateElements = (
     if (prerequisites.some((edge) => !endpointIsReady(typedDependencyEndpointId(edge.to), nextVisiting))) return false;
     return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
   };
+  geometryValuePrerequisitesReady = (endpointId) => {
+    const visitGeometryPrerequisites = (dependencyId: string, visiting: ReadonlySet<string>): boolean => {
+      if (visiting.has(dependencyId)) return false;
+      const endpoint = graphEndpointById.get(dependencyId);
+      if (!endpoint) return false;
+      if (
+        endpoint.kind === "element" || endpoint.kind === "geometry-stage" ||
+        endpoint.kind === "module-occurrence" || endpoint.kind === "transformation-recipe"
+      ) return endpointIsReady(dependencyId);
+      if (endpoint.kind === "geometry-value") return true;
+      if (endpoint.kind !== "binding") return true;
+      const nextVisiting = new Set(visiting).add(dependencyId);
+      return (options.typedDependencyGraph?.edges ?? []).filter((edge) =>
+        typedDependencyEndpointId(edge.from) === dependencyId && graphEdgeIsActive(edge)
+      ).every((edge) => visitGeometryPrerequisites(typedDependencyEndpointId(edge.to), nextVisiting));
+    };
+    return (options.typedDependencyGraph?.edges ?? []).filter((edge) =>
+      typedDependencyEndpointId(edge.from) === endpointId && graphEdgeIsActive(edge)
+    ).every((edge) => visitGeometryPrerequisites(typedDependencyEndpointId(edge.to), new Set([endpointId])));
+  };
   const activateReadyConditionalControllers = (sourceExecutionPositionLimit: number): boolean => {
     if (!options.typedDependencyGraph || !scalarBindingResolver) return false;
     let changed = false;
@@ -2863,14 +2899,17 @@ export const evaluateElements = (
         if (conditionalBranchSelections.has(candidate.controllerId)) continue;
         const entryIndex = geometryValueIndexByEndpointId.get(candidate.sourceEndpointId);
         const entry = entryIndex === undefined ? undefined : geometryValueProgram[entryIndex];
-        if (entry && (entry.sourceExecutionPosition ?? entry.executionPosition) <= sourceExecutionPositionLimit) {
+        const entrySourcePosition = entry?.sourceExecutionPosition ?? entry?.executionPosition;
+        const entrySourcePositionAvailable = entrySourcePosition !== undefined &&
+          (!linearMutationOrderingActive || entrySourcePosition <= sourceExecutionPositionLimit);
+        if (entry && entrySourcePositionAvailable) {
           linearMutationResolver?.advanceTo({
             kind: "beforeStatement",
-            sourceOrder: entry.sourceExecutionPosition ?? entry.executionPosition
+            sourceOrder: entrySourcePosition
           });
         }
         if (candidate.kind === "geometry-value-coalesce") {
-          if (!entry || (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPositionLimit) continue;
+          if (!entry || !entrySourcePositionAvailable) continue;
           if (candidate.prerequisiteEndpointIds.some((id) => !endpointIsReady(id))) continue;
           const occurrenceKey = geometryValueOccurrenceKey(entry.occurrence);
           const prefix = `${candidate.sourceEndpointId}\u0000${occurrenceKey}\u0000geometry-value:${occurrenceKey}:coalesce:`;
@@ -2965,6 +3004,15 @@ export const evaluateElements = (
   };
 
   const pendingElements = evaluatedElements.filter((element) => !templateDescendantIds.has(element.id));
+  const hasRootGeometryPropertyTimeline = Boolean(options.bindingVersions?.versions.some((version) =>
+    version.control.scopeId === "root" && options.typedDependencyGraph?.edges.some((edge) =>
+      edge.from.kind === "binding" && edge.from.id === version.bindingId &&
+      (edge.to.kind === "geometry-value" || edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence")
+    )
+  ));
+  if (geometryValueProgram.length > 0 && !linearMutationOrderingActive && !hasRootGeometryPropertyTimeline) {
+    reorderPendingElements(pendingElements);
+  }
   let evaluationPosition = 0;
   while (pendingElements.length > 0) {
     let element: CadElement;
