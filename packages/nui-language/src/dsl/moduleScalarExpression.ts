@@ -142,10 +142,10 @@ const geometryPropertyMetadataFor = (
     };
   }
   if (target.kind === "sourceGeometryProperty") {
-    return { elementId: target.statementId, property: target.property, targetSourceOrder: target.statementIndex, type };
+    return { elementId: target.statementId, property: target.property, targetSourceOrder: target.statementIndex, ...(target.stagePath ? { stagePath: target.stagePath } : {}), type };
   }
   if (target.kind === "deferredModuleExportProperty") {
-    return { elementId: target.instanceStatementId, property: target.property, targetSourceOrder: target.instanceStatementIndex, type };
+    return { elementId: target.instanceStatementId, property: target.property, targetSourceOrder: target.instanceStatementIndex, ...(target.stagePath ? { stagePath: target.stagePath } : {}), type };
   }
   if (target.kind === "geometryValueProperty") {
     return {
@@ -153,11 +153,12 @@ const geometryPropertyMetadataFor = (
       occurrence: { sourceStatementId: target.statementId, instancePath: [] },
       property: target.property,
       targetSourceOrder: target.statementIndex,
+      ...(target.stagePath ? { stagePath: target.stagePath } : {}),
       type
     };
   }
   if (target.kind === "geometryValueForBinder") {
-    return { kind: "geometryValueForBinder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: target.statementIndex, type };
+    return { kind: "geometryValueForBinder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: target.statementIndex, ...(target.stagePath ? { stagePath: target.stagePath } : {}), type };
   }
   if (target.kind === "forGroupOccurrenceProperty") {
     return {
@@ -167,6 +168,7 @@ const geometryPropertyMetadataFor = (
       targetSourceOrder: target.statementIndex,
       index: null,
       ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+      ...(target.stagePath ? { stagePath: target.stagePath } : {}),
       type
     };
   }
