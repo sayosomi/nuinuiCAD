@@ -15,7 +15,8 @@ use super::bindings::{
 };
 use super::expression_evaluator::{evaluate_typed_expression, ScalarEvaluationEnvironment};
 use super::mutation_payload::{
-    InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind, ValidatedBindingVersions,
+    InitialState, ValidatedBindingCatalogOrder, ValidatedBindingVersion,
+    ValidatedBindingVersionKind, ValidatedBindingVersions,
 };
 use super::program_payload::{
     ValidatedScalarProgramCollectionMember, ValidatedScalarProgramCollectionValue,
@@ -48,6 +49,7 @@ pub(crate) struct ScalarMutationResolver<'a> {
     program: &'a ValidatedBindingVersions,
     current: HashMap<BindingId, ScalarEvaluation>,
     next_version_index: usize,
+    pending_dependency_versions: Vec<usize>,
     history: Vec<Value>,
     conditional_results: HashMap<String, Option<String>>,
     loop_conditional_results: Vec<HashMap<String, Option<String>>>,
@@ -59,6 +61,8 @@ pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) program: &'a [GeometryValueProgramEntry],
     pub(crate) execution_positions: &'a [f64],
     pub(crate) binding_execution_positions: &'a HashMap<String, f64>,
+    pub(crate) dependency_order_available: bool,
+    pub(crate) dependency_execution_position: Option<f64>,
     pub(crate) release_allowed: &'a [bool],
     pub(crate) source_position_fence: bool,
     pub(crate) evaluated: &'a mut [bool],
@@ -70,6 +74,7 @@ impl<'a> ScalarMutationResolver<'a> {
             program,
             current: HashMap::new(),
             next_version_index: 0,
+            pending_dependency_versions: Vec::new(),
             history: Vec::new(),
             conditional_results: HashMap::new(),
             loop_conditional_results: Vec::new(),
@@ -94,6 +99,45 @@ impl<'a> ScalarMutationResolver<'a> {
         }
         self.retire_before(source_order);
     }
+    pub(crate) fn advance_before_with_execution_position(
+        &mut self,
+        source_order: usize,
+        dependency_execution_position: Option<f64>,
+        binding_execution_positions: &HashMap<String, f64>,
+        dependency_order_available: bool,
+        state: &mut EvaluationState,
+    ) {
+        let Some(dependency_execution_position) =
+            dependency_execution_position.filter(|_| dependency_order_available)
+        else {
+            self.advance_before_statement(source_order, state);
+            return;
+        };
+        while self.next_version_index < self.program.versions.len() {
+            let version = &self.program.versions[self.next_version_index];
+            if version.source_order >= source_order {
+                break;
+            }
+            self.retire_before(version.source_order);
+            let version_index = self.next_version_index;
+            self.next_version_index += 1;
+            if Self::is_dependency_scheduled_version(version)
+                && binding_execution_positions.contains_key(&version.binding_id)
+            {
+                self.pending_dependency_versions.push(version_index);
+            } else {
+                self.execute(version, state);
+            }
+        }
+        self.retire_before(source_order);
+        self.advance_pending_dependency_versions_through(
+            dependency_execution_position,
+            binding_execution_positions,
+            state,
+            None,
+            dependency_execution_position.is_infinite(),
+        );
+    }
     pub(crate) fn advance_before_with_geometry_values(
         &mut self,
         source_order: usize,
@@ -101,6 +145,57 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &mut EvaluationState,
         mut geometry_values: GeometryValueReleaseContext<'_>,
     ) {
+        if geometry_values.dependency_order_available
+            && geometry_values.dependency_execution_position.is_some()
+        {
+            let dependency_execution_position = geometry_values
+                .dependency_execution_position
+                .expect("checked dependency execution position");
+            while self.next_version_index < self.program.versions.len() {
+                let version = &self.program.versions[self.next_version_index];
+                if version.source_order >= source_order {
+                    break;
+                }
+                self.retire_before(version.source_order);
+                let version_index = self.next_version_index;
+                self.next_version_index += 1;
+                if Self::is_dependency_scheduled_version(version)
+                    && geometry_values
+                        .binding_execution_positions
+                        .contains_key(&version.binding_id)
+                {
+                    self.pending_dependency_versions.push(version_index);
+                } else {
+                    let version_geometry_execution_position = geometry_values
+                        .binding_execution_positions
+                        .get(&version.binding_id)
+                        .copied()
+                        .unwrap_or(geometry_execution_position);
+                    self.evaluate_geometry_values_through(
+                        version_geometry_execution_position,
+                        version.source_order,
+                        &mut geometry_values,
+                        state,
+                    );
+                    self.execute(version, state);
+                }
+            }
+            self.retire_before(source_order);
+            self.advance_pending_dependency_versions_through(
+                dependency_execution_position,
+                geometry_values.binding_execution_positions,
+                state,
+                Some(&mut geometry_values),
+                false,
+            );
+            self.evaluate_geometry_values_through(
+                geometry_execution_position,
+                source_order,
+                &mut geometry_values,
+                state,
+            );
+            return;
+        }
         while self.next_version_index < self.program.versions.len() {
             let version_source_order = self.program.versions[self.next_version_index].source_order;
             if version_source_order >= source_order {
@@ -186,14 +281,92 @@ impl<'a> ScalarMutationResolver<'a> {
             }
         }
     }
-    pub(crate) fn finalize(&mut self, state: &EvaluationState) {
-        while self.next_version_index < self.program.versions.len() {
-            let version = &self.program.versions[self.next_version_index];
-            self.retire_before(version.source_order);
-            self.next_version_index += 1;
+    pub(crate) fn finalize(
+        &mut self,
+        state: &mut EvaluationState,
+        binding_execution_positions: &HashMap<String, f64>,
+        dependency_order_available: bool,
+    ) {
+        self.advance_before_with_execution_position(
+            usize::MAX,
+            Some(f64::INFINITY),
+            binding_execution_positions,
+            dependency_order_available,
+            state,
+        );
+        self.retire_before(usize::MAX);
+    }
+    pub(crate) fn is_dependency_scheduled_version(version: &ValidatedBindingVersion) -> bool {
+        version.control.get("kind").and_then(Value::as_str) == Some("linear")
+            && version.catalog_order != Some(ValidatedBindingCatalogOrder::Append)
+    }
+    fn advance_pending_dependency_versions_through(
+        &mut self,
+        dependency_execution_position: f64,
+        binding_execution_positions: &HashMap<String, f64>,
+        state: &mut EvaluationState,
+        mut geometry_values: Option<&mut GeometryValueReleaseContext<'_>>,
+        flush_unranked: bool,
+    ) {
+        let mut ready = self
+            .pending_dependency_versions
+            .iter()
+            .filter_map(|version_index| {
+                let version = &self.program.versions[*version_index];
+                let rank = binding_execution_positions
+                    .get(&version.binding_id)
+                    .copied()?;
+                (rank <= dependency_execution_position).then_some((*version_index, rank))
+            })
+            .collect::<Vec<_>>();
+        ready.sort_by(|(left_index, left_rank), (right_index, right_rank)| {
+            let left = &self.program.versions[*left_index];
+            let right = &self.program.versions[*right_index];
+            left_rank
+                .total_cmp(right_rank)
+                .then_with(|| left.source_order.cmp(&right.source_order))
+                .then_with(|| left.version_id.cmp(&right.version_id))
+        });
+        let ready_indices = ready
+            .iter()
+            .map(|(index, _)| *index)
+            .collect::<HashSet<_>>();
+        self.pending_dependency_versions
+            .retain(|index| !ready_indices.contains(index));
+        for (version_index, rank) in ready {
+            let version = &self.program.versions[version_index];
+            if let Some(geometry_values) = geometry_values.as_deref_mut() {
+                self.evaluate_geometry_values_through(
+                    rank,
+                    version.source_order,
+                    geometry_values,
+                    state,
+                );
+            }
             self.execute(version, state);
         }
-        self.retire_before(usize::MAX);
+        if flush_unranked {
+            self.pending_dependency_versions.sort_by(|left, right| {
+                let left = &self.program.versions[*left];
+                let right = &self.program.versions[*right];
+                left.source_order
+                    .cmp(&right.source_order)
+                    .then_with(|| left.version_id.cmp(&right.version_id))
+            });
+            let remaining = std::mem::take(&mut self.pending_dependency_versions);
+            for version_index in remaining {
+                let version = &self.program.versions[version_index];
+                if let Some(geometry_values) = geometry_values.as_deref_mut() {
+                    self.evaluate_geometry_values_through(
+                        dependency_execution_position,
+                        version.source_order,
+                        geometry_values,
+                        state,
+                    );
+                }
+                self.execute(version, state);
+            }
+        }
     }
     pub(crate) fn source_order_for_element(&self, element_id: &str) -> Option<usize> {
         self.program.element_source_orders.get(element_id).copied()

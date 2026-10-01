@@ -293,10 +293,15 @@ fn activation_path_is_active(
 }
 
 impl ConditionalDependencyGraph {
-    pub(crate) fn has_root_geometry_property_dependency(&self, binding_id: &str) -> bool {
+    pub(crate) fn has_active_geometry_property_dependency(
+        &self,
+        binding_id: &str,
+        branch_selections: &HashMap<String, String>,
+    ) -> bool {
         self.edges.iter().any(|edge| {
             edge.from.kind == "binding"
                 && edge.from.id == binding_id
+                && edge_is_active(edge, branch_selections)
                 && matches!(
                     edge.to.kind.as_str(),
                     "geometry-value" | "geometry-stage" | "module-occurrence"

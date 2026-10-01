@@ -1,7 +1,7 @@
 // Evaluation-neutral binding version graph. This module consumes compiler
 // products only; it never parses source || resolves a target/reference.
 import type { BindingAnalysis, BindingAnalysisEntry } from "./bindingAnalysis";
-import { bindingIdForStableStatementId, type BindingId } from "./bindingCatalog";
+import { bindingIdForStableStatementId, type BindingCatalogOrder, type BindingId } from "./bindingCatalog";
 import { scalarExpressionTypeOfDslValueType, type DslArrayValueType, type DslGeometryValueType } from "../dsl/dslValueTypes";
 import type { ScopeId, LexicalScopeIndex } from "./lexicalScopeIndex";
 import type { ScalarProgram, ScalarProgramStatement } from "./scalarProgram";
@@ -51,6 +51,7 @@ type BindingVersionBase = {
   bindingId: BindingId;
   declaredType: ScalarExpressionType;
   sourceOrder: number;
+  catalogOrder?: BindingCatalogOrder;
   scopeId: ScopeId;
   scopeExitSourceOrder: number;
   control: BindingControlMetadata;
@@ -66,8 +67,8 @@ export type DeclarationBindingVersion = BindingVersionBase & {
 
 export type BindingVersion = DeclarationBindingVersion;
 
-export type BeforeStatementPosition = { kind: "beforeStatement"; sourceOrder: number };
-export type AfterStatementPosition = { kind: "afterStatement"; sourceOrder: number };
+export type BeforeStatementPosition = { kind: "beforeStatement"; sourceOrder: number; dependencyExecutionPosition?: number };
+export type AfterStatementPosition = { kind: "afterStatement"; sourceOrder: number; dependencyExecutionPosition?: number };
 export type BindingReadPosition = BeforeStatementPosition | AfterStatementPosition;
 
 export const beforeStatement = (sourceOrder: number): BeforeStatementPosition => ({ kind: "beforeStatement", sourceOrder });
@@ -318,6 +319,7 @@ export const buildBindingVersionGraph = ({
       bindingKind: "const",
       declaredType,
       sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? binding.rank,
+      ...(binding.catalogOrder ? { catalogOrder: binding.catalogOrder } : {}),
       scopeId: binding.effectiveScopeId,
       scopeExitSourceOrder: controlFor(controlByScopeId, binding.effectiveScopeId).scopeExitSourceOrder,
       control: controlFor(controlByScopeId, binding.effectiveScopeId),

@@ -228,6 +228,7 @@ fn mutation_geometry_property_stage_selection_uses_selected_snapshot() {
                 binding_id: (*binding_id).to_owned(),
                 declared_type: ScalarType::Number,
                 source_order: index + 1,
+                catalog_order: None,
                 control: serde_json::json!({"ownerChain": []}),
                 initial_state: InitialState::Uncomputed,
                 kind: ValidatedBindingVersionKind::Declare {
