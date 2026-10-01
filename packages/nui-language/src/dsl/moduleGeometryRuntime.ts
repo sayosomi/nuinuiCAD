@@ -481,7 +481,14 @@ export const buildModuleGeometryRuntime = ({
       target.kind === "deferredModuleCollectionExportLength"
     ) return undefined;
     if (target.kind === "geometryValueForBinder") {
-      return { kind: "binder", binderId: target.binderId, property: target.property, ...(target.pointKey ? { pointKey: target.pointKey } : {}), targetSourceOrder: -1 };
+      return {
+        kind: "binder",
+        binderId: target.binderId,
+        property: target.property,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        targetSourceOrder: -1,
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+      };
     }
     if (target.kind === "forGroupOccurrenceProperty") {
       const geometryKind = target.category === "point" ? "point" : "line";
@@ -499,6 +506,7 @@ export const buildModuleGeometryRuntime = ({
         ...(target.occurrenceIndexSpan ? { occurrenceIndexSpan: target.occurrenceIndexSpan } : {}),
         ...(target.occurrenceRange ? { occurrenceRange: target.occurrenceRange } : {}),
         ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {}),
         ...(target.identity ? { identity: target.identity } : {})
       };
       const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
@@ -518,6 +526,7 @@ export const buildModuleGeometryRuntime = ({
               ownerModuleDefinitionStatementId: target.ownerModuleDefinitionStatementId,
               ownerModuleDefinitionStatementIndex: target.ownerModuleDefinitionStatementIndex,
               ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+              ...(target.stagePath ? { stagePath: target.stagePath } : {}),
               ...(target.identity ? { identity: target.identity } : {})
             }
         : { ...target, kind: "deferredModuleExport", expectedGeometryKind: "line" };

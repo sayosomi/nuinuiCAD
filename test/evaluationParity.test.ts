@@ -57,6 +57,208 @@ const isGeometryInputTargetList = (
   target: GeometryInputTarget | readonly GeometryInputTarget[]
 ): target is readonly GeometryInputTarget[] => Array.isArray(target);
 
+const say433Expected = {
+  DirectBaseLength: 10,
+  DirectNamedLength: 20,
+  DirectFinalLength: 40,
+  BaseOneLength: 10,
+  BaseTwoLength: 10,
+  NamedOneLength: 20,
+  NamedTwoLength: 20,
+  FinalAliasLength: 40
+} as const;
+
+type Say433EvaluationCase = {
+  fixture: ReturnType<typeof fixtureFromSource>;
+  options: ReturnType<typeof optionsFor>;
+  tsPayload: ReturnType<typeof evaluateElementsReferencePayload>;
+};
+
+const buildSay433TypeScriptCases = () => {
+  const expected = say433Expected;
+  const aliases = [
+    "const BaseOne: line = @A.base",
+    "const BaseTwo: line = @BaseOne",
+    "const NamedOne: line = @A.first",
+    "const NamedTwo: line = @NamedOne",
+    "const FinalAlias: line = @A.final"
+  ];
+  const propertyReads = [
+    "const DirectBaseLength: number = @A.base.length",
+    "const DirectNamedLength: number = @A.first.length",
+    "const DirectFinalLength: number = @A.final.length",
+    "const BaseOneLength: number = @BaseOne.length",
+    "const BaseTwoLength: number = @BaseTwo.length",
+    "const NamedOneLength: number = @NamedOne.length",
+    "const NamedTwoLength: number = @NamedTwo.length",
+    "const FinalAliasLength: number = @FinalAlias.length"
+  ];
+  const stages = [
+    "move A as first (from: (0, 0), to: (10, 0), scale: 2)",
+    "move A as finished (from: (10, 0), to: (20, 0), scale: 2)"
+  ];
+  const padding = (label: string) => [`// SAY-433 ${label} ${"padding ".repeat(12)}`, ""];
+  const sourceFor = (
+    stagePlacement: "stages-first" | "reads-before-stages",
+    insertUnrelated: boolean,
+    padded: boolean
+  ) => {
+    const beforeAliases = [
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      ...(insertUnrelated ? ["const Independent: number = 17"] : []),
+      ...(padded ? padding("between-geometry-and-aliases") : [])
+    ];
+    const aliasesAndReads = [
+      ...aliases,
+      ...(padded ? padding("between-aliases-and-property-reads") : []),
+      ...propertyReads
+    ];
+    return [
+      "nui 1",
+      ...(padded ? padding("leading") : []),
+      ...beforeAliases,
+      ...(stagePlacement === "stages-first"
+        ? [...stages, ...(padded ? padding("between-stages-and-aliases") : []), ...aliasesAndReads]
+        : [...aliasesAndReads, ...(padded ? padding("between-property-reads-and-stages") : []), ...stages])
+    ].join("\n");
+  };
+  const valuesByVariant = new Map<string, Record<string, number>>();
+  const compilerCases: Say433EvaluationCase[] = [];
+
+  for (const stagePlacement of ["stages-first", "reads-before-stages"] as const) {
+    for (const insertUnrelated of [false, true]) {
+      for (const padded of [false, true]) {
+        const fixture = fixtureFromSource(sourceFor(stagePlacement, insertUnrelated, padded));
+        const options = optionsFor(fixture);
+        const scalarProgram = options.scalarProgram;
+        const geometryValueProgram = options.geometryValueProgram ?? [];
+        if (!scalarProgram) throw new Error("missing compiler-authored scalar program");
+        const bindingFor = (name: string) => {
+          const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+            (candidate) => candidate.kind === "typed" && candidate.name === name
+          );
+          if (!binding) throw new Error(`typed binding "${name}" not found`);
+          return binding;
+        };
+        const geometryValueFor = (name: string) => {
+          const binding = bindingFor(name);
+          const entry = geometryValueProgram.find((candidate) => candidate.sourceStatementIndex === binding.statementIndex);
+          if (!entry) throw new Error(`geometry value for "${name}" not found`);
+          return entry;
+        };
+        const initializerFor = (name: keyof typeof expected) => {
+          const binding = bindingFor(name);
+          const initializer = scalarProgram.statements.find((statement) => statement.bindingId === binding.id)?.declaration.initializer;
+          if (!initializer || initializer.kind !== "geometryProperty") {
+            throw new Error(`${name} must compile to a geometry-property expression`);
+          }
+          return initializer;
+        };
+        const aliasPropertyPairs = [
+          ["BaseOneLength", "BaseOne", ["base"]],
+          ["BaseTwoLength", "BaseTwo", ["base"]],
+          ["NamedOneLength", "NamedOne", ["first"]],
+          ["NamedTwoLength", "NamedTwo", ["first"]],
+          ["FinalAliasLength", "FinalAlias", ["final"]]
+        ] as const;
+        const owner = fixture.elements.find((element) => element.name === "A");
+        if (!owner) throw new Error("expected line A");
+        for (const [propertyName, aliasName, stagePath] of aliasPropertyPairs) {
+          const aliasEntry = geometryValueFor(aliasName);
+          const initializer = initializerFor(propertyName);
+          expect(initializer.elementId).toBe(owner.id);
+          expect(initializer.stagePath).toEqual(stagePath);
+          const aliasTarget = aliasEntry.construction.kind === "reference" ? aliasEntry.construction.target : null;
+          const targetStagePath = aliasTarget && "stagePath" in aliasTarget ? aliasTarget.stagePath : undefined;
+          const targetOccurrence = aliasTarget && aliasTarget.kind === "geometryValue" ? aliasTarget.occurrence : undefined;
+          const precedingAlias = aliasName === "BaseTwo" ? geometryValueFor("BaseOne")
+            : aliasName === "NamedTwo" ? geometryValueFor("NamedOne")
+              : undefined;
+          expect(
+            targetStagePath?.join(".") === stagePath.join(".") ||
+            (precedingAlias !== undefined && targetOccurrence !== undefined &&
+              geometryValueOccurrenceKey(targetOccurrence) === geometryValueOccurrenceKey(precedingAlias.occurrence))
+          ).toBe(true);
+        }
+        expect(initializerFor("DirectBaseLength").stagePath).toEqual(["base"]);
+        expect(initializerFor("DirectNamedLength").stagePath).toEqual(["first"]);
+        expect(initializerFor("DirectFinalLength").stagePath).toEqual(["final"]);
+
+        const graph = fixture.compiled?.doc.typedDependencyGraph;
+        if (!graph) throw new Error("missing compiler-authored typed dependency graph");
+        const hasStageEdge = (fromId: string, stage: string) => graph.edges.some((edge) =>
+          edge.from.kind === "geometry-value" && edge.from.id === fromId &&
+          edge.to.kind === "geometry-stage" && edge.to.ownerId === owner.id &&
+          edge.to.stagePath.join(".") === stage
+        );
+        const hasBindingStageEdge = (bindingName: string, stage: string) => {
+          const binding = bindingFor(bindingName);
+          return graph.edges.some((edge) =>
+            edge.from.kind === "binding" && edge.from.id === binding.id &&
+            edge.to.kind === "geometry-stage" && edge.to.ownerId === owner.id &&
+            edge.to.stagePath.join(".") === stage
+          );
+        };
+        const baseOne = geometryValueFor("BaseOne");
+        const namedOne = geometryValueFor("NamedOne");
+        const finalAlias = geometryValueFor("FinalAlias");
+        expect(hasStageEdge(geometryValueOccurrenceKey(baseOne.occurrence), "base")).toBe(true);
+        expect(hasStageEdge(geometryValueOccurrenceKey(namedOne.occurrence), "first")).toBe(true);
+        expect(hasStageEdge(geometryValueOccurrenceKey(finalAlias.occurrence), "final")).toBe(true);
+        for (const [propertyName, aliasName] of aliasPropertyPairs) {
+          const stage = aliasName.startsWith("Base") ? "base"
+            : aliasName.startsWith("Named") ? "first"
+              : "final";
+          expect(hasBindingStageEdge(propertyName, stage)).toBe(true);
+          if (stage !== "final") expect(hasBindingStageEdge(propertyName, "final")).toBe(false);
+        }
+        expect(hasBindingStageEdge("DirectBaseLength", "base")).toBe(true);
+        expect(hasBindingStageEdge("DirectNamedLength", "first")).toBe(true);
+        expect(hasBindingStageEdge("DirectFinalLength", "final")).toBe(true);
+
+        const rustInput = buildRustEvaluationInput(fixture.elements, options);
+        for (const name of Object.keys(expected) as (keyof typeof expected)[]) {
+          const binding = bindingFor(name);
+          const initializer = rustInput.scalarProgram?.statements.find((statement) => statement.bindingId === binding.id)?.declaration.initializer ??
+            rustInput.bindingVersions?.versions.find((version) => version.bindingId === binding.id)?.initializer as
+              { kind?: string; stagePath?: readonly string[] } | undefined;
+          if (!initializer || initializer.kind !== "geometryProperty") {
+            throw new Error(`${name} must remain a geometry-property expression in the Rust input`);
+          }
+          const stage = name.includes("Base") ? "base"
+            : name.includes("Named") ? "first"
+              : "final";
+          expect(initializer.stagePath).toEqual([stage]);
+        }
+
+        const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+        const tsResult = evaluationPayloadToResult(tsPayload);
+        expect(tsResult.errors).toEqual([]);
+        const values: Record<string, number> = {};
+        for (const name of Object.keys(expected) as (keyof typeof expected)[]) {
+          const value = scalarBindingFor(fixture, tsPayload, name);
+          expectScalarNumberClose(value, expected[name]);
+          if (value?.status !== "ok" || value.value.kind !== "number") {
+            throw new Error(`expected ${name} to evaluate to a number`);
+          }
+          values[name] = value.value.value;
+        }
+        valuesByVariant.set(`${stagePlacement}:${insertUnrelated ? "inserted" : "plain"}:${padded ? "padded" : "compact"}`, values);
+        compilerCases.push({ fixture, options, tsPayload });
+      }
+    }
+  }
+
+  for (const [variant, values] of valuesByVariant) {
+    expect(values, variant).toEqual(expected);
+  }
+  return compilerCases;
+};
+
+it("preserves selected stages through immutable geometry aliases (TypeScript/compiler)", () => {
+  expect(buildSay433TypeScriptCases()).toHaveLength(8);
+});
+
 describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", () => {
   let rustStdio: ReturnType<typeof createRustStdioParityClient> | undefined;
 
@@ -2168,6 +2370,19 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("consumer-first:plain"));
     expect(valuesByVariant.get("consumer-first:plain")).toEqual(valuesByVariant.get("producer-first:plain"));
     expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("producer-first:padded"));
+  }, 30000);
+
+  it("preserves selected stages through immutable geometry aliases", async () => {
+    const cases = buildSay433TypeScriptCases();
+    for (const { fixture, options, tsPayload } of cases) {
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      expect(evaluationPayloadToResult(rustPayload).errors).toEqual([]);
+      for (const name of Object.keys(say433Expected) as (keyof typeof say433Expected)[]) {
+        expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, name), say433Expected[name]);
+      }
+    }
   }, 30000);
 
   it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {

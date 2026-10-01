@@ -1352,6 +1352,7 @@ export const lowerExpression = (
         targetSourceOrder: runtimeTarget.targetSourceOrder,
         index: null,
         ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {}),
         type
       };
     }
@@ -1364,6 +1365,7 @@ export const lowerExpression = (
         occurrence: runtimeTarget.occurrence,
         property: runtimeTarget.property,
         ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {}),
         targetSourceOrder: runtimeSourceOrder ?? (
           target.kind === "recordField"
             ? recordFieldSourceOrderFor(target)
@@ -1383,6 +1385,7 @@ export const lowerExpression = (
         binderId: runtimeTarget.binderId,
         property: runtimeTarget.property,
         ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {}),
         targetSourceOrder: runtimeSourceOrder ?? (
           target.kind === "geometryValueForBinder" ? collectionSourceOrderFor(target.statementIndex) : -1
         ),
@@ -1404,6 +1407,7 @@ export const lowerExpression = (
               ? collectionSourceOrderFor(target.instanceStatementIndex)
               : -1
       ) ?? -1,
+      ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {}),
       type
     };
   };
@@ -1423,7 +1427,8 @@ export const lowerExpression = (
         targetSourceOrder: runtimeTarget.targetSourceOrder,
         index: null,
         geometryType,
-        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {})
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {})
       };
     }
     if (runtimeTarget.kind === "value") {
@@ -1433,7 +1438,8 @@ export const lowerExpression = (
         statementId: runtimeTarget.occurrence.sourceStatementId,
         statementIndex: runtimeTarget.targetSourceOrder ?? -1,
         geometryType,
-        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {})
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {})
       };
     }
     if (runtimeTarget.kind === "binder") {
@@ -1443,7 +1449,8 @@ export const lowerExpression = (
         statementId: runtimeTarget.binderId,
         statementIndex: runtimeTarget.targetSourceOrder ?? -1,
         geometryType,
-        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {})
+        ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {})
       };
     }
     if (runtimeTarget.kind === "carry") {
@@ -1460,6 +1467,7 @@ export const lowerExpression = (
       statementId: runtimeTarget.elementId,
       statementIndex: runtimeTarget.targetSourceOrder ?? -1,
       geometryType,
+      ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {}),
       ...(runtimeTarget.property ? {} : {})
     };
   };
@@ -1566,6 +1574,7 @@ export const lowerExpression = (
         property: property.target.property,
         ...(property.target.pointKey ? { pointKey: property.target.pointKey } : {}),
         targetSourceOrder: -1,
+        ...(property.target.stagePath ? { stagePath: property.target.stagePath } : {}),
         type: property.type
       });
       continue;
@@ -1578,6 +1587,7 @@ export const lowerExpression = (
         targetSourceOrder: property.target.statementIndex,
         index: null,
         ...(property.target.pointKey ? { pointKey: property.target.pointKey } : {}),
+        ...(property.target.stagePath ? { stagePath: property.target.stagePath } : {}),
         type: property.type
       });
       continue;
@@ -1594,6 +1604,7 @@ export const lowerExpression = (
               ? property.target.instanceStatementIndex
               : -1
         ),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {}),
         type: property.type
       });
       continue;
@@ -1604,6 +1615,7 @@ export const lowerExpression = (
         occurrence: runtimeTarget.occurrence,
         property: runtimeTarget.property,
         ...(runtimeTarget.pointKey ? { pointKey: runtimeTarget.pointKey } : {}),
+        ...(runtimeTarget.stagePath ? { stagePath: runtimeTarget.stagePath } : {}),
         targetSourceOrder: runtimeTarget.targetSourceOrder ?? (
           property.target.kind === "sourceGeometryProperty" || property.target.kind === "geometryValueProperty"
             ? property.target.statementIndex
@@ -1664,10 +1676,12 @@ export const lowerExpression = (
         : property.target.kind === "geometryValueProperty"
           ? property.target.statementIndex
           : -1;
+    const targetStagePath = "stagePath" in property.target ? property.target.stagePath : undefined;
     geometryPropertyReferences.set(property.span.start, {
       elementId,
       property: property.target.property,
       targetSourceOrder,
+      ...(targetStagePath ? { stagePath: targetStagePath } : {}),
       type: property.type
     });
   }

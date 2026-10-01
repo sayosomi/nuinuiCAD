@@ -105,11 +105,11 @@ export type ExportEntry = {
 };
 
 export type ModuleGeometryPropertyRuntimeTarget =
-  | { kind: "runtime"; elementId: ElementId; property: string; targetSourceOrder?: number }
+  | { kind: "runtime"; elementId: ElementId; property: string; targetSourceOrder?: number; stagePath?: readonly string[] }
   | { kind: "carry"; bindingId: string; property: string; pointKey?: string; targetSourceOrder?: number }
-  | { kind: "forGroupOccurrence"; templateElementId: ElementId; property: string; targetSourceOrder: number; index: ModuleScalarExpressionSemantic | null; pointKey?: string }
-  | { kind: "value"; occurrence: GeometryValueOccurrence; property: string; pointKey?: string; targetSourceOrder?: number }
-  | { kind: "binder"; binderId: string; property: string; pointKey?: string; targetSourceOrder?: number }
+  | { kind: "forGroupOccurrence"; templateElementId: ElementId; property: string; targetSourceOrder: number; index: ModuleScalarExpressionSemantic | null; pointKey?: string; stagePath?: readonly string[] }
+  | { kind: "value"; occurrence: GeometryValueOccurrence; property: string; pointKey?: string; targetSourceOrder?: number; stagePath?: readonly string[] }
+  | { kind: "binder"; binderId: string; property: string; pointKey?: string; targetSourceOrder?: number; stagePath?: readonly string[] }
   | { kind: "expression"; expression: ModuleScalarExpressionSemantic };
 
 export const pathKey = (path: readonly string[]) => encodeIdentityTuple(["instance", ...path]);
@@ -364,7 +364,8 @@ export const propertyForAlias = (
       kind: "value",
       occurrence: alias.occurrence,
       property,
-      ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+      ...(alias.pointKey ? { pointKey: alias.pointKey } : {}),
+      ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
     };
   }
   if (alias.kind === "mappedValue") {
@@ -372,10 +373,18 @@ export const propertyForAlias = (
       kind: "value",
       occurrence: alias.occurrence,
       property,
-      ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+      ...(alias.pointKey ? { pointKey: alias.pointKey } : {}),
+      ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
     };
   }
-  if (alias.kind === "line") return { kind: "runtime", elementId: alias.elementId, property };
+  if (alias.kind === "line") {
+    return {
+      kind: "runtime",
+      elementId: alias.elementId,
+      property,
+      ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
+    };
+  }
   if (alias.kind === "collectionIndex") return undefined;
   if (alias.kind === "forGroupOccurrence") {
     return {
@@ -384,7 +393,8 @@ export const propertyForAlias = (
       property,
       targetSourceOrder: alias.targetSourceOrder,
       index: alias.index,
-      ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+      ...(alias.pointKey ? { pointKey: alias.pointKey } : {}),
+      ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
     };
   }
   if (alias.coordinate && (property === "x" || property === "y")) {
@@ -393,7 +403,8 @@ export const propertyForAlias = (
   }
   if (alias.anchor.mode === "reference") {
     if (property !== "x" && property !== "y") return undefined;
-    return { kind: "runtime", elementId: alias.anchor.pointId, property };
+    const stagePath = alias.stagePath ?? alias.anchor.stagePath;
+    return { kind: "runtime", elementId: alias.anchor.pointId, property, ...(stagePath ? { stagePath } : {}) };
   }
   if (alias.anchor.mode !== "derived") return undefined;
   if (property !== "x" && property !== "y") return undefined;
@@ -412,7 +423,12 @@ export const propertyForAlias = (
           ? `intermediatePoints[${intermediateIndex}]`
           : null;
   return canonical && !canonical.includes("NaN")
-    ? { kind: "runtime", elementId: alias.anchor.elementId, property: `${canonical}.${property}` }
+    ? {
+        kind: "runtime",
+        elementId: alias.anchor.elementId,
+        property: `${canonical}.${property}`,
+        ...((alias.stagePath ?? alias.anchor.stagePath) ? { stagePath: alias.stagePath ?? alias.anchor.stagePath } : {})
+      }
     : undefined;
 };
 
