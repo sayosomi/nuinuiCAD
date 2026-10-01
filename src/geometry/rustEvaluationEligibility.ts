@@ -226,7 +226,7 @@ const hasRustSupportedDeferredPointTarget = (
   return [...targets].some((target) => {
     const candidates = Array.isArray(target) ? target : [target];
     return candidates.some((candidate) =>
-      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry") &&
+      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry") &&
       referencesRustSupportedPointTargetValue(candidate, elementsById)
     );
   });

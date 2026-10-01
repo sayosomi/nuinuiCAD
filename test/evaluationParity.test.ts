@@ -5720,6 +5720,47 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("evaluates Module-local pure point consumers across the persistent Rust stdio boundary", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  const v: point = coordinate(x: 3, y: 4)",
+      "  point Probe = offset(from: @v, dx: 1, dy: 2)",
+      "}",
+      "instance i = M()"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const tsResult = evaluationPayloadToResult(tsPayload);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    const tsDiagnostics = {
+      errors: tsResult.errors,
+      warnings: tsResult.warnings,
+      geometryValueErrors: tsResult.geometryValueErrors ?? [],
+      runtime: runtimeDiagnosticsFor(fixture, tsPayload)
+    };
+    const rustDiagnostics = {
+      errors: rustResult.errors,
+      warnings: rustResult.warnings,
+      geometryValueErrors: rustResult.geometryValueErrors ?? [],
+      runtime: runtimeDiagnosticsFor(fixture, rustPayload)
+    };
+    expect(normalizeParityPayload(rustDiagnostics)).toEqual(normalizeParityPayload(tsDiagnostics));
+    expect(rustDiagnostics.errors).toEqual([]);
+    expect(rustDiagnostics.geometryValueErrors).toEqual([]);
+
+    const probe = fixture.elements.find((element) => element.name === "Probe");
+    if (!probe) throw new Error("missing materialized Probe point");
+    for (const result of [tsResult, rustResult]) {
+      expect(result.computedGeometry.get(probe.id)).toMatchObject({ kind: "point", x: 4, y: 6 });
+    }
+  }, 30000);
+
   it("uses the discriminated geometry input target for immutable segment consumers", () => {
     const fixture = readParityFixture(repoRoot, "nui1-geometry-value-segment-consumer.nui");
     const options = optionsFor(fixture);

@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
-import { sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import { geometryValueOccurrenceKey, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
+import type { GeometryInputTarget } from "../types/geometry";
 import { buildForGroupExecutionOwners, forGroupMutationOwnerByElementId } from "../scalars/forGroupMutationControl";
 
 const compileWithIds = (source: string, prefix = "task7") => {
@@ -23,8 +24,14 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
   const elements = compiled.document.elements;
   return evaluateElements(elements, {
     evaluationLimitIndex: compiled.document.evaluationLimitIndex,
+    typedDependencyGraph: compiled.typedDependencyGraph,
+    evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
     scalarProgram: compiled.scalarProgram,
-    geometryInputTargetsByElementId: compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId,
+    geometryValueProgram: compiled.geometryValueProgram,
+    geometryInputTargetsByElementId: new Map([
+      ...(compiled.geometryInputTargetsByElementId ?? []),
+      ...(compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? [])
+    ]),
     geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
     bindingVersions: compiled.bindingVersions,
     statementInfoByElementId: compiled.statementMap.byElementId,
@@ -69,12 +76,248 @@ const named = (compiled: ReturnType<typeof compileWithIds>, name: string) => {
   return element;
 };
 
+const geometryInputTargetsFor = (compiled: ReturnType<typeof compileWithIds>, elementId: string): GeometryInputTarget[] => {
+  const targets = compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(elementId)
+    ?? compiled.geometryInputTargetsByElementId?.get(elementId);
+  return [...(targets?.values() ?? [])].flatMap((target) => Array.isArray(target)
+    ? target as GeometryInputTarget[]
+    : [target as GeometryInputTarget]);
+};
+
+const geometryValueTargetsFor = (compiled: ReturnType<typeof compileWithIds>, elementId: string) =>
+  geometryInputTargetsFor(compiled, elementId).filter((target): target is Extract<GeometryInputTarget, { kind: "geometryValue" }> => target.kind === "geometryValue");
+
+const expectGeometryValueDependency = (
+  compiled: ReturnType<typeof compileWithIds>,
+  elementId: string,
+  occurrence: Extract<GeometryInputTarget, { kind: "geometryValue" }>["occurrence"]
+) => {
+  expect(compiled.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      kind: "geometry",
+      from: expect.objectContaining({ kind: "element", id: elementId }),
+      to: expect.objectContaining({
+        kind: "geometry-value",
+        id: geometryValueOccurrenceKey(occurrence)
+      })
+    })
+  ]));
+};
+
 const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
   expect(errorsOf(compiled)).toEqual([]);
   expect(compiled.document).not.toBeNull();
 };
 
 describe("module geometry runtime", () => {
+  it("projects Module-local pure point inputs into the canonical geometry dependency graph", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  const v: point = coordinate(x: 3, y: 4)",
+      "  point Probe = offset(from: @v, dx: 1, dy: 2)",
+      "}",
+      "instance i = M()"
+    ].join("\n"), "module-pure-point-target");
+    expectValid(compiled);
+
+    const probe = named(compiled, "Probe");
+    const targets = compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(probe.id);
+    const geometryValueTarget = [...(targets?.values() ?? [])]
+      .flatMap((target) => Array.isArray(target) ? target : [target])
+      .find((target) => target.kind === "geometryValue");
+    expect(geometryValueTarget).toMatchObject({
+      kind: "geometryValue",
+      occurrence: { sourceStatementId: "module-pure-point-target:2", instancePath: ["module-pure-point-target:5"] },
+      geometryType: "point"
+    });
+    if (!geometryValueTarget || geometryValueTarget.kind !== "geometryValue") throw new Error("expected a structured pure point target");
+
+    const graph = compiled.typedDependencyGraph;
+    expect(graph?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "geometry",
+        from: expect.objectContaining({ kind: "element", id: probe.id }),
+        to: expect.objectContaining({
+          kind: "geometry-value",
+          id: geometryValueOccurrenceKey(geometryValueTarget.occurrence)
+        })
+      })
+    ]));
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(probe.id)).toMatchObject({ kind: "point", x: 4, y: 6 });
+  });
+
+  it("keeps pure point consumer results stable across source order, aliases, and Module renames", () => {
+    const sourceFor = ({
+      moduleName,
+      consumerFirst,
+      alias
+    }: {
+      moduleName: string;
+      consumerFirst: boolean;
+      alias: boolean;
+    }) => {
+      const producer = "  const v: point = coordinate(x: 3, y: 4)";
+      const localAlias = "  const localAlias: point = @v";
+      const consumer = `  point Probe = offset(from: @${alias ? "localAlias" : "v"}, dx: 1, dy: 2)`;
+      return [
+        "nui 1",
+        `module ${moduleName}() {`,
+        ...(consumerFirst ? [consumer, ...(alias ? [localAlias] : []), producer] : [producer, ...(alias ? [localAlias] : []), consumer]),
+        "}",
+        `instance i = ${moduleName}()`
+      ].join("\n");
+    };
+    const variants = [
+      { moduleName: "M", consumerFirst: false, alias: false },
+      { moduleName: "M", consumerFirst: true, alias: false },
+      { moduleName: "M", consumerFirst: false, alias: true },
+      { moduleName: "Renamed", consumerFirst: false, alias: false }
+    ] as const;
+
+    for (const [index, variant] of variants.entries()) {
+      const compiled = compileWithIds(sourceFor(variant), `module-pure-point-variant-${index}`);
+      expectValid(compiled);
+      const probe = named(compiled, "Probe");
+      const target = geometryValueTargetsFor(compiled, probe.id)[0];
+      expect(target).toBeDefined();
+      if (!target) throw new Error("expected a resolved immutable point target");
+      expect(compiled.geometryValueProgram?.some((entry) =>
+        geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(target.occurrence)
+      )).toBe(true);
+      expectGeometryValueDependency(compiled, probe.id, target.occurrence);
+
+      const result = evaluateCompiled(compiled);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(probe.id)).toMatchObject({ kind: "point", x: 4, y: 6 });
+    }
+  });
+
+  it("projects pure line and path inputs through the existing list target path", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  const LineValue: line = segment(start: (0, 0), end: (10, 0))",
+      "  const PathValue: path = polyline(points: [(0, 0), (10, 0)], closed: false)",
+      "  line LineUse = offset(sources: [@LineValue], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "  line PathUse = offset(sources: [@PathValue], distance: 1, side: left, closed: false, suppressTrimWarnings: false)",
+      "}",
+      "instance i = M()"
+    ].join("\n"), "module-pure-line-path-targets");
+    expectValid(compiled);
+
+    for (const name of ["LineUse", "PathUse"]) {
+      const consumer = named(compiled, name);
+      const target = geometryValueTargetsFor(compiled, consumer.id)[0];
+      expect(target).toBeDefined();
+      if (!target) throw new Error(`expected a pure geometry target for ${name}`);
+      expectGeometryValueDependency(compiled, consumer.id, target.occurrence);
+    }
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(named(compiled, "LineUse").id)).toMatchObject({ kind: "offsetLine" });
+    expect(result.computedGeometry.get(named(compiled, "PathUse").id)).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it("preserves local, exported, and parameter-backed occurrences across isolated Module instances", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const Seed: point = coordinate(x: 2, y: 3)",
+      "module Producer() {",
+      "  export const Published: point = coordinate(x: 7, y: 8)",
+      "}",
+      "module M(anchor: point, x: number) {",
+      "  const Local: point = coordinate(x: @x, y: 4)",
+      "  instance Source = Producer()",
+      "  point LocalUse = offset(from: @Local, dx: 1, dy: 2)",
+      "  point ParameterUse = offset(from: @anchor, dx: 1, dy: 2)",
+      "  point ExportUse = offset(from: @Source::Published, dx: 1, dy: 2)",
+      "}",
+      "instance First = M(anchor: @Seed, x: 3)",
+      "instance Second = M(anchor: @Seed, x: 10)"
+    ].join("\n"), "module-pure-value-routes");
+    expectValid(compiled);
+
+    const instance = (name: string) => named(compiled, name);
+    const child = (parentName: string, childName: string) => {
+      const parent = instance(parentName);
+      const element = compiled.document!.elements.find((candidate) =>
+        candidate.name === childName && candidate.parentGroupId === parent.id
+      );
+      if (!element) throw new Error(`missing ${parentName}::${childName}`);
+      return element;
+    };
+    const targetsFor = (parentName: string, childName: string) => {
+      const consumer = child(parentName, childName);
+      const target = geometryValueTargetsFor(compiled, consumer.id)[0];
+      expect(target).toBeDefined();
+      if (!target) throw new Error(`missing geometry value target for ${parentName}::${childName}`);
+      expect(compiled.geometryValueProgram?.some((entry) =>
+        geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(target.occurrence)
+      )).toBe(true);
+      expectGeometryValueDependency(compiled, consumer.id, target.occurrence);
+      return { consumer, target };
+    };
+
+    const firstLocal = targetsFor("First", "LocalUse");
+    const secondLocal = targetsFor("Second", "LocalUse");
+    expect(firstLocal.target.occurrence.sourceStatementId).toBe(secondLocal.target.occurrence.sourceStatementId);
+    expect(firstLocal.target.occurrence.instancePath).not.toEqual(secondLocal.target.occurrence.instancePath);
+    expect(geometryValueOccurrenceKey(firstLocal.target.occurrence)).not.toBe(geometryValueOccurrenceKey(secondLocal.target.occurrence));
+
+    const firstParameter = targetsFor("First", "ParameterUse");
+    const secondParameter = targetsFor("Second", "ParameterUse");
+    expect(firstParameter.target.occurrence).toMatchObject({ sourceStatementId: "module-pure-value-routes:1", instancePath: [] });
+    expect(secondParameter.target.occurrence).toEqual(firstParameter.target.occurrence);
+
+    const firstExport = targetsFor("First", "ExportUse");
+    const secondExport = targetsFor("Second", "ExportUse");
+    expect(firstExport.target.occurrence.sourceStatementId).toBe(secondExport.target.occurrence.sourceStatementId);
+    expect(firstExport.target.occurrence.instancePath).not.toEqual(secondExport.target.occurrence.instancePath);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(firstLocal.consumer.id)).toMatchObject({ kind: "point", x: 4, y: 6 });
+    expect(result.computedGeometry.get(secondLocal.consumer.id)).toMatchObject({ kind: "point", x: 11, y: 6 });
+    expect(result.computedGeometry.get(firstParameter.consumer.id)).toMatchObject({ kind: "point", x: 3, y: 5 });
+    expect(result.computedGeometry.get(secondParameter.consumer.id)).toMatchObject({ kind: "point", x: 3, y: 5 });
+    expect(result.computedGeometry.get(firstExport.consumer.id)).toMatchObject({ kind: "point", x: 8, y: 10 });
+    expect(result.computedGeometry.get(secondExport.consumer.id)).toMatchObject({ kind: "point", x: 8, y: 10 });
+  });
+
+  it("keeps drawable-point consumers and root pure-value consumers on their existing paths", () => {
+    const moduleDrawable = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  point Base = coordinate(x: 3, y: 4)",
+      "  point Probe = offset(from: @Base, dx: 1, dy: 2)",
+      "}",
+      "instance i = M()"
+    ].join("\n"), "module-drawable-point-baseline");
+    expectValid(moduleDrawable);
+    const drawableProbe = named(moduleDrawable, "Probe");
+    expect(evaluateCompiled(moduleDrawable).computedGeometry.get(drawableProbe.id)).toMatchObject({ kind: "point", x: 4, y: 6 });
+
+    const rootPureValue = compileWithIds([
+      "nui 1",
+      "const v: point = coordinate(x: 3, y: 4)",
+      "point Probe = offset(from: @v, dx: 1, dy: 2)"
+    ].join("\n"), "root-pure-point-baseline");
+    expectValid(rootPureValue);
+    const rootProbe = named(rootPureValue, "Probe");
+    const rootTarget = geometryValueTargetsFor(rootPureValue, rootProbe.id)[0];
+    expect(rootTarget).toBeDefined();
+    if (!rootTarget) throw new Error("expected the existing root pure-value target");
+    expectGeometryValueDependency(rootPureValue, rootProbe.id, rootTarget.occurrence);
+    const rootResult = evaluateCompiled(rootPureValue);
+    expect(rootResult.errors).toEqual([]);
+    expect(rootResult.computedGeometry.get(rootProbe.id)).toMatchObject({ kind: "point", x: 4, y: 6 });
+  });
+
   it("preserves geometry collection identity and exact element type in a Module loop", () => {
     const compiled = compileWithIds([
       "nui 1",
