@@ -126,7 +126,16 @@ export const normalizeParityPayload = (value: unknown): unknown => {
       Object.entries(value)
         .filter(([, nested]) => nested !== undefined)
         .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, nested]) => [key, normalizeParityPayload(nested)])
+        .map(([key, nested]) => {
+          const normalized = normalizeParityPayload(nested);
+          if (key !== "computedScalarBindingVersions" || !Array.isArray(normalized)) {
+            return [key, normalized];
+          }
+          return [key, [...normalized].sort((left, right) =>
+            String((left as { versionId?: unknown }).versionId ?? "")
+              .localeCompare(String((right as { versionId?: unknown }).versionId ?? ""))
+          )];
+        })
     );
   }
   return value;

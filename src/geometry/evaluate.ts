@@ -451,6 +451,7 @@ export const evaluateElements = (
   };
   let typedDependencyEndpointRankById = new Map<string, number>();
   let bindingVersionDependencyExecutionPositionById = new Map<string, number>();
+  let activeGeometryPrerequisitesReadyForBinding: (bindingId: string) => boolean = () => false;
   const setTypedDependencyEndpointRanks = (
     dependencyOrder: readonly string[],
     branchSelections: ReadonlyMap<string, string>
@@ -458,8 +459,7 @@ export const evaluateElements = (
     typedDependencyEndpointRankById = new Map(dependencyOrder.map((id, index) => [id, index] as const));
     bindingVersionDependencyExecutionPositionById = new Map(
       (options.bindingVersions?.versions ?? []).flatMap((version) => {
-        if (version.control.kind !== "linear" || version.catalogOrder === "append" ||
-          !options.typedDependencyGraph ||
+        if (version.control.kind !== "linear" || !options.typedDependencyGraph ||
           !typedDependencyBindingHasActiveGeometryPrerequisite(
             options.typedDependencyGraph,
             version.bindingId,
@@ -476,8 +476,28 @@ export const evaluateElements = (
         geometryRuntime,
         options.scalarProgram?.collectionValues,
         options.typedDependencyGraph ? () => bindingVersionDependencyExecutionPositionById : undefined
-      )
+    )
     : undefined;
+  const dependencyReadyVersionIdsForSourceOrder = (sourceOrder: number) => new Set(
+    (options.bindingVersions?.versions ?? []).flatMap((version) =>
+      version.sourceOrder < sourceOrder &&
+        bindingVersionDependencyExecutionPositionById.has(version.id) &&
+        activeGeometryPrerequisitesReadyForBinding(version.bindingId)
+        ? [version.id]
+        : []
+    )
+  );
+  const dependencyExecutionPositionForSourceOrder = (
+    sourceOrder: number,
+    currentPosition: number | undefined
+  ): number | undefined => {
+    const readyPositions = [...dependencyReadyVersionIdsForSourceOrder(sourceOrder)].flatMap((versionId) => {
+      const position = bindingVersionDependencyExecutionPositionById.get(versionId);
+      return position === undefined ? [] : [position];
+    });
+    return [...readyPositions, ...(currentPosition === undefined ? [] : [currentPosition])]
+      .reduce<number | undefined>((maximum, position) => maximum === undefined ? position : Math.max(maximum, position), undefined);
+  };
   const knownConditionalMutationOwnerIds = new Set(
     options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain
       .filter((owner) => owner.kind === "conditionalBranch")
@@ -1218,12 +1238,16 @@ export const evaluateElements = (
   const evaluateGeometryValueEntry = (entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry) => {
     const sourceOrder = entry.sourceExecutionPosition ?? entry.executionPosition;
     if (linearMutationResolver) {
+      const dependencyExecutionPosition = dependencyExecutionPositionForSourceOrder(
+        sourceOrder,
+        typedDependencyEndpointRankById.get(`geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`) ?? entry.executionPosition
+      );
+      const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(sourceOrder);
       linearMutationResolver.advanceTo({
         kind: "beforeStatement",
         sourceOrder,
-        dependencyExecutionPosition:
-          typedDependencyEndpointRankById.get(`geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`) ?? entry.executionPosition
-      });
+        dependencyExecutionPosition
+      }, dependencyReadyVersionIds);
     }
     if (entry.construction.kind === "none") {
       computedGeometryValues.delete(geometryValueOccurrenceKey(entry.occurrence));
@@ -1841,6 +1865,9 @@ export const evaluateElements = (
         `evaluateElements: no compiled source execution position for ${sourceId}`
       );
     }
+    const currentDependencyExecutionPosition = typedDependencyEndpointRankById.get(`element:${sourceId}`) ??
+      typedDependencyEndpointRankById.get(`element:${element.id}`);
+    const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(sourceOrder);
     // `beforeStatement` deliberately excludes a set on this same source line.
     linearMutationResolver!.advanceTo({
       kind: "beforeStatement",
@@ -1849,9 +1876,11 @@ export const evaluateElements = (
       // is the first source position, so use the narrow half-step only for a
       // forGroup boundary; ordinary statements keep the established rule.
       sourceOrder: element.type === "forGroup" ? sourceOrder + 0.5 : sourceOrder,
-      dependencyExecutionPosition: typedDependencyEndpointRankById.get(`element:${sourceId}`) ??
-        typedDependencyEndpointRankById.get(`element:${element.id}`)
-    });
+      dependencyExecutionPosition: dependencyExecutionPositionForSourceOrder(
+        sourceOrder,
+        currentDependencyExecutionPosition
+      )
+    }, dependencyReadyVersionIds);
   };
 
   const pushGeneratedVisibilityState = (
@@ -2905,6 +2934,14 @@ export const evaluateElements = (
     if (prerequisites.some((edge) => !endpointIsReady(typedDependencyEndpointId(edge.to), nextVisiting))) return false;
     return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
   };
+  activeGeometryPrerequisitesReadyForBinding = (bindingId: string): boolean => {
+    const activeGeometryEdges = (options.typedDependencyGraph?.directByEndpointId.get(`binding:${bindingId}`) ?? [])
+      .filter((edge) => graphEdgeIsActive(edge) &&
+        (edge.to.kind === "geometry-value" || edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence"));
+    return activeGeometryEdges.length > 0 && activeGeometryEdges.every((edge) =>
+      endpointIsReady(typedDependencyEndpointId(edge.to))
+    );
+  };
   const hasFailedGeometryPrerequisite = (elementId: ElementId): boolean => {
     if (options.typedDependencyGraph) {
       return options.typedDependencyGraph.edges.some((edge) => {
@@ -2970,11 +3007,15 @@ export const evaluateElements = (
         const entrySourcePositionAvailable = entrySourcePosition !== undefined &&
           (!linearMutationOrderingActive || entrySourcePosition <= sourceExecutionPositionLimit);
         if (entry && entrySourcePositionAvailable) {
+          const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(entrySourcePosition);
           linearMutationResolver?.advanceTo({
             kind: "beforeStatement",
             sourceOrder: entrySourcePosition,
-            dependencyExecutionPosition: typedDependencyEndpointRankById.get(candidate.sourceEndpointId)
-          });
+            dependencyExecutionPosition: dependencyExecutionPositionForSourceOrder(
+              entrySourcePosition,
+              typedDependencyEndpointRankById.get(candidate.sourceEndpointId)
+            )
+          }, dependencyReadyVersionIds);
         }
         if (candidate.kind === "geometry-value-coalesce") {
           if (!entry || !entrySourcePositionAvailable) continue;

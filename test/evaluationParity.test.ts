@@ -2552,6 +2552,247 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     ]));
   }, 30000);
 
+  it("schedules forward Module geometry-property reads without changing append ownership", async () => {
+    const forwardModule = [
+      "module M() {",
+      "  export const value: number = @Target.length",
+      "  line Target = segment(start: (20, 0), end: (40, 0))",
+      "}"
+    ];
+    const producerFirstModule = [
+      "module M() {",
+      "  line Target = segment(start: (20, 0), end: (40, 0))",
+      "  export const value: number = @Target.length",
+      "}"
+    ];
+    const ordinaryTail = [
+      "instance I = M()",
+      "const exported: number = @I::value",
+      "point Use = coordinate(x: @exported, y: 0)"
+    ];
+    const source = (...lines: readonly string[]) => ["nui 1", ...lines].join("\n");
+    const successCases = [
+      { name: "forward", source: source(...forwardModule, ...ordinaryTail) },
+      { name: "producer-before-consumer", source: source(...producerFirstModule, ...ordinaryTail) },
+      {
+        name: "unrelated-root-before-module",
+        source: source("const unrelatedBefore: number = 101", ...forwardModule, ...ordinaryTail)
+      },
+      {
+        name: "unrelated-root-between-module-and-instance",
+        source: source(...forwardModule, "const unrelatedBetween: number = 202", ...ordinaryTail)
+      },
+      {
+        name: "unrelated-root-after-instance",
+        source: source(...forwardModule, "instance I = M()", "const unrelatedAfter: number = 303", ...ordinaryTail.slice(1))
+      },
+      {
+        name: "renamed-module",
+        source: source(
+          ...forwardModule.map((line) => line.replace("module M()", "module Renamed()")),
+          ...ordinaryTail.map((line) => line.replaceAll("M()", "Renamed()"))
+        )
+      },
+      {
+        name: "unrelated-module-inserted",
+        source: source(
+          "module Noise() {",
+          "  const ignored: number = 909",
+          "}",
+          "instance Spare = Noise()",
+          ...forwardModule,
+          ...ordinaryTail
+        )
+      },
+      {
+        name: "unrelated-source-and-scalar-padding",
+        source: source(
+          "// SAY-441 leading source padding",
+          "",
+          "const unrelatedBefore: number = 404",
+          "",
+          "module M() {",
+          "  const unrelatedLocal: number = 505",
+          "  export const value: number = @Target.length",
+          "  line Target = segment(start: (20, 0), end: (40, 0))",
+          "  const unrelatedAfter: number = 606",
+          "}",
+          "",
+          ...ordinaryTail
+        )
+      }
+    ];
+
+    for (const variant of successCases) {
+      const fixture = fixtureFromSource(variant.source);
+      const options = optionsFor(fixture);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error"), variant.name).toEqual([]);
+      expect(isRustEligibleFixture(fixture), variant.name).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload), variant.name).toEqual(normalizeParityPayload(tsPayload));
+      const use = fixture.elements.find((element) => element.name === "Use");
+      if (!use) throw new Error(`expected the Module property consumer in ${variant.name}`);
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors, variant.name).toEqual([]);
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, "exported"), 20);
+        expect(result.computedGeometry.get(use.id), variant.name).toMatchObject({
+          kind: "point",
+          x: 20,
+          y: 0
+        });
+      }
+    }
+
+    const twoInstances = fixtureFromSource([
+      "nui 1",
+      "module M(distance: number) {",
+      "  export const value: number = @Target.length",
+      "  line Target = segment(start: (0, 0), end: (@distance, 0))",
+      "  point Use = coordinate(x: @value, y: 0)",
+      "}",
+      "instance First = M(distance: 20)",
+      "instance Second = M(distance: 35)",
+      "const first: number = @First::value",
+      "const second: number = @Second::value",
+      "point UseFirst = coordinate(x: @first, y: 0)",
+      "point UseSecond = coordinate(x: @second, y: 0)"
+    ].join("\n"));
+    const twoInstanceOptions = optionsFor(twoInstances);
+    expect(isRustEligibleFixture(twoInstances)).toBe(true);
+    const twoInstanceTs = evaluateElementsReferencePayload(twoInstances.elements, twoInstanceOptions);
+    const twoInstanceRust = await rustStdio!.evaluate(twoInstances.elements, twoInstanceOptions);
+    expect(normalizeParityPayload(twoInstanceRust)).toEqual(normalizeParityPayload(twoInstanceTs));
+    const repeatedUseElements = twoInstances.elements.filter((element) => element.name === "Use");
+    expect(repeatedUseElements).toHaveLength(2);
+    for (const payload of [twoInstanceTs, twoInstanceRust]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(twoInstances, payload, "first"), 20);
+      expectScalarNumberClose(scalarBindingFor(twoInstances, payload, "second"), 35);
+      expect(repeatedUseElements.map((element) => result.computedGeometry.get(element.id))
+        .map((geometry) => geometry?.kind === "point" ? geometry.x : undefined).sort((a, b) => (a ?? 0) - (b ?? 0)))
+        .toEqual([20, 35]);
+      expect(result.computedGeometry.get(twoInstances.elements.find((element) => element.name === "UseFirst")!.id))
+        .toMatchObject({ kind: "point", x: 20, y: 0 });
+      expect(result.computedGeometry.get(twoInstances.elements.find((element) => element.name === "UseSecond")!.id))
+        .toMatchObject({ kind: "point", x: 35, y: 0 });
+    }
+
+    const localAndExported = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  const localValue: number = @Target.length",
+      "  line Target = segment(start: (20, 0), end: (40, 0))",
+      "  export const value: number = @Target.length",
+      "}",
+      "instance I = M()",
+      "const exported: number = @I::value",
+      "point ExportUse = coordinate(x: @exported, y: 0)"
+    ].join("\n"));
+    const localAndExportedOptions = optionsFor(localAndExported);
+    const localAndExportedGeometryVersions = localAndExportedOptions.bindingVersions?.versions.filter((version) =>
+      version.catalogOrder === "append" && version.initializer?.kind === "geometryProperty"
+    ) ?? [];
+    expect(localAndExportedGeometryVersions).toHaveLength(2);
+    expect(isRustEligibleFixture(localAndExported)).toBe(true);
+    const localExportTs = evaluateElementsReferencePayload(localAndExported.elements, localAndExportedOptions);
+    const localExportRust = await rustStdio!.evaluate(localAndExported.elements, localAndExportedOptions);
+    expect(normalizeParityPayload(localExportRust)).toEqual(normalizeParityPayload(localExportTs));
+    for (const payload of [localExportTs, localExportRust]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(localAndExported, payload, "exported"), 20);
+      for (const version of localAndExportedGeometryVersions) {
+        expect(result.computedScalarBindings?.get(version.bindingId)).toMatchObject({
+          status: "ok",
+          value: { kind: "number", value: 20 }
+        });
+      }
+      expect(result.computedGeometry.get(localAndExported.elements.find((element) => element.name === "ExportUse")!.id))
+        .toMatchObject({ kind: "point", x: 20, y: 0 });
+    }
+
+    const appendOnly = fixtureFromSource([
+      "nui 1",
+      "module Plain() {",
+      "  const local: number = 7",
+      "  export const value: number = @local + 1",
+      "  point Use = coordinate(x: @value, y: 0)",
+      "}",
+      "instance I = Plain()",
+      "const exported: number = @I::value"
+    ].join("\n"));
+    const appendOnlyOptions = optionsFor(appendOnly);
+    const appendOnlyGraph = appendOnlyOptions.typedDependencyGraph;
+    const appendCatalogIds = new Set(appendOnly.compiled?.doc.bindingAnalysis?.catalog.bindings
+      .filter((binding) => binding.catalogOrder === "append")
+      .map((binding) => binding.id));
+    const appendOnlyVersions = appendOnlyOptions.bindingVersions?.versions.filter((version) => appendCatalogIds.has(version.bindingId)) ?? [];
+    expect(appendOnlyVersions.length).toBeGreaterThan(0);
+    expect(appendOnlyVersions.every((version) => version.catalogOrder === "append")).toBe(true);
+    expect(appendOnlyVersions.every((version) => !appendOnlyGraph ||
+      !typedDependencyBindingHasActiveGeometryPrerequisite(appendOnlyGraph, version.bindingId, new Map()))).toBe(true);
+    expect(isRustEligibleFixture(appendOnly)).toBe(true);
+    const appendOnlyTs = evaluateElementsReferencePayload(appendOnly.elements, appendOnlyOptions);
+    const appendOnlyRust = await rustStdio!.evaluate(appendOnly.elements, appendOnlyOptions);
+    expect(normalizeParityPayload(appendOnlyRust)).toEqual(normalizeParityPayload(appendOnlyTs));
+    for (const payload of [appendOnlyTs, appendOnlyRust]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(appendOnly, payload, "exported"), 8);
+      expect(result.computedGeometry.get(appendOnly.elements.find((element) => element.name === "Use")!.id))
+        .toMatchObject({ kind: "point", x: 8, y: 0 });
+    }
+
+    const unavailableCases = [
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  export const value: number = @Target.length",
+          "  line Target = segment(start: (20, 0), end: (40, 0), enabled: false)",
+          "}",
+          "instance I = M()"
+        ].join("\n"),
+        name: "disabled"
+      },
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  const invalid: number = sqrt(-1)",
+          "  export const value: number = @Target.length",
+          "  line Target = segment(start: (20, 0), end: (@invalid, 0))",
+          "}",
+          "instance I = M()"
+        ].join("\n"),
+        name: "failed"
+      }
+    ];
+    for (const unavailable of unavailableCases) {
+      const fixture = fixtureFromSource(unavailable.source);
+      const options = optionsFor(fixture);
+      const geometryPropertyVersions = options.bindingVersions?.versions.filter((version) =>
+        version.catalogOrder === "append" && version.initializer?.kind === "geometryProperty"
+      ) ?? [];
+      expect(geometryPropertyVersions, unavailable.name).toHaveLength(1);
+      expect(isRustEligibleFixture(fixture), unavailable.name).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload), unavailable.name).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.computedScalarBindings?.get(geometryPropertyVersions[0]!.bindingId), unavailable.name).toMatchObject({
+          status: "error",
+          issueCode: "evaluation-geometry-property-unavailable"
+        });
+      }
+    }
+
+  }, 30000);
+
   it("preserves selected stages through immutable geometry aliases", async () => {
     const cases = buildSay433TypeScriptCases();
     for (const { fixture, options, tsPayload } of cases) {

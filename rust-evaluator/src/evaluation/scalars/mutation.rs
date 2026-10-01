@@ -61,6 +61,7 @@ pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) program: &'a [GeometryValueProgramEntry],
     pub(crate) execution_positions: &'a [f64],
     pub(crate) binding_execution_positions: &'a HashMap<String, f64>,
+    pub(crate) dependency_ready_binding_ids: &'a HashSet<String>,
     pub(crate) dependency_order_available: bool,
     pub(crate) dependency_execution_position: Option<f64>,
     pub(crate) release_allowed: &'a [bool],
@@ -104,6 +105,7 @@ impl<'a> ScalarMutationResolver<'a> {
         source_order: usize,
         dependency_execution_position: Option<f64>,
         binding_execution_positions: &HashMap<String, f64>,
+        dependency_ready_binding_ids: &HashSet<String>,
         dependency_order_available: bool,
         state: &mut EvaluationState,
     ) {
@@ -135,6 +137,7 @@ impl<'a> ScalarMutationResolver<'a> {
             binding_execution_positions,
             state,
             None,
+            dependency_ready_binding_ids,
             dependency_execution_position.is_infinite(),
         );
     }
@@ -177,15 +180,27 @@ impl<'a> ScalarMutationResolver<'a> {
                         &mut geometry_values,
                         state,
                     );
+                    let dependency_ready_binding_ids =
+                        geometry_values.dependency_ready_binding_ids.clone();
+                    self.advance_pending_dependency_versions_through(
+                        dependency_execution_position,
+                        geometry_values.binding_execution_positions,
+                        state,
+                        Some(&mut geometry_values),
+                        &dependency_ready_binding_ids,
+                        false,
+                    );
                     self.execute(version, state);
                 }
             }
             self.retire_before(source_order);
+            let dependency_ready_binding_ids = geometry_values.dependency_ready_binding_ids.clone();
             self.advance_pending_dependency_versions_through(
                 dependency_execution_position,
                 geometry_values.binding_execution_positions,
                 state,
                 Some(&mut geometry_values),
+                &dependency_ready_binding_ids,
                 false,
             );
             self.evaluate_geometry_values_through(
@@ -285,20 +300,28 @@ impl<'a> ScalarMutationResolver<'a> {
         &mut self,
         state: &mut EvaluationState,
         binding_execution_positions: &HashMap<String, f64>,
+        dependency_ready_binding_ids: &HashSet<String>,
         dependency_order_available: bool,
     ) {
         self.advance_before_with_execution_position(
             usize::MAX,
             Some(f64::INFINITY),
             binding_execution_positions,
+            dependency_ready_binding_ids,
             dependency_order_available,
             state,
         );
         self.retire_before(usize::MAX);
     }
     pub(crate) fn is_dependency_scheduled_version(version: &ValidatedBindingVersion) -> bool {
-        version.control.get("kind").and_then(Value::as_str) == Some("linear")
-            && version.catalog_order != Some(ValidatedBindingCatalogOrder::Append)
+        let is_linear = version.control.get("kind").and_then(Value::as_str) == Some("linear");
+        // Catalog order owns materialization; the projected dependency position owns scheduling.
+        is_linear
+            && match version.catalog_order {
+                Some(ValidatedBindingCatalogOrder::Source)
+                | Some(ValidatedBindingCatalogOrder::Append)
+                | None => true,
+            }
     }
     fn advance_pending_dependency_versions_through(
         &mut self,
@@ -306,6 +329,7 @@ impl<'a> ScalarMutationResolver<'a> {
         binding_execution_positions: &HashMap<String, f64>,
         state: &mut EvaluationState,
         mut geometry_values: Option<&mut GeometryValueReleaseContext<'_>>,
+        dependency_ready_binding_ids: &HashSet<String>,
         flush_unranked: bool,
     ) {
         let mut ready = self
@@ -316,7 +340,9 @@ impl<'a> ScalarMutationResolver<'a> {
                 let rank = binding_execution_positions
                     .get(&version.binding_id)
                     .copied()?;
-                (rank <= dependency_execution_position).then_some((*version_index, rank))
+                (rank <= dependency_execution_position
+                    && dependency_ready_binding_ids.contains(&version.binding_id))
+                .then_some((*version_index, rank))
             })
             .collect::<Vec<_>>();
         ready.sort_by(|(left_index, left_rank), (right_index, right_rank)| {
