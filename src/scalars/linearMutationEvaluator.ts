@@ -40,7 +40,12 @@ export type LinearMutationEvaluation = {
 };
 
 export type IncrementalLinearMutationEvaluator = {
-  advanceTo: (position: BindingReadPosition, dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>) => void;
+  advanceTo: (
+    position: BindingReadPosition,
+    dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
+    flushUnranked?: boolean,
+    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>
+  ) => void;
   /** Records Task 25's already-evaluated result exactly once for this owner. */
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveCurrent: (bindingId: BindingId) => ScalarEvaluation;
@@ -261,11 +266,15 @@ export const createIncrementalLinearMutationEvaluator = (
   const advanceDependencyReadyVersionsThrough = (
     executionPosition: number,
     dependencyExecutionPositionByVersionId: ReadonlyMap<BindingVersionId, number>,
-    flushUnranked: boolean
+    flushUnranked: boolean,
+    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>
   ): void => {
     const ready = [...pendingDependencyVersions.values()].flatMap((version) => {
       const rank = dependencyExecutionPositionByVersionId.get(version.id);
-      return rank !== undefined && rank <= executionPosition ? [{ version, rank }] : [];
+      return rank !== undefined && rank <= executionPosition &&
+        (!dependencyReadyVersionIds || dependencyReadyVersionIds.has(version.id))
+        ? [{ version, rank }]
+        : [];
     }).sort((left, right) =>
       left.rank - right.rank ||
       left.version.sourceOrder - right.version.sourceOrder ||
@@ -334,7 +343,8 @@ export const createIncrementalLinearMutationEvaluator = (
   const advanceTo = (
     position: BindingReadPosition,
     dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
-    flushUnranked = false
+    flushUnranked = false,
+    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>
   ): void => {
     const dependencyScheduleActive = dependencyExecutionPositionByVersionId !== undefined &&
       position.dependencyExecutionPosition !== undefined;
@@ -345,10 +355,17 @@ export const createIncrementalLinearMutationEvaluator = (
       nextVersionIndex += 1;
       if (dependencyScheduleActive &&
         version.control.kind === "linear" &&
-        version.catalogOrder !== "append" &&
         dependencyExecutionPositionByVersionId!.has(version.id)) {
         pendingDependencyVersions.set(version.id, version);
         continue;
+      }
+      if (dependencyScheduleActive) {
+        advanceDependencyReadyVersionsThrough(
+          position.dependencyExecutionPosition!,
+          dependencyExecutionPositionByVersionId!,
+          flushUnranked,
+          dependencyReadyVersionIds
+        );
       }
       execute(version);
     }
@@ -357,7 +374,8 @@ export const createIncrementalLinearMutationEvaluator = (
       advanceDependencyReadyVersionsThrough(
         position.dependencyExecutionPosition!,
         dependencyExecutionPositionByVersionId!,
-        flushUnranked
+        flushUnranked,
+        dependencyReadyVersionIds
       );
     }
   };

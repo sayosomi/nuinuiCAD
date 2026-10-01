@@ -5,7 +5,7 @@ import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { computedReferencePathValue } from "./numericExpressions";
 import { resolveDerivedPoint } from "../model/pointAnchors";
 import { getParameterValue } from "@nuinuicad/nui-language";
-import type { BindingReadPosition, BindingVersionGraph } from "@nuinuicad/nui-language";
+import type { BindingReadPosition, BindingVersionGraph, BindingVersionId } from "@nuinuicad/nui-language";
 import {
   createLazyScalarProgramEvaluator,
   finalizeScalarProgramEvaluation,
@@ -59,7 +59,7 @@ export type ScalarBindingResolver = {
 };
 
 export type LinearScalarBindingResolver = {
-  advanceTo: (position: BindingReadPosition) => void;
+  advanceTo: (position: BindingReadPosition, dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>) => void;
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
   resolveCollectionIndex?: ScalarBindingResolver["resolveCollectionIndex"];
@@ -453,7 +453,12 @@ export const createDocumentLinearScalarBindingResolver = (
     ...collectionResolver?.environmentFor(sourceOrder)
   });
   return {
-    advanceTo: (position) => evaluator.advanceTo(position, getDependencyExecutionPositionByVersionId?.()),
+    advanceTo: (position, dependencyReadyVersionIds) => evaluator.advanceTo(
+      position,
+      getDependencyExecutionPositionByVersionId?.(),
+      false,
+      dependencyReadyVersionIds
+    ),
     registerConditionalResult: evaluator.registerConditionalResult,
     resolveBinding: evaluator.resolveCurrent,
     ...(collectionResolver ? {

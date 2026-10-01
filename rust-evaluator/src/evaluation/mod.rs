@@ -2059,6 +2059,63 @@ fn evaluate_document_input_with_scalar_program(
         &dependency_rank_by_endpoint_id,
         &conditional_branch_selections,
     );
+    let ready_binding_ids_for_source_order =
+        |source_order: usize,
+         branch_selections: &HashMap<String, String>,
+         state: &EvaluationState,
+         execution_positions: &HashMap<String, f64>,
+         evaluated_geometry_values: &[bool],
+         resolver: Option<&dyn ScalarDocumentBindingResolver>| {
+            let Some(resolver) = resolver else {
+                return HashSet::new();
+            };
+            binding_versions
+                .as_ref()
+                .map(|versions| {
+                    versions
+                        .versions
+                        .iter()
+                        .filter(|version| {
+                            version.source_order < source_order
+                                && execution_positions.contains_key(&version.binding_id)
+                                && conditional_dependency_graph.as_ref().is_some_and(|graph| {
+                                    graph.active_geometry_property_prerequisites_are_ready(
+                                        &version.binding_id,
+                                        branch_selections,
+                                        resolver,
+                                        state,
+                                        evaluated_geometry_values,
+                                        &geometry_value_index_by_endpoint_id,
+                                    )
+                                })
+                        })
+                        .map(|version| version.binding_id.clone())
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default()
+        };
+    let execution_position_for_source_order =
+        |source_order: usize,
+         current_position: Option<f64>,
+         branch_selections: &HashMap<String, String>,
+         state: &EvaluationState,
+         execution_positions: &HashMap<String, f64>,
+         evaluated_geometry_values: &[bool],
+         resolver: Option<&dyn ScalarDocumentBindingResolver>| {
+            ready_binding_ids_for_source_order(
+                source_order,
+                branch_selections,
+                state,
+                execution_positions,
+                evaluated_geometry_values,
+                resolver,
+            )
+            .iter()
+            .filter_map(|binding_id| execution_positions.get(binding_id).copied())
+            .fold(current_position, |maximum, position| {
+                Some(maximum.map_or(position, |current| current.max(position)))
+            })
+        };
     let mut pending_indices = evaluation_indices.clone();
     let original_pending_order = pending_indices
         .iter()
@@ -2134,28 +2191,54 @@ fn evaluate_document_input_with_scalar_program(
                 }
             }
         }
-        if let (Some(source_order), Some(resolver)) =
-            (pending_source_order, scalar_mutation_resolver.as_mut())
-        {
-            resolver.advance_before_with_geometry_values(
-                source_order,
-                pending_geometry_position,
-                &mut state,
-                GeometryValueReleaseContext {
-                    program: &geometry_value_program,
-                    execution_positions: &geometry_value_execution_positions,
-                    binding_execution_positions: &binding_execution_positions,
-                    dependency_order_available: conditional_dependency_graph.is_some(),
-                    dependency_execution_position: pending_element_id
+        if let Some(source_order) = pending_source_order {
+            let readiness_resolver = scalar_mutation_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .or_else(|| {
+                    scalar_binding_resolver
                         .as_ref()
-                        .and_then(|id| dependency_rank_by_endpoint_id.get(&format!("element:{id}")))
-                        .copied()
-                        .map(|rank| rank as f64),
-                    release_allowed: &release_allowed,
-                    source_position_fence: linear_mutation_ordering_active,
-                    evaluated: &mut evaluated_geometry_value_entries,
-                },
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                });
+            let dependency_ready_binding_ids = ready_binding_ids_for_source_order(
+                source_order,
+                &conditional_branch_selections,
+                &state,
+                &binding_execution_positions,
+                &evaluated_geometry_value_entries,
+                readiness_resolver,
             );
+            let dependency_execution_position = execution_position_for_source_order(
+                source_order,
+                pending_element_id
+                    .as_ref()
+                    .and_then(|id| dependency_rank_by_endpoint_id.get(&format!("element:{id}")))
+                    .copied()
+                    .map(|rank| rank as f64),
+                &conditional_branch_selections,
+                &state,
+                &binding_execution_positions,
+                &evaluated_geometry_value_entries,
+                readiness_resolver,
+            );
+            if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+                resolver.advance_before_with_geometry_values(
+                    source_order,
+                    pending_geometry_position,
+                    &mut state,
+                    GeometryValueReleaseContext {
+                        program: &geometry_value_program,
+                        execution_positions: &geometry_value_execution_positions,
+                        binding_execution_positions: &binding_execution_positions,
+                        dependency_ready_binding_ids: &dependency_ready_binding_ids,
+                        dependency_order_available: conditional_dependency_graph.is_some(),
+                        dependency_execution_position,
+                        release_allowed: &release_allowed,
+                        source_position_fence: linear_mutation_ordering_active,
+                        evaluated: &mut evaluated_geometry_value_entries,
+                    },
+                );
+            }
         }
         if let (Some(graph), Some(_)) = (
             conditional_dependency_graph
@@ -2199,15 +2282,42 @@ fn evaluate_document_input_with_scalar_program(
                         {
                             continue;
                         }
+                        let source_order = entry.source_execution_position.ceil().max(0.0) as usize;
+                        let readiness_resolver = scalar_mutation_resolver
+                            .as_ref()
+                            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                            .or_else(|| {
+                                scalar_binding_resolver
+                                    .as_ref()
+                                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                            });
+                        let dependency_ready_binding_ids = ready_binding_ids_for_source_order(
+                            source_order,
+                            &conditional_branch_selections,
+                            &state,
+                            &binding_execution_positions,
+                            &evaluated_geometry_value_entries,
+                            readiness_resolver,
+                        );
+                        let dependency_execution_position = dependency_rank_by_endpoint_id
+                            .get(&candidate.source_endpoint_id)
+                            .copied()
+                            .map(|rank| rank as f64);
+                        let dependency_execution_position = execution_position_for_source_order(
+                            source_order,
+                            dependency_execution_position,
+                            &conditional_branch_selections,
+                            &state,
+                            &binding_execution_positions,
+                            &evaluated_geometry_value_entries,
+                            readiness_resolver,
+                        );
                         if let Some(mutation_resolver) = scalar_mutation_resolver.as_mut() {
-                            let dependency_execution_position = dependency_rank_by_endpoint_id
-                                .get(&candidate.source_endpoint_id)
-                                .copied()
-                                .map(|rank| rank as f64);
                             mutation_resolver.advance_before_with_execution_position(
-                                entry.source_execution_position.ceil().max(0.0) as usize,
+                                source_order,
                                 dependency_execution_position,
                                 &binding_execution_positions,
+                                &dependency_ready_binding_ids,
                                 conditional_dependency_graph.is_some(),
                                 &mut state,
                             );
@@ -2379,6 +2489,34 @@ fn evaluate_document_input_with_scalar_program(
             }
         }
         if let Some(source_order) = current_source_order {
+            let readiness_resolver = scalar_mutation_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                .or_else(|| {
+                    scalar_binding_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                });
+            let dependency_ready_binding_ids = ready_binding_ids_for_source_order(
+                source_order,
+                &conditional_branch_selections,
+                &state,
+                &binding_execution_positions,
+                &evaluated_geometry_value_entries,
+                readiness_resolver,
+            );
+            let dependency_execution_position = execution_position_for_source_order(
+                source_order,
+                dependency_rank_by_endpoint_id
+                    .get(&format!("element:{id}"))
+                    .copied()
+                    .map(|rank| rank as f64),
+                &conditional_branch_selections,
+                &state,
+                &binding_execution_positions,
+                &evaluated_geometry_value_entries,
+                readiness_resolver,
+            );
             if let Some(resolver) = scalar_mutation_resolver.as_mut() {
                 resolver.advance_before_with_geometry_values(
                     source_order,
@@ -2388,11 +2526,9 @@ fn evaluate_document_input_with_scalar_program(
                         program: &geometry_value_program,
                         execution_positions: &geometry_value_execution_positions,
                         binding_execution_positions: &binding_execution_positions,
+                        dependency_ready_binding_ids: &dependency_ready_binding_ids,
                         dependency_order_available: conditional_dependency_graph.is_some(),
-                        dependency_execution_position: dependency_rank_by_endpoint_id
-                            .get(&format!("element:{id}"))
-                            .copied()
-                            .map(|rank| rank as f64),
+                        dependency_execution_position,
                         release_allowed: &geometry_value_release_allowed,
                         source_position_fence: linear_mutation_ordering_active,
                         evaluated: &mut evaluated_geometry_value_entries,
@@ -2871,15 +3007,31 @@ fn evaluate_document_input_with_scalar_program(
         .iter()
         .any(|evaluated| !evaluated)
     {
+        let source_order = geometry_value_program
+            .iter()
+            .zip(&evaluated_geometry_value_entries)
+            .filter_map(|(entry, evaluated)| {
+                (!evaluated).then_some(entry.source_execution_position)
+            })
+            .fold(0.0_f64, f64::max)
+            .ceil() as usize;
+        let readiness_resolver = scalar_mutation_resolver
+            .as_ref()
+            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            .or_else(|| {
+                scalar_binding_resolver
+                    .as_ref()
+                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            });
+        let dependency_ready_binding_ids = ready_binding_ids_for_source_order(
+            source_order,
+            &conditional_branch_selections,
+            &state,
+            &binding_execution_positions,
+            &evaluated_geometry_value_entries,
+            readiness_resolver,
+        );
         if let Some(resolver) = scalar_mutation_resolver.as_mut() {
-            let source_order = geometry_value_program
-                .iter()
-                .zip(&evaluated_geometry_value_entries)
-                .filter_map(|(entry, evaluated)| {
-                    (!evaluated).then_some(entry.source_execution_position)
-                })
-                .fold(0.0_f64, f64::max)
-                .ceil() as usize;
             resolver.advance_before_with_geometry_values(
                 source_order,
                 f64::INFINITY,
@@ -2888,6 +3040,7 @@ fn evaluate_document_input_with_scalar_program(
                     program: &geometry_value_program,
                     execution_positions: &geometry_value_execution_positions,
                     binding_execution_positions: &binding_execution_positions,
+                    dependency_ready_binding_ids: &dependency_ready_binding_ids,
                     dependency_order_available: conditional_dependency_graph.is_some(),
                     dependency_execution_position: conditional_dependency_graph
                         .as_ref()
@@ -2932,11 +3085,28 @@ fn evaluate_document_input_with_scalar_program(
         );
     }
 
+    let final_readiness_resolver = scalar_mutation_resolver
+        .as_ref()
+        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+        .or_else(|| {
+            scalar_binding_resolver
+                .as_ref()
+                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+        });
+    let final_dependency_ready_binding_ids = ready_binding_ids_for_source_order(
+        usize::MAX,
+        &conditional_branch_selections,
+        &state,
+        &binding_execution_positions,
+        &evaluated_geometry_value_entries,
+        final_readiness_resolver,
+    );
     let (computed_scalar_bindings, computed_scalar_binding_versions) =
         if let Some(resolver) = scalar_mutation_resolver.as_mut() {
             resolver.finalize(
                 &mut state,
                 &binding_execution_positions,
+                &final_dependency_ready_binding_ids,
                 conditional_dependency_graph.is_some(),
             );
             (Some(resolver.computed_bindings()), Some(resolver.history()))

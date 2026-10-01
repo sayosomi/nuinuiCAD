@@ -4114,6 +4114,33 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "P").id)).toMatchObject({ x: 10 });
   });
 
+  it("schedules a forward Module-local geometry property read before its appended binding consumer", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  export const value: number = @Target.length",
+      "  line Target = segment(start: (20, 0), end: (40, 0))",
+      "}",
+      "instance I = M()",
+      "const exported: number = @I::value",
+      "point Use = coordinate(x: @exported, y: 0)"
+    ].join("\n"), "say441-module-forward-geometry-property");
+    expectValid(compiled);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(elementNamed(compiled, "Use").id)).toMatchObject({
+      kind: "point",
+      x: 20,
+      y: 0
+    });
+    const exported = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "exported");
+    expect(exported ? result.computedScalarBindings?.get(exported.id) : undefined).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 20 }
+    });
+  });
+
   it("evaluates root and Module collection lengths without a geometry runtime read", () => {
     const compiled = compileWithIds([
       "nui 1",

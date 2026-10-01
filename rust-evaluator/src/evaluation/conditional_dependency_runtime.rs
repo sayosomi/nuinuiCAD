@@ -421,6 +421,41 @@ impl ConditionalDependencyGraph {
             })
     }
 
+    pub(crate) fn active_geometry_property_prerequisites_are_ready(
+        &self,
+        binding_id: &str,
+        branch_selections: &HashMap<String, String>,
+        resolver: &dyn ScalarDocumentBindingResolver,
+        state: &EvaluationState,
+        evaluated_geometry_values: &[bool],
+        geometry_value_index_by_endpoint_id: &HashMap<String, usize>,
+    ) -> bool {
+        let endpoint_id = format!("binding:{binding_id}");
+        let context = DependencyReadinessContext {
+            branch_selections,
+            resolver,
+            state,
+            evaluated_geometry_values,
+            geometry_value_index_by_endpoint_id,
+        };
+        let mut found = false;
+        for edge in self.edges.iter().filter(|edge| {
+            endpoint_key(&edge.from) == endpoint_id
+                && edge_is_active(edge, branch_selections)
+                && matches!(
+                    edge.to.kind.as_str(),
+                    "geometry-value" | "geometry-stage" | "module-occurrence"
+                )
+        }) {
+            found = true;
+            if !self.endpoint_is_ready_inner(&endpoint_key(&edge.to), &context, &mut HashSet::new())
+            {
+                return false;
+            }
+        }
+        found
+    }
+
     pub(crate) fn geometry_prerequisites_have_failed(
         &self,
         endpoint_id: &str,
