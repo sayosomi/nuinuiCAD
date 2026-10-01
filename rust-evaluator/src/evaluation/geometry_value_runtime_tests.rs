@@ -652,6 +652,312 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
 }
 
 #[test]
+fn geometry_references_project_selected_drawable_stages_and_immutable_aliases() {
+    let line_geometry = |owner: &str, start_x: f64, end_x: f64| {
+        json!({
+            "kind": "line",
+            "elementId": owner,
+            "name": owner,
+            "startPointId": format!("{owner}:start-id"),
+            "endPointId": format!("{owner}:end-id"),
+            "start": { "kind": "point", "elementId": format!("{owner}:start"), "name": "Start", "x": start_x, "y": 0.0 },
+            "end": { "kind": "point", "elementId": format!("{owner}:end"), "name": "End", "x": end_x, "y": 0.0 },
+            "length": end_x - start_x,
+            "startAngleDeg": 0.0,
+            "endAngleDeg": 0.0,
+            "startTangentAngleDeg": 0.0,
+            "endTangentAngleDeg": 0.0
+        })
+    };
+    let path_geometry = |owner: &str, start_x: f64, end_x: f64| {
+        json!({
+            "kind": "polyline",
+            "elementId": owner,
+            "name": owner,
+            "segments": [{
+                "elementId": format!("{owner}:segment"),
+                "start": { "kind": "point", "elementId": format!("{owner}:start"), "name": "Start", "x": start_x, "y": 5.0 },
+                "end": { "kind": "point", "elementId": format!("{owner}:end"), "name": "End", "x": end_x, "y": 5.0 },
+                "length": end_x - start_x
+            }],
+            "closed": false,
+            "start": { "kind": "point", "elementId": format!("{owner}:start"), "name": "Start", "x": start_x, "y": 5.0 },
+            "end": { "kind": "point", "elementId": format!("{owner}:end"), "name": "End", "x": end_x, "y": 5.0 },
+            "length": end_x - start_x,
+            "startTangentAngleDeg": 0.0,
+            "endTangentAngleDeg": 0.0
+        })
+    };
+    let occurrence = |source_statement_id: &str| GeometryValueOccurrence {
+        source_statement_id: source_statement_id.to_owned(),
+        instance_path: Vec::new(),
+        mapped_member_index: None,
+    };
+    let occurrence_json = |source_statement_id: &str| json!({ "sourceStatementId": source_statement_id, "instancePath": [] });
+    let drawable_target = |statement_id: &str, geometry_type: &str, stage_path: Option<Value>| {
+        let mut target = json!({
+            "kind": "drawable",
+            "statementId": statement_id,
+            "statementIndex": 0,
+            "geometryType": geometry_type
+        });
+        if let Some(stage_path) = stage_path {
+            target["stagePath"] = stage_path;
+        }
+        target
+    };
+    let value_target = |statement_id: &str, geometry_type: &str| {
+        json!({
+            "kind": "geometryValue",
+            "statementId": statement_id,
+            "statementIndex": 0,
+            "geometryType": geometry_type,
+            "occurrence": occurrence_json(statement_id)
+        })
+    };
+    let binder_target = |stage_path: Option<Value>| {
+        let mut target = json!({
+            "kind": "geometryValueForBinder",
+            "statementId": "binder:line",
+            "statementIndex": 0,
+            "geometryType": "line",
+            "binderId": "binder:line"
+        });
+        if let Some(stage_path) = stage_path {
+            target["stagePath"] = stage_path;
+        }
+        target
+    };
+    let references = vec![
+        (
+            "value:base-line",
+            "line",
+            drawable_target("drawable:line", "line", Some(json!(["base"]))),
+        ),
+        (
+            "value:line-alias",
+            "line",
+            value_target("value:base-line", "line"),
+        ),
+        (
+            "value:line-chain",
+            "line",
+            value_target("value:line-alias", "line"),
+        ),
+        (
+            "value:named-line",
+            "line",
+            drawable_target("drawable:line", "line", Some(json!(["moved"]))),
+        ),
+        (
+            "value:explicit-final-line",
+            "line",
+            drawable_target("drawable:line", "line", Some(json!(["final"]))),
+        ),
+        (
+            "value:implicit-final-line",
+            "line",
+            drawable_target("drawable:line", "line", None),
+        ),
+        (
+            "value:base-path",
+            "path",
+            drawable_target("drawable:path", "path", Some(json!(["base"]))),
+        ),
+        (
+            "value:path-alias",
+            "path",
+            value_target("value:base-path", "path"),
+        ),
+        (
+            "value:path-chain",
+            "path",
+            value_target("value:path-alias", "path"),
+        ),
+        (
+            "value:named-path",
+            "path",
+            drawable_target("drawable:path", "path", Some(json!(["moved"]))),
+        ),
+        (
+            "value:explicit-final-path",
+            "path",
+            drawable_target("drawable:path", "path", Some(json!(["final"]))),
+        ),
+        (
+            "value:implicit-final-path",
+            "path",
+            drawable_target("drawable:path", "path", None),
+        ),
+        ("value:binder-base-line", "line", binder_target(None)),
+        (
+            "value:binder-stage-override-line",
+            "line",
+            binder_target(Some(json!(["moved"]))),
+        ),
+    ];
+    let program = references
+        .iter()
+        .enumerate()
+        .map(|(index, (source_id, interface_type, target))| {
+            json!({
+                "sourceStatementId": source_id,
+                "sourceStatementIndex": index,
+                "declaredInterfaceType": interface_type,
+                "occurrence": occurrence_json(source_id),
+                "executionPosition": index as f64,
+                "construction": { "kind": "reference", "target": target }
+            })
+        })
+        .collect::<Vec<_>>();
+    let entries = decode_geometry_value_program(Some(&Value::Array(program)))
+        .expect("valid selected line and path references");
+
+    let line_base = line_geometry("drawable:line", 0.0, 10.0);
+    let line_named = line_geometry("drawable:line", 20.0, 30.0);
+    let line_final = line_geometry("drawable:line", 40.0, 50.0);
+    let path_base = path_geometry("drawable:path", 0.0, 10.0);
+    let path_named = path_geometry("drawable:path", 20.0, 30.0);
+    let path_final = path_geometry("drawable:path", 40.0, 50.0);
+    let mut state = EvaluationState {
+        elements: Vec::new(),
+        elements_by_id: HashMap::new(),
+        drawing_modifiers: Value::Array(Vec::new()),
+        selected_drawing_profile_id: None,
+        group_states: HashMap::new(),
+        computed_geometry: HashMap::from([
+            ("drawable:line".to_owned(), line_final.clone()),
+            ("drawable:path".to_owned(), path_final.clone()),
+        ]),
+        base_transformation_geometry: HashMap::from([
+            ("drawable:line".to_owned(), line_base.clone()),
+            ("drawable:path".to_owned(), path_base.clone()),
+        ]),
+        transformation_stage_geometry: HashMap::from([
+            (
+                super::transformation_stage_key("drawable:line", &["moved".to_owned()]),
+                line_named.clone(),
+            ),
+            (
+                super::transformation_stage_key("drawable:path", &["moved".to_owned()]),
+                path_named.clone(),
+            ),
+        ]),
+        completed_transformation_recipe_indices: HashSet::new(),
+        transformation_dependency_plans: None,
+        computed_geometry_order: Vec::new(),
+        computed_geometry_values: HashMap::new(),
+        geometry_input_targets: HashMap::new(),
+        geometry_collection_nodes: HashMap::new(),
+        geometry_value_binders: HashMap::from([(
+            "binder:line".to_owned(),
+            GeometryInputTarget::Drawable {
+                element_id: "drawable:line".to_owned(),
+                geometry_type: "line".to_owned(),
+                point_key: None,
+                stage_path: Some(vec!["base".to_owned()]),
+            },
+        )]),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
+        pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
+        instance_base_geometry: HashMap::new(),
+        errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    for entry in &entries {
+        evaluate_geometry_value_entry(entry, &EmptyBindingResolver, &mut state);
+    }
+
+    let value = |source_id: &str| state.computed_geometry_values.get(&occurrence(source_id));
+    let expected_line = |geometry: &Value| {
+        let start = geometry.get("start").expect("line start");
+        let end = geometry.get("end").expect("line end");
+        json!({
+            "kind": "line",
+            "start": { "x": start["x"], "y": start["y"] },
+            "end": { "x": end["x"], "y": end["y"] },
+            "length": geometry["length"],
+            "startAngleDeg": geometry["startAngleDeg"],
+            "endAngleDeg": geometry["endAngleDeg"],
+            "startTangentAngleDeg": geometry["startTangentAngleDeg"],
+            "endTangentAngleDeg": geometry["endTangentAngleDeg"]
+        })
+    };
+    let expected_path = |geometry: &Value| {
+        let segment = &geometry["segments"][0];
+        json!({
+            "kind": "polyline",
+            "segments": [{
+                "start": { "x": segment["start"]["x"], "y": segment["start"]["y"] },
+                "end": { "x": segment["end"]["x"], "y": segment["end"]["y"] },
+                "length": segment["length"]
+            }],
+            "closed": false,
+            "start": { "x": geometry["start"]["x"], "y": geometry["start"]["y"] },
+            "end": { "x": geometry["end"]["x"], "y": geometry["end"]["y"] },
+            "length": geometry["length"],
+            "startTangentAngleDeg": geometry["startTangentAngleDeg"],
+            "endTangentAngleDeg": geometry["endTangentAngleDeg"]
+        })
+    };
+
+    for source_id in [
+        "value:base-line",
+        "value:line-alias",
+        "value:line-chain",
+        "value:binder-base-line",
+    ] {
+        assert_eq!(
+            value(source_id),
+            Some(&expected_line(&line_base)),
+            "{source_id}"
+        );
+    }
+    for source_id in ["value:named-line", "value:binder-stage-override-line"] {
+        assert_eq!(
+            value(source_id),
+            Some(&expected_line(&line_named)),
+            "{source_id}"
+        );
+    }
+    for source_id in ["value:explicit-final-line", "value:implicit-final-line"] {
+        assert_eq!(
+            value(source_id),
+            Some(&expected_line(&line_final)),
+            "{source_id}"
+        );
+    }
+    for source_id in ["value:base-path", "value:path-alias", "value:path-chain"] {
+        assert_eq!(
+            value(source_id),
+            Some(&expected_path(&path_base)),
+            "{source_id}"
+        );
+    }
+    assert_eq!(value("value:named-path"), Some(&expected_path(&path_named)));
+    for source_id in ["value:explicit-final-path", "value:implicit-final-path"] {
+        assert_eq!(
+            value(source_id),
+            Some(&expected_path(&path_final)),
+            "{source_id}"
+        );
+    }
+    assert!(state.geometry_value_errors.is_empty());
+    assert!(state.computed_geometry_values.values().all(|value| {
+        !value.as_object().is_some_and(|object| {
+            object.contains_key("elementId")
+                || object.contains_key("name")
+                || object.contains_key("startPointId")
+        })
+    }));
+}
+
+#[test]
 fn geometry_references_project_exact_identity_free_values_from_drawables_and_values() {
     let point = |id: &str, x: f64, y: f64| {
         json!({
