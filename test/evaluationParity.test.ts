@@ -5536,6 +5536,36 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
+  it("matches direct qualified Module scalar geometry inputs through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  export const value: number = 2",
+      "}",
+      "instance I = M()",
+      "point Origin = coordinate(x: 0, y: 0)",
+      "point Use = coordinate(x: @I::value, y: 0)",
+      "point Shifted = offset(from: @Origin, dx: @I::value, dy: 3)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const use = fixture.elements.find((element) => element.name === "Use")!;
+    const shifted = fixture.elements.find((element) => element.name === "Shifted")!;
+
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    expect(ts.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    expect(ts.computedGeometry.get(use.id)).toMatchObject({ kind: "point", x: 2, y: 0 });
+    expect(rust.computedGeometry.get(use.id)).toMatchObject({ kind: "point", x: 2, y: 0 });
+    expect(ts.computedGeometry.get(shifted.id)).toMatchObject({ kind: "point", x: 2, y: 3 });
+    expect(rust.computedGeometry.get(shifted.id)).toMatchObject({ kind: "point", x: 2, y: 3 });
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("asserts the Module numeric geometry builtin through the Rust production boundary", () => {
     const fixture = readParityFixture(repoRoot, "nui1-module-numeric-geometry-builtin.nui");
     const options = optionsFor(fixture);
