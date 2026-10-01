@@ -136,6 +136,115 @@ fn resolves_bindings_out_of_array_order_and_caches_each_at_most_once() {
 }
 
 #[test]
+fn scalar_geometry_property_stage_selection_uses_selected_snapshot() {
+    let geometry_property =
+        |stage_path: Option<Vec<String>>, property: &str| TypedScalarExpression::GeometryProperty {
+            span: SPAN,
+            element_name_span: SPAN,
+            property_span: SPAN,
+            element_name: "A".to_owned(),
+            element_id: "element:A".to_owned(),
+            collection_value_id: None,
+            collection_length: None,
+            stage_path,
+            geometry_value_occurrence: None,
+            geometry_value_binder_id: None,
+            for_group_template_element_id: None,
+            for_group_target_source_order: None,
+            for_group_index: None,
+            geometry_value_point_key: None,
+            property: property.to_owned(),
+            target_source_order: 0.0,
+            r#type: ScalarType::Number,
+        };
+    let program = program(vec![
+        declare(
+            "binding:base-length",
+            1,
+            geometry_property(Some(vec!["base".to_owned()]), "length"),
+        ),
+        declare(
+            "binding:named-length",
+            2,
+            geometry_property(Some(vec!["first".to_owned()]), "length"),
+        ),
+        declare(
+            "binding:explicit-final-length",
+            3,
+            geometry_property(Some(vec!["final".to_owned()]), "length"),
+        ),
+        declare(
+            "binding:implicit-final-length",
+            4,
+            geometry_property(None, "length"),
+        ),
+        declare(
+            "binding:base-endpoint-x",
+            5,
+            geometry_property(Some(vec!["base".to_owned()]), "endPoint.x"),
+        ),
+        declare(
+            "binding:named-endpoint-x",
+            6,
+            geometry_property(Some(vec!["first".to_owned()]), "endPoint.x"),
+        ),
+        declare(
+            "binding:final-endpoint-x",
+            7,
+            geometry_property(Some(vec!["final".to_owned()]), "endPoint.x"),
+        ),
+    ]);
+    let resolver = ScalarBindingResolver::new(&program);
+    let mut state = empty_state();
+    state.base_transformation_geometry.insert(
+        "element:A".to_owned(),
+        serde_json::json!({
+            "kind": "line",
+            "start": {"x": 0.0, "y": 0.0},
+            "end": {"x": 10.0, "y": 0.0},
+            "length": 10.0
+        }),
+    );
+    state.transformation_stage_geometry.insert(
+        "element:A\u{0}*\u{0}first".to_owned(),
+        serde_json::json!({
+            "kind": "line",
+            "start": {"x": 5.0, "y": 0.0},
+            "end": {"x": 25.0, "y": 0.0},
+            "length": 20.0
+        }),
+    );
+    state.computed_geometry.insert(
+        "element:A".to_owned(),
+        serde_json::json!({
+            "kind": "line",
+            "start": {"x": 20.0, "y": 0.0},
+            "end": {"x": 60.0, "y": 0.0},
+            "length": 40.0
+        }),
+    );
+
+    for (binding_id, expected) in [
+        ("binding:base-length", 10.0),
+        ("binding:named-length", 20.0),
+        ("binding:explicit-final-length", 40.0),
+        ("binding:implicit-final-length", 40.0),
+        ("binding:base-endpoint-x", 10.0),
+        ("binding:named-endpoint-x", 25.0),
+        ("binding:final-endpoint-x", 60.0),
+    ] {
+        assert_eq!(
+            resolver.resolve(binding_id, &state),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(expected),
+            },
+            "unexpected result for {binding_id}"
+        );
+    }
+}
+
+#[test]
 fn geometry_collection_match_selects_optional_some_and_none_arms() {
     let program = program(Vec::new());
     let resolver = ScalarBindingResolver::new(&program);
