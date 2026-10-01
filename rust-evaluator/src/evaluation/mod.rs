@@ -2467,29 +2467,40 @@ fn evaluate_document_input_with_scalar_program(
             effective_enabled_order.push(id.clone());
         }
 
-        if let Some(entries) = numeric_entries_by_element_id.get(&id) {
-            let resolver = active_scalar_binding_resolver
-                .expect("scalar_binding_resolver must exist when numeric bindings exist");
-            match apply_numeric_bindings(
-                &element,
-                Some(entries),
-                resolver,
-                current_source_order,
+        let numeric_geometry_prerequisites_have_failed = match conditional_dependency_graph.as_ref()
+        {
+            Some(graph) => !graph.geometry_prerequisites_have_failed(
+                &format!("element:{id}"),
+                &conditional_branch_selections,
                 &state,
-            ) {
-                Ok(materialized) => {
-                    element = materialized;
-                    state.elements[index] = element.clone();
-                }
-                Err(error) => {
-                    state.errors.push(error);
-                    execute_transformation_recipes_through(
-                        &transformation_recipes,
-                        &mut next_transformation_recipe_index,
-                        current_execution_position,
-                        &mut state,
-                    );
-                    complete_attempt_and_continue!();
+            ),
+            None => true,
+        };
+        if numeric_geometry_prerequisites_have_failed {
+            if let Some(entries) = numeric_entries_by_element_id.get(&id) {
+                let resolver = active_scalar_binding_resolver
+                    .expect("scalar_binding_resolver must exist when numeric bindings exist");
+                match apply_numeric_bindings(
+                    &element,
+                    Some(entries),
+                    resolver,
+                    current_source_order,
+                    &state,
+                ) {
+                    Ok(materialized) => {
+                        element = materialized;
+                        state.elements[index] = element.clone();
+                    }
+                    Err(errors) => {
+                        state.errors.extend(errors);
+                        execute_transformation_recipes_through(
+                            &transformation_recipes,
+                            &mut next_transformation_recipe_index,
+                            current_execution_position,
+                            &mut state,
+                        );
+                        complete_attempt_and_continue!();
+                    }
                 }
             }
         }

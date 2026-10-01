@@ -9,10 +9,12 @@ use super::errors::geometry_error;
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{
     declared_scalar_expression_type, validate_typed_expression_payload,
-    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue, TypedBuiltinArgument,
-    TypedScalarExpression,
+    ScalarDocumentBindingResolver, ScalarEvaluation, ScalarEvaluationErrorContext, ScalarType,
+    ScalarValue, TypedBuiltinArgument, TypedScalarExpression,
 };
-use super::types::{element_name, DependencyError, EvaluationState};
+use super::types::{
+    element_display_name, element_id, element_name, DependencyError, EvaluationState,
+};
 
 #[derive(Debug)]
 pub(crate) struct ValidatedNumericBindingReference {
@@ -405,16 +407,131 @@ pub(crate) fn validate_numeric_bindings_payload(
     Ok(result)
 }
 
-fn runtime_error(element: &Value, parameter_key: &str, mapping: bool) -> DependencyError {
+fn mapping_error(element: &Value, parameter_key: &str) -> DependencyError {
     let name = element_name(element);
     geometry_error(
         element,
-        if mapping {
-            format!("\"{name}\" の \"{parameter_key}\" の数値式を正準の型付き参照へ対応付けられません。")
-        } else {
-            format!("\"{name}\" の \"{parameter_key}\" に紐づく数値変数の評価に失敗しました。")
-        },
+        format!(
+            "\"{name}\" の \"{parameter_key}\" の数値式を正準の型付き参照へ対応付けられません。"
+        ),
     )
+}
+
+fn scalar_issue_message(
+    issue_code: &str,
+    context: Option<&ScalarEvaluationErrorContext>,
+    state: &EvaluationState,
+) -> String {
+    if issue_code == "evaluation-geometry-builtin-disabled" {
+        if let Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+            target_element_id,
+            point_key,
+        }) = context
+        {
+            let target = state
+                .elements_by_id
+                .get(target_element_id)
+                .and_then(|index| state.elements.get(*index));
+            let base = target
+                .map(element_display_name)
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or_else(|| target_element_id.clone());
+            let display_target = point_key
+                .as_deref()
+                .map_or_else(|| base.clone(), |key| format!("{base}.{key}"));
+            let repair_action = if point_key.is_some() {
+                format!("「{base}」を評価ONに")
+            } else {
+                "評価ONに".to_owned()
+            };
+            return format!(
+                "「{display_target}」は評価OFFのためgeometry引数として利用できません。{repair_action}するか、参照先を変更してください。"
+            );
+        }
+    }
+    match issue_code {
+        "poisoned-binding" => "評価に失敗し無効化されています。",
+        "evaluation-binding-unavailable" => "参照先のbindingを解決できません。",
+        "evaluation-runtime-value-type-mismatch" => "値の型が宣言と一致しません。",
+        "evaluation-binding-cycle-guard" => "循環参照が検出されました。",
+        "evaluation-divide-by-zero" => "0での除算が発生しました。",
+        "evaluation-remainder-by-zero" => "0での剰余が発生しました。",
+        "evaluation-invalid-builtin-argument" => "組み込み関数の引数が不正です。",
+        "evaluation-geometry-builtin-unavailable" => "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
+        "evaluation-geometry-builtin-disabled" => "組み込み関数のgeometry引数がdisabledのため利用できません。",
+        "evaluation-zero-length-line" => "lineDistance/lineAngleでは長さ0のlineを利用できません。",
+        "evaluation-sqrt-negative-input" => "sqrtの引数は0以上である必要があります。",
+        "evaluation-round-to-non-positive-step" => "roundToのstepは0より大きい必要があります。",
+        "evaluation-is-close-negative-tolerance" => "isCloseのtoleranceは0以上である必要があります。",
+        "evaluation-tan-odd-multiple-of-90" => "tanは90°+180°×nでは定義できません。別の角度を指定してください。",
+        "evaluation-asin-out-of-range" => "asinの引数は-1以上1以下である必要があります。",
+        "evaluation-acos-out-of-range" => "acosの引数は-1以上1以下である必要があります。",
+        "evaluation-non-finite-result" => "計算結果が数値として不正です。",
+        "evaluation-static-type-null" => "型を確定できませんでした。",
+        "evaluation-numeric-adapter-failure" => "数値の評価に失敗しました。",
+        "evaluation-geometry-property-unavailable" => "要素プロパティはこの位置では評価できません。参照先が前方にあり、有効で、正常に評価済みか確認してください。",
+        _ => "実行時エラーが発生しました。",
+    }
+    .to_owned()
+}
+
+fn evaluation_error(
+    element: &Value,
+    entry: &ValidatedNumericBinding,
+    evaluation: ScalarEvaluation,
+    state: &EvaluationState,
+) -> DependencyError {
+    let (issue_code, binding_id, context) = match evaluation {
+        ScalarEvaluation::Error {
+            issue_code,
+            binding_id,
+            context,
+            ..
+        } => (issue_code, binding_id, context),
+        ScalarEvaluation::Ok {
+            value: ScalarValue::Number(value),
+            ..
+        } if !value.is_finite() => ("evaluation-non-finite-result".to_owned(), None, None),
+        ScalarEvaluation::Ok { .. } => (
+            "evaluation-runtime-value-type-mismatch".to_owned(),
+            None,
+            None,
+        ),
+    };
+    let context_target = match (binding_id.is_none(), context.as_ref()) {
+        (
+            true,
+            Some(ScalarEvaluationErrorContext::GeometryBuiltinTarget {
+                target_element_id, ..
+            }),
+        ) => Some(target_element_id.as_str()),
+        _ => None,
+    };
+    let missing_dependency_id = binding_id
+        .as_deref()
+        .or(context_target)
+        .unwrap_or(&entry.expression)
+        .to_owned();
+    let missing_dependency_name = context_target.and_then(|target_id| {
+        state
+            .elements_by_id
+            .get(target_id)
+            .and_then(|index| state.elements.get(*index))
+            .map(element_display_name)
+            .map(Into::into)
+    });
+    let name = element_display_name(element);
+    DependencyError {
+        code: None,
+        element_id: element_id(element).unwrap_or_default(),
+        element_name: name.clone(),
+        missing_dependency_id,
+        missing_dependency_name,
+        message: format!(
+            "{name} の数値式を評価できません。{}",
+            scalar_issue_message(&issue_code, context.as_ref(), state)
+        ),
+    }
 }
 
 fn numeric_literal_for_expression(value: f64) -> Option<String> {
@@ -464,17 +581,20 @@ pub(crate) fn apply_numeric_bindings(
     resolver: &dyn ScalarDocumentBindingResolver,
     current_source_order: Option<usize>,
     state: &EvaluationState,
-) -> Result<Value, DependencyError> {
+) -> Result<Value, Vec<DependencyError>> {
     let Some(entries) = entries else {
         return Ok(element.clone());
     };
     let mut materialized = element.clone();
+    let mut errors = Vec::new();
     for entry in entries {
         let Some(current) = numeric_expression(&materialized, &entry.parameter_key) else {
-            return Err(runtime_error(&materialized, &entry.parameter_key, true));
+            errors.push(mapping_error(&materialized, &entry.parameter_key));
+            return Err(errors);
         };
         if current != entry.expression {
-            return Err(runtime_error(&materialized, &entry.parameter_key, true));
+            errors.push(mapping_error(&materialized, &entry.parameter_key));
+            return Err(errors);
         }
         if let Some(expression) = entry.typed_expression.as_ref() {
             let evaluation = evaluate_document_typed_expression(
@@ -483,59 +603,87 @@ pub(crate) fn apply_numeric_bindings(
                 state,
                 current_source_order.map(|order| order as f64),
             );
-            let ScalarEvaluation::Ok {
-                r#type: ScalarType::Number,
-                value: ScalarValue::Number(value),
-            } = evaluation
-            else {
-                return Err(runtime_error(&materialized, &entry.parameter_key, false));
+            let value = match evaluation {
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(value),
+                } if value.is_finite() => Some(value),
+                evaluation => {
+                    errors.push(evaluation_error(&materialized, entry, evaluation, state));
+                    None
+                }
             };
-            if !value.is_finite() {
-                return Err(runtime_error(&materialized, &entry.parameter_key, false));
-            }
+            let Some(value) = value else { continue };
             let Some(target) = numeric_expression_mut(&mut materialized, &entry.parameter_key)
             else {
-                return Err(runtime_error(&materialized, &entry.parameter_key, true));
+                errors.push(mapping_error(&materialized, &entry.parameter_key));
+                return Err(errors);
             };
             *target = Value::from(value);
             continue;
         }
         let mut expression = current.to_owned();
+        let mut entry_failed = false;
         for reference in entry.references.iter().rev() {
             let evaluation = resolver.resolve_binding(&reference.binding_id, state);
-            let ScalarEvaluation::Ok {
-                value: ScalarValue::Number(value),
-                ..
-            } = evaluation
-            else {
-                return Err(runtime_error(&materialized, &entry.parameter_key, false));
+            let value = match evaluation {
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(value),
+                } if value.is_finite() => Some(value),
+                evaluation => {
+                    errors.push(evaluation_error(&materialized, entry, evaluation, state));
+                    entry_failed = true;
+                    None
+                }
             };
-            if !value.is_finite() {
-                return Err(runtime_error(&materialized, &entry.parameter_key, false));
-            }
+            let Some(value) = value else { break };
             let Some(start) = utf16_byte_offset(&expression, reference.expression_start) else {
-                return Err(runtime_error(&materialized, &entry.parameter_key, true));
+                errors.push(mapping_error(&materialized, &entry.parameter_key));
+                return Err(errors);
             };
             let Some(end) = utf16_byte_offset(&expression, reference.expression_end) else {
-                return Err(runtime_error(&materialized, &entry.parameter_key, true));
+                errors.push(mapping_error(&materialized, &entry.parameter_key));
+                return Err(errors);
             };
             if expression.get(start..end) != Some(&format!("@{}", reference.name)) {
-                return Err(runtime_error(&materialized, &entry.parameter_key, true));
+                errors.push(mapping_error(&materialized, &entry.parameter_key));
+                return Err(errors);
             }
             let Some(literal) = numeric_literal_for_expression(value) else {
-                return Err(runtime_error(&materialized, &entry.parameter_key, false));
+                errors.push(evaluation_error(
+                    &materialized,
+                    entry,
+                    ScalarEvaluation::Error {
+                        r#type: ScalarType::Number,
+                        issue_code: "evaluation-non-finite-result".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    },
+                    state,
+                ));
+                entry_failed = true;
+                break;
             };
             expression.replace_range(start..end, &literal);
         }
+        if entry_failed {
+            continue;
+        }
         let Some(target) = numeric_expression_mut(&mut materialized, &entry.parameter_key) else {
-            return Err(runtime_error(&materialized, &entry.parameter_key, true));
+            errors.push(mapping_error(&materialized, &entry.parameter_key));
+            return Err(errors);
         };
         *target = Value::Object(Map::from_iter([
             ("kind".to_owned(), Value::String("expression".to_owned())),
             ("expression".to_owned(), Value::String(expression)),
         ]));
     }
-    Ok(materialized)
+    if errors.is_empty() {
+        Ok(materialized)
+    } else {
+        Err(errors)
+    }
 }
 
 #[cfg(test)]

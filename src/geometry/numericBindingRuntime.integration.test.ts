@@ -90,6 +90,27 @@ describe("general numeric typed binding runtime", () => {
     expect((result.computedGeometry.get(point(compiled, "P").id) as { x: number }).x).toBe(expected);
   });
 
+  it("retains ordered direct failures from independent typed numeric inputs", () => {
+    const compiled = compile([
+      "nui 1",
+      "const Pad: number = 9",
+      "point A = coordinate(x: 1 / 0, y: sqrt(-1))"
+    ].join("\n"));
+    const pointElement = point(compiled, "A");
+    const pointBindings = [...(compiled.numericBindings?.values() ?? [])]
+      .filter((binding) => binding.parameterKey === "x" || binding.parameterKey === "y");
+    expect(pointBindings.map((binding) => binding.parameterKey)).toEqual(["x", "y"]);
+    expect(pointBindings.every((binding) => binding.typedExpression !== undefined)).toBe(true);
+
+    const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(result.computedGeometry.has(pointElement.id)).toBe(false);
+    expect(result.errors.map(({ elementName, missingDependencyId }) => ({ elementName, missingDependencyId })))
+      .toEqual([
+        { elementName: "A", missingDependencyId: "1 / 0" },
+        { elementName: "A", missingDependencyId: "sqrt(-1)" }
+      ]);
+  });
+
   it("keeps remainder by zero on the typed runtime failure path", () => {
     const compiled = compile(["nui 1", "point P = coordinate(x: 5 % 0, y: 0)"].join("\n"));
     const binding = [...(compiled.numericBindings?.values() ?? [])].find((candidate) => candidate.parameterKey === "x");
