@@ -1457,15 +1457,22 @@ fn target_geometry(
     if let Some(binder_id) = &target.geometry_value_binder_id {
         let source = state.geometry_value_binders.get(binder_id)?;
         return match source {
-            GeometryInputTarget::Drawable { element_id, .. } => {
-                state.computed_geometry.get(element_id).cloned()
-            }
-            GeometryInputTarget::GeometryValue { occurrence, .. } => {
+            GeometryInputTarget::Drawable {
+                element_id,
+                stage_path,
+                ..
+            } => super::selected_transformation_geometry(
+                state,
+                element_id,
+                target.stage_path.as_deref().or(stage_path.as_deref()),
+            )
+            .cloned(),
+            GeometryInputTarget::GeometryValue { occurrence, .. }
+            | GeometryInputTarget::GeometryValueMap { occurrence, .. } => {
                 state.computed_geometry_values.get(occurrence).cloned()
             }
             GeometryInputTarget::Coordinate { .. }
             | GeometryInputTarget::CollectionValue { .. }
-            | GeometryInputTarget::GeometryValueMap { .. }
             | GeometryInputTarget::CollectionIndex { .. }
             | GeometryInputTarget::ForGroupOccurrence { .. } => {
                 state.computed_geometry.get(binder_id).cloned()
@@ -1475,7 +1482,12 @@ fn target_geometry(
     if let Some(occurrence) = &target.geometry_value_occurrence {
         state.computed_geometry_values.get(occurrence).cloned()
     } else {
-        state.computed_geometry.get(&target.statement_id).cloned()
+        super::selected_transformation_geometry(
+            state,
+            &target.statement_id,
+            target.stage_path.as_deref(),
+        )
+        .cloned()
     }
 }
 

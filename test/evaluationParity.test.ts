@@ -1797,6 +1797,161 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("projects immutable line and path references from compiler-selected stages through persistent Rust stdio", async () => {
+    const sourceFor = (padded: boolean) => [
+      "nui 1",
+      "module StageProvider() {",
+      "  line Internal = segment(start: (2, 7), end: (12, 7))",
+      "  move Internal as first (from: (2, 7), to: (12, 7))",
+      "  move Internal as finished (from: (12, 7), to: (22, 7))",
+      "  curve InternalPath = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
+      "  move InternalPath as pathFirst (from: (3, 9), to: (13, 9))",
+      "  move InternalPath as pathFinished (from: (13, 9), to: (23, 9))",
+      "  export const Output: line = @Internal.base",
+      "  export const OutputPath: path = @InternalPath.base",
+      "}",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A as first (from: (0, 0), to: (10, 0))",
+      "move A as finished (from: (10, 0), to: (20, 0))",
+      "curve C = bezier(start: (0, 5), end: (10, 5), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
+      "move C as pathFirst (from: (0, 5), to: (10, 5))",
+      "move C as pathFinished (from: (10, 5), to: (20, 5))",
+      ...(padded ? ["const PaddingBefore: number = 17", "", "point Unrelated = coordinate(x: 91, y: 37)", ""] : []),
+      "instance Stage = StageProvider()",
+      "const BaseLine: line = @A.base",
+      ...(padded ? ["const PaddingBetweenAliases: number = 23", ""] : []),
+      "const BaseLineAlias: line = @BaseLine",
+      "const BaseLineChain: line = @BaseLineAlias",
+      "const NamedLine: line = @A.first",
+      "const ExplicitFinalLine: line = @A.final",
+      "const ImplicitFinalLine: line = @A",
+      "const BasePath: path = @C.base",
+      "const BasePathAlias: path = @BasePath",
+      "const BasePathChain: path = @BasePathAlias",
+      "const NamedPath: path = @C.pathFirst",
+      "const ExplicitFinalPath: path = @C.final",
+      "const ImplicitFinalPath: path = @C",
+      "const ModuleLine: line = @Stage::Output",
+      "const ModuleLineAlias: line = @ModuleLine",
+      "const ModulePath: path = @Stage::OutputPath",
+      ...(padded ? ["", "const PaddingAfterAliases: number = 31"] : [])
+    ].join("\n");
+
+    const observedAcrossPadding: Record<string, unknown>[] = [];
+    for (const padded of [false, true]) {
+      const fixture = fixtureFromSource(sourceFor(padded));
+      const options = optionsFor(fixture);
+      const program = options.geometryValueProgram ?? [];
+      const analysis = fixture.compiled?.doc.moduleSemanticAnalysis;
+      if (!analysis) throw new Error("missing compiled geometry-value semantic analysis");
+      const rootValue = (name: string) => analysis.geometryValues.find((value) =>
+        value.ownerModuleDefinitionStatementId === null && value.name === name
+      );
+      const names = [
+        "BaseLine", "BaseLineAlias", "BaseLineChain", "NamedLine", "ExplicitFinalLine", "ImplicitFinalLine",
+        "BasePath", "BasePathAlias", "BasePathChain", "NamedPath", "ExplicitFinalPath", "ImplicitFinalPath",
+        "ModuleLine", "ModuleLineAlias", "ModulePath"
+      ];
+      const occurrences = new Map(names.map((name) => {
+        const value = rootValue(name);
+        if (!value) throw new Error(`missing root geometry value ${name}`);
+        const entry = program.find((candidate) => candidate.sourceStatementId === value.statementId);
+        if (!entry) throw new Error(`missing geometry-value program entry for ${name}`);
+        return [name, entry.occurrence] as const;
+      }));
+      const moduleDefinition = analysis.definitions.find((definition) => definition.name === "StageProvider");
+      const exportedLine = moduleDefinition?.localGeometryValues.find((value) => value.name === "Output");
+      const exportedPath = moduleDefinition?.localGeometryValues.find((value) => value.name === "OutputPath");
+      if (!exportedLine || !exportedPath) throw new Error("missing exported Module geometry values");
+      const moduleLineEntries = program.filter((entry) => entry.sourceStatementId === exportedLine.statementId);
+      const modulePathEntries = program.filter((entry) => entry.sourceStatementId === exportedPath.statementId);
+      expect(moduleLineEntries).toHaveLength(1);
+      expect(modulePathEntries).toHaveLength(1);
+
+      const targetFor = (name: string) => {
+        const occurrence = occurrences.get(name)!;
+        const entry = program.find((candidate) => candidate.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+          candidate.occurrence.instancePath.length === occurrence.instancePath.length &&
+          candidate.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index]));
+        if (entry?.construction.kind !== "reference") throw new Error(`${name} must be a compiler-resolved reference`);
+        return entry.construction.target;
+      };
+      expect(targetFor("BaseLine").stagePath).toEqual(["base"]);
+      expect(targetFor("NamedLine").stagePath).toEqual(["first"]);
+      expect(targetFor("ExplicitFinalLine").stagePath).toEqual(["final"]);
+      expect(targetFor("ImplicitFinalLine").stagePath).toEqual(["final"]);
+      expect(targetFor("BasePath").stagePath).toEqual(["base"]);
+      expect(targetFor("NamedPath").stagePath).toEqual(["pathFirst"]);
+      expect(targetFor("ExplicitFinalPath").stagePath).toEqual(["final"]);
+      expect(targetFor("ImplicitFinalPath").stagePath).toEqual(["final"]);
+      expect(moduleLineEntries[0]?.construction.kind).toBe("reference");
+      if (moduleLineEntries[0]?.construction.kind !== "reference" || modulePathEntries[0]?.construction.kind !== "reference") {
+        throw new Error("Module exports must compile to geometry references");
+      }
+      expect(moduleLineEntries[0].construction.target.stagePath).toEqual(["base"]);
+      expect(modulePathEntries[0].construction.target.stagePath).toEqual(["base"]);
+
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      const tsResult = evaluationPayloadToResult(tsPayload);
+      const rustResult = evaluationPayloadToResult(rustPayload);
+      const valueFor = (
+        result: ReturnType<typeof evaluationPayloadToResult>,
+        occurrence: (typeof program)[number]["occurrence"]
+      ) => [...(result.computedGeometryValues?.values() ?? [])].find((entry) =>
+        entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+        entry.occurrence.instancePath.length === occurrence.instancePath.length &&
+        entry.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index]) &&
+        entry.occurrence.mappedMemberIndex === occurrence.mappedMemberIndex
+      )?.value;
+      const referenceValue = (result: ReturnType<typeof evaluationPayloadToResult>, name: string) =>
+        valueFor(result, occurrences.get(name)!);
+
+      for (const result of [tsResult, rustResult]) {
+        expect(result.errors).toEqual([]);
+        expect(result.geometryValueErrors ?? []).toEqual([]);
+        for (const name of ["BaseLine", "BaseLineAlias", "BaseLineChain", "ModuleLine", "ModuleLineAlias"]) {
+          expect(referenceValue(result, name)).toMatchObject({
+            kind: "line", start: { x: name.startsWith("Module") ? 2 : 0, y: name.startsWith("Module") ? 7 : 0 },
+            end: { x: name.startsWith("Module") ? 12 : 10, y: name.startsWith("Module") ? 7 : 0 }
+          });
+        }
+        expect(referenceValue(result, "NamedLine")).toMatchObject({ kind: "line", start: { x: 10, y: 0 }, end: { x: 20, y: 0 } });
+        for (const name of ["ExplicitFinalLine", "ImplicitFinalLine"]) {
+          expect(referenceValue(result, name)).toMatchObject({ kind: "line", start: { x: 20, y: 0 }, end: { x: 30, y: 0 } });
+        }
+        for (const name of ["BasePath", "BasePathAlias", "BasePathChain"]) {
+          expect(referenceValue(result, name)).toMatchObject({
+            kind: "bezierCurve", segments: [{ start: { x: 0, y: 5 }, end: { x: 10, y: 5 } }]
+          });
+        }
+        expect(referenceValue(result, "NamedPath")).toMatchObject({
+          kind: "bezierCurve", segments: [{ start: { x: 10, y: 5 }, end: { x: 20, y: 5 } }]
+        });
+        for (const name of ["ExplicitFinalPath", "ImplicitFinalPath"]) {
+          expect(referenceValue(result, name)).toMatchObject({
+            kind: "bezierCurve", segments: [{ start: { x: 20, y: 5 }, end: { x: 30, y: 5 } }]
+          });
+        }
+        expect(referenceValue(result, "ModulePath")).toMatchObject({
+          kind: "bezierCurve", segments: [{ start: { x: 3, y: 9 }, end: { x: 13, y: 9 } }]
+        });
+
+        const moduleLine = valueFor(result, moduleLineEntries[0]!.occurrence);
+        const modulePath = valueFor(result, modulePathEntries[0]!.occurrence);
+        expect(moduleLine).toMatchObject({ kind: "line", start: { x: 2, y: 7 }, end: { x: 12, y: 7 } });
+        expect(modulePath).toMatchObject({
+          kind: "bezierCurve", segments: [{ start: { x: 3, y: 9 }, end: { x: 13, y: 9 } }]
+        });
+      }
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      observedAcrossPadding.push(Object.fromEntries(names.map((name) => [name, referenceValue(tsResult, name)])));
+    }
+    expect(observedAcrossPadding[1]).toEqual(observedAcrossPadding[0]);
+  }, 30000);
+
   it("preserves optional-member availability through the persistent Rust stdio boundary", async () => {
     const evaluateSource = async (lines: string[]) => {
       const fixture = fixtureFromSource(lines.join("\n"));
