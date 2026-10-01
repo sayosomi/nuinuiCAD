@@ -1,18 +1,24 @@
 use std::collections::{HashMap, HashSet};
 
 use super::super::mutation_payload::ValidatedBindingVersions;
+use super::super::mutation_payload::{
+    InitialState, ValidatedBindingVersion, ValidatedBindingVersionKind,
+};
 use super::super::program_payload::{
     ValidatedScalarProgramCollection, ValidatedScalarProgramCollectionMember,
     ValidatedScalarProgramCollectionValue, ValidatedScalarProgramRecordField,
 };
 use super::super::types::{
     ScalarEvaluation, ScalarExpressionRecordFieldTarget,
-    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarValue,
+    ScalarExpressionResolvedOptionalMemberTarget, ScalarSpan, ScalarType, ScalarValue,
+    TypedScalarExpression,
 };
 use super::{MutationEnvironment, ScalarMutationResolver};
 use crate::evaluation::scalars::expression_evaluator::ScalarEvaluationEnvironment;
 use crate::evaluation::scalars::mutation_payload::ValidatedImmutableForGroupPlan;
 use crate::evaluation::types::{EvaluationState, GeometryInputCollectionNode, GeometryInputTarget};
+
+const SPAN: ScalarSpan = ScalarSpan { start: 0, end: 0 };
 
 fn evaluation_state() -> EvaluationState {
     EvaluationState {
@@ -168,6 +174,145 @@ fn assert_issue(result: ScalarEvaluation, expected: &str) {
     match result {
         ScalarEvaluation::Error { issue_code, .. } => assert_eq!(issue_code, expected),
         other => panic!("expected error {expected}, got {other:?}"),
+    }
+}
+
+#[test]
+fn mutation_geometry_property_stage_selection_uses_selected_snapshot() {
+    let cases = vec![
+        (
+            "binding:base-length",
+            Some(vec!["base".to_owned()]),
+            "length",
+            10.0,
+        ),
+        (
+            "binding:first-length",
+            Some(vec!["first".to_owned()]),
+            "length",
+            20.0,
+        ),
+        (
+            "binding:final-length",
+            Some(vec!["final".to_owned()]),
+            "length",
+            40.0,
+        ),
+        ("binding:implicit-final-length", None, "length", 40.0),
+        (
+            "binding:base-endpoint-x",
+            Some(vec!["base".to_owned()]),
+            "endPoint.x",
+            10.0,
+        ),
+        (
+            "binding:first-endpoint-x",
+            Some(vec!["first".to_owned()]),
+            "endPoint.x",
+            25.0,
+        ),
+        (
+            "binding:final-endpoint-x",
+            Some(vec!["final".to_owned()]),
+            "endPoint.x",
+            60.0,
+        ),
+    ];
+    let versions = cases
+        .iter()
+        .enumerate()
+        .map(
+            |(index, (binding_id, stage_path, property, _))| ValidatedBindingVersion {
+                version_id: format!("version:{binding_id}"),
+                statement_id: format!("statement:{binding_id}"),
+                binding_id: (*binding_id).to_owned(),
+                declared_type: ScalarType::Number,
+                source_order: index + 1,
+                control: serde_json::json!({"ownerChain": []}),
+                initial_state: InitialState::Uncomputed,
+                kind: ValidatedBindingVersionKind::Declare {
+                    initializer: Some(TypedScalarExpression::GeometryProperty {
+                        span: SPAN,
+                        element_name_span: SPAN,
+                        property_span: SPAN,
+                        element_name: "A".to_owned(),
+                        element_id: "element:A".to_owned(),
+                        collection_value_id: None,
+                        collection_length: None,
+                        geometry_value_occurrence: None,
+                        geometry_value_binder_id: None,
+                        geometry_value_point_key: None,
+                        for_group_template_element_id: None,
+                        for_group_target_source_order: None,
+                        for_group_index: None,
+                        property: (*property).to_owned(),
+                        stage_path: stage_path.clone(),
+                        target_source_order: 0.0,
+                        r#type: ScalarType::Number,
+                    }),
+                },
+            },
+        )
+        .collect();
+    let binding_ids = cases
+        .iter()
+        .map(|(binding_id, _, _, _)| (*binding_id).to_owned())
+        .collect();
+    let declared_types = cases
+        .iter()
+        .map(|(binding_id, _, _, _)| ((*binding_id).to_owned(), ScalarType::Number))
+        .collect();
+    let program = ValidatedBindingVersions {
+        versions,
+        binding_ids,
+        declared_types,
+        element_source_orders: HashMap::new(),
+        conditional_owners_by_element_id: HashMap::new(),
+        for_group_owners_by_element_id: HashMap::new(),
+        collection_values: Vec::new(),
+        immutable_for_groups: HashMap::new(),
+    };
+    let mut state = evaluation_state();
+    state.base_transformation_geometry.insert(
+        "element:A".to_owned(),
+        serde_json::json!({
+            "kind": "line",
+            "start": {"x": 0.0, "y": 0.0},
+            "end": {"x": 10.0, "y": 0.0},
+            "length": 10.0
+        }),
+    );
+    state.transformation_stage_geometry.insert(
+        "element:A\u{0}*\u{0}first".to_owned(),
+        serde_json::json!({
+            "kind": "line",
+            "start": {"x": 5.0, "y": 0.0},
+            "end": {"x": 25.0, "y": 0.0},
+            "length": 20.0
+        }),
+    );
+    state.computed_geometry.insert(
+        "element:A".to_owned(),
+        serde_json::json!({
+            "kind": "line",
+            "start": {"x": 20.0, "y": 0.0},
+            "end": {"x": 60.0, "y": 0.0},
+            "length": 40.0
+        }),
+    );
+
+    let mut resolver = ScalarMutationResolver::new(&program);
+    resolver.advance_before_statement(cases.len() + 1, &state);
+
+    for (binding_id, _, _, expected) in cases {
+        assert_eq!(
+            resolver.lookup_current(binding_id),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(expected),
+            },
+            "unexpected result for {binding_id}"
+        );
     }
 }
 
