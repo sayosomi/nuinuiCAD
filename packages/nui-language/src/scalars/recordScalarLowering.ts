@@ -24,7 +24,7 @@ import type {
   SourceNamespaceBindingResolver
 } from "./bindingCatalog";
 import type { BindingResolution } from "./bindingResolution";
-import type { ScalarExpressionAst } from "./expressionAst";
+import type { ScalarExpressionAst, ScalarValueMatchArmNode } from "./expressionAst";
 import { parseScalarExpression } from "./expressionParser";
 import type { ScalarExpressionResolvedReference } from "./typedExpressionAst";
 import type { ScalarExpressionType } from "./types";
@@ -263,6 +263,19 @@ const recordCollectionFieldIndexNameFor = (
   field: { identity?: RecordFieldIdentity; fieldIndex: number }
 ) => `__nui_record_field__${JSON.stringify([baseName, field.identity?.recordStatementId ?? null, field.fieldIndex])}`;
 
+/** Retains authored optional-match binder metadata when projecting a record
+ * control-flow arm into its scalar field expression. */
+export const recordScalarMatchArmFor = (
+  arm: Pick<ScalarValueMatchArmNode, "label" | "labelSpan" | "binder" | "binderSpan">,
+  expression: ScalarExpressionAst
+): ScalarValueMatchArmNode => ({
+  label: arm.label,
+  labelSpan: arm.labelSpan,
+  ...(arm.binder !== undefined ? { binder: arm.binder } : {}),
+  ...(arm.binderSpan !== undefined ? { binderSpan: arm.binderSpan } : {}),
+  expression
+});
+
 /** Projects one nominal-record control-flow tree into the scalar expression
  * owned by a particular field. Whole-record leaves deliberately use the
  * existing record-property adapter with the authored leaf span; the dotted
@@ -302,10 +315,6 @@ const projectRecordFieldExpression = (
   if (expression.kind === "none" || expression.kind === "coalesce") return null;
   const scrutinee = expression.scrutinee;
   const arms = expression.arms.map((arm) => ({
-    label: arm.label,
-    labelSpan: arm.labelSpan,
-    ...(arm.binder !== undefined ? { binder: arm.binder } : {}),
-    ...(arm.binderSpan !== undefined ? { binderSpan: arm.binderSpan } : {}),
     expression: arm.expression ? projectRecordFieldExpression(arm.expression, field) : null
   }));
   return arms.every((arm) => arm.expression)
@@ -313,13 +322,10 @@ const projectRecordFieldExpression = (
         kind: "valueMatch",
         span: expression.span,
         scrutinee,
-        arms: arms as {
-          label: string;
-          labelSpan: DslSpan;
-          binder?: string;
-          binderSpan?: DslSpan;
-          expression: ScalarExpressionAst;
-        }[]
+        arms: arms.map((arm, index) => recordScalarMatchArmFor(
+          expression.arms[index]!,
+          arm.expression!
+        ))
       }
     : null;
 };

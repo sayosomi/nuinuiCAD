@@ -12,6 +12,7 @@ import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import {
   moduleCarryBindingIdFor,
+  moduleRecordScalarBindingIdFor,
   moduleRecordExportFieldBindingIdFor,
   moduleRecordParameterScalarBindingIdForPath,
   moduleScalarBindingIdFor,
@@ -134,6 +135,28 @@ const elementNamed = (compiled: ReturnType<typeof compileWithIds>, name: string)
   if (!element) throw new Error(`missing element ${name}`);
   return element;
 };
+
+const moduleLocalScalarBindingIdFor = (
+  compiled: ReturnType<typeof compileWithIds>,
+  instanceName: string,
+  localName: string
+) => {
+  const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === instanceName);
+  if (!instance) throw new Error(`missing Module instance ${instanceName}`);
+  if (!instance.callee) throw new Error(`missing resolved Module callee for ${instanceName}`);
+  const definition = compiled.moduleSemanticAnalysis?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  if (!definition) throw new Error(`missing Module definition for ${instanceName}`);
+  const local = definition.localScalars.find((candidate) => candidate.name === localName);
+  if (!local) throw new Error(`missing Module local ${localName}`);
+  return moduleScalarBindingIdFor([instance.statementId], definition.statementId, local.statementId);
+};
+
+const moduleLocalScalarValue = (
+  compiled: ReturnType<typeof compileWithIds>,
+  result: ReturnType<typeof evaluateCompiled>,
+  instanceName: string,
+  localName: string
+) => result.computedScalarBindings?.get(moduleLocalScalarBindingIdFor(compiled, instanceName, localName));
 
 const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
   expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
@@ -2810,6 +2833,145 @@ describe("module scalar runtime integration", () => {
       expect.objectContaining({ kind: "point", x: 20, y: 0 }),
       expect.objectContaining({ kind: "point", x: 2, y: 0 })
     ]);
+  });
+
+  it.each([
+    ["present", "7", 7],
+    ["absent", "none", 3]
+  ] as const)("materializes a %s Module optional-record match with a typed field initializer", (_caseName, optionalInitializer, expected) => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record R(x: number)",
+      "module M() {",
+      `  const a: number? = ${optionalInitializer}`,
+      "  const chosen: R = match @a { none => R(x: 3) some unused => R(x: 7) }",
+      "  const result: number = @chosen.x",
+      "}",
+      "instance Use = M()"
+    ].join("\n"), `say442-module-record-match-${_caseName}`);
+
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    expect(moduleLocalScalarValue(compiled, evaluated, "Use", "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: expected }
+    });
+
+    const instance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === "Use")!;
+    if (!instance.callee) throw new Error("missing resolved Module callee for Use");
+    const definition = compiled.moduleSemanticAnalysis!.definitionsByStatementId.get(instance.callee.definitionStatementId)!;
+    const recordValue = definition.recordValues.find((candidate) => candidate.value.name === "chosen")!;
+    const field = recordValue.fieldExpressions.find((candidate) => candidate.field.fieldIndex === 0)!;
+    expect(field.expression?.ast).toMatchObject({
+      kind: "valueMatch",
+      arms: [
+        { label: "none" },
+        { label: "some", binder: "unused", binderSpan: { start: expect.any(Number), end: expect.any(Number) } }
+      ]
+    });
+
+    const fieldBindingId = moduleRecordScalarBindingIdFor([instance.statementId], recordValue.value.statementId, field.field);
+    const bindingVersion = compiled.bindingVersions?.versions.find((candidate) => candidate.bindingId === fieldBindingId);
+    expect(bindingVersion?.declaredType).toEqual({ kind: "number" });
+    expect(bindingVersion?.initializer?.type).toEqual({ kind: "number" });
+    expect(compiled.scalarProgram?.statements.find((statement) => statement.bindingId === fieldBindingId)?.declaration.initializer.type).toEqual({ kind: "number" });
+  });
+
+  it("keeps Module record-match binders branch-local and unselected arms lazy", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record R(x: number)",
+      "module M() {",
+      "  const present: number? = 7",
+      "  const absent: number? = none",
+      "  const selected: R = match @present { none => R(x: 3) some renamed => R(x: @renamed + 5) }",
+      "  const selectedAbsent: R = match @absent { none => R(x: 3) some value => R(x: @value + 5) }",
+      "  const selectedLazy: R = match @absent { none => R(x: 11) some dormant => R(x: 1 / 0) }",
+      "  const boundResult: number = @selected.x",
+      "  const absentResult: number = @selectedAbsent.x",
+      "  const lazyResult: number = @selectedLazy.x",
+      "}",
+      "instance Use = M()"
+    ].join("\n"), "say442-module-record-match-binders");
+
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    expect(moduleLocalScalarValue(compiled, evaluated, "Use", "boundResult")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 12 }
+    });
+    expect(moduleLocalScalarValue(compiled, evaluated, "Use", "absentResult")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 3 }
+    });
+    expect(moduleLocalScalarValue(compiled, evaluated, "Use", "lazyResult")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 11 }
+    });
+  });
+
+  it("keeps Module record optional-match results invariant under Module renaming and unrelated declarations", () => {
+    const sourceFor = (moduleName: string, includeUnrelatedDeclarations: boolean) => [
+      "nui 1",
+      "record R(x: number)",
+      ...(includeUnrelatedDeclarations ? ["const unrelatedRoot: number = 99"] : []),
+      `module ${moduleName}() {`,
+      ...(includeUnrelatedDeclarations ? ["  const unrelatedLocal: number = 101"] : []),
+      "  const a: number? = 7",
+      "  const chosen: R = match @a { none => R(x: 3) some unused => R(x: 7) }",
+      "  const result: number = @chosen.x",
+      "}",
+      `instance Use = ${moduleName}()`
+    ].join("\n");
+
+    for (const [moduleName, includeUnrelatedDeclarations] of [["M", false], ["Renamed", false], ["Renamed", true]] as const) {
+      const compiled = compileWithIds(sourceFor(moduleName, includeUnrelatedDeclarations), `say442-module-invariance-${moduleName}-${includeUnrelatedDeclarations}`);
+      expectValid(compiled);
+      const evaluated = evaluateCompiled(compiled);
+      expect(evaluated.errors).toEqual([]);
+      expect(moduleLocalScalarValue(compiled, evaluated, "Use", "result")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 7 }
+      });
+    }
+  });
+
+  it("isolates projected Module record-match fields across instances", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record R(x: number)",
+      "module M(seed: number?) {",
+      "  const chosen: R = match @seed { none => R(x: 3) some value => R(x: @value) }",
+      "  const result: number = @chosen.x",
+      "}",
+      "instance Present = M(seed: 7)",
+      "instance Absent = M(seed: none)"
+    ].join("\n"), "say442-module-record-match-instance-isolation");
+
+    expectValid(compiled);
+    const evaluated = evaluateCompiled(compiled);
+    expect(evaluated.errors).toEqual([]);
+    expect(moduleLocalScalarValue(compiled, evaluated, "Present", "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 7 }
+    });
+    expect(moduleLocalScalarValue(compiled, evaluated, "Absent", "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 3 }
+    });
+
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    const recordValue = definition.recordValues.find((candidate) => candidate.value.name === "chosen")!;
+    const field = recordValue.fieldExpressions.find((candidate) => candidate.field.fieldIndex === 0)!;
+    const instanceFieldBindingIds = compiled.moduleSemanticAnalysis!.instances
+      .filter((candidate) => candidate.name === "Present" || candidate.name === "Absent")
+      .map((instance) => moduleRecordScalarBindingIdFor([instance.statementId], recordValue.value.statementId, field.field));
+    expect(new Set(instanceFieldBindingIds).size).toBe(2);
+    for (const bindingId of instanceFieldBindingIds) {
+      expect(compiled.bindingVersions?.versions.find((candidate) => candidate.bindingId === bindingId)?.initializer?.type).toEqual({ kind: "number" });
+    }
   });
 
   it("evaluates root record if and match fields through the shared scalar runtime", () => {

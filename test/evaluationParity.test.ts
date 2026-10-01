@@ -4820,6 +4820,57 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expectScalarNumberClose(scalarBindingFor(fixture, rustPayload, "lazyResult"), 11);
   }, 30000);
 
+  it("matches SAY-442 Module record-field optional-match materialization through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "record R(x: number)",
+      "module M(input: number?) {",
+      "  const a: number? = @input",
+      "  const chosen: R = match @a { none => R(x: 3) some unused => R(x: 7) }",
+      "  const selectedBound: R = match @a { none => R(x: 3) some renamed => R(x: @renamed + 5) }",
+      "  const absent: number? = none",
+      "  const selectedLazy: R = match @absent { none => R(x: 11) some dormant => R(x: 1 / 0) }",
+      "  const result: number = @chosen.x",
+      "  export const output: number = @result",
+      "  const boundResult: number = @selectedBound.x",
+      "  export const boundOutput: number = @boundResult",
+      "  const lazyResult: number = @selectedLazy.x",
+      "  export const lazyOutput: number = @lazyResult",
+      "}",
+      "instance Present = M(input: 7)",
+      "instance Absent = M(input: none)",
+      "const present: number = @Present::output",
+      "const absent: number = @Absent::output",
+      "const presentBound: number = @Present::boundOutput",
+      "const absentBound: number = @Absent::boundOutput",
+      "const presentLazy: number = @Present::lazyOutput",
+      "const absentLazy: number = @Absent::lazyOutput"
+    ].join("\n"));
+
+    expect(fixture.compiled!.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const options = optionsFor(fixture);
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    expect(evaluationPayloadToResult(tsPayload).errors).toEqual([]);
+
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    expect(evaluationPayloadToResult(rustPayload).errors).toEqual([]);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      for (const [name, expected] of [
+        ["present", 7],
+        ["absent", 3],
+        ["presentBound", 12],
+        ["absentBound", 3],
+        ["presentLazy", 11],
+        ["absentLazy", 11]
+      ] as const) {
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, name), expected);
+      }
+    }
+  }, 30000);
+
   it("matches optional coalescing for geometry, nominal records, and scalar collections", () => {
     const fixture = fixtureFromSource([
       "nui 1",
