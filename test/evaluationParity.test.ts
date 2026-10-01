@@ -2071,6 +2071,91 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("evaluates direct scalar geometry-property reads from compiler-selected stages through persistent Rust stdio", async () => {
+    const names = [
+      "BaseLength", "NamedLength", "ExplicitFinalLength", "ImplicitFinalLength",
+      "BaseEndX", "NamedEndX", "ExplicitFinalEndX", "ImplicitFinalEndX"
+    ] as const;
+    const expected = {
+      BaseLength: 10,
+      NamedLength: 20,
+      ExplicitFinalLength: 40,
+      ImplicitFinalLength: 40,
+      BaseEndX: 10,
+      NamedEndX: 30,
+      ExplicitFinalEndX: 60,
+      ImplicitFinalEndX: 60
+    } as const;
+    const sourceFor = (padded: boolean) => [
+      "nui 1",
+      ...(padded ? ["// unrelated source padding", "", "const PaddingBefore: number = 17"] : []),
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      ...(padded ? ["", "const PaddingBetween: number = 23"] : []),
+      "move A as first (from: (0, 0), to: (10, 0), scale: 2)",
+      "move A as finished (from: (10, 0), to: (20, 0), scale: 2)",
+      "const BaseLength: number = @A.base.length",
+      "const NamedLength: number = @A.first.length",
+      "const ExplicitFinalLength: number = @A.final.length",
+      "const ImplicitFinalLength: number = @A.length",
+      "const BaseEndX: number = @A.base.endPoint.x",
+      "const NamedEndX: number = @A.first.endPoint.x",
+      "const ExplicitFinalEndX: number = @A.final.endPoint.x",
+      "const ImplicitFinalEndX: number = @A.endPoint.x",
+      ...(padded ? ["", "const PaddingAfter: number = 31"] : [])
+    ].join("\n");
+    const valuesByPadding: Record<string, number>[] = [];
+
+    for (const padded of [false, true]) {
+      const fixture = fixtureFromSource(sourceFor(padded));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const compiledProgram = options.scalarProgram;
+      if (!compiledProgram) throw new Error("missing compiler-authored scalar program");
+      const authoredStagePath = (name: (typeof names)[number]) => {
+        const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+          (candidate) => candidate.kind === "typed" && candidate.name === name
+        );
+        if (!binding) throw new Error(`typed binding "${name}" not found`);
+        const initializer = compiledProgram.statements.find(
+          (statement) => statement.bindingId === binding.id
+        )?.declaration.initializer;
+        if (!initializer || initializer.kind !== "geometryProperty") {
+          throw new Error(`${name} must compile to a direct geometry-property expression`);
+        }
+        return initializer.stagePath;
+      };
+      expect(authoredStagePath("BaseLength")).toEqual(["base"]);
+      expect(authoredStagePath("NamedLength")).toEqual(["first"]);
+      expect(authoredStagePath("ExplicitFinalLength")).toEqual(["final"]);
+      expect(authoredStagePath("ImplicitFinalLength")).toEqual(["final"]);
+      expect(authoredStagePath("BaseEndX")).toEqual(["base"]);
+      expect(authoredStagePath("NamedEndX")).toEqual(["first"]);
+      expect(authoredStagePath("ExplicitFinalEndX")).toEqual(["final"]);
+      expect(authoredStagePath("ImplicitFinalEndX")).toEqual(["final"]);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      const values: Record<string, number> = {};
+      for (const payload of [tsPayload, rustPayload]) {
+        expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+        for (const name of names) {
+          const value = scalarBindingFor(fixture, payload, name);
+          expectScalarNumberClose(value, expected[name]);
+          if (value?.status !== "ok" || value.value.kind !== "number") {
+            throw new Error(`expected ${name} to evaluate to a number`);
+          }
+          values[name] = value.value.value;
+        }
+      }
+      valuesByPadding.push(values);
+    }
+
+    expect(valuesByPadding[0]).toEqual(expected);
+    expect(valuesByPadding[1]).toEqual(expected);
+    expect(valuesByPadding[1]).toEqual(valuesByPadding[0]);
+  }, 30000);
+
   it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
     const fixture = fixtureFromSource([
       "nui 1",
