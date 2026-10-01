@@ -92,6 +92,98 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(result.errors.map((error) => error.missingDependencyId)).toEqual(["1 / 0", "sqrt(-1)"]);
     }
 
+    const diagnosticKeys = (result: { errors: readonly { elementName: string; missingDependencyId: string }[] }) =>
+      result.errors.map(({ elementName, missingDependencyId }) => ({ elementName, missingDependencyId }));
+    const typedBefore = await evaluateSource([
+      "nui 1",
+      "const Pad: number = 9",
+      "point A = coordinate(x: 1 / 0, y: sqrt(-1))"
+    ].join("\n"));
+    const typedAfter = await evaluateSource([
+      "nui 1",
+      "point A = coordinate(x: 1 / 0, y: sqrt(-1))",
+      "const Pad: number = 9"
+    ].join("\n"));
+    for (const evaluated of [typedBefore, typedAfter]) {
+      const inputBindings = [...(evaluated.fixture.compiled?.doc.numericBindings?.values() ?? [])]
+        .filter((binding) => binding.parameterKey === "x" || binding.parameterKey === "y");
+      expect(inputBindings.map((binding) => binding.parameterKey)).toEqual(["x", "y"]);
+      expect(inputBindings.every((binding) => binding.typedExpression !== undefined)).toBe(true);
+    }
+    for (const evaluated of [typedBefore, typedAfter]) {
+      const point = evaluated.fixture.elements.find((element) => element.name === "A")!;
+      for (const result of [evaluated.ts, evaluated.rust]) {
+        expect(result.computedGeometry.has(point.id)).toBe(false);
+        expect(diagnosticKeys(result)).toEqual([
+          { elementName: "A", missingDependencyId: "1 / 0" },
+          { elementName: "A", missingDependencyId: "sqrt(-1)" }
+        ]);
+      }
+    }
+    expect(diagnosticKeys(typedBefore.ts)).toEqual(diagnosticKeys(bothAxes.ts));
+    expect(diagnosticKeys(typedAfter.ts)).toEqual(diagnosticKeys(bothAxes.ts));
+
+    const multipleTyped = await evaluateSource([
+      "nui 1",
+      "const Pad: number = 9",
+      "point First = coordinate(x: 1 / 0, y: sqrt(-1))",
+      "point Second = coordinate(x: sqrt(-1), y: 1 / 0)"
+    ].join("\n"));
+    for (const result of [multipleTyped.ts, multipleTyped.rust]) {
+      for (const name of ["First", "Second"]) {
+        const point = multipleTyped.fixture.elements.find((element) => element.name === name)!;
+        expect(result.computedGeometry.has(point.id)).toBe(false);
+      }
+      expect(diagnosticKeys(result)).toEqual([
+        { elementName: "First", missingDependencyId: "1 / 0" },
+        { elementName: "First", missingDependencyId: "sqrt(-1)" },
+        { elementName: "Second", missingDependencyId: "sqrt(-1)" },
+        { elementName: "Second", missingDependencyId: "1 / 0" }
+      ]);
+    }
+
+    const oneTypedAxis = await evaluateSource([
+      "nui 1",
+      "const Pad: number = 9",
+      "point A = coordinate(x: 1 / 0, y: 4)"
+    ].join("\n"));
+    const oneTypedAxisPoint = oneTypedAxis.fixture.elements.find((element) => element.name === "A")!;
+    for (const result of [oneTypedAxis.ts, oneTypedAxis.rust]) {
+      expect(result.computedGeometry.has(oneTypedAxisPoint.id)).toBe(false);
+      expect(diagnosticKeys(result)).toEqual([{ elementName: "A", missingDependencyId: "1 / 0" }]);
+    }
+
+    const disabledTyped = await evaluateSource([
+      "nui 1",
+      "const Pad: number = 9",
+      "point A = coordinate(x: 1 / 0, y: sqrt(-1), enabled: false)"
+    ].join("\n"));
+    const disabledTypedPoint = disabledTyped.fixture.elements.find((element) => element.name === "A")!;
+    for (const result of [disabledTyped.ts, disabledTyped.rust]) {
+      expect(result.computedGeometry.has(disabledTypedPoint.id)).toBe(false);
+      expect(result.errors).toEqual([]);
+    }
+
+    const typedCascade = await evaluateSource([
+      "nui 1",
+      "const Pad: number = 9",
+      "point Broken = coordinate(x: 1 / 0, y: 0)",
+      "point Child = offset(from: @Broken, dx: sqrt(-1), dy: 1)"
+    ].join("\n"));
+    const typedBrokenPoint = typedCascade.fixture.elements.find((element) => element.name === "Broken")!;
+    const typedChildPoint = typedCascade.fixture.elements.find((element) => element.name === "Child")!;
+    for (const result of [typedCascade.ts, typedCascade.rust]) {
+      expect(result.computedGeometry.has(typedBrokenPoint.id)).toBe(false);
+      expect(result.computedGeometry.has(typedChildPoint.id)).toBe(false);
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors.map(({ elementName, missingDependencyId }) => ({ elementName, missingDependencyId })))
+        .toEqual([
+          { elementName: "Broken", missingDependencyId: "1 / 0" },
+          { elementName: "Child", missingDependencyId: typedBrokenPoint.id }
+        ]);
+      expect(result.errors.some((error) => error.missingDependencyId === "sqrt(-1)")).toBe(false);
+    }
+
     const oneAxis = await evaluateSource([
       "nui 1",
       "point A = coordinate(x: 1 / 0, y: 4)"

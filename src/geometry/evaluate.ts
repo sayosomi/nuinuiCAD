@@ -1936,7 +1936,7 @@ export const evaluateElements = (
     ): ScalarEvaluation => resolveGeometryPropertyForEvaluation(reference, sourceOrder, lookupBinding);
 
     const numericEntriesForElement = numericBindingEntriesByElementId?.get((sourceElement ?? element).id);
-    if (numericEntriesForElement?.length) {
+    if (numericEntriesForElement?.length && !hasFailedGeometryPrerequisite((sourceElement ?? element).id)) {
       const numericSourceId = (sourceElement ?? element).id;
       const numericSourceOrder = options.scalarExecutionPositionByElementId?.get(numericSourceId) ??
         options.scalarExecutionPositionByElementId?.get(element.id) ??
@@ -1957,10 +1957,11 @@ export const evaluateElements = (
             ),
         numericSourceOrder === undefined || !scalarBindingResolver?.resolveOptionalMember
           ? undefined
-          : (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, numericSourceOrder)
+          : (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, numericSourceOrder),
+        runtimeElements
       );
       if (!materialized.ok) {
-        errors.push(materialized.error);
+        errors.push(...materialized.errors);
         return;
       }
       element = materialized.element;
@@ -2865,6 +2866,34 @@ export const evaluateElements = (
     ) ?? [];
     if (prerequisites.some((edge) => !endpointIsReady(typedDependencyEndpointId(edge.to), nextVisiting))) return false;
     return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
+  };
+  const hasFailedGeometryPrerequisite = (elementId: ElementId): boolean => {
+    if (options.typedDependencyGraph) {
+      return options.typedDependencyGraph.edges.some((edge) => {
+        if (
+          edge.from.kind !== "element" ||
+          edge.from.id !== elementId ||
+          (edge.to.kind !== "element" && edge.to.kind !== "geometry-stage") ||
+          !graphEdgeIsActive(edge)
+        ) return false;
+        const prerequisiteId = edge.to.kind === "geometry-stage" ? edge.to.ownerId : edge.to.id;
+        if (prerequisiteId === elementId) return false;
+        const runtimeDependencyId = activeForGroupElementIdMap.get(prerequisiteId) ?? prerequisiteId;
+        return errors.some((error) => error.elementId === runtimeDependencyId || error.elementId === prerequisiteId);
+      });
+    }
+    const graph = dependencyGraph;
+    return (graph?.edges ?? []).some((edge) => {
+      if (
+        edge.kind !== "geometry" ||
+        edge.from.kind !== "element" ||
+        edge.from.id !== elementId ||
+        edge.to.kind !== "element" ||
+        !graphEdgeIsActive(edge)
+      ) return false;
+      const runtimeDependencyId = activeForGroupElementIdMap.get(edge.to.id) ?? edge.to.id;
+      return errors.some((error) => error.elementId === runtimeDependencyId || error.elementId === edge.to.id);
+    });
   };
   geometryValuePrerequisitesReady = (endpointId) => {
     const visitGeometryPrerequisites = (dependencyId: string, visiting: ReadonlySet<string>): boolean => {

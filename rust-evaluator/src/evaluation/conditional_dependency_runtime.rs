@@ -416,6 +416,31 @@ impl ConditionalDependencyGraph {
             })
     }
 
+    pub(crate) fn geometry_prerequisites_have_failed(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        state: &EvaluationState,
+    ) -> bool {
+        let current_element_id = endpoint_id.strip_prefix("element:").unwrap_or(endpoint_id);
+        self.edges
+            .iter()
+            .filter(|edge| {
+                endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
+            })
+            .any(|edge| {
+                if !matches!(edge.to.kind.as_str(), "element" | "geometry-stage") {
+                    return false;
+                }
+                let dependency_id = edge.to.owner_id.as_deref().unwrap_or(&edge.to.id);
+                dependency_id != current_element_id
+                    && state
+                        .errors
+                        .iter()
+                        .any(|error| error.element_id == dependency_id)
+            })
+    }
+
     fn geometry_prerequisite_is_ready_inner(
         &self,
         endpoint_id: &str,

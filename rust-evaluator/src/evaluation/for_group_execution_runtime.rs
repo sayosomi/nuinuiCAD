@@ -240,8 +240,8 @@ impl<'a> ForGroupExecutionRuntime<'a> {
                 state,
             ) {
                 Ok(materialized) => generated_element = materialized,
-                Err(error) => {
-                    state.errors.push(error);
+                Err(errors) => {
+                    state.errors.extend(errors);
                     return Ok(ForGroupExecutionRunOutcome::Completed);
                 }
             }

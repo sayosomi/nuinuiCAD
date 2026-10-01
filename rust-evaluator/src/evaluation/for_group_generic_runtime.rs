@@ -240,8 +240,8 @@ impl<'a> GenericForGroupRuntime<'a> {
                 .expect("scalar_binding_resolver must exist when numeric bindings exist");
             match apply_numeric_bindings(&generated_element, Some(entries), resolver, None, state) {
                 Ok(materialized) => generated_element = materialized,
-                Err(error) => {
-                    state.errors.push(error);
+                Err(errors) => {
+                    state.errors.extend(errors);
                     return;
                 }
             }

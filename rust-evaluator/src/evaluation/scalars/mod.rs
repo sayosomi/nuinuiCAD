@@ -106,8 +106,8 @@ pub(crate) use text::{
 pub(crate) use text_property_binding_payload::validate_text_property_bindings_payload;
 pub(crate) use text_template_payload::{validate_text_templates_payload, ValidatedTextTemplate};
 pub(crate) use types::{
-    GeometryInterfaceType, ScalarEvaluation, ScalarExpressionOptionalMemberReceiver,
-    ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget,
-    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarValue, TypedBuiltinArgument,
-    TypedScalarExpression,
+    GeometryInterfaceType, ScalarEvaluation, ScalarEvaluationErrorContext,
+    ScalarExpressionOptionalMemberReceiver, ScalarExpressionResolvedGeometryProperty,
+    ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedOptionalMemberTarget,
+    ScalarType, ScalarValue, TypedBuiltinArgument, TypedScalarExpression,
 };

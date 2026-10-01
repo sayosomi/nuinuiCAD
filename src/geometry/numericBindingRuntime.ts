@@ -21,6 +21,7 @@ import { getParameterValue, setParameterValue } from "@nuinuicad/nui-language";
 import { isNumericExpression } from "./numericExpressions";
 import { geometryError } from "./evaluationContext";
 import { numericLiteralForExpression } from "@nuinuicad/nui-language";
+import { runtimeIssueMessage } from "../scalars/runtimeIssueMessages";
 
 export type NumericBindingRuntimeEntry = {
   elementId: ElementId;
@@ -116,13 +117,39 @@ type NumericBindingOptionalMemberResolveFn = (
 
 export type NumericMaterializationResult =
   | { ok: true; element: CadElement }
-  | { ok: false; error: DependencyError };
-
-const numericBindingFailure = (element: CadElement, parameterKey: string) =>
-  geometryError(element, `"${element.name}" の "${parameterKey}" に紐づく数値変数の評価に失敗しました。`);
+  | { ok: false; errors: DependencyError[] };
 
 const mappingFailure = (element: CadElement, parameterKey: string) =>
   geometryError(element, `"${element.name}" の "${parameterKey}" の数値式を正準の型付き参照へ対応付けられません。`);
+
+const evaluationFailure = (
+  element: CadElement,
+  entry: NumericBindingRuntimeEntry,
+  evaluation: ScalarEvaluation,
+  elements?: readonly CadElement[]
+): DependencyError => {
+  const issueCode = evaluation.status === "error"
+    ? evaluation.issueCode
+    : evaluation.value.kind === "number" && !Number.isFinite(evaluation.value.value)
+      ? "evaluation-non-finite-result"
+      : "evaluation-runtime-value-type-mismatch";
+  const context = evaluation.status === "error" ? evaluation.context : undefined;
+  const bindingId = evaluation.status === "error" ? evaluation.bindingId : undefined;
+  const target = bindingId === undefined && context?.kind === "geometryBuiltinTarget"
+    ? elements?.find((candidate) => candidate.id === context.targetElementId)
+    : undefined;
+  const missingDependencyId = bindingId ?? (context?.kind === "geometryBuiltinTarget"
+    ? context.targetElementId
+    : entry.expression);
+
+  return {
+    elementId: element.id,
+    elementName: element.name,
+    missingDependencyId,
+    ...(target ? { missingDependencyName: target.name } : {}),
+    message: `${element.name} の数値式を評価できません。${runtimeIssueMessage(issueCode, context, elements)}`
+  };
+};
 
 export const materializeNumericBindingElement = (
   element: CadElement,
@@ -130,14 +157,18 @@ export const materializeNumericBindingElement = (
   resolveBinding: NumericBindingResolveFn,
   resolveGeometryProperty?: NumericBindingGeometryResolveFn,
   resolveGeometryTarget?: NumericBindingGeometryTargetResolveFn,
-  resolveOptionalMember?: NumericBindingOptionalMemberResolveFn
+  resolveOptionalMember?: NumericBindingOptionalMemberResolveFn,
+  elements?: readonly CadElement[]
 ): NumericMaterializationResult => {
   if (!entries?.length) return { ok: true, element };
   let materialized = element;
+  const errors: DependencyError[] = [];
   for (const entry of entries) {
+    let entryFailed = false;
     const value = getParameterValue(materialized, entry.parameterKey) as NumericValue | undefined;
     if (!value || !isNumericExpression(value) || value.expression !== entry.expression) {
-      return { ok: false, error: mappingFailure(materialized, entry.parameterKey) };
+      errors.push(mappingFailure(materialized, entry.parameterKey));
+      return { ok: false, errors };
     }
     if (entry.typedExpression) {
       const evaluation = evaluateTypedExpression(entry.typedExpression, {
@@ -147,7 +178,8 @@ export const materializeNumericBindingElement = (
         ...(resolveOptionalMember ? { lookupOptionalMember: resolveOptionalMember } : {})
       });
       if (evaluation.status !== "ok" || evaluation.type.kind !== "number" || evaluation.value.kind !== "number" || !Number.isFinite(evaluation.value.value)) {
-        return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };
+        errors.push(evaluationFailure(materialized, entry, evaluation, elements));
+        continue;
       }
       materialized = setParameterValue(materialized, entry.parameterKey, evaluation.value.value);
       continue;
@@ -157,16 +189,24 @@ export const materializeNumericBindingElement = (
       const evaluation = resolveBinding(reference.bindingId);
       const evaluatedValue = evaluation.status === "ok" ? evaluation.value : null;
       if (evaluation.status !== "ok" || evaluation.type.kind !== "number" || evaluatedValue?.kind !== "number" || !Number.isFinite(evaluatedValue.value)) {
-        return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };
+        errors.push(evaluationFailure(materialized, entry, evaluation, elements));
+        entryFailed = true;
+        break;
       }
       if (expression.slice(reference.expressionStart, reference.expressionEnd) !== `@${reference.name}`) {
-        return { ok: false, error: mappingFailure(materialized, entry.parameterKey) };
+        errors.push(mappingFailure(materialized, entry.parameterKey));
+        return { ok: false, errors };
       }
       const literal = numericLiteralForExpression(evaluatedValue.value);
-      if (literal === null) return { ok: false, error: numericBindingFailure(materialized, entry.parameterKey) };
+      if (literal === null) {
+        errors.push(evaluationFailure(materialized, entry, evaluation, elements));
+        entryFailed = true;
+        break;
+      }
       expression = `${expression.slice(0, reference.expressionStart)}${literal}${expression.slice(reference.expressionEnd)}`;
     }
+    if (entryFailed) continue;
     materialized = setParameterValue(materialized, entry.parameterKey, { kind: "expression", expression });
   }
-  return { ok: true, element: materialized };
+  return errors.length > 0 ? { ok: false, errors } : { ok: true, element: materialized };
 };
