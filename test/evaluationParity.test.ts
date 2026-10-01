@@ -2086,13 +2086,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       ExplicitFinalEndX: 60,
       ImplicitFinalEndX: 60
     } as const;
-    const sourceFor = (padded: boolean) => [
-      "nui 1",
-      ...(padded ? ["// unrelated source padding", "", "const PaddingBefore: number = 17"] : []),
-      "line A = segment(start: (0, 0), end: (10, 0))",
-      ...(padded ? ["", "const PaddingBetween: number = 23"] : []),
-      "move A as first (from: (0, 0), to: (10, 0), scale: 2)",
-      "move A as finished (from: (10, 0), to: (20, 0), scale: 2)",
+    const scalarDeclarations = [
       "const BaseLength: number = @A.base.length",
       "const NamedLength: number = @A.first.length",
       "const ExplicitFinalLength: number = @A.final.length",
@@ -2100,13 +2094,28 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "const BaseEndX: number = @A.base.endPoint.x",
       "const NamedEndX: number = @A.first.endPoint.x",
       "const ExplicitFinalEndX: number = @A.final.endPoint.x",
-      "const ImplicitFinalEndX: number = @A.endPoint.x",
+      "const ImplicitFinalEndX: number = @A.endPoint.x"
+    ];
+    const sourceFor = (declarationOrder: "producer-first" | "consumer-first", padded: boolean) => [
+      "nui 1",
+      ...(padded ? ["// unrelated source padding", "", "const PaddingBefore: number = 17"] : []),
+      ...(declarationOrder === "consumer-first" ? scalarDeclarations : []),
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      ...(padded ? ["", "const PaddingBetween: number = 23"] : []),
+      "move A as first (from: (0, 0), to: (10, 0), scale: 2)",
+      "move A as finished (from: (10, 0), to: (20, 0), scale: 2)",
+      ...(declarationOrder === "producer-first" ? scalarDeclarations : []),
       ...(padded ? ["", "const PaddingAfter: number = 31"] : [])
     ].join("\n");
-    const valuesByPadding: Record<string, number>[] = [];
+    const valuesByVariant = new Map<string, Record<string, number>>();
 
-    for (const padded of [false, true]) {
-      const fixture = fixtureFromSource(sourceFor(padded));
+    for (const { declarationOrder, padded } of [
+      { declarationOrder: "producer-first", padded: false },
+      { declarationOrder: "producer-first", padded: true },
+      { declarationOrder: "consumer-first", padded: false },
+      { declarationOrder: "consumer-first", padded: true }
+    ] as const) {
+      const fixture = fixtureFromSource(sourceFor(declarationOrder, padded));
       const options = optionsFor(fixture);
       expect(isRustEligibleFixture(fixture)).toBe(true);
       const compiledProgram = options.scalarProgram;
@@ -2148,12 +2157,17 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
           values[name] = value.value.value;
         }
       }
-      valuesByPadding.push(values);
+      valuesByVariant.set(`${declarationOrder}:${padded ? "padded" : "plain"}`, values);
     }
 
-    expect(valuesByPadding[0]).toEqual(expected);
-    expect(valuesByPadding[1]).toEqual(expected);
-    expect(valuesByPadding[1]).toEqual(valuesByPadding[0]);
+    expect(valuesByVariant.get("producer-first:plain")).toEqual(expected);
+    expect(valuesByVariant.get("producer-first:padded")).toEqual(expected);
+    expect(valuesByVariant.get("consumer-first:plain")).toEqual(expected);
+    expect(valuesByVariant.get("consumer-first:padded")).toEqual(expected);
+    expect(valuesByVariant.get("producer-first:padded")).toEqual(valuesByVariant.get("producer-first:plain"));
+    expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("consumer-first:plain"));
+    expect(valuesByVariant.get("consumer-first:plain")).toEqual(valuesByVariant.get("producer-first:plain"));
+    expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("producer-first:padded"));
   }, 30000);
 
   it("matches a declarative transformation recipe chain and its immutable stage snapshots", () => {
