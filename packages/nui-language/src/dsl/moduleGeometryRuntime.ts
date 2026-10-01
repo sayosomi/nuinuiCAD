@@ -415,9 +415,23 @@ export const buildModuleGeometryRuntime = ({
     resolveLineReferenceTargetAt: geometryArrayRuntime.resolveLineReferenceTargetAt,
       resolvePointReferenceAt: geometryArrayRuntime.resolvePointReferenceAt
     });
+    const resolveAnchor = baseResolver.resolveAnchor!;
     const targetsForElement = new Map<string, RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]>();
     resolversByRuntimeElementId.set(entry.runtimeElementId, {
       ...baseResolver,
+      resolveAnchor: (...args) => {
+        const resolved = resolveAnchor(...args);
+        if (entry.origin?.kind === "moduleBody" && "mode" in resolved && resolved.mode === "geometryValue") {
+          return {
+            kind: "geometryValue",
+            occurrence: resolved.occurrence,
+            geometryType: "point",
+            ...(resolved.pointKey ? { pointKey: resolved.pointKey } : {}),
+            ...(resolved.stagePath ? { stagePath: resolved.stagePath } : {})
+          };
+        }
+        return resolved;
+      },
       recordGeometryInputTarget: (_elementId, parameterKey, target) => {
         targetsForElement.set(parameterKey, appendGeometryInputTargets(targetsForElement.get(parameterKey), target));
         const sourceTargets = geometryInputTargetSourcesByRuntimeElementId.get(entry.runtimeElementId) ?? new Map();
