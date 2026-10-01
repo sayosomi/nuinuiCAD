@@ -406,7 +406,8 @@ export const createDocumentScalarBindingResolver = (
 export const createDocumentLinearScalarBindingResolver = (
   graph: BindingVersionGraph,
   geometry?: DocumentGeometryRuntime,
-  collectionValues?: readonly ScalarProgramCollection[]
+  collectionValues?: readonly ScalarProgramCollection[],
+  getDependencyExecutionPositionByVersionId?: () => ReadonlyMap<string, number>
 ): LinearScalarBindingResolver => {
   const resolveGeometryCollectionLength = geometry
     ? (collectionValueId: string): number | undefined => {
@@ -430,7 +431,13 @@ export const createDocumentLinearScalarBindingResolver = (
         return resolveDocumentGeometryTarget(geometry, target, sourceOrder, evaluateOccurrenceIndex);
       }
     : undefined;
-  const evaluator = createIncrementalLinearMutationEvaluator(graph, resolveGeometryProperty, resolveGeometryTarget, collectionValues, resolveGeometryCollectionLength);
+  const evaluator = createIncrementalLinearMutationEvaluator(
+    graph,
+    resolveGeometryProperty,
+    resolveGeometryTarget,
+    collectionValues,
+    resolveGeometryCollectionLength
+  );
   const collectionResolver = createScalarProgramCollectionResolver(
     { collectionValues },
     evaluator.resolveCurrent,
@@ -446,7 +453,7 @@ export const createDocumentLinearScalarBindingResolver = (
     ...collectionResolver?.environmentFor(sourceOrder)
   });
   return {
-    advanceTo: evaluator.advanceTo,
+    advanceTo: (position) => evaluator.advanceTo(position, getDependencyExecutionPositionByVersionId?.()),
     registerConditionalResult: evaluator.registerConditionalResult,
     resolveBinding: evaluator.resolveCurrent,
     ...(collectionResolver ? {
@@ -459,7 +466,7 @@ export const createDocumentLinearScalarBindingResolver = (
         collectionResolver.environmentFor(sourceOrder).lookupOptionalMember!(target, type)
     } : {}),
     ...(resolveGeometryCollectionLength ? { resolveGeometryCollectionLength } : {}),
-    finalize: evaluator.finalize,
+    finalize: (position) => evaluator.finalize(position, getDependencyExecutionPositionByVersionId?.()),
     runForGroup: evaluator.runForGroup
   };
 };

@@ -682,6 +682,15 @@ const typedDependencyEdgeIsActive = (
   });
 };
 
+export const typedDependencyBindingHasActiveGeometryPrerequisite = (
+  graph: TypedDependencyGraph,
+  bindingId: BindingId,
+  branchSelections: TypedDependencyBranchSelection
+): boolean => (graph.directByEndpointId.get(`binding:${bindingId}`) ?? []).some((edge) =>
+  typedDependencyEdgeIsActive(edge, branchSelections) &&
+  (edge.to.kind === "geometry-value" || edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence")
+);
+
 const activationPathMatches = (
   guards: readonly TypedDependencyActivationGuard[],
   prefix: readonly TypedDependencyActivationGuard[]
@@ -907,8 +916,26 @@ export const buildTypedDependencyGraph = ({
   if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
     const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
     for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
-      if (!reference.elementId || reference.targetSourceOrder === null) continue;
-      deferredStageEdges.push({ kind: "geometry-property", from, ownerId: reference.elementId, stagePath: reference.stagePath ?? ["final"], span: reference.span, requiredness: reference.lazy ? "conditional" : "required", ...(reference.activation ? { activation: reference.activation } : {}) });
+      const requiredness = reference.lazy ? "conditional" : "required";
+      if (reference.elementId && reference.targetSourceOrder !== null) {
+        deferredStageEdges.push({
+          kind: "geometry-property",
+          from,
+          ownerId: reference.elementId,
+          stagePath: reference.stagePath ?? ["final"],
+          span: reference.span,
+          requiredness,
+          ...(reference.activation ? { activation: reference.activation } : {})
+        });
+      } else if (reference.geometryValueOccurrence) {
+        deferredGeometryValueEdges.push({
+          from,
+          occurrence: reference.geometryValueOccurrence,
+          span: reference.span,
+          requiredness,
+          ...(reference.activation ? { activation: reference.activation } : {})
+        });
+      }
     }
     // Binding-analysis intentionally keeps the unconditional graph small. The
     // canonical graph also retains conditional value-branch references so the

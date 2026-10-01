@@ -1869,11 +1869,15 @@ fn evaluate_document_input_with_scalar_program(
                     .is_some_and(|owners| !owners.is_empty())
             })
     });
-    let has_root_geometry_property_timeline = binding_versions.as_ref().is_some_and(|versions| {
+    let mut conditional_branch_selections = HashMap::<String, String>::new();
+    let has_geometry_property_timeline = binding_versions.as_ref().is_some_and(|versions| {
         versions.versions.iter().any(|version| {
-            version.control.get("scopeId").and_then(Value::as_str) == Some("root")
+            ScalarMutationResolver::is_dependency_scheduled_version(version)
                 && conditional_dependency_graph.as_ref().is_some_and(|graph| {
-                    graph.has_root_geometry_property_dependency(&version.binding_id)
+                    graph.has_active_geometry_property_dependency(
+                        &version.binding_id,
+                        &conditional_branch_selections,
+                    )
                 })
         })
     });
@@ -1988,7 +1992,6 @@ fn evaluate_document_input_with_scalar_program(
     let mut evaluated_geometry_value_entries = vec![false; geometry_value_program.len()];
     let mut next_transformation_recipe_index = 0usize;
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
-    let mut conditional_branch_selections = HashMap::<String, String>::new();
     let geometry_value_index_by_endpoint_id = geometry_value_program
         .iter()
         .enumerate()
@@ -2025,20 +2028,37 @@ fn evaluate_document_input_with_scalar_program(
                 .unwrap_or(entry.execution_position)
         })
         .collect::<Vec<_>>();
-    let binding_execution_positions = binding_versions
-        .as_ref()
-        .map(|versions| {
-            versions
-                .versions
-                .iter()
-                .filter_map(|version| {
-                    dependency_rank_by_endpoint_id
-                        .get(&format!("binding:{}", version.binding_id))
-                        .map(|rank| (version.binding_id.clone(), *rank as f64))
+    let project_binding_execution_positions =
+        |dependency_ranks: &HashMap<String, usize>, branch_selections: &HashMap<String, String>| {
+            binding_versions
+                .as_ref()
+                .map(|versions| {
+                    versions
+                        .versions
+                        .iter()
+                        .filter_map(|version| {
+                            if !ScalarMutationResolver::is_dependency_scheduled_version(version)
+                                || !conditional_dependency_graph.as_ref().is_some_and(|graph| {
+                                    graph.has_active_geometry_property_dependency(
+                                        &version.binding_id,
+                                        branch_selections,
+                                    )
+                                })
+                            {
+                                return None;
+                            }
+                            dependency_ranks
+                                .get(&format!("binding:{}", version.binding_id))
+                                .map(|rank| (version.binding_id.clone(), *rank as f64))
+                        })
+                        .collect::<HashMap<_, _>>()
                 })
-                .collect::<HashMap<_, _>>()
-        })
-        .unwrap_or_default();
+                .unwrap_or_default()
+        };
+    let mut binding_execution_positions = project_binding_execution_positions(
+        &dependency_rank_by_endpoint_id,
+        &conditional_branch_selections,
+    );
     let mut pending_indices = evaluation_indices.clone();
     let original_pending_order = pending_indices
         .iter()
@@ -2046,7 +2066,7 @@ fn evaluate_document_input_with_scalar_program(
         .map(|(order, index)| (*index, order))
         .collect::<HashMap<usize, usize>>();
     if !linear_mutation_ordering_active
-        && !has_root_geometry_property_timeline
+        && !has_geometry_property_timeline
         && !geometry_value_program.is_empty()
     {
         if let Some(graph) = conditional_dependency_graph.as_ref() {
@@ -2125,6 +2145,12 @@ fn evaluate_document_input_with_scalar_program(
                     program: &geometry_value_program,
                     execution_positions: &geometry_value_execution_positions,
                     binding_execution_positions: &binding_execution_positions,
+                    dependency_order_available: conditional_dependency_graph.is_some(),
+                    dependency_execution_position: pending_element_id
+                        .as_ref()
+                        .and_then(|id| dependency_rank_by_endpoint_id.get(&format!("element:{id}")))
+                        .copied()
+                        .map(|rank| rank as f64),
                     release_allowed: &release_allowed,
                     source_position_fence: linear_mutation_ordering_active,
                     evaluated: &mut evaluated_geometry_value_entries,
@@ -2174,9 +2200,16 @@ fn evaluate_document_input_with_scalar_program(
                             continue;
                         }
                         if let Some(mutation_resolver) = scalar_mutation_resolver.as_mut() {
-                            mutation_resolver.advance_before_statement(
+                            let dependency_execution_position = dependency_rank_by_endpoint_id
+                                .get(&candidate.source_endpoint_id)
+                                .copied()
+                                .map(|rank| rank as f64);
+                            mutation_resolver.advance_before_with_execution_position(
                                 entry.source_execution_position.ceil().max(0.0) as usize,
-                                &state,
+                                dependency_execution_position,
+                                &binding_execution_positions,
+                                conditional_dependency_graph.is_some(),
+                                &mut state,
                             );
                         }
                     }
@@ -2268,6 +2301,10 @@ fn evaluate_document_input_with_scalar_program(
                     .enumerate()
                     .map(|(rank, endpoint_id)| (endpoint_id, rank))
                     .collect();
+                binding_execution_positions = project_binding_execution_positions(
+                    &dependency_rank_by_endpoint_id,
+                    &conditional_branch_selections,
+                );
                 geometry_value_execution_positions = geometry_value_program
                     .iter()
                     .map(|entry| {
@@ -2351,6 +2388,11 @@ fn evaluate_document_input_with_scalar_program(
                         program: &geometry_value_program,
                         execution_positions: &geometry_value_execution_positions,
                         binding_execution_positions: &binding_execution_positions,
+                        dependency_order_available: conditional_dependency_graph.is_some(),
+                        dependency_execution_position: dependency_rank_by_endpoint_id
+                            .get(&format!("element:{id}"))
+                            .copied()
+                            .map(|rank| rank as f64),
                         release_allowed: &geometry_value_release_allowed,
                         source_position_fence: linear_mutation_ordering_active,
                         evaluated: &mut evaluated_geometry_value_entries,
@@ -2846,6 +2888,10 @@ fn evaluate_document_input_with_scalar_program(
                     program: &geometry_value_program,
                     execution_positions: &geometry_value_execution_positions,
                     binding_execution_positions: &binding_execution_positions,
+                    dependency_order_available: conditional_dependency_graph.is_some(),
+                    dependency_execution_position: conditional_dependency_graph
+                        .as_ref()
+                        .map(|_| f64::INFINITY),
                     release_allowed: &vec![true; geometry_value_program.len()],
                     source_position_fence: linear_mutation_ordering_active,
                     evaluated: &mut evaluated_geometry_value_entries,
@@ -2888,7 +2934,11 @@ fn evaluate_document_input_with_scalar_program(
 
     let (computed_scalar_bindings, computed_scalar_binding_versions) =
         if let Some(resolver) = scalar_mutation_resolver.as_mut() {
-            resolver.finalize(&state);
+            resolver.finalize(
+                &mut state,
+                &binding_execution_positions,
+                conditional_dependency_graph.is_some(),
+            );
             (Some(resolver.computed_bindings()), Some(resolver.history()))
         } else {
             (

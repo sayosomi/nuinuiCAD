@@ -40,14 +40,14 @@ export type LinearMutationEvaluation = {
 };
 
 export type IncrementalLinearMutationEvaluator = {
-  advanceTo: (position: BindingReadPosition) => void;
+  advanceTo: (position: BindingReadPosition, dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>) => void;
   /** Records Task 25's already-evaluated result exactly once for this owner. */
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveCurrent: (bindingId: BindingId) => ScalarEvaluation;
   resolveCollectionValueId: (collectionValueId: string, sourceOrder: number) => string | undefined;
   resolveCollectionIndex: (collectionValueId: string, index: number, elementType: ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number, sourceOrder: number) => ScalarEvaluation;
   resolveCollectionLength: (collectionValueId: string, sourceOrder: number) => number | undefined;
-  finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
+  finalize: (position: BindingReadPosition, dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>) => LinearMutationEvaluation;
   runForGroup: (
     plan: ForGroupExecutionExecutionPlan,
     executeStatement: (statement: ForGroupExecutionStatement, context: ForGroupExecutionExecutionContext) => ForGroupExecutionRunOutcome
@@ -170,6 +170,7 @@ export const createIncrementalLinearMutationEvaluator = (
     return materializeCollectionValueId(redirected === valueId ? value.targetValueId : value.targetValueId, snapshot, new Set([...seen, valueId]));
   };
   let nextVersionIndex = 0;
+  const pendingDependencyVersions = new Map<BindingVersionId, BindingVersion>();
   let activeLoopEnvironment: ReturnType<typeof createForGroupExecutionEnvironment<ScalarEvaluation>> | undefined;
   const conditionalResultFor = (ownerStatementId: string) => {
     for (let index = loopConditionalResults.length - 1; index >= 0; index -= 1) {
@@ -257,6 +258,34 @@ export const createIncrementalLinearMutationEvaluator = (
     });
   };
 
+  const advanceDependencyReadyVersionsThrough = (
+    executionPosition: number,
+    dependencyExecutionPositionByVersionId: ReadonlyMap<BindingVersionId, number>,
+    flushUnranked: boolean
+  ): void => {
+    const ready = [...pendingDependencyVersions.values()].flatMap((version) => {
+      const rank = dependencyExecutionPositionByVersionId.get(version.id);
+      return rank !== undefined && rank <= executionPosition ? [{ version, rank }] : [];
+    }).sort((left, right) =>
+      left.rank - right.rank ||
+      left.version.sourceOrder - right.version.sourceOrder ||
+      left.version.id.localeCompare(right.version.id)
+    );
+    for (const { version } of ready) {
+      pendingDependencyVersions.delete(version.id);
+      if (!historyByVersionId.has(version.id)) execute(version);
+    }
+    if (flushUnranked) {
+      const remaining = [...pendingDependencyVersions.values()].sort((left, right) =>
+        left.sourceOrder - right.sourceOrder || left.id.localeCompare(right.id)
+      );
+      pendingDependencyVersions.clear();
+      for (const version of remaining) {
+        if (!historyByVersionId.has(version.id)) execute(version);
+      }
+    }
+  };
+
   const loopVersionsFor = (ownerStatementId: string): readonly BindingVersion[] => graph.versions.filter((version) => {
     const immutableCarryBindingIds = new Set(
       [...(graph.immutableForGroups?.values() ?? [])].flatMap((plan) => [
@@ -302,15 +331,35 @@ export const createIncrementalLinearMutationEvaluator = (
     });
   };
 
-  const advanceTo = (position: BindingReadPosition): void => {
+  const advanceTo = (
+    position: BindingReadPosition,
+    dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
+    flushUnranked = false
+  ): void => {
+    const dependencyScheduleActive = dependencyExecutionPositionByVersionId !== undefined &&
+      position.dependencyExecutionPosition !== undefined;
     while (nextVersionIndex < graph.versions.length) {
       const version = graph.versions[nextVersionIndex];
       if (!isBeforeOrAt(version, position)) break;
       retireFramesBefore(version.sourceOrder);
       nextVersionIndex += 1;
+      if (dependencyScheduleActive &&
+        version.control.kind === "linear" &&
+        version.catalogOrder !== "append" &&
+        dependencyExecutionPositionByVersionId!.has(version.id)) {
+        pendingDependencyVersions.set(version.id, version);
+        continue;
+      }
       execute(version);
     }
     retireFramesBefore(position.sourceOrder);
+    if (dependencyScheduleActive) {
+      advanceDependencyReadyVersionsThrough(
+        position.dependencyExecutionPosition!,
+        dependencyExecutionPositionByVersionId!,
+        flushUnranked
+      );
+    }
   };
 
   const registerConditionalResult = (ownerStatementId: string, branch: "then" | "else" | null): void => {
@@ -335,8 +384,11 @@ export const createIncrementalLinearMutationEvaluator = (
     frames.push({ scopeId: owner.scopeId, exitSourceOrder: owner.exitSourceOrder, localBindingIds: new Set() });
   };
 
-  const finalize = (position: BindingReadPosition): LinearMutationEvaluation => {
-    advanceTo(position);
+  const finalize = (
+    position: BindingReadPosition,
+    dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>
+  ): LinearMutationEvaluation => {
+    advanceTo(position, dependencyExecutionPositionByVersionId, true);
     return {
       resultsByBindingId: new Map(finalBindingOrder.flatMap((bindingId) => {
         const result = currentByBindingId.get(bindingId);

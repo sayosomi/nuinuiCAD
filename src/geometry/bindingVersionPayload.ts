@@ -74,6 +74,7 @@ const versionPayload = (version: BindingVersion): Record<string, unknown> => ({
   bindingKind: version.bindingKind,
   declaredType: version.declaredType,
   sourceOrder: version.sourceOrder,
+  ...(version.catalogOrder !== undefined ? { catalogOrder: version.catalogOrder } : {}),
   scopeId: version.scopeId,
   scopeExitSourceOrder: version.scopeExitSourceOrder,
   control: version.control,

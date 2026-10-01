@@ -24,6 +24,12 @@ pub(crate) enum InitialState {
     Poisoned,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ValidatedBindingCatalogOrder {
+    Source,
+    Append,
+}
+
 #[derive(Debug)]
 pub(crate) enum ValidatedBindingVersionKind {
     Declare {
@@ -38,6 +44,7 @@ pub(crate) struct ValidatedBindingVersion {
     pub(crate) binding_id: BindingId,
     pub(crate) declared_type: ScalarType,
     pub(crate) source_order: usize,
+    pub(crate) catalog_order: Option<ValidatedBindingCatalogOrder>,
     pub(crate) control: Value,
     pub(crate) initial_state: InitialState,
     pub(crate) kind: ValidatedBindingVersionKind,
@@ -598,6 +605,7 @@ fn decode_version(
             "bindingKind",
             "declaredType",
             "sourceOrder",
+            "catalogOrder",
             "scopeId",
             "scopeExitSourceOrder",
             "control",
@@ -640,6 +648,19 @@ fn decode_version(
         require_field(object, "sourceOrder", "binding version")?,
         "binding version sourceOrder",
     )?;
+    let catalog_order = object
+        .get("catalogOrder")
+        .map(
+            |value| match string(value, "binding version catalogOrder")? {
+                "source" => Ok(ValidatedBindingCatalogOrder::Source),
+                "append" => Ok(ValidatedBindingCatalogOrder::Append),
+                _ => Err(issue(
+                    Code::UnknownKind,
+                    "binding version catalogOrder must be source or append",
+                )),
+            },
+        )
+        .transpose()?;
     let declared_type =
         decode_scalar_type(require_field(object, "declaredType", "binding version")?)?;
     let predecessor = object
@@ -687,6 +708,7 @@ fn decode_version(
             binding_id,
             declared_type,
             source_order,
+            catalog_order,
             control: control.clone(),
             initial_state,
             kind,

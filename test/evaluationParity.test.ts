@@ -7,7 +7,8 @@ import {
   geometryValueOccurrenceKey,
   moduleCarryBindingIdFor,
   propertyBindingOccurrenceKey,
-  resolveTypedDependencyGraphRuntime
+  resolveTypedDependencyGraphRuntime,
+  typedDependencyBindingHasActiveGeometryPrerequisite
 } from "@nuinuicad/nui-language";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
@@ -1026,6 +1027,22 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "  point Mark = coordinate(x: @x, y: 0)",
       "}"
     ].join("\n"));
+    const negativeBinding = carried.fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "negative"
+    );
+    const negativeVersion = carried.options.bindingVersions?.versions.find(
+      (version) => version.bindingId === negativeBinding?.id
+    );
+    const carriedDependencyOrder = carried.options.typedDependencyGraph
+      ? resolveTypedDependencyGraphRuntime(carried.options.typedDependencyGraph, new Map()).dependencyOrder
+      : undefined;
+    if (!negativeBinding || !negativeVersion || !carriedDependencyOrder) {
+      throw new Error("expected compiler products for the unranked carried-loop binding");
+    }
+    expect(carried.options.typedDependencyGraph?.edges.some((edge) =>
+      edge.from.kind === "binding" && edge.from.id === negativeBinding.id
+    )).toBe(false);
+    expect(carriedDependencyOrder).not.toContain(`binding:${negativeBinding.id}`);
     for (const result of [carried.ts, carried.rust]) expectValuesAndOrdinals(result, [2, 7, -3]);
 
     const paddedAlias = await evaluateSource([
@@ -2372,6 +2389,169 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("producer-first:padded"));
   }, 30000);
 
+  it("schedules forward geometry-alias property reads by canonical dependency order", async () => {
+    const forward = [
+      "nui 1",
+      "const result: number = @v.length",
+      "const v: line = @A",
+      "line A = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n");
+    const producerFirst = [
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "const v: line = @A",
+      "const result: number = @v.length"
+    ].join("\n");
+    const directForward = [
+      "nui 1",
+      "const result: number = @A.length",
+      "line A = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n");
+    const multiLevel = [
+      "nui 1",
+      "const result: number = @v.length",
+      "const v: line = @w",
+      "const w: line = @A",
+      "line A = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n");
+    const paddedWithUnrelated = [
+      "nui 1",
+      "// SAY-434 source padding comment",
+      "",
+      "const unrelated: number = 23",
+      "",
+      "const result: number = @v.length",
+      "",
+      "const v: line = @A",
+      "",
+      "line A = segment(start: (0, 0), end: (10, 0))"
+    ].join("\n");
+    const scheduled = fixtureFromSource(forward);
+    const scheduledOptions = optionsFor(scheduled);
+    const resultBinding = scheduled.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "result"
+    );
+    const resultVersion = scheduledOptions.bindingVersions?.versions.find(
+      (version) => version.bindingId === resultBinding?.id
+    );
+    const scheduledGraph = scheduledOptions.typedDependencyGraph;
+    const backingGeometry = scheduled.elements.find((element) => element.name === "A");
+    if (!resultBinding || !resultVersion || !scheduledGraph || !backingGeometry) {
+      throw new Error("expected compiler products for the SAY-434 forward alias fixture");
+    }
+    const scheduledDependencyOrder = resolveTypedDependencyGraphRuntime(scheduledGraph, new Map()).dependencyOrder;
+    const resultExecutionPosition = scheduledDependencyOrder.indexOf(`binding:${resultBinding.id}`);
+    const backingGeometryPosition = scheduledDependencyOrder.indexOf(`element:${backingGeometry.id}`);
+    const backingGeometrySourceOrder = scheduledOptions.statementInfoByElementId?.get(backingGeometry.id)?.statementIndex;
+    if (resultExecutionPosition < 0 || backingGeometrySourceOrder === undefined) {
+      throw new Error("expected source and dependency execution positions for the forward property read");
+    }
+    expect(resultVersion.sourceOrder).toBeLessThan(backingGeometrySourceOrder);
+    expect(backingGeometryPosition).toBeGreaterThanOrEqual(0);
+    expect(resultExecutionPosition).toBeGreaterThan(backingGeometryPosition);
+    const scheduledRustInput = buildRustEvaluationInput(scheduled.elements, scheduledOptions);
+    const scheduledResultPayload = scheduledRustInput.bindingVersions?.versions.find((version) => version.bindingId === resultBinding.id);
+    expect(scheduledResultPayload).toMatchObject({ sourceOrder: resultVersion.sourceOrder });
+    expect(scheduledResultPayload).not.toHaveProperty("dependencyExecutionPosition");
+
+    const multiFixture = fixtureFromSource(multiLevel);
+    const multiOptions = optionsFor(multiFixture);
+    const multiResultBinding = multiFixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "result"
+    );
+    const multiResultInitializer = multiOptions.scalarProgram?.statements.find(
+      (statement) => statement.bindingId === multiResultBinding?.id
+    )?.declaration.initializer;
+    const multiGraph = multiOptions.typedDependencyGraph;
+    if (!multiResultBinding || multiResultInitializer?.kind !== "geometryProperty" ||
+      !multiResultInitializer.geometryValueOccurrence || !multiGraph) {
+      throw new Error("expected the multi-level alias property dependency in compiler output");
+    }
+    const multiOccurrenceId = geometryValueOccurrenceKey(multiResultInitializer.geometryValueOccurrence);
+    expect(multiGraph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        from: expect.objectContaining({ kind: "binding", id: multiResultBinding.id }),
+        to: expect.objectContaining({ kind: "geometry-value", id: multiOccurrenceId })
+      })
+    ]));
+    const multiDependencyOrder = resolveTypedDependencyGraphRuntime(multiGraph, new Map()).dependencyOrder;
+    const multiVersion = multiOptions.bindingVersions?.versions.find((version) => version.bindingId === multiResultBinding.id);
+    const multiResultExecutionPosition = multiDependencyOrder.indexOf(`binding:${multiResultBinding.id}`);
+    if (!multiVersion || multiResultExecutionPosition < 0) {
+      throw new Error("expected dependency execution position for the multi-level alias read");
+    }
+    expect(multiResultExecutionPosition).toBeGreaterThan(multiDependencyOrder.indexOf(`geometry-value:${multiOccurrenceId}`));
+
+    const moduleFixture = fixtureFromSource([
+      "nui 1",
+      "module M(input: number) {",
+      "  const local: number = @input + 1",
+      "  export const output: number = @local",
+      "}",
+      "instance One = M(input: 10)",
+      "const result: number = @One::output"
+    ].join("\n"));
+    const moduleOptions = optionsFor(moduleFixture);
+    const moduleCatalog = moduleFixture.compiled?.doc.bindingAnalysis?.catalog;
+    const appendBindingIds = new Set(moduleCatalog?.bindings
+      .filter((binding) => binding.catalogOrder === "append")
+      .map((binding) => binding.id));
+    const appendedModuleVersion = moduleOptions.bindingVersions?.versions.find((version) =>
+      appendBindingIds.has(version.bindingId)
+    );
+    if (!appendedModuleVersion) throw new Error("expected a Module-materialized binding version in the append catalog lane");
+    expect(appendedModuleVersion.catalogOrder).toBe("append");
+    expect(appendedModuleVersion.control.kind).toBe("linear");
+    const moduleRustInput = buildRustEvaluationInput(moduleFixture.elements, moduleOptions);
+    expect(moduleRustInput.bindingVersions?.versions.find((version) => version.bindingId === appendedModuleVersion.bindingId))
+      .toMatchObject({ catalogOrder: "append" });
+
+    const cases = [forward, producerFirst, directForward, multiLevel, paddedWithUnrelated];
+    for (const source of cases) {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+        expectScalarNumberClose(scalarBindingFor(fixture, payload, "result"), 10);
+      }
+    }
+
+    const disabled = fixtureFromSource([
+      "nui 1",
+      "const result: number = @v.length",
+      "const v: line = @A",
+      "line A = segment(start: (0, 0), end: (10, 0), enabled: false)"
+    ].join("\n"));
+    const disabledOptions = optionsFor(disabled);
+    expect(disabled.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(disabled)).toBe(true);
+    const disabledTs = evaluateElementsReferencePayload(disabled.elements, disabledOptions);
+    const disabledRust = await rustStdio!.evaluate(disabled.elements, disabledOptions);
+    expect(normalizeParityPayload(disabledRust)).toEqual(normalizeParityPayload(disabledTs));
+    for (const payload of [disabledTs, disabledRust]) {
+      expect(scalarBindingFor(disabled, payload, "result")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-geometry-property-unavailable"
+      });
+    }
+
+    const cycleSource = [
+      "nui 1",
+      "const result: number = @v.x",
+      "const v: point = @A",
+      "point A = coordinate(x: @result, y: 0)"
+    ].join("\n");
+    const cycleCompile = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), cycleSource);
+    expect(cycleCompile.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "dependency-cycle", severity: "error" })
+    ]));
+  }, 30000);
+
   it("preserves selected stages through immutable geometry aliases", async () => {
     const cases = buildSay433TypeScriptCases();
     for (const { fixture, options, tsPayload } of cases) {
@@ -2560,6 +2740,28 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "line Later = segment(start: (0, 0), end: (10, 0))"
     ].join("\n"));
     const options = optionsFor(fixture);
+    const dependencyGraph = fixture.compiled?.doc.typedDependencyGraph;
+    const selectedLengthBinding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "selectedLength"
+    );
+    const selectedLengthGeometryEdge = dependencyGraph?.directByEndpointId
+      .get(`binding:${selectedLengthBinding?.id}`)
+      ?.find((edge) => edge.to.kind === "geometry-value" || edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence");
+    const geometryGuard = selectedLengthGeometryEdge?.activation?.guards[0];
+    if (!dependencyGraph || !selectedLengthBinding || !geometryGuard) {
+      throw new Error("expected a guarded geometry prerequisite for selectedLength");
+    }
+    expect(typedDependencyBindingHasActiveGeometryPrerequisite(dependencyGraph, selectedLengthBinding.id, new Map())).toBe(false);
+    expect(typedDependencyBindingHasActiveGeometryPrerequisite(
+      dependencyGraph,
+      selectedLengthBinding.id,
+      new Map([[geometryGuard.controllerId, geometryGuard.branch]])
+    )).toBe(true);
+    expect(typedDependencyBindingHasActiveGeometryPrerequisite(
+      dependencyGraph,
+      selectedLengthBinding.id,
+      new Map([[geometryGuard.controllerId, geometryGuard.branch === "then" ? "else" : "then"]])
+    )).toBe(false);
     expect(isRustEligibleFixture(fixture)).toBe(true);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);

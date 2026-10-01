@@ -16,7 +16,9 @@ import {
   moduleRecordParameterScalarBindingIdForPath,
   moduleScalarBindingIdFor,
   recordFieldCollectionValueIdFor,
-  recordFieldContentsCollectionValueIdFor
+  recordFieldContentsCollectionValueIdFor,
+  resolveTypedDependencyGraphRuntime,
+  typedDependencyBindingHasActiveGeometryPrerequisite
 } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
@@ -1911,6 +1913,15 @@ describe("module scalar runtime integration", () => {
         type: { kind: "optional", valueType: { kind: "number" } }
       }
     });
+
+    const firstXBinding = compiled.bindingAnalysis!.catalog.bindings.find((binding) =>
+      binding.kind === "typed" && binding.name === "first.x"
+    );
+    const dependencyGraph = compiled.typedDependencyGraph;
+    if (!firstXBinding || !dependencyGraph) throw new Error("expected the canonical first.x binding graph");
+    const dependencyOrder = resolveTypedDependencyGraphRuntime(dependencyGraph, new Map()).dependencyOrder;
+    expect(dependencyOrder).toContain(`binding:${firstXBinding.id}`);
+    expect(typedDependencyBindingHasActiveGeometryPrerequisite(dependencyGraph, firstXBinding.id, new Map())).toBe(false);
 
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);

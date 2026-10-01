@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 
 use super::issue::ScalarPayloadIssueCode;
-use super::mutation_payload::validate_binding_versions_payload;
+use super::mutation_payload::{validate_binding_versions_payload, ValidatedBindingCatalogOrder};
 
 fn elements() -> Vec<Value> {
     vec![json!({ "id": "loop", "type": "forGroup" })]
@@ -175,6 +175,38 @@ fn rejects_unknown_nonlocal_references_in_binding_version_initializers() {
 
     assert_eq!(issue.code, ScalarPayloadIssueCode::InvalidBindingId);
     assert_eq!(issue.message, "unknown binding reference binding:missing");
+}
+
+#[test]
+fn decodes_optional_binding_catalog_order_and_rejects_unknown_values() {
+    let mut source_payload = binding_version_payload(number_literal());
+    source_payload["versions"][0]["catalogOrder"] = json!("source");
+    let source = validate_binding_versions_payload(&source_payload, &[])
+        .expect("source catalog ownership is accepted");
+    assert_eq!(
+        source.versions[0].catalog_order,
+        Some(ValidatedBindingCatalogOrder::Source)
+    );
+
+    let mut append_payload = binding_version_payload(number_literal());
+    append_payload["versions"][0]["catalogOrder"] = json!("append");
+    let append = validate_binding_versions_payload(&append_payload, &[])
+        .expect("append catalog ownership is accepted");
+    assert_eq!(
+        append.versions[0].catalog_order,
+        Some(ValidatedBindingCatalogOrder::Append)
+    );
+
+    let missing =
+        validate_binding_versions_payload(&binding_version_payload(number_literal()), &[])
+            .expect("missing catalogOrder retains the source-declaration default");
+    assert_eq!(missing.versions[0].catalog_order, None);
+
+    let mut unknown_payload = binding_version_payload(number_literal());
+    unknown_payload["versions"][0]["catalogOrder"] = json!("runtime");
+    let issue = validate_binding_versions_payload(&unknown_payload, &[])
+        .expect_err("unknown catalog ownership values fail payload validation");
+    assert_eq!(issue.code, ScalarPayloadIssueCode::UnknownKind);
 }
 
 #[test]
