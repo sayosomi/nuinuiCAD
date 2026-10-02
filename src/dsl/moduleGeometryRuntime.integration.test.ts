@@ -223,6 +223,88 @@ describe("module geometry runtime", () => {
     expect(result.computedGeometry.get(named(compiled, "PathUse").id)).toMatchObject({ kind: "offsetLine" });
   });
 
+  it("projects immutable line and path endpoints to point-shaped geometry-value targets", () => {
+    const runEndpointCase = (
+      name: string,
+      geometryType: "line" | "path",
+      producerFirst: boolean
+    ) => {
+      const producer = geometryType === "line"
+        ? "  const L: line = segment(start: (11, 23), end: (41, 63))"
+        : "  const L: path = polyline(points: [(11, 23), (41, 63)], closed: false)";
+      const consumer = "  line Use = segment(start: @L.start, end: @L.end)";
+      const body = producerFirst ? [producer, consumer] : [consumer, producer];
+      const compiled = compileWithIds([
+        "nui 1",
+        "module M() {",
+        ...body,
+        "}",
+        "instance I = M()"
+      ].join("\n"), name);
+      expectValid(compiled);
+
+      const use = named(compiled, "Use");
+      const targets = geometryInputTargetsFor(compiled, use.id);
+      expect(targets.every((target) => target.kind === "geometryValue")).toBe(true);
+      const endpointTargets = targets.filter((target): target is Extract<GeometryInputTarget, { kind: "geometryValue" }> =>
+        target.kind === "geometryValue"
+      );
+      expect(endpointTargets).toHaveLength(2);
+      expect(endpointTargets.map((target) => ({ geometryType: target.geometryType, pointKey: target.pointKey })))
+        .toEqual([
+          { geometryType: "point", pointKey: "start" },
+          { geometryType: "point", pointKey: "end" }
+        ]);
+
+      const occurrence = endpointTargets[0]!.occurrence;
+      expect(endpointTargets[1]!.occurrence).toEqual(occurrence);
+      expect(occurrence.sourceStatementId).toBe(`${name}:${producerFirst ? 2 : 3}`);
+      expect(occurrence.instancePath).toEqual([`${name}:5`]);
+      expect(compiled.geometryValueProgram?.some((entry) =>
+        geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(occurrence)
+      )).toBe(true);
+      expectGeometryValueDependency(compiled, use.id, occurrence);
+
+      const result = evaluateCompiled(compiled);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(use.id)).toMatchObject({
+        kind: "line",
+        start: { x: 11, y: 23 },
+        end: { x: 41, y: 63 },
+        length: 50
+      });
+    };
+
+    runEndpointCase("module-immutable-line-endpoint-forward", "line", false);
+    runEndpointCase("module-immutable-line-endpoint-reverse", "line", true);
+    runEndpointCase("module-immutable-path-endpoint-forward", "path", false);
+
+    const drawable = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  line L = segment(start: (11, 23), end: (41, 63))",
+      "  line Use = segment(start: @L.start, end: @L.end)",
+      "}",
+      "instance I = M()"
+    ].join("\n"), "module-drawable-line-endpoint-control");
+    expectValid(drawable);
+    const drawableUse = named(drawable, "Use");
+    const drawableLine = named(drawable, "L");
+    expect(drawableUse).toMatchObject({
+      startPoint: { mode: "derived", elementId: drawableLine.id, pointKey: "start" },
+      endPoint: { mode: "derived", elementId: drawableLine.id, pointKey: "end" }
+    });
+    expect(geometryInputTargetsFor(drawable, drawableUse.id)).toEqual([]);
+    const drawableResult = evaluateCompiled(drawable);
+    expect(drawableResult.errors).toEqual([]);
+    expect(drawableResult.computedGeometry.get(drawableUse.id)).toMatchObject({
+      kind: "line",
+      start: { x: 11, y: 23 },
+      end: { x: 41, y: 63 },
+      length: 50
+    });
+  });
+
   it("preserves local, exported, and parameter-backed occurrences across isolated Module instances", () => {
     const compiled = compileWithIds([
       "nui 1",
