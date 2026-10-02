@@ -33,7 +33,9 @@ import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceT
 import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
+import { recordScalarMatchArmFor } from "../scalars/recordScalarLowering";
 import { validateChoiceMatchExhaustiveness, validateOptionalMatchExhaustiveness } from "../scalars/expressionTypecheck";
+import { optionalMatchBinderId } from "../scalars/optionalMatchBinder";
 import { parseDslConstructionInvocation } from "./dslCallParser";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { splitDslList } from "./dslTokens";
@@ -1477,6 +1479,32 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ownerIndex: number | null,
     reference: ModuleOptionalMemberReferenceInput
   ) => ModuleOptionalMemberReference } = {};
+
+  type CollectionControlFlowBinding = {
+    name: string;
+    bindingId: string;
+    type: ScalarType;
+  };
+  const collectionControlFlowBindingFor = (
+    statementIndex: number,
+    localBindings: readonly CollectionControlFlowBinding[],
+    reference: { name: string; span: DslSpan }
+  ): ReferenceResolution | null => {
+    const binding = [...localBindings].reverse().find((candidate) => candidate.name === reference.name);
+    if (!binding) return null;
+    return {
+      target: {
+        kind: "valueForBinder",
+        binderId: binding.bindingId,
+        statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
+        statementIndex,
+        name: binding.name,
+        sourceElementType: binding.type
+      },
+      type: binding.type,
+      resolution: "resolved"
+    };
+  };
 
   const analyzeExpression = (
     statementIndex: number,
@@ -4742,10 +4770,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   function analyzeRecordConstructorFields(
     statementIndex: number,
     ownerIndex: number | null,
-    fields: readonly RecordConstructorFieldSemantic[]
+    fields: readonly RecordConstructorFieldSemantic[],
+    localBindings: readonly CollectionControlFlowBinding[] = []
   ): ModuleRecordConstructorFieldSemantic[] {
     return fields.map((field) => {
-      const valueExpression = analyzeRecordFieldValue(statementIndex, ownerIndex, field.expectedType, field.value, field.valueSpan);
+      const valueExpression = analyzeRecordFieldValue(statementIndex, ownerIndex, field.expectedType, field.value, field.valueSpan, localBindings);
       return {
         ...field,
         expression: valueExpression?.kind === "scalar" ? valueExpression.expression : null,
@@ -4760,7 +4789,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     raw: string,
     span: DslSpan,
     expectedTypeIdentity: RecordTypeIdentity | null,
-    allowOptionalReference = false
+    allowOptionalReference = false,
+    localBindings: readonly CollectionControlFlowBinding[] = []
   ): ModuleRecordReferenceSemantic => {
     const invalid = (
       resolution: ModuleRecordReferenceSemantic["resolution"],
@@ -5002,7 +5032,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (targetDefinition.statementId !== expectedTypeIdentity) {
       return invalid("invalid", `constructor「${constructor.name}」の nominal record 型が expected type と一致しません。`, constructor.nameSpan, [], { key: "diagnostic.module-record-invalid-reference", parameters: { name: constructor.name } });
     }
-    const fields = analyzeRecordConstructorFields(statementIndex, ownerIndex, constructor.fields);
+    const fields = analyzeRecordConstructorFields(statementIndex, ownerIndex, constructor.fields, localBindings);
     return {
       source: raw,
       span,
@@ -5066,7 +5096,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ownerIndex: number | null,
     expectedType: import("./dslValueTypes").DslValueType,
     rawValue: string,
-    valueSpan: DslSpan
+    valueSpan: DslSpan,
+    localBindings: readonly CollectionControlFlowBinding[] = []
   ): ModuleRecordFieldValueExpressionSemantic | null {
     const scalarType = scalarExpressionTypeOfDslValueType(expectedType);
     const requiredExpectedType = dslRequiredValueTypeOf(expectedType) ?? expectedType;
@@ -5079,9 +5110,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           rawValue,
           valueSpan,
           scalarType,
-          (reference) => ownerIndex === null
+          (reference) => collectionControlFlowBindingFor(statementIndex, localBindings, reference) ?? (ownerIndex === null
             ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span)
-            : resolveBodyScalar(statementIndex, ownerIndex, reference),
+            : resolveBodyScalar(statementIndex, ownerIndex, reference)),
           undefined,
           (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
           (reference) => resolveGeometry(
@@ -5265,7 +5296,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     source,
     expression,
     expectedTypeIdentity,
-    allowOptionalReference = false
+    allowOptionalReference = false,
+    localBindings = []
   }: {
     statementIndex: number;
     ownerIndex: number | null;
@@ -5273,28 +5305,29 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     expression: RecordValueExpressionSemantic;
     expectedTypeIdentity: RecordTypeIdentity | null;
     allowOptionalReference?: boolean;
+    localBindings?: readonly CollectionControlFlowBinding[];
   }): ModuleRecordValueExpressionSemantic | null => {
     const raw = source.slice(expression.span.start, expression.span.end);
     if (expression.kind === "constructor") {
-      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity);
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, false, localBindings);
       return reference.constructor
         ? { kind: "constructor", span: expression.span, constructor: reference.constructor, valueType: expression.valueType }
         : null;
     }
     if (expression.kind === "reference") {
-      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, allowOptionalReference);
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, allowOptionalReference, localBindings);
       return reference.target ? { kind: "reference", span: expression.span, reference, valueType: expression.valueType ?? reference.valueType } : null;
     }
     if (expression.kind === "collectionIndex") {
-      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity);
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, false, localBindings);
       return reference.target?.kind === "recordCollectionIndex"
         ? { kind: "collectionIndex", span: expression.span, reference, valueType: expression.valueType }
         : null;
     }
     if (expression.kind === "none") return { kind: "none", span: expression.span, valueType: expression.valueType };
     if (expression.kind === "coalesce") {
-      const left = expression.left ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.left, expectedTypeIdentity, allowOptionalReference: true }) : null;
-      const right = expression.right ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.right, expectedTypeIdentity }) : null;
+      const left = expression.left ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.left, expectedTypeIdentity, allowOptionalReference: true, localBindings }) : null;
+      const right = expression.right ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.right, expectedTypeIdentity, localBindings }) : null;
       return { kind: "coalesce", span: expression.span, left, right, valueType: expression.valueType };
     }
     if (expression.kind === "if") {
@@ -5304,9 +5337,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         source.slice(expression.condition.span.start, expression.condition.span.end),
         expression.condition.span,
         { kind: "boolean" },
-        (reference) => ownerIndex === null
+        (reference) => collectionControlFlowBindingFor(statementIndex, localBindings, reference) ?? (ownerIndex === null
           ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span)
-          : resolveBodyScalar(statementIndex, ownerIndex, reference),
+          : resolveBodyScalar(statementIndex, ownerIndex, reference)),
         undefined,
         (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
         undefined,
@@ -5317,10 +5350,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         span: expression.span,
         condition,
         thenBranch: expression.thenBranch
-          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.thenBranch, expectedTypeIdentity })
+          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.thenBranch, expectedTypeIdentity, localBindings })
           : null,
         elseBranch: expression.elseBranch
-          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.elseBranch, expectedTypeIdentity })
+          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: expression.elseBranch, expectedTypeIdentity, localBindings })
           : null
       };
     }
@@ -5330,9 +5363,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       source.slice(expression.scrutinee.span.start, expression.scrutinee.span.end),
       expression.scrutinee.span,
       null,
-      (reference) => ownerIndex === null
+      (reference) => collectionControlFlowBindingFor(statementIndex, localBindings, reference) ?? (ownerIndex === null
         ? resolveSourceScalar(statementIndex, null, reference.name, null, reference.span)
-        : resolveBodyScalar(statementIndex, ownerIndex, reference),
+        : resolveBodyScalar(statementIndex, ownerIndex, reference)),
       undefined,
       (reference) => resolveGeometryProperty(statementIndex, ownerIndex, reference),
       undefined,
@@ -5357,19 +5390,30 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         });
       }
     }
+    const someType = scrutinee?.type?.kind === "optional"
+      ? scalarTypeOfDslValueType(scrutinee.type.valueType)
+      : null;
     return {
       kind: "match",
       span: expression.span,
       scrutinee,
-      arms: expression.arms.map((arm) => ({
-        label: arm.label,
-        labelSpan: arm.labelSpan,
-        binder: arm.binder,
-        binderSpan: arm.binderSpan,
-        expression: arm.expression
-          ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: arm.expression, expectedTypeIdentity })
-          : null
-      }))
+      arms: expression.arms.map((arm) => {
+        const binderId = arm.label === "some" && arm.binder && someType
+          ? optionalMatchBinderId(expression.span.start, arm.labelSpan.start, arm.binderSpan?.start ?? arm.labelSpan.end)
+          : null;
+        const armBindings = binderId && arm.binder && someType
+          ? [...localBindings, { name: arm.binder, bindingId: binderId, type: someType }]
+          : localBindings;
+        return {
+          label: arm.label,
+          labelSpan: arm.labelSpan,
+          binder: arm.binder,
+          binderSpan: arm.binderSpan,
+          expression: arm.expression
+            ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: arm.expression, expectedTypeIdentity, localBindings: armBindings })
+            : null
+        };
+      })
     };
   };
 
@@ -5514,11 +5558,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             kind: "valueMatch",
             span: expression.span,
             scrutinee: expression.scrutinee.ast,
-            arms: arms.map((arm) => ({
-              label: arm.label,
-              labelSpan: arm.labelSpan,
-              expression: arm.expression!.ast
-            }))
+            arms: arms.map((arm, index) => recordScalarMatchArmFor(
+              expression.arms[index]!,
+              arm.expression!.ast
+            ))
           },
           type: field.type,
           references: [expression.scrutinee.references, ...arms.map((arm) => arm.expression!.references)].flat(),
@@ -6773,31 +6816,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // resolver/typechecker for their condition or scrutinee.  Shape resolution
   // already happened in geometryArraySemanticAnalysis; this pass only fills
   // the scalar semantic needed by the runtime and editor identity paths.
-  type CollectionControlFlowBinding = {
-    name: string;
-    bindingId: string;
-    type: ScalarType;
-  };
-  const collectionControlFlowBindingFor = (
-    statementIndex: number,
-    localBindings: readonly CollectionControlFlowBinding[],
-    reference: { name: string; span: DslSpan }
-  ): ReferenceResolution | null => {
-    const binding = [...localBindings].reverse().find((candidate) => candidate.name === reference.name);
-    if (!binding) return null;
-    return {
-      target: {
-        kind: "valueForBinder",
-        binderId: binding.bindingId,
-        statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
-        statementIndex,
-        name: binding.name,
-        sourceElementType: binding.type
-      },
-      type: binding.type,
-      resolution: "resolved"
-    };
-  };
   const analyzeCollectionControlFlow = (
     statementIndex: number,
     ownerIndex: number | null,
