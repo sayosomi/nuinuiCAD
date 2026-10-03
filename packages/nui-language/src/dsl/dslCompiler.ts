@@ -16,6 +16,7 @@ import type {
   LayoutOrigin,
   LayoutPlacement,
   NumericValue,
+  PointAnchor,
   PrintOutput,
   PrintPaperSizeId,
   SvgOutput,
@@ -848,6 +849,58 @@ type ModuleTransformationCompilation = {
   runtimeRecipes: TransformationRecipe[];
 };
 
+const transformationRecipeIdentity = (recipe: TransformationRecipe) => recipe.sourceStatementId
+  ? `statement:${recipe.sourceStatementId}`
+  : `source-index:${recipe.sourceStatementIndex}`;
+
+const lowerModuleTransformationPointAnchor = (
+  anchor: PointAnchor,
+  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>
+): PointAnchor => {
+  if (anchor.mode === "reference") {
+    const runtimeElementId = runtimeElementIdBySourceElementId.get(anchor.pointId);
+    return runtimeElementId === undefined ? anchor : { ...anchor, pointId: runtimeElementId };
+  }
+  if (anchor.mode === "derived") {
+    const runtimeElementId = runtimeElementIdBySourceElementId.get(anchor.elementId);
+    return runtimeElementId === undefined ? anchor : { ...anchor, elementId: runtimeElementId };
+  }
+  return anchor;
+};
+
+const lowerModuleTransformationOperationAnchors = (
+  sourceOperation: TransformationOperation,
+  runtimeOperation: TransformationOperation,
+  runtimeElementIdBySourceElementId: ReadonlyMap<ElementId, ElementId>
+): TransformationOperation => {
+  if (sourceOperation.kind !== runtimeOperation.kind) return runtimeOperation;
+  switch (runtimeOperation.kind) {
+    case "extend":
+      if (sourceOperation.kind !== "extend") return runtimeOperation;
+      return {
+        ...runtimeOperation,
+        point: lowerModuleTransformationPointAnchor(sourceOperation.point, runtimeElementIdBySourceElementId)
+      };
+    case "move":
+      if (sourceOperation.kind !== "move") return runtimeOperation;
+      return {
+        ...runtimeOperation,
+        startPoint: lowerModuleTransformationPointAnchor(sourceOperation.startPoint, runtimeElementIdBySourceElementId),
+        endPoint: lowerModuleTransformationPointAnchor(sourceOperation.endPoint, runtimeElementIdBySourceElementId)
+      };
+    case "mirrorMove":
+      if (sourceOperation.kind !== "mirrorMove") return runtimeOperation;
+      return {
+        ...runtimeOperation,
+        axisPoint1: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint1, runtimeElementIdBySourceElementId),
+        axisPoint2: lowerModuleTransformationPointAnchor(sourceOperation.axisPoint2, runtimeElementIdBySourceElementId)
+      };
+    case "edge":
+    case "reverse":
+      return runtimeOperation;
+  }
+};
+
 const moduleDefinitionIndexFor = (
   statements: readonly DslStatement[],
   statementIndex: number
@@ -1071,6 +1124,8 @@ const compileModuleTransformationRecipes = ({
 }): ModuleTransformationCompilation => {
   const sourceRecipes: TransformationRecipe[] = [];
   const runtimeRecipes: TransformationRecipe[] = [];
+  const sourceRecipesByDefinition = new Map<number, Map<string, TransformationRecipe>>();
+  const sourceElementIdsByDefinition = new Map<number, ReadonlyMap<number, ElementId>>();
   const localDefinitions = moduleSemanticAnalysis.definitions.filter((definition) =>
     definition.documentId === undefined || moduleRuntimeContext?.documentFor(definition.documentId)?.statements === statements
   );
@@ -1083,6 +1138,7 @@ const compileModuleTransformationRecipes = ({
       bodyStatementIndexes: definition.bodyStatements.map((body) => body.statementIndex),
       stableStatementIdByIndex
     });
+    sourceElementIdsByDefinition.set(definition.statementIndex, scope.sourceElementIds);
     const includeDefinitionTransformation = (candidate: DslStatement, statementIndex: number) =>
       candidate.kind === "transformation" && moduleDefinitionIndexFor(statements, statementIndex) === definition.statementIndex;
     const geometryParameterNames = new Set(
@@ -1105,7 +1161,7 @@ const compileModuleTransformationRecipes = ({
         ));
       }
     }
-    sourceRecipes.push(...compileTransformationRecipes({
+    const definitionSourceRecipes = compileTransformationRecipes({
       statements,
       elements: scope.elements,
       index: createNameIndex(scope.elements),
@@ -1114,7 +1170,11 @@ const compileModuleTransformationRecipes = ({
       stableStatementIdByIndex,
       includeStatement: includeDefinitionTransformation,
       diagnostics
-    }));
+    });
+    sourceRecipes.push(...definitionSourceRecipes);
+    sourceRecipesByDefinition.set(definition.statementIndex, new Map(
+      definitionSourceRecipes.map((recipe) => [transformationRecipeIdentity(recipe), recipe])
+    ));
   }
 
   for (const instanceEntry of materialization.executionStatements) {
@@ -1130,6 +1190,12 @@ const compileModuleTransformationRecipes = ({
       bodyEntries.map((entry) => [entry.sourceStatementIndex, entry.runtimeElementId])
     );
     const runtimeElementIds = new Set(bodyEntries.map((entry) => entry.runtimeElementId));
+    const runtimeElementIdBySourceElementId = new Map<ElementId, ElementId>();
+    const sourceElementIds = sourceElementIdsByDefinition.get(definition.statementIndex);
+    for (const entry of bodyEntries) {
+      const sourceElementId = sourceElementIds?.get(entry.sourceStatementIndex);
+      if (sourceElementId !== undefined) runtimeElementIdBySourceElementId.set(sourceElementId, entry.runtimeElementId);
+    }
     const runtimeElements = elements.filter((element) => runtimeElementIds.has(element.id));
     const includeDefinitionTransformation = (candidate: DslStatement, statementIndex: number) =>
       candidate.kind === "transformation" && moduleDefinitionIndexFor(statements, statementIndex) === definition.statementIndex;
@@ -1150,10 +1216,18 @@ const compileModuleTransformationRecipes = ({
       .sort((left, right) => left - right);
     const bodySpan = Math.max(1, definitionBodyIndexes.length + 1);
     for (const recipe of lowered) {
+      const sourceRecipe = sourceRecipesByDefinition.get(definition.statementIndex)?.get(transformationRecipeIdentity(recipe));
       const position = definitionBodyIndexes.indexOf(recipe.sourceStatementIndex);
       runtimeRecipes.push({
         ...recipe,
         id: encodeIdentityTuple(["module-transformation", ...instanceEntry.instancePath, recipe.id]),
+        ...(sourceRecipe?.sourceStatementIndex === recipe.sourceStatementIndex
+          ? { operation: lowerModuleTransformationOperationAnchors(
+              sourceRecipe.operation,
+              recipe.operation,
+              runtimeElementIdBySourceElementId
+            ) }
+          : {}),
         runtimeSourceOrder: instanceEntry.executionUnitStatementIndex + (Math.max(0, position) + 1) / bodySpan
       });
     }

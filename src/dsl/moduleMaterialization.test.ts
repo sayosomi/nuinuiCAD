@@ -291,6 +291,262 @@ describe("module materialization", () => {
     ]));
   });
 
+  it("lowers Module-local move anchors through body materialization identities", () => {
+    const sourceFor = ({
+      targetName,
+      anchorName,
+      padded,
+      anchorAfterMove
+    }: {
+      targetName: string;
+      anchorName: string;
+      padded: boolean;
+      anchorAfterMove: boolean;
+    }) => [
+      "nui 1",
+      "module M() {",
+      `  line ${targetName} = segment(start: (11, 23), end: (20, 35))`,
+      ...(padded ? ["  // unrelated local source padding", "  const Padding: number = 17", ""] : []),
+      ...(anchorAfterMove
+        ? [
+            `  move ${targetName} (from: @${anchorName}.start, to: @${anchorName}.end)`,
+            `  line ${anchorName} = segment(start: (-31, 47), end: (-26, 59))`
+          ]
+        : [
+            `  line ${anchorName} = segment(start: (-31, 47), end: (-26, 59))`,
+            `  move ${targetName} (from: @${anchorName}.start, to: @${anchorName}.end)`
+          ]),
+      "}",
+      "instance I = M()"
+    ].join("\n");
+
+    for (const variant of [
+      { targetName: "L", anchorName: "P", padded: false, anchorAfterMove: false },
+      { targetName: "Target", anchorName: "Anchor", padded: true, anchorAfterMove: true }
+    ]) {
+      const source = sourceFor(variant);
+      const parsedStatements = parseDsl(source).statements;
+      const targetStatementIndex = parsedStatements.findIndex((statement) =>
+        statement.kind === "element" && statement.name === variant.targetName
+      );
+      const anchorStatementIndex = parsedStatements.findIndex((statement) =>
+        statement.kind === "element" && statement.name === variant.anchorName
+      );
+      const moveStatementIndex = parsedStatements.findIndex((statement) =>
+        statement.kind === "transformation" && statement.construction === "move"
+      );
+      const compiled = runtimeNames(source);
+      const sourceTargetId = stableIdsFor(source).get(targetStatementIndex)!;
+      const sourceAnchorId = stableIdsFor(source).get(anchorStatementIndex)!;
+      const sourceRecipe = compiled.transformationRecipes!.find((recipe) =>
+        recipe.sourceStatementIndex === moveStatementIndex
+      )!;
+      const runtimeRecipe = compiled.runtimeTransformationRecipes!.find((recipe) =>
+        recipe.sourceStatementIndex === moveStatementIndex
+      )!;
+      const target = compiled.document!.elements.find((element) => element.name === variant.targetName)!;
+      const anchor = compiled.document!.elements.find((element) => element.name === variant.anchorName)!;
+      const anchorRuntimeId = compiled.moduleMaterialization!.executionStatements.find((entry) =>
+        entry.origin?.kind === "moduleBody" && entry.sourceStatementIndex === anchorStatementIndex
+      )!.runtimeElementId;
+
+      expect(sourceRecipe.targets[0]?.ownerId).toBe(sourceTargetId);
+      expect(sourceRecipe.operation).toMatchObject({
+        kind: "move",
+        startPoint: { mode: "derived", elementId: sourceAnchorId, pointKey: "start", stagePath: ["final"] },
+        endPoint: { mode: "derived", elementId: sourceAnchorId, pointKey: "end", stagePath: ["final"] }
+      });
+      expect(runtimeRecipe.targets[0]?.ownerId).toBe(target.id);
+      expect(anchorRuntimeId).toBe(anchor.id);
+      expect(runtimeRecipe.operation).toMatchObject({
+        kind: "move",
+        startPoint: { mode: "derived", elementId: anchorRuntimeId, pointKey: "start", stagePath: ["final"] },
+        endPoint: { mode: "derived", elementId: anchorRuntimeId, pointKey: "end", stagePath: ["final"] }
+      });
+      if (runtimeRecipe.operation.kind !== "move") throw new Error("expected a runtime move recipe");
+      const runtimeAnchorIdentities = [runtimeRecipe.operation.startPoint, runtimeRecipe.operation.endPoint].map((anchor) =>
+        anchor.mode === "reference" ? anchor.pointId : anchor.mode === "derived" ? anchor.elementId : "coordinate"
+      );
+      expect(runtimeAnchorIdentities).not.toContain(`@${variant.anchorName}`);
+      expect(runtimeAnchorIdentities.every((identity) => !identity.startsWith("@"))).toBe(true);
+
+      const result = evaluateCompiled(compiled);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(target.id)).toMatchObject({
+        kind: "line",
+        start: { x: 16, y: 35 },
+        end: { x: 25, y: 47 }
+      });
+    }
+  });
+
+  it("preserves Module-local point-anchor stages while lowering their geometry identities", () => {
+    const source = [
+      "nui 1",
+      "module M() {",
+      "  line P = segment(start: (-31, 47), end: (-26, 59))",
+      "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  move P as shifted (from: (0, 0), to: (3, 4))",
+      "  move L (from: @P.base.start, to: @P.shifted.start)",
+      "}",
+      "instance I = M()"
+    ].join("\n");
+    const parsedStatements = parseDsl(source).statements;
+    const pStatementIndex = parsedStatements.findIndex((statement) => statement.kind === "element" && statement.name === "P");
+    const targetStatementIndex = parsedStatements.findIndex((statement) => statement.kind === "element" && statement.name === "L");
+    const stageMoveStatementIndex = parsedStatements.findIndex((statement) =>
+      statement.kind === "transformation" && statement.construction === "move" && statement.stageName === null
+    );
+    const compiled = runtimeNames(source);
+    const sourcePId = stableIdsFor(source).get(pStatementIndex)!;
+    const sourceRecipe = compiled.transformationRecipes!.find((recipe) =>
+      recipe.sourceStatementIndex === stageMoveStatementIndex
+    )!;
+    const runtimeRecipe = compiled.runtimeTransformationRecipes!.find((recipe) =>
+      recipe.sourceStatementIndex === stageMoveStatementIndex
+    )!;
+    const target = compiled.document!.elements.find((element) => element.name === "L")!;
+    const anchor = compiled.document!.elements.find((element) => element.name === "P")!;
+
+    expect(sourceRecipe.targets[0]?.ownerId).toBe(stableIdsFor(source).get(targetStatementIndex));
+    expect(sourceRecipe.operation).toMatchObject({
+      kind: "move",
+      startPoint: { mode: "derived", elementId: sourcePId, pointKey: "start", stagePath: ["base"] },
+      endPoint: { mode: "derived", elementId: sourcePId, pointKey: "start", stagePath: ["shifted"] }
+    });
+    expect(runtimeRecipe.targets[0]?.ownerId).toBe(target.id);
+    expect(runtimeRecipe.operation).toMatchObject({
+      kind: "move",
+      startPoint: { mode: "derived", elementId: anchor.id, pointKey: "start", stagePath: ["base"] },
+      endPoint: { mode: "derived", elementId: anchor.id, pointKey: "start", stagePath: ["shifted"] }
+    });
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(target.id)).toMatchObject({
+      kind: "line",
+      start: { x: 14, y: 27 },
+      end: { x: 23, y: 39 }
+    });
+  });
+
+  it("lowers extend and mirrorMove point anchors without changing other recipe fields", () => {
+    const source = [
+      "nui 1",
+      "module M() {",
+      "  line P = segment(start: (-31, 47), end: (-26, 59))",
+      "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  extend L.end as extended (to: @P.end)",
+      "  mirrorMove [L] (axis1: @P.start, axis2: @P.end)",
+      "}",
+      "instance I = M()"
+    ].join("\n");
+    const parsedStatements = parseDsl(source).statements;
+    const anchorStatementIndex = parsedStatements.findIndex((statement) => statement.kind === "element" && statement.name === "P");
+    const compiled = runtimeNames(source);
+    const anchor = compiled.document!.elements.find((element) => element.name === "P")!;
+    const recipesByConstruction = (recipes: typeof compiled.transformationRecipes) => new Map(
+      recipes!.map((recipe) => [recipe.construction, recipe])
+    );
+    const sourceRecipes = recipesByConstruction(compiled.transformationRecipes);
+    const runtimeRecipes = recipesByConstruction(compiled.runtimeTransformationRecipes);
+    const sourceAnchorId = stableIdsFor(source).get(anchorStatementIndex)!;
+
+    expect(sourceRecipes.get("extend")?.operation).toMatchObject({
+      kind: "extend",
+      point: { mode: "derived", elementId: sourceAnchorId, pointKey: "end", stagePath: ["final"] }
+    });
+    expect(runtimeRecipes.get("extend")?.operation).toMatchObject({
+      kind: "extend",
+      point: { mode: "derived", elementId: anchor.id, pointKey: "end", stagePath: ["final"] }
+    });
+    expect(sourceRecipes.get("mirrorMove")?.operation).toMatchObject({
+      kind: "mirrorMove",
+      axisPoint1: { mode: "derived", elementId: sourceAnchorId, pointKey: "start", stagePath: ["final"] },
+      axisPoint2: { mode: "derived", elementId: sourceAnchorId, pointKey: "end", stagePath: ["final"] }
+    });
+    expect(runtimeRecipes.get("mirrorMove")?.operation).toMatchObject({
+      kind: "mirrorMove",
+      axisPoint1: { mode: "derived", elementId: anchor.id, pointKey: "start", stagePath: ["final"] },
+      axisPoint2: { mode: "derived", elementId: anchor.id, pointKey: "end", stagePath: ["final"] }
+    });
+  });
+
+  it("preserves literal Module and root-scope transformation arguments", () => {
+    const source = [
+      "nui 1",
+      "module M() {",
+      "  line Local = segment(start: (1, 2), end: (4, 6))",
+      "  move Local (from: (10, 20), to: (15, 26))",
+      "}",
+      "instance I = M()",
+      "line Root = segment(start: (0, 0), end: (1, 2))",
+      "move Root (from: (1, 2), to: (7, 9))"
+    ].join("\n");
+    const compiled = runtimeNames(source);
+    const moveStatementIndexes = parseDsl(source).statements.flatMap((statement, statementIndex) =>
+      statement.kind === "transformation" && statement.construction === "move"
+        ? [statementIndex]
+        : []
+    );
+    const localMoveStatementIndex = moveStatementIndexes[0]!;
+    const rootMoveStatementIndex = moveStatementIndexes[1]!;
+    const localSource = compiled.transformationRecipes!.find((recipe) =>
+      recipe.sourceStatementIndex === localMoveStatementIndex
+    )!;
+    const localRuntime = compiled.runtimeTransformationRecipes!.find((recipe) =>
+      recipe.sourceStatementIndex === localMoveStatementIndex
+    )!;
+    const rootSource = compiled.transformationRecipes!.find((recipe) =>
+      recipe.sourceStatementIndex === rootMoveStatementIndex
+    )!;
+    const rootRuntime = compiled.runtimeTransformationRecipes!.find((recipe) =>
+      recipe.sourceStatementIndex === rootSource.sourceStatementIndex
+    )!;
+    const local = compiled.document!.elements.find((element) => element.name === "Local")!;
+    const root = compiled.document!.elements.find((element) => element.name === "Root")!;
+
+    if (localSource.operation.kind !== "move" || localRuntime.operation.kind !== "move" ||
+      rootSource.operation.kind !== "move" || rootRuntime.operation.kind !== "move") {
+      throw new Error("expected move recipes for literal and root-scope controls");
+    }
+    expect(localRuntime.targets[0]?.ownerId).toBe(local.id);
+    expect(localRuntime.operation.startPoint).toEqual(localSource.operation.startPoint);
+    expect(localRuntime.operation.endPoint).toEqual(localSource.operation.endPoint);
+    expect(rootRuntime.targets[0]?.ownerId).toBe(root.id);
+    expect(rootRuntime.operation).toEqual(rootSource.operation);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(local.id)).toMatchObject({
+      kind: "line",
+      start: { x: 6, y: 8 },
+      end: { x: 9, y: 12 }
+    });
+    expect(result.computedGeometry.get(root.id)).toMatchObject({
+      kind: "line",
+      start: { x: 6, y: 7 },
+      end: { x: 7, y: 9 }
+    });
+  });
+
+  it("keeps invalid Module transformation anchors as compiler diagnostics", () => {
+    const compiled = compileWithStableIds([
+      "nui 1",
+      "module M() {",
+      "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  move L (from: @Missing.start, to: @Missing.end)",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "undefined-geometry-reference",
+        message: expect.stringContaining("Missing")
+      })
+    ]));
+  });
+
   it("preserves ordinary declaration order when no module is present", () => {
     const compiled = runtimeNames([
       "nui 1",
