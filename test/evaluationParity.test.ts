@@ -6706,6 +6706,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       const use = fixture.elements.find((element) => element.name === "Use");
 
       expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.code === "undefined-geometry-reference")).toEqual([]);
       expect(isRustEligibleFixture(fixture)).toBe(true);
       expect(ts.errors).toEqual([]);
       expect(rust.errors).toEqual([]);

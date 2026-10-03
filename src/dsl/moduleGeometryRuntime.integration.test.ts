@@ -242,6 +242,7 @@ describe("module geometry runtime", () => {
         "instance I = M()"
       ].join("\n"), name);
       expectValid(compiled);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "undefined-geometry-reference")).toEqual([]);
 
       const use = named(compiled, "Use");
       const targets = geometryInputTargetsFor(compiled, use.id);
