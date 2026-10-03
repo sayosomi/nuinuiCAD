@@ -60,24 +60,40 @@ export type TransformationStageSelection = {
   propertyPath: readonly string[];
 };
 
+/** A source-resolved named checkpoint, before its Module recipe has been
+ * lowered for a concrete instance. `stagePath` is the full named path. */
+export type TransformationStageDeclaration = {
+  ownerId: ElementId;
+  stagePath: readonly string[];
+  occurrenceIndex?: string;
+};
+
 export const resolveTransformationStageSelection = ({
   ownerId,
   members,
   recipes,
+  stageDeclarations,
   occurrenceIndex
 }: {
   ownerId: ElementId;
   members: readonly string[];
   recipes: readonly TransformationRecipe[];
+  stageDeclarations?: readonly TransformationStageDeclaration[];
   occurrenceIndex?: string;
 }): TransformationStageSelection => {
-  const namedPaths = recipes.flatMap((recipe) => recipe.stageName
+  const recipePaths = recipes.flatMap((recipe) => recipe.stageName
     ? recipe.targets
       .filter((target) => target.ownerId === ownerId &&
         (target.occurrenceIndex === occurrenceIndex ||
           (occurrenceIndex !== undefined && target.occurrenceIndex === undefined)))
       .map((target) => [...target.stagePath, recipe.stageName!])
     : []);
+  const declaredPaths = (stageDeclarations ?? [])
+    .filter((declaration) => declaration.ownerId === ownerId &&
+      (declaration.occurrenceIndex === occurrenceIndex ||
+        (occurrenceIndex !== undefined && declaration.occurrenceIndex === undefined)))
+    .map((declaration) => declaration.stagePath);
+  const namedPaths = [...recipePaths, ...declaredPaths];
   const explicitFinalPaths = namedPaths.map((path) => [...path, "final"]);
   const candidates: readonly (readonly string[])[] = [
     ["base"],

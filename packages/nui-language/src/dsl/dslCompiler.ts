@@ -44,7 +44,7 @@ import { materializeModuleExecution, type ModuleMaterialization } from "./module
 import { buildModuleGeometryRuntime } from "./moduleGeometryRuntime";
 import { moduleRuntimeGeometryKindOf } from "./moduleGeometryInterfaces";
 import { compileMaterializedExecution } from "./moduleExecutionCompiler";
-import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "./transformationRecipes";
+import type { TransformationOperation, TransformationRecipe, TransformationStageDeclaration, TransformationTargetSelector } from "./transformationRecipes";
 import { transformationElementType } from "./transformationRecipes";
 import { isKnownNumericComputedGeometryProperty } from "../geometry/numericGeometryProperties";
 import { encodeIdentityTuple } from "../document/identityTuple";
@@ -666,6 +666,7 @@ const compileTransformationOperation = ({
 
 const collectTransformationStageDeclarations = ({
   statements,
+  candidateStatementIndexes,
   index,
   sourceNamespace,
   sourceElementIds,
@@ -673,6 +674,7 @@ const collectTransformationStageDeclarations = ({
   includeStatement
 }: {
   statements: readonly DslStatement[];
+  candidateStatementIndexes?: readonly number[];
   index: NameIndex;
   sourceNamespace?: SourceLexicalNamespaceIndex;
   sourceElementIds?: ReadonlyMap<number, ElementId>;
@@ -680,7 +682,10 @@ const collectTransformationStageDeclarations = ({
   includeStatement: DslStatementInclusion;
 }): Set<string> => {
   const stageDeclarations = new Set<string>();
-  for (const [statementIndex, candidate] of statements.entries()) {
+  const statementIndexes = candidateStatementIndexes ?? statements.map((_, statementIndex) => statementIndex);
+  for (const statementIndex of statementIndexes) {
+    const candidate = statements[statementIndex];
+    if (!candidate) continue;
     if (!includeStatement(candidate, statementIndex) || candidate.kind !== "transformation" || !candidate.stageName) continue;
     for (const target of candidate.targets) {
       const parsed = parseTransformationTargetSelector(
@@ -902,6 +907,63 @@ const sourceScopeForModuleDefinition = ({
     } as CadElement];
   });
   return { sourceElementIds, elements };
+};
+
+/** Collect named Module checkpoints from source declarations before Module
+ * recipes are lowered for materialized instances. Target identity and stage
+ * path still come from the canonical transformation target parser. */
+export const collectModuleTransformationStageDeclarationsForSource = ({
+  statements,
+  stableStatementIdByIndex,
+  sourceNamespace
+}: {
+  statements: readonly DslStatement[];
+  stableStatementIdByIndex: ReadonlyMap<number, string>;
+  sourceNamespace?: SourceLexicalNamespaceIndex;
+}): ReadonlyMap<ElementId, readonly TransformationStageDeclaration[]> => {
+  const declarationsByOwner = new Map<ElementId, TransformationStageDeclaration[]>();
+  const statementIndexesByModuleDefinition = new Map<number, number[]>();
+  for (const [statementIndex] of statements.entries()) {
+    const definitionStatementIndex = moduleDefinitionIndexFor(statements, statementIndex);
+    if (definitionStatementIndex === null) continue;
+    const indexes = statementIndexesByModuleDefinition.get(definitionStatementIndex) ?? [];
+    indexes.push(statementIndex);
+    statementIndexesByModuleDefinition.set(definitionStatementIndex, indexes);
+  }
+  for (const [definitionStatementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "moduleDefinition") continue;
+    const bodyStatementIndexes = statementIndexesByModuleDefinition.get(definitionStatementIndex) ?? [];
+    const transformationStatementIndexes = bodyStatementIndexes.filter((statementIndex) =>
+      statements[statementIndex]?.kind === "transformation"
+    );
+    const scope = sourceScopeForModuleDefinition({
+      statements,
+      definitionStatementIndex,
+      bodyStatementIndexes,
+      stableStatementIdByIndex
+    });
+    const stageKeys = collectTransformationStageDeclarations({
+      statements,
+      candidateStatementIndexes: transformationStatementIndexes,
+      index: createNameIndex(scope.elements),
+      sourceNamespace,
+      sourceElementIds: scope.sourceElementIds,
+      includeStatement: (candidate) => candidate.kind === "transformation"
+    });
+    for (const key of stageKeys) {
+      const [ownerId, occurrenceKey, path] = key.split("\u0000");
+      if (!ownerId || !path) continue;
+      const declaration: TransformationStageDeclaration = {
+        ownerId,
+        stagePath: path.split(".").filter(Boolean),
+        ...(occurrenceKey && occurrenceKey !== "*" ? { occurrenceIndex: occurrenceKey } : {})
+      };
+      const declarations = declarationsByOwner.get(ownerId) ?? [];
+      declarations.push(declaration);
+      declarationsByOwner.set(ownerId, declarations);
+    }
+  }
+  return declarationsByOwner;
 };
 
 const sameStatementPath = (left: readonly string[], right: readonly string[]) =>

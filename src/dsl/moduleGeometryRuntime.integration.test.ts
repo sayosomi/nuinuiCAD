@@ -116,6 +116,45 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module geometry runtime", () => {
+  it("evaluates a Module geometry value from its source-owned named checkpoint", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  move L as shifted(from: (0, 0), to: (7, -3))",
+      "  const Out: line = @L.shifted",
+      "}",
+      "instance I = M()"
+    ].join("\n"), "say447-module-named-stage");
+    expectValid(compiled);
+
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    const output = definition.localGeometryValues.find((candidate) => candidate.name === "Out")!;
+    const instance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === "I")!;
+    expect(output.initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      statementId: "say447-module-named-stage:2",
+      stagePath: ["shifted"]
+    });
+
+    const evaluation = evaluateElements(compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: undefined
+    }));
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.geometryValueErrors ?? []).toEqual([]);
+    const evaluatedOutput = [...(evaluation.computedGeometryValues?.values() ?? [])].find((entry) =>
+      entry.occurrence.sourceStatementId === output.statementId &&
+      entry.occurrence.instancePath.length === 1 &&
+      entry.occurrence.instancePath[0] === instance.statementId
+    );
+    expect(evaluatedOutput?.value).toMatchObject({
+      kind: "line",
+      start: { x: 18, y: 20 },
+      end: { x: 27, y: 32 }
+    });
+  });
+
   it("preserves selected stages for immutable line and path values consumed by from(source:)", () => {
     const source = [
       "nui 1",
