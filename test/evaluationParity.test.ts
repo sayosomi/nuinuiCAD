@@ -2966,6 +2966,120 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("lowers Module-local transformation argument anchors through persistent Rust stdio", async () => {
+    const cases = [
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  line L = segment(start: (11, 23), end: (20, 35))",
+          "  line P = segment(start: (-31, 47), end: (-26, 59))",
+          "  move L (from: @P.start, to: @P.end)",
+          "}",
+          "instance I = M()"
+        ].join("\n"),
+        targetName: "L",
+        anchorName: "P",
+        stagePaths: [["final"], ["final"]] as const,
+        pointKeys: ["start", "end"] as const,
+        expectedGeometry: { start: { x: 16, y: 35 }, end: { x: 25, y: 47 } }
+      },
+      {
+        source: [
+          "nui 1",
+          "// unrelated source padding",
+          "",
+          "module M() {",
+          "  line Target = segment(start: (11, 23), end: (20, 35))",
+          "  // Local names and source positions do not define runtime identity.",
+          "  move Target (from: @Anchor.start, to: @Anchor.end)",
+          "  line Anchor = segment(start: (-31, 47), end: (-26, 59))",
+          "}",
+          "instance I = M()"
+        ].join("\n"),
+        targetName: "Target",
+        anchorName: "Anchor",
+        stagePaths: [["final"], ["final"]] as const,
+        pointKeys: ["start", "end"] as const,
+        expectedGeometry: { start: { x: 16, y: 35 }, end: { x: 25, y: 47 } }
+      },
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  line P = segment(start: (-31, 47), end: (-26, 59))",
+          "  line L = segment(start: (11, 23), end: (20, 35))",
+          "  move P as shifted (from: (0, 0), to: (3, 4))",
+          "  move L (from: @P.base.start, to: @P.shifted.start)",
+          "}",
+          "instance I = M()"
+        ].join("\n"),
+        targetName: "L",
+        anchorName: "P",
+        stagePaths: [["base"], ["shifted"]] as const,
+        pointKeys: ["start", "start"] as const,
+        expectedGeometry: { start: { x: 14, y: 27 }, end: { x: 23, y: 39 } }
+      }
+    ];
+
+    for (const testCase of cases) {
+      const fixture = fixtureFromSource(testCase.source);
+      const options = optionsFor(fixture);
+      const target = fixture.elements.find((element) => element.name === testCase.targetName);
+      const anchor = fixture.elements.find((element) => element.name === testCase.anchorName);
+      if (!target || !anchor) throw new Error("expected materialized Module target and anchor geometry");
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const runtimeRecipe = options.transformationRecipes?.find((recipe) =>
+        recipe.construction === "move" && recipe.targets.some((selector) => selector.ownerId === target.id)
+      );
+      if (!runtimeRecipe || runtimeRecipe.operation.kind !== "move") {
+        throw new Error("expected the Module move recipe in runtime evaluation options");
+      }
+      const expectedRuntimeAnchors = {
+        startPoint: {
+          mode: "derived",
+          elementId: anchor.id,
+          pointKey: testCase.pointKeys[0],
+          stagePath: testCase.stagePaths[0]
+        },
+        endPoint: {
+          mode: "derived",
+          elementId: anchor.id,
+          pointKey: testCase.pointKeys[1],
+          stagePath: testCase.stagePaths[1]
+        }
+      };
+      expect(runtimeRecipe.targets[0]?.ownerId).toBe(target.id);
+      expect(runtimeRecipe.operation).toMatchObject({ kind: "move", ...expectedRuntimeAnchors });
+      const runtimeAnchorIdentities = [runtimeRecipe.operation.startPoint, runtimeRecipe.operation.endPoint].map((pointAnchor) =>
+        pointAnchor.mode === "reference" ? pointAnchor.pointId : pointAnchor.mode === "derived" ? pointAnchor.elementId : "coordinate"
+      );
+      expect(runtimeAnchorIdentities.every((identity) => !identity.startsWith("@"))).toBe(true);
+
+      const preparedRustInput = buildRustEvaluationInput(fixture.elements, options);
+      const preparedRecipe = preparedRustInput.transformationRecipes?.recipes.find((recipe) => recipe.id === runtimeRecipe.id);
+      expect(preparedRecipe).toMatchObject({
+        targets: [expect.objectContaining({ ownerId: target.id })],
+        operation: { kind: "move", ...expectedRuntimeAnchors }
+      });
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors).toEqual([]);
+        expect(result.computedGeometry.get(target.id)).toMatchObject({
+          kind: "line",
+          start: testCase.expectedGeometry.start,
+          end: testCase.expectedGeometry.end
+        });
+      }
+    }
+  }, 30000);
+
   it("matches compiler-resolved final, base, and named-stage reads", () => {
     const fixture = fixtureFromSource([
       "nui 1",
