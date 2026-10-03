@@ -6662,6 +6662,67 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
+  it("matches immutable Module-local line and path endpoints through persistent Rust stdio", async () => {
+    const cases = [
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  line Use = segment(start: @L.start, end: @L.end)",
+          "  const L: line = segment(start: (11, 23), end: (41, 63))",
+          "}",
+          "instance I = M()"
+        ].join("\n")
+      },
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  const L: line = segment(start: (11, 23), end: (41, 63))",
+          "  line Use = segment(start: @L.start, end: @L.end)",
+          "}",
+          "instance I = M()"
+        ].join("\n")
+      },
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  line Use = segment(start: @L.start, end: @L.end)",
+          "  const L: path = polyline(points: [(11, 23), (41, 63)], closed: false)",
+          "}",
+          "instance I = M()"
+        ].join("\n")
+      }
+    ] as const;
+
+    for (const { source } of cases) {
+      const fixture = fixtureFromSource(source);
+      const options = optionsFor(fixture);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      const ts = evaluationPayloadToResult(tsPayload);
+      const rust = evaluationPayloadToResult(rustPayload);
+      const use = fixture.elements.find((element) => element.name === "Use");
+
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.code === "undefined-geometry-reference")).toEqual([]);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      expect(ts.errors).toEqual([]);
+      expect(rust.errors).toEqual([]);
+      expect(use).toBeDefined();
+      for (const result of [ts, rust]) {
+        expect(result.computedGeometry.get(use!.id)).toMatchObject({
+          kind: "line",
+          start: { x: 11, y: 23 },
+          end: { x: 41, y: 63 },
+          length: 50
+        });
+      }
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    }
+  }, 30000);
+
   it("asserts the Module numeric geometry builtin through the Rust production boundary", () => {
     const fixture = readParityFixture(repoRoot, "nui1-module-numeric-geometry-builtin.nui");
     const options = optionsFor(fixture);

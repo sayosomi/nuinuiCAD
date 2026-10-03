@@ -486,14 +486,14 @@ export const sourceAliasForTarget = (
       if (!alias) return undefined;
       return lowerAliasWithPointKey(lowerAliasWithStagePath(alias, target.stagePath), target.pointKey);
     }
-    return {
+    const alias: GeometryAlias = {
       kind: "value",
       occurrence: { sourceStatementId: target.statementId, instancePath: [...currentPath] },
       geometryType: target.declaredInterfaceType === "point" ? "point" : "line",
       interfaceType: target.declaredInterfaceType,
-      ...(target.pointKey ? { pointKey: target.pointKey } : {}),
       ...(target.stagePath ? { stagePath: target.stagePath } : {})
     };
+    return lowerAliasWithPointKey(alias, target.pointKey);
   }
   if (target.kind === "sourceGeometry") {
     let ownerPath: readonly string[] = [];
