@@ -3134,6 +3134,11 @@ export const compileDslDocument = (
       .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
         property.target?.kind === "sourceGeometryProperty" || property.target?.kind === "deferredModuleExportProperty"
       ));
+    const hasRootElementModulePointPropertyOccurrences = [...moduleSemanticCompilation.rootElementScalarExpressionsByStatementId.values()]
+      .some((sites) => sites.some((site) => site.expression.geometryProperties.some((property) =>
+        (property.property === "x" || property.property === "y") &&
+        property.target?.kind === "deferredModuleExportProperty"
+      )));
     const hasRootCollectionLengthOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.geometryProperties.some((property) =>
         property.target?.kind === "collectionValueLength" ||
@@ -3147,6 +3152,7 @@ export const compileDslDocument = (
     if (
       usableExportBindingSeeds.length > 0 ||
       hasRootGeometryRuntimeOccurrences ||
+      hasRootElementModulePointPropertyOccurrences ||
       hasRootCollectionLengthOccurrences ||
       hasRootCollectionIndexOccurrences ||
       hasRootOptionalMemberOccurrences ||
@@ -3286,11 +3292,20 @@ export const compileDslDocument = (
         node: Extract<import("../scalars/expressionAst").ScalarExpressionAst, { kind: "geometryProperty" }>;
       }) => {
         const statementId = stableStatementIdByIndex.get(statementIndex);
-        const site = statementId
+        const scalarSite = statementId
           ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
           : undefined;
-        const candidates = site?.expression.geometryProperties.filter((candidate) => candidate.property === node.property) ?? [];
-        const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
+        const sites = [
+          ...(scalarSite ? [scalarSite] : []),
+          ...(statementId ? moduleSemanticCompilation.rootElementScalarExpressionsByStatementId.get(statementId) ?? [] : [])
+        ];
+        const candidates = sites.flatMap((site) => site.expression.geometryProperties
+          .filter((candidate) => candidate.geometryName === node.elementName && candidate.property === node.property)
+          .map((candidate) => ({ site, property: candidate })));
+        const matched = candidates.find(({ site, property }) =>
+          property.span.start === node.span.start || property.span.start - site.span.start === node.span.start
+        ) ?? (candidates.length === 1 ? candidates[0] : undefined);
+        const property = matched?.property;
         const target = property?.target;
         if (!property?.type || !target) return null;
         if (
@@ -3443,6 +3458,22 @@ export const compileDslDocument = (
           };
         }
         if (target.kind !== "deferredModuleExportProperty") return null;
+        const resolvedModuleProperty = compiled.moduleGeometryRuntime?.resolvePropertyTarget(
+          target,
+          [],
+          new Map(compiled.elements.map((element) => [element.id, element] as const))
+        );
+        if (resolvedModuleProperty?.kind === "value") {
+          return {
+            kind: "geometryValue",
+            occurrence: resolvedModuleProperty.occurrence,
+            property: resolvedModuleProperty.property,
+            ...(resolvedModuleProperty.pointKey ? { pointKey: resolvedModuleProperty.pointKey } : {}),
+            ...(resolvedModuleProperty.stagePath ? { stagePath: resolvedModuleProperty.stagePath } : {}),
+            targetSourceOrder: resolvedModuleProperty.targetSourceOrder ?? target.instanceStatementIndex,
+            type: property.type
+          };
+        }
         return {
           elementId: target.instanceStatementId,
           property: target.property,
@@ -3947,7 +3978,10 @@ export const compileDslDocument = (
         includeStatement,
         layouts: compiled.layouts,
         layoutIdsByStatementIndex: compiled.layoutIdsByStatementIndex,
-        ...(moduleGeometryPropertyResolver ? { additionalGeometryPropertyResolver: moduleGeometryPropertyResolver } : {}),
+        additionalGeometryPropertyResolver: ({ statementIndex, node }) =>
+          moduleGeometryPropertyResolver?.({ statementIndex, node }) ??
+          rootGeometryValuePropertyResolver?.({ statementIndex, node }) ??
+          null,
         resolveGeometryStageSelection
       })
     : undefined;

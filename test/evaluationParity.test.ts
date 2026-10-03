@@ -2389,6 +2389,140 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(valuesByVariant.get("consumer-first:padded")).toEqual(valuesByVariant.get("producer-first:padded"));
   }, 30000);
 
+  it("evaluates direct immutable point properties through typed numeric bindings and persistent Rust stdio", async () => {
+    const rootSource = (producerFirst: boolean, padded: boolean) => {
+      const consumer = [
+        "point Probe = coordinate(x: @P.x, y: @P.y)",
+        "const X: number = @P.x",
+        "const Y: number = @P.y",
+        "point Lifted = coordinate(x: @X, y: @Y)"
+      ];
+      const producer = "const P: point = coordinate(x: 11, y: 23)";
+      return [
+        "nui 1",
+        ...(padded ? ["// SAY-445 harmless padding", "", "const PaddingBefore: number = 5"] : []),
+        ...(producerFirst ? [producer, ...consumer] : [consumer[0]!, ...(padded ? ["", "const PaddingBetween: number = 7"] : []), producer, ...consumer.slice(1)]),
+        ...(padded ? ["", "const PaddingAfter: number = 9"] : [])
+      ].join("\n");
+    };
+    const moduleSource = (moduleName: string, instanceName: string, padded: boolean, aliasFirst: boolean) => [
+      "nui 1",
+      `module ${moduleName}() {`,
+      "  export const Published: point = coordinate(x: 11, y: 23)",
+      "}",
+      ...(padded ? ["", "// SAY-445 Module padding", "const PaddingBefore: number = 13", ""] : []),
+      `instance ${instanceName} = ${moduleName}()`,
+      ...(aliasFirst
+        ? [
+            `const Alias: point = @${instanceName}::Published`,
+            `point Qualified = coordinate(x: @${instanceName}::Published.x, y: @${instanceName}::Published.y)`,
+            "point Aliased = coordinate(x: @Alias.x, y: @Alias.y)"
+          ]
+        : [
+            `point Qualified = coordinate(x: @${instanceName}::Published.x, y: @${instanceName}::Published.y)`,
+            `const Alias: point = @${instanceName}::Published`,
+            "point Aliased = coordinate(x: @Alias.x, y: @Alias.y)"
+          ])
+    ].join("\n");
+    const cases = [
+      {
+        name: "root-producer-first",
+        source: rootSource(true, false),
+        directPointNames: ["Probe"],
+        pointNames: ["Probe", "Lifted"]
+      },
+      {
+        name: "root-consumer-first-padded",
+        source: rootSource(false, true),
+        directPointNames: ["Probe"],
+        pointNames: ["Probe", "Lifted"]
+      },
+      {
+        name: "module-qualified-export-and-alias",
+        source: moduleSource("Provider", "Source", false, false),
+        directPointNames: ["Qualified", "Aliased"],
+        pointNames: ["Qualified", "Aliased"]
+      },
+      {
+        name: "renamed-module-instance-padded",
+        source: moduleSource("RenamedProvider", "RenamedSource", true, true),
+        directPointNames: ["Qualified", "Aliased"],
+        pointNames: ["Qualified", "Aliased"]
+      }
+    ] as const;
+
+    const assertCompilerAuthoredNumericProperties = (
+      fixture: ReturnType<typeof fixtureFromSource>,
+      rustInput: ReturnType<typeof buildRustEvaluationInput>,
+      elementName: string
+    ) => {
+      const doc = fixture.compiled?.doc;
+      const element = fixture.elements.find((candidate) => candidate.name === elementName);
+      if (!doc?.statementMap || !element) throw new Error(`missing compiled ${elementName} element`);
+      const statementIndex = [...doc.statementMap.elementIdByStatementIndex]
+        .find(([, elementId]) => elementId === element.id)?.[0];
+      if (statementIndex === undefined) throw new Error(`missing source statement for ${elementName}`);
+      for (const property of ["x", "y"] as const) {
+        const compiledBinding = doc.numericBindings?.get(propertyBindingOccurrenceKey(statementIndex, property));
+        const payloadBinding = rustInput.scalarExpressionPayload?.numericBindings.find((candidate) =>
+          candidate.elementId === element.id && candidate.parameterKey === property
+        );
+        expect(compiledBinding?.references).toEqual([]);
+        expect(compiledBinding?.typedExpression).toMatchObject({
+          kind: "geometryProperty",
+          elementId: null,
+          property,
+          geometryValueOccurrence: expect.objectContaining({ sourceStatementId: expect.any(String), instancePath: expect.any(Array) })
+        });
+        expect(payloadBinding?.typedExpression).toEqual(compiledBinding?.typedExpression);
+        expect(payloadBinding?.references).toEqual([]);
+        const expression = compiledBinding?.typedExpression;
+        if (expression?.kind !== "geometryProperty" || !expression.geometryValueOccurrence) {
+          throw new Error(`expected compiler-resolved immutable ${elementName}.${property}`);
+        }
+        const occurrenceId = geometryValueOccurrenceKey(expression.geometryValueOccurrence);
+        expect(doc.geometryValueProgram?.some((entry) =>
+          geometryValueOccurrenceKey(entry.occurrence) === occurrenceId
+        )).toBe(true);
+        expect(doc.typedDependencyGraph?.edges).toContainEqual(expect.objectContaining({
+          kind: "geometry",
+          from: expect.objectContaining({ kind: "element", id: element.id }),
+          to: expect.objectContaining({ kind: "geometry-value", id: occurrenceId }),
+          requiredness: "required"
+        }));
+        expect(rustInput.scalarExpressionPayload?.conditionalDependencyGraph?.edges).toContainEqual(expect.objectContaining({
+          kind: "geometry",
+          from: expect.objectContaining({ kind: "element", id: element.id }),
+          to: expect.objectContaining({ kind: "geometry-value", id: occurrenceId }),
+          requiredness: "required"
+        }));
+      }
+    };
+
+    for (const testCase of cases) {
+      const fixture = fixtureFromSource(testCase.source);
+      const options = optionsFor(fixture);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error"), testCase.name).toEqual([]);
+      expect(isRustEligibleFixture(fixture), testCase.name).toBe(true);
+      const rustInput = buildRustEvaluationInput(fixture.elements, options);
+      for (const pointName of testCase.directPointNames) assertCompilerAuthoredNumericProperties(fixture, rustInput, pointName);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload), testCase.name).toEqual(normalizeParityPayload(tsPayload));
+      const expectedPoints = testCase.pointNames.map((name) => [name, { kind: "point", x: 11, y: 23 }] as const);
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors, testCase.name).toEqual([]);
+        for (const [name, expected] of expectedPoints) {
+          const element = fixture.elements.find((candidate) => candidate.name === name);
+          expect(element, `${testCase.name}:${name}`).toBeDefined();
+          expect(result.computedGeometry.get(element!.id), `${testCase.name}:${name}`).toMatchObject(expected);
+        }
+      }
+    }
+  }, 30000);
+
   it("schedules forward geometry-alias property reads by canonical dependency order", async () => {
     const forward = [
       "nui 1",

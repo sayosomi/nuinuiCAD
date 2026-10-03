@@ -11,6 +11,7 @@ import {
 import {
   propertyBindingOccurrenceKey
 } from "@nuinuicad/nui-language";
+import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { TEXT_TEMPLATE_HOLE_TYPE_MISMATCH_CODE } from "@nuinuicad/nui-language";
 import {
   emptyDocument,
@@ -902,6 +903,50 @@ describe("Task 36 typed dependency graph wiring", () => {
       expect(fallbackEdges[0]).toMatchObject({ requiredness: "conditional" });
       expect(fallbackEdges[0]!.activation?.guards[0]).toMatchObject({ branch: "right" });
       expect(fallbackEdges[0]!.activation?.guards[0]?.controllerExpression).toBeDefined();
+    }
+  });
+
+  it("lowers immutable point properties from numeric consumers into typed geometry-value dependencies", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "point Probe = coordinate(x: @P.x, y: @P.y)",
+      "const P: point = coordinate(x: 11, y: 23)"
+    ].join("\n"), {
+      assignedStatementIds: new Map([
+        [1, "say445:probe"],
+        [2, "say445:point"]
+      ])
+    });
+    const probe = compiled.document?.elements.find((element) => element.name === "Probe");
+    const probeIndex = compiled.statements.findIndex((statement) => statement.kind === "element" && statement.name === "Probe");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(probe).toBeDefined();
+    const numericBinding = (parameterKey: "x" | "y") =>
+      compiled.numericBindings?.get(propertyBindingOccurrenceKey(probeIndex, parameterKey));
+    for (const property of ["x", "y"] as const) {
+      const binding = numericBinding(property);
+      expect(binding?.references).toEqual([]);
+      expect(binding?.typedExpression).toMatchObject({
+        kind: "geometryProperty",
+        elementId: null,
+        property,
+        geometryValueOccurrence: { sourceStatementId: "say445:point", instancePath: [] }
+      });
+      const expression = binding?.typedExpression;
+      if (expression?.kind !== "geometryProperty" || !expression.geometryValueOccurrence || !probe) {
+        throw new Error(`expected compiler-resolved immutable P.${property} geometry property`);
+      }
+      const occurrenceId = geometryValueOccurrenceKey(expression.geometryValueOccurrence);
+      expect(compiled.typedDependencyGraph?.edges).toContainEqual(expect.objectContaining({
+        kind: "geometry",
+        from: expect.objectContaining({ kind: "element", id: probe.id }),
+        to: expect.objectContaining({ kind: "geometry-value", id: occurrenceId }),
+        span: expect.any(Object),
+        requiredness: "required"
+      }));
+      expect(compiled.geometryValueProgram?.some((entry) =>
+        geometryValueOccurrenceKey(entry.occurrence) === occurrenceId
+      )).toBe(true);
     }
   });
 
