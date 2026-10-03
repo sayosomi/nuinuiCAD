@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
-import { geometryValueOccurrenceKey, sourceOwnerForRuntimeElementId } from "@nuinuicad/nui-language";
+import {
+  geometryValueOccurrenceKey,
+  propertyBindingOccurrenceKey,
+  sourceOwnerForRuntimeElementId
+} from "@nuinuicad/nui-language";
 import { compileDslDocument } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import type { GeometryInputTarget } from "../types/geometry";
@@ -761,6 +765,80 @@ describe("module geometry runtime", () => {
     const result = evaluateCompiled(compiled);
     expect(result.errors).toEqual([]);
     expect(result.computedGeometry.get(named(compiled, "Result").id)).toMatchObject({ x: 7, y: 6 });
+  });
+
+  it("resolves direct numeric properties from qualified immutable Module exports and caller aliases", () => {
+    const sourceFor = ({
+      moduleName,
+      instanceName,
+      padded,
+      aliasFirst
+    }: {
+      moduleName: string;
+      instanceName: string;
+      padded: boolean;
+      aliasFirst: boolean;
+    }) => [
+      "nui 1",
+      `module ${moduleName}() {`,
+      "  export const Published: point = coordinate(x: 11, y: 23)",
+      "}",
+      ...(padded ? ["", "// SAY-445 padding", "const Padding: number = 5", ""] : []),
+      `instance ${instanceName} = ${moduleName}()`,
+      ...(aliasFirst
+        ? [
+            `const Alias: point = @${instanceName}::Published`,
+            `point Qualified = coordinate(x: @${instanceName}::Published.x, y: @${instanceName}::Published.y)`,
+            "point Aliased = coordinate(x: @Alias.x, y: @Alias.y)"
+          ]
+        : [
+            `point Qualified = coordinate(x: @${instanceName}::Published.x, y: @${instanceName}::Published.y)`,
+            `const Alias: point = @${instanceName}::Published`,
+            "point Aliased = coordinate(x: @Alias.x, y: @Alias.y)"
+          ])
+    ].join("\n");
+    const variants = [
+      { moduleName: "Provider", instanceName: "Source", padded: false, aliasFirst: false },
+      { moduleName: "RenamedProvider", instanceName: "RenamedSource", padded: true, aliasFirst: true }
+    ] as const;
+
+    for (const [index, variant] of variants.entries()) {
+      const compiled = compileWithIds(sourceFor(variant), `say445-module-${index}`);
+      expectValid(compiled);
+      const qualified = named(compiled, "Qualified");
+      const qualifiedIndex = [...(compiled.statementMap?.elementIdByStatementIndex ?? [])]
+        .find(([, elementId]) => elementId === qualified.id)?.[0] ?? -1;
+      for (const property of ["x", "y"] as const) {
+        const binding = compiled.numericBindings?.get(propertyBindingOccurrenceKey(qualifiedIndex, property));
+        expect(binding, JSON.stringify({ qualifiedIndex, numericBindingKeys: [...(compiled.numericBindings?.keys() ?? [])] })).toBeDefined();
+        expect(binding?.references).toEqual([]);
+        expect(binding?.typedExpression).toMatchObject({
+          kind: "geometryProperty",
+          property,
+          geometryValueOccurrence: { sourceStatementId: expect.any(String), instancePath: expect.any(Array) }
+        });
+        const expression = binding?.typedExpression;
+        if (expression?.kind !== "geometryProperty" || !expression.geometryValueOccurrence) {
+          throw new Error(`expected resolved qualified Module ${property} property`);
+        }
+        expect(expression.geometryValueOccurrence.instancePath.length).toBeGreaterThan(0);
+        const occurrenceId = geometryValueOccurrenceKey(expression.geometryValueOccurrence);
+        expect(compiled.typedDependencyGraph?.edges).toContainEqual(expect.objectContaining({
+          kind: "geometry",
+          from: expect.objectContaining({ kind: "element", id: qualified.id }),
+          to: expect.objectContaining({ kind: "geometry-value", id: occurrenceId }),
+          requiredness: "required"
+        }));
+        expect(compiled.geometryValueProgram?.some((entry) =>
+          geometryValueOccurrenceKey(entry.occurrence) === occurrenceId
+        )).toBe(true);
+      }
+
+      const result = evaluateCompiled(compiled);
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(qualified.id)).toMatchObject({ kind: "point", x: 11, y: 23 });
+      expect(result.computedGeometry.get(named(compiled, "Aliased").id)).toMatchObject({ kind: "point", x: 11, y: 23 });
+    }
   });
 
   it("captures distinct pre-mutation Bezier snapshots for materialized Module occurrences", () => {

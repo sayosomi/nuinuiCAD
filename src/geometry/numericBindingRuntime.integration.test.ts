@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
-import { emptyDocument, recordFieldCollectionValueIdFor, recordValueCollectionIdFor } from "@nuinuicad/nui-language";
+import {
+  emptyDocument,
+  propertyBindingOccurrenceKey,
+  recordFieldCollectionValueIdFor,
+  recordValueCollectionIdFor
+} from "@nuinuicad/nui-language";
 import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
 
@@ -300,6 +305,42 @@ describe("general numeric typed binding runtime", () => {
     const result = evaluateElements(compiled.document.elements, optionsFor(compiled));
     expect((result.computedGeometry.get(point(compiled, "Before").id) as { x: number }).x).toBe(2);
     expect((result.computedGeometry.get(point(compiled, "After").id) as { x: number }).x).toBe(9);
+  });
+
+  it("materializes direct immutable point properties through the typed numeric path", () => {
+    const compiled = compile([
+      "nui 1",
+      "const P: point = coordinate(x: 11, y: 23)",
+      "point Direct = coordinate(x: @P.x, y: @P.y)",
+      "const X: number = @P.x",
+      "const Y: number = @P.y",
+      "point Lifted = coordinate(x: @X, y: @Y)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const direct = point(compiled, "Direct");
+    const directIndex = compiled.statements.findIndex((statement) => statement.kind === "element" && statement.name === "Direct");
+    for (const property of ["x", "y"] as const) {
+      const binding = compiled.numericBindings?.get(propertyBindingOccurrenceKey(directIndex, property));
+      expect(binding?.references).toEqual([]);
+      expect(binding?.typedExpression).toMatchObject({ kind: "geometryProperty", property });
+      const runtimeEntry = buildNumericBindingRuntimeEntries({
+        numericBindings: compiled.numericBindings ?? new Map(),
+        elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex,
+        materializedNumericBindings: compiled.materializedNumericBindings
+      }, compiled.document.elements).find((entry) => entry.elementId === direct.id && entry.parameterKey === property);
+      expect(runtimeEntry?.typedExpression).toEqual(binding?.typedExpression);
+    }
+
+    const result = evaluateElements(compiled.document.elements, {
+      ...optionsFor(compiled),
+      typedDependencyGraph: compiled.typedDependencyGraph,
+      evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
+      geometryValueProgram: compiled.geometryValueProgram
+    });
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(direct.id)).toMatchObject({ kind: "point", x: 11, y: 23 });
+    expect(result.computedGeometry.get(point(compiled, "Lifted").id)).toMatchObject({ kind: "point", x: 11, y: 23 });
   });
 
   it("keeps legacy measurement tokens in the existing numeric evaluator (nui 1 sigil form, Task 51)", () => {

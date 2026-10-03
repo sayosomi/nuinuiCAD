@@ -126,6 +126,7 @@ fn validate_typed_expression_runtime_targets(
             }
             TypedScalarExpression::GeometryProperty {
                 element_id,
+                geometry_value_occurrence,
                 for_group_template_element_id,
                 for_group_index,
                 ..
@@ -133,7 +134,9 @@ fn validate_typed_expression_runtime_targets(
                 let target_element_id = for_group_template_element_id
                     .as_deref()
                     .unwrap_or(element_id.as_str());
-                if !elements_by_id.contains_key(target_element_id) {
+                if geometry_value_occurrence.is_none()
+                    && !elements_by_id.contains_key(target_element_id)
+                {
                     return Err(payload_error(
                         "numeric binding typedExpression geometry target does not match an element",
                     ));
@@ -940,6 +943,39 @@ mod tests {
             &elements_by_id,
             &HashSet::new(),
         );
+        assert!(decoded.is_ok());
+    }
+
+    #[test]
+    fn accepts_numeric_geometry_properties_resolved_to_geometry_value_occurrences() {
+        let element = point_with_expression("@P.x");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let geometry_value_property = json!({
+            "kind": "geometryProperty",
+            "span": {"start": 0, "end": 4},
+            "elementNameSpan": {"start": 1, "end": 2},
+            "propertySpan": {"start": 3, "end": 4},
+            "elementName": "P",
+            "elementId": null,
+            "geometryValueOccurrence": {
+                "sourceStatementId": "statement:immutable-point",
+                "instancePath": []
+            },
+            "property": "x",
+            "targetSourceOrder": 0,
+            "type": {"kind": "number"}
+        });
+
+        let decoded = validate_numeric_bindings_payload(
+            &json!([numeric_entry(
+                "@P.x",
+                Some(geometry_value_property),
+                json!([])
+            )]),
+            &elements_by_id,
+            &HashSet::new(),
+        );
+
         assert!(decoded.is_ok());
     }
 

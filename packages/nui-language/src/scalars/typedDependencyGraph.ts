@@ -1147,17 +1147,34 @@ export const buildTypedDependencyGraph = ({
       }, key);
     }
     if (source.typedExpression) for (const reference of geometryPropertiesIn(source.typedExpression)) {
-      if (!reference.elementId) continue;
-      deferredStageEdges.push({
-        kind: "geometry-property",
-        from: elementEndpoint(elementsById, elementId, statementIndex),
-        ownerId: reference.elementId,
-        stagePath: reference.stagePath ?? ["final"],
-        span: reference.span,
-        requiredness: reference.lazy ? "conditional" : "required",
-        ...(reference.activation ? { activation: reference.activation } : {}),
-        occurrenceNamespace: key
-      });
+      if (reference.elementId) {
+        deferredStageEdges.push({
+          kind: "geometry-property",
+          from: elementEndpoint(elementsById, elementId, statementIndex),
+          ownerId: reference.elementId,
+          stagePath: reference.stagePath ?? ["final"],
+          span: reference.span,
+          requiredness: reference.lazy ? "conditional" : "required",
+          ...(reference.activation ? { activation: reference.activation } : {}),
+          occurrenceNamespace: key
+        });
+      } else if (
+        reference.geometryValueOccurrence &&
+        reference.geometryValuePointKey === undefined &&
+        (reference.property === "x" || reference.property === "y")
+      ) {
+        // Direct immutable point coordinates share the scalar expression's
+        // compiler-resolved occurrence contract. Endpoint properties on
+        // immutable lines remain owned by their existing paths.
+        deferredGeometryValueEdges.push({
+          from: elementEndpoint(elementsById, elementId, statementIndex),
+          occurrence: reference.geometryValueOccurrence,
+          span: reference.span,
+          requiredness: reference.lazy ? "conditional" : "required",
+          ...(reference.activation ? { activation: reference.activation } : {}),
+          occurrenceNamespace: key
+        });
+      }
     }
   }
   if (bindingAnalysis) for (const [key, template] of textTemplates ?? []) {
