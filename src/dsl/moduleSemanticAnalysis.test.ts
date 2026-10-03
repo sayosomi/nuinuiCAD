@@ -862,6 +862,66 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("uses the declared common path surface for Module materializations", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "arc Arc = arc(center: (0, 0), radius: 40, start: 15, end: 155, direction: clockwise)",
+      "module Local() {",
+      "  line A = segment(start: (0, 0), end: (9, 12))",
+      "  line L = from(source: @A)",
+      "  const directLength: number = @L.length",
+      "  const Alias: line = @L",
+      "  const aliasLength: number = @Alias.length",
+      "  line Ordinary = segment(start: (0, 0), end: (9, 12))",
+      "  const ordinaryLength: number = @Ordinary.length",
+      "}",
+      "module Parameter(source: path) {",
+      "  const forwardLength: number = @Material.length",
+      "  path Material = from(source: @source)",
+      "  const startAngle: number = @Material.startAngleDeg",
+      "  const endAngle: number = @Material.endAngleDeg",
+      "  const startX: number = @Material.startPoint.x",
+      "  const startY: number = @Material.startPoint.y",
+      "  const endX: number = @Material.endPoint.x",
+      "  const endY: number = @Material.endPoint.y",
+      "  const PathAlias: path = @Material",
+      "  const aliasPathLength: number = @PathAlias.length",
+      "  const unsupportedRadius: number = @Material.radius",
+      "  const unsupportedSweep: number = @Material.sweepAngleDeg",
+      "  const unsupportedHandle: number = @Material.startHandleLength",
+      "}",
+      "instance LocalUse = Local()",
+      "instance ParameterUse = Parameter(source: @Arc)"
+    ].join("\n"));
+
+    const local = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Local")!;
+    const parameter = compiled.moduleSemanticAnalysis!.definitions.find((definition) => definition.name === "Parameter")!;
+    const localProperty = (name: string) => local.localScalars.find((scalar) => scalar.name === name)!.initializer!.geometryProperties[0]!;
+    const parameterProperty = (name: string) => parameter.localScalars.find((scalar) => scalar.name === name)!.initializer!.geometryProperties[0]!;
+
+    expect(localProperty("directLength")).toMatchObject({ property: "length", resolution: "resolved" });
+    expect(localProperty("aliasLength")).toMatchObject({ property: "length", resolution: "resolved" });
+    expect(localProperty("ordinaryLength")).toMatchObject({ property: "length", resolution: "resolved" });
+    expect(parameter.localScalars.slice(1, 7).map((scalar) => scalar.initializer?.geometryProperties[0]?.property)).toEqual([
+      "startAngleDeg",
+      "endAngleDeg",
+      "startPoint.x",
+      "startPoint.y",
+      "endPoint.x",
+      "endPoint.y"
+    ]);
+    expect(parameter.localScalars.slice(0, 7).every((scalar) =>
+      scalar.initializer?.geometryProperties[0]?.resolution === "resolved"
+    )).toBe(true);
+    expect(parameterProperty("forwardLength")).toMatchObject({ property: "length", resolution: "resolved" });
+    expect(parameterProperty("aliasPathLength")).toMatchObject({ property: "length", resolution: "resolved" });
+    expect(parameterProperty("unsupportedRadius")).toMatchObject({ property: "radius", resolution: "invalid" });
+    expect(parameterProperty("unsupportedSweep")).toMatchObject({ property: "sweepAngleDeg", resolution: "invalid" });
+    expect(parameterProperty("unsupportedHandle")).toMatchObject({ property: "startHandleLength", resolution: "invalid" });
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-unknown-geometry-property")).toHaveLength(3);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toHaveLength(3);
+  });
+
   it("carries the concrete source geometry choice type through module scalar semantics", () => {
     const compiled = compileWithIds([
       "nui 1",
