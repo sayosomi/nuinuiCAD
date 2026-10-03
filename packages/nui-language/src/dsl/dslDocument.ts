@@ -20,7 +20,7 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../model/cadDocumentTypes";
-import { compileDslToElements } from "./dslCompiler";
+import { collectModuleTransformationStageDeclarationsForSource, compileDslToElements } from "./dslCompiler";
 import { resolveTransformationStageSelection } from "./transformationRecipes";
 import { lowerScalarProgram } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
@@ -2955,6 +2955,13 @@ export const compileDslDocument = (
         : {})
     };
   };
+  const moduleTransformationStageDeclarationsByOwnerId = sourceLexicalNamespace && stableStatementIdByIndex
+    ? collectModuleTransformationStageDeclarationsForSource({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        sourceNamespace: sourceLexicalNamespace
+      })
+    : new Map<ElementId, readonly import("./transformationRecipes").TransformationStageDeclaration[]>();
   const locallyAnalyzedSourceSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex
     ? analyzeModuleSemantics({
         statements: parsed.statements,
@@ -2966,13 +2973,17 @@ export const compileDslDocument = (
         resolveConstructionInput,
         resolveGeometryStageSelection: ({ statementId, members }) => {
           const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
+          const moduleStageDeclarations = moduleTransformationStageDeclarationsByOwnerId.get(statementId);
           const ownerId = statementIndex === undefined
             ? statementId
-            : compiled.elementIdsByStatementIndex?.get(statementIndex) ?? statementId;
+            : moduleStageDeclarations?.length
+              ? statementId
+              : compiled.elementIdsByStatementIndex?.get(statementIndex) ?? statementId;
           return resolveTransformationStageSelection({
             ownerId,
             members,
-            recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? []
+            recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [],
+            stageDeclarations: moduleStageDeclarations
           });
         }
       })

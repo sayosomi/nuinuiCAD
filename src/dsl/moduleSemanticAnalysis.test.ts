@@ -1200,6 +1200,102 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("splits Module named-stage paths before validating the remaining geometry property", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line Root = segment(start: (0, 0), end: (10, 0))",
+      "move Root as rootShifted(from: (0, 0), to: (2, 0))",
+      "const RootOut: line = @Root.rootShifted",
+      "module M() {",
+      "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  move L as shifted(from: (0, 0), to: (7, -3))",
+      "  curve P = bezier(start: (3, 9), end: (13, 9), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
+      "  move P as pathShifted(from: (0, 0), to: (4, -2))",
+      "  line BranchLine = segment(start: (2, 4), end: (12, 4))",
+      "  move BranchLine as first(from: (0, 0), to: (2, 0))",
+      "  move BranchLine.first as branch(from: (0, 0), to: (1, 1))",
+      "  const Out: line = @L.shifted",
+      "  const BaseOut: line = @L.base",
+      "  const FinalOut: line = @L.final",
+      "  const ImplicitFinalOut: line = @L",
+      "  const PathOut: path = @P.pathShifted",
+      "  const NestedOut: line = @BranchLine.first.branch",
+      "  point Start = offset(from: @L.shifted.start, dx: 1, dy: 0)",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    const localValue = (name: string) => definition.localGeometryValues.find((candidate) => candidate.name === name)!;
+    expect(localValue("Out").initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      statementId: "statement:test:5",
+      stagePath: ["shifted"]
+    });
+    expect(localValue("BaseOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["base"] });
+    expect(localValue("FinalOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["final"] });
+    expect(localValue("ImplicitFinalOut").initializer?.target).toMatchObject({ kind: "sourceGeometry", stagePath: ["final"] });
+    expect(localValue("PathOut").initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      statementId: "statement:test:7",
+      stagePath: ["pathShifted"]
+    });
+    expect(localValue("NestedOut").initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      statementId: "statement:test:9",
+      stagePath: ["first", "branch"]
+    });
+    expect(moduleBodyAt(compiled, 18).geometryReferences[0]?.reference).toMatchObject({
+      resolution: "resolved",
+      target: { kind: "sourceGeometry", pointKey: "start", stagePath: ["shifted"] }
+    });
+    expect(compiled.moduleSemanticAnalysis!.geometryValues.find((candidate) => candidate.name === "RootOut")?.initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      stagePath: ["rootShifted"]
+    });
+  });
+
+  it("resolves forward Module named-stage dependencies independent of declaration order", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  line L = segment(start: (11, 23), end: (20, 35))",
+      "  const Out: line = @L.first.branch",
+      "  move L.first as branch(from: (0, 0), to: (1, 1))",
+      "  move L as first(from: (0, 0), to: (2, 0))",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.moduleSemanticAnalysis!.definitions[0]!.localGeometryValues.find((value) => value.name === "Out")?.initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      stagePath: ["first", "branch"]
+    });
+  });
+
+  it("keeps invalid suffix validation after a Module named stage", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "  move L as shifted(from: (0, 0), to: (1, 0))",
+      "  point InvalidPoint = offset(from: @L.shifted.unknown, dx: 1, dy: 0)",
+      "  const InvalidProperty: number = @L.shifted.length.unknown",
+      "}"
+    ].join("\n"));
+    expect(moduleBodyAt(compiled, 4).geometryReferences[0]?.reference).toMatchObject({ resolution: "invalid", target: null });
+    expect(compiled.moduleSemanticAnalysis!.definitions[0]!.localScalars.find((value) => value.name === "InvalidProperty")?.initializer?.geometryProperties[0]).toMatchObject({
+      property: "shifted.length.unknown",
+      resolution: "invalid",
+      target: null
+    });
+    expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "module-geometry-type-mismatch" }),
+      expect.objectContaining({ code: "module-unknown-geometry-property" })
+    ]));
+  });
+
   it("rejects known derived accessors that are invalid for the source geometry category", () => {
     const compiled = compileWithIds([
       "nui 1",
