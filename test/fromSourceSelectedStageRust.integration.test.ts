@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult } from "../src/geometry/evaluationPayload";
+import { moduleScalarBindingIdFor } from "@nuinuicad/nui-language";
 import {
   createRustStdioParityClient,
   fixtureFromSource,
@@ -75,5 +76,63 @@ describe("SAY-446 from(source:) selected stages over Rust stdio", () => {
 
     await evaluate(false);
     await evaluate(true);
+  }, 30000);
+
+  it("evaluates materialized Module numeric geometry properties in TypeScript and Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Source = segment(start: (0, 0), end: (9, 12))",
+      "module Local() {",
+      "  line Base = segment(start: (0, 0), end: (9, 12))",
+      "  const forwardLength: number = @Material.length",
+      "  line Material = from(source: @Base)",
+      "  const directLength: number = @Material.length",
+      "  const Alias: line = @Material",
+      "  const aliasLength: number = @Alias.length",
+      "}",
+      "module Parameter(source: line) {",
+      "  path Material = from(source: @source)",
+      "  const directLength: number = @Material.length",
+      "  const Alias: path = @Material",
+      "  const aliasLength: number = @Alias.length",
+      "}",
+      "instance LocalUse = Local()",
+      "instance ParameterUse = Parameter(source: @Source)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+
+    const compiled = fixture.compiled!.doc;
+    const tsResult = evaluationPayloadToResult(tsPayload);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    expect(rustResult.errors).toEqual(tsResult.errors);
+    expect(rustResult.errors).toEqual([]);
+    const valueFor = (result: ReturnType<typeof evaluationPayloadToResult>, instanceName: string, moduleName: string, localName: string) => {
+      const instance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === instanceName)!;
+      const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === moduleName)!;
+      const local = definition.localScalars.find((candidate) => candidate.name === localName)!;
+      return result.computedScalarBindings?.get(moduleScalarBindingIdFor(
+        [instance.statementId],
+        definition.statementId,
+        local.statementId
+      ));
+    };
+
+    for (const [instanceName, moduleName, localName] of [
+      ["LocalUse", "Local", "forwardLength"],
+      ["LocalUse", "Local", "directLength"],
+      ["LocalUse", "Local", "aliasLength"],
+      ["ParameterUse", "Parameter", "directLength"],
+      ["ParameterUse", "Parameter", "aliasLength"]
+    ] as const) {
+      const tsValue = valueFor(tsResult, instanceName, moduleName, localName);
+      const rustValue = valueFor(rustResult, instanceName, moduleName, localName);
+      expect(rustValue, `${instanceName}.${localName} Rust`).toEqual(tsValue);
+      expect(tsValue, `${instanceName}.${localName}`).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 15 }
+      });
+    }
   }, 30000);
 });

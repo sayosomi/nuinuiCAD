@@ -275,6 +275,9 @@ export const numericGeometryStaticTargetForConstruction = (
       intermediatePointsProven: true
     });
   }
+  if ((category === "line" || category === "path") && construction === "from") {
+    return targetForFamily("genericPath");
+  }
   if (category !== "line") return null;
 
   if (construction === "segment" || construction === "polar" || construction === "commonTangent") {

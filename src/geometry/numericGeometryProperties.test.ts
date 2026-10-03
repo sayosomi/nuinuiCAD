@@ -119,6 +119,24 @@ describe("numeric geometry property contract", () => {
     )).toEqual(["anchorPoint.x", "anchorPoint.y", "fontSize"]);
   });
 
+  it("exposes only the common path surface for line and path materializations", () => {
+    for (const category of ["line", "path"] as const) {
+      const target = numericGeometryStaticTargetForConstruction(category, "from");
+      expect(numericGeometryPropertiesForStaticTarget(target)).toEqual(commonPath);
+      for (const property of [
+        "radius",
+        "sweepAngleDeg",
+        "startHandleLength",
+        "intermediatePoints[1].x"
+      ]) {
+        expect(numericGeometryPropertySupportedByStaticTarget(target, property)).toBe(false);
+      }
+    }
+    expect(numericGeometryPropertiesForStaticTarget(
+      numericGeometryStaticTargetForConstruction("line", "segment")
+    )).toEqual(commonPath);
+  });
+
   it("maps fixed-output constructions and preserves proven split families", () => {
     expect(numericGeometryPropertiesForStaticTarget(
       numericGeometryStaticTargetForConstruction("line", "polar")
