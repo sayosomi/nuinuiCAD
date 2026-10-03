@@ -112,6 +112,23 @@ describe("SAY-294 geometry value drawable materialization", () => {
     expect(geometry("A")).toMatchObject({ start: { x: 10 }, end: { x: 20 } });
   });
 
+  it("keeps base selected through a root immutable alias consumed by materialization", () => {
+    const compiled = compile([
+      "nui 1",
+      "line A = segment(start: (11, 23), end: (20, 35))",
+      "move A (from: (0, 0), to: (7, -3))",
+      "const G: line = @A.base",
+      "line Material = from(source: @G)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document!.elements,
+      buildEvaluationOptions({ compiledDocument: compiled as LastGoodDslDocument, evaluationLimitIndex: undefined }));
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.computedGeometry.get(compiled.document!.elements[1]!.id)).toMatchObject({
+      start: { x: 11, y: 23 }, end: { x: 20, y: 35 }
+    });
+  });
+
   it("reevaluates live sources and preserves concrete broad-path families", () => {
     const compileAndEvaluate = (source: string) => {
       const compiled = compile(source);

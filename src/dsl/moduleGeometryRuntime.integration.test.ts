@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
+import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
+import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   geometryValueOccurrenceKey,
   propertyBindingOccurrenceKey,
@@ -114,6 +116,80 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module geometry runtime", () => {
+  it("preserves selected stages for immutable line and path values consumed by from(source:)", () => {
+    const source = [
+      "nui 1",
+      "line A = segment(start: (11, 23), end: (20, 35))",
+      "move A as moved (from: (11, 23), to: (31, 45))",
+      "curve C = bezier(start: (2, 7), end: (12, 7), startAngle: 45, startLength: 3, endAngle: 135, endLength: 3)",
+      "move C as moved (from: (2, 7), to: (22, 27))",
+      "module M(g: line, p: path) {",
+      "  line Material = from(source: @g)",
+      "  path PathMaterial = from(source: @p)",
+      "}",
+      "instance First = M(g: @A.base, p: @C.base)",
+      "instance Second = M(g: @A.moved, p: @C.moved)",
+      "const RootBase: line = @A.base",
+      "line RootMaterial = from(source: @RootBase)"
+    ].join("\n");
+    const compiled = compileWithIds(source, "say446-module-stage");
+    expectValid(compiled);
+
+    const productionOptions = {
+      geometryInputTargetsByElementId: new Map([
+        ...(compiled.geometryInputTargetsByElementId ?? []),
+        ...(compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? [])
+      ])
+    };
+    const targetsFor = (name: string) => {
+      return compiled.document!.elements.filter((element) => element.name === name)
+        .flatMap((element) => [...(productionOptions.geometryInputTargetsByElementId.get(element.id)?.values() ?? [])])
+        .flatMap((target) => Array.isArray(target) ? target : [target]);
+    };
+    expect(targetsFor("Material").map((target) => target.stagePath)).toEqual(expect.arrayContaining([["base"], ["moved"]]));
+    expect(targetsFor("PathMaterial").map((target) => target.stagePath)).toEqual(expect.arrayContaining([["base"], ["moved"]]));
+    expect(targetsFor("RootMaterial")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "drawable", elementId: named(compiled, "A").id, stagePath: ["base"] })
+    ]));
+
+    const evaluation = evaluateElements(compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: undefined
+    }));
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.computedGeometry.get(named(compiled, "Material").id)).toMatchObject({
+      start: { x: 11, y: 23 }, end: { x: 20, y: 35 }
+    });
+    expect(evaluation.computedGeometry.get(named(compiled, "PathMaterial").id)).toMatchObject({
+      kind: "bezierCurve", segments: [{ start: { x: 2, y: 7 }, end: { x: 12, y: 7 } }]
+    });
+    expect(evaluation.computedGeometry.get(named(compiled, "RootMaterial").id)).toMatchObject({
+      start: { x: 11, y: 23 }, end: { x: 20, y: 35 }
+    });
+
+    const reordered = compileWithIds(source.replace(
+      "instance First = M(g: @A.base, p: @C.base)\ninstance Second = M(g: @A.moved, p: @C.moved)",
+      "instance Second = M(g: @A.moved, p: @C.moved)\ninstance First = M(g: @A.base, p: @C.base)"
+    ), "say446-module-stage-reordered");
+    expectValid(reordered);
+    const reorderedEvaluation = evaluateElements(reordered.document!.elements, buildEvaluationOptions({
+      compiledDocument: reordered as LastGoodDslDocument,
+      evaluationLimitIndex: undefined
+    }));
+    expect(reorderedEvaluation.errors).toEqual([]);
+    const geometriesNamed = (result: typeof reorderedEvaluation, name: string) => reordered.document!.elements
+      .filter((element) => element.name === name)
+      .map((element) => result.computedGeometry.get(element.id));
+    expect(geometriesNamed(reorderedEvaluation, "Material")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ start: expect.objectContaining({ x: 11, y: 23 }), end: expect.objectContaining({ x: 20, y: 35 }) }),
+      expect.objectContaining({ start: expect.objectContaining({ x: 31, y: 45 }), end: expect.objectContaining({ x: 40, y: 57 }) })
+    ]));
+    expect(geometriesNamed(reorderedEvaluation, "PathMaterial")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "bezierCurve", segments: [expect.objectContaining({ start: expect.objectContaining({ x: 2, y: 7 }), end: expect.objectContaining({ x: 12, y: 7 }) })] }),
+      expect.objectContaining({ kind: "bezierCurve", segments: [expect.objectContaining({ start: expect.objectContaining({ x: 22, y: 27 }), end: expect.objectContaining({ x: 32, y: 27 }) })] })
+    ]));
+  });
+
   it("projects Module-local pure point inputs into the canonical geometry dependency graph", () => {
     const compiled = compileWithIds([
       "nui 1",

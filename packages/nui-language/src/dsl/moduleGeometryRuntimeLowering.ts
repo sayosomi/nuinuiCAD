@@ -712,16 +712,7 @@ export const resolverForBody = ({
       if (loweredTarget?.kind === "collectionIndex") return { ...loweredTarget, currentPath };
       if (loweredTarget?.kind === "forGroupOccurrenceSource") return { ...loweredTarget, currentPath };
       if (loweredTarget?.kind === "geometryValueMapPending") return { ...loweredTarget, currentPath };
-      if (lowered?.kind === "line") {
-        return { kind: "drawable", elementId: lowered.elementId, geometryType: "line" } satisfies GeometryInputTarget;
-      }
-      if (lowered?.kind === "value" && lowered.geometryType === "line") {
-        return {
-          kind: "geometryValue",
-          occurrence: lowered.occurrence,
-          geometryType: lowered.interfaceType === "path" ? "path" : "line"
-        } satisfies GeometryInputTarget;
-      }
+      if (loweredTarget?.kind === "drawable" || loweredTarget?.kind === "geometryValue") return loweredTarget;
       return null;
     },
     resolveLineEndpointTarget: (token) => {
