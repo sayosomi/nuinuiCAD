@@ -403,6 +403,19 @@ export const tangentAtPointOnLineLikeGeometry = (
       distanceFromLine: projection.distance
     };
   }
+  if (geometry.kind === "arcLine") {
+    const radial = unitVector(geometry.center, point);
+    if (!radial) return null;
+    const radius = Math.max(geometry.radius, 0);
+    const distanceFromLine = Math.abs(distance(geometry.center, point) - radius);
+    if (distanceFromLine > tolerance) return null;
+    const sign = geometry.sweepAngleDeg >= 0 ? 1 : -1;
+    const tangent = { x: -radial.y * sign, y: radial.x * sign };
+    return {
+      angleDeg: angleFromDirection(tangent),
+      distanceFromLine
+    };
+  }
 
   const segments = segmentsForLineLikeGeometry(geometry);
   let best:
