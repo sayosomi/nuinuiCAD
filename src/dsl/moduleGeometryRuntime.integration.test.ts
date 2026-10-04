@@ -866,6 +866,106 @@ describe("module geometry runtime", () => {
     ]));
   });
 
+  it("lowers caller-qualified Module export line and path stages to their selected snapshots", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line Root = segment(start: (0, 0), end: (9, 12))",
+      "move Root as rootShifted(from: (0, 0), to: (2, 3))",
+      "line RootBase = from(source: @Root.base)",
+      "line RootNamed = from(source: @Root.rootShifted)",
+      "module Producer() {",
+      "  export line L = segment(start: (0, 0), end: (9, 12))",
+      "  move L as shifted(from: (0, 0), to: (5, 7))",
+      "  move L as finish(from: (5, 7), to: (8, 11))",
+      "  export curve P = bezier(start: (1, 2), end: (7, 2), startAngle: 45, startLength: 2, endAngle: 135, endLength: 2)",
+      "  move P as pathShifted(from: (1, 2), to: (3, 4))",
+      "  move P as pathFinish(from: (3, 4), to: (6, 8))",
+      "  export const Selected: line = @L.shifted",
+      "}",
+      "instance I = Producer()",
+      "line PlainLine = from(source: @I::L)",
+      "line BaseLine = from(source: @I::L.base)",
+      "line FinalLine = from(source: @I::L.final)",
+      "line NamedLine = from(source: @I::L.shifted)",
+      "path BasePath = from(source: @I::P.base)",
+      "path FinalPath = from(source: @I::P.final)",
+      "path NamedPath = from(source: @I::P.pathShifted)",
+      "line SelectedLine = from(source: @I::Selected)",
+      "point Start = offset(from: @I::L.start, dx: 0, dy: 0)",
+      "point End = offset(from: @I::L.end, dx: 0, dy: 0)",
+      "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
+      "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)",
+      "line Caller = segment(start: (0, 0), end: (9, 12))",
+      "move Caller as viaExport(from: @I::L.start, to: @I::L.end)"
+    ].join("\n"), "say453-qualified-stage");
+    expectValid(compiled);
+
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const rootReferences = [...analysis.rootGeometryReferencesByStatementId.values()].flat().map((site) => site.reference);
+    const referenceFor = (source: string) => rootReferences.find((reference) => reference.source.includes(source));
+    for (const [source, stagePath] of [
+      ["@I::L.base", ["base"]],
+      ["@I::L.final", ["final"]],
+      ["@I::L.shifted", ["shifted"]],
+      ["@I::P.base", ["base"]],
+      ["@I::P.final", ["final"]],
+      ["@I::P.pathShifted", ["pathShifted"]]
+    ] as const) {
+      expect(referenceFor(source)?.target).toMatchObject({ kind: "deferredModuleExport", stagePath });
+      expect(referenceFor(source)?.target).not.toHaveProperty("pointKey");
+    }
+    expect(referenceFor("@I::L")?.target).toMatchObject({ kind: "deferredModuleExport", exportName: "L" });
+    expect(referenceFor("@I::L")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::L.start")).toMatchObject({ role: "derivedPoint", target: { pointKey: "start" } });
+    expect(referenceFor("@I::L.start")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::L.end")).toMatchObject({ role: "derivedPoint", target: { pointKey: "end" } });
+    expect(referenceFor("@I::L.end")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::Selected.start")).toMatchObject({ role: "derivedPoint", target: { pointKey: "start" } });
+    expect(referenceFor("@I::Selected.start")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::Selected.end")).toMatchObject({ role: "derivedPoint", target: { pointKey: "end" } });
+    expect(referenceFor("@I::Selected.end")?.target).not.toHaveProperty("stagePath");
+
+    const result = evaluateElements(compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: undefined
+    }));
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors ?? []).toEqual([]);
+    expect(result.computedGeometry.get(named(compiled, "BaseLine").id)).toMatchObject({ kind: "line", start: { x: 0, y: 0 }, end: { x: 9, y: 12 } });
+    expect(Math.hypot(9, 12)).toBe(15);
+    expect(result.computedGeometry.get(named(compiled, "FinalLine").id)).toMatchObject({ start: { x: 8, y: 11 }, end: { x: 17, y: 23 } });
+    expect(result.computedGeometry.get(named(compiled, "NamedLine").id)).toMatchObject({ start: { x: 5, y: 7 }, end: { x: 14, y: 19 } });
+    expect(result.computedGeometry.get(named(compiled, "PlainLine").id)).toMatchObject({ start: { x: 8, y: 11 }, end: { x: 17, y: 23 } });
+    expect(result.computedGeometry.get(named(compiled, "SelectedLine").id)).toMatchObject({ start: { x: 5, y: 7 }, end: { x: 14, y: 19 } });
+    expect(result.computedGeometry.get(named(compiled, "RootBase").id)).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 9, y: 12 } });
+    expect(result.computedGeometry.get(named(compiled, "RootNamed").id)).toMatchObject({ start: { x: 2, y: 3 }, end: { x: 11, y: 15 } });
+    expect(result.computedGeometry.get(named(compiled, "BasePath").id)).toMatchObject({
+      kind: "bezierCurve",
+      segments: [expect.objectContaining({
+        start: expect.objectContaining({ x: 1, y: 2 }),
+        end: expect.objectContaining({ x: 7, y: 2 })
+      })]
+    });
+    expect(result.computedGeometry.get(named(compiled, "NamedPath").id)).toMatchObject({
+      kind: "bezierCurve",
+      segments: [expect.objectContaining({
+        start: expect.objectContaining({ x: 3, y: 4 }),
+        end: expect.objectContaining({ x: 9, y: 4 })
+      })]
+    });
+    expect(result.computedGeometry.get(named(compiled, "FinalPath").id)).toMatchObject({
+      kind: "bezierCurve",
+      segments: [expect.objectContaining({
+        start: expect.objectContaining({ x: 6, y: 8 }),
+        end: expect.objectContaining({ x: 12, y: 8 })
+      })]
+    });
+    expect(result.computedGeometry.get(named(compiled, "Start").id)).toMatchObject({ kind: "point", x: 8, y: 11 });
+    expect(result.computedGeometry.get(named(compiled, "End").id)).toMatchObject({ kind: "point", x: 17, y: 23 });
+    expect(result.computedGeometry.get(named(compiled, "SelectedStart").id)).toMatchObject({ kind: "point", x: 5, y: 7 });
+    expect(result.computedGeometry.get(named(compiled, "SelectedEnd").id)).toMatchObject({ kind: "point", x: 14, y: 19 });
+  });
+
   it("keeps module coordinate aliases on the existing numeric binding path", () => {
     const compiled = compileWithIds([
       "nui 1",

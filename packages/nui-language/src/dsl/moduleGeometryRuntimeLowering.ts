@@ -644,7 +644,7 @@ export const sourceAliasForTarget = (
   if (target.kind === "geometryCarry") return undefined;
   const child = childContextFor(target.instanceStatementId, target.instanceIdentity?.documentId);
   const alias = child ? exportsByPath.get(pathKey(child.path))?.get(target.exportName)?.alias : undefined;
-  return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
+  return alias ? lowerAliasWithPointKey(lowerAliasWithStagePath(alias, target.stagePath), target.pointKey) : undefined;
 };
 
 export const lowerReference = (
