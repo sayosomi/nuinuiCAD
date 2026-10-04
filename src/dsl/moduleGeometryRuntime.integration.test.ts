@@ -681,6 +681,99 @@ describe("module geometry runtime", () => {
       .toEqual([[11, 22], [1, 2], [8, 10]]);
   });
 
+  it("preserves selected stages and endpoint identity for Module-forwarded onLine inputs", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (20, 0))",
+      "move L(from: (0, 0), to: (0, 10))",
+      "line U = segment(start: (2, 0), end: (22, 0))",
+      "module M(g: line) {",
+      "  point P = onLine(from: @g.start, ratio: 0.5)",
+      "  point EndP = onLine(from: @g.end, ratio: 0.25)",
+      "  const V: point = onLine(from: @g.start, ratio: 0.5)",
+      "  point ValueUse = offset(from: @V, dx: 0, dy: 0)",
+      "  line Material = from(source: @g)",
+      "}",
+      "instance Base = M(g: @L.base)",
+      "instance Final = M(g: @L.final)",
+      "instance UnmovedBase = M(g: @U.base)",
+      "instance UnmovedFinal = M(g: @U.final)",
+      "point RootBase = onLine(from: @L.base.start, ratio: 0.5)",
+      "point RootFinal = onLine(from: @L.final.start, ratio: 0.5)"
+    ].join("\n"), "say455-online-endpoint-stage");
+    expectValid(compiled);
+
+    const result = evaluateElements(compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: undefined
+    }));
+    expect(result.errors).toEqual([]);
+
+    const child = (instanceName: string, name: string) => {
+      const parent = named(compiled, instanceName);
+      const element = compiled.document!.elements.find((candidate) =>
+        candidate.name === name && candidate.parentGroupId === parent.id
+      );
+      if (!element) throw new Error(`missing ${instanceName}::${name}`);
+      return element;
+    };
+    const expectPoint = (element: { id: string }, x: number, y: number) => {
+      expect(result.computedGeometry.get(element.id)).toMatchObject({ kind: "point", x, y });
+    };
+    const basePoint = child("Base", "P");
+    const baseEndpointTargets = geometryInputTargetsFor(compiled, basePoint.id);
+    expect(baseEndpointTargets).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "drawable",
+        elementId: named(compiled, "L").id,
+        geometryType: "line",
+        pointKey: "start",
+        stagePath: ["base"]
+      })
+    ]));
+    expect(geometryInputTargetsFor(compiled, child("Base", "EndP").id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "drawable",
+        elementId: named(compiled, "L").id,
+        geometryType: "line",
+        pointKey: "end",
+        stagePath: ["base"]
+      })
+    ]));
+    expect(geometryInputTargetsFor(compiled, child("Final", "P").id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "drawable",
+        elementId: named(compiled, "L").id,
+        geometryType: "line",
+        pointKey: "start",
+        stagePath: ["final"]
+      })
+    ]));
+
+    expectPoint(basePoint, 10, 0);
+    expectPoint(child("Base", "EndP"), 15, 0);
+    expectPoint(child("Base", "ValueUse"), 10, 0);
+    expect(result.computedGeometry.get(child("Base", "Material").id)).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 0 },
+      end: { x: 20, y: 0 }
+    });
+
+    expectPoint(child("Final", "P"), 10, 10);
+    expectPoint(child("Final", "EndP"), 15, 10);
+    expectPoint(child("Final", "ValueUse"), 10, 10);
+    expect(result.computedGeometry.get(child("Final", "Material").id)).toMatchObject({
+      kind: "line",
+      start: { x: 0, y: 10 },
+      end: { x: 20, y: 10 }
+    });
+
+    expectPoint(child("UnmovedBase", "P"), 12, 0);
+    expectPoint(child("UnmovedFinal", "P"), 12, 0);
+    expectPoint(named(compiled, "RootBase"), 10, 0);
+    expectPoint(named(compiled, "RootFinal"), 10, 10);
+  });
+
   it("keeps path aliases broad and lowers endpoint/list references", () => {
     const compiled = compileWithIds([
       "nui 1",

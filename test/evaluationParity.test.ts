@@ -6910,6 +6910,44 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
   }, 30000);
 
+  it("preserves a Module-forwarded selected line stage for onLine through persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (20, 0))",
+      "move L(from: (0, 0), to: (0, 10))",
+      "module M(g: line) {",
+      "  point P = onLine(from: @g.start, ratio: 0.5)",
+      "}",
+      "instance Base = M(g: @L.base)",
+      "instance Final = M(g: @L.final)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    const child = (parentName: string, name: string) => {
+      const parent = fixture.elements.find((element) => element.name === parentName);
+      if (!parent) throw new Error(`missing instance ${parentName}`);
+      const element = fixture.elements.find((candidate) =>
+        candidate.name === name && candidate.parentGroupId === parent.id
+      );
+      if (!element) throw new Error(`missing ${parentName}::${name}`);
+      return element;
+    };
+
+    expect(ts.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    for (const result of [ts, rust]) {
+      expect(result.computedGeometry.get(child("Base", "P").id)).toMatchObject({ kind: "point", x: 10, y: 0 });
+      expect(result.computedGeometry.get(child("Final", "P").id)).toMatchObject({ kind: "point", x: 10, y: 10 });
+    }
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+  }, 30000);
+
   it("matches immutable Module-local line and path endpoints through persistent Rust stdio", async () => {
     const cases = [
       {

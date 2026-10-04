@@ -715,7 +715,7 @@ export const resolverForBody = ({
       if (loweredTarget?.kind === "drawable" || loweredTarget?.kind === "geometryValue") return loweredTarget;
       return null;
     },
-    resolveLineEndpointTarget: (token) => {
+    resolveLineEndpointTarget: (token, parameterKey, _index, _line, _diagnostics, currentElement) => {
       const site = siteFor(token, "lineEndpointReference");
       const carry = site?.reference.target?.kind === "geometryCarry" ? site.reference.target : undefined;
       if (carry) {
@@ -732,16 +732,37 @@ export const resolverForBody = ({
       const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
       if (loweredTarget?.kind === "geometryValueMapPending") return { ...loweredTarget, currentPath };
       if (loweredTarget?.kind === "forGroupOccurrenceSource") return { ...loweredTarget, currentPath };
-      if (lowered?.kind === "line") {
-        return { kind: "drawable", elementId: lowered.elementId, geometryType: "line" } satisfies GeometryInputTarget;
+
+      if (currentElement?.type === "lineDivisionPoint" && parameterKey === "endpoint") {
+        if (lowered?.kind === "point" && lowered.anchor.mode === "derived") {
+          const stagePath = lowered.stagePath ?? lowered.anchor.stagePath;
+          return {
+            kind: "drawable",
+            elementId: lowered.anchor.elementId,
+            geometryType: "line",
+            pointKey: lowered.anchor.pointKey,
+            ...(stagePath ? { stagePath } : {})
+          } satisfies GeometryInputTarget;
+        }
+        if (lowered?.kind === "value" && lowered.geometryType === "point" && lowered.pointKey) {
+          const geometryType = lowered.interfaceType === "path"
+            ? "path"
+            : lowered.interfaceType === "line"
+              ? "line"
+              : undefined;
+          if (geometryType) {
+            return {
+              kind: "geometryValue",
+              occurrence: lowered.occurrence,
+              geometryType,
+              pointKey: lowered.pointKey,
+              ...(lowered.stagePath ? { stagePath: lowered.stagePath } : {})
+            } satisfies GeometryInputTarget;
+          }
+        }
       }
-      if (lowered?.kind === "value" && lowered.geometryType === "line") {
-        return {
-          kind: "geometryValue",
-          occurrence: lowered.occurrence,
-          geometryType: lowered.interfaceType === "path" ? "path" : "line"
-        } satisfies GeometryInputTarget;
-      }
+
+      if (loweredTarget?.kind === "drawable" || loweredTarget?.kind === "geometryValue") return loweredTarget;
       return null;
     },
     resolveId: (token, index, line, diagnostics, currentElement) => {
