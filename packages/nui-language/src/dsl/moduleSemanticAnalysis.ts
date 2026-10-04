@@ -2999,6 +2999,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const selectedPointTarget = selectedProperty && expected === "point" && isDerivedPointKeyForGeometryCategory(target.category, selectedProperty)
       ? { ...target, pointKey: selectedProperty, stagePath: stageSelection.stagePath }
       : selectedProperty ? null : { ...target, stagePath: stageSelection.stagePath };
+    const selectedRole = selectedProperty ? derivedRole : role;
     const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
     const compatible = selectedProperty
       ? Boolean(selectedPointTarget)
@@ -3010,9 +3011,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
         presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
       }));
-      return semantic(null, "invalid", null, derivedRole);
+      return semantic(null, "invalid", null, selectedRole);
     }
-    return semantic(selectedPointTarget, "resolved", null, derivedRole);
+    return semantic(selectedPointTarget, "resolved", null, selectedRole);
   };
 
   const parseGeometryValueConstruction = (
