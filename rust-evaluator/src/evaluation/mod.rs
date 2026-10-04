@@ -68,6 +68,8 @@ mod line_evaluators;
 mod line_geometry_input;
 mod line_intersections;
 mod line_path;
+#[cfg(test)]
+mod line_path_tests;
 mod line_tangent_offset_point_evaluator;
 #[cfg(test)]
 mod line_tangent_offset_point_tests;

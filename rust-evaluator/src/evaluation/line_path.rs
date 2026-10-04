@@ -13,10 +13,20 @@ struct PathPoint {
     y: f64,
 }
 
+#[derive(Clone, Copy)]
+struct ArcTraversal {
+    center: PathPoint,
+    radius: f64,
+    start_angle_deg: f64,
+    sweep_angle_deg: f64,
+}
+
+#[derive(Clone, Copy)]
 struct PathSegment {
     start: PathPoint,
     end: PathPoint,
     length: f64,
+    arc: Option<ArcTraversal>,
 }
 
 fn value_point(value: &Value) -> Option<PathPoint> {
@@ -75,7 +85,89 @@ fn projected_point_on_segment(point: PathPoint, segment: &PathSegment) -> Option
 
 fn path_segment(start: PathPoint, end: PathPoint) -> Option<PathSegment> {
     let length = distance(start, end);
-    (length > CIRCLE_EPSILON).then_some(PathSegment { start, end, length })
+    (length > CIRCLE_EPSILON).then_some(PathSegment {
+        start,
+        end,
+        length,
+        arc: None,
+    })
+}
+
+fn analytic_arc_segment(
+    center: PathPoint,
+    radius: f64,
+    start_angle_deg: f64,
+    sweep_angle_deg: f64,
+    length: f64,
+    start: Option<PathPoint>,
+    end: Option<PathPoint>,
+) -> Option<PathSegment> {
+    let radius = radius.max(0.0);
+    (length > CIRCLE_EPSILON).then_some(PathSegment {
+        start: start.unwrap_or_else(|| arc_point(center, radius, start_angle_deg)),
+        end: end.unwrap_or_else(|| arc_point(center, radius, start_angle_deg + sweep_angle_deg)),
+        length,
+        arc: Some(ArcTraversal {
+            center,
+            radius,
+            start_angle_deg,
+            sweep_angle_deg,
+        }),
+    })
+}
+
+fn reverse_segment(segment: PathSegment) -> PathSegment {
+    PathSegment {
+        start: segment.end,
+        end: segment.start,
+        length: segment.length,
+        arc: segment.arc.map(|arc| ArcTraversal {
+            center: arc.center,
+            radius: arc.radius,
+            start_angle_deg: arc.start_angle_deg + arc.sweep_angle_deg,
+            sweep_angle_deg: -arc.sweep_angle_deg,
+        }),
+    }
+}
+
+fn point_at_distance_along_segment(segment: &PathSegment, distance_along: f64) -> PathPoint {
+    if let Some(arc) = segment.arc {
+        let fraction = if segment.length <= CIRCLE_EPSILON {
+            0.0
+        } else {
+            distance_along / segment.length
+        };
+        return arc_point(
+            arc.center,
+            arc.radius,
+            arc.start_angle_deg + arc.sweep_angle_deg * fraction,
+        );
+    }
+    let fraction = if segment.length <= CIRCLE_EPSILON {
+        0.0
+    } else {
+        distance_along / segment.length
+    };
+    interpolate(segment.start, segment.end, fraction)
+}
+
+fn endpoint_direction(segment: &PathSegment, at_end: bool) -> Option<PathPoint> {
+    let Some(arc) = segment.arc else {
+        return unit_vector(segment.start, segment.end);
+    };
+    let step_count = ((arc.sweep_angle_deg.abs() / 360.0) * CURVE_PATH_STEPS)
+        .ceil()
+        .max(1.0) as usize;
+    let piece_sweep = arc.sweep_angle_deg / step_count as f64;
+    let start_angle = if at_end {
+        arc.start_angle_deg + piece_sweep * (step_count - 1) as f64
+    } else {
+        arc.start_angle_deg
+    };
+    unit_vector(
+        arc_point(arc.center, arc.radius, start_angle),
+        arc_point(arc.center, arc.radius, start_angle + piece_sweep),
+    )
 }
 
 fn bezier_endpoint_tangent(segment: &Value, at_end: bool) -> Option<PathPoint> {
@@ -312,9 +404,75 @@ fn segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
     }
 }
 
-// Move a point located by the 32-step arc-length walk onto the *true* geometry:
-// the analytic cubic for Béziers, the exact circle for arcs, and the analytic
-// primitives contained by offset lines.
+fn traversal_segments_for_geometry(geometry: &Value) -> Option<Vec<PathSegment>> {
+    match geometry.get("kind")?.as_str()? {
+        "arcLine" => {
+            let center = geometry.get("center").and_then(value_point)?;
+            let start = geometry.get("start").and_then(value_point)?;
+            let end = geometry.get("end").and_then(value_point)?;
+            Some(
+                analytic_arc_segment(
+                    center,
+                    geometry.get("radius")?.as_f64()?,
+                    geometry.get("startAngleDeg")?.as_f64()?,
+                    geometry.get("sweepAngleDeg")?.as_f64()?,
+                    geometry_length(geometry)?,
+                    Some(start),
+                    Some(end),
+                )
+                .into_iter()
+                .collect(),
+            )
+        }
+        "offsetLine" | "joinedPath" => {
+            let mut output = Vec::new();
+            for segment in geometry.get("segments")?.as_array()? {
+                match segment.get("kind")?.as_str()? {
+                    "line" => {
+                        let start = segment.get("start").and_then(value_point)?;
+                        let end = segment.get("end").and_then(value_point)?;
+                        output.extend(path_segment(start, end));
+                    }
+                    "bezier" => {
+                        let points =
+                            bezier_path::segment_points(segment, CURVE_PATH_STEPS as usize)?;
+                        output.extend(points.windows(2).filter_map(|pair| {
+                            path_segment(
+                                PathPoint {
+                                    x: pair[0].x,
+                                    y: pair[0].y,
+                                },
+                                PathPoint {
+                                    x: pair[1].x,
+                                    y: pair[1].y,
+                                },
+                            )
+                        }));
+                    }
+                    "arc" => {
+                        let center = segment.get("center").and_then(value_point)?;
+                        let start = segment.get("start").and_then(value_point)?;
+                        let end = segment.get("end").and_then(value_point)?;
+                        output.extend(analytic_arc_segment(
+                            center,
+                            segment.get("radius")?.as_f64()?,
+                            segment.get("startAngleDeg")?.as_f64()?,
+                            segment.get("sweepAngleDeg")?.as_f64()?,
+                            segment.get("length")?.as_f64()?,
+                            Some(start),
+                            Some(end),
+                        ));
+                    }
+                    _ => return None,
+                }
+            }
+            Some(output)
+        }
+        _ => segments_for_geometry(geometry),
+    }
+}
+
+// Move sampled non-arc traversal points onto the analytic curve or offset primitives.
 fn snap_onto_geometry(geometry: &Value, point: PathPoint) -> Option<PathPoint> {
     match geometry.get("kind").and_then(Value::as_str)? {
         "bezierCurve" => {
@@ -367,18 +525,14 @@ pub(crate) fn point_at_distance_from_endpoint(
     endpoint_key: &str,
     distance_from_endpoint: f64,
 ) -> Option<(f64, f64)> {
-    let forward_segments = segments_for_geometry(geometry)?;
+    let forward_segments = traversal_segments_for_geometry(geometry)?;
     let segments = if endpoint_key == "start" {
         forward_segments
     } else {
         forward_segments
             .into_iter()
             .rev()
-            .map(|segment| PathSegment {
-                start: segment.end,
-                end: segment.start,
-                length: segment.length,
-            })
+            .map(reverse_segment)
             .collect()
     };
     if segments.is_empty() {
@@ -388,8 +542,8 @@ pub(crate) fn point_at_distance_from_endpoint(
     let total_length = segments.iter().map(|segment| segment.length).sum::<f64>();
     let start_point = segments.first()?.start;
     let end_point = segments.last()?.end;
-    let start_direction = unit_vector(segments.first()?.start, segments.first()?.end)?;
-    let end_direction = unit_vector(segments.last()?.start, segments.last()?.end)?;
+    let start_direction = endpoint_direction(segments.first()?, false)?;
+    let end_direction = endpoint_direction(segments.last()?, true)?;
 
     // Beyond either endpoint the point extends straight along the endpoint
     // tangent — intentionally off-curve, so no snapping.
@@ -406,19 +560,29 @@ pub(crate) fn point_at_distance_from_endpoint(
         return Some((point.x, point.y));
     }
 
+    if distance_from_endpoint == 0.0 {
+        return Some((start_point.x, start_point.y));
+    }
+    if distance_from_endpoint == total_length {
+        return Some((end_point.x, end_point.y));
+    }
+
     let mut remaining = distance_from_endpoint;
-    let mut chord_point = end_point;
+    let mut selected_segment = None;
+    let mut distance_along_selected = 0.0;
     for segment in &segments {
         if remaining <= segment.length {
-            let t = if segment.length <= CIRCLE_EPSILON {
-                0.0
-            } else {
-                remaining / segment.length
-            };
-            chord_point = interpolate(segment.start, segment.end, t);
+            selected_segment = Some(segment);
+            distance_along_selected = remaining;
             break;
         }
         remaining -= segment.length;
+    }
+
+    let selected_segment = selected_segment?;
+    let chord_point = point_at_distance_along_segment(selected_segment, distance_along_selected);
+    if selected_segment.arc.is_some() {
+        return Some((chord_point.x, chord_point.y));
     }
 
     // Place the in-range point on the true geometry, not the sampled chord.

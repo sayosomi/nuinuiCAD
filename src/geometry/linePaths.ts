@@ -14,6 +14,13 @@ import { projectPointOntoOffsetLine, type OffsetLineSegment } from "./offsetSegm
 
 type Point = { x: number; y: number };
 
+type ArcTraversal = {
+  center: Point;
+  radius: number;
+  startAngleDeg: number;
+  sweepAngleDeg: number;
+};
+
 export type LineLikeGeometry = ComputedLine | ComputedArcLine | ComputedBezierCurve | ComputedOffsetLine | ComputedPolyline | ComputedJoinedPath;
 export type LineLikeGeometryInput = LineLikeGeometry | Extract<ComputedGeometryValue, { kind: "line" | "arcLine" | "bezierCurve" | "offsetLine" | "joinedPath" | "polyline" }>;
 export type FillEligiblePathGeometry = ComputedOffsetLine | ComputedJoinedPath | ComputedPolyline;
@@ -22,6 +29,7 @@ type PathSegment = {
   start: Point;
   end: Point;
   length: number;
+  arc?: ArcTraversal;
 };
 
 const CURVE_PATH_STEPS = 32;
@@ -191,6 +199,66 @@ const arcSegments = ({
   });
 };
 
+const analyticArcSegment = (
+  center: Point,
+  radius: number,
+  startAngleDeg: number,
+  sweepAngleDeg: number,
+  start = arcPoint(center, Math.max(radius, 0), startAngleDeg),
+  end = arcPoint(center, Math.max(radius, 0), startAngleDeg + sweepAngleDeg),
+  length = Math.max(radius, 0) * Math.abs(degreesToRadians(sweepAngleDeg))
+): PathSegment | null => {
+  const safeRadius = Math.max(radius, 0);
+  return length <= EPSILON
+    ? null
+    : {
+        start,
+        end,
+        length,
+        arc: { center, radius: safeRadius, startAngleDeg, sweepAngleDeg }
+      };
+};
+
+const endpointDirection = (segment: PathSegment, atEnd: boolean): Point | null => {
+  if (!segment.arc) return unitVector(segment.start, segment.end);
+  const stepCount = Math.max(1, Math.ceil((Math.abs(segment.arc.sweepAngleDeg) / 360) * CURVE_PATH_STEPS));
+  const pieceSweep = segment.arc.sweepAngleDeg / stepCount;
+  const startAngle = atEnd
+    ? segment.arc.startAngleDeg + pieceSweep * (stepCount - 1)
+    : segment.arc.startAngleDeg;
+  return unitVector(
+    arcPoint(segment.arc.center, segment.arc.radius, startAngle),
+    arcPoint(segment.arc.center, segment.arc.radius, startAngle + pieceSweep)
+  );
+};
+
+const reversePathSegment = (segment: PathSegment): PathSegment => ({
+  start: segment.end,
+  end: segment.start,
+  length: segment.length,
+  ...(segment.arc
+    ? {
+        arc: {
+          ...segment.arc,
+          startAngleDeg: segment.arc.startAngleDeg + segment.arc.sweepAngleDeg,
+          sweepAngleDeg: -segment.arc.sweepAngleDeg
+        }
+      }
+    : {})
+});
+
+const pointAtDistanceAlongSegment = (segment: PathSegment, distanceAlong: number): Point => {
+  if (!segment.arc) {
+    return interpolate(segment.start, segment.end, segment.length <= EPSILON ? 0 : distanceAlong / segment.length);
+  }
+  const fraction = segment.length <= EPSILON ? 0 : distanceAlong / segment.length;
+  return arcPoint(
+    segment.arc.center,
+    segment.arc.radius,
+    segment.arc.startAngleDeg + segment.arc.sweepAngleDeg * fraction
+  );
+};
+
 const bezierSegments = (curve: { segments: readonly BezierLikeSegment[] }) =>
   curve.segments.flatMap((segment) => {
     const points = Array.from({ length: CURVE_PATH_STEPS + 1 }, (_, index) =>
@@ -271,9 +339,42 @@ const segmentsForLineLikeGeometry = (geometry: LineLikeGeometryInput): PathSegme
   return offsetSegments(geometry);
 };
 
-// Snap a chord-sampled path point onto the true analytic geometry: the exact
-// cubic for Beziers, the exact circle for arcs, && the constituent analytic
-// primitives for offset lines.
+const traversalSegmentsForLineLikeGeometry = (geometry: LineLikeGeometryInput): PathSegment[] => {
+  if (geometry.kind === "arcLine") {
+    const segment = analyticArcSegment(
+      geometry.center,
+      geometry.radius,
+      geometry.startAngleDeg,
+      geometry.sweepAngleDeg,
+      geometry.start,
+      geometry.end,
+      geometry.length
+    );
+    return segment ? [segment] : [];
+  }
+  if (geometry.kind === "offsetLine" || geometry.kind === "joinedPath") {
+    return geometry.segments.flatMap((segment) => {
+      if (segment.kind === "line") {
+        const path = pathSegment(segment.start, segment.end);
+        return path ? [path] : [];
+      }
+      if (segment.kind === "bezier") return bezierSegments({ segments: [segment] });
+      const arc = analyticArcSegment(
+        segment.center,
+        segment.radius,
+        segment.startAngleDeg,
+        segment.sweepAngleDeg,
+        segment.start,
+        segment.end,
+        segment.length
+      );
+      return arc ? [arc] : [];
+    });
+  }
+  return segmentsForLineLikeGeometry(geometry);
+};
+
+// Snap sampled non-arc traversal points onto the exact cubic or offset primitives.
 const snapOntoGeometry = (geometry: LineLikeGeometryInput, point: Point): Point | null => {
   if (geometry.kind === "bezierCurve") {
     const projection = projectPointOntoCurve(geometry.segments, point);
@@ -332,22 +433,18 @@ export const pointAtDistanceFromEndpoint = (
   endpointKey: "start" | "end",
   distanceFromEndpoint: number
 ): Point | null => {
-  const forwardSegments = segmentsForLineLikeGeometry(geometry);
+  const forwardSegments = traversalSegmentsForLineLikeGeometry(geometry);
   const segments =
     endpointKey === "start"
       ? forwardSegments
-      : [...forwardSegments].reverse().map((segment) => ({
-          start: segment.end,
-          end: segment.start,
-          length: segment.length
-        }));
+      : [...forwardSegments].reverse().map(reversePathSegment);
   if (segments.length === 0) return null;
 
   const totalLength = segments.reduce((sum, segment) => sum + segment.length, 0);
   const startPoint = segments[0].start;
   const endPoint = segments.at(-1)!.end;
-  const startDirection = unitVector(segments[0].start, segments[0].end);
-  const endDirection = unitVector(segments.at(-1)!.start, segments.at(-1)!.end);
+  const startDirection = endpointDirection(segments[0], false);
+  const endDirection = endpointDirection(segments.at(-1)!, true);
   if (!startDirection || !endDirection) return null;
 
   // Beyond either endpoint the point extends straight along the endpoint
@@ -359,16 +456,22 @@ export const pointAtDistanceFromEndpoint = (
   if (distanceFromEndpoint > totalLength) {
     return extendFrom(endPoint, endDirection, distanceFromEndpoint - totalLength);
   }
+  if (distanceFromEndpoint === 0) return { x: startPoint.x, y: startPoint.y };
+  if (distanceFromEndpoint === totalLength) return { x: endPoint.x, y: endPoint.y };
 
   let remaining = distanceFromEndpoint;
   let chordPoint = endPoint;
+  let selectedSegment: PathSegment | undefined;
   for (const segment of segments) {
     if (remaining <= segment.length) {
-      chordPoint = interpolate(segment.start, segment.end, segment.length <= EPSILON ? 0 : remaining / segment.length);
+      selectedSegment = segment;
+      chordPoint = pointAtDistanceAlongSegment(segment, remaining);
       break;
     }
     remaining -= segment.length;
   }
+
+  if (selectedSegment?.arc) return chordPoint;
 
   // Place the in-range point on the true geometry, not the sampled chord.
   return snapOntoGeometry(geometry, chordPoint) ?? chordPoint;
