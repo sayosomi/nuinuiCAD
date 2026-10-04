@@ -1626,7 +1626,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     expectedGeometryKind: "point" | "line",
     expectedInterfaceType: ModuleGeometryInterfaceType,
     span: DslSpan,
-    pointKey: string | null
+    pointKey: string | null,
+    stagePath?: readonly string[]
   ): Extract<ModuleGeometrySourceTarget, { kind: "deferredModuleExport" }> => ({
     kind: "deferredModuleExport",
     instanceStatementId: qualified.instance.statementId,
@@ -1636,6 +1637,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     expectedGeometryKind,
     expectedInterfaceType,
     ...(pointKey ? { pointKey } : {}),
+    ...(stagePath ? { stagePath } : {}),
     referenceSpan: span,
     instanceSpan: qualified.instanceSpan,
     memberSpan: qualified.memberSpan
@@ -1644,7 +1646,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const qualifiedScalarExportFor = (
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
   ): { kind: "scalar"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; declaredType: ScalarType }
-    | { kind: "geometry"; exportedStatementIndex: number; category: DslGeometryDeclarationCategory | null; interfaceType: ModuleGeometryInterfaceType }
+    | { kind: "geometry"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; category: DslGeometryDeclarationCategory | null; interfaceType: ModuleGeometryInterfaceType }
     | { kind: "private"; exportedStatementIndex: number }
     | null => {
     const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
@@ -1660,7 +1662,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         };
       }
       return exported?.kind === "geometry"
-        ? { kind: "geometry", exportedStatementIndex: exported.exportedStatementIndex, category: exported.category, interfaceType: exported.interfaceType }
+        ? { kind: "geometry", exportedStatementId: exported.exportedStatementId, exportedStatementIndex: exported.exportedStatementIndex, category: exported.category, interfaceType: exported.interfaceType }
         : null;
     }
     const definition = instance?.callee && stateByIndex.get(instance.callee.definitionStatementIndex);
@@ -1693,6 +1695,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (geometryType) {
         return {
           kind: "geometry",
+          exportedStatementId: statementIdAt(stableStatementIdByIndex, exported.statementIndex),
           exportedStatementIndex: exported.statementIndex,
           category: null,
           interfaceType: geometryType
@@ -1702,6 +1705,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (exported.statement.kind !== "element" || !isGeometryDeclarationCategory(exported.statement.category)) return null;
     return {
       kind: "geometry",
+      exportedStatementId: statementIdAt(stableStatementIdByIndex, exported.statementIndex),
       exportedStatementIndex: exported.statementIndex,
       category: exported.statement.category,
       interfaceType: moduleGeometryInterfaceTypeOfElement(exported.statement) ?? (exported.statement.category === "point" ? "point" : "path")
@@ -2463,6 +2467,71 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           { presentation: { key: "diagnostic.module-construction-input-inaccessible", parameters: { target: base } } }
         ));
         return semantic(null, "invalid", null, derivedRole);
+      }
+      const exported = qualifiedScalarExportFor(qualified);
+      if (pointKey && exported?.kind === "geometry") {
+        const members = pointKey.split(".");
+        const stageSelection = input.resolveGeometryStageSelection?.({
+          statementId: exported.exportedStatementId,
+          members
+        }) ?? { stagePath: ["final"], propertyPath: members };
+        const selectedProperty = stageSelection.propertyPath.join(".");
+        if (selectedProperty) {
+          if (!isKnownDerivedPointKey(selectedProperty)) {
+            return rejectAccessor(`geometry reference「${selectedProperty}」は既知のpoint anchorではありません。`);
+          }
+          if (role === "lineReference" || role === "lineReferenceList") {
+            return rejectAccessor("plain line referenceにはderived point accessorを指定できません。");
+          }
+          if (role === "lineEndpointReference" && !isLineEndpointPointKey(selectedProperty)) {
+            return rejectAccessor("line endpoint referenceにはstartまたはendを指定してください。");
+          }
+          const category = exported.category ?? (exported.interfaceType === "point" ? "point" : "path");
+          if (expected !== "point" || !isDerivedPointKeyForGeometryCategory(category, selectedProperty)) {
+            addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}.${selectedProperty}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
+              presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+            }));
+            return semantic(null, "invalid", null, derivedRole);
+          }
+          return semantic(
+            deferredModuleExportTarget(
+              qualified,
+              expected,
+              options.expectedInterfaceType ?? (expected === "point" ? "point" : "path"),
+              semanticSpan,
+              selectedProperty,
+              stageSelection.stagePath
+            ),
+            "deferred",
+            null,
+            role === "lineEndpointReference" ? role : "derivedPoint"
+          );
+        }
+        const expectedInterfaceType = options.expectedInterfaceType ?? (expected === "point" ? "point" : "path");
+        const compatible = options.expectedInterfaceType
+          ? isModuleGeometryInterfaceAssignable(exported.interfaceType, expectedInterfaceType)
+          : expected === "point"
+            ? exported.interfaceType === "point"
+            : exported.interfaceType !== "point";
+        if (!compatible) {
+          addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
+            presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
+          }));
+          return semantic(null, "invalid", null, role);
+        }
+        return semantic(
+          deferredModuleExportTarget(
+            qualified,
+            expected,
+            expectedInterfaceType,
+            semanticSpan,
+            null,
+            stageSelection.stagePath
+          ),
+          "deferred",
+          null,
+          role
+        );
       }
       return semantic(
         deferredModuleExportTarget(

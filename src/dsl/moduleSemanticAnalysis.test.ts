@@ -1501,6 +1501,88 @@ describe("module semantic analysis", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("classifies caller-qualified exported geometry stages before derived accessors", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line Root = segment(start: (0, 0), end: (9, 12))",
+      "move Root as rootShifted(from: (0, 0), to: (2, 3))",
+      "const RootBase: line = @Root.base",
+      "const RootNamed: line = @Root.rootShifted",
+      "module Child() {",
+      "  export line L = segment(start: (0, 0), end: (9, 12))",
+      "  move L as shifted(from: (0, 0), to: (5, 7))",
+      "  export curve P = bezier(start: (1, 2), end: (7, 2), startAngle: 45, startLength: 2, endAngle: 135, endLength: 2)",
+      "  move P as pathShifted(from: (1, 2), to: (3, 4))",
+      "  const LocalNamed: line = @L.shifted",
+      "  export const Selected: line = @L.shifted",
+      "}",
+      "instance I = Child()",
+      "const PlainLine: line = @I::L",
+      "const BaseLine: line = @I::L.base",
+      "const FinalLine: line = @I::L.final",
+      "const NamedLine: line = @I::L.shifted",
+      "const BasePath: path = @I::P.base",
+      "const FinalPath: path = @I::P.final",
+      "const NamedPath: path = @I::P.pathShifted",
+      "const SelectedLine: line = @I::Selected",
+      "point Start = offset(from: @I::L.start, dx: 0, dy: 0)",
+      "point End = offset(from: @I::L.end, dx: 0, dy: 0)"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const analysis = compiled.moduleSemanticAnalysis!;
+    const targetFor = (name: string) => analysis.geometryValues.find((value) => value.name === name)?.initializer?.target;
+    const rootReferences = [...analysis.rootGeometryReferencesByStatementId.values()].flat().map((site) => site.reference);
+    expect(targetFor("PlainLine")).toMatchObject({ kind: "deferredModuleExport", exportName: "L" });
+    expect(targetFor("PlainLine")).not.toHaveProperty("pointKey");
+    expect(targetFor("PlainLine")).not.toHaveProperty("stagePath");
+    for (const [name, stagePath] of [
+      ["BaseLine", ["base"]],
+      ["FinalLine", ["final"]],
+      ["NamedLine", ["shifted"]],
+      ["BasePath", ["base"]],
+      ["FinalPath", ["final"]],
+      ["NamedPath", ["pathShifted"]]
+    ] as const) {
+      expect(targetFor(name)).toMatchObject({ kind: "deferredModuleExport", stagePath });
+      expect(targetFor(name)).not.toHaveProperty("pointKey");
+    }
+    expect(rootReferences.find((reference) => reference.source.includes("@I::L.start"))).toMatchObject({
+      role: "derivedPoint",
+      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "start", stagePath: ["final"] }
+    });
+    expect(rootReferences.find((reference) => reference.source.includes("@I::L.end"))).toMatchObject({
+      role: "derivedPoint",
+      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "end", stagePath: ["final"] }
+    });
+    expect(targetFor("RootBase")).toMatchObject({ kind: "sourceGeometry", stagePath: ["base"] });
+    expect(targetFor("RootNamed")).toMatchObject({ kind: "sourceGeometry", stagePath: ["rootShifted"] });
+    expect(targetFor("SelectedLine")).toMatchObject({ kind: "deferredModuleExport", exportName: "Selected" });
+
+    const definition = analysis.definitions.find((candidate) => candidate.name === "Child")!;
+    expect(definition.localGeometryValues.find((value) => value.name === "LocalNamed")?.initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      stagePath: ["shifted"]
+    });
+    expect(targetFor("SelectedLine")).not.toHaveProperty("stagePath");
+  });
+
+  it("keeps category-invalid and unknown qualified suffixes as structured geometry diagnostics", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module Child() {",
+      "  export line L = segment(start: (0, 0), end: (9, 12))",
+      "  export point P = coordinate(x: 3, y: 4)",
+      "}",
+      "instance I = Child()",
+      "point InvalidLineCenter = offset(from: @I::L.center, dx: 1, dy: 0)",
+      "point InvalidPointStart = offset(from: @I::P.start, dx: 1, dy: 0)",
+      "point UnknownAccessor = offset(from: @I::L.missing, dx: 1, dy: 0)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.code === "module-geometry-type-mismatch")).toHaveLength(3);
+  });
+
   it("keeps text and image geometry properties source-semantic without a fake geometry kind", () => {
     const compiled = compileWithIds([
       "nui 1",
