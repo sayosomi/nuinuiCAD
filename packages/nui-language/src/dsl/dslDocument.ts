@@ -3145,9 +3145,8 @@ export const compileDslDocument = (
       .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
         property.target?.kind === "sourceGeometryProperty" || property.target?.kind === "deferredModuleExportProperty"
       ));
-    const hasRootElementModulePointPropertyOccurrences = [...moduleSemanticCompilation.rootElementScalarExpressionsByStatementId.values()]
+    const hasRootElementModuleGeometryPropertyOccurrences = [...moduleSemanticCompilation.rootElementScalarExpressionsByStatementId.values()]
       .some((sites) => sites.some((site) => site.expression.geometryProperties.some((property) =>
-        (property.property === "x" || property.property === "y") &&
         property.target?.kind === "deferredModuleExportProperty"
       )));
     const hasRootCollectionLengthOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
@@ -3163,7 +3162,7 @@ export const compileDslDocument = (
     if (
       usableExportBindingSeeds.length > 0 ||
       hasRootGeometryRuntimeOccurrences ||
-      hasRootElementModulePointPropertyOccurrences ||
+      hasRootElementModuleGeometryPropertyOccurrences ||
       hasRootCollectionLengthOccurrences ||
       hasRootCollectionIndexOccurrences ||
       hasRootOptionalMemberOccurrences ||
@@ -3480,6 +3479,15 @@ export const compileDslDocument = (
             occurrence: resolvedModuleProperty.occurrence,
             property: resolvedModuleProperty.property,
             ...(resolvedModuleProperty.pointKey ? { pointKey: resolvedModuleProperty.pointKey } : {}),
+            ...(resolvedModuleProperty.stagePath ? { stagePath: resolvedModuleProperty.stagePath } : {}),
+            targetSourceOrder: resolvedModuleProperty.targetSourceOrder ?? target.instanceStatementIndex,
+            type: property.type
+          };
+        }
+        if (resolvedModuleProperty?.kind === "runtime") {
+          return {
+            elementId: resolvedModuleProperty.elementId,
+            property: resolvedModuleProperty.property,
             ...(resolvedModuleProperty.stagePath ? { stagePath: resolvedModuleProperty.stagePath } : {}),
             targetSourceOrder: resolvedModuleProperty.targetSourceOrder ?? target.instanceStatementIndex,
             type: property.type

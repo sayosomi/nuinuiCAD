@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   emptyDocument,
+  compileDslDocument,
+  parseDsl,
   propertyBindingOccurrenceKey,
   recordFieldCollectionValueIdFor,
   recordValueCollectionIdFor
 } from "@nuinuicad/nui-language";
 import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
 import { evaluateElements, type EvaluateElementsOptions } from "./evaluate";
+import { buildEvaluationOptions } from "./productionEvaluationContext";
 
 const compile = (source: string): LastGoodDslDocument => {
   const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
@@ -31,6 +34,14 @@ const point = (compiled: LastGoodDslDocument, name: string) => {
   const element = compiled.document.elements.find((candidate) => candidate.name === name);
   if (!element) throw new Error(`missing ${name}`);
   return element;
+};
+
+const compileWithStatementIds = (source: string, prefix: string): LastGoodDslDocument => {
+  const parsed = parseDsl(source);
+  return compileDslDocument(source, {
+    preparsed: parsed,
+    assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `${prefix}:${index}`] as const))
+  }) as LastGoodDslDocument;
 };
 
 describe("general numeric typed binding runtime", () => {
@@ -341,6 +352,71 @@ describe("general numeric typed binding runtime", () => {
     expect(result.errors).toEqual([]);
     expect(result.computedGeometry.get(direct.id)).toMatchObject({ kind: "point", x: 11, y: 23 });
     expect(result.computedGeometry.get(point(compiled, "Lifted").id)).toMatchObject({ kind: "point", x: 11, y: 23 });
+  });
+
+  it("resolves a caller-qualified exported line length in a direct numeric construction field", () => {
+    const compiled = compileWithStatementIds([
+      "nui 1",
+      "module M() {",
+      "  export line B = segment(start: (0, 0), end: (9, 12))",
+      "}",
+      "instance I = M()",
+      "point P = coordinate(x: @I::B.length, y: 0)"
+    ].join("\n"), "say451-direct");
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const target = point(compiled, "P");
+    const statementIndex = [...compiled.statementMap.elementIdByStatementIndex]
+      .find(([, elementId]) => elementId === target.id)?.[0];
+    if (statementIndex === undefined) throw new Error("missing caller point statement index");
+    const binding = compiled.numericBindings?.get(propertyBindingOccurrenceKey(statementIndex, "x"));
+    const semantic = compiled.moduleSemanticAnalysis;
+    const callerStatementId = compiled.statementMap.statementIdByStatementIndex?.get(statementIndex);
+    const propertyTarget = callerStatementId
+      ? semantic?.rootElementScalarExpressionsByStatementId.get(callerStatementId)
+          ?.flatMap((site) => site.expression.geometryProperties)
+          .find((property) => property.property === "length")?.target
+      : undefined;
+    if (propertyTarget?.kind !== "deferredModuleExportProperty") {
+      throw new Error("expected the source semantic deferred Module export property");
+    }
+    const resolvedTarget = compiled.moduleGeometryRuntime?.resolvePropertyTarget(
+      propertyTarget,
+      [],
+      new Map(compiled.document.elements.map((element) => [element.id, element] as const))
+    );
+    expect(resolvedTarget).toMatchObject({ kind: "runtime", property: "length", elementId: expect.any(String) });
+    if (resolvedTarget?.kind !== "runtime") throw new Error("expected a canonical Module runtime element target");
+    expect(binding?.typedExpression).toMatchObject({
+      kind: "geometryProperty",
+      property: "length",
+      elementId: resolvedTarget.elementId
+    });
+    expect(compiled.document.elements.some((element) => element.id === resolvedTarget?.elementId)).toBe(true);
+    expect(resolvedTarget?.elementId).not.toBe(compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.name === "I")?.statementId);
+
+    const result = evaluateElements(compiled.document.elements, buildEvaluationOptions({
+      compiledDocument: compiled,
+      evaluationLimitIndex: compiled.document.evaluationLimitIndex
+    }));
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(target.id)).toMatchObject({ kind: "point", x: 15, y: 0 });
+
+    const viaScalar = compileWithStatementIds([
+      "nui 1",
+      "module M() {",
+      "  export line B = segment(start: (0, 0), end: (9, 12))",
+      "}",
+      "instance I = M()",
+      "const n: number = @I::B.length",
+      "point P = coordinate(x: @n, y: 0)"
+    ].join("\n"), "say451-scalar");
+    const scalarResult = evaluateElements(viaScalar.document.elements, buildEvaluationOptions({
+      compiledDocument: viaScalar,
+      evaluationLimitIndex: viaScalar.document.evaluationLimitIndex
+    }));
+    expect(scalarResult.errors).toEqual([]);
+    expect(scalarResult.computedGeometry.get(point(viaScalar, "P").id)).toMatchObject({ kind: "point", x: 15, y: 0 });
   });
 
   it("keeps legacy measurement tokens in the existing numeric evaluator (nui 1 sigil form, Task 51)", () => {

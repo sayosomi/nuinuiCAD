@@ -1207,6 +1207,50 @@ describe("module geometry runtime", () => {
     }
   });
 
+  it("lowers SAY-451 caller-qualified exported line length reads to canonical runtime targets", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  export line B = segment(start: (0, 0), end: (9, 12))",
+      "}",
+      "instance I = M()",
+      "point P = coordinate(x: @I::B.length, y: 0)"
+    ].join("\n"), "say451-qualified-length");
+    expectValid(compiled);
+
+    const caller = named(compiled, "P");
+    const callerIndex = [...(compiled.statementMap?.elementIdByStatementIndex ?? [])]
+      .find(([, elementId]) => elementId === caller.id)?.[0];
+    if (callerIndex === undefined) throw new Error("missing SAY-451 caller statement index");
+    const binding = compiled.numericBindings?.get(propertyBindingOccurrenceKey(callerIndex, "x"));
+    const callerStatementId = compiled.statementMap?.statementIdByStatementIndex?.get(callerIndex);
+    const callerSites = callerStatementId
+      ? compiled.moduleSemanticAnalysis?.rootElementScalarExpressionsByStatementId.get(callerStatementId)
+      : undefined;
+    const candidateTarget = callerSites?.flatMap((site) => site.expression.geometryProperties)
+      .find((property) => property.property === "length")?.target;
+    const runtimeTarget = candidateTarget?.kind === "deferredModuleExportProperty"
+      ? compiled.moduleGeometryRuntime?.resolvePropertyTarget(
+          candidateTarget,
+          [],
+          new Map(compiled.document?.elements.map((element) => [element.id, element] as const) ?? [])
+        )
+      : undefined;
+    expect(runtimeTarget).toMatchObject({ kind: "runtime", property: "length", elementId: expect.any(String) });
+    if (runtimeTarget?.kind !== "runtime") throw new Error("expected a canonical Module runtime element target");
+    expect(binding?.typedExpression).toMatchObject({
+      kind: "geometryProperty",
+      property: "length",
+      elementId: runtimeTarget.elementId
+    });
+    expect(compiled.document?.elements.some((element) => element.id === runtimeTarget?.elementId)).toBe(true);
+    expect(runtimeTarget?.elementId).not.toBe(compiled.moduleSemanticAnalysis?.instances.find((instance) => instance.name === "I")?.statementId);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get(caller.id)).toMatchObject({ kind: "point", x: 15, y: 0 });
+  });
+
   it("captures distinct pre-mutation Bezier snapshots for materialized Module occurrences", () => {
     const compiled = compileWithIds([
       "nui 1",
