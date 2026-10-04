@@ -7,6 +7,7 @@
 import type { CadElement, DependencyError, ElementId, NumericValue } from "../types/geometry";
 import type { BindingId } from "@nuinuicad/nui-language";
 import type { CompiledNumericBinding } from "@nuinuicad/nui-language";
+import type { CompiledTransformationNumericBinding } from "@nuinuicad/nui-language";
 import { propertyBindingOccurrenceKey } from "@nuinuicad/nui-language";
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
@@ -34,6 +35,12 @@ export type NumericBindingRuntimeEntry = {
     expressionStart: number;
     expressionEnd: number;
   }[];
+};
+
+export type TransformationNumericBindingRuntimeEntry = NumericBindingRuntimeEntry & {
+  recipeId: string;
+  /** Exact compiled operation path, for example `endPoint.x`. */
+  parameterPath: string;
 };
 
 export type NumericBindingRuntimeSource = {
@@ -90,6 +97,23 @@ export const buildNumericBindingRuntimeEntries = (
   }
   return entries;
 };
+
+export const buildTransformationNumericBindingRuntimeEntries = (
+  bindings: readonly CompiledTransformationNumericBinding[]
+): TransformationNumericBindingRuntimeEntry[] => bindings.map(({ recipeId, parameterPath, binding }) => ({
+  recipeId,
+  parameterPath,
+  elementId: recipeId,
+  parameterKey: binding.parameterKey,
+  expression: binding.expression,
+  ...(binding.typedExpression ? { typedExpression: binding.typedExpression } : {}),
+  references: binding.references.map((reference) => ({
+    bindingId: reference.bindingId,
+    name: reference.name,
+    expressionStart: reference.expressionStart,
+    expressionEnd: reference.expressionEnd
+  }))
+}));
 
 export const groupNumericBindingRuntimeEntriesByElement = (
   entries: readonly NumericBindingRuntimeEntry[]

@@ -1221,6 +1221,7 @@ const compileModuleTransformationRecipes = ({
       runtimeRecipes.push({
         ...recipe,
         id: encodeIdentityTuple(["module-transformation", ...instanceEntry.instancePath, recipe.id]),
+        runtimeInstancePath: instanceEntry.instancePath,
         ...(sourceRecipe?.sourceStatementIndex === recipe.sourceStatementIndex
           ? { operation: lowerModuleTransformationOperationAnchors(
               sourceRecipe.operation,

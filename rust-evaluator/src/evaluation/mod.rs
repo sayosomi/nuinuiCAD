@@ -252,18 +252,186 @@ fn decode_numeric_bindings(
     scalar_program: Option<&ValidatedScalarProgram>,
     binding_versions: Option<&ValidatedBindingVersions>,
 ) -> Result<Option<Vec<ValidatedNumericBinding>>, EvaluationCommandError> {
-    let Some(payload) = input
+    let regular_payload = input
         .scalar_expression_payload
         .as_ref()
-        .and_then(|value| value.get("numericBindings"))
-    else {
+        .and_then(|value| value.get("numericBindings"));
+    let transformation_numeric_payload = input
+        .transformation_recipes
+        .as_ref()
+        .and_then(|value| value.get("numericBindings"));
+    if regular_payload.is_none() && transformation_numeric_payload.is_none() {
         return Ok(None);
-    };
-    let elements_by_id: HashMap<&str, &Value> = input
+    }
+
+    // Transformation inputs use the ordinary numeric-binding validator and
+    // materializer. Give each recipe a synthetic parameter surface matching
+    // the TypeScript evaluator's operation element, keyed by its stable recipe
+    // id, so Rust never recovers scalar references from source names.
+    let recipes = input.transformation_recipes.as_ref().and_then(|value| {
+        value
+            .get("recipes")
+            .and_then(Value::as_array)
+            .or_else(|| value.as_array())
+    });
+    let mut transformation_elements = Vec::<Value>::new();
+    let mut recipe_ids = HashSet::<String>::new();
+    if let Some(recipes) = recipes {
+        for recipe in recipes {
+            let Some(id) = recipe.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(construction) = recipe.get("construction").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(operation) = recipe.get("operation").and_then(Value::as_object) else {
+                continue;
+            };
+            let element_type = match construction {
+                "edge" => "edge",
+                "extend" => "extendTrim",
+                "move" => "move",
+                "mirrorMove" => "symmetricMove",
+                "reverse" => "pathReverse",
+                _ => continue,
+            };
+            let mut synthetic = json!({"id": id, "name": construction, "type": element_type});
+            for key in [
+                "intersectionIndex",
+                "point",
+                "startPoint",
+                "endPoint",
+                "scale",
+                "angleDeg",
+                "axisPoint1",
+                "axisPoint2",
+            ] {
+                if let Some(value) = operation.get(key) {
+                    synthetic[key] = value.clone();
+                }
+            }
+            recipe_ids.insert(id.to_owned());
+            transformation_elements.push(synthetic);
+        }
+    }
+    let mut elements_by_id: HashMap<&str, &Value> = input
         .elements
         .iter()
         .filter_map(|element| Some((element.get("id")?.as_str()?, element)))
         .collect();
+    for element in &transformation_elements {
+        let id = element
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if elements_by_id.insert(id, element).is_some() {
+            return Err(EvaluationCommandError {
+                code: "numeric-binding-payload-invalid".to_owned(),
+                message: "transformation recipe id collides with an element id".to_owned(),
+            });
+        }
+    }
+
+    let mut combined_payload = Vec::<Value>::new();
+    if let Some(payload) = regular_payload {
+        let Some(entries) = payload.as_array() else {
+            return Err(EvaluationCommandError {
+                code: "numeric-binding-payload-invalid".to_owned(),
+                message: "numericBindings must be an array".to_owned(),
+            });
+        };
+        combined_payload.extend(entries.iter().cloned());
+    }
+    if let Some(payload) = transformation_numeric_payload {
+        let Some(entries) = payload.as_array() else {
+            return Err(EvaluationCommandError {
+                code: "numeric-binding-payload-invalid".to_owned(),
+                message: "transformation numericBindings must be an array".to_owned(),
+            });
+        };
+        for entry in entries {
+            let Some(object) = entry.as_object() else {
+                return Err(EvaluationCommandError {
+                    code: "numeric-binding-payload-invalid".to_owned(),
+                    message: "transformation numeric binding must be an object".to_owned(),
+                });
+            };
+            if object.keys().any(|key| {
+                !matches!(
+                    key.as_str(),
+                    "recipeId"
+                        | "elementId"
+                        | "parameterPath"
+                        | "parameterKey"
+                        | "expression"
+                        | "references"
+                        | "typedExpression"
+                )
+            }) {
+                return Err(EvaluationCommandError {
+                    code: "numeric-binding-payload-invalid".to_owned(),
+                    message: "transformation numeric binding has an unexpected field".to_owned(),
+                });
+            }
+            let recipe_id = object
+                .get("recipeId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if object
+                .get("elementId")
+                .and_then(Value::as_str)
+                .is_some_and(|element_id| element_id != recipe_id)
+            {
+                return Err(EvaluationCommandError {
+                    code: "numeric-binding-payload-invalid".to_owned(),
+                    message: "transformation numeric binding elementId does not match its recipeId"
+                        .to_owned(),
+                });
+            }
+            let parameter_path = object
+                .get("parameterPath")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if recipe_id.is_empty() || !recipe_ids.contains(recipe_id) || parameter_path.is_empty()
+            {
+                return Err(EvaluationCommandError {
+                    code: "numeric-binding-payload-invalid".to_owned(),
+                    message:
+                        "transformation numeric binding does not match a recipe and operation path"
+                            .to_owned(),
+                });
+            }
+            let expected_parameter_key = if let Some(base) = parameter_path.strip_suffix(".x") {
+                format!("{base}:x")
+            } else if let Some(base) = parameter_path.strip_suffix(".y") {
+                format!("{base}:y")
+            } else {
+                parameter_path.to_owned()
+            };
+            if object.get("parameterKey").and_then(Value::as_str)
+                != Some(expected_parameter_key.as_str())
+            {
+                return Err(EvaluationCommandError {
+                    code: "numeric-binding-payload-invalid".to_owned(),
+                    message: "transformation numeric binding parameter path is not canonical"
+                        .to_owned(),
+                });
+            }
+            let mut normalized = json!({
+                "elementId": recipe_id,
+                "parameterKey": expected_parameter_key,
+                "expression": object.get("expression").cloned().unwrap_or(Value::Null),
+                "references": object.get("references").cloned().unwrap_or(Value::Null),
+            });
+            if let Some(typed_expression) = object.get("typedExpression") {
+                normalized["typedExpression"] = typed_expression.clone();
+            }
+            combined_payload.push(normalized);
+        }
+    }
+    if combined_payload.is_empty() {
+        return Ok(Some(Vec::new()));
+    }
     let mut valid_binding_ids = decoded_binding_ids(scalar_program, binding_versions);
     if let Some(versions) = binding_versions {
         valid_binding_ids.extend(versions.binding_ids.iter().map(String::as_str));
@@ -282,12 +450,16 @@ fn decode_numeric_bindings(
         .map(|owner_id| format!("binding:iteration:{owner_id}"))
         .collect::<Vec<_>>();
     valid_binding_ids.extend(canonical_document_iteration_ids.iter().map(String::as_str));
-    validate_numeric_bindings_payload(payload, &elements_by_id, &valid_binding_ids)
-        .map(Some)
-        .map_err(|message| EvaluationCommandError {
-            code: "numeric-binding-payload-invalid".to_owned(),
-            message,
-        })
+    validate_numeric_bindings_payload(
+        &Value::Array(combined_payload),
+        &elements_by_id,
+        &valid_binding_ids,
+    )
+    .map(Some)
+    .map_err(|message| EvaluationCommandError {
+        code: "numeric-binding-payload-invalid".to_owned(),
+        message,
+    })
 }
 
 /// Same validation order/fail-closed contract as `decode_property_bindings`,
@@ -1202,7 +1374,11 @@ fn transformation_plan_dependency_available(dependency: &Value, state: &Evaluati
     })
 }
 
-fn transformation_recipe_plan_ready(recipe_index: usize, state: &EvaluationState) -> bool {
+fn transformation_recipe_plan_ready(
+    recipe_index: usize,
+    scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    state: &EvaluationState,
+) -> bool {
     let Some(plan) = state
         .transformation_dependency_plans
         .as_ref()
@@ -1231,6 +1407,26 @@ fn transformation_recipe_plan_ready(recipe_index: usize, state: &EvaluationState
         })
         .unwrap_or(true);
     if !predecessors_ready {
+        return false;
+    }
+    let scalar_prerequisites_ready = plan
+        .get("scalarPrerequisites")
+        .and_then(Value::as_array)
+        .map(|binding_ids| {
+            binding_ids.iter().all(|binding_id| {
+                let Some(binding_id) = binding_id.as_str() else {
+                    return false;
+                };
+                scalar_binding_resolver.is_some_and(|resolver| {
+                    matches!(
+                        resolver.resolve_binding(binding_id, state),
+                        ScalarEvaluation::Ok { .. }
+                    )
+                })
+            })
+        })
+        .unwrap_or(true);
+    if !scalar_prerequisites_ready {
         return false;
     }
     ["prerequisites", "argumentDependencies"]
@@ -1389,6 +1585,8 @@ fn materialize_transformation_value(value: &Value, state: &EvaluationState) -> V
 fn execute_transformation_invocation(
     recipe: &Value,
     targets: &[RuntimeTransformationTarget],
+    numeric_entries_by_element_id: &HashMap<ElementId, Vec<ValidatedNumericBinding>>,
+    scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
     state: &mut EvaluationState,
 ) {
     if targets.is_empty() {
@@ -1446,12 +1644,50 @@ fn execute_transformation_invocation(
     for (id, input) in inputs {
         state.computed_geometry.insert(id, input);
     }
-    let Some(synthetic) = transformation_synthetic_element(recipe, targets)
-        .map(|value| materialize_transformation_value(&value, state))
-    else {
+    let Some(raw_synthetic) = transformation_synthetic_element(recipe, targets) else {
         return;
     };
     let error_count_before = state.errors.len();
+    let recipe_id = recipe.get("id").and_then(Value::as_str).unwrap_or_default();
+    let source_order = recipe
+        .get("runtimeSourceOrder")
+        .or_else(|| recipe.get("sourceStatementIndex"))
+        .and_then(Value::as_u64)
+        .map(|order| order as usize);
+    let scalar_materialized = if let Some(entries) = numeric_entries_by_element_id.get(recipe_id) {
+        let Some(resolver) = scalar_binding_resolver else {
+            state.errors.push(geometry_error(
+                &raw_synthetic,
+                "transformation numeric bindings require the compiled scalar binding resolver"
+                    .to_owned(),
+            ));
+            for (id, previous) in &original {
+                if let Some(previous) = previous {
+                    state.computed_geometry.insert(id.clone(), previous.clone());
+                } else {
+                    state.computed_geometry.remove(id);
+                }
+            }
+            return;
+        };
+        match apply_numeric_bindings(&raw_synthetic, Some(entries), resolver, source_order, state) {
+            Ok(materialized) => materialized,
+            Err(errors) => {
+                state.errors.extend(errors);
+                for (id, previous) in &original {
+                    if let Some(previous) = previous {
+                        state.computed_geometry.insert(id.clone(), previous.clone());
+                    } else {
+                        state.computed_geometry.remove(id);
+                    }
+                }
+                return;
+            }
+        }
+    } else {
+        raw_synthetic
+    };
+    let synthetic = materialize_transformation_value(&scalar_materialized, state);
     if recipe
         .get("enabled")
         .and_then(Value::as_bool)
@@ -1525,6 +1761,8 @@ fn execute_transformation_recipes_through(
     recipes: &[Value],
     _next_recipe_index: &mut usize,
     _source_order: f64,
+    numeric_entries_by_element_id: &HashMap<ElementId, Vec<ValidatedNumericBinding>>,
+    scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
     state: &mut EvaluationState,
 ) {
     for (recipe_index, recipe) in recipes.iter().enumerate() {
@@ -1534,7 +1772,7 @@ fn execute_transformation_recipes_through(
         {
             continue;
         }
-        if !transformation_recipe_plan_ready(recipe_index, state) {
+        if !transformation_recipe_plan_ready(recipe_index, scalar_binding_resolver, state) {
             continue;
         }
         let targets = recipe
@@ -1583,13 +1821,21 @@ fn execute_transformation_recipes_through(
                         })
                         .collect::<Option<Vec<_>>>();
                     if let Some(pair) = pair {
-                        execute_transformation_invocation(recipe, &pair, state);
+                        execute_transformation_invocation(
+                            recipe,
+                            &pair,
+                            numeric_entries_by_element_id,
+                            scalar_binding_resolver,
+                            state,
+                        );
                     }
                 }
             } else {
                 execute_transformation_invocation(
                     recipe,
                     &targets.into_iter().flatten().collect::<Vec<_>>(),
+                    numeric_entries_by_element_id,
+                    scalar_binding_resolver,
                     state,
                 );
             }
@@ -2585,6 +2831,25 @@ fn evaluate_document_input_with_scalar_program(
                 });
         let geometry_input_scalar_binding_resolver: &dyn ScalarDocumentBindingResolver =
             active_scalar_binding_resolver.unwrap_or(&empty_geometry_value_resolver);
+        macro_rules! run_transformation_recipes_through {
+            ($source_order:expr) => {
+                execute_transformation_recipes_through(
+                    &transformation_recipes,
+                    &mut next_transformation_recipe_index,
+                    $source_order,
+                    &numeric_entries_by_element_id,
+                    scalar_mutation_resolver
+                        .as_ref()
+                        .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                        .or_else(|| {
+                            scalar_binding_resolver
+                                .as_ref()
+                                .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+                        }),
+                    &mut state,
+                )
+            };
+        }
         macro_rules! complete_attempt_and_continue {
             () => {{
                 completed_element_ids.insert(id.clone());
@@ -2593,28 +2858,13 @@ fn evaluate_document_input_with_scalar_program(
                     &completed_element_ids,
                     &mut captured_instance_ids,
                 );
-                execute_transformation_recipes_through(
-                    &transformation_recipes,
-                    &mut next_transformation_recipe_index,
-                    current_execution_position,
-                    &mut state,
-                );
+                run_transformation_recipes_through!(current_execution_position);
                 continue 'elements;
             }};
         }
-        execute_transformation_recipes_through(
-            &transformation_recipes,
-            &mut next_transformation_recipe_index,
-            current_execution_position - 0.5,
-            &mut state,
-        );
+        run_transformation_recipes_through!(current_execution_position - 0.5);
         if template_descendant_ids.contains(&id) {
-            execute_transformation_recipes_through(
-                &transformation_recipes,
-                &mut next_transformation_recipe_index,
-                current_execution_position,
-                &mut state,
-            );
+            run_transformation_recipes_through!(current_execution_position);
             continue;
         }
         if let Some(condition_group_id) =
@@ -2626,21 +2876,11 @@ fn evaluate_document_input_with_scalar_program(
                 .entry(id.clone())
                 .or_default()
                 .disabled_by_group_id = Some(condition_group_id);
-            execute_transformation_recipes_through(
-                &transformation_recipes,
-                &mut next_transformation_recipe_index,
-                current_execution_position,
-                &mut state,
-            );
+            run_transformation_recipes_through!(current_execution_position);
             complete_attempt_and_continue!();
         }
         if !base_effective_enabled_ids.contains(&id) {
-            execute_transformation_recipes_through(
-                &transformation_recipes,
-                &mut next_transformation_recipe_index,
-                current_execution_position,
-                &mut state,
-            );
+            run_transformation_recipes_through!(current_execution_position);
             complete_attempt_and_continue!();
         }
         if effective_enabled_ids.insert(id.clone()) {
@@ -2673,12 +2913,7 @@ fn evaluate_document_input_with_scalar_program(
                     }
                     Err(errors) => {
                         state.errors.extend(errors);
-                        execute_transformation_recipes_through(
-                            &transformation_recipes,
-                            &mut next_transformation_recipe_index,
-                            current_execution_position,
-                            &mut state,
-                        );
+                        run_transformation_recipes_through!(current_execution_position);
                         complete_attempt_and_continue!();
                     }
                 }
@@ -2719,12 +2954,7 @@ fn evaluate_document_input_with_scalar_program(
             if let Some(resolver) = scalar_mutation_resolver.as_mut() {
                 resolver.register_conditional_result(&id, active_branch);
             }
-            execute_transformation_recipes_through(
-                &transformation_recipes,
-                &mut next_transformation_recipe_index,
-                current_execution_position,
-                &mut state,
-            );
+            run_transformation_recipes_through!(current_execution_position);
             complete_attempt_and_continue!();
         }
 
@@ -2736,12 +2966,7 @@ fn evaluate_document_input_with_scalar_program(
                 Some(current_execution_position),
                 &mut state,
             ) else {
-                execute_transformation_recipes_through(
-                    &transformation_recipes,
-                    &mut next_transformation_recipe_index,
-                    current_execution_position,
-                    &mut state,
-                );
+                run_transformation_recipes_through!(current_execution_position);
                 complete_attempt_and_continue!();
             };
 
@@ -2828,12 +3053,7 @@ fn evaluate_document_input_with_scalar_program(
                     );
                     break 'elements;
                 }
-                execute_transformation_recipes_through(
-                    &transformation_recipes,
-                    &mut next_transformation_recipe_index,
-                    current_execution_position,
-                    &mut state,
-                );
+                run_transformation_recipes_through!(current_execution_position);
                 complete_attempt_and_continue!();
             }
 
@@ -2866,12 +3086,7 @@ fn evaluate_document_input_with_scalar_program(
                 &[],
                 &mut state,
             );
-            execute_transformation_recipes_through(
-                &transformation_recipes,
-                &mut next_transformation_recipe_index,
-                current_execution_position,
-                &mut state,
-            );
+            run_transformation_recipes_through!(current_execution_position);
             complete_attempt_and_continue!();
         }
 
@@ -2906,12 +3121,7 @@ fn evaluate_document_input_with_scalar_program(
                                     "{element_name} の geometry collection index を評価できません。({issue_code})"
                                 ),
                             ));
-                            execute_transformation_recipes_through(
-                                &transformation_recipes,
-                                &mut next_transformation_recipe_index,
-                                current_execution_position,
-                                &mut state,
-                            );
+                            run_transformation_recipes_through!(current_execution_position);
                             complete_attempt_and_continue!();
                         }
                         state.elements[index] = materialized_element.clone();
@@ -2951,12 +3161,7 @@ fn evaluate_document_input_with_scalar_program(
                             "{element_name} の geometry collection index を評価できません。({issue_code})"
                         ),
                     ));
-                    execute_transformation_recipes_through(
-                        &transformation_recipes,
-                        &mut next_transformation_recipe_index,
-                        current_execution_position,
-                        &mut state,
-                    );
+                    run_transformation_recipes_through!(current_execution_position);
                     complete_attempt_and_continue!();
                 }
                 state.elements[index] = element.clone();
@@ -2992,17 +3197,23 @@ fn evaluate_document_input_with_scalar_program(
             &completed_element_ids,
             &mut captured_instance_ids,
         );
-        execute_transformation_recipes_through(
-            &transformation_recipes,
-            &mut next_transformation_recipe_index,
-            current_execution_position,
-            &mut state,
-        );
+        run_transformation_recipes_through!(current_execution_position);
     }
+    let final_scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver> =
+        scalar_mutation_resolver
+            .as_ref()
+            .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            .or_else(|| {
+                scalar_binding_resolver
+                    .as_ref()
+                    .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
+            });
     execute_transformation_recipes_through(
         &transformation_recipes,
         &mut next_transformation_recipe_index,
         f64::INFINITY,
+        &numeric_entries_by_element_id,
+        final_scalar_binding_resolver,
         &mut state,
     );
     while evaluated_geometry_value_entries

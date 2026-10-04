@@ -32,6 +32,7 @@ import type {
 } from "../dsl/moduleGeometryValueProgram";
 import { buildLexicalScopeIndexFromStatements } from "../dsl/lexicalScopeIndexAdapter";
 import type { CadElement, DrawingModifierDefinition, ElementId, GeometryInputCollectionNode, GeometryInputTarget, PointAnchor } from "../types/geometry";
+import { isNumericExpression } from "../geometry/numericExpressions";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "../parameters/parameterDefinitions";
 import type { BindingAnalysis, InitializerReference } from "./bindingAnalysis";
 import { analyzeBindings } from "./bindingAnalysis";
@@ -66,13 +67,18 @@ import { optionalCollectionMatchPresenceProjection, typecheckScalarExpression } 
 import { getBuiltinFunctionDefinition } from "./builtinFunctions";
 import type { BindingResolution } from "./bindingResolution";
 import { collectScalarExpressionReferences } from "./expressionReferenceCollector";
-import type { CompiledNumericBinding } from "./numericBindingCompiler";
-import { numericSourceForModuleSite } from "./moduleNumericRuntime";
+import {
+  transformationNumericInputs,
+  type CompiledNumericBinding,
+  type CompiledTransformationNumericBinding
+} from "./numericBindingCompiler";
+import { numericSourceForModuleSite, numericSourceForModuleValue } from "./moduleNumericRuntime";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import { isScalarTypeAssignable } from "./scalarAssignability";
 import type { ReconciledCadContainerInput } from "./containerIndex";
 import type { SourceLexicalNamespaceIndex } from "../dsl/sourceLexicalNamespaceIndex";
 import type { ModuleRuntimeContext } from "../dsl/moduleRuntimeContext";
+import type { TransformationRecipe } from "../dsl/transformationRecipes";
 import { effectiveElementActivityById } from "../model/elementActivity";
 import type { RecordFieldIdentity } from "../dsl/recordSemanticAnalysis";
 import {
@@ -154,6 +160,7 @@ export type ModuleScalarRuntimeCompilation = {
   scalarExecutionPositionByStatementIndex: ReadonlyMap<number, number>;
   materializedPropertyBindings: readonly MaterializedPropertyBindingSource[];
   materializedNumericBindings: readonly MaterializedNumericBindingSource[];
+  materializedTransformationNumericBindings: readonly CompiledTransformationNumericBinding[];
   materializedTextTemplates: readonly MaterializedTextTemplateSource[];
   materializedForGroupCollectionSourcesByElementId: ReadonlyMap<ElementId, MaterializedForGroupCollectionSource>;
   materializedConditionalGroupConditions: readonly { elementId: ElementId; expression: TypedScalarExpression }[];
@@ -2135,7 +2142,8 @@ export const compileModuleScalarRuntime = ({
   sourceNamespace,
   moduleGeometryRuntime,
   moduleRuntimeContext,
-  drawingModifiers
+  drawingModifiers,
+  transformationRecipes
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -2155,6 +2163,7 @@ export const compileModuleScalarRuntime = ({
   /** Exact graph/semantic owner for imported module source execution. */
   moduleRuntimeContext?: ModuleRuntimeContext;
   drawingModifiers?: readonly DrawingModifierDefinition[];
+  transformationRecipes?: readonly TransformationRecipe[];
 }): ModuleScalarRuntimeCompilation => {
   const include = includeStatement ?? ((_statement, index) => isCompilableDslStatement(statements, index));
   const baseScopeIndex = documentBindingAnalysis?.catalog.scopeIndex ?? buildLexicalScopeIndexFromStatements(statements, stableStatementIdByIndex, include);
@@ -5509,6 +5518,7 @@ export const compileModuleScalarRuntime = ({
 
   const materializedPropertyBindings: MaterializedPropertyBindingSource[] = [];
   const materializedNumericBindings: MaterializedNumericBindingSource[] = [];
+  const materializedTransformationNumericBindings: CompiledTransformationNumericBinding[] = [];
   const materializedTextTemplates: MaterializedTextTemplateSource[] = [];
   const materializedConditionalGroupConditions: { elementId: ElementId; expression: TypedScalarExpression }[] = [];
   const lowerModuleTextTemplate = (context: InstanceContext, body: ModuleBodyStatementSemantic, runtime: { elementId: ElementId; statement: DslStatement }) => {
@@ -5577,6 +5587,48 @@ export const compileModuleScalarRuntime = ({
       }
     });
   };
+  for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
+    for (const body of context.definition.bodyStatements) {
+      if (body.statementKind !== "transformation" || !moduleBodyStatementIsReachable(context, body)) continue;
+      const recipe = (transformationRecipes ?? []).find((candidate) =>
+        (candidate.sourceStatementId === body.statementId ||
+          (candidate.sourceStatementId === undefined && candidate.sourceStatementIndex === body.statementIndex)) &&
+        candidate.runtimeInstancePath?.length === context.path.length &&
+        candidate.runtimeInstancePath.every((part, index) => part === context.path[index])
+      );
+      if (!recipe) continue;
+      const operationInputs = transformationNumericInputs(recipe.operation);
+      for (const site of body.scalarExpressions) {
+        if (!site.parameterKey || site.expression.references.length === 0) continue;
+        const input = operationInputs.find((candidate) => candidate.parameterPath === site.parameterKey);
+        if (!input || !isNumericExpression(input.value)) continue;
+        const lowered = lowerExpression(
+          site.expression,
+          (target) => resolvedBindingForContext(target, context),
+          bindingsById,
+          (target) => resolvedGeometryPropertyForContext(target, context),
+          (target) => collectionLengthForTargetContext(target, context),
+          (occurrence) => resolvedGeometryBuiltinForContext(occurrence, context),
+          (valueId) => collectionValueIdFor(valueId, context),
+          (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
+          (target) => recordParameterCollectionForTargetContext(target, context)
+        );
+        const binding = numericSourceForModuleValue(
+          input.value,
+          input.parameterKey,
+          { ...site, parameterKey: input.parameterKey },
+          (target) => resolvedBindingForContext(target, context),
+          lowered.expression
+        );
+        if (binding) materializedTransformationNumericBindings.push({
+          recipeId: recipe.id,
+          parameterPath: site.parameterKey,
+          binding
+        });
+      }
+    }
+  }
   for (const context of contextsByKey.values()) {
     if (!contextIsReachable(context)) continue;
     for (const body of context.definition.bodyStatements) {
@@ -7503,6 +7555,7 @@ export const compileModuleScalarRuntime = ({
     scalarExecutionPositionByStatementIndex: sourceOrderByStatementIndex,
     materializedPropertyBindings,
     materializedNumericBindings,
+    materializedTransformationNumericBindings,
     materializedTextTemplates,
     materializedForGroupCollectionSourcesByElementId,
     materializedConditionalGroupConditions,

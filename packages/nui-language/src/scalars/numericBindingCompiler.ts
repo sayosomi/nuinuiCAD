@@ -39,7 +39,7 @@ import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResoluti
 import { createElementNameContext } from "../model/elementNames";
 import type { ScalarCallArgumentNode, ScalarExpressionAst, ScalarReferenceNode } from "./expressionAst";
 import type { ScalarExpressionResolvedReference, TypedScalarExpression } from "./typedExpressionAst";
-import type { TransformationStageSelection } from "../dsl/transformationRecipes";
+import type { TransformationOperation, TransformationRecipe, TransformationStageSelection } from "../dsl/transformationRecipes";
 import { prepareRecordScalarExpressionFromCatalog } from "./recordScalarLowering";
 import { scalarTypeOfDslValueType } from "../dsl/dslValueTypes";
 
@@ -64,6 +64,15 @@ export type CompiledNumericBinding = {
   typedExpression?: TypedScalarExpression;
 };
 
+/** Scalar numeric input owned by one compiled transformation recipe. The
+ * recipe id and operation path form the identity; expression equality is
+ * retained only as the runtime materializer's integrity check. */
+export type CompiledTransformationNumericBinding = {
+  recipeId: string;
+  parameterPath: string;
+  binding: CompiledNumericBinding;
+};
+
 export type NumericBindingConsumerReference = {
   occurrenceKey: string;
   reference: CompiledNumericBindingReference;
@@ -71,6 +80,7 @@ export type NumericBindingConsumerReference = {
 
 export type NumericBindingCompilation = {
   sourcesByOccurrenceKey: ReadonlyMap<string, CompiledNumericBinding>;
+  transformationBindings: readonly CompiledTransformationNumericBinding[];
   /** Numeric consumer references grouped once by binding id so runtime
    * diagnostics can project an evaluation failure to the exact `@name` value
    * span without rescanning every numeric occurrence. */
@@ -110,6 +120,47 @@ type Candidate = {
   scalarParseResult: ReturnType<typeof parseScalarExpression>;
   /** Absent for layout/output/place occurrences. */
   elementId?: ElementId;
+  transformationIdentity?: { recipeId: string; parameterPath: string };
+};
+
+export const transformationNumericBindingOccurrenceKey = (recipeId: string, parameterPath: string) =>
+  JSON.stringify([recipeId, parameterPath]);
+
+export const transformationNumericInputs = (operation: TransformationOperation): readonly {
+  parameterPath: string;
+  parameterKey: string;
+  value: NumericValue;
+  argumentKey: string;
+}[] => {
+  const coordinateInputs = (parameterPath: string, anchor: import("../types/geometry").PointAnchor, argumentKey: string) =>
+    anchor.mode === "coordinate"
+      ? (["x", "y"] as const).map((axis) => ({
+          parameterPath: `${parameterPath}.${axis}`,
+          parameterKey: `${parameterPath}:${axis}`,
+          value: anchor[axis],
+          argumentKey
+        }))
+      : [];
+  switch (operation.kind) {
+    case "edge":
+      return [{ parameterPath: "intersectionIndex", parameterKey: "intersectionIndex", value: operation.intersectionIndex, argumentKey: "index" }];
+    case "extend":
+      return coordinateInputs("point", operation.point, "to");
+    case "move":
+      return [
+        ...coordinateInputs("startPoint", operation.startPoint, "from"),
+        ...coordinateInputs("endPoint", operation.endPoint, "to"),
+        { parameterPath: "scale", parameterKey: "scale", value: operation.scale, argumentKey: "scale" },
+        { parameterPath: "angleDeg", parameterKey: "angleDeg", value: operation.angleDeg, argumentKey: "angleDeg" }
+      ];
+    case "mirrorMove":
+      return [
+        ...coordinateInputs("axisPoint1", operation.axisPoint1, "axis1"),
+        ...coordinateInputs("axisPoint2", operation.axisPoint2, "axis2")
+      ];
+    case "reverse":
+      return [];
+  }
 };
 
 const diagnosticAt = (
@@ -411,7 +462,7 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
   layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver,
-  resolveGeometryStageSelection
+  resolveGeometryStageSelection, transformationRecipes
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
@@ -427,6 +478,10 @@ export const compileNumericBindings = ({
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryProperty | null;
   resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
+  /** Root recipes are supplied after transformation lowering has established
+   * stable ids and operation paths. Module recipes use per-instance semantic
+   * targets from the Module scalar runtime. */
+  transformationRecipes?: readonly TransformationRecipe[];
 }): NumericBindingCompilation => {
   const byId = new Map(elements.map((element) => [element.id, element]));
   const sourceOrderByElementId = new Map<ElementId, number>();
@@ -435,6 +490,7 @@ export const compileNumericBindings = ({
   const layoutById = new Map((layouts ?? []).map((layout) => [layout.id, layout]));
   const candidates: Candidate[] = [];
   const requests: SiteReferenceRequest[] = [];
+  const recipeByStatementIndex = new Map((transformationRecipes ?? []).map((recipe) => [recipe.sourceStatementIndex, recipe] as const));
 
   const pushCandidate = (
     key: string,
@@ -444,7 +500,8 @@ export const compileNumericBindings = ({
     value: NumericValue | undefined,
     logicalText: string,
     valueSpan: DslSpan | null,
-    elementId?: ElementId
+    elementId?: ElementId,
+    transformationIdentity?: { recipeId: string; parameterPath: string }
   ) => {
     if (!value || !isNumericExpression(value) || !valueSpan) return;
     const source = logicalText.slice(valueSpan.start, valueSpan.end);
@@ -482,7 +539,8 @@ export const compileNumericBindings = ({
       references: refs,
       bareReferences,
       scalarParseResult,
-      elementId
+      elementId,
+      transformationIdentity
     });
     const scopeId = bindingAnalysis.catalog.scopeIndex.scopeOfStatement.get(statementIndex) ?? bindingAnalysis.catalog.scopeIndex.rootScopeId;
     refs.forEach((reference, index) => requests.push({
@@ -566,10 +624,36 @@ export const compileNumericBindings = ({
       }
       return;
     }
+
+    if (statement.kind === "transformation") {
+      const recipe = recipeByStatementIndex.get(statementIndex);
+      const logical = spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+      if (!recipe || !logical) return;
+      for (const input of transformationNumericInputs(recipe.operation)) {
+        const argumentSpan = attributeValueSpan(statement, input.argumentKey);
+        if (!argumentSpan) continue;
+        const axis = input.parameterPath.endsWith(".x") ? "x" : input.parameterPath.endsWith(".y") ? "y" : undefined;
+        const valueSpan = axis ? coordinateComponent(logical.logicalText, argumentSpan, axis) : argumentSpan;
+        if (!valueSpan) continue;
+        const key = transformationNumericBindingOccurrenceKey(recipe.id, input.parameterPath);
+        pushCandidate(
+          key,
+          statement,
+          statementIndex,
+          input.parameterKey,
+          input.value,
+          logical.logicalText,
+          valueSpan,
+          undefined,
+          { recipeId: recipe.id, parameterPath: input.parameterPath }
+        );
+      }
+    }
   });
 
   const resolutions = resolveReferencesAtSites(bindingAnalysis.catalog, requests);
   const sourcesByOccurrenceKey = new Map<string, CompiledNumericBinding>();
+  const transformationBindings: CompiledTransformationNumericBinding[] = [];
   const diagnostics: DslDiagnostic[] = [];
   for (const candidate of candidates) {
     const bareIterationReferences = candidate.bareReferences.filter((_, index) => {
@@ -846,16 +930,28 @@ export const compileNumericBindings = ({
         } });
     }
     if (!rejected && (references.length || typedExpression)) {
-      sourcesByOccurrenceKey.set(candidate.key, {
+      if (candidate.transformationIdentity && references.length === 0) continue;
+      const binding: CompiledNumericBinding = {
         parameterKey: candidate.parameterKey,
         expression: candidate.expression,
         references,
         ...(typedExpression ? { typedExpression } : {})
-      });
+      };
+      if (candidate.transformationIdentity) {
+        transformationBindings.push({ ...candidate.transformationIdentity, binding });
+      } else {
+        sourcesByOccurrenceKey.set(candidate.key, binding);
+      }
     }
   }
   const consumerReferencesByBindingId = new Map<BindingId, NumericBindingConsumerReference[]>();
-  for (const [occurrenceKey, source] of sourcesByOccurrenceKey) {
+  const allSources = [
+    ...sourcesByOccurrenceKey,
+    ...transformationBindings.map(({ recipeId, parameterPath, binding }) => [
+      transformationNumericBindingOccurrenceKey(recipeId, parameterPath), binding
+    ] as const)
+  ];
+  for (const [occurrenceKey, source] of allSources) {
     for (const reference of source.references) {
       const existing = consumerReferencesByBindingId.get(reference.bindingId);
       const consumer = { occurrenceKey, reference };
@@ -863,5 +959,5 @@ export const compileNumericBindings = ({
       else consumerReferencesByBindingId.set(reference.bindingId, [consumer]);
     }
   }
-  return { sourcesByOccurrenceKey, consumerReferencesByBindingId, diagnostics };
+  return { sourcesByOccurrenceKey, transformationBindings, consumerReferencesByBindingId, diagnostics };
 };

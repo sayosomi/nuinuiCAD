@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildNumericBindingRuntimeEntries } from "../geometry/numericBindingRuntime";
+import {
+  buildNumericBindingRuntimeEntries,
+  buildTransformationNumericBindingRuntimeEntries
+} from "../geometry/numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "../geometry/propertyBindingRuntime";
 import { evaluateElements } from "../geometry/evaluate";
 import { buildEvaluationOptions } from "../geometry/productionEvaluationContext";
@@ -44,6 +47,11 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
     sourceExecutionPositionByElementId: compiled.moduleMaterialization?.sourceExecutionPositionByRuntimeElementId,
     scalarExecutionPositionByElementId: compiled.scalarExecutionPositionByRuntimeElementId,
+    transformationRecipes: compiled.runtimeTransformationRecipes,
+    transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
+    transformationNumericBindingEntries: compiled.scalarProgram && compiled.transformationNumericBindings?.length
+      ? buildTransformationNumericBindingRuntimeEntries(compiled.transformationNumericBindings)
+      : undefined,
     forGroupMutationOwnerByElementId: compiled.bindingVersions
       ? new Map([
           ...forGroupMutationOwnerByElementId(buildForGroupExecutionOwners(
@@ -116,6 +124,54 @@ const expectValid = (compiled: ReturnType<typeof compileWithIds>) => {
 };
 
 describe("module geometry runtime", () => {
+  it("keeps direct Module parameter and local scalar transformation inputs isolated per instance", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(dx: number) {",
+      "  const local: number = @dx + 1",
+      "  line L = segment(start: (0, 0), end: (20, 0))",
+      "  move L as direct (from: (0, 0), to: (@dx, 0))",
+      "  move L.direct as localMove (from: (0, 0), to: (@local, 10))",
+      "}",
+      "instance First = M(dx: 3)",
+      "instance Second = M(dx: 8)"
+    ].join("\n"), "say459-module-transform-numeric");
+    expectValid(compiled);
+
+    const options = buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: undefined
+    });
+    const result = evaluateElements(compiled.document!.elements, options);
+    expect(result.errors).toEqual([]);
+    const directRecipeIds = new Set((compiled.runtimeTransformationRecipes ?? [])
+      .filter((recipe) => recipe.stageName === "direct")
+      .map((recipe) => recipe.id));
+    const directEntries = options.transformationNumericBindingEntries?.filter((entry) =>
+      directRecipeIds.has(entry.recipeId) && entry.parameterPath === "endPoint.x"
+    ) ?? [];
+    expect(directEntries).toHaveLength(2);
+    expect(directEntries[0]?.references[0]?.bindingId).not.toBe(directEntries[1]?.references[0]?.bindingId);
+
+    const recipeByStage = new Map((compiled.runtimeTransformationRecipes ?? [])
+      .filter((recipe) => recipe.stageName === "localMove")
+      .map((recipe) => [recipe.runtimeInstancePath?.[0], recipe]));
+    const byInstance = (instanceName: string) => {
+      const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === instanceName);
+      if (!instance) throw new Error(`missing Module instance ${instanceName}`);
+      const recipe = recipeByStage.get(instance.statementId);
+      const target = recipe?.targets[0];
+      const targetId = target?.ownerId;
+      const stagePath = recipe?.stageName && target ? [...target.stagePath, recipe.stageName].join(".") : "";
+      const stage = targetId && stagePath
+        ? result.transformationStageGeometry?.get(`${targetId}\u0000*\u0000${stagePath}`)
+        : undefined;
+      return stage;
+    };
+    expect(byInstance("First")).toMatchObject({ start: { x: 7, y: 10 }, end: { x: 27, y: 10 } });
+    expect(byInstance("Second")).toMatchObject({ start: { x: 17, y: 10 }, end: { x: 37, y: 10 } });
+  });
+
   it("evaluates a Module geometry value from its source-owned named checkpoint", () => {
     const compiled = compileWithIds([
       "nui 1",
