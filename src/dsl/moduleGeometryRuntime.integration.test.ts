@@ -229,6 +229,64 @@ describe("module geometry runtime", () => {
     ]));
   });
 
+  it("lowers Module-local whole-geometry stages into offset line-list inputs", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line Root = segment(start: (0, 0), end: (20, 0))",
+      "move Root as rootShifted(from: (0, 0), to: (7, 0))",
+      "line RootBaseOffset = offset(sources: [@Root.base], distance: 2, side: left)",
+      "module M() {",
+      "  line L = segment(start: (0, 0), end: (20, 0))",
+      "  move L as shifted(from: (0, 0), to: (5, 0))",
+      "  line BaseOffset = offset(sources: [@L.base], distance: 2, side: left)",
+      "  line NamedOffset = offset(sources: [@L.shifted], distance: 2, side: left)",
+      "  const Selected: line = @L.base",
+      "  line AliasOffset = offset(sources: [@Selected], distance: 2, side: left)",
+      "  line UnselectedOffset = offset(sources: [@L], distance: 2, side: left)",
+      "  point Start = offset(from: @L.start, dx: 0, dy: 0)",
+      "}",
+      "instance I = M()"
+    ].join("\n"), "say454-module-offset-stages");
+    expectValid(compiled);
+
+    const lineId = named(compiled, "L").id;
+    expect(geometryInputTargetsFor(compiled, named(compiled, "BaseOffset").id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "drawable", elementId: lineId, geometryType: "line", stagePath: ["base"] })
+    ]));
+    expect(geometryInputTargetsFor(compiled, named(compiled, "NamedOffset").id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "drawable", elementId: lineId, geometryType: "line", stagePath: ["shifted"] })
+    ]));
+    expect(geometryInputTargetsFor(compiled, named(compiled, "RootBaseOffset").id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "drawable", elementId: named(compiled, "Root").id, geometryType: "line", stagePath: ["base"] })
+    ]));
+    expect(geometryInputTargetsFor(compiled, named(compiled, "AliasOffset").id)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ stagePath: ["base"] })
+    ]));
+
+    const result = evaluateElements(compiled.document!.elements, buildEvaluationOptions({
+      compiledDocument: compiled as LastGoodDslDocument,
+      evaluationLimitIndex: compiled.document!.evaluationLimitIndex
+    }));
+    expect(result.errors).toEqual([]);
+    expect(result.geometryValueErrors ?? []).toEqual([]);
+    const expectOffset = (name: string, startX: number, endX: number) => {
+      const offset = result.computedGeometry.get(named(compiled, name).id);
+      expect(offset).toMatchObject({ kind: "offsetLine", length: 20 });
+      if (offset?.kind !== "offsetLine") throw new Error(`expected offset geometry for ${name}`);
+      expect(offset.segments).toHaveLength(1);
+      expect(offset.segments[0]).toMatchObject({
+        start: { x: startX, y: 2 },
+        end: { x: endX, y: 2 }
+      });
+    };
+    expectOffset("RootBaseOffset", 0, 20);
+    expectOffset("BaseOffset", 0, 20);
+    expectOffset("NamedOffset", 5, 25);
+    expectOffset("AliasOffset", 0, 20);
+    expectOffset("UnselectedOffset", 5, 25);
+    expect(result.computedGeometry.get(named(compiled, "Start").id)).toMatchObject({ kind: "point", x: 5, y: 0 });
+  });
+
   it("projects Module-local pure point inputs into the canonical geometry dependency graph", () => {
     const compiled = compileWithIds([
       "nui 1",

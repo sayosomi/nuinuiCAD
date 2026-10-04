@@ -141,3 +141,59 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
     }
   }, 30000);
 });
+
+describe("SAY-454 Module-local whole-geometry stages in offset inputs over Rust stdio", () => {
+  let rustStdio: ReturnType<typeof createRustStdioParityClient> | undefined;
+
+  beforeAll(() => {
+    rustStdio = createRustStdioParityClient(repoRoot);
+  }, 30000);
+
+  afterAll(() => rustStdio?.dispose());
+
+  it("matches base and named Module-local offset stages in TypeScript and persistent Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  line L = segment(start: (0, 0), end: (20, 0))",
+      "  move L as shifted(from: (0, 0), to: (5, 0))",
+      "  line BaseOffset = offset(sources: [@L.base], distance: 2, side: left)",
+      "  line NamedOffset = offset(sources: [@L.shifted], distance: 2, side: left)",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+    if (!fixture.compiled) throw new Error("expected compiled Module-local offset-stage fixture");
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+      const geometry = (name: string) => {
+        const element = fixture.elements.find((candidate) => candidate.name === name);
+        if (!element) throw new Error(`missing geometry ${name}`);
+        return result.computedGeometry.get(element.id);
+      };
+      expect(geometry("BaseOffset")).toMatchObject({
+        kind: "offsetLine",
+        length: 20,
+        segments: [expect.objectContaining({
+          start: expect.objectContaining({ x: 0, y: 2 }),
+          end: expect.objectContaining({ x: 20, y: 2 })
+        })]
+      });
+      expect(geometry("NamedOffset")).toMatchObject({
+        kind: "offsetLine",
+        length: 20,
+        segments: [expect.objectContaining({
+          start: expect.objectContaining({ x: 5, y: 2 }),
+          end: expect.objectContaining({ x: 25, y: 2 })
+        })]
+      });
+    }
+  }, 30000);
+});

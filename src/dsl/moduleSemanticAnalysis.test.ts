@@ -1316,6 +1316,51 @@ describe("module semantic analysis", () => {
     });
   });
 
+  it("keeps Module-local whole-geometry stages in the line-list role after stage selection", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  line L = segment(start: (0, 0), end: (20, 0))",
+      "  move L as shifted(from: (0, 0), to: (5, 0))",
+      "  line BaseOffset = offset(sources: [@L.base], distance: 2, side: left)",
+      "  line NamedOffset = offset(sources: [@L.shifted], distance: 2, side: left)",
+      "  const Selected: line = @L.base",
+      "  line AliasOffset = offset(sources: [@Selected], distance: 2, side: left)",
+      "  line UnselectedOffset = offset(sources: [@L], distance: 2, side: left)",
+      "  point Start = offset(from: @L.start, dx: 0, dy: 0)",
+      "}",
+      "instance I = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    const references = definition.bodyStatements.flatMap((statement) => statement.geometryReferences.map((site) => site.reference));
+    const lineListReferenceFor = (source: string) => references.find((reference) =>
+      reference.role === "lineReferenceList" && reference.source.includes(source)
+    );
+
+    expect(lineListReferenceFor("@L.base")).toMatchObject({
+      role: "lineReferenceList",
+      resolution: "resolved",
+      target: { kind: "sourceGeometry", stagePath: ["base"] }
+    });
+    expect(lineListReferenceFor("@L.shifted")).toMatchObject({
+      role: "lineReferenceList",
+      resolution: "resolved",
+      target: { kind: "sourceGeometry", stagePath: ["shifted"] }
+    });
+    expect(lineListReferenceFor("@Selected")).toMatchObject({ role: "lineReferenceList", resolution: "resolved" });
+    expect(definition.localGeometryValues.find((value) => value.name === "Selected")?.initializer?.target).toMatchObject({
+      kind: "sourceGeometry",
+      stagePath: ["base"]
+    });
+    expect(references.find((reference) => reference.source.includes("@L.start"))).toMatchObject({
+      role: "derivedPoint",
+      resolution: "resolved",
+      target: { kind: "sourceGeometry", pointKey: "start" }
+    });
+  });
+
   it("resolves forward Module named-stage dependencies independent of declaration order", () => {
     const compiled = compileWithIds([
       "nui 1",
