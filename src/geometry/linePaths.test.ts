@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import type { ComputedOffsetLine, ComputedOffsetLineSegment } from "../types/geometry";
+import type {
+  ComputedArcLine,
+  ComputedBezierCurve,
+  ComputedJoinedPath,
+  ComputedLine,
+  ComputedOffsetLine,
+  ComputedOffsetLineSegment
+} from "../types/geometry";
 import { cubicPointAt } from "./bezierMath";
 import { tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
@@ -18,6 +25,47 @@ const offsetLine = (segments: ComputedOffsetLineSegment[]): ComputedOffsetLine =
   segments,
   closed: false,
   length: segments.reduce((total, segment) => total + segment.length, 0),
+  startTangentAngleDeg: null,
+  endTangentAngleDeg: null
+});
+
+const arcPoint = (radius: number, angleDeg: number) => {
+  const angle = angleDeg * Math.PI / 180;
+  return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+};
+
+const arcLine = (startAngleDeg: number, sweepAngleDeg: number, radius = 10): ComputedArcLine => {
+  const endAngleDeg = startAngleDeg + sweepAngleDeg;
+  const tangentAngle = (angleDeg: number) => ((angleDeg % 360) + 360) % 360;
+  const sign = sweepAngleDeg >= 0 ? 1 : -1;
+  return {
+    kind: "arcLine",
+    elementId: "arc",
+    name: "arc",
+    centerPointId: null,
+    center: point(0, 0),
+    start: computedPoint("", "", arcPoint(radius, startAngleDeg)),
+    end: computedPoint("", "", arcPoint(radius, endAngleDeg)),
+    radius,
+    startAngleDeg,
+    endAngleDeg,
+    startTangentAngleDeg: tangentAngle(startAngleDeg + sign * 90),
+    endTangentAngleDeg: tangentAngle(endAngleDeg + sign * 90),
+    sweepAngleDeg,
+    length: Math.max(radius, 0) * Math.abs(sweepAngleDeg) * Math.PI / 180
+  };
+};
+
+const joinedPath = (segment: ComputedOffsetLineSegment): ComputedJoinedPath => ({
+  kind: "joinedPath",
+  elementId: "joined",
+  name: "joined",
+  pathIds: [],
+  start: segment.start,
+  end: segment.end,
+  segments: [segment],
+  closed: false,
+  length: segment.length,
   startTangentAngleDeg: null,
   endTangentAngleDeg: null
 });
@@ -118,5 +166,113 @@ describe("offset line projection and tangent lookup", () => {
     expect(positiveTangent?.distanceFromLine).toBeCloseTo(0, 10);
     expect(negativeTangent?.angleDeg).toBeCloseTo(236.7, 10);
     expect(negativeTangent?.distanceFromLine).toBeCloseTo(0, 10);
+  });
+});
+
+describe("concrete arc and existing line-like tangent lookup", () => {
+  it("uses exact forward tangents at both counterclockwise arc endpoints", () => {
+    const arc = arcLine(0, 180);
+
+    expect(tangentAtPointOnLineLikeGeometry(arc, arc.start)).toEqual({ angleDeg: 90, distanceFromLine: 0 });
+    expect(tangentAtPointOnLineLikeGeometry(arc, arc.end)).toEqual({ angleDeg: 270, distanceFromLine: 0 });
+  });
+
+  it("uses the clockwise sweep orientation at both arc endpoints", () => {
+    const arc = arcLine(0, -90);
+
+    expect(tangentAtPointOnLineLikeGeometry(arc, arc.start)).toEqual({ angleDeg: 270, distanceFromLine: 0 });
+    expect(tangentAtPointOnLineLikeGeometry(arc, arc.end)).toEqual({ angleDeg: 180, distanceFromLine: 0 });
+  });
+
+  it("uses the analytic radial tangent for a non-semicircle at an unsampled angle", () => {
+    const arc = arcLine(33.3, 47.2);
+    const onArc = arcPoint(10, 33.3);
+
+    expect(tangentAtPointOnLineLikeGeometry(arc, onArc)).toMatchObject({
+      angleDeg: expect.closeTo(123.3, 10),
+      distanceFromLine: expect.closeTo(0, 10)
+    });
+  });
+
+  it("measures radial distance exactly and applies the supplied tolerance", () => {
+    const arc = arcLine(33.3, 47.2);
+    const nearArc = arcPoint(10.0004, 33.3);
+
+    expect(tangentAtPointOnLineLikeGeometry(arc, nearArc, 0.0005)).toMatchObject({
+      angleDeg: expect.closeTo(123.3, 10),
+      distanceFromLine: expect.closeTo(0.0004, 9)
+    });
+    expect(tangentAtPointOnLineLikeGeometry(arc, nearArc, 0.0003)).toBeNull();
+  });
+
+  it("keeps straight-line and exact Bezier tangents unchanged", () => {
+    const line: ComputedLine = {
+      kind: "line",
+      elementId: "line",
+      name: "line",
+      startPointId: null,
+      endPointId: null,
+      start: point(0, 0),
+      end: point(10, 0),
+      length: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 0,
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 0
+    };
+    const bezier: ComputedBezierCurve = {
+      kind: "bezierCurve",
+      elementId: "bezier",
+      name: "bezier",
+      startPointId: null,
+      endPointId: null,
+      intermediatePointIds: [],
+      intermediateSlotIds: [],
+      segments: [{
+        startPointId: null,
+        endPointId: null,
+        start: point(0, 0),
+        control1: { x: 0, y: 100 },
+        control2: { x: 100, y: -100 },
+        end: point(100, 0)
+      }],
+      length: 0,
+      startTangentAngleDeg: null,
+      endTangentAngleDeg: null,
+      startHandleAngleDeg: 90,
+      startHandleLength: 100,
+      endHandleAngleDeg: 270,
+      endHandleLength: 100
+    };
+    const bezierPoint = cubicPointAt(bezier.segments[0]!, 0.37);
+
+    expect(tangentAtPointOnLineLikeGeometry(line, { x: 5, y: 0 })).toEqual({ angleDeg: 0, distanceFromLine: 0 });
+    expect(tangentAtPointOnLineLikeGeometry(bezier, bezierPoint)).toMatchObject({
+      angleDeg: expect.closeTo(319.46962847643573, 10),
+      distanceFromLine: expect.closeTo(0, 10)
+    });
+  });
+
+  it("keeps joined-path analytic arc tangents unchanged", () => {
+    const positiveArc: ComputedOffsetLineSegment = {
+      kind: "arc",
+      center: point(0, 0),
+      start: point(10, 0),
+      end: point(0, 10),
+      radius: 10,
+      startAngleDeg: 0,
+      sweepAngleDeg: 90,
+      length: 10 * Math.PI / 2
+    };
+    const negativeArc: ComputedOffsetLineSegment = {
+      ...positiveArc,
+      end: point(0, -10),
+      sweepAngleDeg: -90
+    };
+    const positivePoint = arcPoint(10, 33.3);
+    const negativePoint = { x: positivePoint.x, y: -positivePoint.y };
+
+    expect(tangentAtPointOnLineLikeGeometry(joinedPath(positiveArc), positivePoint)?.angleDeg).toBeCloseTo(123.3, 10);
+    expect(tangentAtPointOnLineLikeGeometry(joinedPath(negativeArc), negativePoint)?.angleDeg).toBeCloseTo(236.7, 10);
   });
 });
