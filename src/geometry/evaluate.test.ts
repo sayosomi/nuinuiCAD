@@ -3040,6 +3040,30 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
         placement: { kind: "ratio", value: 0.5 }
       },
       {
+        id: "arc-end-division",
+        name: "円弧終点",
+        type: "lineDivisionPoint",
+        activity: "visible",
+        endpoint: { lineId: "arc", endpointKey: "start" },
+        placement: { kind: "ratio", value: 1 }
+      },
+      {
+        id: "arc-start-from-end",
+        name: "円弧逆向き始点",
+        type: "lineDivisionPoint",
+        activity: "visible",
+        endpoint: { lineId: "arc", endpointKey: "end" },
+        placement: { kind: "ratio", value: 1 }
+      },
+      {
+        id: "arc-start-exact",
+        name: "円弧始点",
+        type: "lineDivisionPoint",
+        activity: "visible",
+        endpoint: { lineId: "arc", endpointKey: "start" },
+        placement: { kind: "ratio", value: 0 }
+      },
+      {
         id: "curve-division",
         name: "曲線分点",
         type: "lineDivisionPoint",
@@ -3061,8 +3085,23 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(result.errors).toHaveLength(0);
     expect(arcPoint).toMatchObject({ kind: "point" });
     if (arcPoint?.kind !== "point") throw new Error("Expected a point");
-    expect(arcPoint.x).toBeCloseTo(10 / Math.sqrt(2), 1);
-    expect(arcPoint.y).toBeCloseTo(10 / Math.sqrt(2), 1);
+    expect(arcPoint.x).toBeCloseTo(10 / Math.sqrt(2), 10);
+    expect(arcPoint.y).toBeCloseTo(10 / Math.sqrt(2), 10);
+    expect(result.computedGeometry.get("arc-end-division")).toMatchObject({
+      kind: "point",
+      x: expect.closeTo(0, 10),
+      y: expect.closeTo(10, 10)
+    });
+    expect(result.computedGeometry.get("arc-start-from-end")).toMatchObject({
+      kind: "point",
+      x: expect.closeTo(10, 10),
+      y: expect.closeTo(0, 10)
+    });
+    expect(result.computedGeometry.get("arc-start-exact")).toMatchObject({
+      kind: "point",
+      x: 10,
+      y: 0
+    });
     expect(result.computedGeometry.get("curve-division")).toMatchObject({
       kind: "point",
       x: 50,
@@ -3997,6 +4036,35 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     if (point?.kind !== "point") throw new Error("Expected a point");
     expect(point.x).toBeCloseTo(0);
     expect(point.y).toBeCloseTo(10);
+  });
+
+  it("keeps the analytic tangent for a concrete arc tangent offset", () => {
+    const result = evaluateElements([
+      { id: "center", name: "中心", type: "freePoint", activity: "visible", x: 0, y: 0 },
+      {
+        id: "arc",
+        name: "円弧",
+        type: "arcLine",
+        activity: "visible",
+        centerPoint: { mode: "reference", pointId: "center" },
+        radius: 10,
+        startAngleDeg: 0,
+        endAngleDeg: 90
+      },
+      {
+        id: "offset",
+        name: "円弧接線点",
+        type: "lineTangentOffsetPoint",
+        activity: "visible",
+        baseLineId: "arc",
+        basePoint: { mode: "derived", elementId: "arc", pointKey: "start" },
+        tangentAngleDeg: 0,
+        distance: 10
+      }
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.computedGeometry.get("offset")).toMatchObject({ kind: "point", x: 10, y: 10 });
   });
 
   it("evaluates line tangent offset points on diagonal lines using Y-up angles", () => {

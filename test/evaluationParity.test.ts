@@ -4098,6 +4098,94 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches physical concrete-arc onLine traversal for drawable and pure values across TypeScript and Rust", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "point DrawableStart = onLine(from: @Arc.start, ratio: 0)",
+      "point DrawableEnd = onLine(from: @Arc.start, ratio: 1)",
+      "point DrawableReverseEnd = onLine(from: @Arc.end, ratio: 1)",
+      "point DrawableMid = onLine(from: @Arc.start, ratio: 0.5)",
+      "const PureArc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const PureArcTangent: point = tangentOffset(line: @PureArc, base: @PureArc.start, angle: 0, distance: 10)",
+      "const PureStart: point = onLine(from: @PureArc.start, ratio: 0)",
+      "const PureEnd: point = onLine(from: @PureArc.start, ratio: 1)",
+      "const PureReverseEnd: point = onLine(from: @PureArc.end, ratio: 1)",
+      "const PureMid: point = onLine(from: @PureArc.start, ratio: 0.5)",
+      "arc Clockwise = arc(center: (0, 0), radius: 7, start: 25, end: 255, direction: clockwise)",
+      "point DrawableClockwiseMid = onLine(from: @Clockwise.start, ratio: 0.5)",
+      "const PureClockwise: path = arc(center: (0, 0), radius: 7, start: 25, end: 255, direction: clockwise)",
+      "const PureClockwiseMid: point = onLine(from: @PureClockwise.start, ratio: 0.5)",
+      "line PureStarts = segment(start: @PureStart, end: @PureEnd)",
+      "line PureEndpoints = segment(start: @PureEnd, end: @PureReverseEnd)",
+      "line PureMids = segment(start: @PureMid, end: @PureClockwiseMid)",
+      "line PureTangentUse = segment(start: (0, 0), end: @PureArcTangent)",
+      "line Before = segment(start: (0, 0), end: (10, 0))",
+      "line After = segment(start: (0, 10), end: (0, 30))",
+      "line Joined = join(paths: [@Before, @Arc, @After], closed: false)",
+      "point JoinedPastArc = onLine(from: @Joined.start, distance: @Arc.length + 15)",
+      "point JoinedInsideArc = onLine(from: @Joined.start, distance: 10 + @Arc.length * 0.4)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = evaluateWithRustOptions(repoRoot, fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const elementNamed = (name: string) => {
+      const element = fixture.elements.find((candidate) => candidate.name === name);
+      if (!element) throw new Error(`expected ${name} element`);
+      return element;
+    };
+    const results = [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)];
+    for (const result of results) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      const pointFor = (name: string) => result.computedGeometry.get(elementNamed(name).id);
+      expect(pointFor("DrawableStart")).toMatchObject({ kind: "point", x: 10, y: 0 });
+      expect(pointFor("DrawableEnd")).toMatchObject({ kind: "point", x: expect.closeTo(0, 10), y: expect.closeTo(10, 10) });
+      expect(pointFor("DrawableReverseEnd")).toMatchObject({ kind: "point", x: 10, y: 0 });
+      expect(pointFor("DrawableMid")).toMatchObject({
+        kind: "point",
+        x: expect.closeTo(10 / Math.sqrt(2), 10),
+        y: expect.closeTo(10 / Math.sqrt(2), 10)
+      });
+      const clockwiseMid = { x: 7 * Math.cos(-40 * Math.PI / 180), y: 7 * Math.sin(-40 * Math.PI / 180) };
+      expect(pointFor("DrawableClockwiseMid")).toMatchObject({
+        kind: "point",
+        x: expect.closeTo(clockwiseMid.x, 10),
+        y: expect.closeTo(clockwiseMid.y, 10)
+      });
+      expect(pointFor("PureEndpoints")).toMatchObject({
+        kind: "line",
+        start: { x: expect.closeTo(0, 10), y: expect.closeTo(10, 10) },
+        end: { x: 10, y: 0 }
+      });
+      expect(pointFor("PureStarts")).toMatchObject({
+        kind: "line",
+        start: { x: 10, y: 0 },
+        end: { x: expect.closeTo(0, 10), y: expect.closeTo(10, 10) }
+      });
+      expect(pointFor("PureMids")).toMatchObject({
+        kind: "line",
+        start: { x: expect.closeTo(10 / Math.sqrt(2), 10), y: expect.closeTo(10 / Math.sqrt(2), 10) },
+        end: { x: expect.closeTo(clockwiseMid.x, 10), y: expect.closeTo(clockwiseMid.y, 10) }
+      });
+      expect(pointFor("PureTangentUse")).toMatchObject({
+        kind: "line",
+        end: { x: 10, y: 10 }
+      });
+      expect(pointFor("JoinedPastArc")).toMatchObject({ kind: "point", x: expect.closeTo(0, 10), y: 15 });
+      expect(pointFor("JoinedInsideArc")).toMatchObject({
+        kind: "point",
+        x: expect.closeTo(10 * Math.cos(36 * Math.PI / 180), 10),
+        y: expect.closeTo(10 * Math.sin(36 * Math.PI / 180), 10)
+      });
+    }
+  }, 30000);
+
   it("matches pure intersection points, extensions, and path inputs across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

@@ -9,9 +9,11 @@ import type {
   ComputedOffsetLineSegment
 } from "../types/geometry";
 import { cubicPointAt } from "./bezierMath";
-import { tangentAtPointOnLineLikeGeometry } from "./linePaths";
+import { pointAtDistanceFromEndpoint, tangentAtPointOnLineLikeGeometry } from "./linePaths";
 import { projectPointOntoOffsetLine } from "./offsetSegmentProjection";
 import { computedPoint } from "./offsetPathMath";
+
+type Point = { x: number; y: number };
 
 const point = (x: number, y: number) => computedPoint("", "", { x, y });
 
@@ -56,18 +58,49 @@ const arcLine = (startAngleDeg: number, sweepAngleDeg: number, radius = 10): Com
   };
 };
 
-const joinedPath = (segment: ComputedOffsetLineSegment): ComputedJoinedPath => ({
+const joinedPath = (segments: ComputedOffsetLineSegment[]): ComputedJoinedPath => ({
   kind: "joinedPath",
   elementId: "joined",
   name: "joined",
   pathIds: [],
-  start: segment.start,
-  end: segment.end,
-  segments: [segment],
+  start: segments[0]?.start ?? null,
+  end: segments.at(-1)?.end ?? null,
+  segments,
   closed: false,
-  length: segment.length,
+  length: segments.reduce((total, segment) => total + segment.length, 0),
   startTangentAngleDeg: null,
   endTangentAngleDeg: null
+});
+
+const expectPointCloseTo = (actual: { x: number; y: number } | null, expected: Point) => {
+  expect(actual).not.toBeNull();
+  expect(actual?.x).toBeCloseTo(expected.x, 10);
+  expect(actual?.y).toBeCloseTo(expected.y, 10);
+};
+
+const offsetArc = (
+  startAngleDeg: number,
+  sweepAngleDeg: number,
+  radius = 10
+): ComputedOffsetLineSegment => {
+  const endAngleDeg = startAngleDeg + sweepAngleDeg;
+  return {
+    kind: "arc",
+    center: point(0, 0),
+    start: point(radius * Math.cos(startAngleDeg * Math.PI / 180), radius * Math.sin(startAngleDeg * Math.PI / 180)),
+    end: point(radius * Math.cos(endAngleDeg * Math.PI / 180), radius * Math.sin(endAngleDeg * Math.PI / 180)),
+    radius,
+    startAngleDeg,
+    sweepAngleDeg,
+    length: radius * Math.abs(sweepAngleDeg * Math.PI / 180)
+  };
+};
+
+const lineSegment = (start: Point, end: Point): ComputedOffsetLineSegment => ({
+  kind: "line",
+  start: point(start.x, start.y),
+  end: point(end.x, end.y),
+  length: Math.hypot(end.x - start.x, end.y - start.y)
 });
 
 describe("offset line projection and tangent lookup", () => {
@@ -272,7 +305,57 @@ describe("concrete arc and existing line-like tangent lookup", () => {
     const positivePoint = arcPoint(10, 33.3);
     const negativePoint = { x: positivePoint.x, y: -positivePoint.y };
 
-    expect(tangentAtPointOnLineLikeGeometry(joinedPath(positiveArc), positivePoint)?.angleDeg).toBeCloseTo(123.3, 10);
-    expect(tangentAtPointOnLineLikeGeometry(joinedPath(negativeArc), negativePoint)?.angleDeg).toBeCloseTo(236.7, 10);
+    expect(tangentAtPointOnLineLikeGeometry(joinedPath([positiveArc]), positivePoint)?.angleDeg).toBeCloseTo(123.3, 10);
+    expect(tangentAtPointOnLineLikeGeometry(joinedPath([negativeArc]), negativePoint)?.angleDeg).toBeCloseTo(236.7, 10);
+  });
+});
+
+describe("physical distance traversal", () => {
+  it("traverses a concrete quarter arc analytically in both endpoint directions", () => {
+    const arc = arcLine(0, 90);
+    const fullLength = arc.length;
+
+    expect(pointAtDistanceFromEndpoint(arc, "start", 0)).toEqual({ x: arc.start.x, y: arc.start.y });
+    expectPointCloseTo(pointAtDistanceFromEndpoint(arc, "start", fullLength), arc.end);
+    expectPointCloseTo(pointAtDistanceFromEndpoint(arc, "end", fullLength), arc.start);
+
+    const forwardQuarter = pointAtDistanceFromEndpoint(arc, "start", fullLength / 4);
+    const reverseThreeQuarters = pointAtDistanceFromEndpoint(arc, "end", fullLength * 3 / 4);
+    expectPointCloseTo(forwardQuarter, arcPoint(10, 22.5));
+    expectPointCloseTo(reverseThreeQuarters, forwardQuarter!);
+  });
+
+  it("uses sweep fractions for clockwise non-quarter-circle arcs", () => {
+    const arc = arcLine(25, -130, 7);
+    const fullLength = arc.length;
+
+    expectPointCloseTo(pointAtDistanceFromEndpoint(arc, "start", fullLength / 2), arcPoint(7, -40));
+    expectPointCloseTo(pointAtDistanceFromEndpoint(arc, "end", fullLength / 2), arcPoint(7, -40));
+    expectPointCloseTo(pointAtDistanceFromEndpoint(arc, "start", fullLength), arc.end);
+    expectPointCloseTo(pointAtDistanceFromEndpoint(arc, "end", fullLength), arc.start);
+  });
+
+  it("accounts for a joined line/arc/line path before entering its final line", () => {
+    const before = lineSegment({ x: 0, y: 0 }, { x: 10, y: 0 });
+    const arc = offsetArc(0, 90);
+    const after = lineSegment({ x: 0, y: 10 }, { x: 0, y: 30 });
+    const joined = joinedPath([before, arc, after]);
+
+    expectPointCloseTo(
+      pointAtDistanceFromEndpoint(joined, "start", before.length + arc.length * 0.4),
+      arcPoint(10, 36)
+    );
+    expectPointCloseTo(
+      pointAtDistanceFromEndpoint(joined, "start", before.length + arc.length + 5),
+      { x: 0, y: 15 }
+    );
+  });
+
+  it("uses physical arc distance for arcs inside offset paths", () => {
+    const arc = offsetArc(0, 90);
+    const after = lineSegment({ x: 0, y: 10 }, { x: 0, y: 20 });
+    const offset = offsetLine([arc, after]);
+
+    expectPointCloseTo(pointAtDistanceFromEndpoint(offset, "start", arc.length + 2), { x: 0, y: 12 });
   });
 });
