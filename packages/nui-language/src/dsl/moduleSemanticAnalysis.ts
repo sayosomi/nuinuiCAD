@@ -2476,6 +2476,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           members
         }) ?? { stagePath: ["final"], propertyPath: members };
         const selectedProperty = stageSelection.propertyPath.join(".");
+        const callerStagePath = stageSelection.propertyPath.length < members.length
+          ? stageSelection.stagePath
+          : undefined;
         if (selectedProperty) {
           if (!isKnownDerivedPointKey(selectedProperty)) {
             return rejectAccessor(`geometry reference「${selectedProperty}」は既知のpoint anchorではありません。`);
@@ -2500,7 +2503,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               options.expectedInterfaceType ?? (expected === "point" ? "point" : "path"),
               semanticSpan,
               selectedProperty,
-              stageSelection.stagePath
+              callerStagePath
             ),
             "deferred",
             null,

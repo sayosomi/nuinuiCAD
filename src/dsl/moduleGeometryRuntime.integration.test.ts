@@ -893,6 +893,8 @@ describe("module geometry runtime", () => {
       "line SelectedLine = from(source: @I::Selected)",
       "point Start = offset(from: @I::L.start, dx: 0, dy: 0)",
       "point End = offset(from: @I::L.end, dx: 0, dy: 0)",
+      "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
+      "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)",
       "line Caller = segment(start: (0, 0), end: (9, 12))",
       "move Caller as viaExport(from: @I::L.start, to: @I::L.end)"
     ].join("\n"), "say453-qualified-stage");
@@ -914,8 +916,14 @@ describe("module geometry runtime", () => {
     }
     expect(referenceFor("@I::L")?.target).toMatchObject({ kind: "deferredModuleExport", exportName: "L" });
     expect(referenceFor("@I::L")?.target).not.toHaveProperty("stagePath");
-    expect(referenceFor("@I::L.start")).toMatchObject({ role: "derivedPoint", target: { pointKey: "start", stagePath: ["final"] } });
-    expect(referenceFor("@I::L.end")).toMatchObject({ role: "derivedPoint", target: { pointKey: "end", stagePath: ["final"] } });
+    expect(referenceFor("@I::L.start")).toMatchObject({ role: "derivedPoint", target: { pointKey: "start" } });
+    expect(referenceFor("@I::L.start")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::L.end")).toMatchObject({ role: "derivedPoint", target: { pointKey: "end" } });
+    expect(referenceFor("@I::L.end")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::Selected.start")).toMatchObject({ role: "derivedPoint", target: { pointKey: "start" } });
+    expect(referenceFor("@I::Selected.start")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::Selected.end")).toMatchObject({ role: "derivedPoint", target: { pointKey: "end" } });
+    expect(referenceFor("@I::Selected.end")?.target).not.toHaveProperty("stagePath");
 
     const result = evaluateElements(compiled.document!.elements, buildEvaluationOptions({
       compiledDocument: compiled as LastGoodDslDocument,
@@ -954,6 +962,8 @@ describe("module geometry runtime", () => {
     });
     expect(result.computedGeometry.get(named(compiled, "Start").id)).toMatchObject({ kind: "point", x: 8, y: 11 });
     expect(result.computedGeometry.get(named(compiled, "End").id)).toMatchObject({ kind: "point", x: 17, y: 23 });
+    expect(result.computedGeometry.get(named(compiled, "SelectedStart").id)).toMatchObject({ kind: "point", x: 5, y: 7 });
+    expect(result.computedGeometry.get(named(compiled, "SelectedEnd").id)).toMatchObject({ kind: "point", x: 14, y: 19 });
   });
 
   it("keeps module coordinate aliases on the existing numeric binding path", () => {

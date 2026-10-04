@@ -49,6 +49,8 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
       "line SelectedLine = from(source: @I::Selected)",
       "point Start = offset(from: @I::L.start, dx: 0, dy: 0)",
       "point End = offset(from: @I::L.end, dx: 0, dy: 0)",
+      "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
+      "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)",
       "line Caller = segment(start: (0, 0), end: (9, 12))",
       "move Caller as viaExport(from: @I::L.start, to: @I::L.end)"
     ].join("\n"));
@@ -70,12 +72,24 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
     }
     expect(referenceFor("@I::L.start")).toMatchObject({
       role: "derivedPoint",
-      target: { kind: "deferredModuleExport", pointKey: "start", stagePath: ["final"] }
+      target: { kind: "deferredModuleExport", pointKey: "start" }
     });
+    expect(referenceFor("@I::L.start")?.target).not.toHaveProperty("stagePath");
     expect(referenceFor("@I::L.end")).toMatchObject({
       role: "derivedPoint",
-      target: { kind: "deferredModuleExport", pointKey: "end", stagePath: ["final"] }
+      target: { kind: "deferredModuleExport", pointKey: "end" }
     });
+    expect(referenceFor("@I::L.end")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::Selected.start")).toMatchObject({
+      role: "derivedPoint",
+      target: { kind: "deferredModuleExport", pointKey: "start" }
+    });
+    expect(referenceFor("@I::Selected.start")?.target).not.toHaveProperty("stagePath");
+    expect(referenceFor("@I::Selected.end")).toMatchObject({
+      role: "derivedPoint",
+      target: { kind: "deferredModuleExport", pointKey: "end" }
+    });
+    expect(referenceFor("@I::Selected.end")?.target).not.toHaveProperty("stagePath");
     expect(isRustEligibleFixture(fixture)).toBe(true);
 
     const options = optionsFor(fixture);
@@ -122,6 +136,8 @@ describe("SAY-453 caller-qualified Module export stages over Rust stdio", () => 
       });
       expect(geometry("Start")).toMatchObject({ kind: "point", x: 8, y: 11 });
       expect(geometry("End")).toMatchObject({ kind: "point", x: 17, y: 23 });
+      expect(geometry("SelectedStart")).toMatchObject({ kind: "point", x: 5, y: 7 });
+      expect(geometry("SelectedEnd")).toMatchObject({ kind: "point", x: 14, y: 19 });
     }
   }, 30000);
 });

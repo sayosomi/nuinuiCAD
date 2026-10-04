@@ -1526,7 +1526,11 @@ describe("module semantic analysis", () => {
       "const NamedPath: path = @I::P.pathShifted",
       "const SelectedLine: line = @I::Selected",
       "point Start = offset(from: @I::L.start, dx: 0, dy: 0)",
-      "point End = offset(from: @I::L.end, dx: 0, dy: 0)"
+      "point End = offset(from: @I::L.end, dx: 0, dy: 0)",
+      "point BaseStart = offset(from: @I::L.base.start, dx: 0, dy: 0)",
+      "point ShiftedStart = offset(from: @I::L.shifted.start, dx: 0, dy: 0)",
+      "point SelectedStart = offset(from: @I::Selected.start, dx: 0, dy: 0)",
+      "point SelectedEnd = offset(from: @I::Selected.end, dx: 0, dy: 0)"
     ].join("\n"));
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
@@ -1549,12 +1553,30 @@ describe("module semantic analysis", () => {
     }
     expect(rootReferences.find((reference) => reference.source.includes("@I::L.start"))).toMatchObject({
       role: "derivedPoint",
-      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "start", stagePath: ["final"] }
+      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "start" }
     });
+    expect(rootReferences.find((reference) => reference.source.includes("@I::L.start"))?.target).not.toHaveProperty("stagePath");
     expect(rootReferences.find((reference) => reference.source.includes("@I::L.end"))).toMatchObject({
       role: "derivedPoint",
-      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "end", stagePath: ["final"] }
+      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "end" }
     });
+    expect(rootReferences.find((reference) => reference.source.includes("@I::L.end"))?.target).not.toHaveProperty("stagePath");
+    expect(rootReferences.find((reference) => reference.source.includes("@I::L.base.start"))).toMatchObject({
+      role: "derivedPoint",
+      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "start", stagePath: ["base"] }
+    });
+    expect(rootReferences.find((reference) => reference.source.includes("@I::L.shifted.start"))).toMatchObject({
+      role: "derivedPoint",
+      target: { kind: "deferredModuleExport", exportName: "L", pointKey: "start", stagePath: ["shifted"] }
+    });
+    for (const [source, pointKey] of [["@I::Selected.start", "start"], ["@I::Selected.end", "end"]] as const) {
+      const reference = rootReferences.find((candidate) => candidate.source.includes(source));
+      expect(reference).toMatchObject({
+        role: "derivedPoint",
+        target: { kind: "deferredModuleExport", exportName: "Selected", pointKey }
+      });
+      expect(reference?.target).not.toHaveProperty("stagePath");
+    }
     expect(targetFor("RootBase")).toMatchObject({ kind: "sourceGeometry", stagePath: ["base"] });
     expect(targetFor("RootNamed")).toMatchObject({ kind: "sourceGeometry", stagePath: ["rootShifted"] });
     expect(targetFor("SelectedLine")).toMatchObject({ kind: "deferredModuleExport", exportName: "Selected" });
