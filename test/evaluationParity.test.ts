@@ -375,30 +375,7 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     const rustPayload = await rustStdio!.evaluateInput(rustInput);
     const result = evaluationPayloadToResult(tsPayload);
     const rustResult = evaluationPayloadToResult(rustPayload);
-    const withoutJoinedGeometry = (payload: typeof tsPayload) => normalizeParityPayload({
-      ...payload,
-      computedGeometry: payload.computedGeometry.filter((geometry) => geometry.elementId !== joined.id),
-      preMutationGeometry: payload.preMutationGeometry?.filter((geometry) => geometry.elementId !== joined.id)
-    });
-    expect(withoutJoinedGeometry(rustPayload)).toEqual(withoutJoinedGeometry(tsPayload));
-    const joinedShape = (evaluation: typeof result) => {
-      const geometry = evaluation.computedGeometry.get(joined.id);
-      if (!geometry || geometry.kind !== "joinedPath") throw new Error("expected joined path geometry");
-      return {
-        pathIds: geometry.pathIds,
-        closed: geometry.closed,
-        length: geometry.length,
-        start: geometry.start && { x: geometry.start.x, y: geometry.start.y },
-        end: geometry.end && { x: geometry.end.x, y: geometry.end.y },
-        segments: geometry.segments.map((segment) => ({
-          kind: segment.kind,
-          start: { x: segment.start.x, y: segment.start.y },
-          end: { x: segment.end.x, y: segment.end.y },
-          length: segment.length
-        }))
-      };
-    };
-    expect(joinedShape(rustResult)).toEqual(joinedShape(result));
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
     expect(result.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value)
       .toMatchObject({ kind: "line", start: { x: 0, y: 20 }, end: { x: 10, y: 20 } });
     expect(rustResult.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value)

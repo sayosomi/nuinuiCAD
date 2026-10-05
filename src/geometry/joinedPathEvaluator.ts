@@ -70,11 +70,7 @@ export const evaluateJoinedPathElement = (element: CadElement, context: ElementE
     const source = geometryInput && isLineLikeGeometryInput(geometryInput)
       ? "elementId" in geometryInput
         ? geometryInput
-        : materializeGeometryValue({
-            ...element,
-            id: `${element.id}:path-input:${index}`,
-            name: `${element.name}.path${index + 1}`
-          }, geometryInput)
+        : materializeGeometryValue(element, geometryInput)
       : undefined;
     if (!source || !isLineLikeGeometry(source)) {
       errors.push(dependencyError(element, pathId, elementsById, disabledByGroupId, errors));

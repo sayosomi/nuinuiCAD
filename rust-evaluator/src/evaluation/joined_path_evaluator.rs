@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use super::bezier_path::approximate_segment_length;
 use super::errors::{dependency_error, geometry_error};
 use super::line_geometry_input::resolve_line_geometry_input_at;
+use super::materialize_geometry_value;
 use super::offset_types::{
     line_length, offset_line_endpoint_measurements, value_point, OffsetPoint, OffsetSegment,
     EPSILON,
@@ -120,6 +121,15 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
         else {
             state.errors.push(dependency_error(state, element, path_id));
             return;
+        };
+        let source = if source.get("elementId").is_none() {
+            let Some(materialized) = materialize_geometry_value(element, &source) else {
+                state.errors.push(dependency_error(state, element, path_id));
+                return;
+            };
+            materialized
+        } else {
+            source
         };
         if !matches!(
             source.get("kind").and_then(Value::as_str),
