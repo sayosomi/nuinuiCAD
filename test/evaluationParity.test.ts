@@ -4177,6 +4177,90 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("preserves explicitly selected snapshots for pure onLine values across persistent Rust stdio", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as shifted(from: (0, 0), to: (0, 20))",
+      "move L as finish(from: (0, 20), to: (0, 50))",
+      "const BaseStart: point = onLine(from: @L.base.start, ratio: 0)",
+      "const ShiftedStart: point = onLine(from: @L.shifted.start, ratio: 0)",
+      "const FinalStart: point = onLine(from: @L.final.start, ratio: 0)",
+      "const ShiftedEnd: point = onLine(from: @L.shifted.end, distance: 2)",
+      "const Alias: path = @L.shifted",
+      "const AliasStart: point = onLine(from: @Alias.start, ratio: 0)",
+      "module M(source: path) {",
+      "  const LocalStart: point = onLine(from: @source.start, ratio: 0)",
+      "  const LocalEnd: point = onLine(from: @source.end, distance: 2)",
+      "}",
+      "instance Base = M(source: @L.base)",
+      "instance Shifted = M(source: @L.shifted)",
+      "instance Final = M(source: @L.final)",
+      "line Use = segment(start: @ShiftedStart, end: @ShiftedEnd)"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const program = options.geometryValueProgram ?? [];
+    const analysis = fixture.compiled?.doc.moduleSemanticAnalysis;
+    const rootValue = (name: string) => analysis?.geometryValues.find((value) =>
+      value.ownerModuleDefinitionStatementId === null && value.name === name
+    );
+    const rootOccurrences = new Map(["BaseStart", "ShiftedStart", "FinalStart", "ShiftedEnd", "AliasStart"].map((name) => {
+      const value = rootValue(name);
+      if (!value) throw new Error(`missing root onLine geometry value ${name}`);
+      const entry = program.find((candidate) => candidate.sourceStatementId === value.statementId);
+      if (!entry) throw new Error(`missing geometry-value program entry for ${name}`);
+      return [name, entry.occurrence] as const;
+    }));
+    const moduleDefinition = analysis?.definitions.find((definition) => definition.name === "M");
+    const localStart = moduleDefinition?.localGeometryValues.find((value) => value.name === "LocalStart");
+    const localEnd = moduleDefinition?.localGeometryValues.find((value) => value.name === "LocalEnd");
+    if (!localStart || !localEnd) throw new Error("missing Module-local onLine geometry values");
+    const localStartEntries = program.filter((entry) => entry.sourceStatementId === localStart.statementId);
+    const localEndEntries = program.filter((entry) => entry.sourceStatementId === localEnd.statementId);
+    expect(localStartEntries).toHaveLength(3);
+    expect(localEndEntries).toHaveLength(3);
+
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    const valueFor = (
+      result: ReturnType<typeof evaluationPayloadToResult>,
+      occurrence: (typeof program)[number]["occurrence"]
+    ) => [...(result.computedGeometryValues?.values() ?? [])].find((entry) =>
+      entry.occurrence.sourceStatementId === occurrence.sourceStatementId &&
+      entry.occurrence.instancePath.length === occurrence.instancePath.length &&
+      entry.occurrence.instancePath.every((part, index) => part === occurrence.instancePath[index]) &&
+      entry.occurrence.mappedMemberIndex === occurrence.mappedMemberIndex
+    )?.value;
+    const valuesForSource = (result: ReturnType<typeof evaluationPayloadToResult>, statementId: string) =>
+      [...(result.computedGeometryValues?.values() ?? [])]
+        .filter((entry) => entry.occurrence.sourceStatementId === statementId)
+        .map((entry) => entry.value);
+    const ts = evaluationPayloadToResult(tsPayload);
+    const rust = evaluationPayloadToResult(rustPayload);
+    for (const result of [ts, rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+      expect(valueFor(result, rootOccurrences.get("BaseStart")!)).toEqual({ kind: "point", x: 0, y: 0 });
+      expect(valueFor(result, rootOccurrences.get("ShiftedStart")!)).toEqual({ kind: "point", x: 0, y: 20 });
+      expect(valueFor(result, rootOccurrences.get("FinalStart")!)).toEqual({ kind: "point", x: 0, y: 50 });
+      expect(valueFor(result, rootOccurrences.get("ShiftedEnd")!)).toEqual({ kind: "point", x: 8, y: 20 });
+      expect(valueFor(result, rootOccurrences.get("AliasStart")!)).toEqual({ kind: "point", x: 0, y: 20 });
+      expect(valuesForSource(result, localStart.statementId)).toEqual(expect.arrayContaining([
+        { kind: "point", x: 0, y: 0 },
+        { kind: "point", x: 0, y: 20 },
+        { kind: "point", x: 0, y: 50 }
+      ]));
+      expect(valuesForSource(result, localEnd.statementId)).toEqual(expect.arrayContaining([
+        { kind: "point", x: 8, y: 0 },
+        { kind: "point", x: 8, y: 20 },
+        { kind: "point", x: 8, y: 50 }
+      ]));
+    }
+  }, 30000);
+
   it("matches physical concrete-arc onLine traversal for drawable and pure values across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

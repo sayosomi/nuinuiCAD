@@ -1621,6 +1621,51 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     resolution
   });
 
+  const wholePathTargetForEndpoint = (target: ModuleGeometrySourceTarget): ModuleGeometrySourceTarget => {
+    if (target.kind === "constructionInput") {
+      return {
+        ...target,
+        sourceTarget: target.sourceTarget ? wholePathTargetForEndpoint(target.sourceTarget) : null
+      };
+    }
+    if (target.kind === "geometryValue" && target.backingTarget) {
+      const wholePathTarget = { ...target };
+      delete wholePathTarget.pointKey;
+      return {
+        ...wholePathTarget,
+        backingTarget: wholePathTargetForEndpoint(target.backingTarget)
+      };
+    }
+    if (target.kind === "deferredModuleExport" || target.kind === "collectionIndex" || target.kind === "forGroupOccurrence") {
+      const wholePathTarget = { ...target };
+      delete wholePathTarget.pointKey;
+      return {
+        ...wholePathTarget,
+        expectedGeometryKind: "line",
+        expectedInterfaceType: "path"
+      };
+    }
+    if ("pointKey" in target) {
+      const wholePathTarget = { ...target };
+      delete wholePathTarget.pointKey;
+      return wholePathTarget;
+    }
+    return target;
+  };
+
+  const wholePathReferenceForEndpoint = (
+    reference: ModuleGeometryReferenceSemantic
+  ): ModuleGeometryReferenceSemantic => {
+    const wholePathReference = { ...reference };
+    delete wholePathReference.valueType;
+    return {
+      ...wholePathReference,
+      expectedGeometryKind: "line",
+      role: "lineReference",
+      target: reference.target ? wholePathTargetForEndpoint(reference.target) : null
+    };
+  };
+
   const deferredModuleExportTarget = (
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>,
     expectedGeometryKind: "point" | "line",
@@ -3419,32 +3464,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
-      const line = fromArgument
-        ? (() => {
-            const rawFrom = source.slice(fromArgument.valueSpan.start, fromArgument.valueSpan.end).trim();
-            const parsedFrom = parseDslSourceReference(rawFrom);
-            if (parsedFrom.kind !== "valid" || !parsedFrom.reference.property) {
-              return geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
-            }
-            const lineSource = `@${parsedFrom.reference.pathText}`;
-            const lineSpan = { start: fromArgument.valueSpan.start, end: fromArgument.valueSpan.start + lineSource.length };
-            return resolveGeometry(
-              statementIndex,
-              ownerIndex,
-              lineSource,
-              lineSpan,
-              "line",
-              {
-                expectedInterfaceType: "path",
-                allowCoordinate: false,
-                role: "lineReference",
-                scalarResolver: options.scalarResolver,
-                bareScalarResolver: options.bareScalarResolver,
-                geometryPropertyResolver: options.geometryPropertyResolver,
-              }
-            );
-          })()
-        : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
+      const line = wholePathReferenceForEndpoint(from);
       const endpointKey = from.target
         ? unwrapModuleGeometrySourceTarget(from.target).pointKey === "end" ? "end" as const : "start" as const
         : (() => {
