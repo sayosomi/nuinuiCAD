@@ -7,6 +7,7 @@ use super::bezier_math::{
 };
 use super::bezier_path::approximate_segment_length;
 use super::errors::{dependency_error, geometry_error};
+use super::line_geometry_input::resolve_line_geometry_input;
 use super::math::{arc_tangent_angles, normalize_degrees};
 use super::offset_projection::project_point_onto_offset_segment;
 use super::offset_types::offset_line_endpoint_measurements_from_values;
@@ -983,13 +984,20 @@ pub(crate) fn evaluate_split_line(
     let Some(base_line_id) = element.get("baseLineId").and_then(Value::as_str) else {
         return;
     };
-    let Some(base_geometry) = state.computed_geometry.get(base_line_id).cloned() else {
+    let id = element_id(element).unwrap_or_default();
+    let Some(base_geometry) = resolve_line_geometry_input(state, &id, "baseLineId", base_line_id)
+    else {
         state
             .errors
             .push(dependency_error(state, element, base_line_id));
         return;
     };
-    if !is_supported_line_geometry(&base_geometry) {
+    if !is_supported_line_geometry(&base_geometry)
+        || base_geometry
+            .get("elementId")
+            .and_then(Value::as_str)
+            .is_none()
+    {
         state
             .errors
             .push(dependency_error(state, element, base_line_id));
@@ -1011,7 +1019,6 @@ pub(crate) fn evaluate_split_line(
     let split_point_id = anchor_reference_element_id(split_point_anchor)
         .map(Value::from)
         .unwrap_or(Value::Null);
-    let id = element_id(element).unwrap_or_default();
     let name = element_name(element);
     match split_geometry(&base_geometry, &split_point, &id, &name, split_point_id) {
         SplitGeometryResult::Split(result) => {

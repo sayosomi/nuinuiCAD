@@ -271,6 +271,103 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     rustStdio?.dispose();
   });
 
+  it("splits compiler-selected drawable snapshots in root and per-instance Module evaluation", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module Draft(width: number) {",
+      "  line L = segment(start: (0, 0), end: (@width, 0))",
+      "  move L as shifted (from: (0, 0), to: (0, 10))",
+      "  point Cut = coordinate(x: @width / 4, y: 0)",
+      "  line Part = split(source: @L.base, at: @Cut)",
+      "  line FinalSource = segment(start: (0, 20), end: (@width, 20))",
+      "  move FinalSource as raised (from: (0, 20), to: (0, 30))",
+      "  point FinalCut = coordinate(x: @width / 4, y: 30)",
+      "  line PartFinal = split(source: @FinalSource.final, at: @FinalCut)",
+      "  line Plain = segment(start: (0, 40), end: (@width, 40))",
+      "  point PlainCut = coordinate(x: @width / 4, y: 40)",
+      "  line PartPlain = split(source: @Plain, at: @PlainCut)",
+      "  line AliasSource = segment(start: (0, 50), end: (@width, 50))",
+      "  move AliasSource as aliasStage (from: (0, 50), to: (0, 60))",
+      "  const Alias: line = @AliasSource.aliasStage",
+      "  point AliasCut = coordinate(x: @width / 4, y: 60)",
+      "  line PartAlias = split(source: @Alias, at: @AliasCut)",
+      "  line MaterialSource = segment(start: (0, 70), end: (@width, 70))",
+      "  move MaterialSource as moved (from: (0, 70), to: (0, 80))",
+      "  line Material = from(source: @MaterialSource.base)",
+      "  point MaterialCut = coordinate(x: @width / 4, y: 70)",
+      "  line PartMaterial = split(source: @Material, at: @MaterialCut)",
+      "  arc A = arc(center: (0, 100), radius: 10, start: 0, end: 90)",
+      "  move A as arcShifted (from: (10, 100), to: (10, 110))",
+      "  move A as arcFinal (from: (10, 110), to: (10, 120))",
+      "  point ArcCut = coordinate(x: 7.0710678118654755, y: 117.07106781186548)",
+      "  line PartArc = split(source: @A.arcShifted, at: @ArcCut)",
+      "}",
+      "instance First = Draft(width: 20)",
+      "instance Second = Draft(width: 40)",
+      "line Root = segment(start: (200, 0), end: (220, 0))",
+      "move Root as shifted (from: (200, 0), to: (200, 10))",
+      "point RootCut = coordinate(x: 205, y: 0)",
+      "line RootPart = split(source: @Root.base, at: @RootCut)"
+    ].join("\n"));
+    const diagnostics = fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? [];
+    expect(diagnostics).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const options = optionsFor(fixture);
+    const baseParts = fixture.elements.filter((element) => element.name === "Part" && element.type === "splitLine");
+    expect(baseParts).toHaveLength(2);
+    const baseTargets = baseParts.map((element) => {
+      const target = options.geometryInputTargetsByElementId?.get(element.id)?.get("baseLineId");
+      if (!target || !("kind" in target) || target.kind !== "drawable") {
+        throw new Error("expected the split source to lower to a drawable snapshot target");
+      }
+      expect(target.stagePath).toEqual(["base"]);
+      expect(target.elementId).toBe(element.baseLineId);
+      return target;
+    });
+    expect(new Set(baseTargets.map((target) => target.elementId)).size).toBe(2);
+
+    const finalPart = fixture.elements.find((element) => element.name === "PartFinal");
+    const finalTarget = finalPart && options.geometryInputTargetsByElementId?.get(finalPart.id)?.get("baseLineId");
+    expect(finalTarget).toMatchObject({ kind: "drawable", stagePath: ["final"] });
+    const aliasPart = fixture.elements.find((element) => element.name === "PartAlias");
+    const aliasTarget = aliasPart && options.geometryInputTargetsByElementId?.get(aliasPart.id)?.get("baseLineId");
+    expect(aliasTarget).toMatchObject({ kind: "drawable", stagePath: ["aliasStage"] });
+    const arcPart = fixture.elements.find((element) => element.name === "PartArc");
+    const arcTarget = arcPart && options.geometryInputTargetsByElementId?.get(arcPart.id)?.get("baseLineId");
+    expect(arcTarget).toMatchObject({ kind: "drawable", stagePath: ["arcShifted"] });
+    const rootPart = fixture.elements.find((element) => element.name === "RootPart");
+    const rootTarget = rootPart && options.geometryInputTargetsByElementId?.get(rootPart.id)?.get("baseLineId");
+    expect(rootTarget).toMatchObject({ kind: "drawable", stagePath: ["base"] });
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      const geometries = (name: string) => fixture.elements
+        .filter((element) => element.name === name)
+        .map((element) => result.computedGeometry.get(element.id));
+      const lengths = (name: string) => geometries(name).map((geometry) =>
+        geometry && "length" in geometry ? geometry.length : undefined
+      ).sort((left, right) => (left ?? 0) - (right ?? 0));
+
+      expect(lengths("Part")).toEqual([15, 30]);
+      expect(lengths("PartFinal")).toEqual([15, 30]);
+      expect(lengths("PartPlain")).toEqual([15, 30]);
+      expect(lengths("PartAlias")).toEqual([15, 30]);
+      expect(lengths("PartMaterial")).toEqual([15, 30]);
+      expect(lengths("PartArc")[0]).toBeCloseTo(5 * Math.PI / 2, 6);
+      expect(lengths("PartArc")[1]).toBeCloseTo(5 * Math.PI / 2, 6);
+      expect(geometries("RootPart")[0]).toMatchObject({
+        kind: "line", start: { x: 205, y: 0 }, end: { x: 220, y: 0 }, length: 15
+      });
+
+    }
+  }, 30000);
+
   it("consumes authored-order selected drawable join snapshots in root and Module evaluation", async () => {
     const rootFixture = fixtureFromSource([
       "nui 1",

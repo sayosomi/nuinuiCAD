@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::{json, Value};
+use std::collections::{HashMap, HashSet};
 
 fn element(value: Value) -> Value {
     value
@@ -100,6 +101,94 @@ fn splits_line_and_updates_base_geometry() {
     assert_close(near["length"].as_f64().unwrap(), 40.0);
     assert_close(far["start"]["x"].as_f64().unwrap(), 40.0);
     assert_close(far["length"].as_f64().unwrap(), 60.0);
+}
+
+#[test]
+fn split_consumes_selected_stage_and_publishes_near_side_to_drawable_owner() {
+    let owner = "owner".to_owned();
+    let split = split_line("part", &owner, "cut");
+    let base_geometry = json!({
+        "kind": "line",
+        "elementId": owner,
+        "name": "Owner",
+        "startPointId": "start",
+        "endPointId": "end",
+        "start": { "kind": "point", "elementId": "start", "name": "Start", "x": 0.0, "y": 0.0 },
+        "end": { "kind": "point", "elementId": "end", "name": "End", "x": 20.0, "y": 0.0 },
+        "length": 20.0
+    });
+    let final_geometry = json!({
+        "kind": "line",
+        "elementId": owner,
+        "name": "Owner",
+        "startPointId": "start",
+        "endPointId": "end",
+        "start": { "kind": "point", "elementId": "start", "name": "Start", "x": 0.0, "y": 10.0 },
+        "end": { "kind": "point", "elementId": "end", "name": "End", "x": 20.0, "y": 10.0 },
+        "length": 20.0
+    });
+    let mut state = EvaluationState {
+        elements: vec![
+            element(json!({ "id": owner, "name": "Owner", "type": "line" })),
+            split.clone(),
+        ],
+        elements_by_id: HashMap::from([(owner.clone(), 0), ("part".to_owned(), 1)]),
+        drawing_modifiers: json!([]),
+        selected_drawing_profile_id: None,
+        group_states: HashMap::new(),
+        computed_geometry: HashMap::from([
+            (owner.clone(), final_geometry),
+            (
+                "cut".to_owned(),
+                json!({ "kind": "point", "elementId": "cut", "name": "Cut", "x": 5.0, "y": 0.0 }),
+            ),
+        ]),
+        base_transformation_geometry: HashMap::from([(owner.clone(), base_geometry)]),
+        transformation_stage_geometry: HashMap::new(),
+        completed_transformation_recipe_indices: HashSet::new(),
+        transformation_dependency_plans: None,
+        computed_geometry_order: Vec::new(),
+        computed_geometry_values: HashMap::new(),
+        geometry_input_targets: HashMap::from([(
+            "part".to_owned(),
+            HashMap::from([(
+                "baseLineId".to_owned(),
+                vec![GeometryInputTarget::Drawable {
+                    element_id: owner.clone(),
+                    geometry_type: "line".to_owned(),
+                    point_key: None,
+                    stage_path: Some(vec!["base".to_owned()]),
+                }],
+            )]),
+        )]),
+        geometry_collection_nodes: HashMap::new(),
+        geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
+        pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
+        instance_base_geometry: HashMap::new(),
+        errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    super::split_line_evaluator::evaluate_split_line(
+        &split,
+        &(HashMap::new(), HashMap::new()),
+        &mut state,
+    );
+
+    assert!(state.errors.is_empty());
+    let near = state.computed_geometry.get(&owner).expect("near geometry");
+    let far = state.computed_geometry.get("part").expect("far geometry");
+    assert_close(near["start"]["y"].as_f64().unwrap(), 0.0);
+    assert_close(near["end"]["x"].as_f64().unwrap(), 5.0);
+    assert_close(near["length"].as_f64().unwrap(), 5.0);
+    assert_close(far["start"]["x"].as_f64().unwrap(), 5.0);
+    assert_close(far["end"]["x"].as_f64().unwrap(), 20.0);
+    assert_close(far["length"].as_f64().unwrap(), 15.0);
 }
 
 #[test]
