@@ -3,15 +3,15 @@ import type {
   ComputedBezierSegment,
   ComputedJoinedPath,
   ComputedOffsetLineSegment,
-  ComputedPoint,
-  ComputedGeometry
+  ComputedPoint
 } from "../types/geometry";
 import { dependencyError, geometryError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import { offsetLineEndpointMeasurements } from "./lineMeasurements";
 import { resolveLineGeometryInputAt } from "./lineGeometryInput";
-import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
+import { materializeGeometryValue } from "./materializedEvaluator";
+import { isLineLikeGeometry, isLineLikeGeometryInput, type LineLikeGeometry } from "./linePaths";
 import { EPSILON } from "./offsetPathMath";
 import { reverseLineLikeGeometry } from "./reversePathGeometry";
 
@@ -65,17 +65,17 @@ export const evaluateJoinedPathElement = (element: CadElement, context: ElementE
   }
 
   const orientedSources: LineLikeGeometry[] = [];
-  const geometryInputTarget = context.geometryInputTargets?.get("pathIds");
-  const hasCanonicalTargets = geometryInputTarget !== undefined;
   for (const [index, pathId] of element.pathIds.entries()) {
-    const targetAtIndex = Array.isArray(geometryInputTarget)
-      ? geometryInputTarget[index]
-      : index === 0 ? geometryInputTarget : undefined;
-    const source: ComputedGeometry | undefined = hasCanonicalTargets
-      ? targetAtIndex?.kind === "drawable"
-        ? resolveLineGeometryInputAt(context, "pathIds", index, pathId) as ComputedGeometry | undefined
-        : undefined
-      : context.computedGeometry.get(pathId);
+    const geometryInput = resolveLineGeometryInputAt(context, "pathIds", index, pathId);
+    const source = geometryInput && isLineLikeGeometryInput(geometryInput)
+      ? "elementId" in geometryInput
+        ? geometryInput
+        : materializeGeometryValue({
+            ...element,
+            id: `${element.id}:path-input:${index}`,
+            name: `${element.name}.path${index + 1}`
+          }, geometryInput)
+      : undefined;
     if (!source || !isLineLikeGeometry(source)) {
       errors.push(dependencyError(element, pathId, elementsById, disabledByGroupId, errors));
       return true;

@@ -349,6 +349,66 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     await verify(moduleFixture, "Use");
   }, 30000);
 
+  it("consumes immutable geometryValue path targets in joined-path parity", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line L = segment(start: (100, 0), end: (110, 0))",
+      "move L (from: (100, 0), to: (100, 50))",
+      "const BasePath: path = segment(start: (0, 20), end: (10, 20))",
+      "line Joined = join(paths: [@BasePath], closed: false)"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? []).toEqual([]);
+    const options = optionsFor(fixture);
+    const joined = fixture.elements.find((element) => element.name === "Joined");
+    const owner = fixture.elements.find((element) => element.name === "L");
+    if (!joined || !owner) throw new Error("missing joined-path fixture elements");
+    const targets = options.geometryInputTargetsByElementId?.get(joined.id)?.get("pathIds");
+    expect(Array.isArray(targets)).toBe(true);
+    if (!Array.isArray(targets)) throw new Error("expected canonical ordered path targets");
+    expect(targets).toHaveLength(1);
+    const target = targets[0]!;
+    expect(target).toMatchObject({ kind: "geometryValue", geometryType: "path" });
+    if (target.kind !== "geometryValue") throw new Error("expected immutable geometry-value path target");
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    const result = evaluationPayloadToResult(tsPayload);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    const withoutJoinedGeometry = (payload: typeof tsPayload) => normalizeParityPayload({
+      ...payload,
+      computedGeometry: payload.computedGeometry.filter((geometry) => geometry.elementId !== joined.id),
+      preMutationGeometry: payload.preMutationGeometry?.filter((geometry) => geometry.elementId !== joined.id)
+    });
+    expect(withoutJoinedGeometry(rustPayload)).toEqual(withoutJoinedGeometry(tsPayload));
+    const joinedShape = (evaluation: typeof result) => {
+      const geometry = evaluation.computedGeometry.get(joined.id);
+      if (!geometry || geometry.kind !== "joinedPath") throw new Error("expected joined path geometry");
+      return {
+        pathIds: geometry.pathIds,
+        closed: geometry.closed,
+        length: geometry.length,
+        start: geometry.start && { x: geometry.start.x, y: geometry.start.y },
+        end: geometry.end && { x: geometry.end.x, y: geometry.end.y },
+        segments: geometry.segments.map((segment) => ({
+          kind: segment.kind,
+          start: { x: segment.start.x, y: segment.start.y },
+          end: { x: segment.end.x, y: segment.end.y },
+          length: segment.length
+        }))
+      };
+    };
+    expect(joinedShape(rustResult)).toEqual(joinedShape(result));
+    expect(result.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value)
+      .toMatchObject({ kind: "line", start: { x: 0, y: 20 }, end: { x: 10, y: 20 } });
+    expect(rustResult.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value)
+      .toEqual(result.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value);
+    expect(result.computedGeometry.get(owner.id)).toMatchObject({ start: { y: 50 }, end: { y: 50 } });
+    expect(result.computedGeometry.get(joined.id)).toMatchObject({
+      kind: "joinedPath", start: { x: 0, y: 20 }, end: { x: 10, y: 20 }
+    });
+  }, 30000);
+
   it("accumulates independent point input diagnostics across the persistent Rust stdio boundary", async () => {
     const evaluateSource = async (source: string) => {
       const fixture = fixtureFromSource(source);

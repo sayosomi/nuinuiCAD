@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import type {
   ArcLineElement,
@@ -7,9 +7,12 @@ import type {
   CadElement,
   ComputedGeometry,
   ComputedJoinedPath,
+  GeometryInputTarget,
   PolylineElement
 } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
+import type { ComputedGeometryValueEntry } from "./evaluationTypes";
+import { evaluateJoinedPathElement } from "./joinedPathEvaluator";
 
 const point = (id: string, x: number, y: number): CadElement => ({
   id, name: id, type: "freePoint", activity: "visible", x, y
@@ -66,6 +69,54 @@ const joined = (geometry: ComputedGeometry | undefined): ComputedJoinedPath => {
 };
 
 describe("joined path construction", () => {
+  it("uses the ordered canonical geometryValue target instead of the owner final geometry", () => {
+    const ownerElement = line("owner", "owner-start", "owner-end");
+    const ownerResult = evaluateElements([
+      point("owner-start", 100, 50),
+      point("owner-end", 110, 50),
+      ownerElement
+    ]);
+    const ownerGeometry = ownerResult.computedGeometry.get(ownerElement.id);
+    if (!ownerGeometry) throw new Error("expected owner final geometry");
+
+    const occurrence = { sourceStatementId: "immutable-path", instancePath: [] } as const;
+    const target: GeometryInputTarget = { kind: "geometryValue", occurrence, geometryType: "path" };
+    const key = geometryValueOccurrenceKey(occurrence);
+    const value = {
+      kind: "line" as const,
+      start: { x: 0, y: 20 },
+      end: { x: 10, y: 20 },
+      length: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 0,
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 0
+    };
+    const computedGeometryValues = new Map([[key, { occurrence, value } satisfies ComputedGeometryValueEntry]]);
+    const joinedElement = join("joined", [ownerElement.id]);
+    const context = {
+      computedGeometry: new Map<string, ComputedGeometry>([[ownerElement.id, ownerGeometry]]),
+      computedGeometryValues,
+      geometryInputTargets: new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>([
+        ["pathIds", [target]]
+      ]),
+      elementsById: new Map([[ownerElement.id, ownerElement]]),
+      errors: [],
+      warnings: [],
+      disabledByGroupId: new Map(),
+      localVariables: { localVariableValues: new Map(), localVariableNames: new Map() }
+    };
+
+    evaluateJoinedPathElement(joinedElement, context);
+
+    expect(context.errors).toEqual([]);
+    expect(computedGeometryValues.get(key)?.value).toEqual(value);
+    expect(context.computedGeometry.get(ownerElement.id)).toMatchObject({ start: { y: 50 }, end: { y: 50 } });
+    expect(context.computedGeometry.get("joined")).toMatchObject({
+      kind: "joinedPath", start: { x: 0, y: 20 }, end: { x: 10, y: 20 }
+    });
+  });
+
   it("uses ordered compiler-selected snapshots for root drawable joins", () => {
     const source = [
       "nui 1",
