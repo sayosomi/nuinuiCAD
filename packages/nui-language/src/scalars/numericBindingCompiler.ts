@@ -945,13 +945,7 @@ export const compileNumericBindings = ({
     }
   }
   const consumerReferencesByBindingId = new Map<BindingId, NumericBindingConsumerReference[]>();
-  const allSources = [
-    ...sourcesByOccurrenceKey,
-    ...transformationBindings.map(({ recipeId, parameterPath, binding }) => [
-      transformationNumericBindingOccurrenceKey(recipeId, parameterPath), binding
-    ] as const)
-  ];
-  for (const [occurrenceKey, source] of allSources) {
+  for (const [occurrenceKey, source] of sourcesByOccurrenceKey) {
     for (const reference of source.references) {
       const existing = consumerReferencesByBindingId.get(reference.bindingId);
       const consumer = { occurrenceKey, reference };
