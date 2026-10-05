@@ -249,6 +249,106 @@ describe("immutable single-geometry reference values", () => {
     ]);
   });
 
+  it("preserves the resolved stage and endpoint target when lowering pure onLine paths", () => {
+    const compiled = compile([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as shifted(from: (0, 0), to: (0, 20))",
+      "move L as finish(from: (0, 20), to: (0, 50))",
+      "const BaseStart: point = onLine(from: @L.base.start, ratio: 0)",
+      "const ShiftedStart: point = onLine(from: @L.shifted.start, ratio: 0)",
+      "const FinalStart: point = onLine(from: @L.final.start, ratio: 0)",
+      "const ShiftedEnd: point = onLine(from: @L.shifted.end, distance: 2)",
+      "const Alias: path = @L.shifted",
+      "const AliasStart: point = onLine(from: @Alias.start, ratio: 0)",
+      "module M(source: path) {",
+      "  const LocalEnd: point = onLine(from: @source.end, distance: 2)",
+      "}",
+      "instance Use = M(source: @L.shifted)",
+      "module Provider() {",
+      "  export line Edge = segment(start: (0, 0), end: (10, 0))",
+      "  move Edge as shifted(from: (0, 0), to: (0, 20))",
+      "}",
+      "instance ProviderInstance = Provider()",
+      "const ExportedStart: point = onLine(from: @ProviderInstance::Edge.shifted.start, ratio: 0)"
+    ].join("\n"), "geometry-value-on-line-stage");
+
+    expect(compiled.diagnostics).toEqual([]);
+
+    const constructionFor = (name: string) => {
+      const value = compiled.moduleSemanticAnalysis?.geometryValues.find((candidate) => candidate.name === name);
+      if (value?.construction?.kind !== "onLine") throw new Error(`expected onLine construction for ${name}`);
+      return value.construction;
+    };
+    for (const [name, stagePath, endpointKey] of [
+      ["BaseStart", ["base"], "start"],
+      ["ShiftedStart", ["shifted"], "start"],
+      ["FinalStart", ["final"], "start"],
+      ["ShiftedEnd", ["shifted"], "end"]
+    ] as const) {
+      const construction = constructionFor(name);
+      expect(construction.from.target).toMatchObject({ pointKey: endpointKey, stagePath });
+      expect(construction.line).toMatchObject({
+        expectedGeometryKind: "line",
+        role: "lineReference",
+        target: { kind: "sourceGeometry", stagePath }
+      });
+      expect(construction.line.target).not.toHaveProperty("pointKey");
+      expect(construction.endpointKey).toBe(endpointKey);
+    }
+    expect(constructionFor("ShiftedEnd").placement.kind).toBe("distance");
+
+    const loweredFor = (sourceStatementIndex: number) => {
+      const entry = compiled.geometryValueProgram?.find((candidate) => candidate.sourceStatementIndex === sourceStatementIndex);
+      if (entry?.construction.kind !== "onLine") throw new Error(`expected lowered onLine program at ${sourceStatementIndex}`);
+      return entry.construction;
+    };
+    const lineId = compiled.document?.elements.find((element) => element.name === "L")?.id;
+    for (const [sourceStatementIndex, stagePath] of [
+      [4, ["base"]],
+      [5, ["shifted"]],
+      [6, ["final"]],
+      [7, ["shifted"]]
+    ] as const) {
+      expect(loweredFor(sourceStatementIndex).line.target).toMatchObject({
+        statementId: lineId,
+        geometryType: "line",
+        stagePath
+      });
+      expect(loweredFor(sourceStatementIndex).line.target).not.toHaveProperty("pointKey");
+    }
+
+    const alias = constructionFor("AliasStart");
+    expect(alias.line.target).toMatchObject({
+      kind: "geometryValue",
+      backingTarget: { kind: "sourceGeometry", stagePath: ["shifted"] }
+    });
+    expect(alias.line.target).not.toHaveProperty("pointKey");
+    expect(loweredFor(9).line.target).toMatchObject({ statementId: lineId, stagePath: ["shifted"] });
+
+    const exported = constructionFor("ExportedStart");
+    expect(exported.line.target).toMatchObject({
+      kind: "deferredModuleExport",
+      instanceName: "ProviderInstance",
+      exportName: "Edge",
+      expectedGeometryKind: "line",
+      expectedInterfaceType: "path",
+      stagePath: ["shifted"]
+    });
+    expect(exported.line.target).not.toHaveProperty("pointKey");
+
+    const module = compiled.moduleSemanticAnalysis?.definitions.find((definition) => definition.name === "M");
+    const localEnd = module?.localGeometryValues.find((value) => value.name === "LocalEnd")?.construction;
+    if (localEnd?.kind !== "onLine") throw new Error("expected Module-local onLine construction");
+    expect(localEnd.line).toMatchObject({
+      expectedGeometryKind: "line",
+      role: "lineReference",
+      target: { kind: "parameter", geometryKind: "line" }
+    });
+    expect(localEnd.line.target).not.toHaveProperty("pointKey");
+    expect(localEnd.endpointKey).toBe("end");
+  });
+
   it("registers pure Bezier feature points with path sources, scalar defaults, and reference sites", () => {
     const compiled = compile([
       "nui 1",
