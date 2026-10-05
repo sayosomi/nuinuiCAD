@@ -27,6 +27,32 @@ const namedUnder = (compiled: ReturnType<typeof compileWithIds>, name: string, p
 };
 
 describe("module geometry array runtime", () => {
+  it("preserves selected-stage drawable targets in module-local inline join path lists", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module Draft() {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "  move L as shifted (from: (0, 0), to: (0, 20))",
+      "  move L as finish (from: (0, 20), to: (0, 50))",
+      "  line Tail = segment(start: (30, 20), end: (10, 20))",
+      "  line InlineJoin = join(paths: [@L.shifted, @Tail], closed: false)",
+      "}",
+      "instance Use = Draft()"
+    ].join("\n"), "module-stage-join");
+
+    expect(errorsOf(compiled)).toEqual([]);
+    const inlineJoin = namedUnder(compiled, "InlineJoin", "Use");
+    const targetsFor = (elementId: string) => compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(elementId)?.get("pathIds");
+    const targets = targetsFor(inlineJoin.id);
+    expect(Array.isArray(targets)).toBe(true);
+    if (!Array.isArray(targets)) throw new Error("expected a canonical module path target list");
+    expect(targets.map((target) => target.kind === "drawable" ? [target.elementId, target.stagePath] : target.kind)).toEqual([
+      [namedUnder(compiled, "L", "Use").id, ["shifted"]],
+      [namedUnder(compiled, "Tail", "Use").id, ["final"]]
+    ]);
+    expect(inlineJoin.type).toBe("joinedPath");
+  });
+
   it("lowers literal line[] arguments at existing path-list consumers with order and duplicates", () => {
     const compiled = compileWithIds([
       "nui 1",

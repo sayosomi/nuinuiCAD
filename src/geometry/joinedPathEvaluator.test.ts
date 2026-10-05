@@ -66,6 +66,52 @@ const joined = (geometry: ComputedGeometry | undefined): ComputedJoinedPath => {
 };
 
 describe("joined path construction", () => {
+  it("uses ordered compiler-selected snapshots for root drawable joins", () => {
+    const source = [
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as shifted (from: (0, 0), to: (0, 20))",
+      "move L as finish (from: (0, 20), to: (0, 50))",
+      "line Tail = segment(start: (30, 20), end: (10, 20))",
+      "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
+      "line Shifted = join(paths: [@L.shifted], closed: false)",
+      "line Base = join(paths: [@L.base], closed: false)",
+      "line Final = join(paths: [@L.final], closed: false)",
+      "line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
+      "line FinalOnlyTail = join(paths: [@L.shifted, @OnlyFinal], closed: false)"
+    ].join("\n");
+    const compiled = compileDslDocument(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const elements = compiled.document!.elements;
+    const targetFor = (name: string) => {
+      const element = elements.find((candidate) => candidate.name === name);
+      if (!element) throw new Error(`missing ${name}`);
+      return compiled.geometryInputTargetsByElementId?.get(element.id)?.get("pathIds");
+    };
+    const orderedTargets = targetFor("Ordered");
+    expect(Array.isArray(orderedTargets)).toBe(true);
+    if (!Array.isArray(orderedTargets)) throw new Error("expected ordered canonical path targets");
+    expect(orderedTargets.map((target) => target.kind === "drawable" ? [target.elementId, target.stagePath] : target.kind))
+      .toEqual([[elements.find((candidate) => candidate.name === "L")!.id, ["shifted"]], [elements.find((candidate) => candidate.name === "Tail")!.id, ["final"]]]);
+
+    const evaluation = evaluateElements(elements, {
+      evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
+      typedDependencyGraph: compiled.typedDependencyGraph,
+      transformationRecipes: compiled.runtimeTransformationRecipes,
+      transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
+      geometryInputTargetsByElementId: compiled.geometryInputTargetsByElementId
+    });
+    expect(evaluation.errors.map((error) => error.elementName)).toContain("FinalOnlyTail");
+    expect(evaluation.computedGeometry.has(elements.find((candidate) => candidate.name === "FinalOnlyTail")!.id)).toBe(false);
+
+    const joinedByName = (name: string) => joined(evaluation.computedGeometry.get(elements.find((candidate) => candidate.name === name)!.id));
+    expect(joinedByName("Shifted")).toMatchObject({ start: { x: 0, y: 20 }, end: { x: 10, y: 20 }, length: 10 });
+    expect(joinedByName("Base")).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, length: 10 });
+    expect(joinedByName("Final")).toMatchObject({ start: { x: 0, y: 50 }, end: { x: 10, y: 50 }, length: 10 });
+    expect(joinedByName("Ordered").segments.map((segment) => [segment.start.x, segment.start.y, segment.end.x, segment.end.y]))
+      .toEqual([[0, 20, 10, 20], [10, 20, 30, 20]]);
+  });
+
   it("preserves authored order, duplicates, exact source endpoints, and reverses only the computed view", () => {
     const result = evaluateElements([
       point("a", 0, 0), point("b", 10, 0), point("near", 10 + 0.5e-9, 0), point("c", 10 + 0.5e-9, 10), point("d", 20, 0),

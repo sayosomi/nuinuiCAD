@@ -2,12 +2,13 @@ use serde_json::{json, Value};
 
 use super::bezier_path::approximate_segment_length;
 use super::errors::{dependency_error, geometry_error};
+use super::line_geometry_input::resolve_line_geometry_input_at;
 use super::offset_types::{
     line_length, offset_line_endpoint_measurements, value_point, OffsetPoint, OffsetSegment,
     EPSILON,
 };
 use super::path_reverse_geometry::reverse_line_like_geometry;
-use super::types::{element_id, element_name, insert_geometry, EvaluationState};
+use super::types::{element_id, element_name, find_element_name, insert_geometry, EvaluationState};
 
 fn point_distance(a: &OffsetPoint, b: &OffsetPoint) -> f64 {
     line_length(*a, *b)
@@ -111,9 +112,12 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
         return;
     }
 
+    let joined_path_id = element_id(element).unwrap_or_default();
     let mut sources: Vec<Value> = Vec::new();
-    for path_id in path_ids.iter().filter_map(Value::as_str) {
-        let Some(source) = state.computed_geometry.get(path_id) else {
+    for (index, path_id) in path_ids.iter().filter_map(Value::as_str).enumerate() {
+        let Some(source) =
+            resolve_line_geometry_input_at(state, &joined_path_id, "pathIds", index, path_id)
+        else {
             state.errors.push(dependency_error(state, element, path_id));
             return;
         };
@@ -124,13 +128,14 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
             state.errors.push(dependency_error(state, element, path_id));
             return;
         }
-        let Some((start, end)) = endpoints(source) else {
+        let path_name = find_element_name(state, path_id).unwrap_or_else(|| path_id.to_owned());
+        let Some((start, end)) = endpoints(&source) else {
             state.errors.push(geometry_error(
                 element,
                 format!(
                     "{} の path「{}」には有効な始点または終点がありません。",
                     element_name(element),
-                    path_id
+                    path_name
                 ),
             ));
             return;
@@ -156,13 +161,13 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
                 (Some(_), Some(authored_end))
                     if point_distance(&authored_end, &current_end) <= EPSILON =>
                 {
-                    let Some(reversed) = reverse_line_like_geometry(source) else {
+                    let Some(reversed) = reverse_line_like_geometry(&source) else {
                         state.errors.push(geometry_error(
                             element,
                             format!(
                                 "{} の path「{}」を反転できません。",
                                 element_name(element),
-                                path_id
+                                path_name
                             ),
                         ));
                         return;
@@ -175,14 +180,14 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
                         element,
                         format!(
                             "{} の path「{}」は現在の chain end に接続していません。path の順序または向きを確認してください。",
-                            element_name(element), path_id
+                            element_name(element), path_name
                         ),
                     ));
                     return;
                 }
             }
         }
-        sources.push(source.clone());
+        sources.push(source);
     }
 
     let Some(first_endpoints) = endpoints(sources.first().expect("non-empty paths")) else {
@@ -248,10 +253,9 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
         .filter_map(|segment| segment.get("length").and_then(Value::as_f64))
         .sum::<f64>();
     let (_, _, start_tangent, end_tangent) = offset_line_endpoint_measurements(&measurements);
-    let id = element_id(element).unwrap_or_default();
     let geometry = json!({
         "kind": "joinedPath",
-        "elementId": id,
+        "elementId": joined_path_id,
         "name": element_name(element),
         "pathIds": path_ids,
         "segments": segments,
@@ -262,5 +266,5 @@ pub(crate) fn evaluate_joined_path(element: &Value, state: &mut EvaluationState)
         "startTangentAngleDeg": start_tangent,
         "endTangentAngleDeg": end_tangent
     });
-    insert_geometry(state, id, geometry);
+    insert_geometry(state, joined_path_id, geometry);
 }

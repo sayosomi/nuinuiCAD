@@ -3017,7 +3017,7 @@ export const compileDslDocument = (
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
   const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences ? sourceSemanticCompilation : undefined;
-  const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget>>();
+  const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const constructionInputConsumerElementIds = new Set<ElementId>();
   const coordinateTargetFor = (coordinate: import("./moduleSemanticTypes").ModulePointCoordinateSemantic, statementIndex: number, sourceText: string): GeometryInputTarget => {
     const logical = logicalTextByStatementIndex.get(statementIndex) ?? "";
@@ -3115,14 +3115,24 @@ export const compileDslDocument = (
       const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
       const elementId = statementIndex === undefined ? undefined : compiled.elementIdsByStatementIndex?.get(statementIndex);
       if (elementId === undefined || statementIndex === undefined) continue;
-      for (const site of sites) {
+      for (const site of [...sites].sort((left, right) => left.span.start - right.span.start)) {
         const target = site.reference.target;
         if (site.parameterKey === null || !target) continue;
         if (target.kind === "constructionInput") constructionInputConsumerElementIds.add(elementId);
         const targetForRuntime = geometryInputTargetForSemantic(target, statementIndex, site.reference.source);
         if (!targetForRuntime) continue;
-        const targets = geometryInputTargetsByElementId.get(elementId) ?? new Map<string, GeometryInputTarget>();
-        targets.set(site.parameterKey, targetForRuntime);
+        const targets = geometryInputTargetsByElementId.get(elementId) ?? new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
+        if (site.reference.role === "lineReferenceList") {
+          const existing = targets.get(site.parameterKey);
+          const orderedTargets = existing === undefined
+            ? []
+            : Array.isArray(existing)
+              ? existing
+              : [existing];
+          targets.set(site.parameterKey, [...orderedTargets, targetForRuntime]);
+        } else {
+          targets.set(site.parameterKey, targetForRuntime);
+        }
         geometryInputTargetsByElementId.set(elementId, targets);
       }
     }
