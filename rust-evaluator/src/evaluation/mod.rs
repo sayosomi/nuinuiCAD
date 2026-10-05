@@ -2119,14 +2119,17 @@ fn evaluate_document_input_with_scalar_program(
     });
     let mut conditional_branch_selections = HashMap::<String, String>::new();
     let has_geometry_property_timeline = binding_versions.as_ref().is_some_and(|versions| {
+        let geometry_dependent_binding_ids = conditional_dependency_graph
+            .as_ref()
+            .map(|graph| {
+                graph.bindings_with_active_geometry_property_dependency(
+                    &conditional_branch_selections,
+                )
+            })
+            .unwrap_or_default();
         versions.versions.iter().any(|version| {
             ScalarMutationResolver::is_dependency_scheduled_version(version)
-                && conditional_dependency_graph.as_ref().is_some_and(|graph| {
-                    graph.has_active_geometry_property_dependency(
-                        &version.binding_id,
-                        &conditional_branch_selections,
-                    )
-                })
+                && geometry_dependent_binding_ids.contains(&version.binding_id)
         })
     });
     let scalar_binding_resolver = scalar_program.as_ref().map(ScalarBindingResolver::new);
@@ -2278,6 +2281,12 @@ fn evaluate_document_input_with_scalar_program(
         .collect::<Vec<_>>();
     let project_binding_execution_positions =
         |dependency_ranks: &HashMap<String, usize>, branch_selections: &HashMap<String, String>| {
+            let geometry_dependent_binding_ids = conditional_dependency_graph
+                .as_ref()
+                .map(|graph| {
+                    graph.bindings_with_active_geometry_property_dependency(branch_selections)
+                })
+                .unwrap_or_default();
             binding_versions
                 .as_ref()
                 .map(|versions| {
@@ -2286,12 +2295,7 @@ fn evaluate_document_input_with_scalar_program(
                         .iter()
                         .filter_map(|version| {
                             if !ScalarMutationResolver::is_dependency_scheduled_version(version)
-                                || !conditional_dependency_graph.as_ref().is_some_and(|graph| {
-                                    graph.has_active_geometry_property_dependency(
-                                        &version.binding_id,
-                                        branch_selections,
-                                    )
-                                })
+                                || !geometry_dependent_binding_ids.contains(&version.binding_id)
                             {
                                 return None;
                             }
@@ -2317,28 +2321,27 @@ fn evaluate_document_input_with_scalar_program(
             let Some(resolver) = resolver else {
                 return HashSet::new();
             };
-            binding_versions
+            let candidate_binding_ids = binding_versions
                 .as_ref()
-                .map(|versions| {
-                    versions
-                        .versions
-                        .iter()
-                        .filter(|version| {
-                            version.source_order < source_order
-                                && execution_positions.contains_key(&version.binding_id)
-                                && conditional_dependency_graph.as_ref().is_some_and(|graph| {
-                                    graph.active_geometry_property_prerequisites_are_ready(
-                                        &version.binding_id,
-                                        branch_selections,
-                                        resolver,
-                                        state,
-                                        evaluated_geometry_values,
-                                        &geometry_value_index_by_endpoint_id,
-                                    )
-                                })
-                        })
-                        .map(|version| version.binding_id.clone())
-                        .collect::<HashSet<_>>()
+                .into_iter()
+                .flat_map(|versions| &versions.versions)
+                .filter(|version| {
+                    version.source_order < source_order
+                        && execution_positions.contains_key(&version.binding_id)
+                })
+                .map(|version| version.binding_id.clone())
+                .collect::<Vec<_>>();
+            conditional_dependency_graph
+                .as_ref()
+                .map(|graph| {
+                    graph.ready_geometry_dependent_binding_ids(
+                        &candidate_binding_ids,
+                        branch_selections,
+                        resolver,
+                        state,
+                        evaluated_geometry_values,
+                        &geometry_value_index_by_endpoint_id,
+                    )
                 })
                 .unwrap_or_default()
         };
