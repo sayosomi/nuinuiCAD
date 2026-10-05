@@ -124,6 +124,15 @@ struct GeometryDependencyReadinessContext<'a> {
     state: &'a EvaluationState,
 }
 
+struct GeometryPropertyReadinessContext<'a> {
+    outgoing_edges: HashMap<String, Vec<&'a ConditionalDependencyEdge>>,
+    endpoints: HashMap<String, &'a ConditionalDependencyEndpoint>,
+    resolver: &'a dyn ScalarDocumentBindingResolver,
+    state: &'a EvaluationState,
+    evaluated_geometry_values: &'a [bool],
+    geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
+}
+
 pub(crate) fn decode_conditional_dependency_graph(
     payload: Option<&Value>,
 ) -> Result<Option<ConditionalDependencyGraph>, String> {
@@ -292,21 +301,122 @@ fn activation_path_is_active(
         })
 }
 
+fn geometry_property_prerequisites_are_ready(
+    endpoint_id: &str,
+    context: &GeometryPropertyReadinessContext<'_>,
+    readiness_by_endpoint: &mut HashMap<String, bool>,
+    visiting: &mut HashSet<String>,
+) -> bool {
+    if let Some(ready) = readiness_by_endpoint.get(endpoint_id) {
+        return *ready;
+    }
+    if !visiting.insert(endpoint_id.to_owned()) {
+        return false;
+    }
+    let ready =
+        context
+            .endpoints
+            .get(endpoint_id)
+            .is_some_and(|endpoint| match endpoint.kind.as_str() {
+                "geometry-value" => context
+                    .geometry_value_index_by_endpoint_id
+                    .get(endpoint_id)
+                    .and_then(|index| context.evaluated_geometry_values.get(*index))
+                    .copied()
+                    .unwrap_or(false),
+                "geometry-stage" => match endpoint.owner_id.as_ref() {
+                    Some(owner_id) if endpoint.stage_path == ["base".to_owned()] => context
+                        .state
+                        .base_transformation_geometry
+                        .contains_key(owner_id),
+                    Some(owner_id) if endpoint.stage_path == ["final".to_owned()] => {
+                        context.state.computed_geometry.contains_key(owner_id)
+                    }
+                    Some(owner_id) => {
+                        context
+                            .state
+                            .transformation_stage_geometry
+                            .contains_key(&format!(
+                                "{}\u{0}*\u{0}{}",
+                                owner_id,
+                                endpoint.stage_path.join(".")
+                            ))
+                    }
+                    None => false,
+                },
+                "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+                "module-occurrence" => context.state.instance_base_geometry.contains_key(
+                    endpoint
+                        .id
+                        .strip_prefix("module-occurrence:")
+                        .unwrap_or(&endpoint.id),
+                ),
+                "binding" => {
+                    let prerequisites_ready = context
+                        .outgoing_edges
+                        .get(endpoint_id)
+                        .into_iter()
+                        .flatten()
+                        .all(|edge| {
+                            geometry_property_prerequisites_are_ready(
+                                &endpoint_key(&edge.to),
+                                context,
+                                readiness_by_endpoint,
+                                visiting,
+                            )
+                        });
+                    prerequisites_ready
+                        && matches!(
+                            context
+                                .resolver
+                                .resolve_binding(&endpoint.id, context.state),
+                            super::scalars::ScalarEvaluation::Ok { .. }
+                        )
+                }
+                _ => true,
+            });
+    visiting.remove(endpoint_id);
+    readiness_by_endpoint.insert(endpoint_id.to_owned(), ready);
+    ready
+}
+
 impl ConditionalDependencyGraph {
-    pub(crate) fn has_active_geometry_property_dependency(
+    /// Binding IDs that directly or transitively depend on a geometry
+    /// property. Scalar forwarding declarations participate in the same
+    /// dependency ordering as the geometry-derived binding they expose.
+    pub(crate) fn bindings_with_active_geometry_property_dependency(
         &self,
-        binding_id: &str,
         branch_selections: &HashMap<String, String>,
-    ) -> bool {
-        self.edges.iter().any(|edge| {
-            edge.from.kind == "binding"
-                && edge.from.id == binding_id
-                && edge_is_active(edge, branch_selections)
-                && matches!(
-                    edge.to.kind.as_str(),
-                    "geometry-value" | "geometry-stage" | "module-occurrence"
-                )
-        })
+    ) -> HashSet<String> {
+        let mut binding_dependents = HashMap::<String, Vec<String>>::new();
+        let mut geometry_dependent_bindings = HashSet::new();
+        for edge in &self.edges {
+            if !edge_is_active(edge, branch_selections) || edge.from.kind != "binding" {
+                continue;
+            }
+            match edge.to.kind.as_str() {
+                "geometry-value" | "geometry-stage" | "module-occurrence" => {
+                    geometry_dependent_bindings.insert(edge.from.id.clone());
+                }
+                "binding" => binding_dependents
+                    .entry(edge.to.id.clone())
+                    .or_default()
+                    .push(edge.from.id.clone()),
+                _ => {}
+            }
+        }
+        let mut pending = geometry_dependent_bindings
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        while let Some(dependency_id) = pending.pop() {
+            for dependent_id in binding_dependents.get(&dependency_id).into_iter().flatten() {
+                if geometry_dependent_bindings.insert(dependent_id.clone()) {
+                    pending.push(dependent_id.clone());
+                }
+            }
+        }
+        geometry_dependent_bindings
     }
 
     pub(crate) fn has_activation(&self) -> bool {
@@ -421,39 +531,57 @@ impl ConditionalDependencyGraph {
             })
     }
 
-    pub(crate) fn active_geometry_property_prerequisites_are_ready(
+    pub(crate) fn ready_geometry_dependent_binding_ids(
         &self,
-        binding_id: &str,
+        candidate_binding_ids: &[String],
         branch_selections: &HashMap<String, String>,
         resolver: &dyn ScalarDocumentBindingResolver,
         state: &EvaluationState,
         evaluated_geometry_values: &[bool],
         geometry_value_index_by_endpoint_id: &HashMap<String, usize>,
-    ) -> bool {
-        let endpoint_id = format!("binding:{binding_id}");
-        let context = DependencyReadinessContext {
-            branch_selections,
+    ) -> HashSet<String> {
+        let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
+        let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
+        for edge in &self.edges {
+            let from_id = endpoint_key(&edge.from);
+            let to_id = endpoint_key(&edge.to);
+            endpoints.entry(from_id.clone()).or_insert(&edge.from);
+            endpoints.entry(to_id.clone()).or_insert(&edge.to);
+            if edge_is_active(edge, branch_selections) {
+                outgoing_edges.entry(from_id).or_default().push(edge);
+            }
+        }
+
+        let mut ready = HashSet::new();
+        let mut readiness_by_endpoint = HashMap::new();
+        let mut visiting = HashSet::new();
+        let context = GeometryPropertyReadinessContext {
+            outgoing_edges,
+            endpoints,
             resolver,
             state,
             evaluated_geometry_values,
             geometry_value_index_by_endpoint_id,
         };
-        let mut found = false;
-        for edge in self.edges.iter().filter(|edge| {
-            endpoint_key(&edge.from) == endpoint_id
-                && edge_is_active(edge, branch_selections)
-                && matches!(
-                    edge.to.kind.as_str(),
-                    "geometry-value" | "geometry-stage" | "module-occurrence"
-                )
-        }) {
-            found = true;
-            if !self.endpoint_is_ready_inner(&endpoint_key(&edge.to), &context, &mut HashSet::new())
+        for binding_id in candidate_binding_ids {
+            let endpoint_id = format!("binding:{binding_id}");
+            let Some(prerequisites) = context.outgoing_edges.get(&endpoint_id) else {
+                continue;
+            };
+            if !prerequisites.is_empty()
+                && prerequisites.iter().all(|edge| {
+                    geometry_property_prerequisites_are_ready(
+                        &endpoint_key(&edge.to),
+                        &context,
+                        &mut readiness_by_endpoint,
+                        &mut visiting,
+                    )
+                })
             {
-                return false;
+                ready.insert(binding_id.clone());
             }
         }
-        found
+        ready
     }
 
     pub(crate) fn geometry_prerequisites_have_failed(
@@ -755,5 +883,193 @@ impl<'a> DependencyTraversal<'a> {
         self.stack.pop();
         self.visit_state.insert(node_id.to_owned(), 2);
         self.ordered_endpoints.push(node_id.to_owned());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::evaluation::scalars::{ScalarEvaluation, ScalarType};
+
+    struct AvailabilityResolver {
+        available_binding_ids: HashSet<String>,
+    }
+
+    impl ScalarDocumentBindingResolver for AvailabilityResolver {
+        fn resolve_binding(&self, binding_id: &str, _state: &EvaluationState) -> ScalarEvaluation {
+            if self.available_binding_ids.contains(binding_id) {
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(1.0),
+                }
+            } else {
+                ScalarEvaluation::Error {
+                    r#type: ScalarType::Number,
+                    issue_code: "evaluation-binding-unavailable".to_owned(),
+                    binding_id: Some(binding_id.to_owned()),
+                    context: None,
+                }
+            }
+        }
+    }
+
+    fn endpoint(kind: &str, id: &str, name: &str) -> ConditionalDependencyEndpoint {
+        ConditionalDependencyEndpoint {
+            kind: kind.to_owned(),
+            id: id.to_owned(),
+            name: name.to_owned(),
+            owner_id: None,
+            stage_path: Vec::new(),
+        }
+    }
+
+    fn required_edge(
+        from: ConditionalDependencyEndpoint,
+        to: ConditionalDependencyEndpoint,
+    ) -> ConditionalDependencyEdge {
+        ConditionalDependencyEdge {
+            from,
+            to,
+            requiredness: Some("required".to_owned()),
+            activation: None,
+        }
+    }
+
+    fn empty_evaluation_state() -> EvaluationState {
+        EvaluationState {
+            elements: Vec::new(),
+            elements_by_id: HashMap::new(),
+            drawing_modifiers: Value::Null,
+            selected_drawing_profile_id: None,
+            group_states: HashMap::new(),
+            computed_geometry: HashMap::new(),
+            base_transformation_geometry: HashMap::new(),
+            transformation_stage_geometry: HashMap::new(),
+            completed_transformation_recipe_indices: HashSet::new(),
+            transformation_dependency_plans: None,
+            computed_geometry_order: Vec::new(),
+            computed_geometry_values: HashMap::new(),
+            geometry_input_targets: HashMap::new(),
+            geometry_collection_nodes: HashMap::new(),
+            geometry_value_binders: HashMap::new(),
+            for_group_generated_rows: Vec::new(),
+            for_group_expected_occurrence_count_by_template_id: HashMap::new(),
+            pre_mutation_geometry: HashMap::new(),
+            geometry_mutation_executions: Vec::new(),
+            condition_evaluation_traces: Vec::new(),
+            instance_base_geometry: HashMap::new(),
+            errors: Vec::new(),
+            geometry_value_errors: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn geometry_dependency_classification_and_readiness_follow_exact_forwarding_bindings() {
+        let inner_20 = "module-binding:inner-20";
+        let outer_20 = "module-binding:outer-20";
+        let root_20 = "binding:root-20";
+        let inner_40 = "module-binding:inner-40";
+        let outer_40 = "module-binding:outer-40";
+        let root_40 = "binding:root-40";
+        let graph = ConditionalDependencyGraph {
+            edges: vec![
+                required_edge(
+                    endpoint("binding", inner_20, "Inner20.value"),
+                    endpoint("geometry-value", "shape-20", "Shape20.length"),
+                ),
+                required_edge(
+                    endpoint("binding", outer_20, "Outer20.value"),
+                    endpoint("binding", inner_20, "Inner20.value"),
+                ),
+                required_edge(
+                    endpoint("binding", root_20, "Root20.value"),
+                    endpoint("binding", outer_20, "Outer20.value"),
+                ),
+                required_edge(
+                    endpoint("binding", inner_40, "Inner40.value"),
+                    endpoint("geometry-value", "shape-40", "Shape40.length"),
+                ),
+                required_edge(
+                    endpoint("binding", outer_40, "Outer40.value"),
+                    endpoint("binding", inner_40, "Inner40.value"),
+                ),
+                required_edge(
+                    endpoint("binding", root_40, "Root40.value"),
+                    endpoint("binding", outer_40, "Outer40.value"),
+                ),
+            ],
+        };
+        let branch_selections = HashMap::new();
+        let geometry_dependent_binding_ids =
+            graph.bindings_with_active_geometry_property_dependency(&branch_selections);
+        assert_eq!(
+            geometry_dependent_binding_ids,
+            HashSet::from([
+                inner_20.to_owned(),
+                outer_20.to_owned(),
+                root_20.to_owned(),
+                inner_40.to_owned(),
+                outer_40.to_owned(),
+                root_40.to_owned(),
+            ]),
+            "required binding-to-binding edges must carry geometry dependency through the full per-instance forwarding chain"
+        );
+
+        let candidates =
+            [inner_20, outer_20, root_20, inner_40, outer_40, root_40].map(str::to_owned);
+        let geometry_value_index_by_endpoint_id = HashMap::from([
+            ("geometry-value:shape-20".to_owned(), 0),
+            ("geometry-value:shape-40".to_owned(), 1),
+        ]);
+        let evaluated_geometry_values = [true, true];
+        let state = empty_evaluation_state();
+
+        let unavailable_children = AvailabilityResolver {
+            available_binding_ids: HashSet::new(),
+        };
+        let ready = graph.ready_geometry_dependent_binding_ids(
+            &candidates,
+            &branch_selections,
+            &unavailable_children,
+            &state,
+            &evaluated_geometry_values,
+            &geometry_value_index_by_endpoint_id,
+        );
+        assert!(ready.contains(inner_20));
+        assert!(ready.contains(inner_40));
+        assert!(
+            !ready.contains(outer_20) && !ready.contains(root_20),
+            "ready geometry alone must not release forwarding bindings while their exact child binding is unavailable"
+        );
+
+        let only_inner_20_available = AvailabilityResolver {
+            available_binding_ids: HashSet::from([inner_20.to_owned()]),
+        };
+        let ready = graph.ready_geometry_dependent_binding_ids(
+            &candidates,
+            &branch_selections,
+            &only_inner_20_available,
+            &state,
+            &evaluated_geometry_values,
+            &geometry_value_index_by_endpoint_id,
+        );
+        assert!(ready.contains(outer_20));
+        assert!(!ready.contains(root_20));
+        assert!(!ready.contains(outer_40) && !ready.contains(root_40));
+
+        let exact_20_chain_available = AvailabilityResolver {
+            available_binding_ids: HashSet::from([inner_20.to_owned(), outer_20.to_owned()]),
+        };
+        let ready = graph.ready_geometry_dependent_binding_ids(
+            &candidates,
+            &branch_selections,
+            &exact_20_chain_available,
+            &state,
+            &evaluated_geometry_values,
+            &geometry_value_index_by_endpoint_id,
+        );
+        assert!(ready.contains(outer_20) && ready.contains(root_20));
+        assert!(!ready.contains(outer_40) && !ready.contains(root_40));
     }
 }

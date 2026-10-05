@@ -177,6 +177,181 @@ fn assert_issue(result: ScalarEvaluation, expected: &str) {
     }
 }
 
+fn number_reference(name: &str, binding_id: &str) -> TypedScalarExpression {
+    TypedScalarExpression::Reference {
+        span: SPAN,
+        name_span: SPAN,
+        name: name.to_owned(),
+        binding_id: Some(binding_id.to_owned()),
+        r#type: Some(ScalarType::Number),
+    }
+}
+
+fn mutation_version(
+    binding_id: &str,
+    source_order: usize,
+    initializer: TypedScalarExpression,
+) -> ValidatedBindingVersion {
+    ValidatedBindingVersion {
+        version_id: binding_id.to_owned(),
+        statement_id: binding_id.to_owned(),
+        binding_id: binding_id.to_owned(),
+        declared_type: ScalarType::Number,
+        source_order,
+        catalog_order: None,
+        control: serde_json::json!({"ownerChain": []}),
+        initial_state: InitialState::Uncomputed,
+        kind: ValidatedBindingVersionKind::Declare {
+            initializer: Some(initializer),
+        },
+    }
+}
+
+fn geometry_length_reference(element_name: &str, element_id: &str) -> TypedScalarExpression {
+    TypedScalarExpression::GeometryProperty {
+        span: SPAN,
+        element_name_span: SPAN,
+        property_span: SPAN,
+        element_name: element_name.to_owned(),
+        element_id: element_id.to_owned(),
+        collection_value_id: None,
+        collection_length: None,
+        geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
+        geometry_value_point_key: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
+        property: "length".to_owned(),
+        stage_path: None,
+        target_source_order: 0.0,
+        r#type: ScalarType::Number,
+    }
+}
+
+#[test]
+fn dependency_scheduled_module_exports_remain_available_through_nested_forwarding_per_instance() {
+    let binding_ids = [
+        "binding:inner-20",
+        "binding:outer-20",
+        "binding:inner-40",
+        "binding:outer-40",
+        "binding:root-20",
+        "binding:root-40",
+    ];
+    let versions = vec![
+        mutation_version(
+            binding_ids[0],
+            1,
+            geometry_length_reference("Shape20", "element:shape-20"),
+        ),
+        mutation_version(
+            binding_ids[1],
+            2,
+            number_reference("Nested::value", binding_ids[0]),
+        ),
+        mutation_version(
+            binding_ids[2],
+            3,
+            geometry_length_reference("Shape40", "element:shape-40"),
+        ),
+        mutation_version(
+            binding_ids[3],
+            4,
+            number_reference("Nested::value", binding_ids[2]),
+        ),
+        mutation_version(
+            binding_ids[4],
+            5,
+            number_reference("First::value", binding_ids[1]),
+        ),
+        mutation_version(
+            binding_ids[5],
+            6,
+            number_reference("Second::value", binding_ids[3]),
+        ),
+    ];
+    let declared_types = binding_ids
+        .iter()
+        .map(|binding_id| ((*binding_id).to_owned(), ScalarType::Number))
+        .collect();
+    let program = ValidatedBindingVersions {
+        versions,
+        binding_ids: binding_ids
+            .iter()
+            .map(|binding_id| (*binding_id).to_owned())
+            .collect(),
+        declared_types,
+        element_source_orders: HashMap::new(),
+        conditional_owners_by_element_id: HashMap::new(),
+        for_group_owners_by_element_id: HashMap::new(),
+        collection_values: Vec::new(),
+        immutable_for_groups: HashMap::new(),
+    };
+    let mut state = evaluation_state();
+    for (element_id, length) in [("element:shape-20", 20.0), ("element:shape-40", 40.0)] {
+        state.computed_geometry.insert(
+            element_id.to_owned(),
+            serde_json::json!({"kind": "line", "length": length}),
+        );
+    }
+    let execution_positions = binding_ids
+        .iter()
+        .enumerate()
+        .map(|(rank, binding_id)| ((*binding_id).to_owned(), rank as f64))
+        .collect::<HashMap<_, _>>();
+    let all_bindings_ready = binding_ids
+        .iter()
+        .map(|binding_id| (*binding_id).to_owned())
+        .collect::<HashSet<_>>();
+    let mut resolver = ScalarMutationResolver::new(&program);
+
+    // Release the first child export before its forwarding declaration is
+    // dependency-ready. The exact child value must remain available later.
+    resolver.advance_before_with_execution_position(
+        3,
+        Some(0.0),
+        &execution_positions,
+        &all_bindings_ready,
+        true,
+        &mut state,
+    );
+    assert_eq!(
+        resolver.resolve(binding_ids[0], &state),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(20.0),
+        }
+    );
+
+    resolver.advance_before_with_execution_position(
+        usize::MAX,
+        Some(f64::INFINITY),
+        &execution_positions,
+        &all_bindings_ready,
+        true,
+        &mut state,
+    );
+
+    for (binding_id, expected) in [
+        (binding_ids[0], 20.0),
+        (binding_ids[1], 20.0),
+        (binding_ids[2], 40.0),
+        (binding_ids[3], 40.0),
+        (binding_ids[4], 20.0),
+        (binding_ids[5], 40.0),
+    ] {
+        assert_eq!(
+            resolver.lookup_current(binding_id),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(expected),
+            },
+            "unexpected value for {binding_id}"
+        );
+    }
+}
+
 #[test]
 fn mutation_geometry_property_stage_selection_uses_selected_snapshot() {
     let cases = vec![
