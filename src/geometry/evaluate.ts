@@ -455,24 +455,46 @@ export const evaluateElements = (
   };
   let typedDependencyEndpointRankById = new Map<string, number>();
   let bindingVersionDependencyExecutionPositionById = new Map<string, number>();
-  let activeGeometryPrerequisitesReadyForBinding: (bindingId: string) => boolean = () => false;
-  const setTypedDependencyEndpointRanks = (
-    dependencyOrder: readonly string[],
-    branchSelections: ReadonlyMap<string, string>
-  ) => {
+  let dependencyPrerequisiteEndpointIdsByVersionId = new Map<string, readonly string[]>();
+  let scheduledPrerequisitesReadyForVersion: (versionId: string) => boolean = () => false;
+  const conditionalBranchSelections = new Map<string, string>();
+  const graphEdgeIsActive = (edge: NonNullable<TypedDependencyGraph>["edges"][number]): boolean => {
+    if (edge.requiredness !== "conditional" || !edge.activation) return true;
+    return edge.activation.guards.every((guard) => {
+      if (guard.staticSelection === "selected") return true;
+      if (guard.staticSelection === "unselected") return false;
+      return conditionalBranchSelections.get(guard.controllerId) === guard.branch;
+    });
+  };
+  const setTypedDependencyEndpointRanks = (dependencyOrder: readonly string[]) => {
     typedDependencyEndpointRankById = new Map(dependencyOrder.map((id, index) => [id, index] as const));
-    bindingVersionDependencyExecutionPositionById = new Map(
-      (options.bindingVersions?.versions ?? []).flatMap((version) => {
-        if (version.control.kind !== "linear" || !options.typedDependencyGraph ||
-          !typedDependencyBindingHasActiveGeometryPrerequisite(
-            options.typedDependencyGraph,
-            version.bindingId,
-            branchSelections
-          )) return [];
-        const rank = typedDependencyEndpointRankById.get(`binding:${version.bindingId}`);
-        return rank === undefined ? [] : [[version.id, rank] as const];
-      })
-    );
+    const executionPositions = new Map<string, number>();
+    dependencyPrerequisiteEndpointIdsByVersionId = new Map();
+    for (const version of options.bindingVersions?.versions ?? []) {
+      if (version.control.kind !== "linear" || !options.typedDependencyGraph) continue;
+      const prerequisites = options.typedDependencyGraph.directByEndpointId.get(`binding:${version.bindingId}`) ?? [];
+      const scheduledPrerequisites = prerequisites.flatMap((edge) => {
+        if (!graphEdgeIsActive(edge)) return [];
+        const isGeometryPrerequisite = edge.to.kind === "geometry-value" ||
+          edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence";
+        const targetVersionId = edge.to.kind === "binding"
+          ? options.bindingVersions?.versionIdsByBindingId.get(edge.to.id)?.at(-1)
+          : undefined;
+        const targetVersion = targetVersionId
+          ? options.bindingVersions?.versionsById.get(targetVersionId)
+          : undefined;
+        const isForwardBindingPrerequisite = targetVersion !== undefined && targetVersion.sourceOrder > version.sourceOrder;
+        return isGeometryPrerequisite || isForwardBindingPrerequisite
+          ? [typedDependencyEndpointId(edge.to)]
+          : [];
+      });
+      if (scheduledPrerequisites.length === 0) continue;
+      const rank = typedDependencyEndpointRankById.get(`binding:${version.bindingId}`);
+      if (rank === undefined) continue;
+      executionPositions.set(version.id, rank);
+      dependencyPrerequisiteEndpointIdsByVersionId.set(version.id, scheduledPrerequisites);
+    }
+    bindingVersionDependencyExecutionPositionById = executionPositions;
   };
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(
@@ -486,7 +508,7 @@ export const evaluateElements = (
     (options.bindingVersions?.versions ?? []).flatMap((version) =>
       version.sourceOrder < sourceOrder &&
         bindingVersionDependencyExecutionPositionById.has(version.id) &&
-        activeGeometryPrerequisitesReadyForBinding(version.bindingId)
+        scheduledPrerequisitesReadyForVersion(version.id)
         ? [version.id]
         : []
     )
@@ -2921,7 +2943,6 @@ export const evaluateElements = (
   // scheduler boundary. The graph supplies both the controller's enclosing
   // guard path and the required endpoint prerequisites; no source is parsed
   // and no second scalar evaluator is introduced here.
-  const conditionalBranchSelections = new Map<string, string>();
   const reportedConditionalCycles = new Set<string>();
   const graphEndpointById = new Map<string, NonNullable<TypedDependencyGraph>["edges"][number]["from"]>();
   const geometryValueIndexByEndpointId = new Map<string, number>();
@@ -2934,16 +2955,8 @@ export const evaluateElements = (
   }
   if (options.typedDependencyGraph) {
     const initialProjection = resolveTypedDependencyGraphRuntime(options.typedDependencyGraph, conditionalBranchSelections);
-    setTypedDependencyEndpointRanks(initialProjection.dependencyOrder, conditionalBranchSelections);
+    setTypedDependencyEndpointRanks(initialProjection.dependencyOrder);
   }
-  const graphEdgeIsActive = (edge: NonNullable<TypedDependencyGraph>["edges"][number]): boolean => {
-    if (edge.requiredness !== "conditional" || !edge.activation) return true;
-    return edge.activation.guards.every((guard) => {
-      if (guard.staticSelection === "selected") return true;
-      if (guard.staticSelection === "unselected") return false;
-      return conditionalBranchSelections.get(guard.controllerId) === guard.branch;
-    });
-  };
   const endpointIsReady = (endpointId: string, visiting = new Set<string>()): boolean => {
     const endpoint = graphEndpointById.get(endpointId);
     if (!endpoint || visiting.has(endpointId)) return false;
@@ -2971,12 +2984,10 @@ export const evaluateElements = (
     if (prerequisites.some((edge) => !endpointIsReady(typedDependencyEndpointId(edge.to), nextVisiting))) return false;
     return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
   };
-  activeGeometryPrerequisitesReadyForBinding = (bindingId: string): boolean => {
-    const activeGeometryEdges = (options.typedDependencyGraph?.directByEndpointId.get(`binding:${bindingId}`) ?? [])
-      .filter((edge) => graphEdgeIsActive(edge) &&
-        (edge.to.kind === "geometry-value" || edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence"));
-    return activeGeometryEdges.length > 0 && activeGeometryEdges.every((edge) =>
-      endpointIsReady(typedDependencyEndpointId(edge.to))
+  scheduledPrerequisitesReadyForVersion = (versionId: string): boolean => {
+    const prerequisiteEndpointIds = dependencyPrerequisiteEndpointIdsByVersionId.get(versionId) ?? [];
+    return prerequisiteEndpointIds.length > 0 && prerequisiteEndpointIds.every((endpointId) =>
+      endpointIsReady(endpointId)
     );
   };
   const hasFailedGeometryPrerequisite = (elementId: ElementId): boolean => {
@@ -3104,7 +3115,7 @@ export const evaluateElements = (
         options.typedDependencyGraph,
         conditionalBranchSelections
       );
-      setTypedDependencyEndpointRanks(activeGraph.dependencyOrder, conditionalBranchSelections);
+      setTypedDependencyEndpointRanks(activeGraph.dependencyOrder);
       for (const cycle of activeGraph.cycles) {
         const key = cycle.endpointIds.join("|");
         if (reportedConditionalCycles.has(key)) continue;
@@ -3177,7 +3188,7 @@ export const evaluateElements = (
       geometryValueEndpointRankById = new Map(
         activeDependencyProjection?.dependencyOrder.map((id, index) => [id, index] as const) ?? []
       );
-      setTypedDependencyEndpointRanks(activeDependencyProjection?.dependencyOrder ?? [], conditionalBranchSelections);
+      setTypedDependencyEndpointRanks(activeDependencyProjection?.dependencyOrder ?? []);
       const nextRank = geometryValueEndpointRankById.get(`element:${pendingElements[0]!.id}`) ?? evaluationPosition;
       const nextSourceOrder = options.scalarExecutionPositionByElementId?.get(pendingElements[0]!.id) ??
         options.statementInfoByElementId?.get(pendingElements[0]!.id)?.statementIndex ??
