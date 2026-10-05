@@ -337,6 +337,12 @@ export const applyArgs = (
   const materializationSource = (parameterKey: string) =>
     parameterKey === "source" &&
     (next.type === "materializedPoint" || next.type === "materializedLine" || next.type === "materializedPath");
+  const retainsSelectedGeometryInput = (parameterKey: string) =>
+    lineConsumerPolicy(parameterKey) === "readOnly" ||
+    materializationSource(parameterKey) ||
+    // A split reads the selected snapshot but keeps the drawable owner ID in
+    // baseLineId so publication still replaces that owner's near side.
+    (next.type === "splitLine" && parameterKey === "baseLineId");
   const rejectImmutableMutationTarget = (target: RuntimeGeometryInputTarget, parameterKey: string, sourceSpan?: DslSpan) => {
     if (target.kind === "collectionIndex") return false;
     if (target.kind !== "geometryValue" || lineConsumerPolicy(parameterKey) !== "identityMutation") return false;
@@ -372,7 +378,7 @@ export const applyArgs = (
       );
       if (lowered) {
         if (rejectImmutableMutationTarget(lowered, parameterKey, sourceSpan)) return source.trim();
-        if (lineConsumerPolicy(parameterKey) === "readOnly" || materializationSource(parameterKey)) {
+        if (retainsSelectedGeometryInput(parameterKey)) {
           if (collectedTargets) collectedTargets.push(lowered);
           else resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
         }

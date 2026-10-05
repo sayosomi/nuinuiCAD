@@ -351,6 +351,27 @@ describe("DSL nui 1 compiler argument application", () => {
     ]);
   });
 
+  it("retains the canonical selected snapshot while keeping split publication on the drawable owner", () => {
+    const target = {
+      kind: "drawable" as const,
+      elementId: "l1",
+      geometryType: "line" as const,
+      stagePath: ["base"]
+    };
+    const recorded = new Map<string, unknown>();
+    const result = applyArgs(sample("splitLine"), constructionFor("line", "split")!, [
+      arg("source", "@AB.base"), arg("at", "@AB.start")
+    ], {
+      ...resolvers,
+      resolveLineReferenceTarget: () => target,
+      recordGeometryInputTarget: (_elementId, parameterKey, selected) => recorded.set(parameterKey, selected)
+    });
+
+    expect(result.element).toMatchObject({ baseLineId: "l1" });
+    expect(recorded.get("baseLineId")).toEqual(target);
+    expect(result.diagnostics).toEqual([]);
+  });
+
   it("consumes P2 scanned argument output without depending on parser wiring", () => {
     const source = "point A = coordinate(x: 10,y: -5)";
     const open = source.indexOf("(");

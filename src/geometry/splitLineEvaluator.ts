@@ -14,7 +14,8 @@ import { anchorReferenceElementId } from "../model/pointAnchors";
 import { approximateBezierSegmentLength, degreesToRadians, normalizeDegrees, radiansToDegrees } from "./evaluateGeometryPrimitives";
 import { dependencyError, geometryError, getPointAnchorOrError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
+import type { LineLikeGeometry } from "./linePaths";
+import { resolveLineGeometryInput } from "./lineGeometryInput";
 import { arcTangentAngles, lineTangentAngles, offsetLineEndpointMeasurements } from "./lineMeasurements";
 import { cubicPointAt, distance, interpolate, refineBezierProjection, splitBezierLike, type Point } from "./bezierMath";
 import { projectPointOntoOffsetSegment } from "./offsetSegmentProjection";
@@ -521,11 +522,15 @@ export const evaluateSplitLineElement = (element: CadElement, context: ElementEv
     localVariables: { localVariableValues, localVariableNames }
   } = context;
 
-  const baseGeometry = computedGeometry.get(element.baseLineId);
-  if (!isLineLikeGeometry(baseGeometry)) {
+  const selectedBaseGeometry = resolveLineGeometryInput(context, "baseLineId", element.baseLineId);
+  if (!selectedBaseGeometry || !("elementId" in selectedBaseGeometry)) {
     errors.push(dependencyError(element, element.baseLineId, elementsById, disabledByGroupId));
     return true;
   }
+  // The shared resolver also models immutable geometry values. Splits mutate
+  // the selected drawable owner's publication, so only drawable geometry is
+  // valid here.
+  const baseGeometry = selectedBaseGeometry as LineLikeGeometry;
 
   const splitPoint = getPointAnchorOrError(
     element,
