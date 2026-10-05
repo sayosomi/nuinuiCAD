@@ -2966,6 +2966,85 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("matches root and per-instance Module scalar transformation inputs through persistent Rust stdio", async () => {
+    const rootFixture = fixtureFromSource([
+      "nui 1",
+      "const dx: number = 3",
+      "const factor: number = 2",
+      "line L = segment(start: (0, 0), end: (2, 0))",
+      "move L (from: (0, 0), to: (@dx, 10), scale: @factor)"
+    ].join("\n"));
+    const rootOptions = optionsFor(rootFixture);
+    expect(rootFixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(rootFixture)).toBe(true);
+    const rootInput = buildRustEvaluationInput(rootFixture.elements, rootOptions);
+    expect(rootInput.transformationRecipes && !Array.isArray(rootInput.transformationRecipes)
+      ? rootInput.transformationRecipes.numericBindings
+      : []).toHaveLength(2);
+    const rootTs = evaluateElementsReferencePayload(rootFixture.elements, rootOptions);
+    const rootRust = await rustStdio!.evaluate(rootFixture.elements, rootOptions);
+    expect(normalizeParityPayload(rootRust)).toEqual(normalizeParityPayload(rootTs));
+    for (const payload of [rootTs, rootRust]) {
+      const result = evaluationPayloadToResult(payload);
+      const line = rootFixture.elements.find((element) => element.name === "L")!;
+      expect(result.errors).toEqual([]);
+      expect(result.computedGeometry.get(line.id)).toMatchObject({
+        kind: "line",
+        start: { x: 3, y: 10 },
+        end: { x: 7, y: 10 }
+      });
+    }
+
+    const moduleFixture = fixtureFromSource([
+      "nui 1",
+      "module M(dx: number) {",
+      "  const local: number = @dx + 1",
+      "  line L = segment(start: (0, 0), end: (20, 0))",
+      "  move L as direct (from: (0, 0), to: (@dx, 0))",
+      "  move L.direct as localMove (from: (0, 0), to: (@local, 10))",
+      "}",
+      "instance First = M(dx: 3)",
+      "instance Second = M(dx: 8)"
+    ].join("\n"));
+    const moduleOptions = optionsFor(moduleFixture);
+    expect(moduleFixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(moduleFixture)).toBe(true);
+    const moduleInput = buildRustEvaluationInput(moduleFixture.elements, moduleOptions);
+    const moduleRecipeIds = new Set((moduleOptions.transformationRecipes ?? [])
+      .filter((recipe) => recipe.stageName === "direct")
+      .map((recipe) => recipe.id));
+    const moduleNumericBindings = moduleInput.transformationRecipes && !Array.isArray(moduleInput.transformationRecipes)
+      ? moduleInput.transformationRecipes.numericBindings.filter((entry) => moduleRecipeIds.has(entry.recipeId))
+      : [];
+    expect(moduleNumericBindings).toHaveLength(2);
+    expect(new Set(moduleNumericBindings.map((entry) => entry.references[0]?.bindingId)).size).toBe(2);
+    const moduleTs = evaluateElementsReferencePayload(moduleFixture.elements, moduleOptions);
+    const moduleRust = await rustStdio!.evaluate(moduleFixture.elements, moduleOptions);
+    expect(normalizeParityPayload(moduleRust)).toEqual(normalizeParityPayload(moduleTs));
+    for (const payload of [moduleTs, moduleRust]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      for (const stageName of ["direct", "localMove"] as const) {
+        const recipes = (moduleOptions.transformationRecipes ?? []).filter((recipe) => recipe.stageName === stageName);
+        expect(recipes).toHaveLength(2);
+        const y = stageName === "direct" ? 0 : 10;
+        const expectedStarts = stageName === "direct" ? [3, 8] : [7, 17];
+        const stageGeometries = recipes.map((recipe) => {
+          const target = recipe.targets[0]!;
+          const stagePath = [...target.stagePath, stageName].join(".");
+          return result.transformationStageGeometry?.get(`${target.ownerId}\u0000*\u0000${stagePath}`);
+        });
+        expect(stageGeometries).toEqual(expect.arrayContaining(expectedStarts.map((x) =>
+          expect.objectContaining({
+            kind: "line",
+            start: expect.objectContaining({ x, y }),
+            end: expect.objectContaining({ x: x + 20, y })
+          })
+        )));
+      }
+    }
+  }, 30000);
+
   it("lowers Module-local transformation argument anchors through persistent Rust stdio", async () => {
     const cases = [
       {

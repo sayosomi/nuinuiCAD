@@ -157,6 +157,26 @@ describe("buildEvaluationOptions", () => {
     expect(entryKeys(textCompiled, textOptions.textPropertyBindingEntries)).toContain("Bare:text");
   });
 
+  it("forwards compiled transformation numeric bindings by recipe identity", () => {
+    const compiled = compile([
+      "nui 1",
+      "const dx: number = 3",
+      "line L = segment(start: (0, 0), end: (20, 0))",
+      "move L (from: (0, 0), to: (@dx, 10))"
+    ].join("\n"));
+    const options = optionsFor(compiled);
+    const recipe = compiled.runtimeTransformationRecipes?.find((candidate) => candidate.construction === "move");
+
+    expect(options.transformationNumericBindingEntries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        recipeId: recipe?.id,
+        parameterPath: "endPoint.x",
+        parameterKey: "endPoint:x",
+        references: [expect.objectContaining({ bindingId: expect.any(String), name: "dx" })]
+      })
+    ]));
+  });
+
   it("includes Module materialized property, numeric, control, and text metadata", () => {
     const scalarCompiled = compile(moduleScalarSource);
     const scalarOptions = optionsFor(scalarCompiled);

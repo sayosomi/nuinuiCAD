@@ -16,7 +16,7 @@ import type { BindingAnalysis, BindingIssue } from "./bindingAnalysis";
 import type { BindingId } from "./bindingCatalog";
 import type { BindingVersionGraph } from "./bindingVersions";
 import type { ScalarValueSource } from "./propertyBindingCompiler";
-import type { CompiledNumericBinding } from "./numericBindingCompiler";
+import type { CompiledNumericBinding, CompiledTransformationNumericBinding } from "./numericBindingCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarProgram } from "./scalarProgram";
@@ -102,6 +102,9 @@ export type TypedTransformationDependencyPlan = {
   ownerIds: readonly ElementId[];
   prerequisites: readonly TypedTransformationDependency[];
   argumentDependencies: readonly TypedTransformationDependency[];
+  /** Canonical scalar BindingIds used by numeric operation arguments. Kept
+   * separate from geometry-stage argumentDependencies. */
+  scalarPrerequisites: readonly BindingId[];
   predecessorRecipeIndices: readonly number[];
   outputStages: readonly TypedTransformationDependency[];
 };
@@ -137,6 +140,7 @@ export type TypedDependencyGraphInput = {
   bindingVersions?: BindingVersionGraph;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  transformationNumericBindings?: readonly CompiledTransformationNumericBinding[];
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   scalarProgram?: ScalarProgram;
   conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
@@ -845,6 +849,7 @@ export const buildTypedDependencyGraph = ({
   bindingAnalysis,
   propertyBindings,
   numericBindings,
+  transformationNumericBindings,
   textTemplates,
   scalarProgram,
   geometryInputTargets,
@@ -1467,6 +1472,11 @@ export const buildTypedDependencyGraph = ({
     });
     const argumentDependencies = dedupe(operationDependencies(recipe.operation),
       (dependency) => `${dependency.ownerId}|${dependency.stagePath.join(".")}`);
+    const recipeScalarBindings = (transformationNumericBindings ?? []).filter((binding) => binding.recipeId === recipe.id);
+    const scalarPrerequisites = dedupe(
+      recipeScalarBindings.flatMap((binding) => binding.binding.references.map((reference) => reference.bindingId)),
+      (bindingId) => bindingId
+    );
     const outputStages = recipe.targets.flatMap((target) => {
       const stagePath = recipe.stageName
         ? [...target.stagePath, recipe.stageName]
@@ -1489,12 +1499,23 @@ export const buildTypedDependencyGraph = ({
       ownerIds: dedupe(recipe.targets.map((target) => target.ownerId), (value) => value),
       prerequisites,
       argumentDependencies,
+      scalarPrerequisites,
       predecessorRecipeIndices: predecessors,
       outputStages
     } satisfies TypedTransformationDependencyPlan;
     transformationPlans.push(plan);
     for (const prerequisite of prerequisites) addStageDependency(recipeEndpoint, prerequisite);
     for (const dependency of argumentDependencies) addStageDependency(recipeEndpoint, dependency);
+    for (const binding of recipeScalarBindings) for (const reference of binding.binding.references) {
+      add({
+        kind: "numeric-expression",
+        from: recipeEndpoint,
+        to: bindingEndpoint(bindingAnalysis!, reference.bindingId),
+        span: reference.span,
+        reason: reasonFor(reference.bindingId),
+        requiredness: "required"
+      }, `${recipe.id}:${binding.parameterPath}`);
+    }
     for (const priorIndex of predecessors) {
       const priorEndpoint = recipeEndpoints.get(priorIndex);
       if (priorEndpoint) add({ kind: "geometry", from: recipeEndpoint, to: priorEndpoint, span: null, requiredness: "required" });

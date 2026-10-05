@@ -7,7 +7,7 @@ import {
 } from "./dslConstructions";
 import { isElementDslStatement } from "./dslParser";
 import { splitDslList, unquoteDslString } from "./dslTokens";
-import { recordField, recordSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { scanTextTemplateLiteral } from "../scalars/textTemplateScan";
 import { isScalarExpressionCandidateSource, parseScalarExpression } from "../scalars/expressionParser";
@@ -239,6 +239,45 @@ export const analyzeModuleBody = ({
     ];
   };
 
+  const analyzeTransformationNumericSite = (
+    statementIndex: number,
+    bodySemantic: ModuleBodyStatementSemantic | null,
+    parameterPath: string,
+    span: DslSpan | null
+  ) => {
+    if (!span) return;
+    const expression = analyzeExpression(
+      statementIndex,
+      definition.statementIndex,
+      sourceTextFor(statementIndex).slice(span.start, span.end),
+      span,
+      { kind: "number" },
+      (reference) => resolveBodyScalar(statementIndex, reference),
+      (reference) => resolveBodyBareScalar(statementIndex, reference),
+      (reference) => resolveBodyGeometryProperty(statementIndex, reference),
+      (reference) => resolveBodyGeometryBuiltin(statementIndex, reference)
+    );
+    addScalar(bodySemantic, parameterPath, span, expression);
+  };
+
+  const analyzeTransformationCoordinate = (
+    statementIndex: number,
+    bodySemantic: ModuleBodyStatementSemantic | null,
+    source: string,
+    argumentSpan: DslSpan | undefined,
+    parameterPath: string
+  ) => {
+    if (!argumentSpan) return;
+    for (const axis of ["x", "y"] as const) {
+      analyzeTransformationNumericSite(
+        statementIndex,
+        bodySemantic,
+        `${parameterPath}.${axis}`,
+        coordinateComponent(source, argumentSpan, axis)
+      );
+    }
+  };
+
   const addGeometry = (
     bodySemantic: ModuleBodyStatementSemantic | null,
     parameterKey: string | null,
@@ -430,7 +469,8 @@ export const analyzeModuleBody = ({
 
   for (const statementIndex of definition.bodyStatementIndexes) {
     const statement = statements[statementIndex];
-    const statementId = stableStatementIdByIndex.get(statementIndex);
+    const statementId = stableStatementIdByIndex.get(statementIndex) ??
+      (statement.kind === "transformation" ? `transformation:${statementIndex}` : undefined);
     if (!isAllowedModuleBodyStatement(statement)) {
       addLocal(statementIndex, {
         code: "module-forbidden-body-statement",
@@ -894,6 +934,23 @@ export const analyzeModuleBody = ({
           }
         }
       }
+    } else if (statement.kind === "transformation") {
+      const source = sourceTextFor(statementIndex);
+      const argumentSpan = (key: string) => statement.payloadSpans[key];
+      if (statement.construction === "edge") {
+        analyzeTransformationNumericSite(statementIndex, bodySemantic, "intersectionIndex", argumentSpan("index"));
+      } else if (statement.construction === "extend") {
+        analyzeTransformationCoordinate(statementIndex, bodySemantic, source, argumentSpan("to"), "point");
+      } else if (statement.construction === "move") {
+        analyzeTransformationCoordinate(statementIndex, bodySemantic, source, argumentSpan("from"), "startPoint");
+        analyzeTransformationCoordinate(statementIndex, bodySemantic, source, argumentSpan("to"), "endPoint");
+        analyzeTransformationNumericSite(statementIndex, bodySemantic, "scale", argumentSpan("scale"));
+        analyzeTransformationNumericSite(statementIndex, bodySemantic, "angleDeg", argumentSpan("angleDeg"));
+      } else if (statement.construction === "mirrorMove") {
+        analyzeTransformationCoordinate(statementIndex, bodySemantic, source, argumentSpan("axis1"), "axisPoint1");
+        analyzeTransformationCoordinate(statementIndex, bodySemantic, source, argumentSpan("axis2"), "axisPoint2");
+      }
+      if (bodySemantic) bodySemantic.scalarExpressions = [...bodySemantic.scalarExpressions].sort((left, right) => left.span.start - right.span.start);
     } else if (statement.kind === "group" || statement.kind === "element") {
       if (statement.kind === "element" && statement.exported) {
         const category: DslGeometryDeclarationCategory | null = isGeometryDeclarationCategory(statement.category) ? statement.category : null;

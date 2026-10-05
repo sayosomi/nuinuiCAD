@@ -1,6 +1,9 @@
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { buildConditionalGroupConditionsByElementId, buildControlBooleanRuntimeEntries } from "./controlBooleanRuntime";
-import { buildNumericBindingRuntimeEntries } from "./numericBindingRuntime";
+import {
+  buildNumericBindingRuntimeEntries,
+  buildTransformationNumericBindingRuntimeEntries
+} from "./numericBindingRuntime";
 import { buildPropertyBindingRuntimeEntries } from "./propertyBindingRuntime";
 import { buildTextPropertyBindingRuntimeEntries, buildTextTemplateEntriesByElementId } from "./textTemplateRuntime";
 import { buildConditionalMutationOwners, conditionalOwnerIdByElementId } from "../scalars/conditionalMutationControl";
@@ -29,6 +32,7 @@ export const buildEvaluationOptions = ({
     bindingVersions,
     propertyBindings,
     numericBindings,
+    transformationNumericBindings,
     conditionalGroupConditions,
     textTemplates,
     materializedPropertyBindings,
@@ -63,7 +67,10 @@ export const buildEvaluationOptions = ({
     ? buildNumericBindingRuntimeEntries(
         { numericBindings, elementIdByStatementIndex, materializedNumericBindings },
         compiledElements
-      )
+    )
+    : undefined;
+  const transformationNumericBindingEntries = scalarProgram && transformationNumericBindings
+    ? buildTransformationNumericBindingRuntimeEntries(transformationNumericBindings)
     : undefined;
   const conditionalGroupConditionsByElementId = scalarProgram &&
     (conditionalGroupConditions || materializedConditionalGroupConditions)
@@ -167,6 +174,7 @@ export const buildEvaluationOptions = ({
     ...(compiledDocument.geometryValueProgram ? { geometryValueProgram: compiledDocument.geometryValueProgram } : {}),
     ...(propertyBindingEntries?.length ? { propertyBindingEntries } : {}),
     ...(numericBindingEntries?.length ? { numericBindingEntries } : {}),
+    ...(transformationNumericBindingEntries?.length ? { transformationNumericBindingEntries } : {}),
     ...(controlBooleanEntries?.length ? { controlBooleanEntries } : {}),
     ...(conditionalGroupConditionsByElementId?.size ? { conditionalGroupConditionsByElementId } : {}),
     ...(textTemplateEntriesByElementId?.size ? { textTemplateEntriesByElementId } : {}),

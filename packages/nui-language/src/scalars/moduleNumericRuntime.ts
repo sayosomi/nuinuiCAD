@@ -109,13 +109,27 @@ export const numericSourceForModuleSite = (
   bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
   loweredExpression?: TypedScalarExpression
 ): CompiledNumericBinding | undefined => {
+  const parameterKey = site.parameterKey;
+  if (!parameterKey) return undefined;
+  const value = scalarValueExpression(element, parameterKey);
+  return value
+    ? numericSourceForModuleValue(value, parameterKey, site, bindingForTarget, loweredExpression)
+    : undefined;
+};
+
+/** Module transformation arguments are recipe values rather than element
+ * properties. Feed their already-lowered NumericValue through the same
+ * semantic-target to canonical-BindingId path as ordinary numeric sites. */
+export const numericSourceForModuleValue = (
+  value: Extract<NumericValue, { kind: "expression" }>,
+  parameterKey: string,
+  site: ModuleScalarExpressionSite,
+  bindingForTarget: (target: ModuleScalarSourceTarget, name: string, statementIndex: number) => Binding | undefined,
+  loweredExpression?: TypedScalarExpression
+): CompiledNumericBinding | undefined => {
   // Materialized references retain the semantic target selected by Module
   // analysis, including its canonical iteration BindingId.
   let runtimeReady = true;
-  const parameterKey = site.parameterKey;
-  if (!parameterKey) return undefined;
-
-  const value = scalarValueExpression(element, parameterKey);
   if (!value || site.expression.type?.kind !== "number") return undefined;
 
   const matches = [

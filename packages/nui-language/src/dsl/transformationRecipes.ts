@@ -49,6 +49,9 @@ export type TransformationRecipe = {
   /** Runtime-only ordering for a concrete Module instance. Authored source
    * order remains sourceStatementIndex; this field is never serialized. */
   runtimeSourceOrder?: number;
+  /** Runtime-only Module identity used when attaching per-instance scalar
+   * products to this recipe. */
+  runtimeInstancePath?: readonly string[];
 };
 
 /** The compiler-owned interpretation of the dotted member suffix on a

@@ -5,6 +5,7 @@ import { buildRustBindingMutationPayload, type RustBindingMutationPayload } from
 import type { EvaluateElementsOptions } from "./evaluate";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
 import type { NumericBindingRuntimeEntry } from "./numericBindingRuntime";
+import type { TransformationNumericBindingRuntimeEntry } from "./numericBindingRuntime";
 import { toRustTextTemplateSegments, type RustTextTemplateSegment } from "./textTemplateRuntime";
 import type { ModuleMaterialization } from "@nuinuicad/nui-language";
 import type { GeometryInputCollectionNode } from "../types/geometry";
@@ -35,6 +36,7 @@ export type EvaluateDocumentInput = {
   transformationRecipes?: readonly import("@nuinuicad/nui-language").TransformationRecipe[] | {
     recipes: readonly import("@nuinuicad/nui-language").TransformationRecipe[];
     dependencyPlans: readonly import("@nuinuicad/nui-language").TypedTransformationDependencyPlan[];
+    numericBindings: readonly TransformationNumericBindingRuntimeEntry[];
   };
   transformationDependencyPlans?: readonly import("@nuinuicad/nui-language").TypedTransformationDependencyPlan[];
   sourceStatementIndices?: Array<{ elementId: ElementId; statementIndex: number }>;
@@ -99,7 +101,8 @@ export const buildRustEvaluationInput = (
       ? {
           transformationRecipes: {
             recipes: options.transformationRecipes,
-            dependencyPlans: options.transformationDependencyPlans ?? []
+            dependencyPlans: options.transformationDependencyPlans ?? [],
+            numericBindings: options.transformationNumericBindingEntries ?? []
           }
         }
       : {}),

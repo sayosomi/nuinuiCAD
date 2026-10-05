@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument, compileDslToElements } from "@nuinuicad/nui-language";
+import { compileDslDocument, compileDslToElements, parseDslSnapshot } from "@nuinuicad/nui-language";
 import { emptyDocument } from "@nuinuicad/nui-language";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { transformationStageKey } from "@nuinuicad/nui-language";
@@ -85,6 +85,82 @@ describe("transformation recipe evaluation", () => {
       "move A (from: @A.start, to: (2, 0))"
     ].join("\n"));
     expect(cycle.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+  });
+
+  it("materializes canonical scalar references in transformation arguments", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "const dx: number = 3",
+      "line L = segment(start: (0, 0), end: (20, 0))",
+      "move L (from: (0, 0), to: (@dx, 10))"
+    ].join("\n"));
+    const recipe = compiled.runtimeTransformationRecipes?.find((candidate) => candidate.construction === "move");
+    const bindingId = scalarByName(compiled, "dx");
+    const scalarInput = compiled.transformationNumericBindings?.find((candidate) =>
+      candidate.recipeId === recipe?.id && candidate.parameterPath === "endPoint.x"
+    );
+    const plan = compiled.typedDependencyGraph?.transformationPlans.find((candidate) => candidate.recipeId === recipe?.id);
+    const line = compiled.document.elements.find((element) => element.name === "L")!;
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(scalarInput?.binding.references.map((reference) => reference.bindingId)).toEqual([bindingId]);
+    expect(plan?.scalarPrerequisites).toContain(bindingId);
+    expect(plan?.argumentDependencies).toEqual([]);
+    expect(compiled.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "numeric-expression",
+        from: expect.objectContaining({ kind: "transformation-recipe" }),
+        to: expect.objectContaining({ kind: "binding", id: bindingId })
+      })
+    ]));
+    expect(evaluation.errors).toEqual([]);
+    expect(lineOf(evaluation.computedGeometry.get(line.id))).toMatchObject({
+      start: { x: 3, y: 10 },
+      end: { x: 23, y: 10 }
+    });
+  });
+
+  it("uses scalar scale arguments, preserves literals, and matches point anchors", () => {
+    const direct = compileCanonicalAndEvaluate([
+      "nui 1",
+      "const factor: number = 2",
+      "const dx: number = 3",
+      "line Direct = segment(start: (0, 0), end: (2, 0))",
+      "move Direct (from: (0, 0), to: (3, 0), scale: @factor)",
+      "line Anchored = segment(start: (0, 0), end: (20, 0))",
+      "point Anchor = coordinate(x: @dx, y: 10)",
+      "move Anchored (from: (0, 0), to: @Anchor)",
+      "line Literal = segment(start: (0, 0), end: (2, 0))",
+      "move Literal (from: (0, 0), to: (3, 0), scale: 2)"
+    ].join("\n"));
+    const geometryFor = (name: string) => {
+      const element = direct.compiled.document.elements.find((candidate) => candidate.name === name)!;
+      return lineOf(direct.evaluation.computedGeometry.get(element.id));
+    };
+
+    expect(direct.compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(direct.evaluation.errors).toEqual([]);
+    expect(geometryFor("Direct")).toMatchObject({ start: { x: 3, y: 0 }, end: { x: 7, y: 0 } });
+    expect(geometryFor("Anchored")).toMatchObject({ start: { x: 3, y: 10 }, end: { x: 23, y: 10 } });
+    expect(geometryFor("Literal")).toMatchObject({ start: { x: 3, y: 0 }, end: { x: 7, y: 0 } });
+  });
+
+  it("keeps unresolved transformation scalar references on the compiler diagnostic path", () => {
+    const source = [
+      "nui 1",
+      "const available: number = 1",
+      "line L = segment(start: (0, 0), end: (20, 0))",
+      "move L (from: (0, 0), to: (@missing, 10))"
+    ].join("\n");
+    const parsed = parseDslSnapshot({ normalizedSource: source, sourceRevision: 0 });
+    const missing = compileDslDocument(source, {
+      preparsed: parsed,
+      assignedStatementIds: new Map(parsed.statements.map((_, index) => [index, `missing-scalar:${index}`]))
+    });
+    expect(missing.diagnostics.some((diagnostic) =>
+      diagnostic.severity === "error" && diagnostic.code === "numeric-binding-unresolved"
+    )).toBe(true);
+    expect(missing.transformationNumericBindings ?? []).toEqual([]);
   });
 
   it("reads final, base, and named immutable stages through the compiled scalar geometry IR", () => {

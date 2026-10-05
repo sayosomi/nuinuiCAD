@@ -104,6 +104,42 @@ describe("runtimeScalarDiagnostics", () => {
     expect(diagnostics.some((item) => item.navigationTarget?.kind === "binding")).toBe(false);
   });
 
+  it("falls back to the scalar declaration when its only numeric consumer is a transformation", () => {
+    const source = [
+      "nui 1",
+      "const broken: number = 1",
+      "line L = segment(start: (0, 0), end: (20, 0))",
+      "move L (from: (0, 0), to: (@broken, 10))"
+    ].join("\n");
+    const compiled = compile(source);
+    const bindingId = bindingIdFor(compiled, "broken");
+    const transformationBinding = compiled.transformationNumericBindings?.find((candidate) =>
+      candidate.binding.references.some((reference) => reference.bindingId === bindingId)
+    );
+    const recipePlan = compiled.typedDependencyGraph?.transformationPlans.find((plan) =>
+      plan.recipeId === transformationBinding?.recipeId
+    );
+    const diagnostics = runtimeScalarDiagnostics(
+      baseInput(compiled, new Map([[bindingId, errorEvaluation("evaluation-divide-by-zero")]]))
+    );
+
+    expect(transformationBinding).toMatchObject({
+      parameterPath: "endPoint.x",
+      binding: { references: [expect.objectContaining({ bindingId })] }
+    });
+    expect(recipePlan?.scalarPrerequisites).toContain(bindingId);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: "evaluation-divide-by-zero",
+      origin: "runtime",
+      bindingId,
+      line: 2,
+      navigationTarget: { kind: "binding", bindingId }
+    });
+    const [segment] = diagnostics[0]!.physicalSpan!.segments;
+    expect(source.slice(segment.from, segment.to)).toBe("broken");
+  });
+
   it("reports one diagnostic per consumer, in source order, when multiple properties reference the same binding", () => {
     const source = [
       "nui 1",

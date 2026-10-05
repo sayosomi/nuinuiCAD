@@ -31,6 +31,7 @@ import { compilePropertyBindings, type ScalarValueSource } from "../scalars/prop
 import {
   compileNumericBindings,
   type CompiledNumericBinding,
+  type CompiledTransformationNumericBinding,
   type NumericBindingConsumerReference
 } from "../scalars/numericBindingCompiler";
 import { compileConditionalGroupConditions } from "../scalars/conditionalGroupConditionCompiler";
@@ -260,6 +261,9 @@ export type CompiledDslDocument = {
   occurrenceKeysByBindingId?: ReadonlyMap<BindingId, readonly string[]>;
   /** Compiled typed occurrences within every canonical number parameter. */
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  /** Compiled scalar inputs for transformation operation paths, keyed by the
+   * stable recipe identity plus its exact operation parameter path. */
+  transformationNumericBindings?: readonly CompiledTransformationNumericBinding[];
   /** Task 61 numeric consumers grouped by binding id, retaining the
    * compiler-owned occurrence key and exact `@name` reference span. */
   numericConsumerReferencesByBindingId?: ReadonlyMap<BindingId, readonly NumericBindingConsumerReference[]>;
@@ -3893,7 +3897,8 @@ export const compileDslDocument = (
       sourceNamespace: sourceLexicalNamespace,
       moduleGeometryRuntime: compiled.moduleGeometryRuntime,
       moduleRuntimeContext,
-      drawingModifiers: compiled.modifiers
+      drawingModifiers: compiled.modifiers,
+      transformationRecipes: compiled.runtimeTransformationRecipes
     });
     if (moduleScalarCompilation.materializedForGroupCollectionSourcesByElementId.size > 0) {
       const iterationSources = moduleScalarCompilation.materializedForGroupCollectionSourcesByElementId;
@@ -4001,9 +4006,14 @@ export const compileDslDocument = (
           moduleGeometryPropertyResolver?.({ statementIndex, node }) ??
           rootGeometryValuePropertyResolver?.({ statementIndex, node }) ??
           null,
-        resolveGeometryStageSelection
+        resolveGeometryStageSelection,
+        transformationRecipes: compiled.transformationRecipes
       })
     : undefined;
+  const transformationNumericBindings = [
+    ...(numericBindingCompilation?.transformationBindings ?? []),
+    ...(moduleScalarCompilation?.materializedTransformationNumericBindings ?? [])
+  ];
   // Task 25: conditionalGroup.condition typed-boolean compile/typecheck.
   // Same scalarAnalysis-present gate as property bindings above - reuses the
   // same bindingAnalysis, never re-resolves names || re-derives Task 13's
@@ -4601,6 +4611,7 @@ export const compileDslDocument = (
     bindingVersions,
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
     numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
+    transformationNumericBindings,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
     conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,
     scalarProgram,
@@ -4664,6 +4675,7 @@ export const compileDslDocument = (
             numericConsumerReferencesByBindingId: numericBindingCompilation.consumerReferencesByBindingId
           }
         : {}),
+      ...(transformationNumericBindings.length ? { transformationNumericBindings } : {}),
       ...(bindingVersions ? { bindingVersions } : {}),
       ...(typedDependencyGraph ? { typedDependencyGraph } : {}),
       ...(sourceLexicalNamespace ? { sourceLexicalNamespace } : {}),
@@ -4757,6 +4769,7 @@ export const compileDslDocument = (
           numericConsumerReferencesByBindingId: numericBindingCompilation.consumerReferencesByBindingId
         }
       : {}),
+    ...(transformationNumericBindings.length ? { transformationNumericBindings } : {}),
     ...(conditionalGroupConditionCompilation
       ? { conditionalGroupConditions: conditionalGroupConditionCompilation.sourcesByOccurrenceKey }
       : {}),

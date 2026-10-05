@@ -55,7 +55,8 @@ import {
 import {
   groupNumericBindingRuntimeEntriesByElement,
   materializeNumericBindingElement,
-  type NumericBindingRuntimeEntry
+  type NumericBindingRuntimeEntry,
+  type TransformationNumericBindingRuntimeEntry
 } from "./numericBindingRuntime";
 import {
   resolveConditionalGroupCondition,
@@ -162,6 +163,9 @@ export type EvaluateElementsOptions = {
   propertyBindingEntries?: readonly PropertyBindingRuntimeEntry[];
   /** General numeric parameter occurrences compiled to BindingId slots. */
   numericBindingEntries?: readonly NumericBindingRuntimeEntry[];
+  /** Transformation operation numeric inputs, keyed by recipe id and exact
+   * operation path. */
+  transformationNumericBindingEntries?: readonly TransformationNumericBindingRuntimeEntry[];
   /**
    * Task 25's elementId-keyed typed boolean conditions for `conditionalGroup`
    * (already re-keyed from CompiledDslDocument.conditionalGroupConditions by
@@ -513,6 +517,12 @@ export const evaluateElements = (
   const numericBindingEntriesByElementId = options.numericBindingEntries
     ? groupNumericBindingRuntimeEntriesByElement(options.numericBindingEntries)
     : undefined;
+  const transformationNumericBindingsByRecipeId = new Map<string, TransformationNumericBindingRuntimeEntry[]>();
+  for (const entry of options.transformationNumericBindingEntries ?? []) {
+    const bucket = transformationNumericBindingsByRecipeId.get(entry.recipeId);
+    if (bucket) bucket.push(entry);
+    else transformationNumericBindingsByRecipeId.set(entry.recipeId, [entry]);
+  }
   const controlBooleanEntriesByElementId = options.controlBooleanEntries
     ? groupPropertyBindingRuntimeEntriesByElement(options.controlBooleanEntries)
     : undefined;
@@ -2731,7 +2741,33 @@ export const evaluateElements = (
       }
       return Object.fromEntries(Object.entries(candidate).map(([key, child]) => [key, materializeTransformationValue(child)]));
     };
-    const synthetic = materializeTransformationValue(transformationSyntheticElement(recipe, targets)) as CadElement;
+    const rawSynthetic = transformationSyntheticElement(recipe, targets);
+    const scalarSourceOrder = recipe.runtimeSourceOrder ?? recipe.sourceStatementIndex;
+    const recipeEntries = transformationNumericBindingsByRecipeId.get(recipe.id);
+    const numericMaterialization = materializeNumericBindingElement(
+      rawSynthetic,
+      recipeEntries,
+      scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding()),
+      (reference) => resolveGeometryPropertyForEvaluation(reference, scalarSourceOrder),
+      (target) => resolveGeometryTargetForEvaluation(
+        target,
+        scalarSourceOrder,
+        scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding())
+      ),
+      scalarBindingResolver?.resolveOptionalMember
+        ? (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, scalarSourceOrder)
+        : undefined,
+      runtimeElements
+    );
+    if (!numericMaterialization.ok) {
+      errors.push(...numericMaterialization.errors);
+      for (const [id, original] of originalGeometry) {
+        if (original) computedGeometry.set(id, original);
+        else computedGeometry.delete(id);
+      }
+      return;
+    }
+    const synthetic = materializeTransformationValue(numericMaterialization.element) as CadElement;
     runtimeElementsById.set(synthetic.id, synthetic);
     const errorCountBefore = errors.length;
     if (recipe.enabled) {
@@ -2844,6 +2880,7 @@ export const evaluateElements = (
       if (plan.predecessorRecipeIndices.some((priorIndex) => !completedTransformationRecipeIndices.has(priorIndex))) return false;
       if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
       if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
+      if (plan.scalarPrerequisites.some((bindingId) => !endpointIsReady(`binding:${bindingId}`))) return false;
     }
     for (const target of recipe.targets) {
       const runtimeIds = generatedOwnerIds.has(target.ownerId)
