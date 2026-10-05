@@ -1,6 +1,7 @@
 use super::edge_extend_test_support::*;
 use super::*;
 use serde_json::json;
+use std::collections::{HashMap, HashSet};
 
 #[test]
 fn evaluates_ordered_joined_paths_with_reversal_and_closed_validation() {
@@ -83,6 +84,89 @@ fn evaluates_ordered_joined_paths_with_reversal_and_closed_validation() {
             .len(),
         2
     );
+}
+
+#[test]
+fn joined_path_consumes_its_compiler_selected_drawable_stage_snapshot() {
+    let owner = "owner".to_owned();
+    let joined = json!({
+        "id": "joined",
+        "name": "Joined",
+        "type": "joinedPath",
+        "activity": "visible",
+        "pathIds": [owner],
+        "closed": false
+    });
+    let final_geometry = json!({
+        "kind": "line",
+        "elementId": owner,
+        "name": "Owner",
+        "start": { "x": 0.0, "y": 50.0 },
+        "end": { "x": 10.0, "y": 50.0 },
+        "length": 10.0
+    });
+    let shifted_geometry = json!({
+        "kind": "line",
+        "elementId": owner,
+        "name": "Owner",
+        "start": { "x": 0.0, "y": 20.0 },
+        "end": { "x": 10.0, "y": 20.0 },
+        "length": 10.0
+    });
+    let mut state = EvaluationState {
+        elements: vec![
+            element(json!({ "id": owner, "name": "Owner", "type": "line" })),
+            joined.clone(),
+        ],
+        elements_by_id: HashMap::from([(owner.clone(), 0), ("joined".to_owned(), 1)]),
+        drawing_modifiers: json!([]),
+        selected_drawing_profile_id: None,
+        group_states: HashMap::new(),
+        computed_geometry: HashMap::from([(owner.clone(), final_geometry)]),
+        base_transformation_geometry: HashMap::new(),
+        transformation_stage_geometry: HashMap::from([(
+            "owner\0*\0shifted".to_owned(),
+            shifted_geometry,
+        )]),
+        completed_transformation_recipe_indices: HashSet::new(),
+        transformation_dependency_plans: None,
+        computed_geometry_order: Vec::new(),
+        computed_geometry_values: HashMap::new(),
+        geometry_input_targets: HashMap::from([(
+            "joined".to_owned(),
+            HashMap::from([(
+                "pathIds".to_owned(),
+                vec![GeometryInputTarget::Drawable {
+                    element_id: owner,
+                    geometry_type: "line".to_owned(),
+                    point_key: None,
+                    stage_path: Some(vec!["shifted".to_owned()]),
+                }],
+            )]),
+        )]),
+        geometry_collection_nodes: HashMap::new(),
+        geometry_value_binders: HashMap::new(),
+        for_group_generated_rows: Vec::new(),
+        for_group_expected_occurrence_count_by_template_id: HashMap::new(),
+        pre_mutation_geometry: HashMap::new(),
+        geometry_mutation_executions: Vec::new(),
+        condition_evaluation_traces: Vec::new(),
+        instance_base_geometry: HashMap::new(),
+        errors: Vec::new(),
+        geometry_value_errors: Vec::new(),
+        warnings: Vec::new(),
+    };
+
+    super::joined_path_evaluator::evaluate_joined_path(&joined, &mut state);
+
+    assert!(state.errors.is_empty());
+    let geometry = state
+        .computed_geometry
+        .get("joined")
+        .expect("joined geometry");
+    assert_eq!(geometry["start"]["y"], json!(20.0));
+    assert_eq!(geometry["end"]["y"], json!(20.0));
+    assert_eq!(geometry["length"], json!(10.0));
 }
 
 #[test]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
 import { buildEvaluationOptions } from "./productionEvaluationContext";
 import { evaluateElements } from "./evaluate";
@@ -1398,6 +1398,34 @@ describe("pure geometry construction runtime", () => {
     expect(result.computedGeometry.get("geometry-value-runtime:5")).toMatchObject({ kind: "offsetLine" });
     expect([...result.computedGeometryValues!.values()].every(({ value }) => !("elementId" in value))).toBe(true);
     expect([...result.evaluatedElementIds ?? []]).not.toContain("geometry-value-runtime:3");
+  });
+
+  it("joins an immutable path value from its canonical pathIds target", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line L = segment(start: (100, 0), end: (110, 0))",
+      "move L (from: (100, 0), to: (100, 50))",
+      "const BasePath: path = segment(start: (0, 20), end: (10, 20))",
+      "line Joined = join(paths: [@BasePath], closed: false)"
+    ].join("\n"));
+
+    expect(compiled.diagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+    const owner = compiled.document!.elements.find((element) => element.name === "L")!;
+    const joined = compiled.document!.elements.find((element) => element.name === "Joined")!;
+    const targets = compiled.geometryInputTargetsByElementId?.get(joined.id)?.get("pathIds");
+    expect(Array.isArray(targets)).toBe(true);
+    if (!Array.isArray(targets)) throw new Error("expected canonical ordered path targets");
+    expect(targets).toHaveLength(1);
+    const target = targets[0]!;
+    expect(target).toMatchObject({ kind: "geometryValue", geometryType: "path" });
+    if (target.kind !== "geometryValue") throw new Error("expected immutable geometry-value path target");
+    expect(result.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value)
+      .toMatchObject({ kind: "line", start: { x: 0, y: 20 }, end: { x: 10, y: 20 } });
+    expect(result.computedGeometry.get(owner.id)).toMatchObject({ start: { y: 50 }, end: { y: 50 } });
+    expect(result.computedGeometry.get(joined.id)).toMatchObject({
+      kind: "joinedPath", start: { x: 0, y: 20 }, end: { x: 10, y: 20 }
+    });
   });
 
   it("passes constructed segments through tangentOffset, onLine, transformCopy, and mirrorCopy", () => {

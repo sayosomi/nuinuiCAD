@@ -271,6 +271,121 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     rustStdio?.dispose();
   });
 
+  it("consumes authored-order selected drawable join snapshots in root and Module evaluation", async () => {
+    const rootFixture = fixtureFromSource([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as shifted (from: (0, 0), to: (0, 20))",
+      "move L as finish (from: (0, 20), to: (0, 50))",
+      "line Tail = segment(start: (30, 20), end: (10, 20))",
+      "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
+      "line Shifted = join(paths: [@L.shifted], closed: false)",
+      "line Base = join(paths: [@L.base], closed: false)",
+      "line Final = join(paths: [@L.final], closed: false)",
+      "line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
+      "line FinalOnlyTail = join(paths: [@L.shifted, @OnlyFinal], closed: false)"
+    ].join("\n"));
+    const moduleFixture = fixtureFromSource([
+      "nui 1",
+      "module Draft() {",
+      "  line L = segment(start: (0, 0), end: (10, 0))",
+      "  move L as shifted (from: (0, 0), to: (0, 20))",
+      "  move L as finish (from: (0, 20), to: (0, 50))",
+      "  line Tail = segment(start: (30, 20), end: (10, 20))",
+      "  line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
+      "  line Shifted = join(paths: [@L.shifted], closed: false)",
+      "  line Base = join(paths: [@L.base], closed: false)",
+      "  line Final = join(paths: [@L.final], closed: false)",
+      "  line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
+      "  line FinalOnlyTail = join(paths: [@L.shifted, @OnlyFinal], closed: false)",
+      "}",
+      "instance Use = Draft()"
+    ].join("\n"));
+
+    const verify = async (fixture: ReturnType<typeof fixtureFromSource>, parentName?: string) => {
+      const diagnostics = fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? [];
+      expect(diagnostics).toEqual([]);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const options = optionsFor(fixture);
+      const rustInput = buildRustEvaluationInput(fixture.elements, options);
+      const targetFor = (name: string) => {
+        const parent = parentName ? fixture.elements.find((element) => element.name === parentName) : undefined;
+        const element = fixture.elements.find((candidate) => candidate.name === name && (!parent || candidate.parentGroupId === parent.id));
+        if (!element) throw new Error(`missing join ${name}`);
+        const targets = options.geometryInputTargetsByElementId?.get(element.id)?.get("pathIds");
+        return { element, targets };
+      };
+      const ordered = targetFor("Ordered");
+      expect(Array.isArray(ordered.targets)).toBe(true);
+      if (!Array.isArray(ordered.targets)) throw new Error("expected a complete ordered canonical target list");
+      expect(ordered.targets.map((target) => target.kind === "drawable" ? target.stagePath : target.kind)).toEqual([
+        ["shifted"], ["final"]
+      ]);
+      expect(rustInput.geometryInputTargets?.find((entry) => entry.elementId === ordered.element.id)?.parameters)
+        .toEqual([{ parameterKey: "pathIds", target: ordered.targets }]);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluateInput(rustInput);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      const result = evaluationPayloadToResult(tsPayload);
+      const joinedFor = (name: string) => {
+        const { element } = targetFor(name);
+        const geometry = result.computedGeometry.get(element.id);
+        if (!geometry || geometry.kind !== "joinedPath") throw new Error(`expected ${name} joined geometry`);
+        return geometry;
+      };
+      const shifted = joinedFor("Shifted");
+      expect(shifted).toMatchObject({ start: { x: 0, y: 20 }, end: { x: 10, y: 20 }, length: 10 });
+      expect(joinedFor("Base")).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, length: 10 });
+      expect(joinedFor("Final")).toMatchObject({ start: { x: 0, y: 50 }, end: { x: 10, y: 50 }, length: 10 });
+      expect(joinedFor("Ordered").segments.map((segment) => [segment.start.x, segment.start.y, segment.end.x, segment.end.y]))
+        .toEqual([[0, 20, 10, 20], [10, 20, 30, 20]]);
+      const finalOnly = targetFor("FinalOnlyTail").element;
+      expect(result.computedGeometry.has(finalOnly.id)).toBe(false);
+      expect(result.errors.some((error) => error.elementId === finalOnly.id)).toBe(true);
+    };
+
+    await verify(rootFixture);
+    await verify(moduleFixture, "Use");
+  }, 30000);
+
+  it("consumes immutable geometryValue path targets in joined-path parity", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line L = segment(start: (100, 0), end: (110, 0))",
+      "move L (from: (100, 0), to: (100, 50))",
+      "const BasePath: path = segment(start: (0, 20), end: (10, 20))",
+      "line Joined = join(paths: [@BasePath], closed: false)"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error") ?? []).toEqual([]);
+    const options = optionsFor(fixture);
+    const joined = fixture.elements.find((element) => element.name === "Joined");
+    const owner = fixture.elements.find((element) => element.name === "L");
+    if (!joined || !owner) throw new Error("missing joined-path fixture elements");
+    const targets = options.geometryInputTargetsByElementId?.get(joined.id)?.get("pathIds");
+    expect(Array.isArray(targets)).toBe(true);
+    if (!Array.isArray(targets)) throw new Error("expected canonical ordered path targets");
+    expect(targets).toHaveLength(1);
+    const target = targets[0]!;
+    expect(target).toMatchObject({ kind: "geometryValue", geometryType: "path" });
+    if (target.kind !== "geometryValue") throw new Error("expected immutable geometry-value path target");
+
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluateInput(rustInput);
+    const result = evaluationPayloadToResult(tsPayload);
+    const rustResult = evaluationPayloadToResult(rustPayload);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expect(result.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value)
+      .toMatchObject({ kind: "line", start: { x: 0, y: 20 }, end: { x: 10, y: 20 } });
+    expect(rustResult.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value)
+      .toEqual(result.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value);
+    expect(result.computedGeometry.get(owner.id)).toMatchObject({ start: { y: 50 }, end: { y: 50 } });
+    expect(result.computedGeometry.get(joined.id)).toMatchObject({
+      kind: "joinedPath", start: { x: 0, y: 20 }, end: { x: 10, y: 20 }
+    });
+  }, 30000);
+
   it("accumulates independent point input diagnostics across the persistent Rust stdio boundary", async () => {
     const evaluateSource = async (source: string) => {
       const fixture = fixtureFromSource(source);

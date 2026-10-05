@@ -16,7 +16,7 @@ const point = (element: CadElement, key: string, value: { x: number; y: number }
   y: value.y
 });
 
-const materializeValue = (element: CadElement, value: ComputedGeometryValue): ComputedGeometry => {
+export const materializeGeometryValue = (element: CadElement, value: ComputedGeometryValue): ComputedGeometry => {
   switch (value.kind) {
     case "point":
       return { kind: "point", elementId: element.id, name: element.name, x: value.x, y: value.y };
@@ -107,7 +107,7 @@ const cloneWithDestinationIdentity = (element: CadElement, source: ComputedGeome
   const value = source.kind === "point"
     ? { kind: "point" as const, x: source.x, y: source.y }
     : undefined;
-  if (value) return materializeValue(element, value);
+  if (value) return materializeGeometryValue(element, value);
   // Keep the concrete source family and all computed shape data. A structured
   // clone gives the destination its own mutable runtime object. Re-key nested
   // computed points as well, so hit-testing, properties, and later recipes
@@ -173,7 +173,7 @@ export const evaluateMaterializedElement = (element: CadElement, context: Elemen
   }
   const materialized = "elementId" in source
     ? cloneWithDestinationIdentity(element, source as ComputedGeometry)
-    : materializeValue(element, source as ComputedGeometryValue);
+    : materializeGeometryValue(element, source as ComputedGeometryValue);
   context.computedGeometry.set(element.id, materialized);
   return true;
 };

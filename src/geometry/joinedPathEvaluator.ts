@@ -9,7 +9,9 @@ import { dependencyError, geometryError } from "./evaluationContext";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { approximateBezierSegmentLength } from "./evaluateGeometryPrimitives";
 import { offsetLineEndpointMeasurements } from "./lineMeasurements";
-import { isLineLikeGeometry, type LineLikeGeometry } from "./linePaths";
+import { resolveLineGeometryInputAt } from "./lineGeometryInput";
+import { materializeGeometryValue } from "./materializedEvaluator";
+import { isLineLikeGeometry, isLineLikeGeometryInput, type LineLikeGeometry } from "./linePaths";
 import { EPSILON } from "./offsetPathMath";
 import { reverseLineLikeGeometry } from "./reversePathGeometry";
 
@@ -63,8 +65,13 @@ export const evaluateJoinedPathElement = (element: CadElement, context: ElementE
   }
 
   const orientedSources: LineLikeGeometry[] = [];
-  for (const pathId of element.pathIds) {
-    const source = context.computedGeometry.get(pathId);
+  for (const [index, pathId] of element.pathIds.entries()) {
+    const geometryInput = resolveLineGeometryInputAt(context, "pathIds", index, pathId);
+    const source = geometryInput && isLineLikeGeometryInput(geometryInput)
+      ? "elementId" in geometryInput
+        ? geometryInput
+        : materializeGeometryValue(element, geometryInput)
+      : undefined;
     if (!source || !isLineLikeGeometry(source)) {
       errors.push(dependencyError(element, pathId, elementsById, disabledByGroupId, errors));
       return true;

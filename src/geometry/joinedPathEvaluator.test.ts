@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "@nuinuicad/nui-language";
+import { compileDslDocument, geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { parseDsl } from "@nuinuicad/nui-language";
 import type {
   ArcLineElement,
@@ -7,9 +7,12 @@ import type {
   CadElement,
   ComputedGeometry,
   ComputedJoinedPath,
+  GeometryInputTarget,
   PolylineElement
 } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
+import type { ComputedGeometryValueEntry } from "./evaluationTypes";
+import { evaluateJoinedPathElement } from "./joinedPathEvaluator";
 
 const point = (id: string, x: number, y: number): CadElement => ({
   id, name: id, type: "freePoint", activity: "visible", x, y
@@ -66,6 +69,100 @@ const joined = (geometry: ComputedGeometry | undefined): ComputedJoinedPath => {
 };
 
 describe("joined path construction", () => {
+  it("uses the ordered canonical geometryValue target instead of the owner final geometry", () => {
+    const ownerElement = line("owner", "owner-start", "owner-end");
+    const ownerResult = evaluateElements([
+      point("owner-start", 100, 50),
+      point("owner-end", 110, 50),
+      ownerElement
+    ]);
+    const ownerGeometry = ownerResult.computedGeometry.get(ownerElement.id);
+    if (!ownerGeometry) throw new Error("expected owner final geometry");
+
+    const occurrence = { sourceStatementId: "immutable-path", instancePath: [] } as const;
+    const target: GeometryInputTarget = { kind: "geometryValue", occurrence, geometryType: "path" };
+    const key = geometryValueOccurrenceKey(occurrence);
+    const value = {
+      kind: "line" as const,
+      start: { x: 0, y: 20 },
+      end: { x: 10, y: 20 },
+      length: 10,
+      startAngleDeg: 0,
+      endAngleDeg: 0,
+      startTangentAngleDeg: 0,
+      endTangentAngleDeg: 0
+    };
+    const computedGeometryValues = new Map([[key, { occurrence, value } satisfies ComputedGeometryValueEntry]]);
+    const joinedElement = join("joined", [ownerElement.id]);
+    const context = {
+      computedGeometry: new Map<string, ComputedGeometry>([[ownerElement.id, ownerGeometry]]),
+      computedGeometryValues,
+      geometryInputTargets: new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>([
+        ["pathIds", [target]]
+      ]),
+      elementsById: new Map([[ownerElement.id, ownerElement]]),
+      errors: [],
+      warnings: [],
+      disabledByGroupId: new Map(),
+      localVariables: { localVariableValues: new Map(), localVariableNames: new Map() }
+    };
+
+    evaluateJoinedPathElement(joinedElement, context);
+
+    expect(context.errors).toEqual([]);
+    expect(computedGeometryValues.get(key)?.value).toEqual(value);
+    expect(context.computedGeometry.get(ownerElement.id)).toMatchObject({ start: { y: 50 }, end: { y: 50 } });
+    expect(context.computedGeometry.get("joined")).toMatchObject({
+      kind: "joinedPath", start: { x: 0, y: 20 }, end: { x: 10, y: 20 }
+    });
+  });
+
+  it("uses ordered compiler-selected snapshots for root drawable joins", () => {
+    const source = [
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as shifted (from: (0, 0), to: (0, 20))",
+      "move L as finish (from: (0, 20), to: (0, 50))",
+      "line Tail = segment(start: (30, 20), end: (10, 20))",
+      "line OnlyFinal = segment(start: (10, 50), end: (20, 50))",
+      "line Shifted = join(paths: [@L.shifted], closed: false)",
+      "line Base = join(paths: [@L.base], closed: false)",
+      "line Final = join(paths: [@L.final], closed: false)",
+      "line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
+      "line FinalOnlyTail = join(paths: [@L.shifted, @OnlyFinal], closed: false)"
+    ].join("\n");
+    const compiled = compileDslDocument(source);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const elements = compiled.document!.elements;
+    const targetFor = (name: string) => {
+      const element = elements.find((candidate) => candidate.name === name);
+      if (!element) throw new Error(`missing ${name}`);
+      return compiled.geometryInputTargetsByElementId?.get(element.id)?.get("pathIds");
+    };
+    const orderedTargets = targetFor("Ordered");
+    expect(Array.isArray(orderedTargets)).toBe(true);
+    if (!Array.isArray(orderedTargets)) throw new Error("expected ordered canonical path targets");
+    expect(orderedTargets.map((target) => target.kind === "drawable" ? [target.elementId, target.stagePath] : target.kind))
+      .toEqual([[elements.find((candidate) => candidate.name === "L")!.id, ["shifted"]], [elements.find((candidate) => candidate.name === "Tail")!.id, ["final"]]]);
+
+    const evaluation = evaluateElements(elements, {
+      evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
+      typedDependencyGraph: compiled.typedDependencyGraph,
+      transformationRecipes: compiled.runtimeTransformationRecipes,
+      transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
+      geometryInputTargetsByElementId: compiled.geometryInputTargetsByElementId
+    });
+    expect(evaluation.errors.map((error) => error.elementName)).toContain("FinalOnlyTail");
+    expect(evaluation.computedGeometry.has(elements.find((candidate) => candidate.name === "FinalOnlyTail")!.id)).toBe(false);
+
+    const joinedByName = (name: string) => joined(evaluation.computedGeometry.get(elements.find((candidate) => candidate.name === name)!.id));
+    expect(joinedByName("Shifted")).toMatchObject({ start: { x: 0, y: 20 }, end: { x: 10, y: 20 }, length: 10 });
+    expect(joinedByName("Base")).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, length: 10 });
+    expect(joinedByName("Final")).toMatchObject({ start: { x: 0, y: 50 }, end: { x: 10, y: 50 }, length: 10 });
+    expect(joinedByName("Ordered").segments.map((segment) => [segment.start.x, segment.start.y, segment.end.x, segment.end.y]))
+      .toEqual([[0, 20, 10, 20], [10, 20, 30, 20]]);
+  });
+
   it("preserves authored order, duplicates, exact source endpoints, and reverses only the computed view", () => {
     const result = evaluateElements([
       point("a", 0, 0), point("b", 10, 0), point("near", 10 + 0.5e-9, 0), point("c", 10 + 0.5e-9, 10), point("d", 20, 0),

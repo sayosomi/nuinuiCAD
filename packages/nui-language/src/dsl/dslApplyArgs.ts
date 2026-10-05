@@ -259,6 +259,7 @@ const geometryLineConsumerPolicies: ReadonlyMap<string, GeometryLineConsumerPoli
   ["offsetLine.baseLineIds", "readOnly"],
   ["copyLine.baseLineIds", "readOnly"],
   ["symmetricCopyLine.baseLineIds", "readOnly"],
+  ["joinedPath.pathIds", "readOnly"],
   ["move.baseLineIds", "identityMutation"],
   ["symmetricMove.baseLineIds", "identityMutation"],
   ["lineDivisionPoint.endpoint", "readOnly"],
@@ -353,7 +354,12 @@ export const applyArgs = (
   // `lineReference` && `lineReferenceList` are path-only roles. Endpoint &&
   // derived-point roles use the dedicated resolvers below, where the shared
   // source-reference parser's property is meaningful.
-  const lineReferenceId = (source: string, parameterKey: string, sourceSpan?: DslSpan) =>
+  const lineReferenceId = (
+    source: string,
+    parameterKey: string,
+    sourceSpan?: DslSpan,
+    collectedTargets?: RuntimeGeometryInputTarget[]
+  ) =>
     (() => {
       const lowered = resolvers.resolveLineReferenceTarget?.(
         source,
@@ -367,7 +373,8 @@ export const applyArgs = (
       if (lowered) {
         if (rejectImmutableMutationTarget(lowered, parameterKey, sourceSpan)) return source.trim();
         if (lineConsumerPolicy(parameterKey) === "readOnly" || materializationSource(parameterKey)) {
-          resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
+          if (collectedTargets) collectedTargets.push(lowered);
+          else resolvers.recordGeometryInputTarget?.(next.id, parameterKey, lowered);
         }
         if (lowered.kind === "drawable") return lowered.elementId;
         // Preserve authored source text only as compiler data. The runtime
@@ -559,10 +566,14 @@ export const applyArgs = (
             break;
           }
           const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayLineReferenceList(value, resolvers.index, next);
+          const targets: RuntimeGeometryInputTarget[] = [];
           const refs = sourceLowered ?? referenceListItems(value).map((item) => {
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };
-            return lineReferenceId(item.text, parameterKey, itemSpan);
+            return lineReferenceId(item.text, parameterKey, itemSpan, targets);
           });
+          if (!sourceLowered && targets.length > 0 && targets.length === refs.length) {
+            resolvers.recordGeometryInputTarget?.(next.id, parameterKey, targets);
+          }
           if (next.type === "joinedPath" && refs.length === 0) {
             diagnostics.push({
               severity: "error",
