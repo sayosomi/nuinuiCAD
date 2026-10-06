@@ -7343,8 +7343,9 @@ export const compileModuleScalarRuntime = ({
           }
         : {
             scopeId: moduleScopeIdFor(context.path, loopScopeId),
-            exitSourceOrder: executionPositionForValue(context.path, carry.statementIndex),
-            entrySourceOrder: executionPositionForValue(context.path, carry.statementIndex) - 0.5,
+            exitSourceOrder: scopeExitOrderById.get(moduleScopeIdFor(context.path, loopScopeId))
+              ?? executionOrderForValue(context.path, carry.statementIndex),
+            entrySourceOrder: executionOrderForValue(context.path, carry.statementIndex),
             iterationBindingId: moduleIterationIdFor(context.path, carry.statementId)
           };
       // Module geometry targets retain the carry name in their resolved

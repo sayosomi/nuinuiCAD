@@ -6,6 +6,7 @@ import {
   emptyDocument,
   geometryValueOccurrenceKey,
   moduleCarryBindingIdFor,
+  moduleScalarBindingIdFor,
   propertyBindingOccurrenceKey,
   resolveTypedDependencyGraphRuntime,
   typedDependencyBindingHasActiveGeometryPrerequisite
@@ -1485,6 +1486,166 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     );
   }, 60000);
 
+  it("executes the SAY-471 carry-only Module line reproducer through TypeScript and persistent Rust", async () => {
+    const evaluateBoth = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return { fixture, options, tsPayload, rustPayload };
+    };
+    const exactSource = [
+      "nui 1",
+      "module M() {",
+      "  line Seed = segment(start: (0, 0), end: (1, 0))",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: line = @Seed {",
+      "    next last = @Seed",
+      "  }",
+      "  export const output: number = @last.length",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n");
+    const decoratedSource = [
+      "nui 1",
+      "// Preserve source layout around the carry-only loop.",
+      "module M() {",
+      "  line Seed = segment(start: (0, 0), end: (1, 0))",
+      "",
+      "  const unrelated: number = 99",
+      "  // This declaration is independent of the carried geometry.",
+      "",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: line = @Seed {",
+      "    next last = @Seed",
+      "  }",
+      "  export const output: number = @last.length",
+      "}",
+      "instance Renamed = M()",
+      "const result: number = @Renamed::output"
+    ].join("\n");
+    const assertOutputAndResult = (
+      fixture: ReturnType<typeof fixtureFromSource>,
+      payload: ReturnType<typeof evaluateElementsReferencePayload>,
+      instanceName: string
+    ) => {
+      const module = fixture.compiled?.doc.moduleSemanticAnalysis;
+      const instance = module?.instances.find((candidate) => candidate.name === instanceName);
+      if (!instance?.callee) throw new Error(`missing Module instance ${instanceName}`);
+      const definition = module?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+      const output = definition?.localScalars.find((candidate) => candidate.name === "output");
+      if (!definition || !output) throw new Error("missing Module output scalar");
+      const outputBindingId = moduleScalarBindingIdFor([instance.statementId], definition.statementId, output.statementId);
+      const resultBinding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+        (candidate) => candidate.kind === "typed" && candidate.name === "result"
+      );
+      if (!resultBinding) throw new Error("missing root result scalar");
+      const computed = evaluationPayloadToResult(payload).computedScalarBindings;
+      expect(computed?.get(outputBindingId)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 1 }
+      });
+      expect(computed?.get(resultBinding.id)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 1 }
+      });
+    };
+
+    const exact = await evaluateBoth(exactSource);
+    for (const payload of [exact.tsPayload, exact.rustPayload]) assertOutputAndResult(exact.fixture, payload, "A");
+
+    const exactLoop = exact.fixture.elements.find((element) => element.type === "forGroup");
+    if (!exactLoop || exactLoop.type !== "forGroup") throw new Error("missing exact carry-only Module forGroup");
+    const exactOwner = exact.options.moduleForGroupExecutionOwnerByElementId?.get(exactLoop.id);
+    if (!exactOwner) throw new Error("missing exact carry-only Module execution owner");
+    expect(Number.isInteger(exactOwner.exitSourceOrder)).toBe(true);
+    expect(exactOwner.exitSourceOrder).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(exactOwner.entrySourceOrder)).toBe(true);
+    expect(exactOwner.entrySourceOrder).toBeGreaterThanOrEqual(0);
+    const exactPlan = exact.options.bindingVersions?.immutableForGroups?.get(exactOwner.ownerStatementId);
+    expect(exactPlan?.executionOwner).toMatchObject({
+      scopeId: exactOwner.scopeId,
+      exitSourceOrder: exactOwner.exitSourceOrder,
+      entrySourceOrder: exactOwner.entrySourceOrder,
+      iterationBindingId: exactOwner.iterationBindingId
+    });
+    expect(exactPlan?.geometryCarries).toHaveLength(1);
+    const exactGeometryCarry = exactPlan?.geometryCarries?.[0];
+    if (!exactGeometryCarry) throw new Error("missing exact Module geometry carry plan");
+    expect(Number.isInteger(exactGeometryCarry.nextSourceOrder)).toBe(true);
+    expect(exactGeometryCarry.nextSourceOrder).toBeGreaterThanOrEqual(0);
+
+    const rustInput = buildRustEvaluationInput(exact.fixture.elements, exact.options);
+    const repeatedRustInput = buildRustEvaluationInput(exact.fixture.elements, exact.options);
+    const serializedModuleOwners = rustInput.bindingVersions?.forGroupOwners.filter((owner) => owner.moduleExecutionOwner) ?? [];
+    expect(serializedModuleOwners).toHaveLength(1);
+    expect(serializedModuleOwners).toEqual(
+      repeatedRustInput.bindingVersions?.forGroupOwners.filter((owner) => owner.moduleExecutionOwner)
+    );
+    expect(serializedModuleOwners.every((owner) =>
+      Number.isInteger(owner.exitSourceOrder) && owner.exitSourceOrder >= 0
+    )).toBe(true);
+    const serializedGeometryCarry = rustInput.bindingVersions?.immutableForGroups
+      ?.find((plan) => plan.ownerStatementId === exactOwner.ownerStatementId)
+      ?.geometryCarries?.[0];
+    expect(serializedGeometryCarry).toMatchObject({
+      bindingId: exactGeometryCarry.bindingId,
+      nextSourceOrder: exactGeometryCarry.nextSourceOrder
+    });
+    const repeatedCompile = fixtureFromSource(exactSource);
+    const repeatedOptions = optionsFor(repeatedCompile);
+    const repeatedOwnerOrder = buildRustEvaluationInput(repeatedCompile.elements, repeatedOptions)
+      .bindingVersions?.forGroupOwners.filter((owner) => owner.moduleExecutionOwner)
+      .map((owner) => owner.exitSourceOrder);
+    expect(repeatedOwnerOrder).toEqual(serializedModuleOwners.map((owner) => owner.exitSourceOrder));
+    const malformedInput = structuredClone(rustInput);
+    const malformedOwner = malformedInput.bindingVersions?.forGroupOwners.find(
+      (owner) => owner.ownerStatementId === exactOwner.ownerStatementId
+    );
+    if (!malformedOwner) throw new Error("missing serialized Module forGroup owner to corrupt");
+    malformedOwner.exitSourceOrder += 0.5;
+    await expect(rustStdio!.evaluateInput(malformedInput)).rejects.toThrow(
+      /scalar-payload-invalid-source-order.*forGroup exitSourceOrder must be a non-negative integer/
+    );
+
+    const decorated = await evaluateBoth(decoratedSource);
+    for (const payload of [decorated.tsPayload, decorated.rustPayload]) assertOutputAndResult(decorated.fixture, payload, "Renamed");
+
+    const moduleWithoutCarry = await evaluateBoth([
+      "nui 1",
+      "module M() {",
+      "  line Seed = segment(start: (0, 0), end: (1, 0))",
+      "  export const output: number = @Seed.length",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"));
+    for (const payload of [moduleWithoutCarry.tsPayload, moduleWithoutCarry.rustPayload]) {
+      assertOutputAndResult(moduleWithoutCarry.fixture, payload, "A");
+    }
+
+    const rootCarry = await evaluateBoth([
+      "nui 1",
+      "line Seed = segment(start: (0, 0), end: (1, 0))",
+      "for i in range(min: 0, max: 0, step: 1) carry last: line = @Seed {",
+      "  next last = @Seed",
+      "}",
+      "const result: number = @last.length"
+    ].join("\n"));
+    for (const payload of [rootCarry.tsPayload, rootCarry.rustPayload]) {
+      const resultBinding = rootCarry.fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+        (candidate) => candidate.kind === "typed" && candidate.name === "result"
+      );
+      if (!resultBinding) throw new Error("missing root line carry result scalar");
+      expect(evaluationPayloadToResult(payload).computedScalarBindings?.get(resultBinding.id)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 1 }
+      });
+    }
+  }, 60000);
+
   it("keeps Module geometry carry identity and order paired across instances", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
@@ -1536,6 +1697,8 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     };
     const carryA = carryForInstance("A");
     const carryB = carryForInstance("B");
+    expect(carryA.owner.ownerStatementId).not.toBe(carryB.owner.ownerStatementId);
+    expect(carryA.owner.iterationBindingId).not.toBe(carryB.owner.iterationBindingId);
     expect(carryA.carry.bindingId).not.toBe(carryB.carry.bindingId);
     expect(carryA.carry.nextSourceOrder).not.toBe(carryB.carry.nextSourceOrder);
 
