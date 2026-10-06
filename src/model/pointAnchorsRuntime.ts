@@ -1,13 +1,9 @@
 import type {
   CadElement,
-  ComputedBezierCurve,
   ComputedGeometry,
-  ComputedJoinedPath,
-  ComputedLine,
-  ComputedOffsetLine,
-  ComputedPolyline,
   ComputedPoint
 } from "../types/geometry";
+import type { ComputedGeometryValue, ComputedGeometryValuePoint } from "../geometry/evaluationTypes";
 import type { ElementId, PointAnchor } from "@nuinuicad/nui-language";
 import { derivedAnchor, referenceAnchor } from "@nuinuicad/nui-language";
 
@@ -17,46 +13,54 @@ export type SelectablePoint = {
   point: ComputedPoint;
 };
 
+type DerivedPointSource = ComputedGeometry | ComputedGeometryValue;
+type DerivedPointCoordinates = Pick<ComputedPoint, "x" | "y">;
+
+const pointCoordinates = (
+  point: ComputedPoint | DerivedPointCoordinates | null | undefined
+): ComputedPoint | DerivedPointCoordinates | null => point ?? null;
+
 const derivedPoint = (
-  source: ComputedLine | ComputedBezierCurve | ComputedOffsetLine | ComputedJoinedPath | ComputedPolyline | Extract<ComputedGeometry, { kind: "arcLine" }>,
+  source: DerivedPointSource,
   pointKey: string
-): ComputedPoint | null => {
+): ComputedPoint | DerivedPointCoordinates | null => {
   if (source.kind === "line") {
-    if (pointKey === "start") return source.start;
-    if (pointKey === "end") return source.end;
+    if (pointKey === "start") return pointCoordinates(source.start);
+    if (pointKey === "end") return pointCoordinates(source.end);
     return null;
   }
 
   if (source.kind === "arcLine") {
-    if (pointKey === "center") return source.center;
-    if (pointKey === "start") return source.start;
-    if (pointKey === "end") return source.end;
+    if (pointKey === "center") return pointCoordinates(source.center);
+    if (pointKey === "start") return pointCoordinates(source.start);
+    if (pointKey === "end") return pointCoordinates(source.end);
     return null;
   }
 
   if (source.kind === "offsetLine") {
-    if (pointKey === "start") return source.segments[0]?.start ?? null;
-    if (pointKey === "end") return source.segments.at(-1)?.end ?? null;
+    if (pointKey === "start") return pointCoordinates(source.segments[0]?.start);
+    if (pointKey === "end") return pointCoordinates(source.segments.at(-1)?.end);
     return null;
   }
 
   if (source.kind === "joinedPath") {
-    if (pointKey === "start") return source.start;
-    if (pointKey === "end") return source.end;
+    if (pointKey === "start") return pointCoordinates(source.start);
+    if (pointKey === "end") return pointCoordinates(source.end);
     return null;
   }
 
   if (source.kind === "polyline") {
-    if (pointKey === "start") return source.start;
-    if (pointKey === "end") return source.end;
+    if (pointKey === "start") return pointCoordinates(source.start);
+    if (pointKey === "end") return pointCoordinates(source.end);
     return null;
   }
 
   if (source.kind === "bezierCurve") {
-    if (pointKey === "start") return source.segments[0]?.start ?? null;
-    if (pointKey === "end") return source.segments.at(-1)?.end ?? null;
+    if (pointKey === "start") return pointCoordinates(source.segments[0]?.start);
+    if (pointKey === "end") return pointCoordinates(source.segments.at(-1)?.end);
   }
   if (source.kind !== "bezierCurve") return null;
+  if (!("intermediateSlotIds" in source)) return null;
 
   const intermediateId = pointKey.startsWith("intermediate:")
     ? pointKey.slice("intermediate:".length)
@@ -64,14 +68,29 @@ const derivedPoint = (
   if (!intermediateId || source.kind !== "bezierCurve") return null;
 
   const index = source.intermediateSlotIds.indexOf(intermediateId);
-  return index < 0 ? null : source.segments[index]?.end ?? null;
+  return index < 0 ? null : pointCoordinates(source.segments[index]?.end);
 };
 
-export const resolveDerivedPoint = (
+export function resolveDerivedPoint(
   source: ComputedGeometry | undefined,
   pointKey: string,
   _elementsById: Map<ElementId, CadElement>
-) => {
+): ComputedPoint | null;
+export function resolveDerivedPoint(
+  source: ComputedGeometryValue | undefined,
+  pointKey: string,
+  _elementsById: Map<ElementId, CadElement>
+): ComputedGeometryValuePoint | null;
+export function resolveDerivedPoint(
+  source: DerivedPointSource | undefined,
+  pointKey: string,
+  _elementsById: Map<ElementId, CadElement>
+): ComputedPoint | ComputedGeometryValuePoint | null;
+export function resolveDerivedPoint(
+  source: DerivedPointSource | undefined,
+  pointKey: string,
+  _elementsById: Map<ElementId, CadElement>
+): ComputedPoint | ComputedGeometryValuePoint | null {
   void _elementsById;
   if (
     !source ||
@@ -84,8 +103,11 @@ export const resolveDerivedPoint = (
       source.kind !== "polyline"
     )
   ) return null;
-  return derivedPoint(source, pointKey);
-};
+  const point = derivedPoint(source, pointKey);
+  if (!point) return null;
+  if ("elementId" in point) return point;
+  return { kind: "point", x: point.x, y: point.y };
+}
 
 const computedPoint = (
   elementId: ElementId,

@@ -70,6 +70,16 @@ fn materialized_target(element_id: &str, source_id: &str, geometry_type: &str) -
     })
 }
 
+fn materialized_point_target(element_id: &str, source: Value) -> Value {
+    json!({
+        "elementId": element_id,
+        "parameters": [{
+            "parameterKey": "source",
+            "target": source
+        }]
+    })
+}
+
 fn geometry<'a>(result: &'a EvaluationPayload, id: &str) -> &'a Value {
     result
         .computed_geometry
@@ -196,4 +206,95 @@ fn materialized_path_gets_geometry_value_identity_without_aliasing_the_value() {
     assert!(result.computed_geometry_values[0]["value"]
         .get("elementId")
         .is_none());
+}
+
+#[test]
+fn materialized_drawable_endpoint_is_projected_to_an_independent_point() {
+    let result = evaluate_document_input(input(
+        vec![
+            point("start", "始点", 2.0, 3.0),
+            point("end", "終点", 12.0, 15.0),
+            json!({
+                "id": "source",
+                "name": "元線",
+                "type": "line",
+                "activity": "visible",
+                "startPoint": { "mode": "reference", "pointId": "start" },
+                "endPoint": { "mode": "reference", "pointId": "end" }
+            }),
+            json!({
+                "id": "copy",
+                "name": "終点の複製",
+                "type": "materializedPoint",
+                "activity": "visible"
+            }),
+        ],
+        json!([materialized_point_target(
+            "copy",
+            json!({
+                "kind": "drawable",
+                "elementId": "source",
+                "geometryType": "line",
+                "pointKey": "end"
+            })
+        )]),
+    ));
+
+    assert!(result.errors.is_empty());
+    let source = geometry(&result, "source");
+    let copy = geometry(&result, "copy");
+    assert_eq!(source["kind"], json!("line"));
+    assert_eq!(source["end"]["x"], json!(12.0));
+    assert_eq!(copy["kind"], json!("point"));
+    assert_eq!(copy["elementId"], json!("copy"));
+    assert_eq!(copy["name"], json!("終点の複製"));
+    assert_eq!(copy["x"], json!(12.0));
+    assert_eq!(copy["y"], json!(15.0));
+}
+
+#[test]
+fn materialized_geometry_value_endpoint_is_projected_before_value_materialization() {
+    let occurrence = json!({
+        "sourceStatementId": "value:line",
+        "instancePath": []
+    });
+    let result = evaluate_document_input(input_with_geometry_value_program(
+        vec![json!({
+            "id": "point-copy",
+            "name": "値の終点",
+            "type": "materializedPoint",
+            "activity": "visible"
+        })],
+        json!([materialized_point_target(
+            "point-copy",
+            json!({
+                "kind": "geometryValue",
+                "geometryType": "line",
+                "pointKey": "end",
+                "occurrence": occurrence.clone()
+            })
+        )]),
+        vec![json!({
+            "sourceStatementId": "value:line",
+            "sourceStatementIndex": 0,
+            "declaredInterfaceType": "line",
+            "occurrence": occurrence,
+            "executionPosition": 0.0,
+            "construction": {
+                "kind": "segment",
+                "start": { "kind": "coordinate", "x": number(2.0), "y": number(3.0) },
+                "end": { "kind": "coordinate", "x": number(32.0), "y": number(15.0) }
+            }
+        })],
+    ));
+
+    assert!(result.errors.is_empty());
+    let value = &result.computed_geometry_values[0]["value"];
+    assert_eq!(value["kind"], json!("line"));
+    assert!(value.get("elementId").is_none());
+    let copy = geometry(&result, "point-copy");
+    assert_eq!(copy["kind"], json!("point"));
+    assert_eq!(copy["elementId"], json!("point-copy"));
+    assert_eq!(copy["x"], json!(32.0));
+    assert_eq!(copy["y"], json!(15.0));
 }

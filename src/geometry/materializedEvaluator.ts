@@ -7,6 +7,7 @@ import type {
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
 import { geometryError } from "./evaluationContext";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
+import { resolveDerivedPoint } from "../model/pointAnchorsRuntime";
 
 const point = (element: CadElement, key: string, value: { x: number; y: number }): ComputedPoint => ({
   kind: "point",
@@ -153,12 +154,18 @@ const sourceGeometry = (
   target: GeometryInputTarget
 ): ComputedGeometry | ComputedGeometryValue | undefined => {
   if (target.kind === "drawable") {
-    return context.resolveGeometrySnapshot
+    const source = context.resolveGeometrySnapshot
       ? context.resolveGeometrySnapshot(target.elementId, target.stagePath)
       : context.computedGeometry.get(target.elementId);
+    return target.pointKey && source
+      ? resolveDerivedPoint(source, target.pointKey, context.elementsById) ?? undefined
+      : source;
   }
   if (target.kind === "geometryValue") {
-    return context.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value;
+    const source = context.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence))?.value;
+    return target.pointKey && source
+      ? resolveDerivedPoint(source, target.pointKey, context.elementsById) ?? undefined
+      : source;
   }
   return undefined;
 };
