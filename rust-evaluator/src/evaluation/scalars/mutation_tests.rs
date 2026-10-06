@@ -13,7 +13,7 @@ use super::super::types::{
     ScalarExpressionResolvedOptionalMemberTarget, ScalarSpan, ScalarType, ScalarValue,
     TypedScalarExpression,
 };
-use super::{MutationEnvironment, ScalarMutationResolver};
+use super::{DependencyBindingSchedule, MutationEnvironment, ScalarMutationResolver};
 use crate::evaluation::scalars::expression_evaluator::ScalarEvaluationEnvironment;
 use crate::evaluation::scalars::mutation_payload::ValidatedImmutableForGroupPlan;
 use crate::evaluation::types::{EvaluationState, GeometryInputCollectionNode, GeometryInputTarget};
@@ -304,6 +304,11 @@ fn dependency_scheduled_module_exports_remain_available_through_nested_forwardin
         .iter()
         .map(|binding_id| (*binding_id).to_owned())
         .collect::<HashSet<_>>();
+    let no_scheduled_prerequisites = HashMap::new();
+    let binding_schedule = DependencyBindingSchedule {
+        execution_positions: &execution_positions,
+        prerequisites: &no_scheduled_prerequisites,
+    };
     let mut resolver = ScalarMutationResolver::new(&program);
 
     // Release the first child export before its forwarding declaration is
@@ -311,7 +316,7 @@ fn dependency_scheduled_module_exports_remain_available_through_nested_forwardin
     resolver.advance_before_with_execution_position(
         3,
         Some(0.0),
-        &execution_positions,
+        &binding_schedule,
         &all_bindings_ready,
         true,
         &mut state,
@@ -327,7 +332,7 @@ fn dependency_scheduled_module_exports_remain_available_through_nested_forwardin
     resolver.advance_before_with_execution_position(
         usize::MAX,
         Some(f64::INFINITY),
-        &execution_positions,
+        &binding_schedule,
         &all_bindings_ready,
         true,
         &mut state,

@@ -91,7 +91,8 @@ pub(crate) use geometry_builtin_runtime::{
     resolve_geometry_builtin_target, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
 pub(crate) use mutation::{
-    ForGroupExecutionStatement, GeometryValueReleaseContext, ScalarMutationResolver,
+    DependencyBindingSchedule, ForGroupExecutionStatement, GeometryValueReleaseContext,
+    ScalarMutationResolver,
 };
 pub(crate) use mutation_payload::{validate_binding_versions_payload, ValidatedBindingVersions};
 pub(crate) use program_payload::{validate_scalar_program_payload, ValidatedScalarProgram};

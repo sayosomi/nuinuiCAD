@@ -59,7 +59,11 @@ export type ScalarBindingResolver = {
 };
 
 export type LinearScalarBindingResolver = {
-  advanceTo: (position: BindingReadPosition, dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>) => void;
+  advanceTo: (
+    position: BindingReadPosition,
+    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>,
+    dependencyScheduledPrerequisiteVersionIdsByVersionId?: ReadonlyMap<BindingVersionId, readonly BindingVersionId[]>
+  ) => void;
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveBinding: (bindingId: BindingId) => ScalarEvaluation;
   resolveCollectionIndex?: ScalarBindingResolver["resolveCollectionIndex"];
@@ -67,7 +71,10 @@ export type LinearScalarBindingResolver = {
   resolveCollectionLength?: ScalarBindingResolver["resolveCollectionLength"];
   resolveOptionalMember?: ScalarBindingResolver["resolveOptionalMember"];
   resolveGeometryCollectionLength?: ScalarBindingResolver["resolveGeometryCollectionLength"];
-  finalize: (position: BindingReadPosition) => LinearMutationEvaluation;
+  finalize: (
+    position: BindingReadPosition,
+    dependencyScheduledPrerequisiteVersionIdsByVersionId?: ReadonlyMap<BindingVersionId, readonly BindingVersionId[]>
+  ) => LinearMutationEvaluation;
   runForGroup: (
     plan: ForGroupExecutionExecutionPlan,
     executeStatement: (statement: ForGroupExecutionStatement, context: ForGroupExecutionExecutionContext) => ForGroupExecutionRunOutcome
@@ -453,11 +460,12 @@ export const createDocumentLinearScalarBindingResolver = (
     ...collectionResolver?.environmentFor(sourceOrder)
   });
   return {
-    advanceTo: (position, dependencyReadyVersionIds) => evaluator.advanceTo(
+    advanceTo: (position, dependencyReadyVersionIds, dependencyScheduledPrerequisiteVersionIdsByVersionId) => evaluator.advanceTo(
       position,
       getDependencyExecutionPositionByVersionId?.(),
       false,
-      dependencyReadyVersionIds
+      dependencyReadyVersionIds,
+      dependencyScheduledPrerequisiteVersionIdsByVersionId
     ),
     registerConditionalResult: evaluator.registerConditionalResult,
     resolveBinding: evaluator.resolveCurrent,
@@ -471,7 +479,11 @@ export const createDocumentLinearScalarBindingResolver = (
         collectionResolver.environmentFor(sourceOrder).lookupOptionalMember!(target, type)
     } : {}),
     ...(resolveGeometryCollectionLength ? { resolveGeometryCollectionLength } : {}),
-    finalize: (position) => evaluator.finalize(position, getDependencyExecutionPositionByVersionId?.()),
+    finalize: (position, dependencyScheduledPrerequisiteVersionIdsByVersionId) => evaluator.finalize(
+      position,
+      getDependencyExecutionPositionByVersionId?.(),
+      dependencyScheduledPrerequisiteVersionIdsByVersionId
+    ),
     runForGroup: evaluator.runForGroup
   };
 };

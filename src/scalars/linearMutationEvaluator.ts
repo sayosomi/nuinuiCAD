@@ -44,7 +44,8 @@ export type IncrementalLinearMutationEvaluator = {
     position: BindingReadPosition,
     dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
     flushUnranked?: boolean,
-    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>
+    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>,
+    dependencyScheduledPrerequisiteVersionIdsByVersionId?: ReadonlyMap<BindingVersionId, readonly BindingVersionId[]>
   ) => void;
   /** Records Task 25's already-evaluated result exactly once for this owner. */
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
@@ -52,7 +53,11 @@ export type IncrementalLinearMutationEvaluator = {
   resolveCollectionValueId: (collectionValueId: string, sourceOrder: number) => string | undefined;
   resolveCollectionIndex: (collectionValueId: string, index: number, elementType: ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number, sourceOrder: number) => ScalarEvaluation;
   resolveCollectionLength: (collectionValueId: string, sourceOrder: number) => number | undefined;
-  finalize: (position: BindingReadPosition, dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>) => LinearMutationEvaluation;
+  finalize: (
+    position: BindingReadPosition,
+    dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
+    dependencyScheduledPrerequisiteVersionIdsByVersionId?: ReadonlyMap<BindingVersionId, readonly BindingVersionId[]>
+  ) => LinearMutationEvaluation;
   runForGroup: (
     plan: ForGroupExecutionExecutionPlan,
     executeStatement: (statement: ForGroupExecutionStatement, context: ForGroupExecutionExecutionContext) => ForGroupExecutionRunOutcome
@@ -267,12 +272,15 @@ export const createIncrementalLinearMutationEvaluator = (
     executionPosition: number,
     dependencyExecutionPositionByVersionId: ReadonlyMap<BindingVersionId, number>,
     flushUnranked: boolean,
-    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>
+    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>,
+    dependencyScheduledPrerequisiteVersionIdsByVersionId?: ReadonlyMap<BindingVersionId, readonly BindingVersionId[]>
   ): void => {
-    const ready = [...pendingDependencyVersions.values()].flatMap((version) => {
+    const readyVersions = () => [...pendingDependencyVersions.values()].flatMap((version) => {
       const rank = dependencyExecutionPositionByVersionId.get(version.id);
+      const prerequisitesExecuted = (dependencyScheduledPrerequisiteVersionIdsByVersionId?.get(version.id) ?? [])
+        .every((prerequisiteVersionId) => historyByVersionId.has(prerequisiteVersionId));
       return rank !== undefined && rank <= executionPosition &&
-        (!dependencyReadyVersionIds || dependencyReadyVersionIds.has(version.id))
+        (!dependencyReadyVersionIds || dependencyReadyVersionIds.has(version.id)) && prerequisitesExecuted
         ? [{ version, rank }]
         : [];
     }).sort((left, right) =>
@@ -280,12 +288,18 @@ export const createIncrementalLinearMutationEvaluator = (
       left.version.sourceOrder - right.version.sourceOrder ||
       left.version.id.localeCompare(right.version.id)
     );
-    for (const { version } of ready) {
-      pendingDependencyVersions.delete(version.id);
-      if (!historyByVersionId.has(version.id)) execute(version);
+    let ready = readyVersions();
+    while (ready.length > 0) {
+      for (const { version } of ready) {
+        pendingDependencyVersions.delete(version.id);
+        if (!historyByVersionId.has(version.id)) execute(version);
+      }
+      ready = readyVersions();
     }
     if (flushUnranked) {
       const remaining = [...pendingDependencyVersions.values()].sort((left, right) =>
+        (dependencyExecutionPositionByVersionId.get(left.id) ?? Number.POSITIVE_INFINITY) -
+          (dependencyExecutionPositionByVersionId.get(right.id) ?? Number.POSITIVE_INFINITY) ||
         left.sourceOrder - right.sourceOrder || left.id.localeCompare(right.id)
       );
       pendingDependencyVersions.clear();
@@ -344,7 +358,8 @@ export const createIncrementalLinearMutationEvaluator = (
     position: BindingReadPosition,
     dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
     flushUnranked = false,
-    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>
+    dependencyReadyVersionIds?: ReadonlySet<BindingVersionId>,
+    dependencyScheduledPrerequisiteVersionIdsByVersionId?: ReadonlyMap<BindingVersionId, readonly BindingVersionId[]>
   ): void => {
     const dependencyScheduleActive = dependencyExecutionPositionByVersionId !== undefined &&
       position.dependencyExecutionPosition !== undefined;
@@ -363,8 +378,9 @@ export const createIncrementalLinearMutationEvaluator = (
         advanceDependencyReadyVersionsThrough(
           position.dependencyExecutionPosition!,
           dependencyExecutionPositionByVersionId!,
-          flushUnranked,
-          dependencyReadyVersionIds
+          false,
+          dependencyReadyVersionIds,
+          dependencyScheduledPrerequisiteVersionIdsByVersionId
         );
       }
       execute(version);
@@ -375,7 +391,8 @@ export const createIncrementalLinearMutationEvaluator = (
         position.dependencyExecutionPosition!,
         dependencyExecutionPositionByVersionId!,
         flushUnranked,
-        dependencyReadyVersionIds
+        dependencyReadyVersionIds,
+        dependencyScheduledPrerequisiteVersionIdsByVersionId
       );
     }
   };
@@ -404,9 +421,10 @@ export const createIncrementalLinearMutationEvaluator = (
 
   const finalize = (
     position: BindingReadPosition,
-    dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>
+    dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
+    dependencyScheduledPrerequisiteVersionIdsByVersionId?: ReadonlyMap<BindingVersionId, readonly BindingVersionId[]>
   ): LinearMutationEvaluation => {
-    advanceTo(position, dependencyExecutionPositionByVersionId, true);
+    advanceTo(position, dependencyExecutionPositionByVersionId, true, undefined, dependencyScheduledPrerequisiteVersionIdsByVersionId);
     return {
       resultsByBindingId: new Map(finalBindingOrder.flatMap((bindingId) => {
         const result = currentByBindingId.get(bindingId);

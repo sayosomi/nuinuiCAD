@@ -456,7 +456,14 @@ export const evaluateElements = (
   let typedDependencyEndpointRankById = new Map<string, number>();
   let bindingVersionDependencyExecutionPositionById = new Map<string, number>();
   let dependencyPrerequisiteEndpointIdsByVersionId = new Map<string, readonly string[]>();
-  let scheduledPrerequisitesReadyForVersion: (versionId: string) => boolean = () => false;
+  let dependencyScheduledPrerequisiteVersionIdsByVersionId = new Map<string, readonly string[]>();
+  let scheduledPrerequisitesReadyForVersion: (versionId: string, readyVersionIds?: ReadonlySet<string>) => boolean = () => false;
+  let dependencyReadyVersionIdsForSourceOrder: (sourceOrder: number) => ReadonlySet<string> = () => new Set();
+  let dependencyExecutionPositionForSourceOrder = (
+    _sourceOrder: number,
+    currentPosition: number | undefined
+  ): number | undefined => currentPosition;
+  let endpointIsReady: (endpointId: string, visiting?: Set<string>) => boolean = () => false;
   const conditionalBranchSelections = new Map<string, string>();
   const graphEdgeIsActive = (edge: NonNullable<TypedDependencyGraph>["edges"][number]): boolean => {
     if (edge.requiredness !== "conditional" || !edge.activation) return true;
@@ -473,8 +480,9 @@ export const evaluateElements = (
     for (const version of options.bindingVersions?.versions ?? []) {
       if (version.control.kind !== "linear" || !options.typedDependencyGraph) continue;
       const prerequisites = options.typedDependencyGraph.directByEndpointId.get(`binding:${version.bindingId}`) ?? [];
-      const scheduledPrerequisites = prerequisites.flatMap((edge) => {
-        if (!graphEdgeIsActive(edge)) return [];
+      const scheduledPrerequisites: string[] = [];
+      for (const edge of prerequisites) {
+        if (!graphEdgeIsActive(edge)) continue;
         const isGeometryPrerequisite = edge.to.kind === "geometry-value" ||
           edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence";
         const targetVersionId = edge.to.kind === "binding"
@@ -484,10 +492,19 @@ export const evaluateElements = (
           ? options.bindingVersions?.versionsById.get(targetVersionId)
           : undefined;
         const isForwardBindingPrerequisite = targetVersion !== undefined && targetVersion.sourceOrder > version.sourceOrder;
-        return isGeometryPrerequisite || isForwardBindingPrerequisite
-          ? [typedDependencyEndpointId(edge.to)]
-          : [];
-      });
+        if (isGeometryPrerequisite || isForwardBindingPrerequisite) {
+          scheduledPrerequisites.push(typedDependencyEndpointId(edge.to));
+        }
+        if (isForwardBindingPrerequisite && targetVersion?.control.kind === "linear") {
+          const targetRank = typedDependencyEndpointRankById.get(typedDependencyEndpointId(edge.to));
+          if (targetRank !== undefined) {
+            executionPositions.set(targetVersion.id, targetRank);
+            if (!dependencyPrerequisiteEndpointIdsByVersionId.has(targetVersion.id)) {
+              dependencyPrerequisiteEndpointIdsByVersionId.set(targetVersion.id, []);
+            }
+          }
+        }
+      }
       if (scheduledPrerequisites.length === 0) continue;
       const rank = typedDependencyEndpointRankById.get(`binding:${version.bindingId}`);
       if (rank === undefined) continue;
@@ -495,6 +512,19 @@ export const evaluateElements = (
       dependencyPrerequisiteEndpointIdsByVersionId.set(version.id, scheduledPrerequisites);
     }
     bindingVersionDependencyExecutionPositionById = executionPositions;
+    dependencyScheduledPrerequisiteVersionIdsByVersionId = new Map(
+      [...dependencyPrerequisiteEndpointIdsByVersionId].flatMap(([versionId, endpointIds]) => {
+        const prerequisiteVersionIds = endpointIds.flatMap((endpointId) => {
+          const endpoint = graphEndpointById.get(endpointId);
+          if (endpoint?.kind !== "binding") return [];
+          const prerequisiteVersionId = options.bindingVersions?.versionIdsByBindingId.get(endpoint.id)?.at(-1);
+          return prerequisiteVersionId && executionPositions.has(prerequisiteVersionId)
+            ? [prerequisiteVersionId]
+            : [];
+        });
+        return prerequisiteVersionIds.length > 0 ? [[versionId, prerequisiteVersionIds] as const] : [];
+      })
+    );
   };
   const linearMutationResolver = linearMutationEnabled
     ? createDocumentLinearScalarBindingResolver(
@@ -504,26 +534,6 @@ export const evaluateElements = (
         options.typedDependencyGraph ? () => bindingVersionDependencyExecutionPositionById : undefined
     )
     : undefined;
-  const dependencyReadyVersionIdsForSourceOrder = (sourceOrder: number) => new Set(
-    (options.bindingVersions?.versions ?? []).flatMap((version) =>
-      version.sourceOrder < sourceOrder &&
-        bindingVersionDependencyExecutionPositionById.has(version.id) &&
-        scheduledPrerequisitesReadyForVersion(version.id)
-        ? [version.id]
-        : []
-    )
-  );
-  const dependencyExecutionPositionForSourceOrder = (
-    sourceOrder: number,
-    currentPosition: number | undefined
-  ): number | undefined => {
-    const readyPositions = [...dependencyReadyVersionIdsForSourceOrder(sourceOrder)].flatMap((versionId) => {
-      const position = bindingVersionDependencyExecutionPositionById.get(versionId);
-      return position === undefined ? [] : [position];
-    });
-    return [...readyPositions, ...(currentPosition === undefined ? [] : [currentPosition])]
-      .reduce<number | undefined>((maximum, position) => maximum === undefined ? position : Math.max(maximum, position), undefined);
-  };
   const knownConditionalMutationOwnerIds = new Set(
     options.bindingVersions?.versions.flatMap((version) => version.control.ownerChain
       .filter((owner) => owner.kind === "conditionalBranch")
@@ -1279,7 +1289,7 @@ export const evaluateElements = (
         kind: "beforeStatement",
         sourceOrder,
         dependencyExecutionPosition
-      }, dependencyReadyVersionIds);
+      }, dependencyReadyVersionIds, dependencyScheduledPrerequisiteVersionIdsByVersionId);
     }
     if (entry.construction.kind === "none") {
       computedGeometryValues.delete(geometryValueOccurrenceKey(entry.occurrence));
@@ -1912,7 +1922,7 @@ export const evaluateElements = (
         sourceOrder,
         currentDependencyExecutionPosition
       )
-    }, dependencyReadyVersionIds);
+    }, dependencyReadyVersionIds, dependencyScheduledPrerequisiteVersionIdsByVersionId);
   };
 
   const pushGeneratedVisibilityState = (
@@ -2957,7 +2967,7 @@ export const evaluateElements = (
     const initialProjection = resolveTypedDependencyGraphRuntime(options.typedDependencyGraph, conditionalBranchSelections);
     setTypedDependencyEndpointRanks(initialProjection.dependencyOrder);
   }
-  const endpointIsReady = (endpointId: string, visiting = new Set<string>()): boolean => {
+  endpointIsReady = (endpointId: string, visiting = new Set<string>()): boolean => {
     const endpoint = graphEndpointById.get(endpointId);
     if (!endpoint || visiting.has(endpointId)) return false;
     const nextVisiting = new Set(visiting).add(endpointId);
@@ -2984,11 +2994,53 @@ export const evaluateElements = (
     if (prerequisites.some((edge) => !endpointIsReady(typedDependencyEndpointId(edge.to), nextVisiting))) return false;
     return scalarBindingResolver.resolveBinding(endpoint.id).status === "ok";
   };
-  scheduledPrerequisitesReadyForVersion = (versionId: string): boolean => {
+  scheduledPrerequisitesReadyForVersion = (versionId: string, readyVersionIds = new Set<string>()): boolean => {
     const prerequisiteEndpointIds = dependencyPrerequisiteEndpointIdsByVersionId.get(versionId) ?? [];
-    return prerequisiteEndpointIds.length > 0 && prerequisiteEndpointIds.every((endpointId) =>
-      endpointIsReady(endpointId)
+    return prerequisiteEndpointIds.every((endpointId) => {
+      if (endpointIsReady(endpointId)) return true;
+      const endpoint = graphEndpointById.get(endpointId);
+      if (endpoint?.kind !== "binding") return false;
+      const dependentVersion = options.bindingVersions?.versionsById.get(versionId);
+      const dependentRank = bindingVersionDependencyExecutionPositionById.get(versionId);
+      const targetVersionId = options.bindingVersions?.versionIdsByBindingId.get(endpoint.id)?.at(-1);
+      const targetVersion = targetVersionId
+        ? options.bindingVersions?.versionsById.get(targetVersionId)
+        : undefined;
+      const targetRank = targetVersionId
+        ? bindingVersionDependencyExecutionPositionById.get(targetVersionId)
+        : undefined;
+      if (targetVersion !== undefined && dependentVersion !== undefined &&
+        targetVersion.sourceOrder < dependentVersion.sourceOrder && targetRank === undefined) return true;
+      return targetVersionId !== undefined && readyVersionIds.has(targetVersionId) &&
+        targetRank !== undefined && dependentRank !== undefined && targetRank < dependentRank;
+    });
+  };
+  dependencyReadyVersionIdsForSourceOrder = (sourceOrder: number) => {
+    const candidateVersions = (options.bindingVersions?.versions ?? []).filter((version) =>
+      version.sourceOrder < sourceOrder && bindingVersionDependencyExecutionPositionById.has(version.id)
     );
+    const readyVersionIds = new Set<string>();
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const version of candidateVersions) {
+        if (readyVersionIds.has(version.id) ||
+          !scheduledPrerequisitesReadyForVersion(version.id, readyVersionIds)) continue;
+        readyVersionIds.add(version.id);
+        progressed = true;
+      }
+    }
+    return readyVersionIds;
+  };
+  dependencyExecutionPositionForSourceOrder = (sourceOrder, currentPosition) => {
+    const scheduledPositions = (options.bindingVersions?.versions ?? [])
+      .filter((version) => version.sourceOrder < sourceOrder)
+      .flatMap((version) => {
+        const position = bindingVersionDependencyExecutionPositionById.get(version.id);
+        return position === undefined ? [] : [position];
+      });
+    return [...scheduledPositions, ...(currentPosition === undefined ? [] : [currentPosition])]
+      .reduce<number | undefined>((maximum, position) => maximum === undefined ? position : Math.max(maximum, position), undefined);
   };
   const hasFailedGeometryPrerequisite = (elementId: ElementId): boolean => {
     if (options.typedDependencyGraph) {
@@ -3063,7 +3115,7 @@ export const evaluateElements = (
               entrySourcePosition,
               typedDependencyEndpointRankById.get(candidate.sourceEndpointId)
             )
-          }, dependencyReadyVersionIds);
+          }, dependencyReadyVersionIds, dependencyScheduledPrerequisiteVersionIdsByVersionId);
         }
         if (candidate.kind === "geometry-value-coalesce") {
           if (!entry || !entrySourcePositionAvailable) continue;
@@ -3219,7 +3271,7 @@ export const evaluateElements = (
       kind: "beforeStatement",
         sourceOrder: Number.POSITIVE_INFINITY,
         dependencyExecutionPosition: Number.POSITIVE_INFINITY
-      })
+      }, dependencyScheduledPrerequisiteVersionIdsByVersionId)
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;
 

@@ -131,6 +131,17 @@ struct GeometryPropertyReadinessContext<'a> {
     state: &'a EvaluationState,
     evaluated_geometry_values: &'a [bool],
     geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
+    source_order_by_binding_id: Option<&'a HashMap<String, usize>>,
+}
+
+pub(crate) struct DependencyScheduledBindingReadiness<'a> {
+    pub(crate) candidate_binding_ids: &'a [String],
+    pub(crate) source_order_by_binding_id: &'a HashMap<String, usize>,
+    pub(crate) branch_selections: &'a HashMap<String, String>,
+    pub(crate) resolver: &'a dyn ScalarDocumentBindingResolver,
+    pub(crate) state: &'a EvaluationState,
+    pub(crate) evaluated_geometry_values: &'a [bool],
+    pub(crate) geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
 }
 
 pub(crate) fn decode_conditional_dependency_graph(
@@ -419,6 +430,147 @@ impl ConditionalDependencyGraph {
         geometry_dependent_bindings
     }
 
+    /// Binding endpoints on an active forward scalar dependency edge. Both
+    /// sides must enter the existing dependency schedule so the prerequisite
+    /// can execute before its dependent even when ordinary source progression
+    /// has not reached it yet.
+    pub(crate) fn bindings_with_active_forward_binding_dependency(
+        &self,
+        branch_selections: &HashMap<String, String>,
+        source_order_by_binding_id: &HashMap<String, usize>,
+    ) -> HashSet<String> {
+        let mut scheduled_binding_ids = HashSet::new();
+        for edge in &self.edges {
+            if !edge_is_active(edge, branch_selections)
+                || edge.from.kind != "binding"
+                || edge.to.kind != "binding"
+            {
+                continue;
+            }
+            let Some(dependent_source_order) = source_order_by_binding_id.get(&edge.from.id) else {
+                continue;
+            };
+            let Some(prerequisite_source_order) = source_order_by_binding_id.get(&edge.to.id)
+            else {
+                continue;
+            };
+            if prerequisite_source_order > dependent_source_order {
+                scheduled_binding_ids.insert(edge.from.id.clone());
+                scheduled_binding_ids.insert(edge.to.id.clone());
+            }
+        }
+        scheduled_binding_ids
+    }
+
+    pub(crate) fn active_scheduled_binding_prerequisites(
+        &self,
+        branch_selections: &HashMap<String, String>,
+        scheduled_binding_ids: &HashSet<String>,
+    ) -> HashMap<String, HashSet<String>> {
+        let mut prerequisites_by_binding_id = HashMap::<String, HashSet<String>>::new();
+        for edge in &self.edges {
+            if edge.from.kind != "binding"
+                || edge.to.kind != "binding"
+                || !edge_is_active(edge, branch_selections)
+                || !scheduled_binding_ids.contains(&edge.from.id)
+                || !scheduled_binding_ids.contains(&edge.to.id)
+            {
+                continue;
+            }
+            prerequisites_by_binding_id
+                .entry(edge.from.id.clone())
+                .or_default()
+                .insert(edge.to.id.clone());
+        }
+        prerequisites_by_binding_id
+    }
+
+    pub(crate) fn ready_dependency_scheduled_binding_ids(
+        &self,
+        readiness: DependencyScheduledBindingReadiness<'_>,
+    ) -> HashSet<String> {
+        let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
+        let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
+        for edge in &self.edges {
+            let from_id = endpoint_key(&edge.from);
+            let to_id = endpoint_key(&edge.to);
+            endpoints.entry(from_id.clone()).or_insert(&edge.from);
+            endpoints.entry(to_id.clone()).or_insert(&edge.to);
+            if edge_is_active(edge, readiness.branch_selections) {
+                outgoing_edges.entry(from_id).or_default().push(edge);
+            }
+        }
+
+        let context = GeometryPropertyReadinessContext {
+            outgoing_edges,
+            endpoints,
+            resolver: readiness.resolver,
+            state: readiness.state,
+            evaluated_geometry_values: readiness.evaluated_geometry_values,
+            geometry_value_index_by_endpoint_id: readiness.geometry_value_index_by_endpoint_id,
+            source_order_by_binding_id: Some(readiness.source_order_by_binding_id),
+        };
+        let mut ready = Self::ready_geometry_dependent_binding_ids_from_context(
+            readiness.candidate_binding_ids,
+            &context,
+        );
+        let candidate_ids = readiness
+            .candidate_binding_ids
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        let mut readiness_by_endpoint = HashMap::new();
+        let mut visiting = HashSet::new();
+        let mut progressed = true;
+        while progressed {
+            progressed = false;
+            for binding_id in readiness.candidate_binding_ids {
+                if ready.contains(binding_id) {
+                    continue;
+                }
+                let endpoint_id = format!("binding:{binding_id}");
+                let prerequisites = context.outgoing_edges.get(&endpoint_id);
+                let prerequisites_ready = prerequisites.map_or(true, |edges| {
+                    edges.iter().all(|edge| {
+                        if edge.to.kind == "binding"
+                            && candidate_ids.contains(&edge.to.id)
+                            && ready.contains(&edge.to.id)
+                        {
+                            return true;
+                        }
+                        if edge.to.kind == "binding"
+                            && !candidate_ids.contains(&edge.to.id)
+                            && context.source_order_by_binding_id.is_some_and(
+                                |source_order_by_binding_id| {
+                                    source_order_by_binding_id
+                                        .get(&edge.to.id)
+                                        .zip(source_order_by_binding_id.get(binding_id))
+                                        .is_some_and(|(prerequisite, dependent)| {
+                                            prerequisite < dependent
+                                        })
+                                },
+                            )
+                        {
+                            return true;
+                        }
+                        geometry_property_prerequisites_are_ready(
+                            &endpoint_key(&edge.to),
+                            &context,
+                            &mut readiness_by_endpoint,
+                            &mut visiting,
+                        )
+                    })
+                });
+                if !prerequisites_ready {
+                    continue;
+                }
+                ready.insert(binding_id.clone());
+                progressed = true;
+            }
+        }
+        ready
+    }
+
     pub(crate) fn has_activation(&self) -> bool {
         self.edges.iter().any(|edge| {
             edge.activation
@@ -531,6 +683,7 @@ impl ConditionalDependencyGraph {
             })
     }
 
+    #[cfg(test)]
     pub(crate) fn ready_geometry_dependent_binding_ids(
         &self,
         candidate_binding_ids: &[String],
@@ -552,9 +705,6 @@ impl ConditionalDependencyGraph {
             }
         }
 
-        let mut ready = HashSet::new();
-        let mut readiness_by_endpoint = HashMap::new();
-        let mut visiting = HashSet::new();
         let context = GeometryPropertyReadinessContext {
             outgoing_edges,
             endpoints,
@@ -562,7 +712,18 @@ impl ConditionalDependencyGraph {
             state,
             evaluated_geometry_values,
             geometry_value_index_by_endpoint_id,
+            source_order_by_binding_id: None,
         };
+        Self::ready_geometry_dependent_binding_ids_from_context(candidate_binding_ids, &context)
+    }
+
+    fn ready_geometry_dependent_binding_ids_from_context(
+        candidate_binding_ids: &[String],
+        context: &GeometryPropertyReadinessContext<'_>,
+    ) -> HashSet<String> {
+        let mut ready = HashSet::new();
+        let mut readiness_by_endpoint = HashMap::new();
+        let mut visiting = HashSet::new();
         for binding_id in candidate_binding_ids {
             let endpoint_id = format!("binding:{binding_id}");
             let Some(prerequisites) = context.outgoing_edges.get(&endpoint_id) else {
@@ -572,7 +733,7 @@ impl ConditionalDependencyGraph {
                 && prerequisites.iter().all(|edge| {
                     geometry_property_prerequisites_are_ready(
                         &endpoint_key(&edge.to),
-                        &context,
+                        context,
                         &mut readiness_by_endpoint,
                         &mut visiting,
                     )
@@ -1071,5 +1232,80 @@ mod tests {
         );
         assert!(ready.contains(outer_20) && ready.contains(root_20));
         assert!(!ready.contains(outer_40) && !ready.contains(root_40));
+    }
+
+    #[test]
+    fn say_465_schedules_active_forward_scalar_prerequisites_by_binding_identity() {
+        let outer = "module-binding:outer";
+        let child = "module-binding:child";
+        let edge = required_edge(
+            endpoint("binding", outer, "Outer.Forwarded"),
+            endpoint("binding", child, "Nested.Value"),
+        );
+        let graph = ConditionalDependencyGraph { edges: vec![edge] };
+        let branch_selections = HashMap::new();
+        let source_order_by_binding_id =
+            HashMap::from([(outer.to_owned(), 1), (child.to_owned(), 3)]);
+        assert_eq!(
+            graph.bindings_with_active_forward_binding_dependency(
+                &branch_selections,
+                &source_order_by_binding_id,
+            ),
+            HashSet::from([outer.to_owned(), child.to_owned()]),
+        );
+        assert!(graph
+            .bindings_with_active_forward_binding_dependency(
+                &branch_selections,
+                &HashMap::from([(outer.to_owned(), 3), (child.to_owned(), 1)]),
+            )
+            .is_empty());
+
+        let unavailable = AvailabilityResolver {
+            available_binding_ids: HashSet::new(),
+        };
+        let candidate_binding_ids = [outer.to_owned(), child.to_owned()];
+        let state = empty_evaluation_state();
+        let geometry_value_index_by_endpoint_id = HashMap::new();
+        let ready =
+            graph.ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
+                candidate_binding_ids: &candidate_binding_ids,
+                source_order_by_binding_id: &source_order_by_binding_id,
+                branch_selections: &branch_selections,
+                resolver: &unavailable,
+                state: &state,
+                evaluated_geometry_values: &[],
+                geometry_value_index_by_endpoint_id: &geometry_value_index_by_endpoint_id,
+            });
+        assert_eq!(ready, HashSet::from([outer.to_owned(), child.to_owned()]));
+
+        let conditional_graph = ConditionalDependencyGraph {
+            edges: vec![ConditionalDependencyEdge {
+                from: endpoint("binding", outer, "Outer.Forwarded"),
+                to: endpoint("binding", child, "Nested.Value"),
+                requiredness: Some("conditional".to_owned()),
+                activation: Some(ConditionalDependencyActivation {
+                    guards: vec![ConditionalDependencyGuard {
+                        controller_id: "controller".to_owned(),
+                        branch: "then".to_owned(),
+                        controller_kind: None,
+                        static_selection: None,
+                        controller_expression: None,
+                    }],
+                }),
+            }],
+        };
+        assert!(conditional_graph
+            .bindings_with_active_forward_binding_dependency(
+                &branch_selections,
+                &source_order_by_binding_id,
+            )
+            .is_empty());
+        assert_eq!(
+            conditional_graph.bindings_with_active_forward_binding_dependency(
+                &HashMap::from([("controller".to_owned(), "then".to_owned())]),
+                &source_order_by_binding_id,
+            ),
+            HashSet::from([outer.to_owned(), child.to_owned()]),
+        );
     }
 }

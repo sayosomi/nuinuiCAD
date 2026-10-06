@@ -57,10 +57,15 @@ pub(crate) struct ScalarMutationResolver<'a> {
     collection_carry_value_ids: HashMap<String, String>,
 }
 
+pub(crate) struct DependencyBindingSchedule<'a> {
+    pub(crate) execution_positions: &'a HashMap<String, f64>,
+    pub(crate) prerequisites: &'a HashMap<String, HashSet<String>>,
+}
+
 pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) program: &'a [GeometryValueProgramEntry],
     pub(crate) execution_positions: &'a [f64],
-    pub(crate) binding_execution_positions: &'a HashMap<String, f64>,
+    pub(crate) binding_schedule: &'a DependencyBindingSchedule<'a>,
     pub(crate) dependency_ready_binding_ids: &'a HashSet<String>,
     pub(crate) dependency_order_available: bool,
     pub(crate) dependency_execution_position: Option<f64>,
@@ -104,7 +109,7 @@ impl<'a> ScalarMutationResolver<'a> {
         &mut self,
         source_order: usize,
         dependency_execution_position: Option<f64>,
-        binding_execution_positions: &HashMap<String, f64>,
+        binding_schedule: &DependencyBindingSchedule<'_>,
         dependency_ready_binding_ids: &HashSet<String>,
         dependency_order_available: bool,
         state: &mut EvaluationState,
@@ -124,17 +129,27 @@ impl<'a> ScalarMutationResolver<'a> {
             let version_index = self.next_version_index;
             self.next_version_index += 1;
             if Self::is_dependency_scheduled_version(version)
-                && binding_execution_positions.contains_key(&version.binding_id)
+                && binding_schedule
+                    .execution_positions
+                    .contains_key(&version.binding_id)
             {
                 self.pending_dependency_versions.push(version_index);
             } else {
+                self.advance_pending_dependency_versions_through(
+                    dependency_execution_position,
+                    binding_schedule,
+                    state,
+                    None,
+                    dependency_ready_binding_ids,
+                    false,
+                );
                 self.execute(version, state);
             }
         }
         self.retire_before(source_order);
         self.advance_pending_dependency_versions_through(
             dependency_execution_position,
-            binding_execution_positions,
+            binding_schedule,
             state,
             None,
             dependency_ready_binding_ids,
@@ -164,13 +179,15 @@ impl<'a> ScalarMutationResolver<'a> {
                 self.next_version_index += 1;
                 if Self::is_dependency_scheduled_version(version)
                     && geometry_values
-                        .binding_execution_positions
+                        .binding_schedule
+                        .execution_positions
                         .contains_key(&version.binding_id)
                 {
                     self.pending_dependency_versions.push(version_index);
                 } else {
                     let version_geometry_execution_position = geometry_values
-                        .binding_execution_positions
+                        .binding_schedule
+                        .execution_positions
                         .get(&version.binding_id)
                         .copied()
                         .unwrap_or(geometry_execution_position);
@@ -184,7 +201,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         geometry_values.dependency_ready_binding_ids.clone();
                     self.advance_pending_dependency_versions_through(
                         dependency_execution_position,
-                        geometry_values.binding_execution_positions,
+                        geometry_values.binding_schedule,
                         state,
                         Some(&mut geometry_values),
                         &dependency_ready_binding_ids,
@@ -197,7 +214,7 @@ impl<'a> ScalarMutationResolver<'a> {
             let dependency_ready_binding_ids = geometry_values.dependency_ready_binding_ids.clone();
             self.advance_pending_dependency_versions_through(
                 dependency_execution_position,
-                geometry_values.binding_execution_positions,
+                geometry_values.binding_schedule,
                 state,
                 Some(&mut geometry_values),
                 &dependency_ready_binding_ids,
@@ -219,7 +236,8 @@ impl<'a> ScalarMutationResolver<'a> {
             self.retire_before(version_source_order);
             let version = &self.program.versions[self.next_version_index];
             let version_geometry_execution_position = geometry_values
-                .binding_execution_positions
+                .binding_schedule
+                .execution_positions
                 .get(&version.binding_id)
                 .copied()
                 .unwrap_or(geometry_execution_position);
@@ -299,14 +317,14 @@ impl<'a> ScalarMutationResolver<'a> {
     pub(crate) fn finalize(
         &mut self,
         state: &mut EvaluationState,
-        binding_execution_positions: &HashMap<String, f64>,
+        binding_schedule: &DependencyBindingSchedule<'_>,
         dependency_ready_binding_ids: &HashSet<String>,
         dependency_order_available: bool,
     ) {
         self.advance_before_with_execution_position(
             usize::MAX,
             Some(f64::INFINITY),
-            binding_execution_positions,
+            binding_schedule,
             dependency_ready_binding_ids,
             dependency_order_available,
             state,
@@ -326,7 +344,7 @@ impl<'a> ScalarMutationResolver<'a> {
     fn advance_pending_dependency_versions_through(
         &mut self,
         dependency_execution_position: f64,
-        binding_execution_positions: &HashMap<String, f64>,
+        binding_schedule: &DependencyBindingSchedule<'_>,
         state: &mut EvaluationState,
         mut geometry_values: Option<&mut GeometryValueReleaseContext<'_>>,
         dependency_ready_binding_ids: &HashSet<String>,
@@ -337,46 +355,92 @@ impl<'a> ScalarMutationResolver<'a> {
             .iter()
             .filter_map(|version_index| {
                 let version = &self.program.versions[*version_index];
-                let rank = binding_execution_positions
+                let rank = binding_schedule
+                    .execution_positions
                     .get(&version.binding_id)
                     .copied()?;
+                let prerequisites_executed = binding_schedule
+                    .prerequisites
+                    .get(&version.binding_id)
+                    .map_or(true, |prerequisites| {
+                        prerequisites
+                            .iter()
+                            .all(|binding_id| self.current.contains_key(binding_id))
+                    });
                 (rank <= dependency_execution_position
-                    && dependency_ready_binding_ids.contains(&version.binding_id))
-                .then_some((*version_index, rank))
+                    && dependency_ready_binding_ids.contains(&version.binding_id)
+                    && prerequisites_executed)
+                    .then_some((*version_index, rank))
             })
             .collect::<Vec<_>>();
-        ready.sort_by(|(left_index, left_rank), (right_index, right_rank)| {
-            let left = &self.program.versions[*left_index];
-            let right = &self.program.versions[*right_index];
-            left_rank
-                .total_cmp(right_rank)
-                .then_with(|| left.source_order.cmp(&right.source_order))
-                .then_with(|| left.version_id.cmp(&right.version_id))
-        });
-        let ready_indices = ready
-            .iter()
-            .map(|(index, _)| *index)
-            .collect::<HashSet<_>>();
-        self.pending_dependency_versions
-            .retain(|index| !ready_indices.contains(index));
-        for (version_index, rank) in ready {
-            let version = &self.program.versions[version_index];
-            if let Some(geometry_values) = geometry_values.as_deref_mut() {
-                self.evaluate_geometry_values_through(
-                    rank,
-                    version.source_order,
-                    geometry_values,
-                    state,
-                );
+        while !ready.is_empty() {
+            ready.sort_by(|(left_index, left_rank), (right_index, right_rank)| {
+                let left = &self.program.versions[*left_index];
+                let right = &self.program.versions[*right_index];
+                left_rank
+                    .total_cmp(right_rank)
+                    .then_with(|| left.source_order.cmp(&right.source_order))
+                    .then_with(|| left.version_id.cmp(&right.version_id))
+            });
+            let ready_indices = ready
+                .iter()
+                .map(|(index, _)| *index)
+                .collect::<HashSet<_>>();
+            self.pending_dependency_versions
+                .retain(|index| !ready_indices.contains(index));
+            for (version_index, rank) in ready {
+                let version = &self.program.versions[version_index];
+                if let Some(geometry_values) = geometry_values.as_deref_mut() {
+                    self.evaluate_geometry_values_through(
+                        rank,
+                        version.source_order,
+                        geometry_values,
+                        state,
+                    );
+                }
+                self.execute(version, state);
             }
-            self.execute(version, state);
+            ready = self
+                .pending_dependency_versions
+                .iter()
+                .filter_map(|version_index| {
+                    let version = &self.program.versions[*version_index];
+                    let rank = binding_schedule
+                        .execution_positions
+                        .get(&version.binding_id)
+                        .copied()?;
+                    let prerequisites_executed = binding_schedule
+                        .prerequisites
+                        .get(&version.binding_id)
+                        .map_or(true, |prerequisites| {
+                            prerequisites
+                                .iter()
+                                .all(|binding_id| self.current.contains_key(binding_id))
+                        });
+                    (rank <= dependency_execution_position
+                        && dependency_ready_binding_ids.contains(&version.binding_id)
+                        && prerequisites_executed)
+                        .then_some((*version_index, rank))
+                })
+                .collect();
         }
         if flush_unranked {
             self.pending_dependency_versions.sort_by(|left, right| {
                 let left = &self.program.versions[*left];
                 let right = &self.program.versions[*right];
-                left.source_order
-                    .cmp(&right.source_order)
+                binding_schedule
+                    .execution_positions
+                    .get(&left.binding_id)
+                    .copied()
+                    .unwrap_or(f64::INFINITY)
+                    .total_cmp(
+                        &binding_schedule
+                            .execution_positions
+                            .get(&right.binding_id)
+                            .copied()
+                            .unwrap_or(f64::INFINITY),
+                    )
+                    .then_with(|| left.source_order.cmp(&right.source_order))
                     .then_with(|| left.version_id.cmp(&right.version_id))
             });
             let remaining = std::mem::take(&mut self.pending_dependency_versions);
