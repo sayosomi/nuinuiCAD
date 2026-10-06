@@ -477,39 +477,80 @@ export const evaluateElements = (
     typedDependencyEndpointRankById = new Map(dependencyOrder.map((id, index) => [id, index] as const));
     const executionPositions = new Map<string, number>();
     dependencyPrerequisiteEndpointIdsByVersionId = new Map();
-    for (const version of options.bindingVersions?.versions ?? []) {
+    const versions = options.bindingVersions?.versions ?? [];
+    const activePrerequisitesByVersionId = new Map<string, NonNullable<TypedDependencyGraph>["edges"]>();
+    const dependencyScheduledVersionIds = new Set<string>();
+    for (const version of versions) {
       if (version.control.kind !== "linear" || !options.typedDependencyGraph) continue;
-      const prerequisites = options.typedDependencyGraph.directByEndpointId.get(`binding:${version.bindingId}`) ?? [];
-      const scheduledPrerequisites: string[] = [];
+      const prerequisites = (options.typedDependencyGraph.directByEndpointId.get(`binding:${version.bindingId}`) ?? [])
+        .filter(graphEdgeIsActive);
+      activePrerequisitesByVersionId.set(version.id, prerequisites);
+      const hasGeometryPrerequisite = prerequisites.some((edge) => edge.to.kind === "geometry-value" ||
+        edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence");
+      const hasForwardBindingPrerequisite = prerequisites.some((edge) => {
+        if (edge.to.kind !== "binding") return false;
+        const targetVersionId = options.bindingVersions?.versionIdsByBindingId.get(edge.to.id)?.at(-1);
+        const targetVersion = targetVersionId ? options.bindingVersions?.versionsById.get(targetVersionId) : undefined;
+        return targetVersion !== undefined && targetVersion.sourceOrder > version.sourceOrder;
+      });
+      if ((hasGeometryPrerequisite || hasForwardBindingPrerequisite) &&
+        typedDependencyEndpointRankById.has(`binding:${version.bindingId}`)) {
+        dependencyScheduledVersionIds.add(version.id);
+      }
       for (const edge of prerequisites) {
-        if (!graphEdgeIsActive(edge)) continue;
-        const isGeometryPrerequisite = edge.to.kind === "geometry-value" ||
-          edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence";
-        const targetVersionId = edge.to.kind === "binding"
-          ? options.bindingVersions?.versionIdsByBindingId.get(edge.to.id)?.at(-1)
-          : undefined;
-        const targetVersion = targetVersionId
-          ? options.bindingVersions?.versionsById.get(targetVersionId)
-          : undefined;
+        if (edge.to.kind !== "binding") continue;
+        const targetVersionId = options.bindingVersions?.versionIdsByBindingId.get(edge.to.id)?.at(-1);
+        const targetVersion = targetVersionId ? options.bindingVersions?.versionsById.get(targetVersionId) : undefined;
         const isForwardBindingPrerequisite = targetVersion !== undefined && targetVersion.sourceOrder > version.sourceOrder;
-        if (isGeometryPrerequisite || isForwardBindingPrerequisite) {
-          scheduledPrerequisites.push(typedDependencyEndpointId(edge.to));
-        }
-        if (isForwardBindingPrerequisite && targetVersion?.control.kind === "linear") {
-          const targetRank = typedDependencyEndpointRankById.get(typedDependencyEndpointId(edge.to));
-          if (targetRank !== undefined) {
-            executionPositions.set(targetVersion.id, targetRank);
-            if (!dependencyPrerequisiteEndpointIdsByVersionId.has(targetVersion.id)) {
-              dependencyPrerequisiteEndpointIdsByVersionId.set(targetVersion.id, []);
-            }
-          }
+        if (isForwardBindingPrerequisite && targetVersion?.control.kind === "linear" &&
+          typedDependencyEndpointRankById.has(typedDependencyEndpointId(edge.to))) {
+          dependencyScheduledVersionIds.add(targetVersion.id);
         }
       }
-      if (scheduledPrerequisites.length === 0) continue;
+    }
+    // A scalar consumer also has to join the dependency schedule when one of
+    // its binding prerequisites is pending there. Iterate to a fixed point so
+    // this propagation is independent of authored version order and transitive
+    // through any number of scalar bindings.
+    let propagated = true;
+    while (propagated) {
+      propagated = false;
+      for (const version of versions) {
+        if (version.control.kind !== "linear" || dependencyScheduledVersionIds.has(version.id) ||
+          !typedDependencyEndpointRankById.has(`binding:${version.bindingId}`)) continue;
+        const hasScheduledBindingPrerequisite = (activePrerequisitesByVersionId.get(version.id) ?? []).some((edge) => {
+          if (edge.to.kind !== "binding") return false;
+          const targetVersionId = options.bindingVersions?.versionIdsByBindingId.get(edge.to.id)?.at(-1);
+          const targetVersion = targetVersionId ? options.bindingVersions?.versionsById.get(targetVersionId) : undefined;
+          return targetVersion?.control.kind === "linear" && dependencyScheduledVersionIds.has(targetVersion.id);
+        });
+        if (hasScheduledBindingPrerequisite) {
+          dependencyScheduledVersionIds.add(version.id);
+          propagated = true;
+        }
+      }
+    }
+    for (const version of versions) {
+      if (version.control.kind !== "linear" || !dependencyScheduledVersionIds.has(version.id)) continue;
       const rank = typedDependencyEndpointRankById.get(`binding:${version.bindingId}`);
       if (rank === undefined) continue;
       executionPositions.set(version.id, rank);
-      dependencyPrerequisiteEndpointIdsByVersionId.set(version.id, scheduledPrerequisites);
+      const scheduledPrerequisites = (activePrerequisitesByVersionId.get(version.id) ?? []).flatMap((edge) => {
+        const isGeometryPrerequisite = edge.to.kind === "geometry-value" ||
+          edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence";
+        if (isGeometryPrerequisite) return [typedDependencyEndpointId(edge.to)];
+        if (edge.to.kind !== "binding") return [];
+        const targetVersionId = options.bindingVersions?.versionIdsByBindingId.get(edge.to.id)?.at(-1);
+        const targetVersion = targetVersionId ? options.bindingVersions?.versionsById.get(targetVersionId) : undefined;
+        const isForwardBindingPrerequisite = targetVersion !== undefined && targetVersion.sourceOrder > version.sourceOrder;
+        return isForwardBindingPrerequisite ||
+          (targetVersion?.control.kind === "linear" && dependencyScheduledVersionIds.has(targetVersion.id))
+          ? [typedDependencyEndpointId(edge.to)]
+          : [];
+      });
+      if (scheduledPrerequisites.length > 0) {
+        dependencyPrerequisiteEndpointIdsByVersionId.set(version.id, scheduledPrerequisites);
+      }
     }
     bindingVersionDependencyExecutionPositionById = executionPositions;
     dependencyScheduledPrerequisiteVersionIdsByVersionId = new Map(
