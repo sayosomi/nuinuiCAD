@@ -103,12 +103,12 @@ impl ScalarMutationResolver<'_> {
     fn geometry_collection_source_node(
         &self,
         source: &ValidatedImmutableGeometryCollectionSource,
-        nodes: &HashMap<String, GeometryInputCollectionNode>,
+        nodes: &HashMap<String, std::sync::Arc<GeometryInputCollectionNode>>,
     ) -> Option<GeometryInputCollectionNode> {
         match source {
-            ValidatedImmutableGeometryCollectionSource::Value(value_id) => {
-                nodes.get(value_id).and_then(clone_geometry_collection_node)
-            }
+            ValidatedImmutableGeometryCollectionSource::Value(value_id) => nodes
+                .get(value_id)
+                .and_then(|node| clone_geometry_collection_node(node)),
             ValidatedImmutableGeometryCollectionSource::Node(node) => {
                 clone_geometry_collection_node(node)
             }
@@ -195,7 +195,7 @@ impl ScalarMutationResolver<'_> {
                 ) {
                     state
                         .geometry_collection_nodes
-                        .insert(carry.collection_value_id.clone(), node);
+                        .insert(carry.collection_value_id.clone(), std::sync::Arc::new(node));
                 }
             }
         }
@@ -331,7 +331,9 @@ impl ScalarMutationResolver<'_> {
             })
             .collect::<Vec<_>>();
         for (value_id, node) in geometry_collection_next_values {
-            state.geometry_collection_nodes.insert(value_id, node);
+            state
+                .geometry_collection_nodes
+                .insert(value_id, std::sync::Arc::new(node));
         }
         Ok(())
     }

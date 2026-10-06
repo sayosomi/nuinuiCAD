@@ -560,7 +560,7 @@ fn optional_member_geometry_collection_none_node_returns_none() {
     let mut state = evaluation_state();
     state.geometry_collection_nodes.insert(
         "geometry-items".to_owned(),
-        GeometryInputCollectionNode::None,
+        std::sync::Arc::new(GeometryInputCollectionNode::None),
     );
     let target = collection_length_target("geometry-items", 0.0);
 
@@ -574,9 +574,9 @@ fn optional_member_geometry_collection_empty_leaf_returns_zero_length() {
     let mut state = evaluation_state();
     state.geometry_collection_nodes.insert(
         "geometry-items".to_owned(),
-        GeometryInputCollectionNode::Leaf {
+        std::sync::Arc::new(GeometryInputCollectionNode::Leaf {
             targets: Vec::new(),
-        },
+        }),
     );
     let target = collection_length_target("geometry-items", 0.0);
 
@@ -590,11 +590,11 @@ fn optional_member_geometry_collection_non_empty_leaf_returns_member_count() {
     let mut state = evaluation_state();
     state.geometry_collection_nodes.insert(
         "geometry-items".to_owned(),
-        GeometryInputCollectionNode::Leaf {
+        std::sync::Arc::new(GeometryInputCollectionNode::Leaf {
             targets: vec![GeometryInputTarget::Coordinate {
                 anchor: serde_json::json!({"x": 0, "y": 0}),
             }],
-        },
+        }),
     );
     let target = collection_length_target("geometry-items", 0.0);
 

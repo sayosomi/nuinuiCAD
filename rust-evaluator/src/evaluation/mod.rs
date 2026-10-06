@@ -2040,7 +2040,10 @@ fn evaluate_document_input_with_scalar_program(
         transformation_dependency_plans,
         computed_geometry_values: HashMap::new(),
         geometry_input_targets,
-        geometry_collection_nodes,
+        geometry_collection_nodes: geometry_collection_nodes
+            .into_iter()
+            .map(|(value_id, node)| (value_id, std::sync::Arc::new(node)))
+            .collect(),
         geometry_value_binders: HashMap::new(),
         for_group_generated_rows: Vec::new(),
         for_group_expected_occurrence_count_by_template_id: HashMap::new(),

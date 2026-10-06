@@ -253,13 +253,13 @@ fn geometry_collection_match_selects_optional_some_and_none_arms() {
     let some_scrutinee = optional_collection_length("present-source");
     state.geometry_collection_nodes.insert(
         "absent-source".to_owned(),
-        GeometryInputCollectionNode::None,
+        std::sync::Arc::new(GeometryInputCollectionNode::None),
     );
     state.geometry_collection_nodes.insert(
         "present-source".to_owned(),
-        GeometryInputCollectionNode::Leaf {
+        std::sync::Arc::new(GeometryInputCollectionNode::Leaf {
             targets: Vec::new(),
-        },
+        }),
     );
     for (value_id, scrutinee, expected_length) in [
         ("absent-result", none_scrutinee, Some(1.0)),
@@ -267,7 +267,7 @@ fn geometry_collection_match_selects_optional_some_and_none_arms() {
     ] {
         state.geometry_collection_nodes.insert(
             value_id.to_owned(),
-            GeometryInputCollectionNode::Match {
+            std::sync::Arc::new(GeometryInputCollectionNode::Match {
                 scrutinee,
                 source_order: 1.0,
                 arms: vec![
@@ -293,7 +293,7 @@ fn geometry_collection_match_selects_optional_some_and_none_arms() {
                         },
                     ),
                 ],
-            },
+            }),
         );
         assert_eq!(
             scalar_expression_runtime::lookup_geometry_collection_length(
@@ -314,15 +314,15 @@ fn geometry_collection_optional_match_selects_indexed_some_and_none_members() {
     let mut state = empty_state();
     state.geometry_collection_nodes.insert(
         "absent-source".to_owned(),
-        GeometryInputCollectionNode::None,
+        std::sync::Arc::new(GeometryInputCollectionNode::None),
     );
     state.geometry_collection_nodes.insert(
         "present-source".to_owned(),
-        GeometryInputCollectionNode::Leaf {
+        std::sync::Arc::new(GeometryInputCollectionNode::Leaf {
             targets: vec![GeometryInputTarget::Coordinate {
                 anchor: serde_json::json!({"x": 7.0, "y": 8.0}),
             }],
-        },
+        }),
     );
 
     for (value_id, scrutinee, expected_x) in [
@@ -331,7 +331,7 @@ fn geometry_collection_optional_match_selects_indexed_some_and_none_members() {
     ] {
         state.geometry_collection_nodes.insert(
             value_id.to_owned(),
-            GeometryInputCollectionNode::Match {
+            std::sync::Arc::new(GeometryInputCollectionNode::Match {
                 scrutinee: optional_collection_length(scrutinee),
                 source_order: 1.0,
                 arms: vec![
@@ -352,12 +352,16 @@ fn geometry_collection_optional_match_selects_indexed_some_and_none_members() {
                         },
                     ),
                 ],
-            },
+            }),
         );
 
         let target =
             super::super::line_geometry_input::resolve_geometry_collection_iteration_member(
-                &state, &resolver, value_id, 0,
+                &mut state,
+                &resolver,
+                value_id,
+                0,
+                Some(2.0),
             )
             .expect("optional geometry collection match selects a member");
         match target {

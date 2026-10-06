@@ -134,6 +134,7 @@ pub(crate) fn prepare_for_group_iterations(
                     resolver,
                     collection_value_id,
                     *index as usize,
+                    current_source_order,
                 )
                 .ok()
             })
