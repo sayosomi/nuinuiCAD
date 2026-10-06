@@ -54,6 +54,10 @@ fn point_from_identity_free_value(value: &Value) -> Option<Point> {
     })
 }
 
+fn point_from_geometry_value(value: &Value) -> Option<Point> {
+    point_from_value(value).or_else(|| point_from_identity_free_value(value))
+}
+
 fn anchor_stage_path(anchor: &Value) -> Option<Vec<String>> {
     anchor
         .get("stagePath")?
@@ -104,38 +108,38 @@ pub(crate) fn resolve_derived_point(
     match source.get("kind")?.as_str()? {
         "line" => {
             if point_key == "start" {
-                source.get("start").and_then(point_from_value)
+                source.get("start").and_then(point_from_geometry_value)
             } else if point_key == "end" {
-                source.get("end").and_then(point_from_value)
+                source.get("end").and_then(point_from_geometry_value)
             } else {
                 None
             }
         }
         "arcLine" => {
             if point_key == "center" {
-                source.get("center").and_then(point_from_value)
+                source.get("center").and_then(point_from_geometry_value)
             } else if point_key == "start" {
-                source.get("start").and_then(point_from_value)
+                source.get("start").and_then(point_from_geometry_value)
             } else if point_key == "end" {
-                source.get("end").and_then(point_from_value)
+                source.get("end").and_then(point_from_geometry_value)
             } else {
                 None
             }
         }
         "offsetLine" | "joinedPath" => {
             if point_key == "start" {
-                source.get("start").and_then(point_from_value)
+                source.get("start").and_then(point_from_geometry_value)
             } else if point_key == "end" {
-                source.get("end").and_then(point_from_value)
+                source.get("end").and_then(point_from_geometry_value)
             } else {
                 None
             }
         }
         "polyline" => {
             if point_key == "start" {
-                source.get("start").and_then(point_from_value)
+                source.get("start").and_then(point_from_geometry_value)
             } else if point_key == "end" {
-                source.get("end").and_then(point_from_value)
+                source.get("end").and_then(point_from_geometry_value)
             } else {
                 None
             }

@@ -1,6 +1,7 @@
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
+use super::point_anchor::{computed_point, resolve_derived_point};
 use super::scalar_expression_runtime::evaluate_document_typed_expression;
 use super::scalars::{ScalarDocumentBindingResolver, ScalarEvaluation, ScalarType, ScalarValue};
 use super::types::{
@@ -1340,12 +1341,21 @@ pub(crate) fn resolve_geometry_input_target(
     match target {
         GeometryInputTarget::Drawable {
             element_id,
+            point_key,
             stage_path,
             ..
-        } => super::selected_transformation_geometry(state, element_id, stage_path.as_deref())
-            .cloned(),
-        GeometryInputTarget::GeometryValue { occurrence, .. } => {
-            state.computed_geometry_values.get(occurrence).cloned()
+        } => {
+            let source =
+                super::selected_transformation_geometry(state, element_id, stage_path.as_deref())?;
+            project_geometry_input_point(source, point_key.as_deref(), state)
+        }
+        GeometryInputTarget::GeometryValue {
+            occurrence,
+            point_key,
+            ..
+        } => {
+            let source = state.computed_geometry_values.get(occurrence)?;
+            project_geometry_input_point(source, point_key.as_deref(), state)
         }
         GeometryInputTarget::Coordinate { anchor } => Some(anchor.clone()),
         GeometryInputTarget::GeometryValueMap { .. }
@@ -1353,6 +1363,23 @@ pub(crate) fn resolve_geometry_input_target(
         | GeometryInputTarget::CollectionIndex { .. }
         | GeometryInputTarget::ForGroupOccurrence { .. } => None,
     }
+}
+
+fn project_geometry_input_point(
+    source: &Value,
+    point_key: Option<&str>,
+    state: &EvaluationState,
+) -> Option<Value> {
+    let Some(point_key) = point_key else {
+        return Some(source.clone());
+    };
+    let point = resolve_derived_point(source, point_key, state)?;
+    Some(computed_point(
+        point.element_id,
+        point.name,
+        point.x,
+        point.y,
+    ))
 }
 
 fn geometry_for_target(state: &EvaluationState, target: &GeometryInputTarget) -> Option<Value> {
