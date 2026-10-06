@@ -159,6 +159,8 @@ export type BindingVersionBuildInput = {
   scalarProgram: ScalarProgram;
   bindingAnalysis: BindingAnalysis;
   controlByScopeId: ReadonlyMap<ScopeId, BindingControlMetadata>;
+  /** Compiler-classified lexical bindings that must not become executable declarations. */
+  nonProgramBindingIds?: ReadonlySet<BindingId>;
   requiresExecutionOrdering?: boolean;
 };
 
@@ -288,6 +290,7 @@ export const buildBindingVersionGraph = ({
   scalarProgram,
   bindingAnalysis,
   controlByScopeId,
+  nonProgramBindingIds,
   requiresExecutionOrdering = false
 }: BindingVersionBuildInput): BindingVersionGraph => {
   // Immutable statement-for carries and their `next` expressions are
@@ -305,6 +308,7 @@ export const buildBindingVersionGraph = ({
 
   const declarations: DeclarationBindingVersion[] = [];
   for (const binding of bindingAnalysis.catalog.bindings) {
+    if (nonProgramBindingIds?.has(binding.id)) continue;
     if (isImmutableCarryBinding(binding.id)) continue;
     const declaredType = scalarExpressionTypeOfDslValueType(binding.declaredType);
     if (binding.kind !== "typed" || declaredType === null) continue;

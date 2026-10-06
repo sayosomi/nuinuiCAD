@@ -2366,6 +2366,10 @@ export const compileDslDocument = (
       catalogOrder: "source" as const
     };
   });
+  const rootNonProgramBindingIds: ReadonlySet<BindingId> = new Set([
+    ...rootValueForBodyBindingSeeds.map((seed) => seed.id),
+    ...iterationRecordFieldBindingSeeds.map((seed) => seed.id)
+  ]);
   const rootValueForBodyInitializers = rootValueForBodyEntries.flatMap(({ mapped, statement }) => {
     const resultElementType = scalarTypeOfDslValueType(mapped.resultElementType);
     if (!resultElementType) return [];
@@ -2891,10 +2895,7 @@ export const compileDslDocument = (
                 iterationRecordPropertyResolver?.(input) ?? immutableCarryCompilation?.recordPropertyResolver?.(input) ?? null
             }
           : {}),
-        nonProgramBindingIds: new Set([
-          ...rootValueForBodyBindingSeeds.map((seed) => seed.id),
-          ...iterationRecordFieldBindingSeeds.map((seed) => seed.id)
-        ])
+        nonProgramBindingIds: rootNonProgramBindingIds
       })
     : { diagnostics: [] };
   let documentScalarAnalysis = scalarAnalysisCompilation.analysis;
@@ -3537,10 +3538,7 @@ export const compileDslDocument = (
           ...rootValueForBodyInitializers,
           ...rootImmutableCarryInitializers
         ],
-        nonProgramBindingIds: new Set([
-          ...rootValueForBodyBindingSeeds.map((seed) => seed.id),
-          ...iterationRecordFieldBindingSeeds.map((seed) => seed.id)
-        ]),
+        nonProgramBindingIds: rootNonProgramBindingIds,
         additionalCollectionIndexResolver: rootCollectionIndexResolver,
         additionalRecordFieldCollectionIndexResolver: rootRecordFieldCollectionIndexResolver,
         additionalRecordValueResolver: (value) => {
@@ -4084,6 +4082,7 @@ export const compileDslDocument = (
         scalarProgram,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         controlByScopeId: bindingControlMetadata,
+        nonProgramBindingIds: rootNonProgramBindingIds,
     requiresExecutionOrdering: moduleScalarCompilation !== undefined || Boolean(
       immutableCarryCompilation?.carries.length ||
       immutableCarryCompilation?.declarations.some((declaration) => isDslArrayValueType(dslRequiredValueTypeOf(declaration.valueType)) || isDslGeometryValueType(dslRequiredValueTypeOf(declaration.valueType)))
