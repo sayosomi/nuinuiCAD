@@ -1957,22 +1957,32 @@ export const evaluateElements = (
       options.scalarExecutionPositionByElementId?.get(sourceId) ??
       options.scalarExecutionPositionByElementId?.get(element.id) ??
       statement?.statementIndex ?? options.sourceExecutionPositionByElementId?.get(element.id);
+    const hasDiscreteExecutionPosition =
+      options.scalarExecutionPositionByElementId?.has(sourceId) === true ||
+      options.scalarExecutionPositionByElementId?.has(element.id) === true;
     if (sourceOrder === undefined) {
       throw new Error(
         `evaluateElements: no compiled source execution position for ${sourceId}`
       );
     }
+    const isExplicitDiscreteEntry =
+      immutableExecutionOwner?.entrySourceOrder !== undefined && Number.isInteger(immutableExecutionOwner.entrySourceOrder);
+    const beforeStatementSourceOrder = element.type !== "forGroup"
+      ? sourceOrder
+      : isExplicitDiscreteEntry || (hasDiscreteExecutionPosition && immutableExecutionOwner?.entrySourceOrder === undefined)
+        ? sourceOrder
+        : sourceOrder + 0.5;
     const currentDependencyExecutionPosition = typedDependencyEndpointRankById.get(`element:${sourceId}`) ??
       typedDependencyEndpointRankById.get(`element:${element.id}`);
     const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(sourceOrder);
     // `beforeStatement` deliberately excludes a set on this same source line.
     linearMutationResolver!.advanceTo({
       kind: "beforeStatement",
-      // A carry initializer belongs to the statement-for header and must be
-      // materialized before its first generated iteration. The header itself
-      // is the first source position, so use the narrow half-step only for a
-      // forGroup boundary; ordinary statements keep the established rule.
-      sourceOrder: element.type === "forGroup" ? sourceOrder + 0.5 : sourceOrder,
+      // Discrete compiler event maps give each group header its own source
+      // position, so no half-step is needed there. Retain the legacy midpoint
+      // only for statement-index callers and module carry boundaries that
+      // already encode an explicit midpoint.
+      sourceOrder: beforeStatementSourceOrder,
       dependencyExecutionPosition: dependencyExecutionPositionForSourceOrder(
         sourceOrder,
         currentDependencyExecutionPosition
@@ -2083,9 +2093,9 @@ export const evaluateElements = (
     effectiveEnabledIds.add(element.id);
 
     const sourceElementId = (sourceElement ?? element).id;
-    const sourceOrder = options.statementInfoByElementId?.get(sourceElementId)?.statementIndex ??
-      options.scalarExecutionPositionByElementId?.get(sourceElementId) ??
+    const sourceOrder = options.scalarExecutionPositionByElementId?.get(sourceElementId) ??
       options.scalarExecutionPositionByElementId?.get(element.id) ??
+      options.statementInfoByElementId?.get(sourceElementId)?.statementIndex ??
       options.sourceExecutionPositionByElementId?.get(sourceElementId) ??
       options.sourceExecutionPositionByElementId?.get(element.id) ??
       Number.POSITIVE_INFINITY;
