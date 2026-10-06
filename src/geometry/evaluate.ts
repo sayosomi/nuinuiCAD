@@ -840,6 +840,33 @@ export const evaluateElements = (
     return resolveDocumentGeometryProperty(geometryRuntime, reference, sourceOrder, scalarBindingResolver?.resolveGeometryCollectionLength, (expression, occurrenceSourceOrder) => evaluateOccurrenceIndexForEvaluation(expression, occurrenceSourceOrder, lookupBinding));
   };
 
+  const materializeGeometryValueMapTarget = (
+    target: Extract<GeometryInputTarget, { kind: "geometryValueMap" }>,
+    schedulerSourceOrder?: number
+  ): Extract<GeometryInputTarget, { kind: "geometryValue" }> => {
+    const previousBinder = activeGeometryMapBinder;
+    activeGeometryMapBinder = target.source;
+    const entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry = {
+      sourceStatementId: target.occurrence.sourceStatementId,
+      sourceStatementIndex: target.executionPosition,
+      declaredInterfaceType: target.declaredInterfaceType,
+      occurrence: target.occurrence,
+      executionPosition: target.executionPosition,
+      construction: target.program
+    };
+    try {
+      evaluateGeometryValueEntry(entry, schedulerSourceOrder);
+    } finally {
+      activeGeometryMapBinder = previousBinder;
+    }
+    return {
+      kind: "geometryValue",
+      occurrence: target.occurrence,
+      geometryType: target.geometryType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+  };
+
   const materializeGeometryInputTargets = (
     element: CadElement,
     targets: ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>,
@@ -916,24 +943,7 @@ export const evaluateElements = (
         return { kind: "drawable", elementId: syntheticElementId, geometryType: target.geometryType, ...(target.pointKey ? { pointKey: target.pointKey } : {}) };
       }
       if (target.kind === "geometryValueMap") {
-        const previousBinder = activeGeometryMapBinder;
-        activeGeometryMapBinder = target.source;
-        const entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry = {
-          sourceStatementId: target.occurrence.sourceStatementId,
-          sourceStatementIndex: target.executionPosition,
-          declaredInterfaceType: target.declaredInterfaceType,
-          occurrence: target.occurrence,
-          executionPosition: target.executionPosition,
-          construction: target.program
-        };
-        evaluateGeometryValueEntry(entry);
-        activeGeometryMapBinder = previousBinder;
-        return {
-          kind: "geometryValue",
-          occurrence: target.occurrence,
-          geometryType: target.geometryType,
-          ...(target.pointKey ? { pointKey: target.pointKey } : {})
-        };
+        return materializeGeometryValueMapTarget(target);
       }
       if (target.kind === "collectionValue") {
         const selected = materializeCollectionNode(target.value);
@@ -1318,17 +1328,21 @@ export const evaluateElements = (
     return structuralPointForValueTarget(point.target, sourceOrder);
   };
 
-  const evaluateGeometryValueEntry = (entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry) => {
+  const evaluateGeometryValueEntry = (
+    entry: import("@nuinuicad/nui-language").GeometryValueProgramEntry,
+    schedulerSourceOrder?: number
+  ) => {
     const sourceOrder = entry.sourceExecutionPosition ?? entry.executionPosition;
     if (linearMutationResolver) {
+      const advanceSourceOrder = Math.min(sourceOrder, schedulerSourceOrder ?? sourceOrder);
       const dependencyExecutionPosition = dependencyExecutionPositionForSourceOrder(
-        sourceOrder,
+        advanceSourceOrder,
         typedDependencyEndpointRankById.get(`geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`) ?? entry.executionPosition
       );
-      const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(sourceOrder);
+      const dependencyReadyVersionIds = dependencyReadyVersionIdsForSourceOrder(advanceSourceOrder);
       linearMutationResolver.advanceTo({
         kind: "beforeStatement",
-        sourceOrder,
+        sourceOrder: advanceSourceOrder,
         dependencyExecutionPosition
       }, dependencyReadyVersionIds, dependencyScheduledPrerequisiteVersionIdsByVersionId);
     }
@@ -1337,9 +1351,9 @@ export const evaluateElements = (
       return;
     }
     if (entry.construction.kind === "coalesce") {
-      evaluateGeometryValueEntry({ ...entry, construction: entry.construction.left });
+      evaluateGeometryValueEntry({ ...entry, construction: entry.construction.left }, schedulerSourceOrder);
       if (computedGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence))) return;
-      evaluateGeometryValueEntry({ ...entry, construction: entry.construction.right });
+      evaluateGeometryValueEntry({ ...entry, construction: entry.construction.right }, schedulerSourceOrder);
       return;
     }
     if (entry.construction.kind === "reference") {
@@ -1361,7 +1375,7 @@ export const evaluateElements = (
       evaluateGeometryValueEntry({
         ...entry,
         construction: condition ? entry.construction.thenBranch : entry.construction.elseBranch
-      });
+      }, schedulerSourceOrder);
       return;
     }
     if (entry.construction.kind === "match") {
@@ -1382,7 +1396,7 @@ export const evaluateElements = (
         appendGeometryValueError(entry, "Geometry value match scrutinee is unavailable or has no matching case.");
         return;
       }
-      evaluateGeometryValueEntry({ ...entry, construction: arm.expression });
+      evaluateGeometryValueEntry({ ...entry, construction: arm.expression }, schedulerSourceOrder);
       return;
     }
     let value: ComputedGeometryValue | undefined;
@@ -2253,7 +2267,8 @@ export const evaluateElements = (
         }
         const geometryCollectionNode = options.geometryCollectionNodesByValueId?.get(forGroupElement.iterationSourceValueId);
         const iterationGeometryMembers = geometryCollectionNode
-          ? iterationValues.map((index) => resolveGeometryCollectionMemberForNode(
+          ? iterationValues.map((index) => {
+            const target = resolveGeometryCollectionMemberForNode(
               geometryCollectionNode,
               index,
               (currentSourceOrder) => ({
@@ -2264,9 +2279,15 @@ export const evaluateElements = (
                   lookupCollectionLength: (collectionValueId: string) => scalarBindingResolver.resolveCollectionLength!(collectionValueId, currentSourceOrder)
                 } : {})
               })
-            ))
+            );
+            if (target?.kind !== "geometryValueMap") return target;
+            const materialized = materializeGeometryValueMapTarget(target, sourceOrder);
+            return computedGeometryValues.has(geometryValueOccurrenceKey(materialized.occurrence))
+              ? materialized
+              : undefined;
+          })
           : undefined;
-        if (iterationGeometryMembers?.some((target) => target !== undefined)) {
+        if (iterationGeometryMembers) {
           iterationGeometryMembersForLoop = iterationGeometryMembers;
         }
       } else {
@@ -2367,6 +2388,13 @@ export const evaluateElements = (
             snapshot
           );
           if (next) nextValues.set(carry.bindingId, next);
+          else if (iterationGeometryMembersForLoop &&
+            carry.nextTarget.kind === "geometryValueForBinder" &&
+            carry.nextTarget.binderId === iterationBindingId) {
+            // A failed collection member consumes this iteration's geometry
+            // carry as unavailable, matching the active binder semantics.
+            geometryCarryValues.delete(carry.bindingId);
+          }
           else errors.push({
             elementId: element.id,
             elementName: element.name,

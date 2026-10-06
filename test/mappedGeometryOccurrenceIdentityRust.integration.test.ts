@@ -6,6 +6,7 @@ import {
   type GeometryValueOccurrence
 } from "@nuinuicad/nui-language";
 import { compileCanonicalText } from "@nuinuicad/nui-language/document";
+import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import {
   evaluationPayloadToResult,
   type EvaluationPayload
@@ -14,7 +15,9 @@ import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import {
   createRustStdioParityClient,
   fixtureFromSource,
+  normalizeParityPayload,
   optionsFor,
+  runtimeDiagnosticsFor,
   type EvaluationFixture
 } from "./evaluationParitySupport";
 
@@ -99,6 +102,34 @@ const geometryFor = (fixture: EvaluationFixture, payload: EvaluationPayload, ele
   return evaluationPayloadToResult(payload).computedGeometry.get(element.id);
 };
 
+const scalarForName = (
+  fixture: EvaluationFixture,
+  result: ReturnType<typeof evaluationPayloadToResult>,
+  name: string
+) => {
+  const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+  if (!binding) throw new Error(`fixture has no scalar binding ${name}`);
+  return result.computedScalarBindings?.get(binding.id);
+};
+
+const evaluateCarryFixture = async (source: string) => {
+  const fixture = fixtureFromSource(source);
+  expect(fixture.compiled?.diagnostics).toEqual([]);
+  const options = optionsFor(fixture);
+  const referencePayload = evaluateElementsReferencePayload(fixture.elements, options);
+  const rustPayload = await rustStdio.evaluate(fixture.elements, options);
+  expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(referencePayload));
+  expect(evaluationPayloadToResult(referencePayload).errors).toEqual([]);
+  expect(evaluationPayloadToResult(rustPayload).errors).toEqual([]);
+  expect(runtimeDiagnosticsFor(fixture, referencePayload)).toEqual([]);
+  expect(runtimeDiagnosticsFor(fixture, rustPayload)).toEqual([]);
+  return {
+    fixture,
+    referenceResult: evaluationPayloadToResult(referencePayload),
+    rustResult: evaluationPayloadToResult(rustPayload)
+  };
+};
+
 const lineEndpointsFor = (fixture: EvaluationFixture, payload: EvaluationPayload, elementName: string) => {
   const geometry = geometryFor(fixture, payload, elementName);
   if (geometry?.kind !== "line") throw new Error(`${elementName} did not materialize as a line`);
@@ -144,6 +175,176 @@ describe("Rust mapped geometry occurrence identity", () => {
       expect(decoded?.occurrence).toEqual(entry.occurrence);
       expect(decoded?.value).toMatchObject({ kind: "point", x: point[0], y: point[1] });
     }
+  }, 30_000);
+
+  it("iterates a singleton identity-mapped point into a point carry through persistent evaluation_stdio", async () => {
+    const source = [
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2)]",
+      "const mapped: point[] = for p in @points { @p }",
+      "for p in @mapped carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const result: number = @last.x"
+    ].join("\n");
+    const { fixture, rustResult, referenceResult } = await evaluateCarryFixture(source);
+
+    expect(geometryValueProgramFor(fixture)
+      .filter((entry) => entry.occurrence.mappedMemberIndex !== undefined)
+      .map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0]);
+    expect(scalarForName(fixture, rustResult, "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+    expect(scalarForName(fixture, rustResult, "result")).toEqual(scalarForName(fixture, referenceResult, "result"));
+  }, 30_000);
+
+  it("preserves each mapped point member and commits the second member to the carry", async () => {
+    const source = [
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for p in @points { @p }",
+      "for p in @mapped carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const resultX: number = @last.x",
+      "const resultY: number = @last.y"
+    ].join("\n");
+    const { fixture, rustResult, referenceResult } = await evaluateCarryFixture(source);
+    const mapped = geometryValueProgramFor(fixture)
+      .filter((entry) => entry.occurrence.mappedMemberIndex !== undefined)
+      .sort((left, right) => left.occurrence.mappedMemberIndex! - right.occurrence.mappedMemberIndex!);
+    expect(mapped.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 1]);
+
+    const mappedValues = (result: ReturnType<typeof evaluationPayloadToResult>) => mapped.map((entry) =>
+      result.computedGeometryValues.get(geometryValueOccurrenceKey(entry.occurrence))?.value
+    );
+    expect(mappedValues(rustResult)).toEqual([
+      { kind: "point", x: 1, y: 2 },
+      { kind: "point", x: 3, y: 4 }
+    ]);
+    expect(mappedValues(rustResult)).toEqual(mappedValues(referenceResult));
+    expect(scalarForName(fixture, rustResult, "resultX")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 3 }
+    });
+    expect(scalarForName(fixture, rustResult, "resultY")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 4 }
+    });
+  }, 30_000);
+
+  it("keeps literal and drawable-reference point collection iteration unchanged", async () => {
+    const carryTail = [
+      "for p in @points carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const resultX: number = @last.x",
+      "const resultY: number = @last.y"
+    ];
+    const literal = await evaluateCarryFixture([
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      ...carryTail
+    ].join("\n"));
+    const drawableReferences = await evaluateCarryFixture([
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 3, y: 4)",
+      "const points: point[] = [@A, @B]",
+      ...carryTail
+    ].join("\n"));
+
+    for (const { fixture, rustResult } of [literal, drawableReferences]) {
+      expect(scalarForName(fixture, rustResult, "resultX")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 3 }
+      });
+      expect(scalarForName(fixture, rustResult, "resultY")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 4 }
+      });
+    }
+  }, 30_000);
+
+  it("keeps mapped-loop results stable with source padding and an unrelated declaration", async () => {
+    const base = [
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for p in @points { @p }",
+      "for p in @mapped carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const resultX: number = @last.x",
+      "const resultY: number = @last.y"
+    ].join("\n");
+    const padded = [
+      "",
+      "",
+      "nui 1",
+      "",
+      "const unused: number = 99",
+      "",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "",
+      "const mapped: point[] = for p in @points { @p }",
+      "",
+      "for p in @mapped carry last: point = @Seed {",
+      "    next last = @p",
+      "}",
+      "const resultX: number = @last.x",
+      "const resultY: number = @last.y",
+      ""
+    ].join("\n");
+    const baseline = await evaluateCarryFixture(base);
+    const withPadding = await evaluateCarryFixture(padded);
+
+    for (const name of ["resultX", "resultY"]) {
+      expect(scalarForName(withPadding.fixture, withPadding.rustResult, name))
+        .toEqual(scalarForName(baseline.fixture, baseline.rustResult, name));
+    }
+  }, 30_000);
+
+  it("reports a genuinely unavailable mapped point member without binding the carry initializer", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "point Missing = coordinate(x: 7, y: 9, enabled: false)",
+      "const points: point[] = [@Missing]",
+      "const mapped: point[] = for p in @points { @p }",
+      "for p in @mapped carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const result: number = @last.x"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics).toEqual([]);
+    const options = optionsFor(fixture);
+    const referencePayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio.evaluate(fixture.elements, options);
+    const referenceRuntimeDiagnostics = runtimeDiagnosticsFor(fixture, referencePayload);
+    const rustRuntimeDiagnostics = runtimeDiagnosticsFor(fixture, rustPayload);
+
+    for (const diagnostics of [referenceRuntimeDiagnostics, rustRuntimeDiagnostics]) {
+      expect(diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          code: "evaluation-geometry-property-unavailable",
+          origin: "runtime"
+        })
+      ]));
+    }
+    expect(rustRuntimeDiagnostics.map((diagnostic) => diagnostic.code))
+      .toEqual(referenceRuntimeDiagnostics.map((diagnostic) => diagnostic.code));
+    expect(referenceRuntimeDiagnostics).not.toEqual([]);
+    expect(rustRuntimeDiagnostics).not.toEqual([]);
+    expect(evaluationPayloadToResult(referencePayload).computedGeometryValues.size).toBe(0);
+    expect(evaluationPayloadToResult(rustPayload).computedGeometryValues.size).toBe(0);
   }, 30_000);
 
   it("preserves every mapped offset source in order through persistent evaluation_stdio", async () => {

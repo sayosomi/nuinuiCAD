@@ -12,8 +12,16 @@ const compile = (source: string): LastGoodDslDocument => {
 
 const optionsFor = (compiled: LastGoodDslDocument) => ({
   scalarProgram: compiled.scalarProgram,
-  geometryInputTargetsByElementId: compiled.geometryInputTargetsByElementId,
+  geometryValueProgram: compiled.geometryValueProgram,
+  geometryInputTargetsByElementId: new Map([
+    ...(compiled.geometryInputTargetsByElementId ?? []),
+    ...(compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? [])
+  ]),
   geometryCollectionNodesByValueId: compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId,
+  typedDependencyGraph: compiled.typedDependencyGraph,
+  evaluationOrder: compiled.typedDependencyGraph?.evaluationOrder,
+  transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
+  moduleMaterialization: compiled.moduleMaterialization,
   bindingVersions: compiled.bindingVersions,
   statementInfoByElementId: compiled.statementMap.byElementId,
   statementIdByStatementIndex: compiled.statementMap.statementIdByStatementIndex,
@@ -436,6 +444,88 @@ describe("immutable statement-for carries", () => {
       status: "ok",
       value: { kind: "number", value: 2 }
     });
+  });
+
+  it("materializes an identity-mapped point collection before statement-for geometry binding", () => {
+    const compiled = compile([
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2)]",
+      "const mapped: point[] = for p in @points { @p }",
+      "for p in @mapped carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const result: number = @last.x"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
+  it("preserves both mapped point members and carries the exact final member", () => {
+    const compiled = compile([
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "const mapped: point[] = for p in @points { @p }",
+      "for p in @mapped carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const resultX: number = @last.x",
+      "const resultY: number = @last.y"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const scalarValue = (name: string) => {
+      const id = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === name)!.id;
+      return evaluation.computedScalarBindings?.get(id);
+    };
+    expect(scalarValue("resultX")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 3 }
+    });
+    expect(scalarValue("resultY")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 4 }
+    });
+    expect([...(evaluation.computedGeometryValues?.values() ?? [])]
+      .filter((entry) => entry.occurrence.mappedMemberIndex !== undefined)
+      .sort((left, right) => left.occurrence.mappedMemberIndex! - right.occurrence.mappedMemberIndex!)
+      .map((entry) => entry.value))
+      .toEqual([
+        { kind: "point", x: 1, y: 2 },
+        { kind: "point", x: 3, y: 4 }
+      ]);
+  });
+
+  it("keeps an unavailable mapped geometry member unavailable instead of binding the carry initializer", () => {
+    const compiled = compile([
+      "nui 1",
+      "point Seed = coordinate(x: 0, y: 0)",
+      "point Missing = coordinate(x: 7, y: 9, enabled: false)",
+      "const points: point[] = [@Missing]",
+      "const mapped: point[] = for p in @points { @p }",
+      "for p in @mapped carry last: point = @Seed {",
+      "  next last = @p",
+      "}",
+      "const result: number = @last.x"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.geometryValueErrors).not.toEqual([]);
+    expect(Array.from(evaluation.computedScalarBindings?.values() ?? [])).toContainEqual(expect.objectContaining({
+      status: "error",
+      issueCode: "evaluation-geometry-property-unavailable"
+    }));
   });
 
   it("uses the exact choice type for scalar carries and accepts value-if next", () => {

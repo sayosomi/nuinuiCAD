@@ -295,11 +295,10 @@ export const resolveGeometryCollectionMemberForNode = (
   node: GeometryInputCollectionNode,
   index: number,
   environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment
-): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" } | { kind: "geometryValueMap" }> | undefined => {
+): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }> | undefined => {
   if (node.kind === "none") return undefined;
   if (node.kind === "leaf") {
-    const target = node.targets[index];
-    return target?.kind === "geometryValueMap" ? undefined : target;
+    return node.targets[index];
   }
   if (node.kind === "if") {
     const condition = evaluateTypedExpression(node.condition, environmentFor(node.sourceOrder));

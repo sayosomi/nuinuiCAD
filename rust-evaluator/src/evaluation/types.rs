@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::sync::Arc;
 
 use super::scalars::TypedScalarExpression;
 
@@ -356,7 +357,7 @@ pub(crate) struct EvaluationState {
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:
         HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>,
-    pub(crate) geometry_collection_nodes: HashMap<String, GeometryInputCollectionNode>,
+    pub(crate) geometry_collection_nodes: HashMap<String, Arc<GeometryInputCollectionNode>>,
     pub(crate) geometry_value_binders: HashMap<String, GeometryInputTarget>,
     pub(crate) for_group_generated_rows: Vec<ForGroupGeneratedRow>,
     pub(crate) for_group_expected_occurrence_count_by_template_id: HashMap<ElementId, usize>,
