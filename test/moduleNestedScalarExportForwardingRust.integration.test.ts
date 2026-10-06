@@ -49,6 +49,30 @@ const twoNestedInstancesSource = (reordered: boolean, outerExportBeforeNested = 
       ])
 ].join("\n");
 
+const twoScalarNestedInstancesSource = (reordered: boolean) => [
+  "nui 1",
+  "module Inner(width: number) {",
+  "  export const value: number = @width",
+  "}",
+  "module Outer(width: number) {",
+  "  export const forwarded: number = @Nested::value",
+  "  instance Nested = Inner(width: @width)",
+  "}",
+  ...(reordered
+    ? [
+        "instance Sibling = Outer(width: 40)",
+        "instance Root = Outer(width: 20)",
+        "const SiblingValue: number = @Sibling::forwarded",
+        "const Got: number = @Root::forwarded"
+      ]
+    : [
+        "instance Root = Outer(width: 20)",
+        "instance Sibling = Outer(width: 40)",
+        "const Got: number = @Root::forwarded",
+        "const SiblingValue: number = @Sibling::forwarded"
+      ])
+].join("\n");
+
 const scalarBinding = (fixture: ReturnType<typeof fixtureFromSource>, payload: EvaluationPayload, name: string) => {
   const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
     (candidate) => candidate.kind === "typed" && candidate.name === name
@@ -211,6 +235,98 @@ describe("SAY-464/SAY-465 nested Module scalar export forwarding through persist
       expect(childIndex).toBeGreaterThanOrEqual(0);
       expect(outerIndex).toBeGreaterThan(childIndex);
     }
+  }, 30000);
+
+  it("schedules scalar-only forward nested exports before their enclosing exports", async () => {
+    const exactFixture = fixtureFromSource([
+      "nui 1",
+      "module Inner() {",
+      "  export const Value: number = 20",
+      "}",
+      "module Outer() {",
+      "  export const Forwarded: number = @Nested::Value",
+      "  instance Nested = Inner()",
+      "}",
+      "instance Root = Outer()",
+      "const Got: number = @Root::Forwarded"
+    ].join("\n"));
+    if (!exactFixture.compiled) throw new Error("expected compiled scalar-only forward nested export fixture");
+    const exactOptions = optionsFor(exactFixture);
+    expect(exactFixture.compiled.doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(exactFixture)).toBe(true);
+
+    const bindingIdForName = (fixture: ReturnType<typeof fixtureFromSource>, name: string) => {
+      const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+        (candidate) => candidate.kind === "typed" && candidate.name === name
+      );
+      if (!binding) throw new Error(`typed binding "${name}" not found`);
+      return binding.id;
+    };
+    const referencedBindingId = (fixture: ReturnType<typeof fixtureFromSource>, options: ReturnType<typeof optionsFor>, bindingId: string) => {
+      const initializer = options.bindingVersions?.versions.find((version) => version.bindingId === bindingId)?.initializer;
+      if (initializer?.kind !== "reference" || !initializer.bindingId) {
+        throw new Error(`expected binding ${bindingId} to reference an exported scalar`);
+      }
+      return initializer.bindingId;
+    };
+    const assertForwardedHistory = (
+      fixture: ReturnType<typeof fixtureFromSource>,
+      options: ReturnType<typeof optionsFor>,
+      payload: EvaluationPayload,
+      observationName: string,
+      expectedValue: number
+    ) => {
+      const outerBindingId = referencedBindingId(fixture, options, bindingIdForName(fixture, observationName));
+      const childBindingId = referencedBindingId(fixture, options, outerBindingId);
+      expect(options.typedDependencyGraph?.edges).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          from: expect.objectContaining({ kind: "binding", id: outerBindingId }),
+          to: expect.objectContaining({ kind: "binding", id: childBindingId }),
+          requiredness: "required"
+        })
+      ]));
+      const evaluation = evaluationPayloadToResult(payload);
+      expect(evaluation.errors).toEqual([]);
+      expect(JSON.stringify(payload)).not.toContain("evaluation-binding-unavailable");
+      expect(numberValue(fixture, payload, observationName)).toBeCloseTo(expectedValue, 10);
+      const history = payload.computedScalarBindingVersions ?? [];
+      const childIndex = history.findIndex((version) => version.bindingId === childBindingId && version.status === "executed");
+      const outerIndex = history.findIndex((version) => version.bindingId === outerBindingId && version.status === "executed");
+      expect(childIndex).toBeGreaterThanOrEqual(0);
+      expect(outerIndex).toBeGreaterThan(childIndex);
+      return { outerBindingId, childBindingId };
+    };
+
+    const exactTsPayload = evaluateElementsReferencePayload(exactFixture.elements, exactOptions);
+    const exactRustPayload = await rustStdio!.evaluate(exactFixture.elements, exactOptions);
+    expect(normalizeParityPayload(exactRustPayload)).toEqual(normalizeParityPayload(exactTsPayload));
+    assertForwardedHistory(exactFixture, exactOptions, exactTsPayload, "Got", 20);
+    assertForwardedHistory(exactFixture, exactOptions, exactRustPayload, "Got", 20);
+
+    const evaluateTwoInstances = async (reordered: boolean) => {
+      const fixture = fixtureFromSource(twoScalarNestedInstancesSource(reordered));
+      if (!fixture.compiled) throw new Error("expected compiled two-instance scalar-only forwarding fixture");
+      const options = optionsFor(fixture);
+      expect(fixture.compiled.doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const root = assertForwardedHistory(fixture, options, payload, "Got", 20);
+        const sibling = assertForwardedHistory(fixture, options, payload, "SiblingValue", 40);
+        expect(root.outerBindingId).not.toBe(sibling.outerBindingId);
+        expect(root.childBindingId).not.toBe(sibling.childBindingId);
+      }
+      return {
+        got: numberValue(fixture, rustPayload, "Got"),
+        sibling: numberValue(fixture, rustPayload, "SiblingValue")
+      };
+    };
+    const authoredOrder = await evaluateTwoInstances(false);
+    const reordered = await evaluateTwoInstances(true);
+    expect(authoredOrder).toEqual({ got: 20, sibling: 40 });
+    expect(reordered).toEqual(authoredOrder);
   }, 30000);
 
   it("preserves explicit runtime failure for a failed nested prerequisite", async () => {

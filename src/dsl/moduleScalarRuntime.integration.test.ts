@@ -3629,6 +3629,51 @@ describe("module scalar runtime integration", () => {
     expect(result.computedGeometry.get(elementNamed(compiled, "ResultB").id)).toMatchObject({ kind: "point", x: 40, y: 0 });
   });
 
+  it("schedules a scalar-only forward nested Module export before its enclosing export", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module Inner() {",
+      "  export const Value: number = 20",
+      "}",
+      "module Outer() {",
+      "  export const Forwarded: number = @Nested::Value",
+      "  instance Nested = Inner()",
+      "}",
+      "instance Root = Outer()",
+      "const Got: number = @Root::Forwarded"
+    ].join("\n"), "say465-scalar-forward-nested-export");
+    expectValid(compiled);
+
+    const gotBinding = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "Got")!;
+    const versionForBinding = (bindingId: string) => compiled.bindingVersions!.versions.find(
+      (version) => version.bindingId === bindingId
+    )!;
+    const gotVersion = versionForBinding(gotBinding.id);
+    if (gotVersion.initializer?.kind !== "reference" || !gotVersion.initializer.bindingId) {
+      throw new Error("expected Got to reference the enclosing Module export");
+    }
+    const outerVersion = versionForBinding(gotVersion.initializer.bindingId);
+    if (outerVersion.initializer?.kind !== "reference" || !outerVersion.initializer.bindingId) {
+      throw new Error("expected the enclosing export to reference the nested Module export");
+    }
+    const childVersion = versionForBinding(outerVersion.initializer.bindingId);
+    expect(compiled.typedDependencyGraph?.edges).toContainEqual(expect.objectContaining({
+      from: expect.objectContaining({ kind: "binding", id: outerVersion.bindingId }),
+      to: expect.objectContaining({ kind: "binding", id: childVersion.bindingId }),
+      requiredness: "required"
+    }));
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.computedScalarBindings?.get(gotBinding.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 20 }
+    });
+    const historyVersionIds = [...(result.computedScalarBindingVersions?.keys() ?? [])];
+    expect(historyVersionIds.indexOf(childVersion.id)).toBeGreaterThanOrEqual(0);
+    expect(historyVersionIds.indexOf(outerVersion.id)).toBeGreaterThan(historyVersionIds.indexOf(childVersion.id));
+  });
+
   it("resolves a root sibling scalar export when it is used as a module argument", () => {
     const compiled = compileWithIds([
       "nui 1",
