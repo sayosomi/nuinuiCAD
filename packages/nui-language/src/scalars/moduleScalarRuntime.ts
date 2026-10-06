@@ -46,6 +46,7 @@ import { buildBindingControlMetadata, type BindingControlMetadata, type BindingC
 import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import {
   lowerScalarProgram,
+  remapTypedExpressionSourceOrders,
   type ScalarProgram,
   type ScalarProgramCollection,
   type ScalarProgramCollectionMember,
@@ -510,103 +511,6 @@ const typedExpressionContainsImmutableCarryBinding = (expression: TypedScalarExp
   if (expression.kind === "valueMatch") return typedExpressionContainsImmutableCarryBinding(expression.scrutinee) || expression.arms.some((arm) => typedExpressionContainsImmutableCarryBinding(arm.expression));
   if (expression.kind === "call") return expression.args.some((argument) => argument.kind === "scalar" && typedExpressionContainsImmutableCarryBinding(argument.expression));
   return false;
-};
-
-const remapTypedExpressionSourceOrders = (
-  expression: TypedScalarExpression,
-  sourceOrderFor: (sourceOrder: number) => number
-): TypedScalarExpression => {
-  const remapGeometryTarget = (target: ScalarExpressionResolvedGeometryTarget | null): ScalarExpressionResolvedGeometryTarget | null => {
-    if (!target) return target;
-    if (target.kind === "forGroupOccurrence") {
-      return {
-        ...target,
-        targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder,
-        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
-      };
-    }
-    return { ...target, statementIndex: target.statementIndex >= 0 ? sourceOrderFor(target.statementIndex) : target.statementIndex };
-  };
-  switch (expression.kind) {
-    case "collectionIndex":
-      return {
-        ...expression,
-        targetSourceOrder: expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
-          ? sourceOrderFor(expression.targetSourceOrder)
-          : expression.targetSourceOrder,
-        index: remapTypedExpressionSourceOrders(expression.index, sourceOrderFor)
-      };
-    case "geometryProperty":
-      return {
-        ...expression,
-        targetSourceOrder: expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
-          ? sourceOrderFor(expression.targetSourceOrder)
-          : expression.targetSourceOrder,
-        ...(expression.forGroupOccurrenceIndex
-          ? { forGroupOccurrenceIndex: remapTypedExpressionSourceOrders(expression.forGroupOccurrenceIndex, sourceOrderFor) }
-          : {})
-      };
-    case "optionalMember": {
-      const target = expression.target;
-      const remapReference = (reference: ScalarExpressionResolvedGeometryProperty): ScalarExpressionResolvedGeometryProperty => ({
-        ...reference,
-        targetSourceOrder: reference.targetSourceOrder >= 0 ? sourceOrderFor(reference.targetSourceOrder) : reference.targetSourceOrder
-      });
-      const receiverTarget = target?.kind === "geometryProperty" && target.receiver.kind === "geometryValue"
-        ? target.receiver.target
-        : null;
-      return {
-        ...expression,
-        target: target?.kind === "collectionLength"
-          ? { ...target, targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder }
-          : target?.kind === "recordField"
-            ? { ...target, targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder }
-            : target?.kind === "geometryProperty"
-              ? {
-                  ...target,
-                  reference: remapReference(target.reference),
-                  receiver: target.receiver.kind === "collection"
-                    ? { ...target.receiver, targetSourceOrder: target.receiver.targetSourceOrder >= 0 ? sourceOrderFor(target.receiver.targetSourceOrder) : target.receiver.targetSourceOrder }
-                    : {
-                        ...target.receiver,
-                        target: receiverTarget?.kind === "forGroupOccurrence"
-                          ? {
-                              ...receiverTarget,
-                              targetSourceOrder: receiverTarget.targetSourceOrder >= 0 ? sourceOrderFor(receiverTarget.targetSourceOrder) : receiverTarget.targetSourceOrder,
-                              statementIndex: receiverTarget.statementIndex >= 0 ? sourceOrderFor(receiverTarget.statementIndex) : receiverTarget.statementIndex
-                            }
-                          : receiverTarget ?? target.receiver.target
-                      }
-                }
-              : target
-      };
-    }
-    case "unary": return { ...expression, operand: remapTypedExpressionSourceOrders(expression.operand, sourceOrderFor) };
-    case "binary": return {
-      ...expression,
-      left: remapTypedExpressionSourceOrders(expression.left, sourceOrderFor),
-      right: remapTypedExpressionSourceOrders(expression.right, sourceOrderFor)
-    };
-    case "group": return { ...expression, expression: remapTypedExpressionSourceOrders(expression.expression, sourceOrderFor) };
-    case "valueIf": return {
-      ...expression,
-      condition: remapTypedExpressionSourceOrders(expression.condition, sourceOrderFor),
-      thenBranch: remapTypedExpressionSourceOrders(expression.thenBranch, sourceOrderFor),
-      elseBranch: remapTypedExpressionSourceOrders(expression.elseBranch, sourceOrderFor)
-    };
-    case "valueMatch": return {
-      ...expression,
-      scrutinee: remapTypedExpressionSourceOrders(expression.scrutinee, sourceOrderFor),
-      arms: expression.arms.map((arm) => ({ ...arm, expression: remapTypedExpressionSourceOrders(arm.expression, sourceOrderFor) }))
-    };
-    case "call": return {
-      ...expression,
-      args: expression.args.map((argument) => argument.kind === "scalar"
-        ? { ...argument, expression: remapTypedExpressionSourceOrders(argument.expression, sourceOrderFor) }
-        : { ...argument, target: remapGeometryTarget(argument.target) })
-    };
-    default: return expression;
-  }
 };
 
 export const moduleScalarBindingIdFor = (

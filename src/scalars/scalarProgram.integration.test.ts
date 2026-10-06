@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileDslDocument } from "@nuinuicad/nui-language";
+import { buildRootScalarExecutionOrder, compileDslDocument } from "@nuinuicad/nui-language";
 import { emptyDocument } from "@nuinuicad/nui-language";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { evaluateScalarProgram } from "./declarationEvaluator";
@@ -12,6 +12,41 @@ const compileCanonical = (source: string) => {
 };
 
 describe("compiled scalar program", () => {
+  it("assigns root record-field versions discrete catalog-ordered positions when carries activate ordered evaluation", () => {
+    const source = [
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const first: Pair = Pair(x: 1, label: "ok")',
+      "for i in range(min: 0, max: 0, step: 1) carry last: Pair = @first {",
+      '  next last = Pair(x: @last.x + 1, label: @last.label)',
+      "}",
+      "const result: number = @last.x"
+    ].join("\n");
+    const compiled = compileCanonical(source);
+    const catalog = compiled.bindingAnalysis!.catalog;
+    const order = buildRootScalarExecutionOrder(catalog, compiled.statements.length);
+    const firstFields = catalog.bindings.filter((binding) => binding.name === "first.x" || binding.name === "first.label");
+    const firstFieldOrders = firstFields.map((binding) => order.sourceOrderByBindingId.get(binding.id));
+    const versions = compiled.bindingVersions!.versions;
+    const versionOrders = versions.map((version) => version.sourceOrder);
+    const group = compiled.document.elements.find((element) => element.type === "forGroup")!;
+    const groupStatement = compiled.statementMap.byElementId.get(group.id)!;
+
+    expect(firstFields.map((binding) => binding.name)).toEqual(["first.x", "first.label"]);
+    expect(firstFieldOrders.every(Number.isInteger)).toBe(true);
+    expect(firstFieldOrders[1]).toBeGreaterThan(firstFieldOrders[0]!);
+    expect(versionOrders.every(Number.isInteger)).toBe(true);
+    expect(versionOrders.every((sourceOrder, index) => index === 0 || sourceOrder > versionOrders[index - 1]!)).toBe(true);
+    expect(compiled.scalarExecutionPositionByRuntimeElementId?.get(group.id)).toBe(
+      order.sourceOrderByStatementIndex.get(groupStatement.statementIndex)
+    );
+    expect(versions.find((version) => version.bindingId === firstFields[0]!.id)?.sourceOrder).toBe(firstFieldOrders[0]);
+    expect(versions.find((version) => version.bindingId === firstFields[1]!.id)?.sourceOrder).toBe(firstFieldOrders[1]);
+
+    const repeated = compileCanonical(source);
+    expect(repeated.bindingVersions?.versions.map((version) => version.sourceOrder)).toEqual(versionOrders);
+  });
+
   it("keeps typed declarations out of elements and preserves source order across nested scopes", () => {
     const compiled = compileCanonical([
       "nui 1",

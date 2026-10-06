@@ -159,6 +159,8 @@ export type BindingVersionBuildInput = {
   scalarProgram: ScalarProgram;
   bindingAnalysis: BindingAnalysis;
   controlByScopeId: ReadonlyMap<ScopeId, BindingControlMetadata>;
+  /** Canonical root execution positions for bindings omitted from the scalar program. */
+  sourceOrderByBindingId?: ReadonlyMap<BindingId, number>;
   /** Compiler-classified lexical bindings that must not become executable declarations. */
   nonProgramBindingIds?: ReadonlySet<BindingId>;
   requiresExecutionOrdering?: boolean;
@@ -290,6 +292,7 @@ export const buildBindingVersionGraph = ({
   scalarProgram,
   bindingAnalysis,
   controlByScopeId,
+  sourceOrderByBindingId,
   nonProgramBindingIds,
   requiresExecutionOrdering = false
 }: BindingVersionBuildInput): BindingVersionGraph => {
@@ -322,7 +325,7 @@ export const buildBindingVersionGraph = ({
       bindingId: binding.id,
       bindingKind: "const",
       declaredType,
-      sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? binding.rank,
+      sourceOrder: programByBindingId.get(binding.id)?.sourceOrder ?? sourceOrderByBindingId?.get(binding.id) ?? binding.rank,
       ...(binding.catalogOrder ? { catalogOrder: binding.catalogOrder } : {}),
       scopeId: binding.effectiveScopeId,
       scopeExitSourceOrder: controlFor(controlByScopeId, binding.effectiveScopeId).scopeExitSourceOrder,

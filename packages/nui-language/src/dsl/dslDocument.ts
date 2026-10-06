@@ -22,7 +22,11 @@ import type {
 import type { GeometryInputCollectionNode, GeometryInputTarget } from "../model/cadDocumentTypes";
 import { collectModuleTransformationStageDeclarationsForSource, compileDslToElements } from "./dslCompiler";
 import { resolveTransformationStageSelection } from "./transformationRecipes";
-import { lowerScalarProgram } from "../scalars/scalarProgram";
+import {
+  buildRootScalarExecutionOrder,
+  lowerScalarProgram,
+  remapTypedExpressionSourceOrders
+} from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
 import { optionalCollectionMatchPresenceProjection } from "../scalars/expressionTypecheck";
@@ -4066,12 +4070,39 @@ export const compileDslDocument = (
         includeStatement
       })
     : undefined;
+  const rootRequiresExecutionOrdering = Boolean(
+    immutableCarryCompilation?.carries.length ||
+    immutableCarryCompilation?.declarations.some((declaration) =>
+      isDslArrayValueType(dslRequiredValueTypeOf(declaration.valueType)) ||
+      isDslGeometryValueType(dslRequiredValueTypeOf(declaration.valueType))
+    )
+  );
+  const rootScalarExecutionOrder = scalarAnalysis && !moduleScalarCompilation && rootRequiresExecutionOrdering
+    ? buildRootScalarExecutionOrder(scalarAnalysis.bindingAnalysis.catalog, parsed.statements.length)
+    : undefined;
+  let rootScalarExecutionPositionByRuntimeElementId: ReadonlyMap<ElementId, number> | undefined;
+  if (rootScalarExecutionOrder && scalarAnalysis) {
+    scalarProgram = lowerScalarProgram({
+      ...scalarAnalysis,
+      sourceOrderByBindingId: rootScalarExecutionOrder.sourceOrderByBindingId,
+      sourceOrderByStatementIndex: rootScalarExecutionOrder.sourceOrderByStatementIndex,
+      collectionValues: scalarProgram?.collectionValues
+    });
+    const scalarExecutionPositionByRuntimeElementId = new Map<ElementId, number>();
+    for (const [statementIndex, elementId] of compiled.elementIdsByStatementIndex ?? []) {
+      const sourceOrder = rootScalarExecutionOrder.sourceOrderByStatementIndex.get(statementIndex);
+      if (sourceOrder !== undefined) scalarExecutionPositionByRuntimeElementId.set(elementId, sourceOrder);
+    }
+    rootScalarExecutionPositionByRuntimeElementId = scalarExecutionPositionByRuntimeElementId;
+  }
+  const sourceOrderByStatementIndex = moduleScalarCompilation?.scalarExecutionPositionByStatementIndex ??
+    rootScalarExecutionOrder?.sourceOrderByStatementIndex;
   const bindingControlMetadata = scalarAnalysis && stableStatementIdByIndex
     ? new Map([
         ...buildBindingControlMetadata(
           scalarAnalysis.bindingAnalysis.catalog.scopeIndex,
           stableStatementIdByIndex,
-          moduleScalarCompilation?.scalarExecutionPositionByStatementIndex
+          sourceOrderByStatementIndex
         ),
         ...(moduleScalarCompilation?.controlByScopeId ?? new Map())
       ])
@@ -4082,11 +4113,9 @@ export const compileDslDocument = (
         scalarProgram,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         controlByScopeId: bindingControlMetadata,
+        sourceOrderByBindingId: rootScalarExecutionOrder?.sourceOrderByBindingId,
         nonProgramBindingIds: rootNonProgramBindingIds,
-    requiresExecutionOrdering: moduleScalarCompilation !== undefined || Boolean(
-      immutableCarryCompilation?.carries.length ||
-      immutableCarryCompilation?.declarations.some((declaration) => isDslArrayValueType(dslRequiredValueTypeOf(declaration.valueType)) || isDslGeometryValueType(dslRequiredValueTypeOf(declaration.valueType)))
-    )
+        requiresExecutionOrdering: moduleScalarCompilation !== undefined || rootRequiresExecutionOrdering
       })
     : undefined;
   const immutableForGroups = new Map<string, import("../scalars/bindingVersions").ImmutableForGroupPlan>();
@@ -4115,6 +4144,14 @@ export const compileDslDocument = (
       .sort((left, right) => left.statementIndex - right.statementIndex)[0]?.version;
     const fallbackExitStatementIndex = scope?.exitStatementIndex ?? ownerStatementIndex;
     const fallbackExitSourceOrder = moduleScalarCompilation?.scalarExecutionPositionByStatementIndex?.get(fallbackExitStatementIndex) ?? fallbackExitStatementIndex;
+    if (rootScalarExecutionOrder) {
+      return {
+        scopeId,
+        exitSourceOrder: rootScalarExecutionOrder.sourceOrderByStatementIndex.get(fallbackExitStatementIndex) ?? fallbackExitSourceOrder,
+        entrySourceOrder: rootScalarExecutionOrder.sourceOrderByStatementIndex.get(ownerStatementIndex) ?? ownerStatementIndex,
+        iterationBindingId: `binding:iteration:${ownerStatementId}`
+      } as const;
+    }
     const exitSourceOrder = after?.sourceOrder ?? fallbackExitSourceOrder;
     const entrySourceOrder = after
       ? after.sourceOrder - 0.5
@@ -4146,11 +4183,19 @@ export const compileDslDocument = (
         ...plan,
         carries: [...plan.carries, {
           bindingId: input.bindingId,
-          initializer,
+          initializer: rootScalarExecutionOrder
+            ? remapTypedExpressionSourceOrders(initializer, (sourceOrder) =>
+                rootScalarExecutionOrder.sourceOrderByStatementIndex.get(sourceOrder) ?? sourceOrder
+              )
+            : initializer,
           ...(input.nextBindingId ? { nextBindingId: input.nextBindingId } : {}),
           declaredType: input.declaredType,
-          nextExpression,
-          nextSourceOrder: input.nextSourceOrder
+          nextExpression: rootScalarExecutionOrder
+            ? remapTypedExpressionSourceOrders(nextExpression, (sourceOrder) =>
+                rootScalarExecutionOrder.sourceOrderByStatementIndex.get(sourceOrder) ?? sourceOrder
+              )
+            : nextExpression,
+          nextSourceOrder: rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(input.nextSourceOrder) ?? input.nextSourceOrder
         }]
       });
     }
@@ -4164,7 +4209,10 @@ export const compileDslDocument = (
         carries: []
       };
       const collectionCarries = [...(plan.collectionCarries ?? [])].filter((candidate) => candidate.bindingId !== input.bindingId);
-      collectionCarries.push(input);
+      collectionCarries.push({
+        ...input,
+        nextSourceOrder: rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(input.nextSourceOrder) ?? input.nextSourceOrder
+      });
       immutableForGroups.set(ownerStatementId, { ...plan, collectionCarries });
     }
   }
@@ -4361,6 +4409,22 @@ export const compileDslDocument = (
     void carryBindingId;
     return null;
   };
+  const rootExecutionOrderGeometryTarget = (
+    target: ScalarExpressionResolvedGeometryTarget | null
+  ): ScalarExpressionResolvedGeometryTarget | null => {
+    if (!target || !rootScalarExecutionOrder) return target;
+    const sourceOrderFor = (sourceOrder: number) =>
+      rootScalarExecutionOrder.sourceOrderByStatementIndex.get(sourceOrder) ?? sourceOrder;
+    if (target.kind === "forGroupOccurrence") {
+      return {
+        ...target,
+        statementIndex: sourceOrderFor(target.statementIndex),
+        targetSourceOrder: sourceOrderFor(target.targetSourceOrder),
+        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
+      };
+    }
+    return { ...target, statementIndex: sourceOrderFor(target.statementIndex) };
+  };
   if (bindingVersionsBase && immutableCarryCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
     for (const declaration of immutableCarryCompilation.declarations) {
       const valueType = dslRequiredValueTypeOf(declaration.valueType);
@@ -4371,8 +4435,12 @@ export const compileDslDocument = (
         (candidate.fieldPath?.join(".") ?? "") === (declaration.fieldPath?.join(".") ?? "")
       );
       if (!next) continue;
-      const initializerTarget = geometryTargetForCarryExpression(declaration.initializer, declaration.ownerStatementIndex, declaration.bindingId);
-      const nextTarget = geometryTargetForCarryExpression(next.expression, next.statementIndex, declaration.bindingId);
+      const initializerTarget = rootExecutionOrderGeometryTarget(
+        geometryTargetForCarryExpression(declaration.initializer, declaration.ownerStatementIndex, declaration.bindingId)
+      );
+      const nextTarget = rootExecutionOrderGeometryTarget(
+        geometryTargetForCarryExpression(next.expression, next.statementIndex, declaration.bindingId)
+      );
       const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
       const targetValueType = (target: ScalarExpressionResolvedGeometryTarget): import("./dslValueTypes").DslGeometryValueType => ({
         kind: target.pointKey ? "point" : target.geometryType
@@ -4420,7 +4488,7 @@ export const compileDslDocument = (
         declaredType: valueType,
         initializerTarget,
         nextTarget,
-        nextSourceOrder: next.statementIndex
+        nextSourceOrder: rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(next.statementIndex) ?? next.statementIndex
       }];
       immutableForGroups.set(ownerStatementId, { ...plan, geometryCarries });
     }
@@ -4483,7 +4551,7 @@ export const compileDslDocument = (
         initializer: initializer.source,
         next: nextSource.source,
         declaredType: valueType,
-        nextSourceOrder: next.statementIndex
+        nextSourceOrder: rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(next.statementIndex) ?? next.statementIndex
       });
       immutableForGroups.set(ownerStatementId, { ...plan, geometryCollectionCarries });
     }
@@ -4564,7 +4632,7 @@ export const compileDslDocument = (
       return {
         ...element,
         iterationSourceValueId: valueId,
-        iterationSourceOrder: declaration.statementIndex,
+        iterationSourceOrder: rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(declaration.statementIndex) ?? declaration.statementIndex,
         iterationElementValueType: valueType.elementType,
         ...(elementType ? { iterationElementType: elementType } : {})
       };
@@ -4585,7 +4653,8 @@ export const compileDslDocument = (
   for (const [statementIndex, elementId] of compiled.elementIdsByStatementIndex ?? []) {
     addGeometryValueSourceEvent(
       statementIndex,
-      moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId.get(elementId)
+      moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId.get(elementId) ??
+        rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(statementIndex)
     );
   }
   const bindingAnalysisForGeometryValues = scalarAnalysis?.bindingAnalysis;
@@ -4595,6 +4664,8 @@ export const compileDslDocument = (
     addGeometryValueSourceEvent(binding.statementIndex, version.sourceOrder);
   }
   const sourcePositionForGeometryValueStatement = (statementIndex: number): number => {
+    const rootSourcePosition = rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(statementIndex);
+    if (rootSourcePosition !== undefined) return rootSourcePosition;
     const exact = geometryValueSourceEventOrders.get(statementIndex);
     if (exact?.length) return Math.min(...exact);
     const candidates = [...geometryValueSourceEventOrders.entries()].sort((left, right) => left[0] - right[0]);
@@ -4693,8 +4764,8 @@ export const compileDslDocument = (
       ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
       ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
       ...(geometryValueProgram?.length ? { geometryValueProgram } : {}),
-      ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
-        ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
+      ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId ?? rootScalarExecutionPositionByRuntimeElementId
+        ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId ?? rootScalarExecutionPositionByRuntimeElementId }
         : {}),
       ...(moduleScalarCompilation?.materializedPropertyBindings.length
         ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
@@ -4790,10 +4861,10 @@ export const compileDslDocument = (
     ...(moduleSemanticCompilation ? { moduleSemanticAnalysis: moduleSemanticCompilation } : {}),
     ...(moduleRuntimeContext ? { moduleRuntimeContext } : {}),
     ...(compiled.moduleMaterialization ? { moduleMaterialization: compiled.moduleMaterialization } : {}),
-      ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
+    ...(compiled.moduleGeometryRuntime ? { moduleGeometryRuntime: compiled.moduleGeometryRuntime } : {}),
     ...(geometryValueProgram?.length ? { geometryValueProgram } : {}),
-    ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId
-      ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation.scalarExecutionPositionByRuntimeElementId }
+    ...(moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId ?? rootScalarExecutionPositionByRuntimeElementId
+      ? { scalarExecutionPositionByRuntimeElementId: moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId ?? rootScalarExecutionPositionByRuntimeElementId }
       : {}),
     ...(moduleScalarCompilation?.materializedPropertyBindings.length
       ? { materializedPropertyBindings: moduleScalarCompilation.materializedPropertyBindings }
