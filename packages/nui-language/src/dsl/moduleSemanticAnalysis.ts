@@ -1275,17 +1275,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return invalid(null, "undefined", "module-undefined-reference", `未定義の collection「${reference.name}」を参照しています。`, reference.span);
     }
     const declaration = lookup.declaration;
+    const carry = declaration.kind === "carry" &&
+      declaration.statement.kind === "element" &&
+      declaration.statement.type === "forGroup"
+      ? declaration.statement.forCarries?.find((candidate) => candidate.name === declaration.name)
+      : undefined;
+    const carryValueType = dslRequiredValueTypeOf(carry?.valueType);
     if (
       ownerIndex !== null &&
       declaration.kind === "carry" &&
       declaration.statement.kind === "element" &&
-      declaration.statement.type === "forGroup"
+      declaration.statement.type === "forGroup" &&
+      carry &&
+      isDslArrayValueType(carryValueType)
     ) {
-      const carry = declaration.statement.forCarries?.find((candidate) => candidate.name === declaration.name);
-      const valueType = dslRequiredValueTypeOf(carry?.valueType);
-      if (!carry || !isDslArrayValueType(valueType)) {
-        return invalid(null, "invalid", "module-collection-index-type", `参照先「${reference.name}」は collection ではありません。`, reference.span, relatedForDeclaration(declaration));
-      }
       if (declaration.statementIndex > statementIndex) {
         return invalid(null, "forward", "module-forward-reference", `collection「${reference.name}」はこの位置より後で宣言されています。`, reference.span, relatedForDeclaration(declaration));
       }
@@ -1293,12 +1296,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (ownerIndex !== null && declarationOwner !== ownerIndex) {
         return invalid(null, "outerCapture", "module-outer-capture", `module body から outer collection「${reference.name}」を暗黙 capture できません。`, reference.span, relatedForDeclaration(declaration));
       }
-      const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
+      const elementType = scalarExpressionTypeOfDslValueType(carryValueType.elementType);
       const target: ModuleScalarSourceTarget = {
         kind: "collectionValue",
         statementId: declaration.statementId,
         statementIndex: declaration.statementIndex,
-        valueType,
+        valueType: carryValueType,
         ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, declaration.statementId) } : {})
       };
       if (!elementType) return invalid(target, "invalid", "module-collection-index-type", `collection「${reference.name}」の element 型は scalar ではありません。`, reference.span);

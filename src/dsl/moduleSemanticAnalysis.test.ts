@@ -218,6 +218,17 @@ describe("module semantic analysis", () => {
           "}",
           "instance Use = M()"
         ].join("\n"),
+        code: "module-undefined-reference"
+      },
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  const value: number = 1",
+          "  const selected: number = @value[0]",
+          "}",
+          "instance Use = M()"
+        ].join("\n"),
         code: "module-collection-index-type"
       },
       {
