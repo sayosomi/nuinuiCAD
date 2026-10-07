@@ -11,7 +11,10 @@ import type {
   ImmutableForGroupPlan
 } from "@nuinuicad/nui-language";
 import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "./expressionEvaluator";
-import { createScalarProgramCollectionResolver } from "./declarationEvaluator";
+import {
+  createScalarProgramCollectionResolver,
+  type ScalarProgramCollectionSnapshot
+} from "./declarationEvaluator";
 import {
   createForGroupExecutionEnvironment,
   type ForGroupExecutionFrame,
@@ -51,6 +54,7 @@ export type IncrementalLinearMutationEvaluator = {
   registerConditionalResult: (ownerStatementId: string, branch: "then" | "else" | null) => void;
   resolveCurrent: (bindingId: BindingId) => ScalarEvaluation;
   resolveCollectionValueId: (collectionValueId: string, sourceOrder: number) => string | undefined;
+  resolveCollectionSnapshot: (collectionValueId: string, sourceOrder: number) => ScalarProgramCollectionSnapshot | undefined;
   resolveCollectionIndex: (collectionValueId: string, index: number, elementType: ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number, sourceOrder: number) => ScalarEvaluation;
   resolveCollectionLength: (collectionValueId: string, sourceOrder: number) => number | undefined;
   finalize: (
@@ -165,8 +169,8 @@ export const createIncrementalLinearMutationEvaluator = (
     plan.carries.map((carry) => carry.bindingId)
   );
   const finalBindingOrder = [...new Set([...declarationBindingOrder, ...carryBindingOrder])];
-  const collectionCarryValueIds = new Map<string, string>();
-  let activeCollectionCarryValueIds: ReadonlyMap<string, string> = collectionCarryValueIds;
+  const collectionCarrySnapshots = new Map<string, ScalarProgramCollectionSnapshot>();
+  let activeCollectionCarrySnapshots: ReadonlyMap<string, ScalarProgramCollectionSnapshot> = collectionCarrySnapshots;
   const collectionValuesById = new Map((collectionValues ?? []).map((value) => [value.valueId, value] as const));
   let nextVersionIndex = 0;
   const pendingDependencyVersions = new Map<BindingVersionId, BindingVersion>();
@@ -195,48 +199,76 @@ export const createIncrementalLinearMutationEvaluator = (
     resolveGeometryProperty,
     resolveGeometryTarget,
     resolveCollectionLength,
-    (collectionValueId) => activeCollectionCarryValueIds.get(collectionValueId)
+    (collectionValueId, sourceOrder) => collectionSnapshotFor(collectionValueId, sourceOrder, activeCollectionCarrySnapshots)
   );
 
-  const materializeCollectionValueId = (
+  const collectionSnapshotFor = (
     valueId: string,
-    snapshot: ReadonlyMap<string, string>
-  ): string | undefined => {
+    _sourceOrder: number,
+    snapshots: ReadonlyMap<string, ScalarProgramCollectionSnapshot>,
+    localBindings: ReadonlyMap<BindingId, ScalarEvaluation> = new Map()
+  ): ScalarProgramCollectionSnapshot | undefined => {
     let current = valueId;
+    let found = false;
+    const bindings = new Map(localBindings);
     const seen = new Set<string>();
     while (!seen.has(current)) {
       seen.add(current);
-      const redirected = snapshot.get(current) ?? current;
-      if (redirected !== current) {
-        current = redirected;
+      const snapshot = snapshots.get(current);
+      if (!snapshot) break;
+      found = true;
+      for (const [bindingId, value] of snapshot.localBindings) {
+        if (!bindings.has(bindingId)) bindings.set(bindingId, value);
+      }
+      current = snapshot.valueId;
+    }
+    return found ? { valueId: current, localBindings: bindings } : undefined;
+  };
+
+  const materializeCollectionSnapshot = (
+    valueId: string,
+    snapshot: ReadonlyMap<string, ScalarProgramCollectionSnapshot>
+  ): ScalarProgramCollectionSnapshot | undefined => {
+    let current = valueId;
+    let localBindings: ReadonlyMap<BindingId, ScalarEvaluation> = new Map();
+    const seen = new Set<string>();
+    while (!seen.has(current)) {
+      seen.add(current);
+      const redirected = collectionSnapshotFor(current, 0, snapshot, localBindings);
+      if (redirected) {
+        localBindings = redirected.localBindings;
+      }
+      if (redirected && redirected.valueId !== current) {
+        current = redirected.valueId;
         continue;
       }
       const value = collectionValuesById.get(current);
-      if (!value) return current;
+      if (!value) return { valueId: current, localBindings };
       if (value.kind === "alias") {
         current = value.targetValueId;
         continue;
       }
       if (value.kind === "if") {
-        const environment = collectionResolver?.environmentFor(value.sourceOrder);
+        const environment = collectionResolver?.environmentFor(value.sourceOrder, localBindings);
         if (!environment) return undefined;
         const condition = evaluateTypedExpression(value.condition, {
-          lookupBinding: resolveCurrent,
-          ...environment
+          ...environment,
+          lookupBinding: (bindingId) => localBindings.get(bindingId) ?? resolveCurrent(bindingId)
         });
         if (condition.status !== "ok" || condition.type.kind !== "boolean" || condition.value.kind !== "boolean") return undefined;
         current = condition.value.value ? value.thenValueId : value.elseValueId;
         continue;
       }
       if (value.kind === "match") {
-        const selectedValueId = collectionResolver?.selectChoiceMatchValueId(current);
-        if (!selectedValueId) return undefined;
-        current = selectedValueId;
+        const selected = collectionResolver?.selectMatchCollectionValue(current, localBindings);
+        if (!selected || selected.kind === "error") return undefined;
+        localBindings = selected.localBindings;
+        current = selected.valueId;
         continue;
       }
-      return current;
+      return { valueId: current, localBindings };
     }
-    return current;
+    return { valueId: current, localBindings };
   };
 
   const retireFramesBefore = (sourceOrder: number) => {
@@ -496,7 +528,10 @@ export const createIncrementalLinearMutationEvaluator = (
         environment.seed(carry.bindingId, resultForDeclaredType(evaluation, carry.declaredType));
       }
       for (const carry of immutableCarryPlan.collectionCarries ?? []) {
-        collectionCarryValueIds.set(carry.collectionValueId, carry.initializerValueId);
+        collectionCarrySnapshots.set(carry.collectionValueId, {
+          valueId: carry.initializerValueId,
+          localBindings: new Map()
+        });
       }
     }
     let versionIndex = 0;
@@ -533,8 +568,8 @@ export const createIncrementalLinearMutationEvaluator = (
         ...(immutableCarryPlan || plan.onIterationComplete ? {
           onIterationComplete: (frame, context) => {
             if (immutableCarryPlan) {
-            const collectionSnapshot = new Map(collectionCarryValueIds);
-            activeCollectionCarryValueIds = collectionSnapshot;
+            const collectionSnapshot = new Map(collectionCarrySnapshots);
+            activeCollectionCarrySnapshots = collectionSnapshot;
             const snapshot = new Map<BindingId, ScalarEvaluation>();
             for (const carry of immutableCarryPlan.carries) {
               const value = frame.read(carry.bindingId);
@@ -565,15 +600,15 @@ export const createIncrementalLinearMutationEvaluator = (
               nextValues.set(carry.bindingId, resultForDeclaredType(evaluation, carry.declaredType));
             }
             for (const [bindingId, value] of nextValues) frame.commit(bindingId, value);
-            const collectionNextValues = (immutableCarryPlan.collectionCarries ?? []).map((carry) => [
+            const collectionNextSnapshots = (immutableCarryPlan.collectionCarries ?? []).map((carry) => [
               carry.collectionValueId,
-              materializeCollectionValueId(carry.nextValueId, collectionSnapshot)
+              materializeCollectionSnapshot(carry.nextValueId, collectionSnapshot)
             ] as const);
-            for (const [collectionValueId, valueId] of collectionNextValues) {
-              if (valueId === undefined) collectionCarryValueIds.delete(collectionValueId);
-              else collectionCarryValueIds.set(collectionValueId, valueId);
+            for (const [collectionValueId, snapshot] of collectionNextSnapshots) {
+              if (snapshot === undefined) collectionCarrySnapshots.delete(collectionValueId);
+              else collectionCarrySnapshots.set(collectionValueId, snapshot);
             }
-            activeCollectionCarryValueIds = collectionCarryValueIds;
+            activeCollectionCarrySnapshots = collectionCarrySnapshots;
             }
             return plan.onIterationComplete?.(frame, context) ?? "completed";
           }
@@ -603,7 +638,10 @@ export const createIncrementalLinearMutationEvaluator = (
     advanceTo,
     registerConditionalResult,
     resolveCurrent,
-    resolveCollectionValueId: (collectionValueId) => activeCollectionCarryValueIds.get(collectionValueId),
+    resolveCollectionValueId: (collectionValueId, sourceOrder) =>
+      collectionSnapshotFor(collectionValueId, sourceOrder, activeCollectionCarrySnapshots)?.valueId,
+    resolveCollectionSnapshot: (collectionValueId, sourceOrder) =>
+      collectionSnapshotFor(collectionValueId, sourceOrder, activeCollectionCarrySnapshots),
     resolveCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder) => {
       const lookup = collectionResolver?.environmentFor(sourceOrder).lookupCollectionIndex;
       if (!lookup) {

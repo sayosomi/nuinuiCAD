@@ -45,6 +45,12 @@ struct ScopeFrame {
     locals: HashSet<BindingId>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct CollectionCarrySnapshot {
+    pub(crate) value_id: String,
+    pub(crate) local_bindings: HashMap<BindingId, ScalarEvaluation>,
+}
+
 pub(crate) struct ScalarMutationResolver<'a> {
     program: &'a ValidatedBindingVersions,
     current: HashMap<BindingId, ScalarEvaluation>,
@@ -54,7 +60,7 @@ pub(crate) struct ScalarMutationResolver<'a> {
     conditional_results: HashMap<String, Option<String>>,
     loop_conditional_results: Vec<HashMap<String, Option<String>>>,
     frames: Vec<ScopeFrame>,
-    collection_carry_value_ids: HashMap<String, String>,
+    collection_carry_snapshots: HashMap<String, CollectionCarrySnapshot>,
 }
 
 pub(crate) struct DependencyBindingSchedule<'a> {
@@ -85,7 +91,7 @@ impl<'a> ScalarMutationResolver<'a> {
             conditional_results: HashMap::new(),
             loop_conditional_results: Vec::new(),
             frames: Vec::new(),
-            collection_carry_value_ids: HashMap::new(),
+            collection_carry_snapshots: HashMap::new(),
         }
     }
     pub(crate) fn advance_before_statement(
@@ -558,16 +564,44 @@ impl<'a> ScalarMutationResolver<'a> {
         })
     }
 
-    pub(crate) fn resolve_collection_carry_value_id(&self, value_id: &str) -> String {
+    pub(crate) fn resolve_collection_carry_snapshot(
+        &self,
+        value_id: &str,
+    ) -> CollectionCarrySnapshot {
         let mut current = value_id.to_owned();
+        let mut local_bindings = HashMap::new();
         let mut seen = HashSet::new();
-        while let Some(next) = self.collection_carry_value_ids.get(&current) {
-            if !seen.insert(current.clone()) {
+        while seen.insert(current.clone()) {
+            let Some(snapshot) = self.collection_carry_snapshots.get(&current) else {
                 break;
+            };
+            for (binding_id, value) in &snapshot.local_bindings {
+                local_bindings
+                    .entry(binding_id.clone())
+                    .or_insert_with(|| value.clone());
             }
-            current = next.clone();
+            current = snapshot.value_id.clone();
         }
-        current
+        CollectionCarrySnapshot {
+            value_id: current,
+            local_bindings,
+        }
+    }
+
+    fn collection_carry_context(
+        &self,
+        value_id: &str,
+        local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+    ) -> CollectionCarrySnapshot {
+        let snapshot = self.resolve_collection_carry_snapshot(value_id);
+        let mut merged = snapshot.local_bindings;
+        // A more-local context from the current collection traversal wins over
+        // bindings inherited from the committed carry snapshot.
+        merged.extend(local_bindings.clone());
+        CollectionCarrySnapshot {
+            value_id: snapshot.value_id,
+            local_bindings: merged,
+        }
     }
 
     pub(crate) fn history(&self) -> Vec<Value> {
@@ -754,7 +788,9 @@ impl<'a> ScalarMutationResolver<'a> {
         seen: &mut HashSet<String>,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> ScalarEvaluation {
-        let redirected = self.resolve_collection_carry_value_id(collection_value_id);
+        let context = self.collection_carry_context(collection_value_id, local_bindings);
+        let redirected = context.value_id;
+        let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
             return self.resolve_record_field_with_bindings(
                 &redirected,
@@ -1021,7 +1057,9 @@ impl<'a> ScalarMutationResolver<'a> {
         seen: &mut HashSet<String>,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> Result<Option<bool>, ScalarEvaluation> {
-        let redirected = self.resolve_collection_carry_value_id(collection_value_id);
+        let context = self.collection_carry_context(collection_value_id, local_bindings);
+        let redirected = context.value_id;
+        let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
             return self.resolve_collection_presence_with_bindings(
                 &redirected,
@@ -1180,7 +1218,6 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> ScalarEvaluation {
-        let collection_value_id = self.resolve_collection_carry_value_id(collection_value_id);
         if !index.is_finite()
             || index.fract() != 0.0
             || index < 0.0
@@ -1193,14 +1230,19 @@ impl<'a> ScalarMutationResolver<'a> {
                 context: None,
             };
         }
-        let mut current = collection_value_id;
+        let mut current = collection_value_id.to_owned();
+        let mut carried_local_bindings = local_bindings.clone();
         let mut seen = HashSet::new();
         let member = loop {
-            let redirected = self.resolve_collection_carry_value_id(&current);
+            let context = self.collection_carry_context(&current, &carried_local_bindings);
+            let redirected = context.value_id;
             if redirected != current {
                 current = redirected;
+                carried_local_bindings = context.local_bindings;
                 continue;
             }
+            carried_local_bindings = context.local_bindings;
+            let local_bindings = &carried_local_bindings;
             if !seen.insert(current.to_owned()) {
                 return ScalarEvaluation::Error {
                     r#type: element_type.clone(),
@@ -1448,7 +1490,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         context: None,
                     };
                 }
-                local_bindings
+                carried_local_bindings
                     .get(binding_id)
                     .cloned()
                     .unwrap_or_else(|| self.resolve(binding_id, state))
@@ -1507,7 +1549,9 @@ impl<'a> ScalarMutationResolver<'a> {
         seen: &mut HashSet<String>,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> Result<Option<f64>, ScalarEvaluation> {
-        let redirected = self.resolve_collection_carry_value_id(collection_value_id);
+        let context = self.collection_carry_context(collection_value_id, local_bindings);
+        let redirected = context.value_id;
+        let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
             return self.resolve_collection_length_with_bindings(
                 &redirected,
@@ -1836,22 +1880,28 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                 context: None,
             };
         }
-        self.resolver.resolve_collection_index(
+        let empty_bindings = HashMap::new();
+        self.resolver.resolve_collection_index_with_bindings(
             collection_value_id,
             index,
             element_type,
             collection_length,
-            target_source_order,
             self.state,
+            self.local_bindings.unwrap_or(&empty_bindings),
         )
     }
 
     fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
-        self.resolver.resolve_collection_length(
-            collection_value_id,
-            self.state,
-            &mut HashSet::new(),
-        )
+        let empty_bindings = HashMap::new();
+        self.resolver
+            .resolve_collection_length_with_bindings(
+                collection_value_id,
+                self.state,
+                &mut HashSet::new(),
+                self.local_bindings.unwrap_or(&empty_bindings),
+            )
+            .ok()
+            .flatten()
     }
 
     fn lookup_optional_member(
@@ -1876,8 +1926,14 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                         context: None,
                     };
                 }
+                let empty_bindings = HashMap::new();
                 self.resolver
-                    .resolve_optional_collection_member(target, r#type, self.state)
+                    .resolve_optional_collection_member_with_bindings(
+                        target,
+                        r#type,
+                        self.state,
+                        self.local_bindings.unwrap_or(&empty_bindings),
+                    )
             }
             ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
                 lookup_optional_geometry_property(
@@ -1887,6 +1943,135 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                     r#type,
                     Some(self.source_order),
                 )
+            }
+        }
+    }
+}
+
+impl ScalarMutationResolver<'_> {
+    fn resolve_optional_collection_member_with_bindings(
+        &self,
+        target: &ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+        state: &EvaluationState,
+        local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+    ) -> ScalarEvaluation {
+        let none = || ScalarEvaluation::Ok {
+            r#type: r#type.clone(),
+            value: ScalarValue::None,
+        };
+        match target {
+            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
+                collection_value_id,
+                ..
+            } => match self.resolve_collection_presence_with_bindings(
+                collection_value_id,
+                state,
+                &mut HashSet::new(),
+                local_bindings,
+            ) {
+                Ok(Some(false)) => none(),
+                Ok(Some(true)) => match self.resolve_collection_length_with_bindings(
+                    collection_value_id,
+                    state,
+                    &mut HashSet::new(),
+                    local_bindings,
+                ) {
+                    Ok(Some(length)) => ScalarEvaluation::Ok {
+                        r#type: r#type.clone(),
+                        value: ScalarValue::Number(length),
+                    },
+                    Ok(None) => ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-collection-property-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    },
+                    Err(error) => result_for_scalar_type(error, r#type),
+                },
+                Ok(None) => ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-collection-property-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+                Err(error) => result_for_scalar_type(error, r#type),
+            },
+            ScalarExpressionResolvedOptionalMemberTarget::RecordField {
+                collection_value_id,
+                collection_length: _,
+                field,
+                ..
+            } => match self.resolve_collection_presence_with_bindings(
+                collection_value_id,
+                state,
+                &mut HashSet::new(),
+                local_bindings,
+            ) {
+                Ok(Some(false)) => none(),
+                Ok(Some(true)) => {
+                    let field = ValidatedScalarProgramRecordFieldIdentity {
+                        record_statement_id: field.record_statement_id.clone(),
+                        field_index: field.field_index,
+                        r#type: field.r#type.clone(),
+                        field_path: (!field.field_path.is_empty()).then(|| {
+                            field
+                                .field_path
+                                .iter()
+                                .map(|(statement_id, field_index)| {
+                                    super::program_payload::ValidatedScalarProgramRecordFieldPathEntry {
+                                        record_statement_id: statement_id.clone(),
+                                        field_index: *field_index,
+                                    }
+                                })
+                                .collect()
+                        }),
+                    };
+                    match self.resolve_record_field_with_bindings(
+                        collection_value_id,
+                        0.0,
+                        &field,
+                        state,
+                        &mut HashSet::new(),
+                        local_bindings,
+                    ) {
+                        ScalarEvaluation::Ok { value, .. }
+                            if scalar_value_matches_type(r#type, &value) =>
+                        {
+                            ScalarEvaluation::Ok {
+                                r#type: r#type.clone(),
+                                value,
+                            }
+                        }
+                        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                            binding_id: None,
+                            context: None,
+                        },
+                        ScalarEvaluation::Error { issue_code, .. } => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code,
+                            binding_id: None,
+                            context: None,
+                        },
+                    }
+                }
+                Ok(None) => ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
+                Err(error) => result_for_scalar_type(error, r#type),
+            },
+            ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
+                ScalarEvaluation::Error {
+                    r#type: r#type.clone(),
+                    issue_code: "evaluation-optional-member-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                }
             }
         }
     }
@@ -1934,123 +2119,11 @@ impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
         r#type: &ScalarType,
         state: &EvaluationState,
     ) -> ScalarEvaluation {
-        let none = || ScalarEvaluation::Ok {
-            r#type: r#type.clone(),
-            value: ScalarValue::None,
-        };
-        match target {
-            ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
-                collection_value_id,
-                ..
-            } => match self.resolve_collection_presence_with_bindings(
-                collection_value_id,
-                state,
-                &mut HashSet::new(),
-                &HashMap::new(),
-            ) {
-                Ok(Some(false)) => none(),
-                Ok(Some(true)) => match self.resolve_collection_length_with_bindings(
-                    collection_value_id,
-                    state,
-                    &mut HashSet::new(),
-                    &HashMap::new(),
-                ) {
-                    Ok(Some(length)) => ScalarEvaluation::Ok {
-                        r#type: r#type.clone(),
-                        value: ScalarValue::Number(length),
-                    },
-                    Ok(None) => ScalarEvaluation::Error {
-                        r#type: r#type.clone(),
-                        issue_code: "evaluation-collection-property-unavailable".to_owned(),
-                        binding_id: None,
-                        context: None,
-                    },
-                    Err(error) => result_for_scalar_type(error, r#type),
-                },
-                Ok(None) => ScalarEvaluation::Error {
-                    r#type: r#type.clone(),
-                    issue_code: "evaluation-collection-property-unavailable".to_owned(),
-                    binding_id: None,
-                    context: None,
-                },
-                Err(error) => result_for_scalar_type(error, r#type),
-            },
-            ScalarExpressionResolvedOptionalMemberTarget::RecordField {
-                collection_value_id,
-                collection_length: _,
-                field,
-                ..
-            } => match self.resolve_collection_presence_with_bindings(
-                collection_value_id,
-                state,
-                &mut HashSet::new(),
-                &HashMap::new(),
-            ) {
-                Ok(Some(false)) => none(),
-                Ok(Some(true)) => {
-                    let field = ValidatedScalarProgramRecordFieldIdentity {
-                        record_statement_id: field.record_statement_id.clone(),
-                        field_index: field.field_index,
-                        r#type: field.r#type.clone(),
-                        field_path: (!field.field_path.is_empty()).then(|| {
-                            field
-                                .field_path
-                                .iter()
-                                .map(|(statement_id, field_index)| {
-                                    super::program_payload::ValidatedScalarProgramRecordFieldPathEntry {
-                                        record_statement_id: statement_id.clone(),
-                                        field_index: *field_index,
-                                    }
-                                })
-                                .collect()
-                        }),
-                    };
-                    match self.resolve_record_field_with_bindings(
-                        collection_value_id,
-                        0.0,
-                        &field,
-                        state,
-                        &mut HashSet::new(),
-                        &HashMap::new(),
-                    ) {
-                        ScalarEvaluation::Ok { value, .. }
-                            if scalar_value_matches_type(r#type, &value) =>
-                        {
-                            ScalarEvaluation::Ok {
-                                r#type: r#type.clone(),
-                                value,
-                            }
-                        }
-                        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
-                            r#type: r#type.clone(),
-                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
-                            binding_id: None,
-                            context: None,
-                        },
-                        ScalarEvaluation::Error { issue_code, .. } => ScalarEvaluation::Error {
-                            r#type: r#type.clone(),
-                            issue_code,
-                            binding_id: None,
-                            context: None,
-                        },
-                    }
-                }
-                Ok(None) => ScalarEvaluation::Error {
-                    r#type: r#type.clone(),
-                    issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                    binding_id: None,
-                    context: None,
-                },
-                Err(error) => result_for_scalar_type(error, r#type),
-            },
-            ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
-                ScalarEvaluation::Error {
-                    r#type: r#type.clone(),
-                    issue_code: "evaluation-optional-member-unavailable".to_owned(),
-                    binding_id: None,
-                    context: None,
-                }
-            }
-        }
+        self.resolve_optional_collection_member_with_bindings(
+            target,
+            r#type,
+            state,
+            &HashMap::new(),
+        )
     }
 }
