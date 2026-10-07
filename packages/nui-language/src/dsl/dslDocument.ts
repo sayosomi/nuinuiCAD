@@ -2722,24 +2722,66 @@ export const compileDslDocument = (
         statementIndex: declaration.ownerStatementIndex
       });
     };
-    const bindingForReference = (raw: string, statementIndex: number): { declaration: typeof sourceLexicalNamespace.allDeclarations[number]; valueType: DslValueType } | null => {
+    type CarryCollectionReference = {
+      targetValueId: string;
+      valueType: DslValueType;
+      declaration?: typeof sourceLexicalNamespace.allDeclarations[number];
+    };
+    const bindingForReference = (
+      raw: string,
+      statementIndex: number,
+      options: { allowModuleParameter?: boolean } = {}
+    ): CarryCollectionReference | null => {
       const parsedReference = parseDslSourceReference(raw.trim());
       if (parsedReference.kind !== "valid" || parsedReference.reference.occurrenceIndex !== null) return null;
-      const lookup = resolveSourceLexicalPath(sourceLexicalNamespace!, statementIndex, parsedReference.reference.path);
+      const path = parsedReference.reference.path;
+      const lookup = resolveSourceLexicalPath(sourceLexicalNamespace!, statementIndex, path);
       const declaration = lookup.kind === "resolved"
         ? lookup.declaration
-        : parsedReference.reference.path.segments.length === 1
+        : path.segments.length === 1
           ? [...sourceLexicalNamespace!.allDeclarations]
-              .filter((candidate) => candidate.kind === "carry" && candidate.name === parsedReference.reference.path.segments[0] && candidate.statementIndex <= statementIndex)
+              .filter((candidate) => candidate.kind === "carry" && candidate.name === path.segments[0] && candidate.statementIndex <= statementIndex)
               .sort((left, right) => right.statementIndex - left.statementIndex)[0]
           : undefined;
-      if (!declaration) return null;
-      const valueType = declaration.statement.kind === "typedDeclaration"
-        ? dslRequiredValueTypeOf(declaration.statement.valueType)
-        : declaration.kind === "carry" && declaration.statement.kind === "element"
-          ? dslRequiredValueTypeOf(declaration.statement.forCarries?.find((candidate) => candidate.name === declaration.name)?.valueType)
-          : null;
-      return valueType ? { declaration, valueType } : null;
+      if (declaration) {
+        const valueType = declaration.statement.kind === "typedDeclaration"
+          ? dslRequiredValueTypeOf(declaration.statement.valueType)
+          : declaration.kind === "carry" && declaration.statement.kind === "element"
+            ? dslRequiredValueTypeOf(declaration.statement.forCarries?.find((candidate) => candidate.name === declaration.name)?.valueType)
+            : null;
+        if (!valueType) return null;
+        return {
+          targetValueId: declaration.kind === "carry"
+            ? immutableCarryCollectionValueId(`binding:${declaration.statementId}`)
+            : declaration.statementId,
+          valueType,
+          declaration
+        };
+      }
+
+      // Module parameters are a fallback only for an otherwise-unresolved,
+      // unqualified whole-value reference. Any lexical declaration or carry
+      // visible at the reference site has already been resolved above.
+      if (
+        !options.allowModuleParameter ||
+        lookup.kind !== "undefined" ||
+        path.absolute ||
+        path.segments.length !== 1
+      ) return null;
+      const parameter = moduleParameterByName(parsed.statements, stableStatementIdByIndex!, statementIndex, path.segments[0]!);
+      if (!parameter?.parameter.valueType) return null;
+      const parameterType = parameter.parameter.valueType;
+      const requiredParameterType = dslRequiredValueTypeOf(parameterType);
+      const semanticParameterType = sourceLexicalNamespace!.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(
+        `${parameter.definitionStatementId}:${parameter.parameterIndex}`
+      )?.valueType;
+      const valueType = !isDslOptionalValueType(parameterType) && isDslArrayValueType(requiredParameterType)
+        ? semanticParameterType ?? requiredParameterType
+        : parameterType;
+      return {
+        targetValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+        valueType
+      };
     };
     const recordDefinitionFor = (valueType: DslValueType) => {
       const required = dslRequiredValueTypeOf(valueType);
@@ -2764,14 +2806,10 @@ export const compileDslDocument = (
       if (!valueType || !isDslArrayValueType(valueType) || (!scalarExpressionTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")) return null;
       const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
       const trimmed = raw.trim();
-      const source = bindingForReference(trimmed, expressionStatementIndex);
+      const source = bindingForReference(trimmed, expressionStatementIndex, { allowModuleParameter: true });
       if (source && isDslArrayValueType(source.valueType)) {
-        const targetDeclaration = source.declaration;
-        const targetId = targetDeclaration.kind === "carry"
-          ? immutableCarryCollectionValueId(`binding:${targetDeclaration.statementId}`)
-          : targetDeclaration.statementId;
         if (!isDslArrayValueType(source.valueType) || !isDslValueTypeAssignable(source.valueType, valueType)) return null;
-        return { valueId, kind: "alias", targetValueId: targetId };
+        return { valueId, kind: "alias", targetValueId: source.targetValueId };
       }
       const parsedArray = parseGeometryArrayExpression(trimmed);
       if (!parsedArray.expression || parsedArray.expression.kind !== "literal") return null;
@@ -2801,21 +2839,23 @@ export const compileDslDocument = (
           continue;
         }
         const target = bindingForReference(member.text, expressionStatementIndex);
-          if (!elementType || !target || !isDslValueTypeAssignable(target.valueType, valueType.elementType)) {
+          if (!elementType || !target?.declaration || !isDslValueTypeAssignable(target.valueType, valueType.elementType)) {
             const recordDefinition = recordDefinitionFor(valueType.elementType);
             if (!recordDefinition) return null;
             const recordTarget = bindingForReference(member.text, expressionStatementIndex);
-            if (!recordTarget || !isDslRecordValueType(recordTarget.valueType) || !isDslValueTypeAssignable(recordTarget.valueType, valueType.elementType)) return null;
+            if (!recordTarget?.declaration || !isDslRecordValueType(recordTarget.valueType) || !isDslValueTypeAssignable(recordTarget.valueType, valueType.elementType)) return null;
+          const recordStatementId = recordTarget.declaration.statementId;
           const fields = recordFieldsFor(recordDefinition).map(({ path, type }) => ({
             recordStatementId: path.at(-1)!.recordStatementId,
             fieldIndex: path.at(-1)!.fieldIndex,
             type,
-            bindingId: recordScalarBindingIdForPath(recordTarget.declaration.statementId, path),
+            bindingId: recordScalarBindingIdForPath(recordStatementId, path),
             fieldPath: path
           }));
           members.push({ kind: "record", typeIdentity: recordDefinition.statementId, fields });
           continue;
         }
+        if (!target?.declaration) return null;
         const bindingId = target.declaration.kind === "carry"
           ? `binding:${target.declaration.statementId}`
           : bindingIdForStableStatementId(target.declaration.statementId);

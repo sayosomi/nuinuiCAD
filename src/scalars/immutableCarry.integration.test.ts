@@ -420,6 +420,222 @@ describe("immutable statement-for carries", () => {
     expect(evaluation.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop?.id) ?? []).toEqual([]);
   });
 
+  it("uses a required Module collection parameter directly as a carry initializer", () => {
+    const compiled = compile([
+      "nui 1",
+      "module M(items: number[]) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+      "    next a = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      "instance A = M(items: [1])",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    expect(compiled.diagnostics.some((diagnostic) => diagnostic.code === "carry-collection-expression-invalid")).toBe(false);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
+  it("matches a local collection alias for a direct Module parameter carry initializer", () => {
+    const source = (initializer: string) => [
+      "nui 1",
+      "module M(items: number[]) {",
+      ...(initializer === "alias"
+        ? ["  const localItems: number[] = @items"]
+        : []),
+      `  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @${initializer === "alias" ? "localItems" : "items"} {`,
+      "    next a = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      "instance A = M(items: [1])",
+      "const result: number = @A::output"
+    ].join("\n");
+    const direct = compile(source("direct"));
+    const aliased = compile(source("alias"));
+    const resultValue = (compiled: LastGoodDslDocument) => {
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors).toEqual([]);
+      const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+      const result = evaluation.computedScalarBindings?.get(resultId);
+      expect(result?.status).toBe("ok");
+      if (!result || result.status !== "ok") throw new Error("result binding did not evaluate successfully");
+      return result.value;
+    };
+
+    expect(direct.diagnostics).toEqual([]);
+    expect(aliased.diagnostics).toEqual([]);
+    expect(resultValue(direct)).toEqual(resultValue(aliased));
+    expect(resultValue(direct)).toEqual({ kind: "number", value: 1 });
+  });
+
+  it("accepts inline literal and named root collection arguments for a direct carry initializer", () => {
+    const compileModule = (argument: string, root = "") => compile([
+      "nui 1",
+      ...(root ? [root] : []),
+      "module M(items: number[]) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+      "    next a = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      `instance A = M(items: ${argument})`,
+      "const result: number = @A::output"
+    ].join("\n"));
+    const inline = compileModule("[1]");
+    const named = compileModule("@initial", "const initial: number[] = [9, 2]");
+    for (const [compiled, expected] of [[inline, 1], [named, 9]] as const) {
+      expect(compiled.diagnostics).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors).toEqual([]);
+      const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+      expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: expected }
+      });
+    }
+  });
+
+  it("keeps direct Module parameter carry state isolated across asymmetric instances", () => {
+    const compiled = compile([
+      "nui 1",
+      "module M(items: number[]) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+      "    next a = @a",
+      "  }",
+      "  export const first: number = @a[0]",
+      "  export const itemCount: number = @a.length",
+      "}",
+      "const longer: number[] = [20, 21, 22]",
+      "instance A = M(items: [10, 11])",
+      "instance B = M(items: @longer)",
+      "const firstA: number = @A::first",
+      "const countA: number = @A::itemCount",
+      "const firstB: number = @B::first",
+      "const countB: number = @B::itemCount"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    for (const [name, expected] of [["firstA", 10], ["countA", 2], ["firstB", 20], ["countB", 3]] as const) {
+      const bindingId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === name)!.id;
+      expect(evaluation.computedScalarBindings?.get(bindingId)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: expected }
+      });
+    }
+  });
+
+  it("preserves carry shadowing over a same-named Module parameter", () => {
+    const compiled = compile([
+      "nui 1",
+      "module M(items: number[]) {",
+      "  group DeclarationShadow {",
+      "    const items: number[] = [2]",
+      "    for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+      "      next a = @a",
+      "    }",
+      "    const value: number = @a[0]",
+      "  }",
+      "  group CarryShadow {",
+      "    for i in range(min: 0, max: 0, step: 1) carry items: number[] = [3] {",
+      "      next items = @items",
+      "    }",
+      "    for j in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+      "      next a = @a",
+      "    }",
+      "    const value: number = @a[0]",
+      "  }",
+      "  export const output: number = @DeclarationShadow::value + @CarryShadow::value",
+      "}",
+      "instance A = M(items: [1])",
+      "const carryResult: number = @A::output"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "carryResult")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 5 }
+    });
+  });
+
+  it("retains invalid Module parameter initializer diagnostics", () => {
+    const nonCollection = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "module M(item: number) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @item {",
+      "    next a = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      "instance A = M(item: 1)",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expect(nonCollection.status).toBe("fatal");
+    expect(nonCollection.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "carry-collection-expression-invalid" })
+    ]));
+
+    const mismatchedCollection = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "module M(items: choice(up, down)[]) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: choice(left, right)[] = @items {",
+      "    next a = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      "instance A = M(items: [up])",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expect(mismatchedCollection.status).toBe("fatal");
+    expect(mismatchedCollection.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "carry-collection-expression-invalid" })
+    ]));
+  });
+
+  it("preserves named root and Module-local collection carry initializers", () => {
+    const rootCompiled = compile([
+      "nui 1",
+      "const rootItems: number[] = [4, 5]",
+      "for i in range(min: 0, max: 0, step: 1) carry rootCarry: number[] = @rootItems {",
+      "  next rootCarry = @rootCarry",
+      "}",
+      "const rootResult: number = @rootCarry[0]"
+    ].join("\n"));
+    const moduleCompiled = compile([
+      "nui 1",
+      "module M() {",
+      "  const localItems: number[] = [7, 8]",
+      "  for j in range(min: 0, max: 0, step: 1) carry localCarry: number[] = @localItems {",
+      "    next localCarry = @localCarry",
+      "  }",
+      "  export const output: number = @localCarry[1]",
+      "}",
+      "instance A = M()",
+      "const moduleResult: number = @A::output"
+    ].join("\n"));
+    for (const [compiled, name, expected] of [[rootCompiled, "rootResult", 4], [moduleCompiled, "moduleResult", 8]] as const) {
+      expect(compiled.diagnostics).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors).toEqual([]);
+      const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === name)!.id;
+      expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: expected }
+      });
+    }
+  });
+
   it("propagates state through an inner carry and rejects direct outer next", () => {
     const valid = compile([
       "nui 1",
