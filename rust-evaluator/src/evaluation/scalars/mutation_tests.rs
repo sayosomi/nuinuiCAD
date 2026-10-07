@@ -14,7 +14,9 @@ use super::super::types::{
     TypedScalarExpression,
 };
 use super::for_group_scheduler::resolve_collection_carry_snapshot;
-use super::{DependencyBindingSchedule, MutationEnvironment, ScalarMutationResolver};
+use super::{
+    CollectionCarrySnapshot, DependencyBindingSchedule, MutationEnvironment, ScalarMutationResolver,
+};
 use crate::evaluation::scalars::expression_evaluator::ScalarEvaluationEnvironment;
 use crate::evaluation::scalars::mutation_payload::ValidatedImmutableForGroupPlan;
 use crate::evaluation::types::{EvaluationState, GeometryInputCollectionNode, GeometryInputTarget};
@@ -202,35 +204,62 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
         number_collection("else-terminal", &[3.0]),
     ];
     let redirects = HashMap::from([
-        ("carry-next".to_owned(), "redirected-if".to_owned()),
-        ("redirected-if".to_owned(), "if-value".to_owned()),
+        (
+            "carry-next".to_owned(),
+            CollectionCarrySnapshot {
+                value_id: "redirected-if".to_owned(),
+                local_bindings: HashMap::new(),
+            },
+        ),
+        (
+            "redirected-if".to_owned(),
+            CollectionCarrySnapshot {
+                value_id: "if-value".to_owned(),
+                local_bindings: HashMap::new(),
+            },
+        ),
     ]);
 
     let selected = resolve_collection_carry_snapshot(
         "carry-next",
         &redirects,
         &collection_values,
-        |condition, source_order| {
+        |condition, source_order, _| {
             assert_eq!(source_order, 12.0);
             match condition {
                 TypedScalarExpression::BooleanLiteral {
                     value,
                     r#type: ScalarType::Boolean,
                     ..
-                } => Some(*value),
-                _ => None,
+                } => ScalarEvaluation::Ok {
+                    r#type: ScalarType::Boolean,
+                    value: ScalarValue::Boolean(*value),
+                },
+                _ => ScalarEvaluation::Error {
+                    r#type: ScalarType::Boolean,
+                    issue_code: "evaluation-binding-unavailable".to_owned(),
+                    binding_id: None,
+                    context: None,
+                },
             }
         },
-        |_, _, _| None,
     );
-    assert_eq!(selected.as_deref(), Some("selected-terminal"));
+    assert_eq!(
+        selected.as_ref().map(|snapshot| snapshot.value_id.as_str()),
+        Some("selected-terminal")
+    );
+    assert!(selected.unwrap().local_bindings.is_empty());
 
     let unresolved = resolve_collection_carry_snapshot(
         "carry-next",
         &redirects,
         &collection_values,
-        |_, _| None,
-        |_, _, _| None,
+        |_, _, _| ScalarEvaluation::Error {
+            r#type: ScalarType::Boolean,
+            issue_code: "evaluation-binding-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        },
     );
     assert_eq!(unresolved, None);
 }
@@ -290,36 +319,204 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
         number_collection("unselected-other", &[4.0]),
     ];
     let redirects = HashMap::from([
-        ("carry-next".to_owned(), "redirected-match".to_owned()),
-        ("redirected-match".to_owned(), "match-value".to_owned()),
+        (
+            "carry-next".to_owned(),
+            CollectionCarrySnapshot {
+                value_id: "redirected-match".to_owned(),
+                local_bindings: HashMap::new(),
+            },
+        ),
+        (
+            "redirected-match".to_owned(),
+            CollectionCarrySnapshot {
+                value_id: "match-value".to_owned(),
+                local_bindings: HashMap::new(),
+            },
+        ),
     ]);
 
     let selected = resolve_collection_carry_snapshot(
         "carry-next",
         &redirects,
         &collection_values,
-        |_, _| panic!("the unselected arm must not evaluate its collection if"),
-        |scrutinee, arms, source_order| {
+        |scrutinee, source_order, _| {
             assert_eq!(source_order, 12.0);
-            let label = match scrutinee {
-                TypedScalarExpression::ChoiceLiteral { value, .. } => value.as_str(),
+            match scrutinee {
+                TypedScalarExpression::ChoiceLiteral {
+                    value,
+                    r#type: Some(ScalarType::Choice { options }),
+                    ..
+                } => ScalarEvaluation::Ok {
+                    r#type: ScalarType::Choice {
+                        options: options.clone(),
+                    },
+                    value: ScalarValue::Choice {
+                        value: value.clone(),
+                        options: options.clone(),
+                    },
+                },
                 other => panic!("expected typed choice scrutinee, got {other:?}"),
-            };
-            arms.iter()
-                .find(|arm| arm.label == label)
-                .map(|arm| arm.value_id.clone())
+            }
         },
     );
-    assert_eq!(selected.as_deref(), Some("selected-terminal"));
+    assert_eq!(
+        selected.as_ref().map(|snapshot| snapshot.value_id.as_str()),
+        Some("selected-terminal")
+    );
+    assert!(selected.unwrap().local_bindings.is_empty());
 
     let failed_selection = resolve_collection_carry_snapshot(
         "carry-next",
         &redirects,
         &collection_values,
-        |_, _| None,
-        |_, _, _| None,
+        |_, _, _| ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-binding-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        },
     );
     assert_eq!(failed_selection, None);
+}
+
+#[test]
+fn collection_carry_snapshot_captures_optional_some_binder_and_keeps_selected_path_lazy() {
+    let optional_type = ScalarType::Optional {
+        value_type: Box::new(ScalarType::Number),
+    };
+    let local_flag = ScalarEvaluation::Ok {
+        r#type: ScalarType::Boolean,
+        value: ScalarValue::Boolean(true),
+    };
+    let collection_values = vec![
+        ValidatedScalarProgramCollection {
+            value_id: "match-value".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Match {
+                scrutinee: Box::new(TypedScalarExpression::Reference {
+                    span: SPAN,
+                    name_span: SPAN,
+                    name: "optional".to_owned(),
+                    binding_id: Some("optional".to_owned()),
+                    r#type: Some(optional_type.clone()),
+                }),
+                arms: vec![
+                    super::super::program_payload::ValidatedScalarProgramMatchArm {
+                        label: "none".to_owned(),
+                        value_id: "unselected-if".to_owned(),
+                        binder_id: None,
+                        binder_type: None,
+                        collection_binder_id: None,
+                    },
+                    super::super::program_payload::ValidatedScalarProgramMatchArm {
+                        label: "some".to_owned(),
+                        value_id: "selected-alias".to_owned(),
+                        binder_id: Some("some-x".to_owned()),
+                        binder_type: Some(ScalarType::Number),
+                        collection_binder_id: None,
+                    },
+                ],
+                source_order: 17.0,
+            },
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "unselected-if".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::If {
+                condition: Box::new(TypedScalarExpression::BooleanLiteral {
+                    span: SPAN,
+                    value: false,
+                    r#type: ScalarType::Boolean,
+                }),
+                then_value_id: "unselected-terminal".to_owned(),
+                else_value_id: "unselected-terminal-2".to_owned(),
+                source_order: 18.0,
+            },
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "selected-alias".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Alias("selected-if".to_owned()),
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "selected-if".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::If {
+                condition: Box::new(TypedScalarExpression::Reference {
+                    span: SPAN,
+                    name_span: SPAN,
+                    name: "prior-flag".to_owned(),
+                    binding_id: Some("prior-flag".to_owned()),
+                    r#type: Some(ScalarType::Boolean),
+                }),
+                then_value_id: "selected-terminal".to_owned(),
+                else_value_id: "wrong-terminal".to_owned(),
+                source_order: 19.0,
+            },
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "selected-terminal".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Literal(vec![
+                ValidatedScalarProgramCollectionMember::Binding {
+                    r#type: ScalarType::Number,
+                    binding_id: "some-x".to_owned(),
+                },
+            ]),
+        },
+        number_collection("unselected-terminal", &[90.0]),
+        number_collection("unselected-terminal-2", &[91.0]),
+        number_collection("wrong-terminal", &[92.0]),
+    ];
+    let redirects = HashMap::from([(
+        "carry-next".to_owned(),
+        CollectionCarrySnapshot {
+            value_id: "match-value".to_owned(),
+            local_bindings: HashMap::from([("prior-flag".to_owned(), local_flag.clone())]),
+        },
+    )]);
+
+    let selected = resolve_collection_carry_snapshot(
+        "carry-next",
+        &redirects,
+        &collection_values,
+        |expression, source_order, local_bindings| match expression {
+            TypedScalarExpression::Reference {
+                binding_id: Some(binding_id),
+                r#type: Some(r#type),
+                ..
+            } if binding_id == "optional" => ScalarEvaluation::Ok {
+                r#type: r#type.clone(),
+                value: ScalarValue::Number(7.0),
+            },
+            TypedScalarExpression::Reference {
+                binding_id: Some(binding_id),
+                r#type: Some(r#type),
+                ..
+            } if binding_id == "prior-flag" => {
+                assert_eq!(source_order, 19.0);
+                local_bindings
+                    .get(binding_id)
+                    .cloned()
+                    .unwrap_or(ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-binding-unavailable".to_owned(),
+                        binding_id: Some(binding_id.clone()),
+                        context: None,
+                    })
+            }
+            TypedScalarExpression::BooleanLiteral { .. } => {
+                panic!("unselected arm condition must remain lazy")
+            }
+            other => panic!("unexpected carry control expression: {other:?}"),
+        },
+    )
+    .expect("selected optional arm should resolve");
+
+    assert_eq!(selected.value_id, "selected-terminal");
+    assert_eq!(selected.local_bindings.get("prior-flag"), Some(&local_flag));
+    assert_eq!(
+        selected.local_bindings.get("some-x"),
+        Some(&ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(7.0),
+        })
+    );
 }
 
 fn number_reference(name: &str, binding_id: &str) -> TypedScalarExpression {

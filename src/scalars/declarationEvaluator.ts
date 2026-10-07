@@ -58,8 +58,8 @@ export type LazyScalarProgramEvaluator = {
 };
 
 export type ScalarProgramCollectionResolver = {
-  environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
-  selectChoiceMatchValueId: (collectionValueId: string) => string | undefined;
+  environmentFor: (sourceOrder: number, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
+  selectMatchCollectionValue: (collectionValueId: string, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>) => CollectionMatchSelection | undefined;
   recordFieldFor: (
     collectionValueId: string,
     index: number,
@@ -71,7 +71,11 @@ export type ScalarProgramCollectionResolver = {
 type CollectionLocalBindings = ReadonlyMap<BindingId, ScalarEvaluation>;
 type ScalarEvaluationError = Extract<ScalarEvaluation, { status: "error" }>;
 type ScalarCollectionMatch = Extract<NonNullable<ScalarProgram["collectionValues"]>[number], { kind: "match" }>;
-type CollectionMatchSelection =
+export type ScalarProgramCollectionSnapshot = {
+  valueId: string;
+  localBindings: CollectionLocalBindings;
+};
+export type CollectionMatchSelection =
   | { kind: "selected"; valueId: string; localBindings: CollectionLocalBindings }
   | { kind: "error"; evaluation: ScalarEvaluationError };
 
@@ -104,12 +108,21 @@ export const createScalarProgramCollectionResolver = (
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
   resolveExternalCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
-  resolveCollectionValueId?: (collectionValueId: string, sourceOrder: number) => string | undefined
+  resolveCollectionSnapshot?: (collectionValueId: string, sourceOrder: number) => ScalarProgramCollectionSnapshot | undefined
 ): ScalarProgramCollectionResolver | undefined => {
   if (!program.collectionValues?.length && !resolveGeometryProperty && !resolveGeometryTarget) return undefined;
   const valuesById = new Map((program.collectionValues ?? []).map((value) => [value.valueId, value] as const));
-  const redirectedValueId = (collectionValueId: string, sourceOrder: number): string =>
-    resolveCollectionValueId?.(collectionValueId, sourceOrder) ?? collectionValueId;
+  const collectionContext = (
+    collectionValueId: string,
+    sourceOrder: number,
+    localBindings: CollectionLocalBindings
+  ): { valueId: string; localBindings: CollectionLocalBindings } => {
+    const snapshot = resolveCollectionSnapshot?.(collectionValueId, sourceOrder);
+    if (!snapshot) return { valueId: collectionValueId, localBindings };
+    const merged = new Map(snapshot.localBindings);
+    for (const [bindingId, value] of localBindings) merged.set(bindingId, value);
+    return { valueId: snapshot.valueId, localBindings: merged };
+  };
 
   const runtimeMismatch = (type: ScalarExpressionType): ScalarEvaluationError => ({
     status: "error",
@@ -167,8 +180,9 @@ export const createScalarProgramCollectionResolver = (
     seen: ReadonlySet<string> = new Set(),
     localBindings: CollectionLocalBindings = new Map()
   ): boolean | ScalarEvaluation | undefined => {
-    const redirected = redirectedValueId(collectionValueId, sourceOrder);
-    if (redirected !== collectionValueId) return presentFor(redirected, sourceOrder, seen, localBindings);
+    const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.valueId !== collectionValueId) return presentFor(context.valueId, sourceOrder, seen, context.localBindings);
+    localBindings = context.localBindings;
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
@@ -201,8 +215,9 @@ export const createScalarProgramCollectionResolver = (
     seen: ReadonlySet<string> = new Set(),
     localBindings: CollectionLocalBindings = new Map()
   ): number | ScalarEvaluation | undefined => {
-    const redirected = redirectedValueId(collectionValueId, sourceOrder);
-    if (redirected !== collectionValueId) return lengthFor(redirected, sourceOrder, seen, localBindings);
+    const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.valueId !== collectionValueId) return lengthFor(context.valueId, sourceOrder, seen, context.localBindings);
+    localBindings = context.localBindings;
     if (seen.has(collectionValueId)) return undefined;
     const collection = valuesById.get(collectionValueId);
     if (!collection) return undefined;
@@ -242,8 +257,9 @@ export const createScalarProgramCollectionResolver = (
     seen: ReadonlySet<string> = new Set(),
     localBindings: CollectionLocalBindings = new Map()
   ): ScalarEvaluation => {
-    const redirected = redirectedValueId(collectionValueId, sourceOrder);
-    if (redirected !== collectionValueId) return recordFieldFor(redirected, index, field, sourceOrder, seen, localBindings);
+    const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.valueId !== collectionValueId) return recordFieldFor(context.valueId, index, field, sourceOrder, seen, context.localBindings);
+    localBindings = context.localBindings;
     if (seen.has(collectionValueId)) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     const collection = valuesById.get(collectionValueId);
     if (!collection) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
@@ -408,8 +424,9 @@ export const createScalarProgramCollectionResolver = (
     seen: ReadonlySet<string> = new Set(),
     localBindings: CollectionLocalBindings = new Map()
   ): ScalarEvaluation => {
-    const redirected = redirectedValueId(collectionValueId, sourceOrder);
-    if (redirected !== collectionValueId) return indexFor(redirected, index, elementType, collectionLength, targetSourceOrder, sourceOrder, seen, localBindings);
+    const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.valueId !== collectionValueId) return indexFor(context.valueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, seen, context.localBindings);
+    localBindings = context.localBindings;
     if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
       (collectionLength !== null && index >= collectionLength)) {
       return { status: "error", type: elementType, issueCode: "evaluation-collection-index-invalid" };
@@ -488,14 +505,16 @@ export const createScalarProgramCollectionResolver = (
     };
   }
 
-  const selectChoiceMatchValueId = (collectionValueId: string): string | undefined => {
+  const selectMatchCollectionValue = (
+    collectionValueId: string,
+    localBindings: CollectionLocalBindings = new Map()
+  ): CollectionMatchSelection | undefined => {
     const collection = valuesById.get(collectionValueId);
-    if (!collection || collection.kind !== "match" || collection.scrutinee.type?.kind !== "choice") return undefined;
-    const selected = selectMatchArm(collection, new Map());
-    return selected.kind === "selected" ? selected.valueId : undefined;
+    if (!collection || collection.kind !== "match") return undefined;
+    return selectMatchArm(collection, localBindings);
   };
 
-  return { environmentFor, recordFieldFor, selectChoiceMatchValueId };
+  return { environmentFor, recordFieldFor, selectMatchCollectionValue };
 };
 
 /**

@@ -4,7 +4,6 @@
 
 use super::super::bindings::select_collection_match_arm;
 use super::super::bindings::ScalarDocumentBindingResolver;
-use super::super::expression_evaluator::static_expression_type;
 use super::*;
 use crate::evaluation::for_group::PreparedForGroupIterations;
 use crate::evaluation::scalar_expression_runtime::{
@@ -175,9 +174,12 @@ impl ScalarMutationResolver<'_> {
         let plan = self.program.immutable_for_groups.get(owner_statement_id);
         if let Some(plan) = plan {
             for carry in &plan.collection_carries {
-                self.collection_carry_value_ids.insert(
+                self.collection_carry_snapshots.insert(
                     carry.collection_value_id.clone(),
-                    carry.initializer_value_id.clone(),
+                    CollectionCarrySnapshot {
+                        value_id: carry.initializer_value_id.clone(),
+                        local_bindings: HashMap::new(),
+                    },
                 );
             }
             let resolver = self.for_group_binding_resolver(environment);
@@ -230,7 +232,7 @@ impl ScalarMutationResolver<'_> {
         let Some(plan) = self.program.immutable_for_groups.get(owner_statement_id) else {
             return Ok(());
         };
-        let collection_snapshot = self.collection_carry_value_ids.clone();
+        let collection_snapshot = self.collection_carry_snapshots.clone();
         let collection_next_values = {
             let resolver = self.for_group_binding_resolver(environment);
             plan.collection_carries
@@ -242,37 +244,17 @@ impl ScalarMutationResolver<'_> {
                             &carry.next_value_id,
                             &collection_snapshot,
                             &self.program.collection_values,
-                            |condition, source_order| match evaluate_document_typed_expression(
-                                condition,
-                                &resolver,
-                                state,
-                                Some(source_order),
-                            ) {
-                                ScalarEvaluation::Ok {
-                                    r#type: ScalarType::Boolean,
-                                    value: ScalarValue::Boolean(value),
-                                } => Some(value),
-                                _ => None,
-                            },
-                            |scrutinee, arms, source_order| {
-                                if !matches!(
-                                    static_expression_type(scrutinee),
-                                    Some(ScalarType::Choice { .. })
-                                ) {
-                                    return None;
-                                }
-                                let selected = select_collection_match_arm(
-                                    scrutinee,
-                                    evaluate_document_typed_expression(
-                                        scrutinee,
-                                        &resolver,
-                                        state,
-                                        Some(source_order),
-                                    ),
-                                    arms,
+                            |expression, source_order, local_bindings| {
+                                let resolver = ForGroupExecutionBindingResolverWithLocals {
+                                    resolver: &resolver,
+                                    local_bindings,
+                                };
+                                evaluate_document_typed_expression(
+                                    expression,
+                                    &resolver,
+                                    state,
+                                    Some(source_order),
                                 )
-                                .ok()?;
-                                Some(selected.arm.value_id.clone())
                             },
                         ),
                     )
@@ -281,9 +263,9 @@ impl ScalarMutationResolver<'_> {
         };
         for (value_id, next) in collection_next_values {
             if let Some(next) = next {
-                self.collection_carry_value_ids.insert(value_id, next);
+                self.collection_carry_snapshots.insert(value_id, next);
             } else {
-                self.collection_carry_value_ids.remove(&value_id);
+                self.collection_carry_snapshots.remove(&value_id);
             }
         }
 
@@ -637,23 +619,28 @@ impl ScalarMutationResolver<'_> {
 
 pub(super) fn resolve_collection_carry_snapshot(
     value_id: &str,
-    redirects: &HashMap<String, String>,
+    redirects: &HashMap<String, CollectionCarrySnapshot>,
     collection_values: &[super::super::program_payload::ValidatedScalarProgramCollection],
-    mut select_if_branch: impl FnMut(&super::super::types::TypedScalarExpression, f64) -> Option<bool>,
-    mut select_match_arm: impl FnMut(
+    mut evaluate_expression: impl FnMut(
         &super::super::types::TypedScalarExpression,
-        &[super::super::program_payload::ValidatedScalarProgramMatchArm],
         f64,
-    ) -> Option<String>,
-) -> Option<String> {
+        &HashMap<String, ScalarEvaluation>,
+    ) -> ScalarEvaluation,
+) -> Option<CollectionCarrySnapshot> {
     let mut current = value_id.to_owned();
+    let mut local_bindings = HashMap::new();
     let mut seen = HashMap::new();
     loop {
         if seen.insert(current.clone(), ()).is_some() {
             break;
         }
-        if let Some(next) = redirects.get(&current) {
-            current = next.clone();
+        if let Some(snapshot) = redirects.get(&current) {
+            for (binding_id, value) in &snapshot.local_bindings {
+                local_bindings
+                    .entry(binding_id.clone())
+                    .or_insert_with(|| value.clone());
+            }
+            current = snapshot.value_id.clone();
             continue;
         }
         let Some(value) = collection_values
@@ -672,11 +659,18 @@ pub(super) fn resolve_collection_carry_snapshot(
                 else_value_id,
                 source_order,
             } => {
-                let selected = select_if_branch(condition, *source_order)?;
-                current = if selected {
-                    then_value_id.clone()
-                } else {
-                    else_value_id.clone()
+                current = match evaluate_expression(condition, *source_order, &local_bindings) {
+                    ScalarEvaluation::Ok {
+                        r#type: ScalarType::Boolean,
+                        value: ScalarValue::Boolean(selected),
+                    } => {
+                        if selected {
+                            then_value_id.clone()
+                        } else {
+                            else_value_id.clone()
+                        }
+                    }
+                    _ => return None,
                 };
             }
             super::super::program_payload::ValidatedScalarProgramCollectionValue::Match {
@@ -684,18 +678,29 @@ pub(super) fn resolve_collection_carry_snapshot(
                 arms,
                 source_order,
             } => {
-                if !matches!(
-                    static_expression_type(scrutinee),
-                    Some(ScalarType::Choice { .. })
-                ) {
-                    return None;
+                let selected = select_collection_match_arm(
+                    scrutinee,
+                    evaluate_expression(scrutinee, *source_order, &local_bindings),
+                    arms,
+                )
+                .ok()?;
+                if let Some((binding_id, value)) = selected.local_binding {
+                    local_bindings.insert(binding_id, value);
                 }
-                current = select_match_arm(scrutinee, arms, *source_order)?;
+                current = selected.arm.value_id.clone();
             }
-            _ => return Some(current),
+            _ => {
+                return Some(CollectionCarrySnapshot {
+                    value_id: current,
+                    local_bindings,
+                });
+            }
         }
     }
-    Some(current)
+    Some(CollectionCarrySnapshot {
+        value_id: current,
+        local_bindings,
+    })
 }
 
 fn geometry_type_name(geometry_type: &super::super::types::GeometryInterfaceType) -> String {
@@ -761,6 +766,100 @@ fn clone_geometry_input_target(target: &GeometryInputTarget) -> Option<GeometryI
 pub(crate) struct ForGroupExecutionBindingResolver<'resolver, 'program, 'environment> {
     resolver: &'resolver ScalarMutationResolver<'program>,
     environment: &'environment ForGroupExecutionEnvironment<ScalarEvaluation>,
+}
+
+struct ForGroupExecutionBindingResolverWithLocals<
+    'resolver,
+    'base,
+    'program,
+    'environment,
+    'bindings,
+> {
+    resolver: &'resolver ForGroupExecutionBindingResolver<'base, 'program, 'environment>,
+    local_bindings: &'bindings HashMap<String, ScalarEvaluation>,
+}
+
+impl ForGroupExecutionBindingResolverWithLocals<'_, '_, '_, '_, '_> {
+    fn visible_bindings(&self) -> HashMap<String, ScalarEvaluation> {
+        let mut bindings = self
+            .resolver
+            .environment
+            .visible_bindings()
+            .into_iter()
+            .map(|(binding_id, value)| (binding_id, scalar_evaluation_for_loop_read(value)))
+            .collect::<HashMap<_, _>>();
+        bindings.extend(self.local_bindings.clone());
+        bindings
+    }
+}
+
+impl ScalarDocumentBindingResolver
+    for ForGroupExecutionBindingResolverWithLocals<'_, '_, '_, '_, '_>
+{
+    fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
+        self.local_bindings
+            .get(binding_id)
+            .cloned()
+            .unwrap_or_else(|| self.resolver.resolve_binding(binding_id, state))
+    }
+
+    fn resolve_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        _target_source_order: f64,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        let local_bindings = self.visible_bindings();
+        self.resolver
+            .resolver
+            .resolve_collection_index_with_bindings(
+                collection_value_id,
+                index,
+                element_type,
+                collection_length,
+                state,
+                &local_bindings,
+            )
+    }
+
+    fn resolve_collection_length(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut std::collections::HashSet<String>,
+    ) -> Option<f64> {
+        let local_bindings = self.visible_bindings();
+        self.resolver
+            .resolver
+            .resolve_collection_length_with_bindings(
+                collection_value_id,
+                state,
+                seen,
+                &local_bindings,
+            )
+            .ok()
+            .flatten()
+    }
+
+    fn resolve_optional_collection_member(
+        &self,
+        target: &super::super::types::ScalarExpressionResolvedOptionalMemberTarget,
+        r#type: &ScalarType,
+        state: &EvaluationState,
+    ) -> ScalarEvaluation {
+        let local_bindings = self.visible_bindings();
+        self.resolver
+            .resolver
+            .resolve_optional_collection_member_with_bindings(
+                target,
+                r#type,
+                state,
+                &local_bindings,
+            )
+    }
 }
 
 fn scalar_evaluation_for_loop_read(read: LoopRead<ScalarEvaluation>) -> ScalarEvaluation {
