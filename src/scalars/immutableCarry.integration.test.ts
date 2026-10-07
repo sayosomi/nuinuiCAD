@@ -44,6 +44,18 @@ const optionsFor = (compiled: LastGoodDslDocument) => ({
   moduleForGroupExecutionOwnerByElementId: compiled.moduleForGroupExecutionOwnerByElementId
 });
 
+const scalarFor = (
+  compiled: LastGoodDslDocument,
+  evaluation: ReturnType<typeof evaluateElements>,
+  name: string
+) => {
+  const binding = compiled.bindingAnalysis?.catalog.bindings.find(
+    (candidate) => candidate.kind === "typed" && candidate.name === name
+  );
+  if (!binding) throw new Error(`typed binding ${name} not found`);
+  return evaluation.computedScalarBindings?.get(binding.id);
+};
+
 describe("immutable statement-for carries", () => {
   it("compiles and evaluates the normative multiline carry header", () => {
     const compiled = compile([
@@ -1010,5 +1022,137 @@ describe("immutable statement-for carries", () => {
     ].join("\n"));
     expect(pointLineMismatch.status).toBe("fatal");
     expect(pointLineMismatch.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ code: "carry-collection-expression-invalid" })]));
+  });
+
+  it("evaluates the reduced root collection-if statement-for reproducer", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
+      "  const selected: number[] = if (@i == 0) { [2] } else { [3] }",
+      "  next a = @selected",
+      "}",
+      "const result: number = @a[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+  });
+
+  it("selects the current iteration's asymmetric collection branch and preserves its cardinality", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [0] {",
+      "  const selected: number[] = if (@i == 2) { [8, 9] } else { [3, 4, 5] }",
+      "  next a = @selected",
+      "}",
+      "const first: number = @a[0]",
+      "const second: number = @a[1]",
+      "const length: number = @a.length"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "first")).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
+    expect(scalarFor(compiled, evaluation, "second")).toMatchObject({ status: "ok", value: { kind: "number", value: 9 } });
+    expect(scalarFor(compiled, evaluation, "length")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+  });
+
+  it("keeps collection-if behavior under binder, carry, declaration, and source-padding changes", () => {
+    const evaluateResults = (source: string, resultName: string, lengthName: string) => {
+      const compiled = compile(source);
+      expect(compiled.diagnostics).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors).toEqual([]);
+      return [scalarFor(compiled, evaluation, resultName), scalarFor(compiled, evaluation, lengthName)];
+    };
+    const baseline = [
+      "nui 1",
+      "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [0] {",
+      "  const selected: number[] = if (@i == 2) { [8, 9] } else { [3, 4, 5] }",
+      "  next a = @selected",
+      "}",
+      "const result: number = @a[0]",
+      "const length: number = @a.length"
+    ].join("\n");
+    const renamedAndPadded = [
+      "nui 1",
+      "// inert padding before the statement-for",
+      "",
+      "const unrelated: number = 99",
+      "for stepIndex in range(min: 0, max: 2, step: 1) carry escaped: number[] = [0] {",
+      "  const branchItems: number[] = if (@stepIndex == 2) { [8, 9] } else { [3, 4, 5] }",
+      "  next escaped = @branchItems",
+      "}",
+      "const renamedResult: number = @escaped[0]",
+      "const renamedLength: number = @escaped.length"
+    ].join("\n");
+
+    const expected = evaluateResults(baseline, "result", "length");
+    expect(expected).toEqual([
+      expect.objectContaining({ status: "ok", value: { kind: "number", value: 8 } }),
+      expect.objectContaining({ status: "ok", value: { kind: "number", value: 2 } })
+    ]);
+    expect(evaluateResults(renamedAndPadded, "renamedResult", "renamedLength")).toEqual(expected);
+  });
+
+  it("keeps constant collection-if and scalar-if controls correct inside statement-for", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry values: number[] = [0] carry answer: number = 0 {",
+      "  const selected: number[] = if (true) { [2, 3] } else { [4] }",
+      "  const scalarSelected: number = if (@i == 0) { 6 } else { 7 }",
+      "  next values = @selected",
+      "  next answer = @scalarSelected",
+      "}",
+      "const result: number = @values[0]",
+      "const length: number = @values.length",
+      "const scalarResult: number = @answer"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarFor(compiled, evaluation, "length")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarFor(compiled, evaluation, "scalarResult")).toMatchObject({ status: "ok", value: { kind: "number", value: 6 } });
+  });
+
+  it("does not evaluate a failing mapped collection in an unselected collection-if branch", () => {
+    const compiled = compile([
+      "nui 1",
+      "const source: number[] = [1]",
+      "for i in range(min: 0, max: 0, step: 1) carry values: number[] = [0] {",
+      "  const failing: number[] = for x in @source { @x / 0 }",
+      "  const selected: number[] = if (@i == 0) { [2] } else { @failing }",
+      "  next values = @selected",
+      "}",
+      "const result: number = @values[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+  });
+
+  it("reports the mapped-collection failure when the collection-if selects that branch", () => {
+    const compiled = compile([
+      "nui 1",
+      "const source: number[] = [1]",
+      "for i in range(min: 0, max: 0, step: 1) carry values: number[] = [0] {",
+      "  const failing: number[] = for x in @source { @x / 0 }",
+      "  const selected: number[] = if (@i == 0) { @failing } else { [2] }",
+      "  next values = @selected",
+      "}",
+      "const result: number = @values[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "error",
+      issueCode: "evaluation-divide-by-zero"
+    });
   });
 });
