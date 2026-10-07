@@ -94,3 +94,66 @@ fn iteration_binding_reads_exact_typed_override_and_remains_read_only() {
         })
         .unwrap();
 }
+
+#[test]
+fn visible_binding_snapshot_matches_current_iteration_carries_and_body_locals() {
+    use crate::evaluation::scalars::{ScalarEvaluation, ScalarType, ScalarValue};
+
+    let iteration_binding_id = "module:instance:iteration:i";
+    let carry_binding_id = "module:instance:carry:total";
+    let local_binding_id = "module:instance:local:selected";
+    let mut environment = ForGroupExecutionEnvironment::new(HashMap::from([
+        (
+            iteration_binding_id.to_owned(),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(99.0),
+            },
+        ),
+        (
+            carry_binding_id.to_owned(),
+            ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(5.0),
+            },
+        ),
+    ]));
+    let plan = ForGroupExecutionPlan {
+        loop_scope_id: "scope:module:instance:loop".to_owned(),
+        iteration_binding_id: iteration_binding_id.to_owned(),
+        iteration_values: vec![2.0],
+        iteration_value_overrides: vec![],
+        generated_statements: vec![()],
+    };
+
+    environment
+        .run(&plan, |environment, _| {
+            let local = ScalarEvaluation::Ok {
+                r#type: ScalarType::Number,
+                value: ScalarValue::Number(11.0),
+            };
+            environment.declare_local(local_binding_id, local.clone())?;
+            let snapshot = environment.visible_bindings();
+
+            assert_eq!(
+                snapshot.get(iteration_binding_id),
+                Some(&LoopRead::Iteration(2.0))
+            );
+            assert_eq!(
+                snapshot.get(carry_binding_id),
+                Some(&LoopRead::Slot(ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(5.0),
+                }))
+            );
+            assert_eq!(snapshot.get(local_binding_id), Some(&LoopRead::Slot(local)));
+            for binding_id in [iteration_binding_id, carry_binding_id, local_binding_id] {
+                assert_eq!(
+                    snapshot.get(binding_id).cloned(),
+                    environment.read(binding_id)
+                );
+            }
+            Ok(ForGroupExecutionRunOutcome::Completed)
+        })
+        .unwrap();
+}
