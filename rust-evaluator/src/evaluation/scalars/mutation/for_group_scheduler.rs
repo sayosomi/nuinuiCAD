@@ -786,6 +786,32 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
         }
     }
 
+    fn lookup_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    ) -> ScalarEvaluation {
+        if target_source_order >= self.source_order as f64 {
+            return ScalarEvaluation::Error {
+                r#type: element_type.clone(),
+                issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                binding_id: None,
+                context: None,
+            };
+        }
+        self.resolver.resolve_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+            self.state,
+        )
+    }
+
     fn lookup_geometry_property(
         &self,
         element_id: &str,
