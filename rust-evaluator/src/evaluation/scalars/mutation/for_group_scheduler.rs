@@ -2,7 +2,9 @@
 //! Task 34's frame-owning forGroup core. Geometry remains in `evaluation`;
 //! this module owns only statement-boundary scalar execution.
 
+use super::super::bindings::select_collection_match_arm;
 use super::super::bindings::ScalarDocumentBindingResolver;
+use super::super::expression_evaluator::static_expression_type;
 use super::*;
 use crate::evaluation::for_group::PreparedForGroupIterations;
 use crate::evaluation::scalar_expression_runtime::{
@@ -251,6 +253,26 @@ impl ScalarMutationResolver<'_> {
                                     value: ScalarValue::Boolean(value),
                                 } => Some(value),
                                 _ => None,
+                            },
+                            |scrutinee, arms, source_order| {
+                                if !matches!(
+                                    static_expression_type(scrutinee),
+                                    Some(ScalarType::Choice { .. })
+                                ) {
+                                    return None;
+                                }
+                                let selected = select_collection_match_arm(
+                                    scrutinee,
+                                    evaluate_document_typed_expression(
+                                        scrutinee,
+                                        &resolver,
+                                        state,
+                                        Some(source_order),
+                                    ),
+                                    arms,
+                                )
+                                .ok()?;
+                                Some(selected.arm.value_id.clone())
                             },
                         ),
                     )
@@ -618,6 +640,11 @@ pub(super) fn resolve_collection_carry_snapshot(
     redirects: &HashMap<String, String>,
     collection_values: &[super::super::program_payload::ValidatedScalarProgramCollection],
     mut select_if_branch: impl FnMut(&super::super::types::TypedScalarExpression, f64) -> Option<bool>,
+    mut select_match_arm: impl FnMut(
+        &super::super::types::TypedScalarExpression,
+        &[super::super::program_payload::ValidatedScalarProgramMatchArm],
+        f64,
+    ) -> Option<String>,
 ) -> Option<String> {
     let mut current = value_id.to_owned();
     let mut seen = HashMap::new();
@@ -651,6 +678,19 @@ pub(super) fn resolve_collection_carry_snapshot(
                 } else {
                     else_value_id.clone()
                 };
+            }
+            super::super::program_payload::ValidatedScalarProgramCollectionValue::Match {
+                scrutinee,
+                arms,
+                source_order,
+            } => {
+                if !matches!(
+                    static_expression_type(scrutinee),
+                    Some(ScalarType::Choice { .. })
+                ) {
+                    return None;
+                }
+                current = select_match_arm(scrutinee, arms, *source_order)?;
             }
             _ => return Some(current),
         }

@@ -221,14 +221,105 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
                 _ => None,
             }
         },
+        |_, _, _| None,
     );
     assert_eq!(selected.as_deref(), Some("selected-terminal"));
 
-    let unresolved =
-        resolve_collection_carry_snapshot("carry-next", &redirects, &collection_values, |_, _| {
-            None
-        });
+    let unresolved = resolve_collection_carry_snapshot(
+        "carry-next",
+        &redirects,
+        &collection_values,
+        |_, _| None,
+        |_, _, _| None,
+    );
     assert_eq!(unresolved, None);
+}
+
+#[test]
+fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases() {
+    let choice_type = ScalarType::Choice {
+        options: vec!["left".to_owned(), "right".to_owned()],
+    };
+    let collection_values = vec![
+        ValidatedScalarProgramCollection {
+            value_id: "match-value".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Match {
+                scrutinee: Box::new(TypedScalarExpression::ChoiceLiteral {
+                    span: SPAN,
+                    value: "right".to_owned(),
+                    r#type: Some(choice_type),
+                }),
+                arms: vec![
+                    super::super::program_payload::ValidatedScalarProgramMatchArm {
+                        label: "left".to_owned(),
+                        value_id: "unselected-if".to_owned(),
+                        binder_id: None,
+                        binder_type: None,
+                        collection_binder_id: None,
+                    },
+                    super::super::program_payload::ValidatedScalarProgramMatchArm {
+                        label: "right".to_owned(),
+                        value_id: "selected-alias".to_owned(),
+                        binder_id: None,
+                        binder_type: None,
+                        collection_binder_id: None,
+                    },
+                ],
+                source_order: 12.0,
+            },
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "unselected-if".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::If {
+                condition: Box::new(TypedScalarExpression::BooleanLiteral {
+                    span: SPAN,
+                    value: true,
+                    r#type: ScalarType::Boolean,
+                }),
+                then_value_id: "unselected-terminal".to_owned(),
+                else_value_id: "unselected-other".to_owned(),
+                source_order: 13.0,
+            },
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "selected-alias".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Alias("selected-terminal".to_owned()),
+        },
+        number_collection("selected-terminal", &[7.0, 8.0]),
+        number_collection("unselected-terminal", &[3.0]),
+        number_collection("unselected-other", &[4.0]),
+    ];
+    let redirects = HashMap::from([
+        ("carry-next".to_owned(), "redirected-match".to_owned()),
+        ("redirected-match".to_owned(), "match-value".to_owned()),
+    ]);
+
+    let selected = resolve_collection_carry_snapshot(
+        "carry-next",
+        &redirects,
+        &collection_values,
+        |_, _| panic!("the unselected arm must not evaluate its collection if"),
+        |scrutinee, arms, source_order| {
+            assert_eq!(source_order, 12.0);
+            let label = match scrutinee {
+                TypedScalarExpression::ChoiceLiteral { value, .. } => value.as_str(),
+                other => panic!("expected typed choice scrutinee, got {other:?}"),
+            };
+            arms.iter()
+                .find(|arm| arm.label == label)
+                .map(|arm| arm.value_id.clone())
+        },
+    );
+    assert_eq!(selected.as_deref(), Some("selected-terminal"));
+
+    let failed_selection = resolve_collection_carry_snapshot(
+        "carry-next",
+        &redirects,
+        &collection_values,
+        |_, _| None,
+        |_, _, _| None,
+    );
+    assert_eq!(failed_selection, None);
 }
 
 fn number_reference(name: &str, binding_id: &str) -> TypedScalarExpression {

@@ -228,6 +228,12 @@ export const createIncrementalLinearMutationEvaluator = (
         current = condition.value.value ? value.thenValueId : value.elseValueId;
         continue;
       }
+      if (value.kind === "match") {
+        const selectedValueId = collectionResolver?.selectChoiceMatchValueId(current);
+        if (!selectedValueId) return undefined;
+        current = selectedValueId;
+        continue;
+      }
       return current;
     }
     return current;
