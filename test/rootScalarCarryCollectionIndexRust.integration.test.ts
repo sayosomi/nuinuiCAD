@@ -46,8 +46,9 @@ const cases = [
       "// Inert padding before the renamed program.",
       "const unrelated: number = 99",
       "const sourceValues: number[] = [7, 29]",
+      "const aliasedValues: number[] = @sourceValues",
       "for cursor in range(min: 0, max: 0, step: 1) carry accumulated: number = 3 {",
-      "  next accumulated = @sourceValues[1]",
+      "  next accumulated = @aliasedValues[1]",
       "}",
       "const answer: number = @accumulated"
     ].join("\n"),
