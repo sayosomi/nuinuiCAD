@@ -227,7 +227,8 @@ export const createIncrementalLinearMutationEvaluator = (
 
   const materializeCollectionSnapshot = (
     valueId: string,
-    snapshot: ReadonlyMap<string, ScalarProgramCollectionSnapshot>
+    snapshot: ReadonlyMap<string, ScalarProgramCollectionSnapshot>,
+    iterationBindings: ReadonlyMap<BindingId, ScalarEvaluation>
   ): ScalarProgramCollectionSnapshot | undefined => {
     let current = valueId;
     let localBindings: ReadonlyMap<BindingId, ScalarEvaluation> = new Map();
@@ -265,6 +266,15 @@ export const createIncrementalLinearMutationEvaluator = (
         localBindings = selected.localBindings;
         current = selected.valueId;
         continue;
+      }
+      if (value.kind === "map") {
+        const capturedBindings = new Map(localBindings);
+        for (const [bindingId, bindingValue] of iterationBindings) {
+          if (bindingId !== value.binderId && !capturedBindings.has(bindingId)) {
+            capturedBindings.set(bindingId, bindingValue);
+          }
+        }
+        return { valueId: current, localBindings: capturedBindings };
       }
       return { valueId: current, localBindings };
     }
@@ -577,6 +587,12 @@ export const createIncrementalLinearMutationEvaluator = (
                 ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
                 : value ?? unavailable(carry.bindingId));
             }
+            const iterationBindings = new Map<BindingId, ScalarEvaluation>();
+            for (const [bindingId, value] of frame.visibleBindings()) {
+              iterationBindings.set(bindingId as BindingId, typeof value === "number"
+                ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
+                : value);
+            }
             const nextValues = new Map<BindingId, ScalarEvaluation>();
             for (const carry of immutableCarryPlan.carries) {
               const evaluation = evaluateTypedExpression(carry.nextExpression, {
@@ -602,7 +618,7 @@ export const createIncrementalLinearMutationEvaluator = (
             for (const [bindingId, value] of nextValues) frame.commit(bindingId, value);
             const collectionNextSnapshots = (immutableCarryPlan.collectionCarries ?? []).map((carry) => [
               carry.collectionValueId,
-              materializeCollectionSnapshot(carry.nextValueId, collectionSnapshot)
+              materializeCollectionSnapshot(carry.nextValueId, collectionSnapshot, iterationBindings)
             ] as const);
             for (const [collectionValueId, snapshot] of collectionNextSnapshots) {
               if (snapshot === undefined) collectionCarrySnapshots.delete(collectionValueId);

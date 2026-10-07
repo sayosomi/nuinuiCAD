@@ -224,6 +224,7 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
         "carry-next",
         &redirects,
         &collection_values,
+        &HashMap::new(),
         |condition, source_order, _| {
             assert_eq!(source_order, 12.0);
             match condition {
@@ -254,6 +255,7 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
         "carry-next",
         &redirects,
         &collection_values,
+        &HashMap::new(),
         |_, _, _| ScalarEvaluation::Error {
             r#type: ScalarType::Boolean,
             issue_code: "evaluation-binding-unavailable".to_owned(),
@@ -339,6 +341,7 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
         "carry-next",
         &redirects,
         &collection_values,
+        &HashMap::new(),
         |scrutinee, source_order, _| {
             assert_eq!(source_order, 12.0);
             match scrutinee {
@@ -369,6 +372,7 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
         "carry-next",
         &redirects,
         &collection_values,
+        &HashMap::new(),
         |_, _, _| ScalarEvaluation::Error {
             r#type: ScalarType::Number,
             issue_code: "evaluation-binding-unavailable".to_owned(),
@@ -475,6 +479,7 @@ fn collection_carry_snapshot_captures_optional_some_binder_and_keeps_selected_pa
         "carry-next",
         &redirects,
         &collection_values,
+        &HashMap::new(),
         |expression, source_order, local_bindings| match expression {
             TypedScalarExpression::Reference {
                 binding_id: Some(binding_id),
@@ -517,6 +522,65 @@ fn collection_carry_snapshot_captures_optional_some_binder_and_keeps_selected_pa
             value: ScalarValue::Number(7.0),
         })
     );
+}
+
+#[test]
+fn collection_carry_snapshot_captures_map_iteration_bindings_without_evaluating_body() {
+    let number = |value| ScalarEvaluation::Ok {
+        r#type: ScalarType::Number,
+        value: ScalarValue::Number(value),
+    };
+    let collection_values = vec![
+        ValidatedScalarProgramCollection {
+            value_id: "mapped".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Map {
+                source_value_id: "source".to_owned(),
+                source_element_type: ScalarType::Number,
+                result_element_type: ScalarType::Number,
+                binder_id: "map-binder".to_owned(),
+                body: Box::new(TypedScalarExpression::Reference {
+                    span: SPAN,
+                    name_span: SPAN,
+                    name: "i".to_owned(),
+                    binding_id: Some("iteration".to_owned()),
+                    r#type: Some(ScalarType::Number),
+                }),
+                source_order: 4,
+            },
+        },
+        number_collection("source", &[1.0, 2.0]),
+    ];
+    let redirects = HashMap::from([(
+        "carry-next".to_owned(),
+        CollectionCarrySnapshot {
+            value_id: "mapped".to_owned(),
+            local_bindings: HashMap::from([("prior".to_owned(), number(99.0))]),
+        },
+    )]);
+    let iteration_bindings = HashMap::from([
+        ("iteration".to_owned(), number(2.0)),
+        ("prior".to_owned(), number(3.0)),
+        ("loop-local".to_owned(), number(12.0)),
+        ("map-binder".to_owned(), number(100.0)),
+    ]);
+
+    let selected = resolve_collection_carry_snapshot(
+        "carry-next",
+        &redirects,
+        &collection_values,
+        &iteration_bindings,
+        |_, _, _| panic!("map body must stay lazy during carry snapshot capture"),
+    )
+    .expect("mapped collection should retain its value identity");
+
+    assert_eq!(selected.value_id, "mapped");
+    assert_eq!(selected.local_bindings.get("iteration"), Some(&number(2.0)));
+    assert_eq!(
+        selected.local_bindings.get("loop-local"),
+        Some(&number(12.0))
+    );
+    assert_eq!(selected.local_bindings.get("prior"), Some(&number(99.0)));
+    assert!(!selected.local_bindings.contains_key("map-binder"));
 }
 
 fn number_reference(name: &str, binding_id: &str) -> TypedScalarExpression {

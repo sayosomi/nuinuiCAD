@@ -1061,6 +1061,107 @@ describe("immutable statement-for carries", () => {
     expect(scalarFor(compiled, evaluation, "length")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
   });
 
+  it("preserves the exact mapped iteration environment after a collection carry escapes", () => {
+    const compiled = compile([
+      "nui 1",
+      "const nums: number[] = [2]",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
+      " const mapped: number[] = for x in @nums { @i }",
+      " next a = @mapped",
+      "}",
+      "const result: number = @a[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 0 }
+    });
+  });
+
+  it("captures the final mapped iteration, local scalar, and iteration-start carry values", () => {
+    const compiled = compile([
+      "nui 1",
+      "const nums: number[] = [2, 4]",
+      "for i in range(min: 0, max: 2, step: 1) carry state: number = 10 carry values: number[] = [0] {",
+      "  const offset: number = @i + 10",
+      "  const mapped: number[] = for x in @nums { @state + @i + @offset + @x }",
+      "  next state = @state + 100",
+      "  next values = @mapped",
+      "}",
+      "const first: number = @values[0]",
+      "const second: number = @values[1]",
+      "const length: number = @values.length",
+      "const finalState: number = @state"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "first")).toMatchObject({ status: "ok", value: { kind: "number", value: 226 } });
+    expect(scalarFor(compiled, evaluation, "second")).toMatchObject({ status: "ok", value: { kind: "number", value: 228 } });
+    expect(scalarFor(compiled, evaluation, "length")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(scalarFor(compiled, evaluation, "finalState")).toMatchObject({ status: "ok", value: { kind: "number", value: 310 } });
+  });
+
+  it("leaves ordinary mapped collections outside collection carry unchanged", () => {
+    const compiled = compile([
+      "nui 1",
+      "const nums: number[] = [2, 4]",
+      "const mapped: number[] = for x in @nums { @x * 2 }",
+      "const first: number = @mapped[0]",
+      "const second: number = @mapped[1]",
+      "const length: number = @mapped.length"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "first")).toMatchObject({ status: "ok", value: { kind: "number", value: 4 } });
+    expect(scalarFor(compiled, evaluation, "second")).toMatchObject({ status: "ok", value: { kind: "number", value: 8 } });
+    expect(scalarFor(compiled, evaluation, "length")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+  });
+
+  it("keeps an iteration-dependent mapped collection lazy through scalar next", () => {
+    const compiled = compile([
+      "nui 1",
+      "const nums: number[] = [2]",
+      "for i in range(min: 0, max: 2, step: 1) carry answer: number = 0 {",
+      "  const mapped: number[] = for x in @nums { @i + @x }",
+      "  next answer = @mapped[0]",
+      "}",
+      "const result: number = @answer"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({ status: "ok", value: { kind: "number", value: 4 } });
+  });
+
+  it("keeps a static mapped collection unchanged when committed through collection carry", () => {
+    const compiled = compile([
+      "nui 1",
+      "const nums: number[] = [2, 4]",
+      "const mapped: number[] = for x in @nums { @x + 1 }",
+      "for i in range(min: 0, max: 1, step: 1) carry values: number[] = [0] {",
+      "  next values = @mapped",
+      "}",
+      "const first: number = @values[0]",
+      "const second: number = @values[1]",
+      "const length: number = @values.length"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "first")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+    expect(scalarFor(compiled, evaluation, "second")).toMatchObject({ status: "ok", value: { kind: "number", value: 5 } });
+    expect(scalarFor(compiled, evaluation, "length")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+  });
+
   it("keeps collection-if behavior under binder, carry, declaration, and source-padding changes", () => {
     const evaluateResults = (source: string, resultName: string, lengthName: string) => {
       const compiled = compile(source);

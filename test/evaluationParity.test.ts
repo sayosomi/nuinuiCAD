@@ -6471,6 +6471,58 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("preserves mapped collection carry environments through persistent Node-to-Rust stdio", async () => {
+    const evaluateBoth = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return { fixture, tsPayload, rustPayload };
+    };
+
+    const exact = await evaluateBoth([
+      "nui 1",
+      "const nums: number[] = [2]",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
+      "  const mapped: number[] = for x in @nums { @i }",
+      "  next a = @mapped",
+      "}",
+      "const result: number = @a[0]"
+    ].join("\n"));
+    for (const payload of [exact.tsPayload, exact.rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expect(scalarBindingFor(exact.fixture, payload, "result")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 0 }
+      });
+    }
+
+    const multiIteration = await evaluateBoth([
+      "nui 1",
+      "const nums: number[] = [2, 4]",
+      "for i in range(min: 0, max: 2, step: 1) carry state: number = 10 carry values: number[] = [0] {",
+      "  const offset: number = @i + 10",
+      "  const mapped: number[] = for x in @nums { @state + @i + @offset + @x }",
+      "  next state = @state + 100",
+      "  next values = @mapped",
+      "}",
+      "const first: number = @values[0]",
+      "const second: number = @values[1]",
+      "const length: number = @values.length",
+      "const finalState: number = @state"
+    ].join("\n"));
+    for (const payload of [multiIteration.tsPayload, multiIteration.rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(multiIteration.fixture, payload, "first"), 226);
+      expectScalarNumberClose(scalarBindingFor(multiIteration.fixture, payload, "second"), 228);
+      expectScalarNumberClose(scalarBindingFor(multiIteration.fixture, payload, "length"), 2);
+      expectScalarNumberClose(scalarBindingFor(multiIteration.fixture, payload, "finalState"), 310);
+    }
+  }, 30000);
+
   it("executes collection-backed statement-for loops through the persistent Rust stdio boundary", async () => {
     const normalizeModuleCarryPayload = (payload: unknown): unknown => {
       const normalized = normalizeParityPayload(payload);
