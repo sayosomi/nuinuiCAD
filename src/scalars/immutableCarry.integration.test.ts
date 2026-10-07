@@ -213,6 +213,120 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("resolves a completed nested collection carry at the outer next statement", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [1] {",
+      "for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
+      "next inner = [2]",
+      "}",
+      "next outer = @inner",
+      "}",
+      "const result: number = @outer[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+  });
+
+  it("propagates named collection replacements through nested carries", () => {
+    const compiled = compile([
+      "nui 1",
+      "const initial: number[] = [1]",
+      "const replacement: number[] = [2]",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = @initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
+      "    next inner = @replacement",
+      "  }",
+      "  next outer = @inner",
+      "}",
+      "const result: number = @outer[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+  });
+
+  it("keeps next-expression resolution stable across comments, blank lines, and renamed carries", () => {
+    const compiled = compile([
+      "nui 1",
+      "// Named collection inputs stay visible in the nested next scopes.",
+      "const seed: number[] = [1]",
+      "const replacement: number[] = [2]",
+      "const unrelated: number = 99",
+      "",
+      "for i in range(min: 0, max: 0, step: 1) carry outerItems: number[] = @seed {",
+      "  // The inner final collection escapes before the outer transition.",
+      "  for j in range(min: 0, max: 0, step: 1) carry innerItems: number[] = @outerItems {",
+      "    next innerItems = @replacement",
+      "  }",
+      "",
+      "  next outerItems = @innerItems",
+      "}",
+      "const result: number = @outerItems[0] + @unrelated - 99"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+  });
+
+  it("resolves carry references used as collection literal members at the next statement", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [1] {",
+      "  for j in range(min: 0, max: 0, step: 1) carry inner: number = 1 {",
+      "    next inner = 2",
+      "  }",
+      "  next outer = [@inner]",
+      "}",
+      "const result: number = @outer[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+  });
+
+  it("does not propagate a nested collection carry unless the outer next consumes it", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [1] {",
+      "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = @outer {",
+      "    next inner = [2]",
+      "  }",
+      "  next outer = @outer",
+      "}",
+      "const result: number = @outer[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
   it("rejects branch-local next instead of compiling an unconditional update", () => {
     const result = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
       "nui 1",

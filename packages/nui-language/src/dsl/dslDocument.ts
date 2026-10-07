@@ -2754,12 +2754,17 @@ export const compileDslDocument = (
         ? recordFieldsFor(nested, path)
         : scalarExpressionTypeOfDslValueType(field.type) ? [{ path, type: scalarExpressionTypeOfDslValueType(field.type)! }] : [];
     });
-    const descriptorFor = (declaration: typeof immutableCarryCompilation.declarations[number], raw: string, valueId: string): ScalarProgramCollection | null => {
+    const descriptorFor = (
+      declaration: typeof immutableCarryCompilation.declarations[number],
+      raw: string,
+      valueId: string,
+      expressionStatementIndex: number
+    ): ScalarProgramCollection | null => {
       const valueType = dslRequiredValueTypeOf(declaration.valueType);
       if (!valueType || !isDslArrayValueType(valueType) || (!scalarExpressionTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")) return null;
       const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
       const trimmed = raw.trim();
-      const source = bindingForReference(trimmed, declaration.ownerStatementIndex);
+      const source = bindingForReference(trimmed, expressionStatementIndex);
       if (source && isDslArrayValueType(source.valueType)) {
         const targetDeclaration = source.declaration;
         const targetId = targetDeclaration.kind === "carry"
@@ -2795,11 +2800,11 @@ export const compileDslDocument = (
           members.push({ kind: "literal", type: elementType, value: scalarValue });
           continue;
         }
-        const target = bindingForReference(member.text, declaration.ownerStatementIndex);
+        const target = bindingForReference(member.text, expressionStatementIndex);
           if (!elementType || !target || !isDslValueTypeAssignable(target.valueType, valueType.elementType)) {
             const recordDefinition = recordDefinitionFor(valueType.elementType);
             if (!recordDefinition) return null;
-            const recordTarget = bindingForReference(member.text, declaration.ownerStatementIndex);
+            const recordTarget = bindingForReference(member.text, expressionStatementIndex);
             if (!recordTarget || !isDslRecordValueType(recordTarget.valueType) || !isDslValueTypeAssignable(recordTarget.valueType, valueType.elementType)) return null;
           const fields = recordFieldsFor(recordDefinition).map(({ path, type }) => ({
             recordStatementId: path.at(-1)!.recordStatementId,
@@ -2830,9 +2835,13 @@ export const compileDslDocument = (
       const collectionValueId = carryCollectionIdForDeclaration(declaration);
       const initializerValueId = `${collectionValueId}:initializer`;
       const nextValueId = `${collectionValueId}:next`;
-      const initializer = descriptorFor(declaration, declaration.initializer, initializerValueId);
-      const nextDeclaration = { ...declaration, initializer: next.expression, initializerSpan: next.expressionSpan };
-      const nextDescriptor = descriptorFor(nextDeclaration, next.expression, nextValueId);
+      const initializer = descriptorFor(
+        declaration,
+        declaration.initializer,
+        initializerValueId,
+        declaration.ownerStatementIndex
+      );
+      const nextDescriptor = descriptorFor(declaration, next.expression, nextValueId, next.statementIndex);
       if (!initializer || !nextDescriptor) {
         diagnostic(
           declaration,
