@@ -5341,6 +5341,115 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("second")).toMatchObject({ status: "ok", value: { kind: "number", value: 21 } });
   });
 
+  it("indexes escaped Module collection carries with their final value (SAY-474)", () => {
+    const evaluateRootValues = (source: string, prefix: string, expected: Record<string, number>) => {
+      const compiled = compileWithIds(source, prefix);
+      expectValid(compiled);
+      const evaluated = evaluateCompiled(compiled);
+      expect(evaluated.errors).toEqual([]);
+      for (const [name, value] of Object.entries(expected)) {
+        const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+        expect(binding, `missing scalar binding ${name}`).toBeDefined();
+        expect(binding && evaluated.computedScalarBindings?.get(binding.id)).toMatchObject({
+          status: "ok",
+          value: { kind: "number", value }
+        });
+      }
+      return expected;
+    };
+
+    evaluateRootValues([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
+      "    next a = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"), "say474-self-carry", { result: 1 });
+
+    evaluateRootValues([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] carry b: number[] = [2] {",
+      "    next a = @b",
+      "    next b = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::output"
+    ].join("\n"), "say474-swap", { result: 2 });
+
+    const plainNamedSwap = evaluateRootValues([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = [10, 11] carry b: number[] = [20, 21, 22] {",
+      "    next a = @b",
+      "    next b = @a",
+      "  }",
+      "  export const selected: number = @a[2]",
+      "  export const itemCount: number = @a.length",
+      "}",
+      "instance A = M()",
+      "const result: number = @A::selected",
+      "const count: number = @A::itemCount"
+    ].join("\n"), "say474-asymmetric-plain", { result: 22, count: 3 });
+
+    const decoratedNamedSwap = evaluateRootValues([
+      "nui 1",
+      "// Root comment before an unrelated scalar.",
+      "const unrelatedRoot: number = 99",
+      "",
+      "module CollectionBox() {",
+      "  // This local does not participate in the carry.",
+      "  const unrelatedLocal: number = 7",
+      "",
+      "  for stepIndex in range(min: 0, max: 0, step: 1) carry leftItems: number[] = [10, 11] carry rightItems: number[] = [20, 21, 22] {",
+      "    next leftItems = @rightItems",
+      "    next rightItems = @leftItems",
+      "  }",
+      "  export const selected: number = @leftItems[2]",
+      "  export const itemCount: number = @leftItems.length",
+      "}",
+      "instance RenamedInstance = CollectionBox()",
+      "const result: number = @RenamedInstance::selected",
+      "const count: number = @RenamedInstance::itemCount"
+    ].join("\n"), "say474-asymmetric-renamed", { result: 22, count: 3 });
+    expect(decoratedNamedSwap).toEqual(plainNamedSwap);
+
+    evaluateRootValues([
+      "nui 1",
+      "module OrdinaryCollections() {",
+      "  const original: number[] = [4, 5]",
+      "  const alias: number[] = @original",
+      "  export const selected: number = @alias[1]",
+      "  export const itemCount: number = @alias.length",
+      "}",
+      "instance Ordinary = OrdinaryCollections()",
+      "const result: number = @Ordinary::selected",
+      "const count: number = @Ordinary::itemCount"
+    ].join("\n"), "say474-ordinary-collection", { result: 5, count: 2 });
+
+    const rootControl = compileWithIds([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry items: number[] = [1] {",
+      "  next items = @items",
+      "}",
+      "const result: number = @items[0]"
+    ].join("\n"), "say474-root-control");
+    expectValid(rootControl);
+    const rootEvaluation = evaluateCompiled(rootControl);
+    expect(rootEvaluation.errors).toEqual([]);
+    const rootResult = rootControl.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === "result");
+    expect(rootResult ? rootEvaluation.computedScalarBindings?.get(rootResult.id) : undefined).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
   it("escapes Module-local geometry carries through instance materialization", () => {
     const compiled = compileWithIds([
       "nui 1",

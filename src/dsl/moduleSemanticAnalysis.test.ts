@@ -137,6 +137,110 @@ describe("module semantic analysis", () => {
     ]));
   });
 
+  it("resolves Module collection carry indexes and lengths through their lexical carry identity", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M() {",
+      "  for i in range(min: 0, max: 0, step: 1) carry items: number[] = [1] {",
+      "    next items = @items",
+      "  }",
+      "  export const selected: number = @items[0]",
+      "  export const itemCount: number = @items.length",
+      "}",
+      "instance Use = M()"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const definition = compiled.moduleSemanticAnalysis!.definitions.find((candidate) => candidate.name === "M")!;
+    const carryValueId = "carry-collection:binding:statement:test:2:carry:0:items";
+    const selected = definition.localScalars.find((candidate) => candidate.name === "selected")!.initializer!;
+    const itemCount = definition.localScalars.find((candidate) => candidate.name === "itemCount")!.initializer!;
+    expect(selected.references[0]).toMatchObject({
+      name: "items",
+      resolution: "resolved",
+      target: {
+        kind: "collectionValue",
+        statementId: "statement:test:2:carry:0:items",
+        statementIndex: 2,
+        valueType: { kind: "array", elementType: { kind: "number" } }
+      },
+      collectionValueId: carryValueId,
+      collectionLength: null,
+      targetSourceOrder: -1,
+      collectionElementType: { kind: "number" }
+    });
+    expect(itemCount.geometryProperties[0]).toMatchObject({
+      property: "length",
+      resolution: "resolved",
+      target: {
+        kind: "collectionValueLength",
+        statementId: "statement:test:2:carry:0:items",
+        valueId: carryValueId,
+        valueType: { kind: "array", elementType: { kind: "number" } },
+        length: null
+      }
+    });
+  });
+
+  it("preserves undefined, forward, wrong-type, and outer-capture collection diagnostics", () => {
+    const cases = [
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  const selected: number = @missing[0]",
+          "}",
+          "instance Use = M()"
+        ].join("\n"),
+        code: "module-undefined-reference"
+      },
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  const selected: number = @later[0]",
+          "  for i in range(min: 0, max: 0, step: 1) carry later: number[] = [1] {",
+          "    next later = @later",
+          "  }",
+          "}",
+          "instance Use = M()"
+        ].join("\n"),
+        code: "module-forward-reference"
+      },
+      {
+        source: [
+          "nui 1",
+          "module M() {",
+          "  for i in range(min: 0, max: 0, step: 1) carry value: number = 1 {",
+          "    next value = @i",
+          "  }",
+          "  const selected: number = @value[0]",
+          "}",
+          "instance Use = M()"
+        ].join("\n"),
+        code: "module-collection-index-type"
+      },
+      {
+        source: [
+          "nui 1",
+          "const values: number[] = [1]",
+          "module M() {",
+          "  const selected: number = @values[0]",
+          "}",
+          "instance Use = M()"
+        ].join("\n"),
+        code: "module-outer-capture"
+      }
+    ];
+
+    for (const testCase of cases) {
+      const compiled = compileWithIds(testCase.source);
+      expect(compiled.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: testCase.code, severity: "error" })
+      ]));
+    }
+  });
+
   it("preserves authored optional scalar types while analyzing Module carries", () => {
     const compiled = compileWithIds([
       "nui 1",

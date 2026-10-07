@@ -42,7 +42,7 @@ import {
   type BindingId,
   type BindingSeed
 } from "./bindingCatalog";
-import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner, type ImmutableForGroupPlan } from "./bindingVersions";
+import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner, type ImmutableCollectionCarry, type ImmutableForGroupPlan } from "./bindingVersions";
 import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import {
   lowerScalarProgram,
@@ -2039,6 +2039,8 @@ export const compileModuleScalarRuntime = ({
   moduleMaterialization,
   documentBindingAnalysis,
   documentScalarProgram,
+  collectionCarryInputs = [],
+  collectionCarryValues = [],
   reconciledContainers,
   includeStatement,
   elements,
@@ -2055,6 +2057,12 @@ export const compileModuleScalarRuntime = ({
   moduleMaterialization: ModuleMaterialization;
   documentBindingAnalysis?: BindingAnalysis;
   documentScalarProgram?: ScalarProgram;
+  collectionCarryInputs?: readonly (ImmutableCollectionCarry & {
+    ownerStatementId: string;
+    ownerStatementIndex: number;
+    carryName: string;
+  })[];
+  collectionCarryValues?: readonly ScalarProgramCollection[];
   reconciledContainers: ReconciledCadContainerInput;
   includeStatement?: (statement: DslStatement, statementIndex: number) => boolean;
   elements: readonly CadElement[];
@@ -2993,6 +3001,18 @@ export const compileModuleScalarRuntime = ({
     valueId: string,
     context: InstanceContext | null
   ): string => {
+    if (context && valueId.startsWith("carry-collection:")) {
+      const suffix = valueId.endsWith(":initializer")
+        ? ":initializer"
+        : valueId.endsWith(":next")
+          ? ":next"
+          : "";
+      const sourceBindingId = valueId.slice("carry-collection:".length, suffix ? -suffix.length : undefined);
+      // Lowering may revisit an already projected collection ID while it
+      // remaps the checked expression. Keep that remapping idempotent.
+      if (sourceBindingId.startsWith("module-binding:")) return valueId;
+      return `${immutableCarryCollectionValueId(moduleCarryBindingIdFor(context.path, sourceBindingId))}${suffix}`;
+    }
     if (/^optional-match-binder:\d+:\d+:\d+$/.test(valueId)) {
       return context ? moduleCollectionBinderIdFor(context.path, valueId) : valueId;
     }
@@ -4715,6 +4735,66 @@ export const compileModuleScalarRuntime = ({
       }
       for (const recordValue of context.definition.recordValues) {
         recordValue.fieldExpressions.forEach((field) => appendOptionalCollectionMatchAliases(field.expression, context));
+      }
+    }
+
+    const collectionCarryValueById = new Map(collectionCarryValues.map((value) => [value.valueId, value] as const));
+    const registeredCollectionCarryValueIds = new Set(
+      (documentScalarProgram?.collectionValues ?? []).map((value) => value.valueId)
+    );
+    const moduleCollectionCarryBindingIdFor = (bindingId: BindingId, context: InstanceContext): BindingId | null => {
+      if (!bindingId.startsWith("binding:")) return null;
+      const sourceStatementId = bindingId.slice("binding:".length);
+      const local = context.definition.localScalars.find((candidate) => candidate.statementId === sourceStatementId);
+      if (local) return moduleScalarBindingIdFor(context.path, context.definition.statementId, local.statementId);
+
+      const sourceCarry = sourceNamespaceForContext(context)?.allDeclarations.find((declaration) =>
+        declaration.kind === "carry" && `binding:${declaration.statementId}` === bindingId
+      );
+      if (!sourceCarry || sourceCarry.statement.kind !== "element") return null;
+      const carryIndex = sourceCarry.statement.forCarries?.findIndex((candidate) => candidate.name === sourceCarry.name) ?? -1;
+      const ownerStatementId = context.definition.bodyStatements.find((body) => body.statementIndex === sourceCarry.statementIndex)?.statementId;
+      const semanticCarry = context.definition.immutableCarries?.find((candidate) =>
+        candidate.statementId === ownerStatementId && candidate.carryIndex === carryIndex
+      );
+      return semanticCarry ? moduleCarryBindingIdFor(context.path, semanticCarry.bindingId) : null;
+    };
+    const projectCollectionCarryValue = (
+      value: ScalarProgramCollection,
+      context: InstanceContext
+    ): ScalarProgramCollection | null => {
+      const valueId = collectionValueIdFor(value.valueId, context);
+      if (value.kind === "alias") {
+        return { ...value, valueId, targetValueId: collectionValueIdFor(value.targetValueId, context) };
+      }
+      if (value.kind === "literal") {
+        const members: ScalarProgramCollectionMember[] = [];
+        for (const member of value.members) {
+          if (member.kind === "literal") {
+            members.push(member);
+            continue;
+          }
+          if (member.kind !== "binding") return null;
+          const bindingId = moduleCollectionCarryBindingIdFor(member.bindingId, context);
+          if (!bindingId) return null;
+          members.push({ ...member, bindingId });
+        }
+        return { ...value, valueId, members };
+      }
+      return null;
+    };
+    for (const context of contextsByKey.values()) {
+      const bodyStatementIds = new Set(context.definition.bodyStatements.map((body) => body.statementId));
+      for (const carry of collectionCarryInputs) {
+        if (!bodyStatementIds.has(carry.ownerStatementId)) continue;
+        for (const sourceValueId of [carry.initializerValueId, carry.nextValueId]) {
+          const sourceValue = collectionCarryValueById.get(sourceValueId);
+          if (!sourceValue) continue;
+          const projected = projectCollectionCarryValue(sourceValue, context);
+          if (!projected || registeredCollectionCarryValueIds.has(projected.valueId)) continue;
+          registeredCollectionCarryValueIds.add(projected.valueId);
+          moduleCollectionValues.push(projected);
+        }
       }
     }
     return moduleCollectionValues;
@@ -7143,6 +7223,40 @@ export const compileModuleScalarRuntime = ({
       );
     }
   }
+  for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
+    const definitionScopeIndex = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace.scopeIndex ?? sourceScopeIndex;
+    const parameterBindingIds = new Set([
+      ...[...context.parameters.values()].map((parameter) => parameter.id),
+      ...[...context.recordParameters.values()].flatMap((fields) => [...fields.values()].map((field) => field.id)),
+      ...[...context.recordParameterFieldBindingsByPath.values()].flatMap((fields) => [...fields.values()].map((field) => field.id))
+    ]);
+    for (const carry of collectionCarryInputs) {
+      const body = context.definition.bodyStatements.find((candidate) => candidate.statementId === carry.ownerStatementId);
+      if (!body || body.statementKind !== "element") continue;
+      const loopScopeId = `for:${carry.ownerStatementId}`;
+      const isInsideLoopScope = (statementIndex: number): boolean => {
+        let scopeId = definitionScopeIndex?.scopeOfStatement.get(statementIndex);
+        while (scopeId) {
+          if (scopeId === loopScopeId) return true;
+          scopeId = definitionScopeIndex?.scopes.get(scopeId)?.parentId ?? undefined;
+        }
+        return false;
+      };
+      const firstPostLoopBindingOrder = allBindingInfos
+        .filter((candidate) => candidate.contextKey === context.key && !parameterBindingIds.has(candidate.id) &&
+          candidate.statementIndex > carry.ownerStatementIndex && !isInsideLoopScope(candidate.statementIndex))
+        .map((candidate) => candidate.eventOrder)
+        .filter((order): order is number => order !== undefined)
+        .sort((left, right) => left - right)[0];
+      if (firstPostLoopBindingOrder === undefined) continue;
+      const qualifiedLoopScopeId = moduleScopeIdFor(context.path, loopScopeId);
+      scopeExitOrderById.set(
+        qualifiedLoopScopeId,
+        Math.min(scopeExitOrderById.get(qualifiedLoopScopeId) ?? firstPostLoopBindingOrder, firstPostLoopBindingOrder)
+      );
+    }
+  }
   const controlByScopeId = new Map<string, BindingControlMetadata>();
   const conditionalOwnerStatementIdByElementId = new Map<ElementId, string>();
   const forGroupMutationOwnerByElementId = new Map<ElementId, Extract<BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>();
@@ -7369,6 +7483,72 @@ export const compileModuleScalarRuntime = ({
             nextSourceOrder: executionOrderForValue(context.path, carry.nextStatementIndex)
           }
         ]
+      });
+    }
+  }
+  const moduleCollectionValueIds = new Set([
+    ...(documentScalarProgram?.collectionValues ?? []).map((value) => value.valueId),
+    ...moduleCollectionValues.map((value) => value.valueId)
+  ]);
+  for (const context of contextsByKey.values()) {
+    if (!contextIsReachable(context)) continue;
+    for (const carry of collectionCarryInputs) {
+      const body = context.definition.bodyStatements.find((candidate) => candidate.statementId === carry.ownerStatementId);
+      if (!body || body.statementKind !== "element") continue;
+      const sourceStatement = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements[carry.ownerStatementIndex]
+        ?? statements[carry.ownerStatementIndex];
+      if (
+        sourceStatement?.kind !== "element" ||
+        sourceStatement.type !== "forGroup" ||
+        !sourceStatement.forCarries?.some((candidate) => candidate.name === carry.carryName)
+      ) continue;
+      const collectionValueId = collectionValueIdFor(carry.collectionValueId, context);
+      const initializerValueId = collectionValueIdFor(carry.initializerValueId, context);
+      const nextValueId = collectionValueIdFor(carry.nextValueId, context);
+      if (!moduleCollectionValueIds.has(initializerValueId) || !moduleCollectionValueIds.has(nextValueId)) continue;
+
+      const ownerStatementId = moduleOwnerIdFor(context.path, carry.ownerStatementId);
+      const owner = [...controlByScopeId.values()]
+        .flatMap((control) => control.ownerChain)
+        .find((candidate): candidate is Extract<BindingControlOwner, { kind: "forGroup" }> =>
+          candidate.kind === "forGroup" && candidate.ownerStatementId === ownerStatementId
+        );
+      const fallbackScopeId = moduleScopeIdFor(context.path, `for:${carry.ownerStatementId}`);
+      const fallbackExitSourceOrder = scopeExitOrderById.get(fallbackScopeId)
+        ?? executionOrderForValue(context.path, carry.ownerStatementIndex);
+      const executionOwner = owner
+        ? {
+            scopeId: owner.scopeId,
+            exitSourceOrder: owner.exitSourceOrder,
+            ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+            iterationBindingId: moduleIterationIdFor(context.path, carry.ownerStatementId)
+          }
+        : {
+            scopeId: fallbackScopeId,
+            exitSourceOrder: Math.max(0, Math.floor(fallbackExitSourceOrder)),
+            entrySourceOrder: executionPositionForValue(context.path, carry.ownerStatementIndex) - 0.5,
+            iterationBindingId: moduleIterationIdFor(context.path, carry.ownerStatementId)
+          };
+      const bindingId = moduleCarryBindingIdFor(context.path, carry.bindingId);
+      const projectedCarry: ImmutableCollectionCarry = {
+        bindingId,
+        collectionValueId,
+        initializerValueId,
+        nextValueId,
+        declaredType: carry.declaredType,
+        nextSourceOrder: executionOrderForValue(context.path, carry.nextSourceOrder)
+      };
+      const existing = immutableForGroups.get(ownerStatementId);
+      const collectionCarries = [...(existing?.collectionCarries ?? [])]
+        .filter((candidate) => candidate.bindingId !== bindingId);
+      collectionCarries.push(projectedCarry);
+      immutableForGroups.set(ownerStatementId, {
+        ownerStatementId,
+        executionOwner: existing?.executionOwner ?? executionOwner,
+        carries: existing?.carries ?? [],
+        ...(existing?.geometryCarries ? { geometryCarries: existing.geometryCarries } : {}),
+        collectionCarries,
+        ...(existing?.geometryCollectionCarries ? { geometryCollectionCarries: existing.geometryCollectionCarries } : {})
       });
     }
   }
