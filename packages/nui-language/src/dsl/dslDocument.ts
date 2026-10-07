@@ -2411,6 +2411,7 @@ export const compileDslDocument = (
     const collectionControlFlowBindings = new Map(analysis.catalog.bindingsById);
     const bindingForCollectionControlFlowTarget = (target: import("./moduleSemanticTypes").ModuleScalarSourceTarget): Binding | undefined => {
       if (target.kind === "documentBinding") return analysis.catalog.bindingsById.get(target.bindingId);
+      if (target.kind === "iteration") return analysis.catalog.bindingsById.get(`binding:iteration:${target.statementId}`);
       if (target.kind !== "valueForBinder") return undefined;
       const scopeId = sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(target.statementIndex) ?? sourceLexicalNamespace?.scopeIndex.rootScopeId ?? "root";
       const binding: Binding = {

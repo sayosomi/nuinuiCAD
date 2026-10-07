@@ -185,6 +185,39 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
+  it("lowers a root collection-if condition with its canonical statement-for binding", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
+      "  const selected: number[] = if (@i == 0) { [2] } else { [3] }",
+      "  next a = @selected",
+      "}",
+      "const result: number = @a[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const iterationBinding = compiled.bindingAnalysis?.catalog.bindings.find(
+      (binding) => binding.kind === "iteration" && binding.name === "i"
+    );
+    const collectionIf = compiled.scalarProgram?.collectionValues?.find((value) => value.kind === "if");
+    if (!iterationBinding || !collectionIf || collectionIf.kind !== "if") {
+      throw new Error("expected canonical iteration binding and lowered collection-if");
+    }
+
+    expect(iterationBinding.declaredType).toEqual({ kind: "number" });
+    expect(collectionIf.condition).toMatchObject({
+      kind: "binary",
+      operator: "==",
+      type: { kind: "boolean" },
+      left: {
+        kind: "reference",
+        bindingId: iterationBinding.id,
+        type: iterationBinding.declaredType
+      },
+      right: { kind: "numberLiteral", value: 0, type: { kind: "number" } }
+    });
+  });
+
   it("supports optional collection results for omitted-else if and optional match", () => {
     const compiled = compile([
       "nui 1",

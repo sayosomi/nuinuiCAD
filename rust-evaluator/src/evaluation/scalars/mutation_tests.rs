@@ -13,6 +13,7 @@ use super::super::types::{
     ScalarExpressionResolvedOptionalMemberTarget, ScalarSpan, ScalarType, ScalarValue,
     TypedScalarExpression,
 };
+use super::for_group_scheduler::resolve_collection_carry_snapshot;
 use super::{DependencyBindingSchedule, MutationEnvironment, ScalarMutationResolver};
 use crate::evaluation::scalars::expression_evaluator::ScalarEvaluationEnvironment;
 use crate::evaluation::scalars::mutation_payload::ValidatedImmutableForGroupPlan;
@@ -175,6 +176,59 @@ fn assert_issue(result: ScalarEvaluation, expected: &str) {
         ScalarEvaluation::Error { issue_code, .. } => assert_eq!(issue_code, expected),
         other => panic!("expected error {expected}, got {other:?}"),
     }
+}
+
+#[test]
+fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
+    let collection_values = vec![
+        ValidatedScalarProgramCollection {
+            value_id: "if-value".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::If {
+                condition: Box::new(TypedScalarExpression::BooleanLiteral {
+                    span: SPAN,
+                    value: true,
+                    r#type: ScalarType::Boolean,
+                }),
+                then_value_id: "then-alias".to_owned(),
+                else_value_id: "else-terminal".to_owned(),
+                source_order: 12.0,
+            },
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "then-alias".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Alias("selected-terminal".to_owned()),
+        },
+        number_collection("selected-terminal", &[7.0, 8.0]),
+        number_collection("else-terminal", &[3.0]),
+    ];
+    let redirects = HashMap::from([
+        ("carry-next".to_owned(), "redirected-if".to_owned()),
+        ("redirected-if".to_owned(), "if-value".to_owned()),
+    ]);
+
+    let selected = resolve_collection_carry_snapshot(
+        "carry-next",
+        &redirects,
+        &collection_values,
+        |condition, source_order| {
+            assert_eq!(source_order, 12.0);
+            match condition {
+                TypedScalarExpression::BooleanLiteral {
+                    value,
+                    r#type: ScalarType::Boolean,
+                    ..
+                } => Some(*value),
+                _ => None,
+            }
+        },
+    );
+    assert_eq!(selected.as_deref(), Some("selected-terminal"));
+
+    let unresolved =
+        resolve_collection_carry_snapshot("carry-next", &redirects, &collection_values, |_, _| {
+            None
+        });
+    assert_eq!(unresolved, None);
 }
 
 fn number_reference(name: &str, binding_id: &str) -> TypedScalarExpression {

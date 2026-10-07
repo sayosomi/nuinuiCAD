@@ -6,9 +6,10 @@ use super::super::bindings::ScalarDocumentBindingResolver;
 use super::*;
 use crate::evaluation::for_group::PreparedForGroupIterations;
 use crate::evaluation::scalar_expression_runtime::{
-    lookup_for_group_geometry_property, lookup_geometry_property,
-    lookup_geometry_value_binder_property, lookup_geometry_value_property,
-    resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
+    evaluate_document_typed_expression, lookup_for_group_geometry_property,
+    lookup_geometry_property, lookup_geometry_value_binder_property,
+    lookup_geometry_value_property, resolve_for_group_geometry_builtin_target,
+    ForGroupGeometryPropertyRequest,
 };
 use crate::evaluation::scalars::for_group_execution_core::{
     ForGroupExecutionEnvironment, ForGroupExecutionError, ForGroupExecutionPlan,
@@ -228,22 +229,40 @@ impl ScalarMutationResolver<'_> {
             return Ok(());
         };
         let collection_snapshot = self.collection_carry_value_ids.clone();
-        let collection_next_values = plan
-            .collection_carries
-            .iter()
-            .map(|carry| {
-                (
-                    carry.collection_value_id.clone(),
-                    resolve_collection_carry_snapshot(
-                        &carry.next_value_id,
-                        &collection_snapshot,
-                        &self.program.collection_values,
-                    ),
-                )
-            })
-            .collect::<Vec<_>>();
+        let collection_next_values = {
+            let resolver = self.for_group_binding_resolver(environment);
+            plan.collection_carries
+                .iter()
+                .map(|carry| {
+                    (
+                        carry.collection_value_id.clone(),
+                        resolve_collection_carry_snapshot(
+                            &carry.next_value_id,
+                            &collection_snapshot,
+                            &self.program.collection_values,
+                            |condition, source_order| match evaluate_document_typed_expression(
+                                condition,
+                                &resolver,
+                                state,
+                                Some(source_order),
+                            ) {
+                                ScalarEvaluation::Ok {
+                                    r#type: ScalarType::Boolean,
+                                    value: ScalarValue::Boolean(value),
+                                } => Some(value),
+                                _ => None,
+                            },
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
         for (value_id, next) in collection_next_values {
-            self.collection_carry_value_ids.insert(value_id, next);
+            if let Some(next) = next {
+                self.collection_carry_value_ids.insert(value_id, next);
+            } else {
+                self.collection_carry_value_ids.remove(&value_id);
+            }
         }
 
         let resolver = self.for_group_binding_resolver(environment);
@@ -594,11 +613,12 @@ impl ScalarMutationResolver<'_> {
     }
 }
 
-fn resolve_collection_carry_snapshot(
+pub(super) fn resolve_collection_carry_snapshot(
     value_id: &str,
     redirects: &HashMap<String, String>,
     collection_values: &[super::super::program_payload::ValidatedScalarProgramCollection],
-) -> String {
+    mut select_if_branch: impl FnMut(&super::super::types::TypedScalarExpression, f64) -> Option<bool>,
+) -> Option<String> {
     let mut current = value_id.to_owned();
     let mut seen = HashMap::new();
     loop {
@@ -615,14 +635,27 @@ fn resolve_collection_carry_snapshot(
         else {
             break;
         };
-        let super::super::program_payload::ValidatedScalarProgramCollectionValue::Alias(target) =
-            &value.value
-        else {
-            break;
-        };
-        current = target.clone();
+        match &value.value {
+            super::super::program_payload::ValidatedScalarProgramCollectionValue::Alias(target) => {
+                current = target.clone();
+            }
+            super::super::program_payload::ValidatedScalarProgramCollectionValue::If {
+                condition,
+                then_value_id,
+                else_value_id,
+                source_order,
+            } => {
+                let selected = select_if_branch(condition, *source_order)?;
+                current = if selected {
+                    then_value_id.clone()
+                } else {
+                    else_value_id.clone()
+                };
+            }
+            _ => return Some(current),
+        }
     }
-    current
+    Some(current)
 }
 
 fn geometry_type_name(geometry_type: &super::super::types::GeometryInterfaceType) -> String {

@@ -168,17 +168,6 @@ export const createIncrementalLinearMutationEvaluator = (
   const collectionCarryValueIds = new Map<string, string>();
   let activeCollectionCarryValueIds: ReadonlyMap<string, string> = collectionCarryValueIds;
   const collectionValuesById = new Map((collectionValues ?? []).map((value) => [value.valueId, value] as const));
-  const materializeCollectionValueId = (
-    valueId: string,
-    snapshot: ReadonlyMap<string, string>,
-    seen: ReadonlySet<string> = new Set()
-  ): string => {
-    if (seen.has(valueId)) return valueId;
-    const redirected = snapshot.get(valueId) ?? valueId;
-    const value = collectionValuesById.get(redirected);
-    if (!value || value.kind !== "alias") return redirected;
-    return materializeCollectionValueId(redirected === valueId ? value.targetValueId : value.targetValueId, snapshot, new Set([...seen, valueId]));
-  };
   let nextVersionIndex = 0;
   const pendingDependencyVersions = new Map<BindingVersionId, BindingVersion>();
   let activeLoopEnvironment: ReturnType<typeof createForGroupExecutionEnvironment<ScalarEvaluation>> | undefined;
@@ -208,6 +197,41 @@ export const createIncrementalLinearMutationEvaluator = (
     resolveCollectionLength,
     (collectionValueId) => activeCollectionCarryValueIds.get(collectionValueId)
   );
+
+  const materializeCollectionValueId = (
+    valueId: string,
+    snapshot: ReadonlyMap<string, string>
+  ): string | undefined => {
+    let current = valueId;
+    const seen = new Set<string>();
+    while (!seen.has(current)) {
+      seen.add(current);
+      const redirected = snapshot.get(current) ?? current;
+      if (redirected !== current) {
+        current = redirected;
+        continue;
+      }
+      const value = collectionValuesById.get(current);
+      if (!value) return current;
+      if (value.kind === "alias") {
+        current = value.targetValueId;
+        continue;
+      }
+      if (value.kind === "if") {
+        const environment = collectionResolver?.environmentFor(value.sourceOrder);
+        if (!environment) return undefined;
+        const condition = evaluateTypedExpression(value.condition, {
+          lookupBinding: resolveCurrent,
+          ...environment
+        });
+        if (condition.status !== "ok" || condition.type.kind !== "boolean" || condition.value.kind !== "boolean") return undefined;
+        current = condition.value.value ? value.thenValueId : value.elseValueId;
+        continue;
+      }
+      return current;
+    }
+    return current;
+  };
 
   const retireFramesBefore = (sourceOrder: number) => {
     for (let index = frames.length - 1; index >= 0; index -= 1) {
@@ -535,11 +559,13 @@ export const createIncrementalLinearMutationEvaluator = (
               nextValues.set(carry.bindingId, resultForDeclaredType(evaluation, carry.declaredType));
             }
             for (const [bindingId, value] of nextValues) frame.commit(bindingId, value);
-            for (const carry of immutableCarryPlan.collectionCarries ?? []) {
-              collectionCarryValueIds.set(
-                carry.collectionValueId,
-                materializeCollectionValueId(carry.nextValueId, collectionSnapshot)
-              );
+            const collectionNextValues = (immutableCarryPlan.collectionCarries ?? []).map((carry) => [
+              carry.collectionValueId,
+              materializeCollectionValueId(carry.nextValueId, collectionSnapshot)
+            ] as const);
+            for (const [collectionValueId, valueId] of collectionNextValues) {
+              if (valueId === undefined) collectionCarryValueIds.delete(collectionValueId);
+              else collectionCarryValueIds.set(collectionValueId, valueId);
             }
             activeCollectionCarryValueIds = collectionCarryValueIds;
             }
