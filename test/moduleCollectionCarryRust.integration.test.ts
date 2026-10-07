@@ -67,6 +67,22 @@ describe("SAY-474 Module collection carry indexing through persistent Rust stdio
         expected: { result: 1 }
       },
       {
+        name: "direct Module parameter shadows same-named root collection",
+        source: [
+          "nui 1",
+          "const items: number[] = [99]",
+          "module M(items: number[]) {",
+          "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+          "    next a = @a",
+          "  }",
+          "  export const output: number = @a[0]",
+          "}",
+          "instance A = M(items: [1])",
+          "const result: number = @A::output"
+        ].join("\n"),
+        expected: { result: 1 }
+      },
+      {
         name: "direct Module parameter self-carry with named root collection argument",
         source: [
           "nui 1",

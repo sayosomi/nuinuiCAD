@@ -444,6 +444,29 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("prefers a same-named Module collection parameter over an outer root collection", () => {
+    const compiled = compile([
+      "nui 1",
+      "const items: number[] = [99]",
+      "module M(items: number[]) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+      "    next a = @a",
+      "  }",
+      "  export const output: number = @a[0]",
+      "}",
+      "instance A = M(items: [1])",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expect(compiled.diagnostics).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
   it("matches a local collection alias for a direct Module parameter carry initializer", () => {
     const source = (initializer: string) => [
       "nui 1",

@@ -61,6 +61,7 @@ import {
   buildSourceLexicalNamespaceIndex,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
+import { resolveModuleLexicalDeclaration } from "./moduleLexicalResolution";
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
 import { unwrapModuleGeometrySourceTarget, type ModuleGeometrySourceTarget, type ModuleScalarSourceTarget, type ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
@@ -2735,10 +2736,28 @@ export const compileDslDocument = (
       const parsedReference = parseDslSourceReference(raw.trim());
       if (parsedReference.kind !== "valid" || parsedReference.reference.occurrenceIndex !== null) return null;
       const path = parsedReference.reference.path;
-      const lookup = resolveSourceLexicalPath(sourceLexicalNamespace!, statementIndex, path);
+      const moduleParameter = options.allowModuleParameter && !path.absolute && path.segments.length === 1
+        ? moduleParameterByName(parsed.statements, stableStatementIdByIndex!, statementIndex, path.segments[0]!)
+        : null;
+      const moduleLookup = moduleParameter
+        ? resolveModuleLexicalDeclaration({
+            sourceNamespace: sourceLexicalNamespace!,
+            stableStatementIdByIndex: stableStatementIdByIndex!,
+            parameterOverlays: [{
+              bodyScopeId: `module:${moduleParameter.definitionStatementId}`,
+              value: moduleParameter.parameter,
+              parameters: [{
+                index: moduleParameter.parameterIndex,
+                name: moduleParameter.parameter.name,
+                value: moduleParameter.parameter
+              }]
+            }]
+          }, statementIndex, path.segments[0]!)
+        : null;
+      const lookup = moduleLookup ?? resolveSourceLexicalPath(sourceLexicalNamespace!, statementIndex, path);
       const declaration = lookup.kind === "resolved"
         ? lookup.declaration
-        : path.segments.length === 1
+        : lookup.kind === "undefined" && path.segments.length === 1
           ? [...sourceLexicalNamespace!.allDeclarations]
               .filter((candidate) => candidate.kind === "carry" && candidate.name === path.segments[0] && candidate.statementIndex <= statementIndex)
               .sort((left, right) => right.statementIndex - left.statementIndex)[0]
@@ -2759,16 +2778,16 @@ export const compileDslDocument = (
         };
       }
 
-      // Module parameters are a fallback only for an otherwise-unresolved,
-      // unqualified whole-value reference. Any lexical declaration or carry
-      // visible at the reference site has already been resolved above.
+      // The shared Module lexical resolver places the parameter after local
+      // declarations and carries, but before declarations in the enclosing
+      // document scope.
       if (
         !options.allowModuleParameter ||
-        lookup.kind !== "undefined" ||
+        lookup.kind !== "parameter" ||
         path.absolute ||
         path.segments.length !== 1
       ) return null;
-      const parameter = moduleParameterByName(parsed.statements, stableStatementIdByIndex!, statementIndex, path.segments[0]!);
+      const parameter = moduleParameter;
       if (!parameter?.parameter.valueType) return null;
       const parameterType = parameter.parameter.valueType;
       const requiredParameterType = dslRequiredValueTypeOf(parameterType);
