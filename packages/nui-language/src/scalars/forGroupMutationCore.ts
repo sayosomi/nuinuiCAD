@@ -38,6 +38,7 @@ export type ForGroupExecutionFrame<T> = {
   readonly iterationIndex: number;
   readonly iterationValue: number;
   read: (bindingId: string) => T | number | undefined;
+  visibleBindings: () => ReadonlyMap<string, T | number>;
   declareLocal: (bindingId: string, value: T) => void;
   commit: (bindingId: string, value: T) => void;
 };
@@ -100,6 +101,18 @@ export const createForGroupExecutionEnvironment = <T>(initialSlots: LoopExecutio
     return outerSlots.get(bindingId);
   };
 
+  const visibleBindings = (): ReadonlyMap<string, T | number> => {
+    const bindings = new Map<string, T | number>(outerSlots);
+    for (const frame of frames) {
+      bindings.set(frame.iterationBindingId, frame.iterationValueOverride ?? frame.iterationValue);
+      for (const [bindingId, value] of frame.iterationRecordFieldOverride ?? []) {
+        bindings.set(bindingId, value);
+      }
+      for (const [bindingId, value] of frame.locals) bindings.set(bindingId, value);
+    }
+    return bindings;
+  };
+
   const seed = (bindingId: string, value: T): void => {
     outerSlots.set(bindingId, value);
   };
@@ -144,6 +157,7 @@ export const createForGroupExecutionEnvironment = <T>(initialSlots: LoopExecutio
             iterationIndex: active.iterationIndex,
             iterationValue: active.iterationValue,
             read,
+            visibleBindings,
             declareLocal,
             commit
           };
@@ -162,6 +176,7 @@ export const createForGroupExecutionEnvironment = <T>(initialSlots: LoopExecutio
           iterationIndex: active.iterationIndex,
           iterationValue: active.iterationValue,
           read,
+          visibleBindings,
           declareLocal,
           commit
         }, {

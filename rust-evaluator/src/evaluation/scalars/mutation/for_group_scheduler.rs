@@ -226,6 +226,11 @@ impl ScalarMutationResolver<'_> {
             );
             next_values.push((carry.binding_id.clone(), next));
         }
+        let iteration_bindings = environment
+            .visible_bindings()
+            .into_iter()
+            .map(|(binding_id, value)| (binding_id, scalar_evaluation_for_loop_read(value)))
+            .collect::<HashMap<_, _>>();
         for (binding_id, value) in next_values {
             environment.commit(&binding_id, value)?;
         }
@@ -244,6 +249,7 @@ impl ScalarMutationResolver<'_> {
                             &carry.next_value_id,
                             &collection_snapshot,
                             &self.program.collection_values,
+                            &iteration_bindings,
                             |expression, source_order, local_bindings| {
                                 let resolver = ForGroupExecutionBindingResolverWithLocals {
                                     resolver: &resolver,
@@ -621,6 +627,7 @@ pub(super) fn resolve_collection_carry_snapshot(
     value_id: &str,
     redirects: &HashMap<String, CollectionCarrySnapshot>,
     collection_values: &[super::super::program_payload::ValidatedScalarProgramCollection],
+    iteration_bindings: &HashMap<String, ScalarEvaluation>,
     mut evaluate_expression: impl FnMut(
         &super::super::types::TypedScalarExpression,
         f64,
@@ -688,6 +695,20 @@ pub(super) fn resolve_collection_carry_snapshot(
                     local_bindings.insert(binding_id, value);
                 }
                 current = selected.arm.value_id.clone();
+            }
+            super::super::program_payload::ValidatedScalarProgramCollectionValue::Map {
+                binder_id,
+                ..
+            } => {
+                for (binding_id, value) in iteration_bindings {
+                    if binding_id != binder_id && !local_bindings.contains_key(binding_id) {
+                        local_bindings.insert(binding_id.clone(), value.clone());
+                    }
+                }
+                return Some(CollectionCarrySnapshot {
+                    value_id: current,
+                    local_bindings,
+                });
             }
             _ => {
                 return Some(CollectionCarrySnapshot {
