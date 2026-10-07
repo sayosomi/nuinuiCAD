@@ -52,6 +52,74 @@ describe("SAY-474 Module collection carry indexing through persistent Rust stdio
         expected: { result: 1 }
       },
       {
+        name: "direct Module parameter self-carry with inline literal argument",
+        source: [
+          "nui 1",
+          "module M(items: number[]) {",
+          "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+          "    next a = @a",
+          "  }",
+          "  export const output: number = @a[0]",
+          "}",
+          "instance A = M(items: [1])",
+          "const result: number = @A::output"
+        ].join("\n"),
+        expected: { result: 1 }
+      },
+      {
+        name: "direct Module parameter shadows same-named root collection",
+        source: [
+          "nui 1",
+          "const items: number[] = [99]",
+          "module M(items: number[]) {",
+          "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+          "    next a = @a",
+          "  }",
+          "  export const output: number = @a[0]",
+          "}",
+          "instance A = M(items: [1])",
+          "const result: number = @A::output"
+        ].join("\n"),
+        expected: { result: 1 }
+      },
+      {
+        name: "direct Module parameter self-carry with named root collection argument",
+        source: [
+          "nui 1",
+          "const initial: number[] = [5, 6]",
+          "module M(items: number[]) {",
+          "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+          "    next a = @a",
+          "  }",
+          "  export const output: number = @a[1]",
+          "}",
+          "instance A = M(items: @initial)",
+          "const result: number = @A::output"
+        ].join("\n"),
+        expected: { result: 6 }
+      },
+      {
+        name: "asymmetric direct Module parameter self-carry instances",
+        source: [
+          "nui 1",
+          "const longer: number[] = [20, 21, 22]",
+          "module M(items: number[]) {",
+          "  for i in range(min: 0, max: 0, step: 1) carry a: number[] = @items {",
+          "    next a = @a",
+          "  }",
+          "  export const first: number = @a[0]",
+          "  export const itemCount: number = @a.length",
+          "}",
+          "instance A = M(items: [10, 11])",
+          "instance B = M(items: @longer)",
+          "const firstA: number = @A::first",
+          "const countA: number = @A::itemCount",
+          "const firstB: number = @B::first",
+          "const countB: number = @B::itemCount"
+        ].join("\n"),
+        expected: { firstA: 10, countA: 2, firstB: 20, countB: 3 }
+      },
+      {
         name: "simultaneous collection swap",
         source: [
           "nui 1",
