@@ -59,6 +59,7 @@ export type LazyScalarProgramEvaluator = {
 
 export type ScalarProgramCollectionResolver = {
   environmentFor: (sourceOrder: number) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
+  selectChoiceMatchValueId: (collectionValueId: string) => string | undefined;
   recordFieldFor: (
     collectionValueId: string,
     index: number,
@@ -487,7 +488,14 @@ export const createScalarProgramCollectionResolver = (
     };
   }
 
-  return { environmentFor, recordFieldFor };
+  const selectChoiceMatchValueId = (collectionValueId: string): string | undefined => {
+    const collection = valuesById.get(collectionValueId);
+    if (!collection || collection.kind !== "match" || collection.scrutinee.type?.kind !== "choice") return undefined;
+    const selected = selectMatchArm(collection, new Map());
+    return selected.kind === "selected" ? selected.valueId : undefined;
+  };
+
+  return { environmentFor, recordFieldFor, selectChoiceMatchValueId };
 };
 
 /**
