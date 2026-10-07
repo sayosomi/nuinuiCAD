@@ -47,6 +47,7 @@ import {
   scalarTypeForParameterDefinition
 } from "../parameters/parameterDefinitions";
 import type { BindingId } from "../scalars/bindingCatalog";
+import { immutableCarryCollectionValueId } from "../scalars/immutableCarryCompiler";
 import {
   numericGeometryPropertySupportedByStaticTarget,
   numericGeometryStaticTargetForConstruction,
@@ -1268,17 +1269,62 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const lookup = ownerIndex === null
       ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.name)
       : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
-    if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration" || lookup.declaration.statement.kind !== "typedDeclaration") {
+    if (lookup.kind !== "resolved") {
       if (lookup.kind === "forward") return invalid(null, "forward", "module-forward-reference", `collection「${reference.name}」はこの位置より後で宣言されています。`, reference.span, relatedForLookup(lookup));
       if (lookup.kind === "ambiguous") return invalid(null, "invalid", "module-ambiguous-reference", `collection「${reference.name}」を一意に解決できません。`, reference.span, relatedForLookup(lookup));
       return invalid(null, "undefined", "module-undefined-reference", `未定義の collection「${reference.name}」を参照しています。`, reference.span);
     }
-    const value = collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex);
+    const declaration = lookup.declaration;
+    const carry = declaration.kind === "carry" &&
+      declaration.statement.kind === "element" &&
+      declaration.statement.type === "forGroup"
+      ? declaration.statement.forCarries?.find((candidate) => candidate.name === declaration.name)
+      : undefined;
+    const carryValueType = dslRequiredValueTypeOf(carry?.valueType);
+    if (
+      ownerIndex !== null &&
+      declaration.kind === "carry" &&
+      declaration.statement.kind === "element" &&
+      declaration.statement.type === "forGroup" &&
+      carry &&
+      isDslArrayValueType(carryValueType)
+    ) {
+      if (declaration.statementIndex > statementIndex) {
+        return invalid(null, "forward", "module-forward-reference", `collection「${reference.name}」はこの位置より後で宣言されています。`, reference.span, relatedForDeclaration(declaration));
+      }
+      const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
+      if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+        return invalid(null, "outerCapture", "module-outer-capture", `module body から outer collection「${reference.name}」を暗黙 capture できません。`, reference.span, relatedForDeclaration(declaration));
+      }
+      const elementType = scalarExpressionTypeOfDslValueType(carryValueType.elementType);
+      const target: ModuleScalarSourceTarget = {
+        kind: "collectionValue",
+        statementId: declaration.statementId,
+        statementIndex: declaration.statementIndex,
+        valueType: carryValueType,
+        ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, declaration.statementId) } : {})
+      };
+      if (!elementType) return invalid(target, "invalid", "module-collection-index-type", `collection「${reference.name}」の element 型は scalar ではありません。`, reference.span);
+      return {
+        target,
+        type: elementType,
+        resolution: "resolved",
+        collectionValueId: immutableCarryCollectionValueId(`binding:${declaration.statementId}`),
+        collectionLength: null,
+        // The value after the loop is the final carry, not a collection
+        // version ordered at the owning forGroup declaration.
+        targetSourceOrder: -1
+      };
+    }
+    if (declaration.kind !== "typedDeclaration" || declaration.statement.kind !== "typedDeclaration") {
+      return invalid(null, "undefined", "module-undefined-reference", `未定義の collection「${reference.name}」を参照しています。`, reference.span);
+    }
+    const value = collectionValueSemanticForStatement(collectionAnalysis, declaration.statementIndex);
     const valueType = collectionValueTypeFor(value);
-    if (!value || !valueType) return invalid(null, "invalid", "module-collection-index-type", `参照先「${reference.name}」は collection ではありません。`, reference.span, relatedForDeclaration(lookup.declaration));
-    const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+    if (!value || !valueType) return invalid(null, "invalid", "module-collection-index-type", `参照先「${reference.name}」は collection ではありません。`, reference.span, relatedForDeclaration(declaration));
+    const declarationOwner = moduleOwnerIndexOf(statements, declaration.statementIndex);
     if (ownerIndex !== null && declarationOwner !== ownerIndex) {
-      return invalid(null, "outerCapture", "module-outer-capture", `module body から outer collection「${reference.name}」を暗黙 capture できません。`, reference.span, relatedForDeclaration(lookup.declaration));
+      return invalid(null, "outerCapture", "module-outer-capture", `module body から outer collection「${reference.name}」を暗黙 capture できません。`, reference.span, relatedForDeclaration(declaration));
     }
     const elementType = scalarExpressionTypeOfDslValueType(valueType.elementType);
     const target: ModuleScalarSourceTarget = {
@@ -4299,6 +4345,44 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           },
           type: { kind: "number" },
           resolution: "resolved"
+          };
+        }
+      }
+      if (
+        ownerIndex !== null &&
+        lookup.kind === "resolved" &&
+        lookup.declaration.kind === "carry" &&
+        lookup.declaration.statement.kind === "element" &&
+        lookup.declaration.statement.type === "forGroup"
+      ) {
+        const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
+        const valueType = dslRequiredValueTypeOf(carry?.valueType);
+        if (carry && isDslArrayValueType(valueType)) {
+          const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+          if (ownerIndex !== null && declarationOwner !== ownerIndex) {
+            return {
+              target: null,
+              type: null,
+              resolution: "outerCapture",
+              diagnostic: issue("module-outer-capture", reference.span, `module body から outer collection「${reference.elementName}」を暗黙 capture できません。`, {
+                relatedSources: relatedForDeclaration(lookup.declaration),
+                presentation: { key: "diagnostic.module-outer-capture", parameters: { name: reference.elementName } }
+              })
+            };
+          }
+          const carryValueId = immutableCarryCollectionValueId(`binding:${lookup.declaration.statementId}`);
+          return {
+            target: {
+              kind: "collectionValueLength",
+              statementId: lookup.declaration.statementId,
+              statementIndex: -1,
+              valueId: carryValueId,
+              valueType,
+              length: null,
+              ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, lookup.declaration.statementId) } : {})
+            },
+            type: { kind: "number" },
+            resolution: "resolved"
           };
         }
       }

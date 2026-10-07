@@ -3901,6 +3901,26 @@ export const compileDslDocument = (
     compiled.moduleMaterialization &&
     stableStatementIdByIndex
   ) {
+    const moduleCollectionCarryInputs = carryCollectionRuntime.carries.flatMap((carry) => {
+      const declaration = immutableCarryCompilation?.declarations.find((candidate) => candidate.bindingId === carry.bindingId);
+      if (!declaration || declaration.fieldPath) return [];
+      const valueType = dslRequiredValueTypeOf(declaration.valueType);
+      const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
+      const ownerStatement = parsed.statements[declaration.ownerStatementIndex];
+      if (
+        !ownerStatementId ||
+        ownerStatement?.kind !== "element" ||
+        ownerStatement.type !== "forGroup" ||
+        !isDslArrayValueType(valueType) ||
+        !scalarExpressionTypeOfDslValueType(valueType.elementType)
+      ) return [];
+      return [{
+        ...carry,
+        ownerStatementId,
+        ownerStatementIndex: declaration.ownerStatementIndex,
+        carryName: declaration.name
+      }];
+    });
     moduleScalarCompilation = compileModuleScalarRuntime({
       statements: parsed.statements,
       stableStatementIdByIndex,
@@ -3908,6 +3928,8 @@ export const compileDslDocument = (
       moduleMaterialization: compiled.moduleMaterialization,
       documentBindingAnalysis: documentScalarAnalysis?.bindingAnalysis,
       documentScalarProgram,
+      collectionCarryInputs: moduleCollectionCarryInputs,
+      collectionCarryValues: carryCollectionRuntime.values,
       reconciledContainers: {
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements
@@ -4211,7 +4233,7 @@ export const compileDslDocument = (
     for (const input of carryCollectionRuntime.carries) {
       const declaration = immutableCarryCompilation.declarations.find((candidate) => candidate.bindingId === input.bindingId);
       const ownerStatementId = declaration && stableStatementIdByIndex.get(declaration.ownerStatementIndex);
-      if (!declaration || !ownerStatementId) continue;
+      if (!declaration || !ownerStatementId || !includeStatement(parsed.statements[declaration.ownerStatementIndex]!, declaration.ownerStatementIndex)) continue;
       const plan: import("../scalars/bindingVersions").ImmutableForGroupPlan = immutableForGroups.get(ownerStatementId) ?? {
         ownerStatementId,
         executionOwner: immutableExecutionOwnerFor(declaration.ownerStatementIndex, ownerStatementId),
