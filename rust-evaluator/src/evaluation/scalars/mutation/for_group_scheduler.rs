@@ -723,17 +723,22 @@ pub(crate) struct ForGroupExecutionBindingResolver<'resolver, 'program, 'environ
     environment: &'environment ForGroupExecutionEnvironment<ScalarEvaluation>,
 }
 
+fn scalar_evaluation_for_loop_read(read: LoopRead<ScalarEvaluation>) -> ScalarEvaluation {
+    match read {
+        LoopRead::Iteration(value) => ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: super::super::types::ScalarValue::Number(value),
+        },
+        LoopRead::TypedIteration(value) | LoopRead::Slot(value) => value,
+    }
+}
+
 impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, '_> {
     fn resolve_binding(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
-        match self.environment.read(binding_id) {
-            Some(LoopRead::Iteration(value)) => ScalarEvaluation::Ok {
-                r#type: ScalarType::Number,
-                value: super::super::types::ScalarValue::Number(value),
-            },
-            Some(LoopRead::TypedIteration(value)) => value,
-            Some(LoopRead::Slot(value)) => value,
-            None => self.resolver.resolve(binding_id, state),
-        }
+        self.environment
+            .read(binding_id)
+            .map(scalar_evaluation_for_loop_read)
+            .unwrap_or_else(|| self.resolver.resolve(binding_id, state))
     }
 
     fn resolve_collection_index(
@@ -775,15 +780,10 @@ struct ForGroupExecutionEvaluationEnvironment<'a, 'b> {
 
 impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, '_> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
-        match self.environment.read(binding_id) {
-            Some(LoopRead::Iteration(value)) => ScalarEvaluation::Ok {
-                r#type: ScalarType::Number,
-                value: super::super::types::ScalarValue::Number(value),
-            },
-            Some(LoopRead::TypedIteration(value)) => value,
-            Some(LoopRead::Slot(value)) => value,
-            None => self.resolver.resolve(binding_id, self.state),
-        }
+        self.environment
+            .read(binding_id)
+            .map(scalar_evaluation_for_loop_read)
+            .unwrap_or_else(|| self.resolver.resolve(binding_id, self.state))
     }
 
     fn lookup_collection_index(
@@ -802,13 +802,19 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
                 context: None,
             };
         }
-        self.resolver.resolve_collection_index(
+        let local_bindings = self
+            .environment
+            .visible_bindings()
+            .into_iter()
+            .map(|(binding_id, value)| (binding_id, scalar_evaluation_for_loop_read(value)))
+            .collect::<HashMap<_, _>>();
+        self.resolver.resolve_collection_index_with_bindings(
             collection_value_id,
             index,
             element_type,
             collection_length,
-            target_source_order,
             self.state,
+            &local_bindings,
         )
     }
 

@@ -94,6 +94,35 @@ impl<T: Clone> ForGroupExecutionEnvironment<T> {
             .map(LoopRead::Slot)
     }
 
+    /// Snapshot the values visible through `read` without changing the frame
+    /// stack. Later active frames overlay earlier frames and outer slots, so
+    /// runtime adapters can preserve the same lexical precedence while
+    /// resolving recursive expressions.
+    pub(crate) fn visible_bindings(&self) -> HashMap<String, LoopRead<T>> {
+        let mut bindings = self
+            .outer_slots
+            .iter()
+            .map(|(binding_id, value)| (binding_id.clone(), LoopRead::Slot(value.clone())))
+            .collect::<HashMap<_, _>>();
+        for frame in &self.frames {
+            bindings.insert(
+                frame.iteration_binding_id.clone(),
+                frame
+                    .iteration_value_override
+                    .clone()
+                    .map(LoopRead::TypedIteration)
+                    .unwrap_or(LoopRead::Iteration(frame.iteration_value)),
+            );
+            bindings.extend(
+                frame
+                    .locals
+                    .iter()
+                    .map(|(binding_id, value)| (binding_id.clone(), LoopRead::Slot(value.clone()))),
+            );
+        }
+        bindings
+    }
+
     pub(crate) fn declare_local(
         &mut self,
         binding_id: &str,
