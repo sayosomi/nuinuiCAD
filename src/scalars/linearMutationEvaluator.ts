@@ -57,6 +57,7 @@ export type IncrementalLinearMutationEvaluator = {
   resolveCollectionSnapshot: (collectionValueId: string, sourceOrder: number) => ScalarProgramCollectionSnapshot | undefined;
   resolveCollectionIndex: (collectionValueId: string, index: number, elementType: ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number, sourceOrder: number) => ScalarEvaluation;
   resolveCollectionLength: (collectionValueId: string, sourceOrder: number) => number | undefined;
+  resolveCollectionLengthEvaluation: (collectionValueId: string, sourceOrder: number) => number | Extract<ScalarEvaluation, { status: "error" }> | undefined;
   finalize: (
     position: BindingReadPosition,
     dependencyExecutionPositionByVersionId?: ReadonlyMap<BindingVersionId, number>,
@@ -220,6 +221,9 @@ export const createIncrementalLinearMutationEvaluator = (
       for (const [bindingId, value] of snapshot.localBindings) {
         if (!bindings.has(bindingId)) bindings.set(bindingId, value);
       }
+      if (snapshot.error) {
+        return { valueId: snapshot.valueId, localBindings: bindings, error: snapshot.error };
+      }
       current = snapshot.valueId;
     }
     return found ? { valueId: current, localBindings: bindings } : undefined;
@@ -238,6 +242,9 @@ export const createIncrementalLinearMutationEvaluator = (
       const redirected = collectionSnapshotFor(current, 0, snapshot, localBindings);
       if (redirected) {
         localBindings = redirected.localBindings;
+        if (redirected.error) {
+          return { valueId: current, localBindings, error: redirected.error };
+        }
       }
       if (redirected && redirected.valueId !== current) {
         current = redirected.valueId;
@@ -256,7 +263,14 @@ export const createIncrementalLinearMutationEvaluator = (
           ...environment,
           lookupBinding: (bindingId) => localBindings.get(bindingId) ?? resolveCurrent(bindingId)
         });
-        if (condition.status !== "ok" || condition.type.kind !== "boolean" || condition.value.kind !== "boolean") return undefined;
+        if (condition.status === "error") return { valueId: current, localBindings, error: condition };
+        if (condition.type.kind !== "boolean" || condition.value.kind !== "boolean") {
+          return {
+            valueId: current,
+            localBindings,
+            error: { status: "error", type: condition.type, issueCode: "evaluation-runtime-value-type-mismatch" }
+          };
+        }
         current = condition.value.value ? value.thenValueId : value.elseValueId;
         continue;
       }
@@ -271,7 +285,7 @@ export const createIncrementalLinearMutationEvaluator = (
           const bindingIsPending = bindingId !== undefined && graph.versions.some((version) =>
             version.bindingId === bindingId && !historyByVersionId.has(version.id)
           );
-          if (!bindingIsPending) return undefined;
+          if (!bindingIsPending) return { valueId: current, localBindings, error: selected.evaluation };
 
           // A later source-order binding can be a valid Module-local match
           // scrutinee even when the loop boundary runs before that version.
@@ -695,6 +709,8 @@ export const createIncrementalLinearMutationEvaluator = (
     },
     resolveCollectionLength: (collectionValueId, sourceOrder) =>
       collectionResolver?.environmentFor(sourceOrder).lookupCollectionLength?.(collectionValueId),
+    resolveCollectionLengthEvaluation: (collectionValueId, sourceOrder) =>
+      collectionResolver?.environmentFor(sourceOrder).lookupCollectionLengthEvaluation?.(collectionValueId),
     finalize,
     runForGroup
   };

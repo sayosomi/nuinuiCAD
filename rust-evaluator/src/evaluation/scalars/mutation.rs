@@ -49,6 +49,7 @@ struct ScopeFrame {
 pub(crate) struct CollectionCarrySnapshot {
     pub(crate) value_id: String,
     pub(crate) local_bindings: HashMap<BindingId, ScalarEvaluation>,
+    pub(crate) error: Option<ScalarEvaluation>,
 }
 
 pub(crate) struct ScalarMutationResolver<'a> {
@@ -570,6 +571,7 @@ impl<'a> ScalarMutationResolver<'a> {
     ) -> CollectionCarrySnapshot {
         let mut current = value_id.to_owned();
         let mut local_bindings = HashMap::new();
+        let mut error = None;
         let mut seen = HashSet::new();
         while seen.insert(current.clone()) {
             let Some(snapshot) = self.collection_carry_snapshots.get(&current) else {
@@ -580,11 +582,17 @@ impl<'a> ScalarMutationResolver<'a> {
                     .entry(binding_id.clone())
                     .or_insert_with(|| value.clone());
             }
+            if let Some(snapshot_error) = &snapshot.error {
+                error = Some(snapshot_error.clone());
+                current = snapshot.value_id.clone();
+                break;
+            }
             current = snapshot.value_id.clone();
         }
         CollectionCarrySnapshot {
             value_id: current,
             local_bindings,
+            error,
         }
     }
 
@@ -601,6 +609,7 @@ impl<'a> ScalarMutationResolver<'a> {
         CollectionCarrySnapshot {
             value_id: snapshot.value_id,
             local_bindings: merged,
+            error: snapshot.error,
         }
     }
 
@@ -789,6 +798,9 @@ impl<'a> ScalarMutationResolver<'a> {
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> ScalarEvaluation {
         let context = self.collection_carry_context(collection_value_id, local_bindings);
+        if let Some(error) = context.error {
+            return result_for_scalar_type(error, &field.r#type);
+        }
         let redirected = context.value_id;
         let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
@@ -1058,6 +1070,9 @@ impl<'a> ScalarMutationResolver<'a> {
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> Result<Option<bool>, ScalarEvaluation> {
         let context = self.collection_carry_context(collection_value_id, local_bindings);
+        if let Some(error) = context.error {
+            return Err(error);
+        }
         let redirected = context.value_id;
         let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
@@ -1235,6 +1250,9 @@ impl<'a> ScalarMutationResolver<'a> {
         let mut seen = HashSet::new();
         let member = loop {
             let context = self.collection_carry_context(&current, &carried_local_bindings);
+            if let Some(error) = context.error {
+                return result_for_scalar_type(error, element_type);
+            }
             let redirected = context.value_id;
             if redirected != current {
                 current = redirected;
@@ -1550,6 +1568,9 @@ impl<'a> ScalarMutationResolver<'a> {
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
     ) -> Result<Option<f64>, ScalarEvaluation> {
         let context = self.collection_carry_context(collection_value_id, local_bindings);
+        if let Some(error) = context.error {
+            return Err(error);
+        }
         let redirected = context.value_id;
         let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
@@ -1904,6 +1925,19 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             .flatten()
     }
 
+    fn lookup_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        let empty_bindings = HashMap::new();
+        self.resolver.resolve_collection_length_with_bindings(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
+            self.local_bindings.unwrap_or(&empty_bindings),
+        )
+    }
+
     fn lookup_optional_member(
         &self,
         target: &ScalarExpressionResolvedOptionalMemberTarget,
@@ -2111,6 +2145,20 @@ impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
         seen: &mut HashSet<String>,
     ) -> Option<f64> {
         self.resolve_collection_length(collection_value_id, state, seen)
+    }
+
+    fn resolve_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        self.resolve_collection_length_with_bindings(
+            collection_value_id,
+            state,
+            seen,
+            &HashMap::new(),
+        )
     }
 
     fn resolve_optional_collection_member(

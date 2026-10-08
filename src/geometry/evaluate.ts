@@ -811,6 +811,10 @@ export const evaluateElements = (
       } : {}),
       ...(scalarBindingResolver?.resolveCollectionLength ? {
         lookupCollectionLength: (collectionValueId: string) => scalarBindingResolver.resolveCollectionLength!(collectionValueId, sourceOrder)
+      } : {}),
+      ...(scalarBindingResolver?.resolveCollectionLengthEvaluation ? {
+        lookupCollectionLengthEvaluation: (collectionValueId: string) =>
+          scalarBindingResolver.resolveCollectionLengthEvaluation!(collectionValueId, sourceOrder)
       } : {})
     });
   const resolveGeometryPropertyForEvaluation = (
@@ -893,6 +897,10 @@ export const evaluateElements = (
       } : {}),
       ...(scalarBindingResolver?.resolveCollectionLength ? {
         lookupCollectionLength: (collectionValueId: string) => scalarBindingResolver.resolveCollectionLength!(collectionValueId, evaluationSourceOrder)
+      } : {}),
+      ...(scalarBindingResolver?.resolveCollectionLengthEvaluation ? {
+        lookupCollectionLengthEvaluation: (collectionValueId: string) =>
+          scalarBindingResolver.resolveCollectionLengthEvaluation!(collectionValueId, evaluationSourceOrder)
       } : {}),
       ...(scalarBindingResolver?.resolveOptionalMember ? {
         lookupOptionalMember: (target: import("@nuinuicad/nui-language").ScalarExpressionResolvedOptionalMemberTarget, type: import("@nuinuicad/nui-language").ScalarExpressionType) =>
@@ -2287,6 +2295,10 @@ export const evaluateElements = (
                 lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, currentSourceOrder),
                 ...(scalarBindingResolver?.resolveCollectionLength ? {
                   lookupCollectionLength: (collectionValueId: string) => scalarBindingResolver.resolveCollectionLength!(collectionValueId, currentSourceOrder)
+                } : {}),
+                ...(scalarBindingResolver?.resolveCollectionLengthEvaluation ? {
+                  lookupCollectionLengthEvaluation: (collectionValueId: string) =>
+                    scalarBindingResolver.resolveCollectionLengthEvaluation!(collectionValueId, currentSourceOrder)
                 } : {})
               })
             );

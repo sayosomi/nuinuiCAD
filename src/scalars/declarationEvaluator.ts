@@ -58,7 +58,7 @@ export type LazyScalarProgramEvaluator = {
 };
 
 export type ScalarProgramCollectionResolver = {
-  environmentFor: (sourceOrder: number, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupOptionalMember">;
+  environmentFor: (sourceOrder: number, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation" | "lookupOptionalMember">;
   selectMatchCollectionValue: (collectionValueId: string, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>) => CollectionMatchSelection | undefined;
   recordFieldFor: (
     collectionValueId: string,
@@ -74,6 +74,7 @@ type ScalarCollectionMatch = Extract<NonNullable<ScalarProgram["collectionValues
 export type ScalarProgramCollectionSnapshot = {
   valueId: string;
   localBindings: CollectionLocalBindings;
+  error?: ScalarEvaluationError;
 };
 export type CollectionMatchSelection =
   | { kind: "selected"; valueId: string; localBindings: CollectionLocalBindings }
@@ -116,12 +117,12 @@ export const createScalarProgramCollectionResolver = (
     collectionValueId: string,
     sourceOrder: number,
     localBindings: CollectionLocalBindings
-  ): { valueId: string; localBindings: CollectionLocalBindings } => {
+  ): { valueId: string; localBindings: CollectionLocalBindings; error?: ScalarEvaluationError } => {
     const snapshot = resolveCollectionSnapshot?.(collectionValueId, sourceOrder);
     if (!snapshot) return { valueId: collectionValueId, localBindings };
     const merged = new Map(snapshot.localBindings);
     for (const [bindingId, value] of localBindings) merged.set(bindingId, value);
-    return { valueId: snapshot.valueId, localBindings: merged };
+    return { valueId: snapshot.valueId, localBindings: merged, ...(snapshot.error ? { error: snapshot.error } : {}) };
   };
 
   const runtimeMismatch = (type: ScalarExpressionType): ScalarEvaluationError => ({
@@ -181,6 +182,7 @@ export const createScalarProgramCollectionResolver = (
     localBindings: CollectionLocalBindings = new Map()
   ): boolean | ScalarEvaluation | undefined => {
     const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.error) return context.error;
     if (context.valueId !== collectionValueId) return presentFor(context.valueId, sourceOrder, seen, context.localBindings);
     localBindings = context.localBindings;
     if (seen.has(collectionValueId)) return undefined;
@@ -216,6 +218,7 @@ export const createScalarProgramCollectionResolver = (
     localBindings: CollectionLocalBindings = new Map()
   ): number | ScalarEvaluation | undefined => {
     const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.error) return context.error;
     if (context.valueId !== collectionValueId) return lengthFor(context.valueId, sourceOrder, seen, context.localBindings);
     localBindings = context.localBindings;
     if (seen.has(collectionValueId)) return undefined;
@@ -258,6 +261,7 @@ export const createScalarProgramCollectionResolver = (
     localBindings: CollectionLocalBindings = new Map()
   ): ScalarEvaluation => {
     const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.error) return resultError(context.error, field.type);
     if (context.valueId !== collectionValueId) return recordFieldFor(context.valueId, index, field, sourceOrder, seen, context.localBindings);
     localBindings = context.localBindings;
     if (seen.has(collectionValueId)) return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
@@ -425,6 +429,7 @@ export const createScalarProgramCollectionResolver = (
     localBindings: CollectionLocalBindings = new Map()
   ): ScalarEvaluation => {
     const context = collectionContext(collectionValueId, sourceOrder, localBindings);
+    if (context.error) return resultError(context.error, elementType);
     if (context.valueId !== collectionValueId) return indexFor(context.valueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, seen, context.localBindings);
     localBindings = context.localBindings;
     if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0 ||
@@ -498,6 +503,10 @@ export const createScalarProgramCollectionResolver = (
       lookupCollectionLength: (collectionValueId) => {
         const result = lengthFor(collectionValueId, sourceOrder, new Set(), localBindings);
         return typeof result === "number" ? result : undefined;
+      },
+      lookupCollectionLengthEvaluation: (collectionValueId) => {
+        const result = lengthFor(collectionValueId, sourceOrder, new Set(), localBindings);
+        return typeof result === "number" || isEvaluationError(result) ? result : undefined;
       },
       lookupCollectionIndex: (collectionValueId, index, elementType, collectionLength, targetSourceOrder) =>
         indexFor(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder, new Set(), localBindings),

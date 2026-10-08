@@ -49,6 +49,10 @@ export type ScalarBindingResolver = {
     sourceOrder: number
   ) => ScalarEvaluation;
   resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined;
+  resolveCollectionLengthEvaluation?: (
+    collectionValueId: string,
+    sourceOrder: number
+  ) => number | Extract<ScalarEvaluation, { status: "error" }> | undefined;
   resolveOptionalMember?: (
     target: ScalarExpressionResolvedOptionalMemberTarget,
     type: import("@nuinuicad/nui-language").ScalarExpressionType,
@@ -69,6 +73,7 @@ export type LinearScalarBindingResolver = {
   resolveCollectionIndex?: ScalarBindingResolver["resolveCollectionIndex"];
   resolveCollectionRecordField?: ScalarBindingResolver["resolveCollectionRecordField"];
   resolveCollectionLength?: ScalarBindingResolver["resolveCollectionLength"];
+  resolveCollectionLengthEvaluation?: ScalarBindingResolver["resolveCollectionLengthEvaluation"];
   resolveOptionalMember?: ScalarBindingResolver["resolveOptionalMember"];
   resolveGeometryCollectionLength?: ScalarBindingResolver["resolveGeometryCollectionLength"];
   finalize: (
@@ -400,6 +405,8 @@ export const createDocumentScalarBindingResolver = (
       resolveCollectionRecordField: (collectionValueId, index, field, sourceOrder) =>
         collectionResolver.recordFieldFor(collectionValueId, index, field, sourceOrder),
       resolveCollectionLength: (collectionValueId, sourceOrder) => collectionResolver.environmentFor(sourceOrder).lookupCollectionLength!(collectionValueId),
+      resolveCollectionLengthEvaluation: (collectionValueId, sourceOrder) =>
+        collectionResolver.environmentFor(sourceOrder).lookupCollectionLengthEvaluation!(collectionValueId),
       resolveOptionalMember: (target, type, sourceOrder) =>
         collectionResolver.environmentFor(sourceOrder).lookupOptionalMember!(target, type)
     } : {}),
@@ -474,6 +481,8 @@ export const createDocumentLinearScalarBindingResolver = (
       resolveCollectionRecordField: (collectionValueId, index, field, sourceOrder) =>
         collectionResolver.recordFieldFor(collectionValueId, index, field, sourceOrder),
       resolveCollectionLength: (collectionValueId, sourceOrder) => evaluator.resolveCollectionLength(collectionValueId, sourceOrder),
+      resolveCollectionLengthEvaluation: (collectionValueId, sourceOrder) =>
+        evaluator.resolveCollectionLengthEvaluation(collectionValueId, sourceOrder),
       resolveOptionalMember: (target, type, sourceOrder) =>
         collectionResolver.environmentFor(sourceOrder).lookupOptionalMember!(target, type)
     } : {}),

@@ -1584,4 +1584,114 @@ describe("immutable statement-for carries", () => {
       issueCode: "evaluation-divide-by-zero"
     });
   });
+
+  it("preserves a selected collection-if decision error in the committed carry snapshot", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
+      "  const b: number[] = if (5 % 0 > 0) { [1] } else { [2] }",
+      "  const alias: number[] = @b",
+      "  next a = @alias",
+      "}",
+      "const result: number = @a[0]",
+      "const length: number = @a.length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "error",
+      issueCode: "evaluation-remainder-by-zero"
+    });
+    expect(scalarFor(compiled, evaluation, "length")).toMatchObject({
+      status: "error",
+      issueCode: "evaluation-remainder-by-zero"
+    });
+    expect(JSON.stringify(evaluation.computedScalarBindings)).not.toContain("evaluation-collection-index-unavailable");
+  });
+
+  it("keeps the selected collection-if diagnostic unchanged without a carry", () => {
+    const compiled = compile([
+      "nui 1",
+      "const b: number[] = if (5 % 0 > 0) { [1] } else { [2] }",
+      "const result: number = @b[0]"
+    ].join("\n"));
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "error",
+      issueCode: "evaluation-remainder-by-zero"
+    });
+  });
+
+  it("preserves selected optional and choice match decision errors through carry", () => {
+    const fixtures = [
+      {
+        selector: "const selector: number? = 5 % 0",
+        match: "match @selector { none => [0] some value => [@value] }"
+      },
+      {
+        selector: "const selector: choice(left, right) = if (5 % 0 > 0) { left } else { right }",
+        match: "match @selector { left => [1] right => [2] }"
+      }
+    ];
+    for (const fixture of fixtures) {
+      const compiled = compile([
+        "nui 1",
+        fixture.selector,
+        "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+        `  const branch: number[] = ${fixture.match}`,
+        "  next selected = @branch",
+        "}",
+        "const result: number = @selected[0]"
+      ].join("\n"));
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+        status: "error",
+        issueCode: "evaluation-remainder-by-zero"
+      });
+    }
+  });
+
+  it("propagates a committed nested collection decision failure to an outer carry", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry outer: number[] = [] {",
+      "  for j in range(min: 0, max: 0, step: 1) carry inner: number[] = [] {",
+      "    const branch: number[] = if (5 % 0 > 0) { [4] } else { [5] }",
+      "    next inner = @branch",
+      "  }",
+      "  next outer = @inner",
+      "}",
+      "const result: number = @outer[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "error",
+      issueCode: "evaluation-remainder-by-zero"
+    });
+  });
+
+  it("keeps Module-local optional match binders in successful collection carry snapshots", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Select(p: number?) {",
+      "  const localSelector: number? = @p",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    const branch: number[] = match @localSelector { none => [0] some value => [@value] }",
+      "    next selected = @branch",
+      "  }",
+      "  export const first: number = @selected[0]",
+      "}",
+      "instance Example = Select(p: 17)",
+      "const moduleObserved: number = @Example::first"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "moduleObserved")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 17 }
+    });
+  });
 });

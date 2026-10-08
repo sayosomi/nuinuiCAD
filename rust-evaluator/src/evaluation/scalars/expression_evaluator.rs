@@ -154,6 +154,13 @@ pub(crate) trait ScalarEvaluationEnvironment {
         None
     }
 
+    fn lookup_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        Ok(self.lookup_collection_length(collection_value_id))
+    }
+
     fn lookup_optional_member(
         &self,
         _target: &ScalarExpressionResolvedOptionalMemberTarget,
@@ -270,6 +277,13 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
     }
     fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
         self.base.lookup_collection_length(collection_value_id)
+    }
+    fn lookup_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        self.base
+            .lookup_collection_length_evaluation(collection_value_id)
     }
 
     fn lookup_optional_member(
@@ -653,14 +667,31 @@ fn eval_node<'a>(
                     value: ScalarValue::Number(*length),
                 }
             } else if let Some(collection_value_id) = collection_value_id {
-                match environment.lookup_collection_length(collection_value_id) {
-                    Some(length) => ScalarEvaluation::Ok {
+                match environment.lookup_collection_length_evaluation(collection_value_id) {
+                    Ok(Some(length)) => ScalarEvaluation::Ok {
                         r#type: r#type.clone(),
                         value: ScalarValue::Number(length),
                     },
-                    None => ScalarEvaluation::Error {
+                    Ok(None) => ScalarEvaluation::Error {
                         r#type: r#type.clone(),
                         issue_code: "evaluation-geometry-property-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    },
+                    Err(ScalarEvaluation::Error {
+                        issue_code,
+                        binding_id,
+                        context,
+                        ..
+                    }) => ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code,
+                        binding_id,
+                        context,
+                    },
+                    Err(_) => ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
                         binding_id: None,
                         context: None,
                     },
