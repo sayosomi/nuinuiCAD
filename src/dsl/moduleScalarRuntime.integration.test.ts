@@ -4144,6 +4144,123 @@ describe("module scalar runtime integration", () => {
     expect(valuesFor(loopB)).toEqual([7, 9]);
   });
 
+  it("executes a Module collection loop directly over a collection parameter", () => {
+    const { compiled, loop } = expectModuleCarryResult([
+      "nui 1",
+      "module M(items: number[]) {",
+      "  for item in @items carry a: number = 0 {",
+      "    next a = @a + 1",
+      "  }",
+      "  export const output: number = @a",
+      "}",
+      "instance A = M(items: [2])",
+      "const result: number = @A::output"
+    ].join("\n"), "module-parameter-collection-for-group", 1);
+
+    expect(loop.iterationSourceValueId).toMatch(/^module-collection:/);
+    expect(loop.iterationSourceOrder).toEqual(expect.any(Number));
+    const loopOrder = compiled.scalarExecutionPositionByRuntimeElementId?.get(loop.id);
+    expect(loopOrder).toEqual(expect.any(Number));
+    expect(loop.iterationSourceOrder).toBeLessThan(loopOrder!);
+    expect(loop.iterationElementValueType).toEqual({ kind: "number" });
+    expect(loop.iterationElementType).toEqual({ kind: "number" });
+    expect(compiled.scalarProgram?.collectionValues?.some((value) => value.valueId === loop.iterationSourceValueId)).toBe(true);
+  });
+
+  it("projects and reads a Module collection parameter binder with its exact element type", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(items: string[]) {",
+      "  for item in @items carry last: string = \"seed\" {",
+      "    next last = @item",
+      "  }",
+      "  export const output: string = @last",
+      "}",
+      "instance A = M(items: [\"first\", \"second\"])",
+      "const result: string = @A::output"
+    ].join("\n"), "module-parameter-collection-for-group-binder");
+    expectValid(compiled);
+    const loop = compiled.document!.elements.find((element) => element.type === "forGroup");
+    expect(loop).toMatchObject({
+      iterationSourceValueId: expect.stringMatching(/^module-collection:/),
+      iterationElementValueType: { kind: "string" },
+      iterationElementType: { kind: "string" }
+    });
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const resultBinding = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "result");
+    expect(resultBinding && result.computedScalarBindings?.get(resultBinding.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "string", value: "second" }
+    });
+  });
+
+  it("keeps direct Module collection parameter loops isolated across asymmetric instances", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(items: number[]) {",
+      "  for item in @items carry count: number = 0 {",
+      "    next count = @count + 1",
+      "  }",
+      "  export const output: number = @count",
+      "}",
+      "instance A = M(items: [10, 11])",
+      "instance B = M(items: [20, 21, 22])",
+      "const countA: number = @A::output",
+      "const countB: number = @B::output"
+    ].join("\n"), "module-parameter-collection-for-group-isolation");
+    expectValid(compiled);
+    const loops = compiled.document!.elements.filter((element) => element.type === "forGroup");
+    expect(loops).toHaveLength(2);
+    expect(loops[0]!.iterationSourceValueId).not.toBe(loops[1]!.iterationSourceValueId);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const valueOf = (name: string) => {
+      const binding = compiled.bindingAnalysis?.catalog.bindings.find((candidate) => candidate.name === name);
+      return binding ? result.computedScalarBindings?.get(binding.id) : undefined;
+    };
+    expect(valueOf("countA")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
+    expect(valueOf("countB")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+  });
+
+  it("preserves direct Module collection loop carry initialization for an empty parameter", () => {
+    const { loop, result } = expectModuleCarryResult([
+      "nui 1",
+      "module M(items: number[]) {",
+      "  for item in @items carry count: number = 7 {",
+      "    next count = @count + 1",
+      "  }",
+      "  export const output: number = @count",
+      "}",
+      "instance A = M(items: [])",
+      "const result: number = @A::output"
+    ].join("\n"), "module-parameter-collection-for-group-empty", 7);
+    expect(result.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop.id)).toEqual([]);
+  });
+
+  it("keeps a typed Module-local collection alias as a statement-for source", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "module M(items: number[]) {",
+      "  const localItems: number[] = @items",
+      "  for item in @localItems carry total: number = 0 {",
+      "    next total = @total + @item",
+      "  }",
+      "  export const output: number = @total",
+      "}",
+      "instance A = M(items: [2, 3])",
+      "const result: number = @A::output"
+    ].join("\n"), "module-parameter-collection-for-group-alias");
+    expectValid(compiled);
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    const resultBinding = compiled.bindingAnalysis?.catalog.bindings.find((binding) => binding.name === "result");
+    expect(resultBinding && result.computedScalarBindings?.get(resultBinding.id)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 5 }
+    });
+  });
+
   it.each([
     { label: "without unrelated body content", body: [] as string[] },
     { label: "with an unrelated scalar declaration", body: ["const scratch: number = 99"] },

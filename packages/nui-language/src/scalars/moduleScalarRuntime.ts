@@ -7155,24 +7155,47 @@ export const compileModuleScalarRuntime = ({
     const sourceNamespace = sourceNamespaceForContext(context);
     if (!sourceNamespace) continue;
     const lookup = resolveSourceLexicalPath(sourceNamespace, entry.sourceStatementIndex, parsedSource.reference.path);
-    if (lookup.kind !== "resolved") continue;
-    const declaration = lookup.declaration;
-    const valueType = declaration.statement.kind === "typedDeclaration"
-      ? declaration.statement.valueType
-      : declaration.kind === "carry" && declaration.statement.kind === "element"
-        ? declaration.statement.forCarries?.find((carry) => carry.name === declaration.name)?.valueType ?? null
-        : null;
+    let valueType: DslValueType | null;
+    let sourceValueId: string;
+    let sourceStatementIndex: number;
+    if (lookup.kind === "resolved") {
+      const declaration = lookup.declaration;
+      valueType = declaration.statement.kind === "typedDeclaration"
+        ? declaration.statement.valueType
+        : declaration.kind === "carry" && declaration.statement.kind === "element"
+          ? declaration.statement.forCarries?.find((carry) => carry.name === declaration.name)?.valueType ?? null
+          : null;
+      sourceValueId = declaration.kind === "carry"
+        ? immutableCarryCollectionValueId(`binding:${declaration.statementId}`)
+        : declaration.statementId;
+      sourceStatementIndex = declaration.statementIndex;
+    } else if (
+      lookup.kind === "undefined" &&
+      !parsedSource.reference.path.absolute &&
+      parsedSource.reference.path.segments.length === 1
+    ) {
+      const parameter = context.definition.parameters.find((candidate) =>
+        candidate.definitionStatementId === context.definition.statementId &&
+        candidate.name === parsedSource.reference.path.segments[0]
+      );
+      if (!parameter || !isDslArrayValueType(parameter.valueType)) continue;
+      const parameterCollectionType = sourceNamespace.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(
+        `${parameter.definitionStatementId}:${parameter.parameterIndex}`
+      )?.valueType;
+      valueType = parameterCollectionType ?? parameter.valueType;
+      sourceValueId = `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`;
+      sourceStatementIndex = context.definition.statementIndex;
+    } else {
+      continue;
+    }
     if (!isDslArrayValueType(valueType)) continue;
 
-    const sourceValueId = declaration.kind === "carry"
-      ? immutableCarryCollectionValueId(`binding:${declaration.statementId}`)
-      : declaration.statementId;
     const iterationSourceValueId = collectionValueIdFor(sourceValueId, context);
     if (!materializedCollectionValueIds.has(iterationSourceValueId)) continue;
     const iterationElementType = scalarTypeOfDslValueType(valueType.elementType);
     materializedForGroupCollectionSourcesByElementId.set(entry.runtimeElementId, {
       iterationSourceValueId,
-      iterationSourceOrder: executionPositionForValue(context.path, declaration.statementIndex),
+      iterationSourceOrder: executionPositionForValue(context.path, sourceStatementIndex),
       iterationElementValueType: valueType.elementType,
       ...(iterationElementType ? { iterationElementType } : {})
     });
