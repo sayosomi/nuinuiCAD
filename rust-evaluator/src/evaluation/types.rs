@@ -24,13 +24,13 @@ pub(crate) enum GeometryInputCollectionNode {
         runtime_generation: Option<usize>,
     },
     If {
-        condition: TypedScalarExpression,
+        condition: Arc<TypedScalarExpression>,
         source_order: f64,
         then_branch: Box<GeometryInputCollectionNode>,
         else_branch: Box<GeometryInputCollectionNode>,
     },
     Match {
-        scrutinee: TypedScalarExpression,
+        scrutinee: Arc<TypedScalarExpression>,
         source_order: f64,
         arms: Vec<(String, GeometryInputCollectionNode)>,
     },

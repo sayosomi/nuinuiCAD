@@ -629,7 +629,7 @@ pub(crate) fn decode_collection_node(
                     ))
                 })?;
             Ok(GeometryInputCollectionNode::If {
-                condition,
+                condition: std::sync::Arc::new(condition),
                 source_order,
                 then_branch: Box::new(then_branch),
                 else_branch: Box::new(else_branch),
@@ -683,7 +683,7 @@ pub(crate) fn decode_collection_node(
                     ))
                 })?;
             Ok(GeometryInputCollectionNode::Match {
-                scrutinee,
+                scrutinee: std::sync::Arc::new(scrutinee),
                 source_order,
                 arms,
             })
@@ -1170,6 +1170,31 @@ fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
     }
 }
 
+fn contains_deferred_geometry_value_map(node: &GeometryInputCollectionNode) -> bool {
+    match node {
+        GeometryInputCollectionNode::GeometryValueMap { .. } => true,
+        GeometryInputCollectionNode::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            contains_deferred_geometry_value_map(then_branch)
+                || contains_deferred_geometry_value_map(else_branch)
+        }
+        GeometryInputCollectionNode::Match { arms, .. } => arms
+            .iter()
+            .any(|(_, branch)| contains_deferred_geometry_value_map(branch)),
+        GeometryInputCollectionNode::Coalesce {
+            left_branch,
+            right_branch,
+        } => {
+            contains_deferred_geometry_value_map(left_branch)
+                || contains_deferred_geometry_value_map(right_branch)
+        }
+        GeometryInputCollectionNode::None | GeometryInputCollectionNode::Leaf { .. } => false,
+    }
+}
+
 fn materialize_collection_node(
     node: &GeometryInputCollectionNode,
     resolver: Option<&dyn ScalarDocumentBindingResolver>,
@@ -1320,6 +1345,44 @@ fn clone_static_geometry_input_target(
             Err("evaluation-collection-index-unavailable".to_owned())
         }
     }
+}
+
+fn materialize_deferred_collection_member(
+    node: &GeometryInputCollectionNode,
+    index: usize,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    state: &mut EvaluationState,
+    current_source_order: Option<f64>,
+) -> Result<Vec<GeometryInputTarget>, String> {
+    let selected = resolve_geometry_collection_node_member(
+        node,
+        index,
+        resolver,
+        state,
+        current_source_order,
+        &mut HashSet::new(),
+    )?;
+    let mut materialized = materialize_target(
+        &selected,
+        Some(resolver),
+        state,
+        current_source_order,
+        false,
+    )?;
+    if materialized.len() != 1 {
+        return Err("evaluation-collection-index-invalid".to_owned());
+    }
+    let selected = materialized.remove(0);
+    if matches!(
+        selected,
+        GeometryInputTarget::CollectionIndex { .. }
+            | GeometryInputTarget::CollectionValue { .. }
+            | GeometryInputTarget::GeometryValueMap { .. }
+            | GeometryInputTarget::ForGroupOccurrence { .. }
+    ) {
+        return Err("evaluation-collection-index-invalid".to_owned());
+    }
+    Ok(vec![selected])
 }
 
 fn materialize_target(
@@ -1513,6 +1576,34 @@ fn materialize_target(
                 }
                 ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
             };
+            if let Some(value) = value
+                .as_ref()
+                .filter(|value| contains_deferred_geometry_value_map(value))
+            {
+                return materialize_deferred_collection_member(
+                    value,
+                    index,
+                    resolver,
+                    state,
+                    current_source_order,
+                );
+            }
+            if members.is_empty() {
+                if let Some(value) = state
+                    .geometry_collection_nodes
+                    .get(collection_value_id)
+                    .filter(|value| contains_deferred_geometry_value_map(value))
+                    .cloned()
+                {
+                    return materialize_deferred_collection_member(
+                        value.as_ref(),
+                        index,
+                        resolver,
+                        state,
+                        current_source_order,
+                    );
+                }
+            }
             let selected = if let Some(value) = value {
                 materialize_collection_node(value, Some(resolver), state, current_source_order)?
                     .into_iter()

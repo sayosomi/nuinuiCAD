@@ -268,7 +268,7 @@ fn geometry_collection_match_selects_optional_some_and_none_arms() {
         state.geometry_collection_nodes.insert(
             value_id.to_owned(),
             std::sync::Arc::new(GeometryInputCollectionNode::Match {
-                scrutinee,
+                scrutinee: std::sync::Arc::new(scrutinee),
                 source_order: 1.0,
                 arms: vec![
                     (
@@ -332,7 +332,7 @@ fn geometry_collection_optional_match_selects_indexed_some_and_none_members() {
         state.geometry_collection_nodes.insert(
             value_id.to_owned(),
             std::sync::Arc::new(GeometryInputCollectionNode::Match {
-                scrutinee: optional_collection_length(scrutinee),
+                scrutinee: std::sync::Arc::new(optional_collection_length(scrutinee)),
                 source_order: 1.0,
                 arms: vec![
                     (

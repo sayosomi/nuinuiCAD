@@ -960,6 +960,19 @@ export const evaluateElements = (
       const arm = node.arms.find((candidate) => candidate.label === label);
       return arm ? materializeCollectionNode(arm.value) : null;
     };
+    const containsDeferredGeometryValueMap = (
+      node: import("../types/geometry").GeometryInputCollectionNode
+    ): boolean => {
+      if (node.kind === "geometryValueMap") return true;
+      if (node.kind === "if") {
+        return containsDeferredGeometryValueMap(node.thenBranch) || containsDeferredGeometryValueMap(node.elseBranch);
+      }
+      if (node.kind === "match") return node.arms.some((arm) => containsDeferredGeometryValueMap(arm.value));
+      if (node.kind === "coalesce") {
+        return containsDeferredGeometryValueMap(node.leftBranch) || containsDeferredGeometryValueMap(node.rightBranch);
+      }
+      return false;
+    };
     const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
       if (target.kind === "geometryCarry") {
         const resolved = geometryCarryValues.get(target.bindingId);
@@ -1036,6 +1049,33 @@ export const evaluateElements = (
       const collectionNode = target.value ?? (target.members.length === 0
         ? geometryCollectionNodesByValueId.get(target.collectionValueId)
         : undefined);
+      if (collectionNode && containsDeferredGeometryValueMap(collectionNode)) {
+        const collectionResolvers = {
+          resolveSourceCollectionNode: (valueId: string) => geometryCollectionNodesByValueId.get(valueId),
+          materializeGeometryValueMap: (mapTarget: Extract<GeometryInputTarget, { kind: "geometryValueMap" }>) => {
+            const mapped = materializeGeometryValueMapTarget(mapTarget, sourceOrder);
+            return computedGeometryValues.has(geometryValueOccurrenceKey(mapped.occurrence)) ? mapped : undefined;
+          }
+        };
+        const selected = resolveGeometryCollectionMemberForNode(
+          collectionNode,
+          index,
+          scalarEnvironmentFor,
+          collectionResolvers
+        );
+        if (!selected) {
+          invalid(target, "evaluation-collection-index-invalid");
+          return null;
+        }
+        const mapped = selected.kind === "geometryValueMap"
+          ? collectionResolvers.materializeGeometryValueMap(selected)
+          : materialize(selected as GeometryInputTarget);
+        if (!mapped) {
+          invalid(target, "evaluation-collection-index-invalid");
+          return null;
+        }
+        return mapped;
+      }
       const members = collectionNode ? materializeCollectionNode(collectionNode) : target.members.map(materialize);
       if (!members || members.some((member) => member === null)) {
         invalid(target, "evaluation-collection-index-invalid");

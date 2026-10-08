@@ -928,6 +928,66 @@ fn capture_geometry_collection_node(
                 runtime_generation: captured_generation,
             })
         }
+        GeometryInputCollectionNode::If {
+            condition,
+            source_order,
+            then_branch,
+            else_branch,
+        } => Some(GeometryInputCollectionNode::If {
+            condition: condition.clone(),
+            source_order: *source_order,
+            then_branch: Box::new(capture_geometry_collection_node(
+                then_branch,
+                nodes,
+                runtime_generation,
+                seen_value_ids,
+            )?),
+            else_branch: Box::new(capture_geometry_collection_node(
+                else_branch,
+                nodes,
+                runtime_generation,
+                seen_value_ids,
+            )?),
+        }),
+        GeometryInputCollectionNode::Match {
+            scrutinee,
+            source_order,
+            arms,
+        } => Some(GeometryInputCollectionNode::Match {
+            scrutinee: scrutinee.clone(),
+            source_order: *source_order,
+            arms: arms
+                .iter()
+                .map(|(label, branch)| {
+                    Some((
+                        label.clone(),
+                        capture_geometry_collection_node(
+                            branch,
+                            nodes,
+                            runtime_generation,
+                            seen_value_ids,
+                        )?,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?,
+        }),
+        GeometryInputCollectionNode::Coalesce {
+            left_branch,
+            right_branch,
+        } => Some(GeometryInputCollectionNode::Coalesce {
+            left_branch: Box::new(capture_geometry_collection_node(
+                left_branch,
+                nodes,
+                runtime_generation,
+                seen_value_ids,
+            )?),
+            right_branch: Box::new(capture_geometry_collection_node(
+                right_branch,
+                nodes,
+                runtime_generation,
+                seen_value_ids,
+            )?),
+        }),
         _ => clone_geometry_collection_node(node),
     }
 }

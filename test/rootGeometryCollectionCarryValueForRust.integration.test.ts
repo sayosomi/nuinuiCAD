@@ -166,6 +166,86 @@ describe("root geometry collection carry value-for through persistent Rust", () 
     }
   }, 60_000);
 
+  it("materializes only the selected member of a deferred geometry map", async () => {
+    const fixtureForIndex = (index: number) => fixtureFromSource([
+      "nui 1",
+      "point Valid = coordinate(x: 1, y: 2)",
+      "point Invalid = coordinate(x: 0, y: 4)",
+      "const initial: point[] = [@Valid, @Invalid]",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
+      "  const mapped: point[] = for item in @points { coordinate(x: 1 / @item.x, y: @item.y) }",
+      "  next points = @mapped",
+      "}",
+      `line Selected = segment(start: @points[${index}], end: (0, 0))`
+    ].join("\n"));
+
+    const validFixture = fixtureForIndex(0);
+    const selectedElement = validFixture.elements.find((candidate) => candidate.name === "Selected");
+    if (!selectedElement) throw new Error("fixture has no element Selected");
+    const inputTargets = [
+      ...(optionsFor(validFixture).geometryInputTargetsByElementId?.get(selectedElement.id)?.values() ?? [])
+    ].flatMap((candidate) => Array.isArray(candidate) ? candidate : [candidate]);
+    const deferredSelection = inputTargets.find((candidate) => candidate.kind === "collectionIndex");
+    expect(deferredSelection?.kind).toBe("collectionIndex");
+    if (!deferredSelection || deferredSelection.kind !== "collectionIndex") {
+      throw new Error("compiler omitted the deferred collection index target");
+    }
+    expect(deferredSelection.members).toEqual([]);
+    expect(deferredSelection.value).toBeUndefined();
+    const { typescript, rust } = await evaluateBoth(validFixture);
+    expect(typescript.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    expect(typescript.geometryValueErrors ?? []).toEqual([]);
+    expect(rust.geometryValueErrors ?? []).toEqual([]);
+    for (const geometries of [typescript.computedGeometry, rust.computedGeometry]) {
+      expect(selectedGeometry(validFixture, geometries, "Selected")).toMatchObject({
+        kind: "line",
+        start: { x: 1, y: 2 },
+        end: { x: 0, y: 0 }
+      });
+    }
+
+    const failingMemberFixture = fixtureForIndex(1);
+    const failingMemberResults = await evaluateBoth(failingMemberFixture);
+    expect(failingMemberResults.typescript.errors).not.toEqual([]);
+    expect(failingMemberResults.rust.errors).not.toEqual([]);
+
+    const invalidFixture = fixtureForIndex(2);
+    const invalidResults = await evaluateBoth(invalidFixture);
+    for (const result of [invalidResults.typescript, invalidResults.rust]) {
+      expect(result.errors.map((error) => error.message).join("\n"))
+        .toContain("evaluation-collection-index-invalid");
+    }
+  }, 60_000);
+
+  it("captures conditional carry collections with mapped branches from one snapshot", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "point A = coordinate(x: 1, y: 2)",
+      "point B = coordinate(x: 30, y: 40)",
+      "const raw: point[] = [@A]",
+      "const mappedInitial: point[] = for item in @raw { @item }",
+      "const chooseMapped: boolean = true",
+      "const initial: point[] = if (@chooseMapped) { @mappedInitial } else { [@B] }",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
+      "  const mapped: point[] = for item in @points { coordinate(x: @item.x + 1, y: @item.y + 2) }",
+      "  next points = @mapped",
+      "}",
+      "line Selected = segment(start: @points[0], end: (0, 0))"
+    ].join("\n"));
+    const { typescript, rust } = await evaluateBoth(fixture);
+
+    expect(typescript.errors).toEqual([]);
+    expect(rust.errors).toEqual([]);
+    for (const geometries of [typescript.computedGeometry, rust.computedGeometry]) {
+      expect(selectedGeometry(fixture, geometries, "Selected")).toMatchObject({
+        kind: "line",
+        start: { x: 2, y: 4 },
+        end: { x: 0, y: 0 }
+      });
+    }
+  }, 60_000);
+
   it("returns unavailable for a runtime collection-map cycle", () => {
     const fixture = fixtureFromSource([
       "nui 1",
