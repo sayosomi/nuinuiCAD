@@ -725,6 +725,28 @@ export const buildModuleGeometryArrayRuntime = ({
       const sourceValue = lowerValueById(mappedValue.sourceValueId, currentPath, nextVisited);
       const sourceAliases = sourceValue ? aliasesFor(sourceValue) : null;
       if (!sourceAliases) {
+        if (
+          mappedValue.body &&
+          (mappedValue.sourceIsImmutableCarry || sourceValue?.collection?.kind === "geometryValueMap")
+        ) {
+          const value = {
+            type: semantic.type,
+            members: [],
+            collection: {
+              kind: "geometryValueMap" as const,
+              sourceValueId: mappedValue.sourceValueId,
+              sourceStatementId: semantic.statementId,
+              instancePath: [...currentPath],
+              binderId: mappedValue.binderId,
+              geometryType: mappedValue.resultElementType,
+              declaredInterfaceType: mappedValue.resultElementType,
+              body: mappedValue.body,
+              executionPosition: semantic.statementIndex
+            }
+          };
+          sourceValueCache.set(key, value);
+          return value;
+        }
         sourceValueCache.set(key, null);
         return null;
       }

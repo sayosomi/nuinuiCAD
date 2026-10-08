@@ -2326,16 +2326,25 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const parameter = path.segments.length === 1 && !path.absolute
         ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!)
         : null;
+      const generatedLookup = ownerIndex === null
+        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
+        : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
+      const carrySource = generatedLookup.kind === "resolved" && generatedLookup.declaration.kind === "carry" && generatedLookup.declaration.statement.kind === "element"
+        ? (() => {
+            const carry = generatedLookup.declaration.statement.forCarries?.find((candidate) => candidate.name === generatedLookup.declaration.name);
+            const carryType = dslRequiredValueTypeOf(carry?.valueType);
+            return carryType?.kind === "array" && isDslGeometryValueType(carryType.elementType)
+              ? { valueType: carryType, valueId: immutableCarryCollectionValueId(bindingIdForStableStatementId(generatedLookup.declaration.statementId)), statementIndex: generatedLookup.declaration.statementIndex }
+              : null;
+          })()
+        : null;
       const value = !qualified && !parameter && collectionAnalysis
         ? (() => {
-            const lookup = ownerIndex === null
-              ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
-              : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
-            if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration") return null;
-            const resolved = collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex);
-            const declarationOwner = moduleOwnerIndexOf(statements, lookup.declaration.statementIndex);
+            if (generatedLookup.kind !== "resolved" || generatedLookup.declaration.kind !== "typedDeclaration") return null;
+            const resolved = collectionValueSemanticForStatement(collectionAnalysis, generatedLookup.declaration.statementIndex);
+            const declarationOwner = moduleOwnerIndexOf(statements, generatedLookup.declaration.statementIndex);
             if (ownerIndex !== null && declarationOwner !== ownerIndex) {
-              addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer collection「${base}」を暗黙 capture できません。`, { relatedSources: relatedForDeclaration(lookup.declaration), presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }));
+              addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer collection「${base}」を暗黙 capture できません。`, { relatedSources: relatedForDeclaration(generatedLookup.declaration), presentation: { key: "diagnostic.module-outer-capture", parameters: { name: base } } }));
               return null;
             }
             return resolved;
@@ -2345,16 +2354,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? collection.valueType
         : parameter
           ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
-          : collectionAnalysis ? collectionValueTypeFor(value) : null;
+          : carrySource
+            ? carrySource.valueType
+            : collectionAnalysis ? collectionValueTypeFor(value) : null;
       const elementType = valueType && isDslArrayValueType(valueType)
         ? valueType.elementType.kind === "point" || valueType.elementType.kind === "line" || valueType.elementType.kind === "path"
           ? valueType.elementType.kind
           : null
         : null;
       const expectedInterfaceType = options.expectedInterfaceType ?? (expected === "point" ? "point" : "path");
-      const generatedLookup = ownerIndex === null
-        ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
-        : resolveModuleLexicalPath(statementIndex, ownerIndex, path);
       const compatible = elementType !== null && (expected === "point"
         ? elementType === "point"
         : isModuleGeometryInterfaceAssignable(elementType, expectedInterfaceType));
@@ -2422,14 +2430,19 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
       const collectionValueId = collection?.kind === "collection"
         ? geometryArrayDeferredModuleExportId(deferredQualified!.instance.statementId, deferredQualified!.exportName)
+        : carrySource
+          ? carrySource.valueId
         : parameter
           ? `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`
           : value!.statementId;
       const target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }> = {
         kind: "collectionIndex",
         collectionValueId,
-        collectionLength: parameter || collection ? null : collectionLengthForValueId(collectionAnalysis, value!.statementId),
-        targetSourceOrder: parameter ? -1 : collection ? deferredQualified!.instance.statementIndex : value!.statementIndex,
+        collectionLength: parameter || collection || carrySource ? null : collectionLengthForValueId(collectionAnalysis, value!.statementId),
+        // A carry's collection is installed from its incoming snapshot when
+        // the owning loop starts, then replaced at each loop commit. Its DSL
+        // declaration index is not comparable with evaluator execution order.
+        targetSourceOrder: parameter || carrySource ? -1 : collection?.kind === "collection" ? deferredQualified!.instance.statementIndex : value!.statementIndex,
         elementInterfaceType: elementType,
         expectedGeometryKind: expected,
         expectedInterfaceType,

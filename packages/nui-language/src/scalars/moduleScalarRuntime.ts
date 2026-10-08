@@ -42,7 +42,7 @@ import {
   type BindingId,
   type BindingSeed
 } from "./bindingCatalog";
-import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner, type ImmutableCollectionCarry, type ImmutableForGroupPlan } from "./bindingVersions";
+import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner, type ImmutableCollectionCarry, type ImmutableForGroupPlan, type ImmutableGeometryCollectionCarry } from "./bindingVersions";
 import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import {
   lowerScalarProgram,
@@ -2064,6 +2064,7 @@ export const compileModuleScalarRuntime = ({
   collectionCarryInputs = [],
   collectionCarryValues = [],
   collectionCarrySemanticValues = [],
+  geometryCollectionCarryInputs = [],
   reconciledContainers,
   includeStatement,
   elements,
@@ -2087,6 +2088,11 @@ export const compileModuleScalarRuntime = ({
   })[];
   collectionCarryValues?: readonly ScalarProgramCollection[];
   collectionCarrySemanticValues?: readonly GenericArrayValueSemantic[];
+  geometryCollectionCarryInputs?: readonly (ImmutableGeometryCollectionCarry & {
+    ownerStatementId: string;
+    ownerStatementIndex: number;
+    carryName: string;
+  })[];
   reconciledContainers: ReconciledCadContainerInput;
   includeStatement?: (statement: DslStatement, statementIndex: number) => boolean;
   elements: readonly CadElement[];
@@ -3083,15 +3089,21 @@ export const compileModuleScalarRuntime = ({
     }
     if (context) {
       const analysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
-      const local = analysis?.genericValuesByStatementId.get(valueId);
+      const local = analysis?.genericValuesByStatementId.get(valueId) ?? analysis?.valuesByStatementId.get(valueId);
       if (local?.ownerModuleDefinitionStatementIndex === context.definition.statementIndex) {
         return moduleCollectionValueIdFor(context.path, valueId);
       }
     }
-    if (sourceNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.has(valueId)) return valueId;
+    if (
+      sourceNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.has(valueId) ||
+      sourceNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.has(valueId)
+    ) return valueId;
     if (moduleRuntimeContext) {
       for (const document of moduleRuntimeContext.documentsById.values()) {
-        if (document.sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.has(valueId)) {
+        if (
+          document.sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.has(valueId) ||
+          document.sourceLexicalNamespace.geometryArraySemanticAnalysis?.valuesByStatementId.has(valueId)
+        ) {
           return document.documentId === moduleRuntimeContext.rootDocumentId
             ? valueId
             : `module-document-collection:${encodeIdentityTuple([document.documentId, valueId])}`;
@@ -5998,6 +6010,41 @@ export const compileModuleScalarRuntime = ({
         ? { kind: "leaf", targets: targets as Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
         : null;
     }
+    if (node.kind === "geometryValueMap") {
+      const context = node.instancePath.length > 0
+        ? contextsByKey.get(pathKey(node.instancePath))
+        : undefined;
+      const programValue: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic = {
+        statementId: node.sourceStatementId,
+        statementIndex: node.executionPosition,
+        name: node.sourceStatementId,
+        declaredInterfaceType: node.declaredInterfaceType,
+        ownerModuleDefinitionStatementId: context?.definition.statementId ?? null,
+        ownerModuleDefinitionStatementIndex: context?.definition.statementIndex ?? null,
+        exported: false,
+        initializer: null,
+        construction: null,
+        valueExpression: node.body,
+        backingTarget: null
+      };
+      const executionPosition = executionPositionForValue(node.instancePath, node.executionPosition);
+      const program = lowerGeometryValueExpression(programValue, node.body, context, executionPosition);
+      if (!program) return null;
+      return {
+        kind: "geometryValueMap",
+        source: {
+          kind: "value",
+          valueId: collectionValueIdFor(node.sourceValueId, context ?? null)
+        },
+        sourceStatementId: node.sourceStatementId,
+        instancePath: node.instancePath,
+        binderId: node.binderId,
+        geometryType: node.geometryType,
+        declaredInterfaceType: node.declaredInterfaceType,
+        program,
+        executionPosition
+      };
+    }
     if (node.kind === "if") {
       const sourceContext = node.sourcePath.length > 0 ? contextsByKey.get(pathKey(node.sourcePath)) : undefined;
       const thenBranch = lowerCollectionNode(node.thenBranch);
@@ -6228,78 +6275,6 @@ export const compileModuleScalarRuntime = ({
     }
     return undefined;
   };
-
-  const geometryInputTargetsByRuntimeElementId = new Map<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
-  const isTargetList = (source: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]): source is readonly RuntimeGeometryInputTarget[] => Array.isArray(source);
-  for (const [elementId, sources] of moduleGeometryRuntime?.geometryInputTargetSourcesByRuntimeElementId ?? []) {
-    const targets = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
-    for (const [parameterKey, source] of sources) {
-      if (isTargetList(source)) {
-        const lowered = source.flatMap((item) => {
-          const target = lowerGeometryInputTarget(item);
-          return target ? [target] : [];
-        });
-        if (lowered.length === source.length) targets.set(parameterKey, lowered);
-      } else {
-        const lowered = lowerGeometryInputTarget(source);
-        if (lowered) targets.set(parameterKey, lowered);
-      }
-    }
-    if (targets.size > 0) geometryInputTargetsByRuntimeElementId.set(elementId, targets);
-  }
-  for (const [elementId, targets] of moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? []) {
-    if (geometryInputTargetsByRuntimeElementId.has(elementId)) continue;
-    geometryInputTargetsByRuntimeElementId.set(elementId, targets);
-  }
-
-  const geometryCollectionNodesByValueId = new Map<string, GeometryInputCollectionNode>();
-  const registerGeometryCollectionNode = (
-    valueId: string,
-    currentPath: readonly string[],
-    context: InstanceContext | null
-  ) => {
-    const runtimeNode = moduleGeometryRuntime?.resolveGeometryArrayCollectionForValueId?.(valueId, currentPath);
-    if (!runtimeNode) return;
-    const lowered = lowerCollectionNode(runtimeNode);
-    if (!lowered) return;
-    geometryCollectionNodesByValueId.set(collectionValueIdFor(valueId, context), lowered);
-  };
-  for (const value of moduleSemanticAnalysis.geometryValues) {
-    if (value.ownerModuleDefinitionStatementId === null) {
-      registerGeometryCollectionNode(value.statementId, [], null);
-    }
-  }
-  for (const value of sourceNamespace?.geometryArraySemanticAnalysis?.values ?? []) {
-    if (value.ownerModuleDefinitionStatementIndex === null) {
-      registerGeometryCollectionNode(value.statementId, [], null);
-    }
-  }
-  for (const context of contextsByKey.values()) {
-    if (contextIsDisabled(context) || !contextIsReachable(context)) continue;
-    const contextCollectionAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
-    for (const parameter of contextCollectionAnalysis?.moduleParameters ?? []) {
-      if (parameter.definitionStatementId !== context.definition.statementId) continue;
-      registerGeometryCollectionNode(
-        `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
-        context.path,
-        context
-      );
-    }
-    for (const value of context.definition.localGeometryValues) {
-      registerGeometryCollectionNode(value.statementId, context.path, context);
-    }
-    const source = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
-    for (const value of source?.values ?? []) {
-      if (value.ownerModuleDefinitionStatementIndex === context.definition.statementIndex) {
-        registerGeometryCollectionNode(value.statementId, context.path, context);
-      }
-    }
-  }
-  for (const collection of moduleCollectionValues) {
-    if (collection.kind !== "alias") continue;
-    const target = geometryCollectionNodesByValueId.get(collection.targetValueId);
-    if (target) geometryCollectionNodesByValueId.set(collection.valueId, target);
-  }
 
   for (const [bindingId, initializer, statementIndex] of documentBindingAnalysis
     ? (documentBindingAnalysis as BindingAnalysis).catalog.bindings
@@ -6641,6 +6616,29 @@ export const compileModuleScalarRuntime = ({
     });
     return scrutinee && arms.length === expression.arms.length ? { kind: "match", scrutinee, arms } : undefined;
   };
+
+  const geometryInputTargetsByRuntimeElementId = new Map<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
+  const isTargetList = (source: RuntimeGeometryInputTarget | readonly RuntimeGeometryInputTarget[]): source is readonly RuntimeGeometryInputTarget[] => Array.isArray(source);
+  for (const [elementId, sources] of moduleGeometryRuntime?.geometryInputTargetSourcesByRuntimeElementId ?? []) {
+    const targets = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
+    for (const [parameterKey, source] of sources) {
+      if (isTargetList(source)) {
+        const lowered = source.flatMap((item) => {
+          const target = lowerGeometryInputTarget(item);
+          return target ? [target] : [];
+        });
+        if (lowered.length === source.length) targets.set(parameterKey, lowered);
+      } else {
+        const lowered = lowerGeometryInputTarget(source);
+        if (lowered) targets.set(parameterKey, lowered);
+      }
+    }
+    if (targets.size > 0) geometryInputTargetsByRuntimeElementId.set(elementId, targets);
+  }
+  for (const [elementId, targets] of moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? []) {
+    if (geometryInputTargetsByRuntimeElementId.has(elementId)) continue;
+    geometryInputTargetsByRuntimeElementId.set(elementId, targets);
+  }
 
   const appendRecordGeometryValuePrograms = ({
     recordTarget,
@@ -7113,6 +7111,55 @@ export const compileModuleScalarRuntime = ({
   );
   const geometryValueProgram: GeometryValueProgram = geometryValueProgramEntries;
 
+  const geometryCollectionNodesByValueId = new Map<string, GeometryInputCollectionNode>();
+  const registerGeometryCollectionNode = (
+    valueId: string,
+    currentPath: readonly string[],
+    context: InstanceContext | null
+  ) => {
+    const runtimeNode = moduleGeometryRuntime?.resolveGeometryArrayCollectionForValueId?.(valueId, currentPath);
+    if (!runtimeNode) return;
+    const lowered = lowerCollectionNode(runtimeNode);
+    if (!lowered) return;
+    geometryCollectionNodesByValueId.set(collectionValueIdFor(valueId, context), lowered);
+  };
+  for (const value of moduleSemanticAnalysis.geometryValues) {
+    if (value.ownerModuleDefinitionStatementId === null) {
+      registerGeometryCollectionNode(value.statementId, [], null);
+    }
+  }
+  for (const value of sourceNamespace?.geometryArraySemanticAnalysis?.values ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex === null) {
+      registerGeometryCollectionNode(value.statementId, [], null);
+    }
+  }
+  for (const context of contextsByKey.values()) {
+    if (contextIsDisabled(context) || !contextIsReachable(context)) continue;
+    const contextCollectionAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+    for (const parameter of contextCollectionAnalysis?.moduleParameters ?? []) {
+      if (parameter.definitionStatementId !== context.definition.statementId) continue;
+      registerGeometryCollectionNode(
+        `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`,
+        context.path,
+        context
+      );
+    }
+    for (const value of context.definition.localGeometryValues) {
+      registerGeometryCollectionNode(value.statementId, context.path, context);
+    }
+    const source = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+    for (const value of source?.values ?? []) {
+      if (value.ownerModuleDefinitionStatementIndex === context.definition.statementIndex) {
+        registerGeometryCollectionNode(value.statementId, context.path, context);
+      }
+    }
+  }
+  for (const collection of moduleCollectionValues) {
+    if (collection.kind !== "alias") continue;
+    const target = geometryCollectionNodesByValueId.get(collection.targetValueId);
+    if (target) geometryCollectionNodesByValueId.set(collection.valueId, target);
+  }
+
   const replaceLazyGeometryMapPrograms = (target: GeometryInputTarget): GeometryInputTarget => {
     if (target.kind === "geometryValueMap") {
       return {
@@ -7124,6 +7171,13 @@ export const compileModuleScalarRuntime = ({
     const replaceCollectionNode = (node: GeometryInputCollectionNode): GeometryInputCollectionNode => {
       if (node.kind === "none") return node;
       if (node.kind === "leaf") return { kind: "leaf", targets: node.targets.map(replaceLazyGeometryMapPrograms) as Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" }>[] };
+      if (node.kind === "geometryValueMap") return {
+        ...node,
+        source: node.source.kind === "node"
+          ? { ...node.source, node: replaceCollectionNode(node.source.node) }
+          : node.source,
+        program: replaceLazyProgramsInGeometryValueProgram(node.program) as GeometryValueProgramNode
+      };
       if (node.kind === "if") return { ...node, thenBranch: replaceCollectionNode(node.thenBranch), elseBranch: replaceCollectionNode(node.elseBranch) };
       if (node.kind === "coalesce") return { ...node, leftBranch: replaceCollectionNode(node.leftBranch), rightBranch: replaceCollectionNode(node.rightBranch) };
       return { ...node, arms: node.arms.map((arm) => ({ ...arm, value: replaceCollectionNode(arm.value) })) };
@@ -7508,6 +7562,64 @@ export const compileModuleScalarRuntime = ({
         ...(existing?.geometryCarries ? { geometryCarries: existing.geometryCarries } : {}),
         ...(existing?.collectionCarries ? { collectionCarries: existing.collectionCarries } : {}),
         ...(existing?.geometryCollectionCarries ? { geometryCollectionCarries: existing.geometryCollectionCarries } : {})
+      });
+    }
+    for (const carry of geometryCollectionCarryInputs) {
+      const body = context.definition.bodyStatements.find((candidate) => candidate.statementId === carry.ownerStatementId);
+      if (!body || body.statementKind !== "element") continue;
+      const sourceStatement = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements[carry.ownerStatementIndex]
+        ?? statements[carry.ownerStatementIndex];
+      if (
+        sourceStatement?.kind !== "element" ||
+        sourceStatement.type !== "forGroup" ||
+        !sourceStatement.forCarries?.some((candidate) => candidate.name === carry.carryName)
+      ) continue;
+      const sourceForContext = (source: ImmutableGeometryCollectionCarry["initializer"]) =>
+        source.kind === "value"
+          ? { kind: "value" as const, valueId: collectionValueIdFor(source.valueId, context) }
+          : source;
+      const ownerStatementId = moduleOwnerIdFor(context.path, carry.ownerStatementId);
+      const owner = [...controlByScopeId.values()]
+        .flatMap((control) => control.ownerChain)
+        .find((candidate): candidate is Extract<BindingControlOwner, { kind: "forGroup" }> =>
+          candidate.kind === "forGroup" && candidate.ownerStatementId === ownerStatementId
+        );
+      const fallbackScopeId = moduleScopeIdFor(context.path, `for:${carry.ownerStatementId}`);
+      const fallbackExitSourceOrder = scopeExitOrderById.get(fallbackScopeId)
+        ?? executionOrderForValue(context.path, carry.ownerStatementIndex);
+      const executionOwner = owner
+        ? {
+            scopeId: owner.scopeId,
+            exitSourceOrder: owner.exitSourceOrder,
+            ...(owner.entrySourceOrder !== undefined ? { entrySourceOrder: owner.entrySourceOrder } : {}),
+            iterationBindingId: moduleIterationIdFor(context.path, carry.ownerStatementId)
+          }
+        : {
+            scopeId: fallbackScopeId,
+            exitSourceOrder: Math.max(0, Math.floor(fallbackExitSourceOrder)),
+            entrySourceOrder: executionPositionForValue(context.path, carry.ownerStatementIndex) - 0.5,
+            iterationBindingId: moduleIterationIdFor(context.path, carry.ownerStatementId)
+          };
+      const bindingId = moduleCarryBindingIdFor(context.path, carry.bindingId);
+      const projectedCarry: ImmutableGeometryCollectionCarry = {
+        bindingId,
+        collectionValueId: collectionValueIdFor(carry.collectionValueId, context),
+        initializer: sourceForContext(carry.initializer),
+        next: sourceForContext(carry.next),
+        declaredType: carry.declaredType,
+        nextSourceOrder: executionOrderForValue(context.path, carry.nextSourceOrder)
+      };
+      const existing = immutableForGroups.get(ownerStatementId);
+      const geometryCollectionCarries = [...(existing?.geometryCollectionCarries ?? [])]
+        .filter((candidate) => candidate.bindingId !== bindingId);
+      geometryCollectionCarries.push(projectedCarry);
+      immutableForGroups.set(ownerStatementId, {
+        ownerStatementId,
+        executionOwner: existing?.executionOwner ?? executionOwner,
+        carries: existing?.carries ?? [],
+        ...(existing?.geometryCarries ? { geometryCarries: existing.geometryCarries } : {}),
+        ...(existing?.collectionCarries ? { collectionCarries: existing.collectionCarries } : {}),
+        geometryCollectionCarries
       });
     }
   }

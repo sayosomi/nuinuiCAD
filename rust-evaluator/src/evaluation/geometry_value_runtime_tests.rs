@@ -342,11 +342,13 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
         source_statement_id: "value:line".to_owned(),
         instance_path: Vec::new(),
         mapped_member_index: None,
+        runtime_generation: None,
     };
     let point_occurrence = |source_statement_id: &str| GeometryValueOccurrence {
         source_statement_id: source_statement_id.to_owned(),
         instance_path: Vec::new(),
         mapped_member_index: None,
+        runtime_generation: None,
     };
     let drawable_line = |start_x: f64, start_y: f64, end_x: f64, end_y: f64| {
         json!({
@@ -692,6 +694,7 @@ fn geometry_references_project_selected_drawable_stages_and_immutable_aliases() 
         source_statement_id: source_statement_id.to_owned(),
         instance_path: Vec::new(),
         mapped_member_index: None,
+        runtime_generation: None,
     };
     let occurrence_json = |source_statement_id: &str| json!({ "sourceStatementId": source_statement_id, "instancePath": [] });
     let drawable_target = |statement_id: &str, geometry_type: &str, stage_path: Option<Value>| {
@@ -1146,6 +1149,7 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
             source_statement_id: materialized_id.clone(),
             instance_path: Vec::new(),
             mapped_member_index: None,
+            runtime_generation: None,
         };
         computed_geometry.insert(drawable_id.clone(), drawable.clone());
         computed_geometry_values.insert(materialized_occurrence.clone(), drawable);
@@ -1167,6 +1171,7 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
                 source_statement_id: alias_id.clone(),
                 instance_path: Vec::new(),
                 mapped_member_index: None,
+                runtime_generation: None,
             };
             program.push(json!({
                 "sourceStatementId": alias_id,
@@ -1241,6 +1246,7 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
             source_statement_id: "alias:unsupported".to_owned(),
             instance_path: Vec::new(),
             mapped_member_index: None,
+            runtime_generation: None,
         }));
     for (occurrence, value) in expected {
         assert_eq!(
@@ -2015,7 +2021,8 @@ fn invalid_through_values_use_exact_occurrence_owned_errors_without_drawable_ide
         super::types::GeometryValueOccurrence {
             source_statement_id: "value:through-duplicate".to_owned(),
             instance_path: Vec::new(),
-            mapped_member_index: None
+            mapped_member_index: None,
+            runtime_generation: None
         }
     );
     assert_eq!(
@@ -2023,7 +2030,8 @@ fn invalid_through_values_use_exact_occurrence_owned_errors_without_drawable_ide
         super::types::GeometryValueOccurrence {
             source_statement_id: "value:through-collinear".to_owned(),
             instance_path: vec!["instance:one".to_owned()],
-            mapped_member_index: None
+            mapped_member_index: None,
+            runtime_generation: None
         }
     );
     assert!(result.geometry_value_errors.iter().all(|error| {

@@ -903,9 +903,17 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           }
         }
         if (!sourceType && lookup?.kind === "resolved") {
-          const target = valuesByStatementIndex.get(lookup.declaration.statementIndex);
-          sourceType = target?.type ?? null;
-          sourceValueId = target?.statementId ?? null;
+          if (lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+            const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
+            sourceType = geometryArrayTypeOfDslValueType(carry?.valueType);
+            sourceValueId = sourceType
+              ? immutableCarryCollectionValueId(bindingIdForStableStatementId(lookup.declaration.statementId))
+              : null;
+          } else {
+            const target = valuesByStatementIndex.get(lookup.declaration.statementIndex);
+            sourceType = target?.type ?? null;
+            sourceValueId = target?.statementId ?? null;
+          }
         }
         if (!sourceType || !sourceValueId) {
           const code = lookup?.kind === "forward" ? "geometry-array-value-for-source-forward" : "geometry-array-value-for-source-invalid";
@@ -923,6 +931,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           kind: "map",
           type,
           sourceValueId,
+          ...(lookup?.kind === "resolved" && lookup.declaration.kind === "carry" ? { sourceIsImmutableCarry: true } : {}),
           sourceElementType: sourceType.elementType,
           resultElementType: type.elementType,
           binderId: `geometry-value-for-binder:${semantic.statementId}`,

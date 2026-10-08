@@ -57,7 +57,7 @@ pub(crate) enum GeometryValuePoint {
 
 #[derive(Debug)]
 pub(crate) enum GeometryValueProgramTarget {
-    Resolved(super::scalars::ScalarExpressionResolvedGeometryTarget),
+    Resolved(Box<super::scalars::ScalarExpressionResolvedGeometryTarget>),
     CollectionIndex {
         target: Box<GeometryInputTarget>,
         geometry_type: String,
@@ -307,6 +307,13 @@ fn occurrence(value: &Value, context: &str) -> Result<GeometryValueOccurrence, S
             usize::try_from(value).map_err(|_| format!("{context}.mappedMemberIndex is too large"))
         })
         .transpose()?;
+    let runtime_generation = object
+        .get("runtimeGeneration")
+        .and_then(Value::as_u64)
+        .map(|value| {
+            usize::try_from(value).map_err(|_| format!("{context}.runtimeGeneration is too large"))
+        })
+        .transpose()?;
     let instance_path = object
         .get("instancePath")
         .and_then(Value::as_array)
@@ -323,6 +330,7 @@ fn occurrence(value: &Value, context: &str) -> Result<GeometryValueOccurrence, S
         source_statement_id: string_field(object, "sourceStatementId", context)?,
         instance_path,
         mapped_member_index,
+        runtime_generation,
     })
 }
 
@@ -364,7 +372,7 @@ fn decode_program_target(value: &Value) -> Result<Option<GeometryValueProgramTar
         }));
     }
     super::scalars::decode_geometry_target_payload(value)
-        .map(|target| target.map(GeometryValueProgramTarget::Resolved))
+        .map(|target| target.map(|target| GeometryValueProgramTarget::Resolved(Box::new(target))))
         .map_err(|error| format!("{error:?}"))
 }
 

@@ -234,6 +234,10 @@ fn geometry_collection_node_assignable(
             geometry_input_target_type(target)
                 .is_some_and(|actual| geometry_type_assignable(actual, expected))
         }),
+        GeometryInputCollectionNode::GeometryValueMap { geometry_type, .. } => {
+            super::types::GeometryInterfaceType::from_wire_name(geometry_type)
+                .is_some_and(|actual| geometry_type_assignable(actual, expected))
+        }
         GeometryInputCollectionNode::If {
             then_branch,
             else_branch,

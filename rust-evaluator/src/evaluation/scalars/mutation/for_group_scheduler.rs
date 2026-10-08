@@ -23,9 +23,10 @@ use crate::evaluation::scalars::mutation_payload::{
     ValidatedImmutableGeometryCarry, ValidatedImmutableGeometryCollectionSource,
 };
 use crate::evaluation::types::{
-    GeometryInputCollectionNode, GeometryInputTarget, GeometryValueOccurrence,
+    GeometryInputCollectionNode, GeometryInputCollectionSource, GeometryInputTarget,
+    GeometryValueOccurrence,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ForGroupExecutionStatement {
@@ -106,15 +107,17 @@ impl ScalarMutationResolver<'_> {
         &self,
         source: &ValidatedImmutableGeometryCollectionSource,
         nodes: &HashMap<String, std::sync::Arc<GeometryInputCollectionNode>>,
+        runtime_generation: Option<usize>,
     ) -> Option<GeometryInputCollectionNode> {
-        match source {
-            ValidatedImmutableGeometryCollectionSource::Value(value_id) => nodes
-                .get(value_id)
-                .and_then(|node| clone_geometry_collection_node(node)),
-            ValidatedImmutableGeometryCollectionSource::Node(node) => {
-                clone_geometry_collection_node(node)
+        let mut seen = HashSet::new();
+        let node = match source {
+            ValidatedImmutableGeometryCollectionSource::Value(value_id) => {
+                seen.insert(value_id.clone());
+                nodes.get(value_id)?.as_ref()
             }
-        }
+            ValidatedImmutableGeometryCollectionSource::Node(node) => node.as_ref(),
+        };
+        capture_geometry_collection_node(node, nodes, runtime_generation, &mut seen)
     }
 
     fn install_geometry_carry(
@@ -137,6 +140,7 @@ impl ScalarMutationResolver<'_> {
             source_statement_id: binding_id.to_owned(),
             instance_path: Vec::new(),
             mapped_member_index: None,
+            runtime_generation: None,
         };
         state.computed_geometry_values.insert(
             occurrence.clone(),
@@ -199,6 +203,7 @@ impl ScalarMutationResolver<'_> {
                 if let Some(node) = self.geometry_collection_source_node(
                     &carry.initializer,
                     &state.geometry_collection_nodes,
+                    None,
                 ) {
                     state
                         .geometry_collection_nodes
@@ -212,6 +217,8 @@ impl ScalarMutationResolver<'_> {
     fn commit_for_group_carries(
         &mut self,
         owner_statement_id: &str,
+        owner_element_id: &str,
+        iteration_index: usize,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
         state: &mut EvaluationState,
     ) -> Result<(), ForGroupExecutionError> {
@@ -354,18 +361,38 @@ impl ScalarMutationResolver<'_> {
                 Err(_) => {}
             }
         }
+        let geometry_collection_snapshot = state.geometry_collection_nodes.clone();
         let geometry_collection_next_values = plan
             .geometry_collection_carries
             .iter()
-            .filter_map(|carry| {
-                self.geometry_collection_source_node(&carry.next, &state.geometry_collection_nodes)
-                    .map(|node| (carry.collection_value_id.clone(), node))
+            .map(|carry| {
+                (
+                    carry,
+                    self.geometry_collection_source_node(
+                        &carry.next,
+                        &geometry_collection_snapshot,
+                        Some(iteration_index),
+                    ),
+                )
             })
             .collect::<Vec<_>>();
-        for (value_id, node) in geometry_collection_next_values {
-            state
-                .geometry_collection_nodes
-                .insert(value_id, std::sync::Arc::new(node));
+        for (carry, node) in geometry_collection_next_values {
+            if let Some(node) = node {
+                state
+                    .geometry_collection_nodes
+                    .insert(carry.collection_value_id.clone(), std::sync::Arc::new(node));
+            } else if let Some(index) = state.elements_by_id.get(owner_element_id).copied() {
+                let mut error = super::super::super::errors::geometry_error(
+                    &state.elements[index],
+                    format!(
+                        "{} の carry next collection を評価できません。",
+                        owner_element_id
+                    ),
+                );
+                error.missing_dependency_id = carry.binding_id.clone();
+                error.missing_dependency_name = Some(carry.binding_id.clone().into());
+                state.errors.push(error);
+            }
         }
         Ok(())
     }
@@ -487,7 +514,13 @@ impl ScalarMutationResolver<'_> {
                 self.execute_for_group_version(version_index_in_program, environment, state)?;
             }
             if matches!(context.statement, ForGroupExecutionStatement::Exit { .. }) {
-                self.commit_for_group_carries(&owner.owner_statement_id, environment, state)?;
+                self.commit_for_group_carries(
+                    &owner.owner_statement_id,
+                    element_id,
+                    context.iteration_index,
+                    environment,
+                    state,
+                )?;
             }
             execute_statement(self, environment, context, state)
         });
@@ -846,6 +879,59 @@ fn geometry_type_name(geometry_type: &super::super::types::GeometryInterfaceType
     .to_owned()
 }
 
+fn capture_geometry_collection_node(
+    node: &GeometryInputCollectionNode,
+    nodes: &HashMap<String, std::sync::Arc<GeometryInputCollectionNode>>,
+    runtime_generation: Option<usize>,
+    seen_value_ids: &mut HashSet<String>,
+) -> Option<GeometryInputCollectionNode> {
+    match node {
+        GeometryInputCollectionNode::GeometryValueMap {
+            source,
+            source_statement_id,
+            instance_path,
+            binder_id,
+            geometry_type,
+            declared_interface_type,
+            program,
+            execution_position,
+            runtime_generation: existing_generation,
+        } => {
+            let (captured_source, captured_generation) = match source {
+                GeometryInputCollectionSource::Value(value_id) => {
+                    if !seen_value_ids.insert(value_id.clone()) {
+                        return None;
+                    }
+                    let captured = nodes.get(value_id).and_then(|source_node| {
+                        capture_geometry_collection_node(source_node, nodes, None, seen_value_ids)
+                    });
+                    seen_value_ids.remove(value_id);
+                    (
+                        std::sync::Arc::new(captured?),
+                        runtime_generation.or(*existing_generation),
+                    )
+                }
+                // A Node source is already an immutable, captured generation.
+                // Re-labeling it at the new carry commit can make two carries
+                // that share one map expression reuse the same occurrence ID.
+                GeometryInputCollectionSource::Node(node) => (node.clone(), *existing_generation),
+            };
+            Some(GeometryInputCollectionNode::GeometryValueMap {
+                source: GeometryInputCollectionSource::Node(captured_source),
+                source_statement_id: source_statement_id.clone(),
+                instance_path: instance_path.clone(),
+                binder_id: binder_id.clone(),
+                geometry_type: geometry_type.clone(),
+                declared_interface_type: declared_interface_type.clone(),
+                program: program.clone(),
+                execution_position: *execution_position,
+                runtime_generation: captured_generation,
+            })
+        }
+        _ => clone_geometry_collection_node(node),
+    }
+}
+
 fn clone_geometry_collection_node(
     node: &GeometryInputCollectionNode,
 ) -> Option<GeometryInputCollectionNode> {
@@ -856,6 +942,34 @@ fn clone_geometry_collection_node(
                 .iter()
                 .map(clone_geometry_input_target)
                 .collect::<Option<Vec<_>>>()?,
+        }),
+        GeometryInputCollectionNode::GeometryValueMap {
+            source,
+            source_statement_id,
+            instance_path,
+            binder_id,
+            geometry_type,
+            declared_interface_type,
+            program,
+            execution_position,
+            runtime_generation,
+        } => Some(GeometryInputCollectionNode::GeometryValueMap {
+            source: match source {
+                GeometryInputCollectionSource::Value(value_id) => {
+                    GeometryInputCollectionSource::Value(value_id.clone())
+                }
+                GeometryInputCollectionSource::Node(node) => {
+                    GeometryInputCollectionSource::Node(node.clone())
+                }
+            },
+            source_statement_id: source_statement_id.clone(),
+            instance_path: instance_path.clone(),
+            binder_id: binder_id.clone(),
+            geometry_type: geometry_type.clone(),
+            declared_interface_type: declared_interface_type.clone(),
+            program: program.clone(),
+            execution_position: *execution_position,
+            runtime_generation: *runtime_generation,
         }),
         GeometryInputCollectionNode::If { .. }
         | GeometryInputCollectionNode::Match { .. }
@@ -890,8 +1004,26 @@ fn clone_geometry_input_target(target: &GeometryInputTarget) -> Option<GeometryI
         GeometryInputTarget::Coordinate { anchor } => Some(GeometryInputTarget::Coordinate {
             anchor: anchor.clone(),
         }),
+        GeometryInputTarget::GeometryValueMap {
+            occurrence,
+            binder_id,
+            geometry_type,
+            point_key,
+            source,
+            program,
+            execution_position,
+            declared_interface_type,
+        } => Some(GeometryInputTarget::GeometryValueMap {
+            occurrence: occurrence.clone(),
+            binder_id: binder_id.clone(),
+            geometry_type: geometry_type.clone(),
+            point_key: point_key.clone(),
+            source: Box::new(clone_geometry_input_target(source)?),
+            program: program.clone(),
+            execution_position: *execution_position,
+            declared_interface_type: declared_interface_type.clone(),
+        }),
         GeometryInputTarget::ForGroupOccurrence { .. }
-        | GeometryInputTarget::GeometryValueMap { .. }
         | GeometryInputTarget::CollectionValue { .. }
         | GeometryInputTarget::CollectionIndex { .. } => None,
     }

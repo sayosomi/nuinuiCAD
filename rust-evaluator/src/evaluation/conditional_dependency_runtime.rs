@@ -213,7 +213,9 @@ fn encode_identity_tuple(parts: &[String]) -> String {
 
 pub(crate) fn geometry_value_endpoint_id(occurrence: &GeometryValueOccurrence) -> String {
     let mut parts = vec![
-        if occurrence.mapped_member_index.is_some() {
+        if occurrence.runtime_generation.is_some() {
+            "geometry-value-map-generation".to_owned()
+        } else if occurrence.mapped_member_index.is_some() {
             "geometry-value-map-member".to_owned()
         } else {
             "geometry-value".to_owned()
@@ -221,6 +223,9 @@ pub(crate) fn geometry_value_endpoint_id(occurrence: &GeometryValueOccurrence) -
         occurrence.source_statement_id.clone(),
     ];
     parts.extend(occurrence.instance_path.iter().cloned());
+    if let Some(generation) = occurrence.runtime_generation {
+        parts.push(generation.to_string());
+    }
     if let Some(index) = occurrence.mapped_member_index {
         parts.push(index.to_string());
     }

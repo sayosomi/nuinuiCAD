@@ -575,6 +575,39 @@ describe("geometry array source semantic integration", () => {
     ]));
   });
 
+  it("accepts a geometry value-for source from its owning collection carry", () => {
+    const compiled = compile([
+      "nui 1",
+      "const initial: point[] = [(1, 2)]",
+      "for i in range(min: 0, max: 0, step: 1) carry points: point[] = @initial {",
+      "  const mapped: point[] = for item in @points { @item }",
+      "  next points = @mapped",
+      "}",
+      "line Selected = segment(start: @points[0], end: (4, 5))"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const mapped = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis?.values.find((value) => value.name === "mapped")?.value;
+    expect(mapped).toMatchObject({
+      kind: "map",
+      sourceValueId: "carry-collection:binding:statement:2:carry:0:points",
+      sourceIsImmutableCarry: true,
+      sourceElementType: "point",
+      resultElementType: "point"
+    });
+
+    const invalidType = analyze([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry points: number[] = [1] {",
+      "  const mapped: point[] = for item in @points { @item }",
+      "  next points = [1]",
+      "}"
+    ].join("\n"));
+    expect(invalidType.namespace.diagnostics).toContainEqual(expect.objectContaining({
+      code: "geometry-array-value-for-source-invalid"
+    }));
+  });
+
   it("keeps scalar value-for binding versions ordered under unrelated declarations", () => {
     const cases = [
       { name: "without records", beforeMap: [], betweenMapAndConsumer: [], afterConsumer: [], compareToBaseline: true },

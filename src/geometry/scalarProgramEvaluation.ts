@@ -271,20 +271,37 @@ export const resolveDocumentGeometryProperty = (
     : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
 };
 
-const geometryCollectionLengthForNode = (
+export const geometryCollectionLengthForNode = (
   node: GeometryInputCollectionNode,
-  environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment
+  environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment,
+  resolveSourceCollectionNode?: (valueId: string) => GeometryInputCollectionNode | undefined,
+  seen: ReadonlySet<string> = new Set()
 ): number | undefined => {
   if (node.kind === "none") return undefined;
   if (node.kind === "leaf") return node.targets.length;
+  if (node.kind === "geometryValueMap") {
+    if (node.source.kind === "node") {
+      return geometryCollectionLengthForNode(node.source.node, environmentFor, resolveSourceCollectionNode, seen);
+    }
+    if (seen.has(node.source.valueId)) return undefined;
+    const sourceNode = resolveSourceCollectionNode?.(node.source.valueId);
+    return sourceNode
+      ? geometryCollectionLengthForNode(
+          sourceNode,
+          environmentFor,
+          resolveSourceCollectionNode,
+          new Set([...seen, node.source.valueId])
+        )
+      : undefined;
+  }
   if (node.kind === "if") {
     const condition = evaluateTypedExpression(node.condition, environmentFor(node.sourceOrder));
     if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
-    return geometryCollectionLengthForNode(condition.value.value ? node.thenBranch : node.elseBranch, environmentFor);
+    return geometryCollectionLengthForNode(condition.value.value ? node.thenBranch : node.elseBranch, environmentFor, resolveSourceCollectionNode, seen);
   }
   if (node.kind === "coalesce") {
-    return geometryCollectionLengthForNode(node.leftBranch, environmentFor) ??
-      geometryCollectionLengthForNode(node.rightBranch, environmentFor);
+    return geometryCollectionLengthForNode(node.leftBranch, environmentFor, resolveSourceCollectionNode, seen) ??
+      geometryCollectionLengthForNode(node.rightBranch, environmentFor, resolveSourceCollectionNode, seen);
   }
   const scrutinee = evaluateTypedExpression(node.scrutinee, environmentFor(node.sourceOrder));
   if (scrutinee.status !== "ok") return undefined;
@@ -293,26 +310,67 @@ const geometryCollectionLengthForNode = (
     : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
   if (label === undefined) return undefined;
   const arm = node.arms.find((candidate) => candidate.label === label);
-  return arm ? geometryCollectionLengthForNode(arm.value, environmentFor) : undefined;
+  return arm ? geometryCollectionLengthForNode(arm.value, environmentFor, resolveSourceCollectionNode, seen) : undefined;
+};
+
+type GeometryCollectionNodeRuntime = {
+  resolveSourceCollectionNode?: (valueId: string) => GeometryInputCollectionNode | undefined;
+  materializeGeometryValueMap?: (
+    target: Extract<GeometryInputTarget, { kind: "geometryValueMap" }>
+  ) => Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" | "geometryValueMap" }> | undefined;
 };
 
 export const resolveGeometryCollectionMemberForNode = (
   node: GeometryInputCollectionNode,
   index: number,
-  environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment
+  environmentFor: (sourceOrder: number) => ScalarEvaluationEnvironment,
+  runtime?: GeometryCollectionNodeRuntime,
+  seen: ReadonlySet<string> = new Set()
 ): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }> | undefined => {
   if (node.kind === "none") return undefined;
   if (node.kind === "leaf") {
     return node.targets[index];
   }
+  if (node.kind === "geometryValueMap") {
+    const sourceNode = node.source.kind === "node"
+      ? node.source.node
+      : seen.has(node.source.valueId)
+        ? undefined
+        : runtime?.resolveSourceCollectionNode?.(node.source.valueId);
+    if (!sourceNode) return undefined;
+    const sourceSeen = node.source.kind === "node"
+      ? seen
+      : new Set([...seen, node.source.valueId]);
+    let source = resolveGeometryCollectionMemberForNode(sourceNode, index, environmentFor, runtime, sourceSeen);
+    if (!source) return undefined;
+    if (source.kind === "geometryValueMap") {
+      source = runtime?.materializeGeometryValueMap?.(source);
+      if (!source) return undefined;
+    }
+    return {
+      kind: "geometryValueMap",
+      occurrence: {
+        sourceStatementId: node.sourceStatementId,
+        instancePath: node.instancePath,
+        mappedMemberIndex: index,
+        ...(node.runtimeGeneration === undefined ? {} : { runtimeGeneration: node.runtimeGeneration })
+      },
+      binderId: node.binderId,
+      geometryType: node.geometryType,
+      source: source as Exclude<GeometryInputTarget, { kind: "collectionIndex" | "geometryValueMap" }>,
+      program: node.program,
+      executionPosition: node.executionPosition,
+      declaredInterfaceType: node.declaredInterfaceType
+    };
+  }
   if (node.kind === "if") {
     const condition = evaluateTypedExpression(node.condition, environmentFor(node.sourceOrder));
     if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
-    return resolveGeometryCollectionMemberForNode(condition.value.value ? node.thenBranch : node.elseBranch, index, environmentFor);
+    return resolveGeometryCollectionMemberForNode(condition.value.value ? node.thenBranch : node.elseBranch, index, environmentFor, runtime, seen);
   }
   if (node.kind === "coalesce") {
-    return resolveGeometryCollectionMemberForNode(node.leftBranch, index, environmentFor) ??
-      resolveGeometryCollectionMemberForNode(node.rightBranch, index, environmentFor);
+    return resolveGeometryCollectionMemberForNode(node.leftBranch, index, environmentFor, runtime, seen) ??
+      resolveGeometryCollectionMemberForNode(node.rightBranch, index, environmentFor, runtime, seen);
   }
   const scrutinee = evaluateTypedExpression(node.scrutinee, environmentFor(node.sourceOrder));
   if (scrutinee.status !== "ok") return undefined;
@@ -321,7 +379,7 @@ export const resolveGeometryCollectionMemberForNode = (
     : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
   if (label === undefined) return undefined;
   const arm = node.arms.find((candidate) => candidate.label === label);
-  return arm ? resolveGeometryCollectionMemberForNode(arm.value, index, environmentFor) : undefined;
+  return arm ? resolveGeometryCollectionMemberForNode(arm.value, index, environmentFor, runtime, seen) : undefined;
 };
 
 export const resolveDocumentGeometryTarget = (
@@ -376,7 +434,11 @@ export const createDocumentScalarBindingResolver = (
           lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder, evaluateOccurrenceIndex),
           ...evaluator.collectionResolver?.environmentFor(currentSourceOrder)
         });
-        return geometryCollectionLengthForNode(node, environmentFor);
+        return geometryCollectionLengthForNode(
+          node,
+          environmentFor,
+          (valueId) => geometry.geometryCollectionNodesByValueId?.get(valueId)
+        );
       }
     : undefined;
   const resolveGeometryProperty = geometry
@@ -432,7 +494,11 @@ export const createDocumentLinearScalarBindingResolver = (
           lookupGeometryTarget: (target) => resolveDocumentGeometryTarget(geometry, target, currentSourceOrder, evaluateOccurrenceIndex),
           ...collectionResolver?.environmentFor(currentSourceOrder)
         });
-        return geometryCollectionLengthForNode(node, environmentFor);
+        return geometryCollectionLengthForNode(
+          node,
+          environmentFor,
+          (valueId) => geometry.geometryCollectionNodesByValueId?.get(valueId)
+        );
       }
     : undefined;
   const resolveGeometryProperty = geometry
