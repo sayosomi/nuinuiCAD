@@ -179,6 +179,7 @@ impl ScalarMutationResolver<'_> {
                     CollectionCarrySnapshot {
                         value_id: carry.initializer_value_id.clone(),
                         local_bindings: HashMap::new(),
+                        collection_carry_snapshots: None,
                         error: None,
                     },
                 );
@@ -238,7 +239,7 @@ impl ScalarMutationResolver<'_> {
         let Some(plan) = self.program.immutable_for_groups.get(owner_statement_id) else {
             return Ok(());
         };
-        let collection_snapshot = self.collection_carry_snapshots.clone();
+        let collection_snapshot = std::sync::Arc::new(self.collection_carry_snapshots.clone());
         let collection_next_values = {
             let resolver = self.for_group_binding_resolver(environment);
             plan.collection_carries
@@ -246,9 +247,10 @@ impl ScalarMutationResolver<'_> {
                 .map(|carry| {
                     (
                         carry.collection_value_id.clone(),
-                        resolve_collection_carry_snapshot(
+                        resolve_collection_carry_snapshot_with_context(
                             &carry.next_value_id,
-                            &collection_snapshot,
+                            collection_snapshot.as_ref(),
+                            collection_snapshot.clone(),
                             &self.program.collection_values,
                             &iteration_bindings,
                             |expression, source_order, local_bindings| {
@@ -624,9 +626,32 @@ impl ScalarMutationResolver<'_> {
     }
 }
 
+#[cfg(test)]
 pub(super) fn resolve_collection_carry_snapshot(
     value_id: &str,
     redirects: &HashMap<String, CollectionCarrySnapshot>,
+    collection_values: &[super::super::program_payload::ValidatedScalarProgramCollection],
+    iteration_bindings: &HashMap<String, ScalarEvaluation>,
+    evaluate_expression: impl FnMut(
+        &super::super::types::TypedScalarExpression,
+        f64,
+        &HashMap<String, ScalarEvaluation>,
+    ) -> ScalarEvaluation,
+) -> Option<CollectionCarrySnapshot> {
+    resolve_collection_carry_snapshot_with_context(
+        value_id,
+        redirects,
+        std::sync::Arc::new(redirects.clone()),
+        collection_values,
+        iteration_bindings,
+        evaluate_expression,
+    )
+}
+
+pub(super) fn resolve_collection_carry_snapshot_with_context(
+    value_id: &str,
+    redirects: &HashMap<String, CollectionCarrySnapshot>,
+    snapshot_context: std::sync::Arc<HashMap<String, CollectionCarrySnapshot>>,
     collection_values: &[super::super::program_payload::ValidatedScalarProgramCollection],
     iteration_bindings: &HashMap<String, ScalarEvaluation>,
     mut evaluate_expression: impl FnMut(
@@ -637,6 +662,7 @@ pub(super) fn resolve_collection_carry_snapshot(
 ) -> Option<CollectionCarrySnapshot> {
     let mut current = value_id.to_owned();
     let mut local_bindings = HashMap::new();
+    let mut captured_snapshots = None;
     let mut seen = HashMap::new();
     loop {
         if seen.insert(current.clone(), ()).is_some() {
@@ -648,10 +674,15 @@ pub(super) fn resolve_collection_carry_snapshot(
                     .entry(binding_id.clone())
                     .or_insert_with(|| value.clone());
             }
+            captured_snapshots = snapshot
+                .collection_carry_snapshots
+                .clone()
+                .or(captured_snapshots);
             if let Some(error) = &snapshot.error {
                 return Some(CollectionCarrySnapshot {
                     value_id: snapshot.value_id.clone(),
                     local_bindings,
+                    collection_carry_snapshots: captured_snapshots,
                     error: Some(error.clone()),
                 });
             }
@@ -684,6 +715,7 @@ pub(super) fn resolve_collection_carry_snapshot(
                         return Some(CollectionCarrySnapshot {
                             value_id: current,
                             local_bindings,
+                            collection_carry_snapshots: captured_snapshots,
                             error: Some(error),
                         });
                     }
@@ -691,6 +723,7 @@ pub(super) fn resolve_collection_carry_snapshot(
                         return Some(CollectionCarrySnapshot {
                             value_id: current,
                             local_bindings,
+                            collection_carry_snapshots: captured_snapshots,
                             error: Some(ScalarEvaluation::Error {
                                 r#type,
                                 issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
@@ -721,6 +754,7 @@ pub(super) fn resolve_collection_carry_snapshot(
                         return Some(CollectionCarrySnapshot {
                             value_id: current,
                             local_bindings,
+                            collection_carry_snapshots: captured_snapshots,
                             error: Some(error),
                         });
                     }
@@ -742,13 +776,54 @@ pub(super) fn resolve_collection_carry_snapshot(
                 return Some(CollectionCarrySnapshot {
                     value_id: current,
                     local_bindings,
+                    collection_carry_snapshots: Some(
+                        captured_snapshots.unwrap_or_else(|| snapshot_context.clone()),
+                    ),
+                    error: None,
+                });
+            }
+            super::super::program_payload::ValidatedScalarProgramCollectionValue::RecordMap {
+                binder_fields,
+                ..
+            } => {
+                let excluded = binder_fields
+                    .iter()
+                    .map(|field| field.binding_id.as_str())
+                    .collect::<std::collections::HashSet<_>>();
+                for (binding_id, value) in iteration_bindings {
+                    if !excluded.contains(binding_id.as_str())
+                        && !local_bindings.contains_key(binding_id)
+                    {
+                        local_bindings.insert(binding_id.clone(), value.clone());
+                    }
+                }
+                return Some(CollectionCarrySnapshot {
+                    value_id: current,
+                    local_bindings,
+                    collection_carry_snapshots: Some(
+                        captured_snapshots.unwrap_or_else(|| snapshot_context.clone()),
+                    ),
                     error: None,
                 });
             }
             _ => {
+                let is_lazy = !matches!(
+                    value.value,
+                    super::super::program_payload::ValidatedScalarProgramCollectionValue::None
+                        | super::super::program_payload::ValidatedScalarProgramCollectionValue::Literal(_)
+                );
+                if is_lazy {
+                    for (binding_id, value) in iteration_bindings {
+                        if !local_bindings.contains_key(binding_id) {
+                            local_bindings.insert(binding_id.clone(), value.clone());
+                        }
+                    }
+                }
                 return Some(CollectionCarrySnapshot {
                     value_id: current,
                     local_bindings,
+                    collection_carry_snapshots: is_lazy
+                        .then(|| captured_snapshots.unwrap_or_else(|| snapshot_context.clone())),
                     error: None,
                 });
             }
@@ -757,6 +832,7 @@ pub(super) fn resolve_collection_carry_snapshot(
     Some(CollectionCarrySnapshot {
         value_id: current,
         local_bindings,
+        collection_carry_snapshots: captured_snapshots,
         error: None,
     })
 }
@@ -880,6 +956,7 @@ impl ScalarDocumentBindingResolver
                 collection_length,
                 state,
                 &local_bindings,
+                None,
             )
     }
 
@@ -897,6 +974,7 @@ impl ScalarDocumentBindingResolver
                 state,
                 seen,
                 &local_bindings,
+                None,
             )
             .ok()
             .flatten()
@@ -916,6 +994,7 @@ impl ScalarDocumentBindingResolver
                 state,
                 seen,
                 &local_bindings,
+                None,
             )
     }
 
@@ -933,6 +1012,8 @@ impl ScalarDocumentBindingResolver
                 r#type,
                 state,
                 &local_bindings,
+                None,
+                None,
             )
     }
 }
@@ -1001,6 +1082,7 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
             state,
             seen,
             &local_bindings,
+            None,
         )
     }
 }
@@ -1049,6 +1131,7 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
             collection_length,
             self.state,
             &local_bindings,
+            None,
         )
     }
 
@@ -1065,6 +1148,7 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
                 self.state,
                 &mut HashSet::new(),
                 &local_bindings,
+                None,
             )
             .ok()
             .flatten()
@@ -1085,6 +1169,7 @@ impl ScalarEvaluationEnvironment for ForGroupExecutionEvaluationEnvironment<'_, 
             self.state,
             &mut HashSet::new(),
             &local_bindings,
+            None,
         )
     }
 

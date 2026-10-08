@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use super::super::mutation_payload::ValidatedBindingVersions;
 use super::super::mutation_payload::{
@@ -149,6 +150,8 @@ fn lookup_optional_member(
         local_binding: None,
         local_bindings: None,
         record_map_context: None,
+        collection_carry_snapshots: None,
+        collection_traversal_seen: None,
     };
     environment.lookup_optional_member(target, &optional_number_type())
 }
@@ -209,6 +212,7 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
             CollectionCarrySnapshot {
                 value_id: "redirected-if".to_owned(),
                 local_bindings: HashMap::new(),
+                collection_carry_snapshots: None,
                 error: None,
             },
         ),
@@ -217,6 +221,7 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
             CollectionCarrySnapshot {
                 value_id: "if-value".to_owned(),
                 local_bindings: HashMap::new(),
+                collection_carry_snapshots: None,
                 error: None,
             },
         ),
@@ -296,6 +301,7 @@ fn collection_carry_snapshot_redirects_preserve_committed_errors_and_local_bindi
             CollectionCarrySnapshot {
                 value_id: "inner-carry".to_owned(),
                 local_bindings: HashMap::new(),
+                collection_carry_snapshots: None,
                 error: None,
             },
         ),
@@ -304,6 +310,7 @@ fn collection_carry_snapshot_redirects_preserve_committed_errors_and_local_bindi
             CollectionCarrySnapshot {
                 value_id: "failed-if".to_owned(),
                 local_bindings: HashMap::from([("captured".to_owned(), captured.clone())]),
+                collection_carry_snapshots: None,
                 error: Some(error.clone()),
             },
         ),
@@ -338,6 +345,7 @@ fn collection_carry_consumers_return_the_committed_error_before_unavailable() {
         CollectionCarrySnapshot {
             value_id: "redirect".to_owned(),
             local_bindings: HashMap::new(),
+            collection_carry_snapshots: None,
             error: None,
         },
     );
@@ -346,6 +354,7 @@ fn collection_carry_consumers_return_the_committed_error_before_unavailable() {
         CollectionCarrySnapshot {
             value_id: "literal".to_owned(),
             local_bindings: HashMap::new(),
+            collection_carry_snapshots: None,
             error: Some(error.clone()),
         },
     );
@@ -358,6 +367,7 @@ fn collection_carry_consumers_return_the_committed_error_before_unavailable() {
         None,
         &state,
         &HashMap::new(),
+        None,
     );
     assert_eq!(
         index,
@@ -374,6 +384,7 @@ fn collection_carry_consumers_return_the_committed_error_before_unavailable() {
             &state,
             &mut HashSet::new(),
             &HashMap::new(),
+            None,
         ),
         Err(error.clone())
     );
@@ -453,6 +464,7 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
             CollectionCarrySnapshot {
                 value_id: "redirected-match".to_owned(),
                 local_bindings: HashMap::new(),
+                collection_carry_snapshots: None,
                 error: None,
             },
         ),
@@ -461,6 +473,7 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
             CollectionCarrySnapshot {
                 value_id: "match-value".to_owned(),
                 local_bindings: HashMap::new(),
+                collection_carry_snapshots: None,
                 error: None,
             },
         ),
@@ -611,6 +624,7 @@ fn collection_carry_snapshot_captures_optional_some_binder_and_keeps_selected_pa
         CollectionCarrySnapshot {
             value_id: "match-value".to_owned(),
             local_bindings: HashMap::from([("prior-flag".to_owned(), local_flag.clone())]),
+            collection_carry_snapshots: None,
             error: None,
         },
     )]);
@@ -695,6 +709,7 @@ fn collection_carry_snapshot_captures_map_iteration_bindings_without_evaluating_
         CollectionCarrySnapshot {
             value_id: "mapped".to_owned(),
             local_bindings: HashMap::from([("prior".to_owned(), number(99.0))]),
+            collection_carry_snapshots: None,
             error: None,
         },
     )]);
@@ -722,6 +737,106 @@ fn collection_carry_snapshot_captures_map_iteration_bindings_without_evaluating_
     );
     assert_eq!(selected.local_bindings.get("prior"), Some(&number(99.0)));
     assert!(!selected.local_bindings.contains_key("map-binder"));
+}
+
+#[test]
+fn collection_map_traversal_allows_the_same_map_id_across_snapshot_generations() {
+    let collections = vec![
+        ValidatedScalarProgramCollection {
+            value_id: "mapped".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Map {
+                source_value_id: "carry".to_owned(),
+                source_element_type: ScalarType::Number,
+                result_element_type: ScalarType::Number,
+                binder_id: "map-binder".to_owned(),
+                body: Box::new(number_reference("item", "map-binder")),
+                source_order: 4,
+            },
+        },
+        number_collection("literal", &[1.0]),
+    ];
+    let generation_zero = Arc::new(HashMap::from([(
+        "carry".to_owned(),
+        CollectionCarrySnapshot {
+            value_id: "literal".to_owned(),
+            local_bindings: HashMap::new(),
+            collection_carry_snapshots: None,
+            error: None,
+        },
+    )]));
+    let generation_one = Arc::new(HashMap::from([(
+        "carry".to_owned(),
+        CollectionCarrySnapshot {
+            value_id: "mapped".to_owned(),
+            local_bindings: HashMap::new(),
+            collection_carry_snapshots: Some(generation_zero.clone()),
+            error: None,
+        },
+    )]));
+    let generation_two = Arc::new(HashMap::from([(
+        "carry".to_owned(),
+        CollectionCarrySnapshot {
+            value_id: "mapped".to_owned(),
+            local_bindings: HashMap::new(),
+            collection_carry_snapshots: Some(generation_one.clone()),
+            error: None,
+        },
+    )]));
+    let program = binding_versions(collections);
+    let resolver = ScalarMutationResolver::new(&program);
+    let value = resolver.resolve_collection_index_with_bindings(
+        "mapped",
+        0.0,
+        &ScalarType::Number,
+        None,
+        &evaluation_state(),
+        &HashMap::new(),
+        Some(&generation_two),
+    );
+
+    assert_eq!(
+        value,
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Number,
+            value: ScalarValue::Number(1.0),
+        }
+    );
+}
+
+#[test]
+fn genuine_same_context_collection_map_cycle_terminates_as_unavailable() {
+    let collections = vec![ValidatedScalarProgramCollection {
+        value_id: "cycle".to_owned(),
+        value: ValidatedScalarProgramCollectionValue::Map {
+            source_value_id: "cycle".to_owned(),
+            source_element_type: ScalarType::Number,
+            result_element_type: ScalarType::Number,
+            binder_id: "map-binder".to_owned(),
+            body: Box::new(number_reference("item", "map-binder")),
+            source_order: 4,
+        },
+    }];
+    let program = binding_versions(collections);
+    let resolver = ScalarMutationResolver::new(&program);
+    let value = resolver.resolve_collection_index_with_bindings(
+        "cycle",
+        0.0,
+        &ScalarType::Number,
+        None,
+        &evaluation_state(),
+        &HashMap::new(),
+        None,
+    );
+
+    assert_eq!(
+        value,
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-collection-index-unavailable".to_owned(),
+            binding_id: None,
+            context: None,
+        }
+    );
 }
 
 fn number_reference(name: &str, binding_id: &str) -> TypedScalarExpression {

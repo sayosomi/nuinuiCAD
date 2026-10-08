@@ -46,7 +46,8 @@ import {
 } from "../scalars/bindingVersions";
 import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
 import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
-import { compileImmutableCarries, immutableCarryCollectionValueId, type ImmutableCarryCompilation } from "../scalars/immutableCarryCompiler";
+import { compileImmutableCarries, type ImmutableCarryCompilation } from "../scalars/immutableCarryCompiler";
+import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
 import type { ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
 import { isCompilableDslStatement, isCanonicalValueBindingDeclaration, type DslStatementInclusion } from "./dslCompilationGuard";
@@ -59,6 +60,8 @@ import type { GenericArraySourceTarget, GenericArrayValueSemantic } from "./geom
 import { type DslArrayMappedValue, type DslArraySemanticValue } from "./geometryArraySemantics";
 import {
   buildSourceLexicalNamespaceIndex,
+  resolveSourceLexicalDeclaration,
+  resolveSourceLexicalPath,
   type SourceLexicalNamespaceIndex
 } from "./sourceLexicalNamespaceIndex";
 import { resolveModuleLexicalDeclaration } from "./moduleLexicalResolution";
@@ -109,7 +112,6 @@ import type { DslValueType } from "./dslValueTypes";
 import { dslValueTypeForParameterDefinition, getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { makeNumericExpression } from "../geometry/numericExpressions";
 import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
-import { resolveSourceLexicalDeclaration, resolveSourceLexicalPath } from "./sourceLexicalNamespaceIndex";
 import { DSL_INDENT, formatDslName, splitDslList } from "./dslTokens";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
@@ -2076,7 +2078,30 @@ export const compileDslDocument = (
               const baseValue = baseLookup.kind === "resolved" && baseLookup.declaration.kind === "typedDeclaration"
                 ? sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementIndex.get(baseLookup.declaration.statementIndex) ?? null
                 : null;
-              let valueType: DslValueType | null = baseValue?.valueType.elementType.kind === "record" ? baseValue.valueType.elementType : null;
+              const carryDeclaration = baseLookup.kind === "resolved" && baseLookup.declaration.kind === "carry"
+                ? baseLookup.declaration
+                : null;
+              const carryType = carryDeclaration?.statement.kind === "element"
+                ? carryDeclaration.statement.forCarries?.find((candidate) => candidate.name === carryDeclaration.name)?.valueType ?? null
+                : null;
+              const carryArrayType = isDslArrayValueType(carryType) ? carryType : null;
+              const carryRecordDefinition = carryArrayType?.elementType.kind === "record"
+                ? (() => {
+                    const typeLookup = resolveSourceLexicalPath(
+                      sourceLexicalNamespace,
+                      carryDeclaration!.statementIndex,
+                      parseDslReferenceToken(carryArrayType.elementType.name)
+                    );
+                    return typeLookup.kind === "resolved" && typeLookup.declaration.kind === "recordDefinition"
+                      ? sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementIndex.get(typeLookup.declaration.statementIndex)
+                      : sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(carryArrayType.elementType.identity ?? "");
+                  })()
+                : undefined;
+              let valueType: DslValueType | null = baseValue?.valueType.elementType.kind === "record"
+                ? baseValue.valueType.elementType
+                : carryArrayType?.elementType.kind === "record"
+                  ? { ...carryArrayType.elementType, ...(carryRecordDefinition ? { identity: carryRecordDefinition.statementId } : {}) }
+                  : null;
               let field: import("./recordSemanticAnalysis").RecordFieldSemantic | undefined;
               for (const [index, identity] of encodedPath.entries()) {
                 const definition: import("./recordSemanticAnalysis").RecordDefinitionSemantic | undefined = valueType?.kind === "record"
@@ -2088,16 +2113,21 @@ export const compileDslDocument = (
                 if (!field) break;
                 valueType = index === encodedPath.length - 1 ? field.type : field.type.kind === "record" ? field.type : null;
               }
-              if (baseValue && field) {
-                const collectionValueId = `record-field-collection:${JSON.stringify(
-                  encodedPath.length === 1
-                    ? [baseValue.statementId, encodedPath[0]!.recordStatementId, encodedPath[0]!.fieldIndex]
-                    : [baseValue.statementId, "path", encodedPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])]
-                )}`;
+              const baseCollectionValueId = baseValue?.statementId ?? (carryDeclaration
+                ? immutableCarryCollectionValueId(bindingIdForStableStatementId(carryDeclaration.statementId))
+                : null);
+              if (baseCollectionValueId && field) {
+                const collectionValueId = recordFieldCollectionValueIdFor(
+                  baseCollectionValueId,
+                  encodedPath[encodedPath.length - 1]!,
+                  encodedPath
+                );
                 return {
                   kind: "resolvedCollectionIndex" as const,
                   collectionValueId,
-                  collectionLength: collectionLengthForValueId(sourceLexicalNamespace.geometryArraySemanticAnalysis!, baseValue.statementId),
+                  collectionLength: carryDeclaration
+                    ? null
+                    : collectionLengthForValueId(sourceLexicalNamespace.geometryArraySemanticAnalysis!, baseValue!.statementId),
                   // The record field backing slot is ordered within its
                   // record declaration, while the collection owner is
                   // ordered by its enclosing declaration. Semantic analysis
@@ -3760,6 +3790,34 @@ export const compileDslDocument = (
         additionalRecordPropertyResolver: ({ statementIndex, node }) => {
           const carryResolution = immutableCarryCompilation?.recordPropertyResolver?.({ statementIndex, node });
           if (carryResolution) return carryResolution;
+          const selectedRecordLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, node.elementName);
+          const selectedRecord = selectedRecordLookup.kind === "resolved" && selectedRecordLookup.declaration.kind === "recordValue"
+            ? moduleSemanticCompilation.rootRecordValuesByStatementId.get(selectedRecordLookup.declaration.statementId)
+            : undefined;
+          const selectedCollectionIndex = selectedRecord?.valueExpression?.kind === "collectionIndex"
+            ? selectedRecord.valueExpression.reference.target
+            : null;
+          const selectedIndex = selectedCollectionIndex?.kind === "recordCollectionIndex" &&
+            selectedCollectionIndex.index.ast.kind === "numberLiteral"
+            ? selectedCollectionIndex.index.ast.value
+            : null;
+          if (selectedCollectionIndex?.kind === "recordCollectionIndex" && selectedIndex !== null) {
+            const definition = sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(selectedRecord!.value.typeIdentity ?? "");
+            const field = definition?.fields.find((candidate) => candidate.name === node.property);
+            const type = field ? scalarExpressionTypeOfDslValueType(field.type) : null;
+            if (field && type) {
+              return {
+                resolution: {
+                  kind: "resolvedCollectionIndex" as const,
+                  collectionValueId: recordFieldCollectionValueIdFor(selectedCollectionIndex.collectionValueId, field.identity),
+                  collectionLength: selectedCollectionIndex.collectionLength,
+                  targetSourceOrder: selectedCollectionIndex.targetSourceOrder,
+                  type
+                },
+                collectionIndex: selectedIndex
+              };
+            }
+          }
           const statementId = stableStatementIdByIndex.get(statementIndex);
           const site = statementId
             ? moduleSemanticCompilation.rootScalarExpressionsByStatementId.get(statementId)
@@ -3808,6 +3866,26 @@ export const compileDslDocument = (
           }
           if (property.target.record.kind === "recordValue") {
             const recordValue = sourceLexicalNamespace.recordSemanticAnalysis?.valuesByStatementId.get(property.target.record.statementId);
+            const moduleRecordValue = moduleSemanticCompilation.rootRecordValuesByStatementId.get(property.target.record.statementId);
+            const selectedCollectionIndex = moduleRecordValue?.valueExpression?.kind === "collectionIndex"
+              ? moduleRecordValue.valueExpression.reference.target
+              : null;
+            if (selectedCollectionIndex?.kind === "recordCollectionIndex") {
+              const fieldPath = property.target.fieldPath ?? [property.target.field];
+              return {
+                resolution: {
+                  kind: "resolvedCollectionIndex" as const,
+                  collectionValueId: recordFieldCollectionValueIdFor(
+                    selectedCollectionIndex.collectionValueId,
+                    property.target.field,
+                    fieldPath
+                  ),
+                  collectionLength: selectedCollectionIndex.collectionLength,
+                  targetSourceOrder: selectedCollectionIndex.targetSourceOrder,
+                  type: property.type
+                }
+              };
+            }
             if (recordValue?.valueExpression?.kind === "coalesce") {
               const fieldPath = property.target.fieldPath ?? [property.target.field];
               return {

@@ -33,6 +33,7 @@ use crate::evaluation::geometry_value_runtime::{
 use crate::evaluation::types::EvaluationState;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 pub(crate) use for_group_scheduler::ForGroupExecutionStatement;
 
@@ -49,6 +50,7 @@ struct ScopeFrame {
 pub(crate) struct CollectionCarrySnapshot {
     pub(crate) value_id: String,
     pub(crate) local_bindings: HashMap<BindingId, ScalarEvaluation>,
+    pub(crate) collection_carry_snapshots: Option<Arc<HashMap<String, CollectionCarrySnapshot>>>,
     pub(crate) error: Option<ScalarEvaluation>,
 }
 
@@ -569,12 +571,20 @@ impl<'a> ScalarMutationResolver<'a> {
         &self,
         value_id: &str,
     ) -> CollectionCarrySnapshot {
+        Self::resolve_collection_carry_snapshot_from(value_id, &self.collection_carry_snapshots)
+    }
+
+    fn resolve_collection_carry_snapshot_from(
+        value_id: &str,
+        snapshots: &HashMap<String, CollectionCarrySnapshot>,
+    ) -> CollectionCarrySnapshot {
         let mut current = value_id.to_owned();
         let mut local_bindings = HashMap::new();
+        let mut collection_carry_snapshots = None;
         let mut error = None;
         let mut seen = HashSet::new();
         while seen.insert(current.clone()) {
-            let Some(snapshot) = self.collection_carry_snapshots.get(&current) else {
+            let Some(snapshot) = snapshots.get(&current) else {
                 break;
             };
             for (binding_id, value) in &snapshot.local_bindings {
@@ -584,14 +594,23 @@ impl<'a> ScalarMutationResolver<'a> {
             }
             if let Some(snapshot_error) = &snapshot.error {
                 error = Some(snapshot_error.clone());
+                collection_carry_snapshots = snapshot
+                    .collection_carry_snapshots
+                    .clone()
+                    .or(collection_carry_snapshots);
                 current = snapshot.value_id.clone();
                 break;
             }
+            collection_carry_snapshots = snapshot
+                .collection_carry_snapshots
+                .clone()
+                .or(collection_carry_snapshots);
             current = snapshot.value_id.clone();
         }
         CollectionCarrySnapshot {
             value_id: current,
             local_bindings,
+            collection_carry_snapshots,
             error,
         }
     }
@@ -600,17 +619,41 @@ impl<'a> ScalarMutationResolver<'a> {
         &self,
         value_id: &str,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+        inherited_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
     ) -> CollectionCarrySnapshot {
-        let snapshot = self.resolve_collection_carry_snapshot(value_id);
-        let mut merged = snapshot.local_bindings;
-        // A more-local context from the current collection traversal wins over
-        // bindings inherited from the committed carry snapshot.
-        merged.extend(local_bindings.clone());
+        let snapshot = match inherited_snapshots {
+            Some(redirects) => Self::resolve_collection_carry_snapshot_from(value_id, redirects),
+            None => self.resolve_collection_carry_snapshot(value_id),
+        };
+        let mut merged = local_bindings.clone();
+        if inherited_snapshots.is_some() {
+            // Entering a captured generation also enters that generation's
+            // scalar closure. Its lexical bindings shadow the enclosing
+            // generation when the stable binding identity is shared.
+            merged.extend(snapshot.local_bindings);
+        } else {
+            // Preserve the established SAY-481 merge order for the current
+            // traversal.
+            for (binding_id, value) in snapshot.local_bindings {
+                merged.entry(binding_id).or_insert(value);
+            }
+        }
         CollectionCarrySnapshot {
             value_id: snapshot.value_id,
             local_bindings: merged,
+            collection_carry_snapshots: snapshot
+                .collection_carry_snapshots
+                .or_else(|| inherited_snapshots.cloned()),
             error: snapshot.error,
         }
+    }
+
+    fn collection_traversal_key(
+        value_id: &str,
+        snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
+    ) -> String {
+        let context_id = snapshots.map_or(0, |snapshots| Arc::as_ptr(snapshots) as usize);
+        format!("{context_id}:{value_id}")
     }
 
     pub(crate) fn history(&self) -> Vec<Value> {
@@ -746,6 +789,8 @@ impl<'a> ScalarMutationResolver<'a> {
             local_binding: None,
             local_bindings: None,
             record_map_context: None,
+            collection_carry_snapshots: None,
+            collection_traversal_seen: None,
         };
         result_for_declared_type(
             evaluate_typed_expression(expression, &environment),
@@ -770,24 +815,9 @@ impl<'a> ScalarMutationResolver<'a> {
             })
     }
 
-    fn resolve_record_field(
-        &self,
-        collection_value_id: &str,
-        index: f64,
-        field: &ValidatedScalarProgramRecordFieldIdentity,
-        state: &EvaluationState,
-        seen: &mut HashSet<String>,
-    ) -> ScalarEvaluation {
-        self.resolve_record_field_with_bindings(
-            collection_value_id,
-            index,
-            field,
-            state,
-            seen,
-            &HashMap::new(),
-        )
-    }
-
+    // The recursive record projection carries scalar locals, snapshot generation,
+    // and the traversal set through the same descriptor walk.
+    #[allow(clippy::too_many_arguments)]
     fn resolve_record_field_with_bindings(
         &self,
         collection_value_id: &str,
@@ -796,12 +826,15 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+        inherited_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
     ) -> ScalarEvaluation {
-        let context = self.collection_carry_context(collection_value_id, local_bindings);
+        let context =
+            self.collection_carry_context(collection_value_id, local_bindings, inherited_snapshots);
         if let Some(error) = context.error {
             return result_for_scalar_type(error, &field.r#type);
         }
         let redirected = context.value_id;
+        let collection_carry_snapshots = context.collection_carry_snapshots.as_ref();
         let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
             return self.resolve_record_field_with_bindings(
@@ -811,9 +844,12 @@ impl<'a> ScalarMutationResolver<'a> {
                 state,
                 seen,
                 local_bindings,
+                collection_carry_snapshots,
             );
         }
-        if !seen.insert(collection_value_id.to_owned()) {
+        let traversal_key =
+            Self::collection_traversal_key(collection_value_id, collection_carry_snapshots);
+        if !seen.insert(traversal_key) {
             return ScalarEvaluation::Error {
                 r#type: field.r#type.clone(),
                 issue_code: "evaluation-collection-index-unavailable".to_owned(),
@@ -843,6 +879,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     local_bindings,
+                    collection_carry_snapshots,
                 ),
             ValidatedScalarProgramCollectionValue::RecordField {
                 source_value_id,
@@ -862,6 +899,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     local_bindings,
+                    collection_carry_snapshots,
                 )
             }
             ValidatedScalarProgramCollectionValue::RecordMap {
@@ -896,6 +934,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding: None,
                     local_bindings: Some(local_bindings),
                     record_map_context: Some(&record_map_context),
+                    collection_carry_snapshots,
+                    collection_traversal_seen: Some(seen),
                 };
                 result_for_declared_type(
                     evaluate_typed_expression(&mapped_field.body, &environment),
@@ -917,6 +957,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding: None,
                     local_bindings: Some(local_bindings),
                     record_map_context: None,
+                    collection_carry_snapshots,
+                    collection_traversal_seen: Some(seen),
                 };
                 let selected = match evaluate_typed_expression(condition, &environment) {
                     ScalarEvaluation::Ok {
@@ -946,6 +988,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     local_bindings,
+                    collection_carry_snapshots,
                 )
             }
             ValidatedScalarProgramCollectionValue::Coalesce {
@@ -958,6 +1001,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     &mut seen.clone(),
                     local_bindings,
+                    collection_carry_snapshots,
                 ) {
                     Ok(present) => present,
                     Err(error) => return result_for_scalar_type(error, &field.r#type),
@@ -981,6 +1025,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     local_bindings,
+                    collection_carry_snapshots,
                 )
             }
             ValidatedScalarProgramCollectionValue::Match {
@@ -996,6 +1041,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding: None,
                     local_bindings: Some(local_bindings),
                     record_map_context: None,
+                    collection_carry_snapshots,
+                    collection_traversal_seen: Some(seen),
                 };
                 let selected = match select_collection_match_arm(
                     scrutinee,
@@ -1016,6 +1063,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     &branch_bindings,
+                    collection_carry_snapshots,
                 )
             }
             ValidatedScalarProgramCollectionValue::Literal(members) => {
@@ -1068,12 +1116,15 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+        inherited_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
     ) -> Result<Option<bool>, ScalarEvaluation> {
-        let context = self.collection_carry_context(collection_value_id, local_bindings);
+        let context =
+            self.collection_carry_context(collection_value_id, local_bindings, inherited_snapshots);
         if let Some(error) = context.error {
             return Err(error);
         }
         let redirected = context.value_id;
+        let collection_carry_snapshots = context.collection_carry_snapshots.as_ref();
         let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
             return self.resolve_collection_presence_with_bindings(
@@ -1081,9 +1132,12 @@ impl<'a> ScalarMutationResolver<'a> {
                 state,
                 seen,
                 local_bindings,
+                collection_carry_snapshots,
             );
         }
-        if !seen.insert(collection_value_id.to_owned()) {
+        let traversal_key =
+            Self::collection_traversal_key(collection_value_id, collection_carry_snapshots);
+        if !seen.insert(traversal_key) {
             return Ok(None);
         }
         let Some(value) = self
@@ -1102,9 +1156,14 @@ impl<'a> ScalarMutationResolver<'a> {
         match &value.value {
             ValidatedScalarProgramCollectionValue::None => Ok(Some(false)),
             ValidatedScalarProgramCollectionValue::Literal(_) => Ok(Some(true)),
-            ValidatedScalarProgramCollectionValue::Alias(target) => {
-                self.resolve_collection_presence_with_bindings(target, state, seen, local_bindings)
-            }
+            ValidatedScalarProgramCollectionValue::Alias(target) => self
+                .resolve_collection_presence_with_bindings(
+                    target,
+                    state,
+                    seen,
+                    local_bindings,
+                    collection_carry_snapshots,
+                ),
             ValidatedScalarProgramCollectionValue::Map {
                 source_value_id, ..
             }
@@ -1118,6 +1177,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 state,
                 seen,
                 local_bindings,
+                collection_carry_snapshots,
             ),
             ValidatedScalarProgramCollectionValue::If {
                 condition,
@@ -1133,6 +1193,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding: None,
                     local_bindings: Some(local_bindings),
                     record_map_context: None,
+                    collection_carry_snapshots,
+                    collection_traversal_seen: Some(seen),
                 };
                 match evaluate_typed_expression(condition, &environment) {
                     ScalarEvaluation::Ok {
@@ -1143,6 +1205,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         state,
                         seen,
                         local_bindings,
+                        collection_carry_snapshots,
                     ),
                     error @ ScalarEvaluation::Error { .. } => Err(error),
                     _ => Err(ScalarEvaluation::Error {
@@ -1166,6 +1229,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding: None,
                     local_bindings: Some(local_bindings),
                     record_map_context: None,
+                    collection_carry_snapshots,
+                    collection_traversal_seen: Some(seen),
                 };
                 let selected = select_collection_match_arm(
                     scrutinee,
@@ -1181,6 +1246,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     &branch_bindings,
+                    collection_carry_snapshots,
                 )
             }
             ValidatedScalarProgramCollectionValue::Coalesce {
@@ -1192,6 +1258,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 state,
                 &mut seen.clone(),
                 local_bindings,
+                collection_carry_snapshots,
             )? {
                 Some(true) => Ok(Some(true)),
                 Some(false) => self.resolve_collection_presence_with_bindings(
@@ -1199,6 +1266,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     local_bindings,
+                    collection_carry_snapshots,
                 ),
                 None => Ok(None),
             },
@@ -1221,9 +1289,12 @@ impl<'a> ScalarMutationResolver<'a> {
             collection_length,
             state,
             &HashMap::new(),
+            None,
         )
     }
 
+    // Keep the existing collection-index entry point explicit about its runtime context.
+    #[allow(clippy::too_many_arguments)]
     fn resolve_collection_index_with_bindings(
         &self,
         collection_value_id: &str,
@@ -1232,6 +1303,34 @@ impl<'a> ScalarMutationResolver<'a> {
         collection_length: Option<f64>,
         state: &EvaluationState,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+        inherited_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
+    ) -> ScalarEvaluation {
+        let mut seen = HashSet::new();
+        self.resolve_collection_index_with_seen(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            state,
+            local_bindings,
+            inherited_snapshots,
+            &mut seen,
+        )
+    }
+
+    // The recursive index walk needs the incoming locals, snapshot generation,
+    // and shared cycle set together.
+    #[allow(clippy::too_many_arguments)]
+    fn resolve_collection_index_with_seen(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        state: &EvaluationState,
+        local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+        inherited_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
+        seen: &mut HashSet<String>,
     ) -> ScalarEvaluation {
         if !index.is_finite()
             || index.fract() != 0.0
@@ -1247,13 +1346,18 @@ impl<'a> ScalarMutationResolver<'a> {
         }
         let mut current = collection_value_id.to_owned();
         let mut carried_local_bindings = local_bindings.clone();
-        let mut seen = HashSet::new();
+        let mut carried_collection_snapshots = inherited_snapshots.cloned();
         let member = loop {
-            let context = self.collection_carry_context(&current, &carried_local_bindings);
+            let context = self.collection_carry_context(
+                &current,
+                &carried_local_bindings,
+                carried_collection_snapshots.as_ref(),
+            );
             if let Some(error) = context.error {
                 return result_for_scalar_type(error, element_type);
             }
             let redirected = context.value_id;
+            carried_collection_snapshots = context.collection_carry_snapshots;
             if redirected != current {
                 current = redirected;
                 carried_local_bindings = context.local_bindings;
@@ -1261,7 +1365,9 @@ impl<'a> ScalarMutationResolver<'a> {
             }
             carried_local_bindings = context.local_bindings;
             let local_bindings = &carried_local_bindings;
-            if !seen.insert(current.to_owned()) {
+            let traversal_key =
+                Self::collection_traversal_key(&current, carried_collection_snapshots.as_ref());
+            if !seen.insert(traversal_key) {
                 return ScalarEvaluation::Error {
                     r#type: element_type.clone(),
                     issue_code: "evaluation-collection-index-unavailable".to_owned(),
@@ -1303,13 +1409,15 @@ impl<'a> ScalarMutationResolver<'a> {
                     body,
                     source_order,
                 } => {
-                    let source = self.resolve_collection_index_with_bindings(
+                    let source = self.resolve_collection_index_with_seen(
                         source_value_id,
                         index,
                         source_element_type,
                         None,
                         state,
                         local_bindings,
+                        carried_collection_snapshots.as_ref(),
+                        seen,
                     );
                     if matches!(source, ScalarEvaluation::Error { .. }) {
                         return source;
@@ -1324,6 +1432,8 @@ impl<'a> ScalarMutationResolver<'a> {
                         local_binding: None,
                         local_bindings: Some(&map_bindings),
                         record_map_context: None,
+                        collection_carry_snapshots: carried_collection_snapshots.as_ref(),
+                        collection_traversal_seen: Some(seen),
                     };
                     let mapped = evaluate_typed_expression(body, &environment);
                     return match mapped {
@@ -1354,6 +1464,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         state,
                         &mut HashSet::new(),
                         local_bindings,
+                        carried_collection_snapshots.as_ref(),
                     );
                 }
                 ValidatedScalarProgramCollectionValue::RecordMap { .. } => {
@@ -1378,6 +1489,8 @@ impl<'a> ScalarMutationResolver<'a> {
                         local_binding: None,
                         local_bindings: Some(local_bindings),
                         record_map_context: None,
+                        collection_carry_snapshots: carried_collection_snapshots.as_ref(),
+                        collection_traversal_seen: Some(seen),
                     };
                     let condition = evaluate_typed_expression(condition, &environment);
                     let selected = match condition {
@@ -1403,13 +1516,15 @@ impl<'a> ScalarMutationResolver<'a> {
                             };
                         }
                     };
-                    return self.resolve_collection_index_with_bindings(
+                    return self.resolve_collection_index_with_seen(
                         selected,
                         index,
                         element_type,
                         None,
                         state,
                         local_bindings,
+                        carried_collection_snapshots.as_ref(),
+                        seen,
                     );
                 }
                 ValidatedScalarProgramCollectionValue::Match {
@@ -1425,6 +1540,8 @@ impl<'a> ScalarMutationResolver<'a> {
                         local_binding: None,
                         local_bindings: Some(local_bindings),
                         record_map_context: None,
+                        collection_carry_snapshots: carried_collection_snapshots.as_ref(),
+                        collection_traversal_seen: Some(seen),
                     };
                     let selected = match select_collection_match_arm(
                         scrutinee,
@@ -1438,13 +1555,15 @@ impl<'a> ScalarMutationResolver<'a> {
                     if let Some((binding_id, value)) = selected.local_binding {
                         branch_bindings.insert(binding_id, value);
                     }
-                    return self.resolve_collection_index_with_bindings(
+                    return self.resolve_collection_index_with_seen(
                         &selected.arm.value_id,
                         index,
                         element_type,
                         None,
                         state,
                         &branch_bindings,
+                        carried_collection_snapshots.as_ref(),
+                        seen,
                     );
                 }
                 ValidatedScalarProgramCollectionValue::Coalesce {
@@ -1457,6 +1576,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         state,
                         &mut seen.clone(),
                         local_bindings,
+                        carried_collection_snapshots.as_ref(),
                     ) {
                         Ok(present) => present,
                         Err(error) => return result_for_scalar_type(error, element_type),
@@ -1473,13 +1593,15 @@ impl<'a> ScalarMutationResolver<'a> {
                             };
                         }
                     };
-                    return self.resolve_collection_index_with_bindings(
+                    return self.resolve_collection_index_with_seen(
                         selected,
                         index,
                         element_type,
                         None,
                         state,
                         local_bindings,
+                        carried_collection_snapshots.as_ref(),
+                        seen,
                     );
                 }
             }
@@ -1555,6 +1677,7 @@ impl<'a> ScalarMutationResolver<'a> {
             state,
             seen,
             &HashMap::new(),
+            None,
         )
         .ok()
         .flatten()
@@ -1566,12 +1689,15 @@ impl<'a> ScalarMutationResolver<'a> {
         state: &EvaluationState,
         seen: &mut HashSet<String>,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+        inherited_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
     ) -> Result<Option<f64>, ScalarEvaluation> {
-        let context = self.collection_carry_context(collection_value_id, local_bindings);
+        let context =
+            self.collection_carry_context(collection_value_id, local_bindings, inherited_snapshots);
         if let Some(error) = context.error {
             return Err(error);
         }
         let redirected = context.value_id;
+        let collection_carry_snapshots = context.collection_carry_snapshots.as_ref();
         let local_bindings = &context.local_bindings;
         if redirected != collection_value_id {
             return self.resolve_collection_length_with_bindings(
@@ -1579,6 +1705,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 state,
                 seen,
                 local_bindings,
+                collection_carry_snapshots,
             );
         }
         let Some(value) = self
@@ -1594,14 +1721,21 @@ impl<'a> ScalarMutationResolver<'a> {
                 seen,
             ));
         };
-        if !seen.insert(collection_value_id.to_owned()) {
+        let traversal_key =
+            Self::collection_traversal_key(collection_value_id, collection_carry_snapshots);
+        if !seen.insert(traversal_key.clone()) {
             return Ok(None);
         }
         let result = match &value.value {
             ValidatedScalarProgramCollectionValue::None => Ok(None),
-            ValidatedScalarProgramCollectionValue::Alias(target) => {
-                self.resolve_collection_length_with_bindings(target, state, seen, local_bindings)
-            }
+            ValidatedScalarProgramCollectionValue::Alias(target) => self
+                .resolve_collection_length_with_bindings(
+                    target,
+                    state,
+                    seen,
+                    local_bindings,
+                    collection_carry_snapshots,
+                ),
             ValidatedScalarProgramCollectionValue::Literal(members) => {
                 Ok(Some(members.len() as f64))
             }
@@ -1612,6 +1746,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 state,
                 seen,
                 local_bindings,
+                collection_carry_snapshots,
             ),
             ValidatedScalarProgramCollectionValue::RecordMap {
                 source_value_id, ..
@@ -1623,6 +1758,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 state,
                 seen,
                 local_bindings,
+                collection_carry_snapshots,
             ),
             ValidatedScalarProgramCollectionValue::If {
                 condition,
@@ -1638,6 +1774,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding: None,
                     local_bindings: Some(local_bindings),
                     record_map_context: None,
+                    collection_carry_snapshots,
+                    collection_traversal_seen: Some(seen),
                 };
                 match evaluate_typed_expression(condition, &environment) {
                     ScalarEvaluation::Ok {
@@ -1652,6 +1790,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         state,
                         seen,
                         local_bindings,
+                        collection_carry_snapshots,
                     ),
                     error @ ScalarEvaluation::Error { .. } => Err(error),
                     _ => Err(ScalarEvaluation::Error {
@@ -1675,6 +1814,8 @@ impl<'a> ScalarMutationResolver<'a> {
                     local_binding: None,
                     local_bindings: Some(local_bindings),
                     record_map_context: None,
+                    collection_carry_snapshots,
+                    collection_traversal_seen: Some(seen),
                 };
                 let selected = select_collection_match_arm(
                     scrutinee,
@@ -1691,6 +1832,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     seen,
                     &branch_bindings,
+                    collection_carry_snapshots,
                 )
             }
             ValidatedScalarProgramCollectionValue::Coalesce {
@@ -1703,6 +1845,7 @@ impl<'a> ScalarMutationResolver<'a> {
                     state,
                     &mut seen.clone(),
                     local_bindings,
+                    collection_carry_snapshots,
                 )?;
                 match left_present {
                     Some(true) => self.resolve_collection_length_with_bindings(
@@ -1710,18 +1853,20 @@ impl<'a> ScalarMutationResolver<'a> {
                         state,
                         seen,
                         local_bindings,
+                        collection_carry_snapshots,
                     ),
                     Some(false) => self.resolve_collection_length_with_bindings(
                         right_value_id,
                         state,
                         seen,
                         local_bindings,
+                        collection_carry_snapshots,
                     ),
                     None => Ok(None),
                 }
             }
         };
-        seen.remove(collection_value_id);
+        seen.remove(&traversal_key);
         result
     }
 }
@@ -1733,6 +1878,8 @@ struct MutationEnvironment<'a, 'b, 'c> {
     local_binding: Option<&'c ScalarEvaluation>,
     local_bindings: Option<&'c HashMap<BindingId, ScalarEvaluation>>,
     record_map_context: Option<&'c ScalarRecordMapBinderContext>,
+    collection_carry_snapshots: Option<&'c Arc<HashMap<String, CollectionCarrySnapshot>>>,
+    collection_traversal_seen: Option<&'c HashSet<String>>,
 }
 impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
@@ -1749,12 +1896,15 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                     field_path: binder_field.field_path.clone(),
                 };
                 let mut seen = context.seen.clone();
-                return self.resolver.resolve_record_field(
+                let empty_bindings = HashMap::new();
+                return self.resolver.resolve_record_field_with_bindings(
                     &context.source_value_id,
                     context.index,
                     &field,
                     self.state,
                     &mut seen,
+                    self.local_bindings.unwrap_or(&empty_bindings),
+                    self.collection_carry_snapshots,
                 );
             }
         }
@@ -1902,24 +2052,29 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             };
         }
         let empty_bindings = HashMap::new();
-        self.resolver.resolve_collection_index_with_bindings(
+        let mut seen = self.collection_traversal_seen.cloned().unwrap_or_default();
+        self.resolver.resolve_collection_index_with_seen(
             collection_value_id,
             index,
             element_type,
             collection_length,
             self.state,
             self.local_bindings.unwrap_or(&empty_bindings),
+            self.collection_carry_snapshots,
+            &mut seen,
         )
     }
 
     fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
         let empty_bindings = HashMap::new();
+        let mut seen = self.collection_traversal_seen.cloned().unwrap_or_default();
         self.resolver
             .resolve_collection_length_with_bindings(
                 collection_value_id,
                 self.state,
-                &mut HashSet::new(),
+                &mut seen,
                 self.local_bindings.unwrap_or(&empty_bindings),
+                self.collection_carry_snapshots,
             )
             .ok()
             .flatten()
@@ -1930,11 +2085,13 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         collection_value_id: &str,
     ) -> Result<Option<f64>, ScalarEvaluation> {
         let empty_bindings = HashMap::new();
+        let mut seen = self.collection_traversal_seen.cloned().unwrap_or_default();
         self.resolver.resolve_collection_length_with_bindings(
             collection_value_id,
             self.state,
-            &mut HashSet::new(),
+            &mut seen,
             self.local_bindings.unwrap_or(&empty_bindings),
+            self.collection_carry_snapshots,
         )
     }
 
@@ -1961,12 +2118,15 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
                     };
                 }
                 let empty_bindings = HashMap::new();
+                let traversal_seen = self.collection_traversal_seen.cloned().unwrap_or_default();
                 self.resolver
                     .resolve_optional_collection_member_with_bindings(
                         target,
                         r#type,
                         self.state,
                         self.local_bindings.unwrap_or(&empty_bindings),
+                        self.collection_carry_snapshots,
+                        Some(&traversal_seen),
                     )
             }
             ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
@@ -1989,6 +2149,8 @@ impl ScalarMutationResolver<'_> {
         r#type: &ScalarType,
         state: &EvaluationState,
         local_bindings: &HashMap<BindingId, ScalarEvaluation>,
+        collection_carry_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
+        traversal_seen: Option<&HashSet<String>>,
     ) -> ScalarEvaluation {
         let none = || ScalarEvaluation::Ok {
             r#type: r#type.clone(),
@@ -1998,23 +2160,38 @@ impl ScalarMutationResolver<'_> {
             ScalarExpressionResolvedOptionalMemberTarget::CollectionLength {
                 collection_value_id,
                 ..
-            } => match self.resolve_collection_presence_with_bindings(
-                collection_value_id,
-                state,
-                &mut HashSet::new(),
-                local_bindings,
-            ) {
-                Ok(Some(false)) => none(),
-                Ok(Some(true)) => match self.resolve_collection_length_with_bindings(
+            } => {
+                let mut seen = traversal_seen.cloned().unwrap_or_default();
+                match self.resolve_collection_presence_with_bindings(
                     collection_value_id,
                     state,
-                    &mut HashSet::new(),
+                    &mut seen,
                     local_bindings,
+                    collection_carry_snapshots,
                 ) {
-                    Ok(Some(length)) => ScalarEvaluation::Ok {
-                        r#type: r#type.clone(),
-                        value: ScalarValue::Number(length),
-                    },
+                    Ok(Some(false)) => none(),
+                    Ok(Some(true)) => {
+                        let mut seen = traversal_seen.cloned().unwrap_or_default();
+                        match self.resolve_collection_length_with_bindings(
+                            collection_value_id,
+                            state,
+                            &mut seen,
+                            local_bindings,
+                            collection_carry_snapshots,
+                        ) {
+                            Ok(Some(length)) => ScalarEvaluation::Ok {
+                                r#type: r#type.clone(),
+                                value: ScalarValue::Number(length),
+                            },
+                            Ok(None) => ScalarEvaluation::Error {
+                                r#type: r#type.clone(),
+                                issue_code: "evaluation-collection-property-unavailable".to_owned(),
+                                binding_id: None,
+                                context: None,
+                            },
+                            Err(error) => result_for_scalar_type(error, r#type),
+                        }
+                    }
                     Ok(None) => ScalarEvaluation::Error {
                         r#type: r#type.clone(),
                         issue_code: "evaluation-collection-property-unavailable".to_owned(),
@@ -2022,29 +2199,25 @@ impl ScalarMutationResolver<'_> {
                         context: None,
                     },
                     Err(error) => result_for_scalar_type(error, r#type),
-                },
-                Ok(None) => ScalarEvaluation::Error {
-                    r#type: r#type.clone(),
-                    issue_code: "evaluation-collection-property-unavailable".to_owned(),
-                    binding_id: None,
-                    context: None,
-                },
-                Err(error) => result_for_scalar_type(error, r#type),
-            },
+                }
+            }
             ScalarExpressionResolvedOptionalMemberTarget::RecordField {
                 collection_value_id,
                 collection_length: _,
                 field,
                 ..
-            } => match self.resolve_collection_presence_with_bindings(
-                collection_value_id,
-                state,
-                &mut HashSet::new(),
-                local_bindings,
-            ) {
-                Ok(Some(false)) => none(),
-                Ok(Some(true)) => {
-                    let field = ValidatedScalarProgramRecordFieldIdentity {
+            } => {
+                let mut seen = traversal_seen.cloned().unwrap_or_default();
+                match self.resolve_collection_presence_with_bindings(
+                    collection_value_id,
+                    state,
+                    &mut seen,
+                    local_bindings,
+                    collection_carry_snapshots,
+                ) {
+                    Ok(Some(false)) => none(),
+                    Ok(Some(true)) => {
+                        let field = ValidatedScalarProgramRecordFieldIdentity {
                         record_statement_id: field.record_statement_id.clone(),
                         field_index: field.field_index,
                         r#type: field.r#type.clone(),
@@ -2061,44 +2234,47 @@ impl ScalarMutationResolver<'_> {
                                 .collect()
                         }),
                     };
-                    match self.resolve_record_field_with_bindings(
-                        collection_value_id,
-                        0.0,
-                        &field,
-                        state,
-                        &mut HashSet::new(),
-                        local_bindings,
-                    ) {
-                        ScalarEvaluation::Ok { value, .. }
-                            if scalar_value_matches_type(r#type, &value) =>
-                        {
-                            ScalarEvaluation::Ok {
-                                r#type: r#type.clone(),
-                                value,
+                        let mut seen = traversal_seen.cloned().unwrap_or_default();
+                        match self.resolve_record_field_with_bindings(
+                            collection_value_id,
+                            0.0,
+                            &field,
+                            state,
+                            &mut seen,
+                            local_bindings,
+                            collection_carry_snapshots,
+                        ) {
+                            ScalarEvaluation::Ok { value, .. }
+                                if scalar_value_matches_type(r#type, &value) =>
+                            {
+                                ScalarEvaluation::Ok {
+                                    r#type: r#type.clone(),
+                                    value,
+                                }
                             }
+                            ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                                r#type: r#type.clone(),
+                                issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
+                                binding_id: None,
+                                context: None,
+                            },
+                            ScalarEvaluation::Error { issue_code, .. } => ScalarEvaluation::Error {
+                                r#type: r#type.clone(),
+                                issue_code,
+                                binding_id: None,
+                                context: None,
+                            },
                         }
-                        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
-                            r#type: r#type.clone(),
-                            issue_code: RUNTIME_VALUE_TYPE_MISMATCH.to_owned(),
-                            binding_id: None,
-                            context: None,
-                        },
-                        ScalarEvaluation::Error { issue_code, .. } => ScalarEvaluation::Error {
-                            r#type: r#type.clone(),
-                            issue_code,
-                            binding_id: None,
-                            context: None,
-                        },
                     }
+                    Ok(None) => ScalarEvaluation::Error {
+                        r#type: r#type.clone(),
+                        issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    },
+                    Err(error) => result_for_scalar_type(error, r#type),
                 }
-                Ok(None) => ScalarEvaluation::Error {
-                    r#type: r#type.clone(),
-                    issue_code: "evaluation-collection-index-unavailable".to_owned(),
-                    binding_id: None,
-                    context: None,
-                },
-                Err(error) => result_for_scalar_type(error, r#type),
-            },
+            }
             ScalarExpressionResolvedOptionalMemberTarget::GeometryProperty { .. } => {
                 ScalarEvaluation::Error {
                     r#type: r#type.clone(),
@@ -2158,6 +2334,7 @@ impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
             state,
             seen,
             &HashMap::new(),
+            None,
         )
     }
 
@@ -2172,6 +2349,8 @@ impl ScalarDocumentBindingResolver for ScalarMutationResolver<'_> {
             r#type,
             state,
             &HashMap::new(),
+            None,
+            None,
         )
     }
 }

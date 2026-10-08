@@ -421,7 +421,21 @@ export const planRecordScalarLowering = ({
     // collection runtime. It has no scalar field backing until a selected
     // record member is projected, so do not seed field bindings that cannot
     // have scalar declarations (and would otherwise poison bindingVersions).
-    if (value.valueExpression?.kind === "none" || value.valueExpression?.kind === "coalesce" || isDslOptionalValueType(value.valueExpression?.valueType)) {
+    const indexedCollectionLookup = value.valueExpression?.kind === "collectionIndex"
+      ? resolveSourceLexicalPath(
+          sourceNamespace,
+          value.statementIndex,
+          parseDslReferenceToken(value.valueExpression.expression.name)
+        )
+      : null;
+    const isIndexedCollectionCarry = indexedCollectionLookup?.kind === "resolved" &&
+      indexedCollectionLookup.declaration.kind === "carry";
+    if (
+      value.valueExpression?.kind === "none" ||
+      value.valueExpression?.kind === "coalesce" ||
+      isIndexedCollectionCarry ||
+      isDslOptionalValueType(value.valueExpression?.valueType)
+    ) {
       continue;
     }
 

@@ -1490,6 +1490,70 @@ describe("immutable statement-for carries", () => {
     expect(scalarFor(compiled, evaluation, "length")).toMatchObject({ status: "ok", value: { kind: "number", value: 2 } });
   });
 
+  it("maps an incoming collection carry and advances through multiple snapshot generations", () => {
+    const cases = [
+      {
+        source: [
+          "nui 1",
+          "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
+          "  const mapped: number[] = for x in @a { @x }",
+          "  next a = @mapped",
+          "}",
+          "const result: number = @a[0]"
+        ].join("\n"),
+        expected: 1
+      },
+      {
+        source: [
+          "nui 1",
+          "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [1] {",
+          "  const mapped: number[] = for x in @a { @x + 1 }",
+          "  next a = @mapped",
+          "}",
+          "const result: number = @a[0]"
+        ].join("\n"),
+        expected: 4
+      }
+    ];
+
+    for (const testCase of cases) {
+      const compiled = compile(testCase.source);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors).toEqual([]);
+      expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: testCase.expected }
+      });
+    }
+  });
+
+  it("retains the shared incoming collection snapshot alongside captured scalar bindings", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 2, step: 1) carry a: number[] = [1] carry b: number[] = [10] {",
+      "  const mappedA: number[] = for x in @a { @x + @b[0] + @i }",
+      "  const mappedB: number[] = for y in @b { @y + 1 }",
+      "  next a = @mappedA",
+      "  next b = @mappedB",
+      "}",
+      "const resultA: number = @a[0]",
+      "const resultB: number = @b[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "resultA")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 37 }
+    });
+    expect(scalarFor(compiled, evaluation, "resultB")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 13 }
+    });
+  });
+
   it("keeps collection-if behavior under binder, carry, declaration, and source-padding changes", () => {
     const evaluateResults = (source: string, resultName: string, lengthName: string) => {
       const compiled = compile(source);
