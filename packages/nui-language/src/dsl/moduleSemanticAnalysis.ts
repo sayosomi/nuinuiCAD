@@ -7096,12 +7096,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
   };
 
-  const analyzeRootCollectionControlFlow = (value: DslArraySemanticValue<unknown> | GeometryArraySemanticValue<unknown>, statementIndex: number) => {
+  const analyzeRootCollectionControlFlow = (
+    value: DslArraySemanticValue<unknown> | GeometryArraySemanticValue<unknown>,
+    statementIndex: number,
+    explicitSource?: string
+  ) => {
     const statement = statements[statementIndex];
-    if (statement?.kind !== "typedDeclaration") return;
-    const initializerSpan = statement.payloadSpans.initializer;
-    if (!initializerSpan) return;
-    const source = `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
+    const source = explicitSource ?? (() => {
+      if (statement?.kind !== "typedDeclaration") return null;
+      const initializerSpan = statement.payloadSpans.initializer;
+      return initializerSpan ? `${" ".repeat(initializerSpan.start)}${statement.initializer}` : null;
+    })();
+    if (!source) return;
     analyzeCollectionControlFlow(
       statementIndex,
       null,
@@ -7131,6 +7137,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   }
   for (const value of sourceNamespace.geometryArraySemanticAnalysis?.values ?? []) {
     if (value.ownerModuleDefinitionStatementIndex === null && value.value) analyzeRootCollectionControlFlow(value.value, value.statementIndex);
+  }
+  for (const value of input.additionalRootCollectionControlFlowValues ?? []) {
+    analyzeRootCollectionControlFlow(value.value, value.statementIndex, value.source);
   }
 
   // Geometry collection maps use the existing geometry-value semantic parser

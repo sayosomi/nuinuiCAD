@@ -225,6 +225,89 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("resolves an inline optional collection match in a carry next at its source position", () => {
+    const compiled = compile([
+      "nui 1",
+      "const p: number? = 1",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
+      "  next a = match @p { none => [2] some x => [1] }",
+      "}",
+      "const result: number = @a[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
+  it("selects the none arm of an inline optional collection match carry next", () => {
+    const compiled = compile([
+      "nui 1",
+      "const p: number? = none",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
+      "  next a = match @p { none => [31, 32] some x => [@x] }",
+      "}",
+      "const first: number = @a[0]",
+      "const second: number = @a[1]",
+      "const length: number = @a.length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    for (const [name, expected] of [["first", 31], ["second", 32], ["length", 2]] as const) {
+      const bindingId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === name)!.id;
+      expect(evaluation.computedScalarBindings?.get(bindingId)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: expected }
+      });
+    }
+  });
+
+  it("keeps an error-producing unselected inline collection match arm lazy", () => {
+    const compiled = compile([
+      "nui 1",
+      "const p: number? = 5",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [0] {",
+      "  next a = match @p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [@x] }",
+      "}",
+      "const result: number = @a[0]"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 5 }
+    });
+  });
+
+  it("preserves nominal record element identity through an inline collection carry match", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(x: number, label: string)",
+      'const first: Pair = Pair(x: 1, label: "first")',
+      'const fallback: Pair = Pair(x: 2, label: "fallback")',
+      "const p: number? = 1",
+      "for i in range(min: 0, max: 0, step: 1) carry items: Pair[] = [@fallback] {",
+      "  next items = match @p { none => [@fallback] some x => [@first] }",
+      "}",
+      "const result: number = @items.length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    const resultId = compiled.bindingAnalysis!.catalog.bindings.find((binding) => binding.name === "result")!.id;
+    expect(evaluation.computedScalarBindings?.get(resultId)).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
   it("resolves a completed nested collection carry at the outer next statement", () => {
     const compiled = compile([
       "nui 1",

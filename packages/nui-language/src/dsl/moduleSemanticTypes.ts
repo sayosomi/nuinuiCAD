@@ -1194,6 +1194,14 @@ export type ModuleSemanticAnalysisInput = {
     readonly statementId: StatementIdentity;
     readonly members: readonly string[];
   }) => import("./transformationRecipes").TransformationStageSelection;
+  /** Additional root collection expressions whose shape was resolved by the
+   * shared collection owner and whose scalar condition/scrutinee must pass
+   * through this Module scalar semantic boundary. */
+  additionalRootCollectionControlFlowValues?: readonly {
+    readonly statementIndex: number;
+    readonly source: string;
+    readonly value: DslArraySemanticValue<GenericArraySourceTarget>;
+  }[];
 };
 
 export const moduleSemanticIdentityKey = (
