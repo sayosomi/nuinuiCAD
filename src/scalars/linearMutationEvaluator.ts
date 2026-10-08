@@ -200,17 +200,23 @@ export const createIncrementalLinearMutationEvaluator = (
     resolveGeometryProperty,
     resolveGeometryTarget,
     resolveCollectionLength,
-    (collectionValueId, sourceOrder) => collectionSnapshotFor(collectionValueId, sourceOrder, activeCollectionCarrySnapshots)
+    (collectionValueId, sourceOrder, capturedSnapshots) => {
+      const snapshots = capturedSnapshots ?? activeCollectionCarrySnapshots;
+      const result = collectionSnapshotFor(collectionValueId, sourceOrder, snapshots, new Map(), capturedSnapshots);
+      return result;
+    }
   );
 
   const collectionSnapshotFor = (
     valueId: string,
     _sourceOrder: number,
     snapshots: ReadonlyMap<string, ScalarProgramCollectionSnapshot>,
-    localBindings: ReadonlyMap<BindingId, ScalarEvaluation> = new Map()
+    localBindings: ReadonlyMap<BindingId, ScalarEvaluation> = new Map(),
+    inheritedSnapshots?: ReadonlyMap<string, ScalarProgramCollectionSnapshot>
   ): ScalarProgramCollectionSnapshot | undefined => {
     let current = valueId;
     let found = false;
+    let capturedSnapshots = inheritedSnapshots;
     const bindings = new Map(localBindings);
     const seen = new Set<string>();
     while (!seen.has(current)) {
@@ -221,12 +227,22 @@ export const createIncrementalLinearMutationEvaluator = (
       for (const [bindingId, value] of snapshot.localBindings) {
         if (!bindings.has(bindingId)) bindings.set(bindingId, value);
       }
+      capturedSnapshots = snapshot.collectionCarrySnapshots ?? capturedSnapshots;
       if (snapshot.error) {
-        return { valueId: snapshot.valueId, localBindings: bindings, error: snapshot.error };
+        return {
+          valueId: snapshot.valueId,
+          localBindings: bindings,
+          ...(capturedSnapshots ? { collectionCarrySnapshots: capturedSnapshots } : {}),
+          error: snapshot.error
+        };
       }
       current = snapshot.valueId;
     }
-    return found ? { valueId: current, localBindings: bindings } : undefined;
+    return found ? {
+      valueId: current,
+      localBindings: bindings,
+      ...(capturedSnapshots ? { collectionCarrySnapshots: capturedSnapshots } : {})
+    } : undefined;
   };
 
   const materializeCollectionSnapshot = (
@@ -236,14 +252,21 @@ export const createIncrementalLinearMutationEvaluator = (
   ): ScalarProgramCollectionSnapshot | undefined => {
     let current = valueId;
     let localBindings: ReadonlyMap<BindingId, ScalarEvaluation> = new Map();
+    let inheritedSnapshots: ReadonlyMap<string, ScalarProgramCollectionSnapshot> | undefined;
     const seen = new Set<string>();
     while (!seen.has(current)) {
       seen.add(current);
-      const redirected = collectionSnapshotFor(current, 0, snapshot, localBindings);
+      const redirected = collectionSnapshotFor(current, 0, snapshot, localBindings, inheritedSnapshots);
       if (redirected) {
         localBindings = redirected.localBindings;
+        inheritedSnapshots = redirected.collectionCarrySnapshots ?? inheritedSnapshots;
         if (redirected.error) {
-          return { valueId: current, localBindings, error: redirected.error };
+          return {
+            valueId: current,
+            localBindings,
+            ...(inheritedSnapshots ? { collectionCarrySnapshots: inheritedSnapshots } : {}),
+            error: redirected.error
+          };
         }
       }
       if (redirected && redirected.valueId !== current) {
@@ -257,7 +280,7 @@ export const createIncrementalLinearMutationEvaluator = (
         continue;
       }
       if (value.kind === "if") {
-        const environment = collectionResolver?.environmentFor(value.sourceOrder, localBindings);
+        const environment = collectionResolver?.environmentFor(value.sourceOrder, localBindings, inheritedSnapshots);
         if (!environment) return undefined;
         const condition = evaluateTypedExpression(value.condition, {
           ...environment,
@@ -275,7 +298,7 @@ export const createIncrementalLinearMutationEvaluator = (
         continue;
       }
       if (value.kind === "match") {
-        const selected = collectionResolver?.selectMatchCollectionValue(current, localBindings);
+        const selected = collectionResolver?.selectMatchCollectionValue(current, localBindings, inheritedSnapshots);
         if (!selected) return undefined;
         if (selected.kind === "error") {
           const bindingId = selected.evaluation.status === "error" &&
@@ -296,20 +319,33 @@ export const createIncrementalLinearMutationEvaluator = (
           for (const [localBindingId, localValue] of localBindings) {
             capturedBindings.set(localBindingId, localValue);
           }
-          return { valueId: current, localBindings: capturedBindings };
+          return {
+            valueId: current,
+            localBindings: capturedBindings,
+            collectionCarrySnapshots: inheritedSnapshots ?? snapshot
+          };
         }
         localBindings = selected.localBindings;
         current = selected.valueId;
         continue;
       }
-      if (value.kind === "map") {
+      if (value.kind !== "literal" && value.kind !== "none") {
         const capturedBindings = new Map(localBindings);
+        const excludedBindings = value.kind === "map"
+          ? new Set([value.binderId])
+          : value.kind === "recordMap"
+            ? new Set(value.binderFields.map((field) => field.bindingId))
+            : new Set<string>();
         for (const [bindingId, bindingValue] of iterationBindings) {
-          if (bindingId !== value.binderId && !capturedBindings.has(bindingId)) {
+          if (!excludedBindings.has(bindingId) && !capturedBindings.has(bindingId)) {
             capturedBindings.set(bindingId, bindingValue);
           }
         }
-        return { valueId: current, localBindings: capturedBindings };
+        return {
+          valueId: current,
+          localBindings: capturedBindings,
+          collectionCarrySnapshots: inheritedSnapshots ?? snapshot
+        };
       }
       return { valueId: current, localBindings };
     }

@@ -94,7 +94,7 @@ import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typed
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
 import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 import type { GenericArrayValueSemantic, GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
-import { immutableCarryCollectionValueId } from "./immutableCarryCompiler";
+import { immutableCarryCollectionValueId } from "./immutableCarryIdentity";
 import { scanScalarLiteral } from "./literalScanner";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import { optionalMatchBinderId } from "./optionalMatchBinder";
@@ -441,9 +441,31 @@ const remapTypedExpressionCollectionValueIds = (
   }
 };
 
+const collectionValueIdContainsImmutableCarry = (valueId: string): boolean => {
+  if (valueId.startsWith("carry-collection:")) return true;
+  const prefix = valueId.startsWith("record-field-collection:")
+    ? "record-field-collection:"
+    : valueId.startsWith("record-field-contents:")
+      ? "record-field-contents:"
+      : valueId.startsWith("record-value:")
+        ? "record-value:"
+        : null;
+  if (!prefix) return false;
+  try {
+    const visit = (value: unknown): boolean => Array.isArray(value)
+      ? value.some(visit)
+      : typeof value === "string"
+        ? collectionValueIdContainsImmutableCarry(value)
+        : false;
+    return visit(JSON.parse(valueId.slice(prefix.length)) as unknown);
+  } catch {
+    return false;
+  }
+};
+
 const typedExpressionContainsImmutableCarryCollection = (expression: TypedScalarExpression): boolean => {
   if (expression.kind === "collectionIndex") {
-    return expression.collectionValueId?.startsWith("carry-collection:") === true ||
+    return (expression.collectionValueId ? collectionValueIdContainsImmutableCarry(expression.collectionValueId) : false) ||
       typedExpressionContainsImmutableCarryCollection(expression.index);
   }
   if (expression.kind === "binary") {
@@ -3724,9 +3746,38 @@ export const compileModuleScalarRuntime = ({
         candidate.target?.kind === "recordField" && candidate.target.record.kind === "recordValue"
       )?.target;
       if (recordValueFieldTarget?.kind === "recordField" &&
-        recordValueFieldTarget.record.kind === "recordValue" &&
-        recordValueFieldTarget.record.valueExpressionKind === "coalesce") {
+        recordValueFieldTarget.record.kind === "recordValue") {
+        const selectedRecordStatementId = recordValueFieldTarget.record.statementId;
         const fieldPath = recordValueFieldTarget.fieldPath ?? [recordValueFieldTarget.field];
+        const selectedRecordValue = context
+          ? context.definition.recordValues.find((candidate) => candidate.value.statementId === selectedRecordStatementId)
+          : moduleSemanticAnalysis.rootRecordValuesByStatementId.get(selectedRecordStatementId);
+        const selectedCollectionIndex = selectedRecordValue?.valueExpression?.kind === "collectionIndex"
+          ? selectedRecordValue.valueExpression.reference.target
+          : null;
+        if (selectedCollectionIndex?.kind === "recordCollectionIndex") {
+          const sourceValueId = collectionValueIdFor(selectedCollectionIndex.collectionValueId, context);
+          const field = fieldPath[fieldPath.length - 1]!;
+          const valueId = recordFieldCollectionValueIdFor(sourceValueId, field, fieldPath);
+          if (registeredRecordFieldProjectionIds.has(valueId)) return;
+          registeredRecordFieldProjectionIds.add(valueId);
+          moduleCollectionValues.push({
+            valueId,
+            kind: "recordField",
+            sourceValueId,
+            field: {
+              recordStatementId: field.recordStatementId,
+              fieldIndex: field.fieldIndex,
+              type: expression.type!,
+              ...(fieldPath.length > 1 ? { fieldPath } : {})
+            },
+            sourceOrder: context
+              ? Math.max(0, Math.floor(executionPositionForValue(context.path, selectedCollectionIndex.targetSourceOrder)))
+              : Math.max(0, Math.floor(executionPositionForValue([], selectedCollectionIndex.targetSourceOrder)))
+          });
+          return;
+        }
+        if (recordValueFieldTarget.record.valueExpressionKind !== "coalesce") return;
         const sourceValueId = collectionValueIdFor(
           recordValueCollectionIdFor([], recordValueFieldTarget.record.statementId),
           context

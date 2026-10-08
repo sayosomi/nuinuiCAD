@@ -554,6 +554,27 @@ describe("geometry array source semantic integration", () => {
     expect(selected?.declaration.initializer).toMatchObject({ kind: "collectionIndex", collectionValueId: "statement:2", collectionLength: 3 });
   });
 
+  it("resolves a whole generic collection carry to its canonical collection identity", () => {
+    const compiled = compile([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) carry a: number[] = [1] {",
+      "  const mapped: number[] = for x in @a { @x }",
+      "  next a = @mapped",
+      "}",
+      "const result: number = @a[0]"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.scalarProgram?.collectionValues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "map",
+        sourceValueId: "carry-collection:binding:statement:1:carry:0:a",
+        sourceElementType: { kind: "number" },
+        resultElementType: { kind: "number" }
+      })
+    ]));
+  });
+
   it("keeps scalar value-for binding versions ordered under unrelated declarations", () => {
     const cases = [
       { name: "without records", beforeMap: [], betweenMapAndConsumer: [], afterConsumer: [], compareToBaseline: true },

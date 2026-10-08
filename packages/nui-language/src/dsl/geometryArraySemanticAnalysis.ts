@@ -35,6 +35,8 @@ import {
 import type { RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
+import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
+import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
 
 export type GeometryArraySourceTarget =
   | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
@@ -1206,6 +1208,18 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             }
           };
         }
+        if (lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+          const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
+          if (carry && isDslArrayValueType(carry.valueType)) {
+            return {
+              kind: "resolved",
+              targetValueId: immutableCarryCollectionValueId(
+                bindingIdForStableStatementId(lookup.declaration.statementId)
+              ),
+              valueType: carry.valueType
+            };
+          }
+        }
         const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
         if (!target) {
           return {
@@ -1247,9 +1261,30 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           }
         }
         if (!sourceValueType && lookup?.kind === "resolved") {
-          const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
-          sourceValueType = target?.valueType ?? null;
-          sourceValueId = target?.statementId ?? null;
+          if (lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+            const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
+            if (carry && isDslArrayValueType(carry.valueType)) {
+              const elementTypeIdentity = carry.valueType.elementType.kind === "record"
+                ? recordIdentityForType(
+                    carry.valueType.elementType,
+                    lookup.declaration.statementIndex,
+                    input.recordSemanticAnalysis,
+                    input.resolvePath
+                  ) ?? carry.valueType.elementType.identity ?? null
+                : null;
+              sourceValueType = {
+                ...carry.valueType,
+                elementType: recordTypeWithIdentity(carry.valueType.elementType, elementTypeIdentity)
+              };
+              sourceValueId = immutableCarryCollectionValueId(
+                bindingIdForStableStatementId(lookup.declaration.statementId)
+              );
+            }
+          } else {
+            const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
+            sourceValueType = target?.valueType ?? null;
+            sourceValueId = target?.statementId ?? null;
+          }
         }
         if (!sourceValueType || !sourceValueId) {
           const code = lookup?.kind === "forward" ? "array-value-for-source-forward" : "array-value-for-source-invalid";

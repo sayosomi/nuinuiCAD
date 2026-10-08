@@ -46,8 +46,8 @@ import {
   getParameterDefinitions,
   scalarTypeForParameterDefinition
 } from "../parameters/parameterDefinitions";
-import type { BindingId } from "../scalars/bindingCatalog";
-import { immutableCarryCollectionValueId } from "../scalars/immutableCarryCompiler";
+import { bindingIdForStableStatementId, type BindingId } from "../scalars/bindingCatalog";
+import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
 import {
   numericGeometryPropertySupportedByStaticTarget,
   numericGeometryStaticTargetForConstruction,
@@ -5017,11 +5017,36 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const value = lookup?.kind === "resolved" && lookup.declaration.kind === "typedDeclaration"
         ? collectionAnalysis ? collectionValueSemanticForStatement(collectionAnalysis, lookup.declaration.statementIndex) : null
         : null;
+      const carry = lookup?.kind === "resolved" && lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element"
+        ? lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name) ?? null
+        : null;
+      const carryArrayType = carry && isDslArrayValueType(carry.valueType) ? carry.valueType : null;
+      const carryRecordIdentity = carryArrayType?.elementType.kind === "record"
+        ? (() => {
+            const typeLookup = lookup?.kind === "resolved"
+              ? sourceDeclarationResolution(sourceNamespace, lookup.declaration.statementIndex, carryArrayType.elementType.name)
+              : null;
+            return typeLookup?.kind === "resolved" && typeLookup.declaration.kind === "recordDefinition"
+              ? recordAnalysis?.definitionsByStatementIndex.get(typeLookup.declaration.statementIndex)?.statementId ?? null
+              : carryArrayType.elementType.identity ?? null;
+          })()
+        : null;
+      const carryValueType = carryArrayType
+        ? {
+            ...carryArrayType,
+            elementType: carryArrayType.elementType.kind === "record" && carryRecordIdentity
+              ? { ...carryArrayType.elementType, identity: carryRecordIdentity }
+              : carryArrayType.elementType
+          }
+        : null;
+      const carryValueId = carryValueType && lookup?.kind === "resolved"
+        ? immutableCarryCollectionValueId(bindingIdForStableStatementId(lookup.declaration.statementId))
+        : null;
       const valueType = exported?.kind === "collection"
         ? exported.valueType
         : parameter
           ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
-          : collectionAnalysis ? collectionValueTypeFor(value) : null;
+          : carryValueType ?? (collectionAnalysis ? collectionValueTypeFor(value) : null);
       const element = valueType?.elementType.kind === "record" ? valueType.elementType : null;
       const indexSource = input.logicalTextByStatementIndex?.get(statementIndex) ?? trimmed;
       const indexSemantic = analyzeExpression(
@@ -5107,6 +5132,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               valueType: valueType!,
               optional: isDslOptionalValueType(parameter.parameter.valueType)
             }
+          : carryValueId
+            ? {
+                kind: "collectionValue",
+                statementId: carryValueId,
+                statementIndex: lookup!.kind === "resolved" ? lookup!.declaration.statementIndex : statementIndex,
+                valueType: carryValueType!
+              }
           : {
               kind: "collectionValue",
               statementId: value!.statementId,
@@ -5123,9 +5155,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             ? geometryArrayDeferredModuleExportId(deferredQualified!.instance.statementId, deferredQualified!.exportName)
             : parameter
               ? `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`
-              : value!.statementId,
-          collectionLength: parameter || exported ? null : collectionLengthForValueId(collectionAnalysis, value!.statementId),
-          targetSourceOrder: parameter ? -1 : exported ? deferredQualified!.instance.statementIndex : value!.statementIndex,
+              : carryValueId ?? value!.statementId,
+          collectionLength: parameter || exported || carryValueId ? null : collectionLengthForValueId(collectionAnalysis, value!.statementId),
+          targetSourceOrder: parameter
+            ? -1
+            : exported
+              ? deferredQualified!.instance.statementIndex
+              : carryValueId && lookup?.kind === "resolved"
+                ? lookup.declaration.statementIndex
+                : value!.statementIndex,
           typeIdentity: expectedTypeIdentity,
           index: indexSemantic,
           collectionTarget,

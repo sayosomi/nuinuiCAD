@@ -6,6 +6,7 @@ import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, is
 import { parseRecordConstructorFields, type RecordDefinitionSemantic } from "../dsl/recordSemanticAnalysis";
 import type { BindingId, BindingSeed, SourceNamespaceBindingResolver } from "./bindingCatalog";
 import { bindingIdForStableStatementId } from "./bindingCatalog";
+import { immutableCarryCollectionValueId } from "./immutableCarryIdentity";
 import type { AdditionalScalarInitializer } from "./typedDeclarationAnalysis";
 import type { ScalarExpressionType } from "./types";
 
@@ -17,9 +18,6 @@ export type ImmutableCarryInput = {
   nextSourceOrder: number;
   declaredType: ScalarExpressionType;
 };
-
-export const immutableCarryCollectionValueId = (bindingId: BindingId): string =>
-  `carry-collection:${bindingId}`;
 
 export type ImmutableCarryCompilation = {
   bindings: readonly BindingSeed[];
