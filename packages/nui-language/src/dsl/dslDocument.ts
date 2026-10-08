@@ -54,8 +54,8 @@ import { compilePropertyReferenceSyntax } from "./dslPropertyReferenceSyntax";
 import { buildPlacementRefsByStatementIndex } from "./dslPrintLayoutPlacementIndex";
 import { commonArgSpecs, constructionFor, isGeometryDeclarationCategory } from "./dslConstructions";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, isDslValueTypeAssignable, nominalRecordTypeOfDslValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslArrayValueType } from "./dslValueTypes";
-import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId, moduleParameterByName } from "./geometryArraySemanticAnalysis";
-import type { GenericArraySourceTarget } from "./geometryArraySemanticAnalysis";
+import { collectionLengthForValueId, collectionValueSemanticForStatement, geometryArrayDeferredModuleExportId, geometryArrayModuleOwnerIndexOf, moduleParameterByName } from "./geometryArraySemanticAnalysis";
+import type { GenericArraySourceTarget, GenericArrayValueSemantic } from "./geometryArraySemanticAnalysis";
 import { type DslArrayMappedValue, type DslArraySemanticValue } from "./geometryArraySemantics";
 import {
   buildSourceLexicalNamespaceIndex,
@@ -1473,6 +1473,83 @@ export const compileDslDocument = (
       isDslArrayValueType(dslRequiredValueTypeOf(candidate.valueType))
     ) ?? null;
   const carryCollectionDiagnostics: DslDiagnostic[] = [];
+  const immutableCarryCollectionValues: GenericArrayValueSemantic[] = [];
+  const immutableCarryCollectionControlFlowValues: {
+    statementIndex: number;
+    ownerModuleDefinitionStatementIndex: number | null;
+    source: string;
+    value: NonNullable<GenericArrayValueSemantic["value"]>;
+  }[] = [];
+  const collectionSemanticAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
+  for (const declaration of immutableCarryCompilation?.declarations ?? []) {
+    const declarationType = declaration.valueType;
+    const valueType = dslRequiredValueTypeOf(declarationType);
+    if (
+      !declarationType ||
+      !valueType ||
+      !isDslArrayValueType(valueType)
+    ) continue;
+    const ownerModuleDefinitionStatementIndex = geometryArrayModuleOwnerIndexOf(parsed.statements, declaration.ownerStatementIndex);
+    const next = immutableCarryCompilation?.nexts.find((candidate) =>
+      candidate.ownerStatementIndex === declaration.ownerStatementIndex &&
+      candidate.carryName === (declaration.fieldPath ? declaration.name.slice(0, declaration.name.indexOf(".")) : declaration.name) &&
+      (candidate.fieldPath?.join(".") ?? "") === (declaration.fieldPath?.join(".") ?? "")
+    );
+    if (!next) continue;
+    const collectionValueId = carryCollectionIdForDeclaration(declaration);
+    const expressions = [
+      {
+        valueId: `${collectionValueId}:initializer`,
+        statementIndex: declaration.ownerStatementIndex,
+        raw: declaration.initializer,
+        span: declaration.initializerSpan
+      },
+      {
+        valueId: `${collectionValueId}:next`,
+        statementIndex: next.statementIndex,
+        raw: next.expression,
+        span: next.expressionSpan
+      }
+    ];
+    for (const expressionSource of expressions) {
+      const parsedExpression = parseGeometryArrayExpression(expressionSource.raw);
+      const expressionKind = parsedExpression.expression?.kind;
+      const isCollectionControlFlow = expressionKind === "if" || expressionKind === "match" || expressionKind === "coalesce" || expressionKind === "none";
+      if (
+        !parsedExpression.expression ||
+        parsedExpression.diagnostics.length > 0 ||
+        (!isCollectionControlFlow && !(ownerModuleDefinitionStatementIndex !== null && expressionKind === "literal"))
+      ) continue;
+      const resolved = collectionSemanticAnalysis?.resolveGenericArrayExpressionAt({
+        statementIndex: expressionSource.statementIndex,
+        statementId: expressionSource.valueId,
+        expectedValueType: declarationType,
+        expression: parsedExpression.expression,
+        expressionOffset: expressionSource.span.start
+      });
+      if (!resolved?.value || resolved.diagnostics.length > 0) continue;
+      const semantic: GenericArrayValueSemantic = {
+        statementId: expressionSource.valueId,
+        statementIndex: expressionSource.statementIndex,
+        name: declaration.name,
+        valueType: resolved.value.valueType,
+        declaredValueType: declarationType,
+        ownerModuleDefinitionStatementIndex,
+        exported: false,
+        value: resolved.value
+      };
+      immutableCarryCollectionValues.push(semantic);
+      if (resolved.value.kind === "if" || resolved.value.kind === "match" || resolved.value.kind === "coalesce") {
+        immutableCarryCollectionControlFlowValues.push({
+          statementIndex: expressionSource.statementIndex,
+          ownerModuleDefinitionStatementIndex,
+          source: `${" ".repeat(expressionSource.span.start)}${expressionSource.raw}`,
+          value: resolved.value
+        });
+      }
+    }
+  }
+  const hasImmutableCarryCollectionControlFlow = immutableCarryCollectionControlFlowValues.length > 0;
 
   // Geometry-valued carries reuse the existing geometry-array semantic graph.
   // The loop plan only adds a stable carry collection identity; its sources
@@ -2414,7 +2491,8 @@ export const compileDslDocument = (
   const rootScalarCollectionValues = (
     analysis: BindingAnalysis,
     moduleAnalysis?: ModuleSemanticAnalysis,
-    typedInitializers?: ReadonlyMap<BindingId, TypedScalarExpression>
+    typedInitializers?: ReadonlyMap<BindingId, TypedScalarExpression>,
+    additionalRootValues: readonly GenericArrayValueSemantic[] = []
   ): readonly ScalarProgramCollection[] => {
     const collectionAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
     if (!collectionAnalysis || !stableStatementIdByIndex) return [];
@@ -2604,7 +2682,7 @@ export const compileDslDocument = (
       }
       values.push({ valueId, kind: "literal", members });
     };
-    for (const value of collectionAnalysis.genericValues) {
+    for (const value of [...collectionAnalysis.genericValues, ...additionalRootValues]) {
       if (value.ownerModuleDefinitionStatementIndex !== null) continue;
       const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       const collectionValue = value.value;
@@ -2708,7 +2786,10 @@ export const compileDslDocument = (
   /** Collection-valued carry descriptors are ordinary collection-graph
    * nodes. The immutable loop plan only redirects the stable carry collection
    * identity to the initializer/next descriptor at the snapshot boundary. */
-  const immutableCarryCollectionRuntime = (analysis: BindingAnalysis): {
+  const immutableCarryCollectionRuntime = (
+    analysis: BindingAnalysis,
+    loweredRootCollectionValues?: readonly ScalarProgramCollection[]
+  ): {
     values: readonly ScalarProgramCollection[];
     carries: readonly import("../scalars/bindingVersions").ImmutableCollectionCarry[];
   } => {
@@ -2893,6 +2974,17 @@ export const compileDslDocument = (
       }
       return { valueId, kind: "literal", members };
     };
+    const semanticValueIds = new Set(immutableCarryCollectionValues.map((value) => value.statementId));
+    const carryDescriptorFor = (
+      declaration: typeof immutableCarryCompilation.declarations[number],
+      raw: string,
+      valueId: string,
+      expressionStatementIndex: number
+    ): { kind: "semantic" } | { kind: "descriptor"; value: ScalarProgramCollection } | null => {
+      if (semanticValueIds.has(valueId)) return { kind: "semantic" };
+      const descriptor = descriptorFor(declaration, raw, valueId, expressionStatementIndex);
+      return descriptor ? { kind: "descriptor", value: descriptor } : null;
+    };
     for (const declaration of immutableCarryCompilation.declarations) {
       const valueType = dslRequiredValueTypeOf(declaration.valueType);
       if (!valueType || !isDslArrayValueType(valueType) || isDslGeometryValueType(valueType.elementType) || (!scalarExpressionTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")) continue;
@@ -2905,13 +2997,13 @@ export const compileDslDocument = (
       const collectionValueId = carryCollectionIdForDeclaration(declaration);
       const initializerValueId = `${collectionValueId}:initializer`;
       const nextValueId = `${collectionValueId}:next`;
-      const initializer = descriptorFor(
+      const initializer = carryDescriptorFor(
         declaration,
         declaration.initializer,
         initializerValueId,
         declaration.ownerStatementIndex
       );
-      const nextDescriptor = descriptorFor(declaration, next.expression, nextValueId, next.statementIndex);
+      const nextDescriptor = carryDescriptorFor(declaration, next.expression, nextValueId, next.statementIndex);
       if (!initializer || !nextDescriptor) {
         diagnostic(
           declaration,
@@ -2920,7 +3012,20 @@ export const compileDslDocument = (
         );
         continue;
       }
-      values.push(initializer, nextDescriptor);
+      if (
+        loweredRootCollectionValues &&
+        ((initializer.kind === "semantic" && immutableCarryCollectionValues.some((value) => value.statementId === initializerValueId && value.ownerModuleDefinitionStatementIndex === null) && !loweredRootCollectionValues.some((value) => value.valueId === initializerValueId)) ||
+          (nextDescriptor.kind === "semantic" && immutableCarryCollectionValues.some((value) => value.statementId === nextValueId && value.ownerModuleDefinitionStatementIndex === null) && !loweredRootCollectionValues.some((value) => value.valueId === nextValueId)))
+      ) {
+        diagnostic(
+          declaration,
+          `carry「${declaration.name}」の collection initializer/next は宣言された collection 型と一致する必要があります。`,
+          "collection"
+        );
+        continue;
+      }
+      if (initializer.kind === "descriptor") values.push(initializer.value);
+      if (nextDescriptor.kind === "descriptor") values.push(nextDescriptor.value);
       carries.push({
         bindingId: declaration.bindingId,
         collectionValueId,
@@ -2987,7 +3092,7 @@ export const compileDslDocument = (
     ? immutableCarryCollectionRuntime(documentScalarAnalysis.bindingAnalysis)
     : { values: [], carries: [] };
   let documentScalarProgram = documentScalarAnalysis
-    ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, undefined, documentScalarAnalysis.typedInitializerByBindingId), ...carryCollectionRuntime.values] })
+    ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, undefined, documentScalarAnalysis.typedInitializerByBindingId, immutableCarryCollectionValues.filter((value) => value.ownerModuleDefinitionStatementIndex === null)), ...carryCollectionRuntime.values] })
     : undefined;
   const logicalTextByStatementIndex = new Map<number, string>();
   for (const [statementIndex, statement] of parsed.statements.entries()) {
@@ -3058,6 +3163,7 @@ export const compileDslDocument = (
         spans,
         logicalTextByStatementIndex,
         documentScalarBindings,
+        additionalCollectionControlFlowValues: immutableCarryCollectionControlFlowValues,
         resolveConstructionInput,
         resolveGeometryStageSelection: ({ statementId, members }) => {
           const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
@@ -3100,7 +3206,7 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const constructionInputConsumerElementIds = new Set<ElementId>();
   const coordinateTargetFor = (coordinate: import("./moduleSemanticTypes").ModulePointCoordinateSemantic, statementIndex: number, sourceText: string): GeometryInputTarget => {
@@ -3265,7 +3371,8 @@ export const compileDslDocument = (
       hasRootCollectionIndexOccurrences ||
       hasRootOptionalMemberOccurrences ||
       moduleSemanticCompilation.rootRecordValuesByStatementId.size > 0 ||
-      hasCollectionControlFlowStatements
+      hasCollectionControlFlowStatements ||
+      hasImmutableCarryCollectionControlFlow
     ) {
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const qualifiedModuleExportFor = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
@@ -3886,11 +3993,19 @@ export const compileDslDocument = (
       });
       documentScalarAnalysis = scalarAnalysisCompilation.analysis;
       applyRootValueForBodies(documentScalarAnalysis?.bindingAnalysis, documentScalarAnalysis?.typedInitializerByBindingId);
+      const rootCollectionValues = documentScalarAnalysis
+        ? rootScalarCollectionValues(
+            documentScalarAnalysis.bindingAnalysis,
+            moduleSemanticCompilation,
+            documentScalarAnalysis.typedInitializerByBindingId,
+            immutableCarryCollectionValues.filter((value) => value.ownerModuleDefinitionStatementIndex === null)
+          )
+        : [];
       carryCollectionRuntime = documentScalarAnalysis
-        ? immutableCarryCollectionRuntime(documentScalarAnalysis.bindingAnalysis)
+        ? immutableCarryCollectionRuntime(documentScalarAnalysis.bindingAnalysis, rootCollectionValues)
         : { values: [], carries: [] };
       documentScalarProgram = documentScalarAnalysis
-        ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, moduleSemanticCompilation, documentScalarAnalysis.typedInitializerByBindingId), ...carryCollectionRuntime.values] })
+        ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootCollectionValues, ...carryCollectionRuntime.values] })
         : undefined;
     }
   }
@@ -3982,7 +4097,7 @@ export const compileDslDocument = (
         ownerStatement?.kind !== "element" ||
         ownerStatement.type !== "forGroup" ||
         !isDslArrayValueType(valueType) ||
-        !scalarExpressionTypeOfDslValueType(valueType.elementType)
+        (!scalarExpressionTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")
       ) return [];
       return [{
         ...carry,
@@ -4000,6 +4115,7 @@ export const compileDslDocument = (
       documentScalarProgram,
       collectionCarryInputs: moduleCollectionCarryInputs,
       collectionCarryValues: carryCollectionRuntime.values,
+      collectionCarrySemanticValues: immutableCarryCollectionValues.filter((value) => value.ownerModuleDefinitionStatementIndex !== null),
       reconciledContainers: {
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements
