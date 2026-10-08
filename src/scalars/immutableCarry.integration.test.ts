@@ -862,6 +862,93 @@ describe("immutable statement-for carries", () => {
     }
   });
 
+  it("preserves named optional-match carry snapshots for each Module instance", () => {
+    const module = [
+      "module Select(p: number?, items: number[]) {",
+      "  const selector: number? = @p",
+      "  const localItems: number[] = @items",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    const chosen: number[] = match @selector {",
+      "      none => @localItems",
+      "      some x => [@x]",
+      "    }",
+      "    next selected = @chosen",
+      "  }",
+      "  export const first: number = @selected[0]",
+      "  export const length: number = @selected.length",
+      "}"
+    ];
+    const document = (instances: string[], outputs: string[], someArm = "some x => [@x]") => [
+      "nui 1",
+      ...module.map((line) => line.replace("some x => [@x]", someArm)),
+      ...instances,
+      ...outputs
+    ].join("\n");
+    const cases = [
+      {
+        source: document([
+          "instance Present = Select(p: 4, items: [7])",
+          "instance Absent = Select(p: none, items: [9, 8])"
+        ], [
+          "const presentFirst: number = @Present::first",
+          "const presentLength: number = @Present::length",
+          "const absentFirst: number = @Absent::first",
+          "const absentLength: number = @Absent::length"
+        ]),
+        expected: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
+      },
+      {
+        source: document([
+          "instance Absent = Select(p: none, items: [9, 8])",
+          "instance Present = Select(p: 4, items: [7])"
+        ], [
+          "const presentFirst: number = @Present::first",
+          "const presentLength: number = @Present::length",
+          "const absentFirst: number = @Absent::first",
+          "const absentLength: number = @Absent::length"
+        ]),
+        expected: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
+      },
+      {
+        source: document(
+          ["instance Present = Select(p: 4, items: [7])"],
+          [
+            "const presentFirst: number = @Present::first",
+            "const presentLength: number = @Present::length"
+          ]
+        ),
+        expected: { presentFirst: 4, presentLength: 1 }
+      },
+      {
+        source: document(
+          ["instance Absent = Select(p: none, items: [9, 8])"],
+          [
+            "const absentFirst: number = @Absent::first",
+            "const absentLength: number = @Absent::length"
+          ],
+          "some x => @failingItems"
+        ).replace(
+          "const localItems: number[] = @items",
+          "const localItems: number[] = @items\n  const failingItems: number[] = for y in @localItems { @y / 0 }"
+        ),
+        expected: { absentFirst: 9, absentLength: 2 }
+      }
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const compiled = compile(testCase.source);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error"), `case ${index + 1}`).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors, `case ${index + 1}`).toEqual([]);
+      for (const [name, value] of Object.entries(testCase.expected)) {
+        expect(scalarFor(compiled, evaluation, name), `case ${index + 1}: ${name}`).toMatchObject({
+          status: "ok",
+          value: { kind: "number", value }
+        });
+      }
+    }
+  });
+
   it("propagates state through an inner carry and rejects direct outer next", () => {
     const valid = compile([
       "nui 1",
