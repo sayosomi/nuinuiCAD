@@ -262,7 +262,28 @@ export const createIncrementalLinearMutationEvaluator = (
       }
       if (value.kind === "match") {
         const selected = collectionResolver?.selectMatchCollectionValue(current, localBindings);
-        if (!selected || selected.kind === "error") return undefined;
+        if (!selected) return undefined;
+        if (selected.kind === "error") {
+          const bindingId = selected.evaluation.status === "error" &&
+            selected.evaluation.issueCode === "evaluation-binding-unavailable"
+            ? selected.evaluation.bindingId
+            : undefined;
+          const bindingIsPending = bindingId !== undefined && graph.versions.some((version) =>
+            version.bindingId === bindingId && !historyByVersionId.has(version.id)
+          );
+          if (!bindingIsPending) return undefined;
+
+          // A later source-order binding can be a valid Module-local match
+          // scrutinee even when the loop boundary runs before that version.
+          // Keep the compiler-resolved match node and this iteration's local
+          // environment so the collection resolver can select its arm once
+          // the binding has been advanced.
+          const capturedBindings = new Map(iterationBindings);
+          for (const [localBindingId, localValue] of localBindings) {
+            capturedBindings.set(localBindingId, localValue);
+          }
+          return { valueId: current, localBindings: capturedBindings };
+        }
         localBindings = selected.localBindings;
         current = selected.valueId;
         continue;
@@ -303,6 +324,7 @@ export const createIncrementalLinearMutationEvaluator = (
   };
 
   const execute = (version: BindingVersion) => {
+    if (historyByVersionId.has(version.id)) return;
     const control = activeControl(version);
     if (control !== "active") {
       historyByVersionId.set(version.id, {
@@ -554,13 +576,19 @@ export const createIncrementalLinearMutationEvaluator = (
         executeLoopVersion(version, frame);
       }
     };
-    // The regular cursor must never traverse this static body range. This is
-    // deliberately index-only: execution && history stay owned by the loop
-    // scheduler (or remain absent when the scheduler does not run).
+    // The regular cursor must never traverse this loop's static body versions.
+    // Keep unrelated versions in the cursor: a projected Module source order
+    // can place a valid outer binding before the loop's exit position even
+    // when the loop element is visited first.
     if (!outerEnvironment) {
       const exit = plan.statements.find((statement) => statement.kind === "exit")?.sourceOrder;
       if (exit !== undefined) {
         while (nextVersionIndex < graph.versions.length && graph.versions[nextVersionIndex].sourceOrder < exit) {
+          const version = graph.versions[nextVersionIndex];
+          const ownedByLoop = version.control.ownerChain.some((owner) =>
+            owner.kind === "forGroup" && owner.ownerStatementId === plan.ownerStatementId
+          );
+          if (!ownedByLoop) break;
           nextVersionIndex += 1;
         }
       }

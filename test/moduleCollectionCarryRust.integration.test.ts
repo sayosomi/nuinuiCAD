@@ -179,4 +179,98 @@ describe("SAY-474 Module collection carry indexing through persistent Rust stdio
       }
     }
   }, 60_000);
+
+  it("preserves named optional-match collection carries across Module instances", async () => {
+    const module = [
+      "module Select(p: number?, items: number[]) {",
+      "  const selector: number? = @p",
+      "  const localItems: number[] = @items",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    const chosen: number[] = match @selector {",
+      "      none => @localItems",
+      "      some x => [@x]",
+      "    }",
+      "    next selected = @chosen",
+      "  }",
+      "  export const first: number = @selected[0]",
+      "  export const length: number = @selected.length",
+      "}"
+    ];
+    const values = [
+      "const presentFirst: number = @Present::first",
+      "const presentLength: number = @Present::length",
+      "const absentFirst: number = @Absent::first",
+      "const absentLength: number = @Absent::length"
+    ];
+    const document = (instances: string[], outputs: string[]) => [
+      "nui 1",
+      ...module,
+      ...instances,
+      ...outputs
+    ].join("\n");
+    const cases = [
+      {
+        name: "two instances in authored order",
+        source: document([
+          "instance Present = Select(p: 4, items: [7])",
+          "instance Absent = Select(p: none, items: [9, 8])"
+        ], values),
+        expected: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
+      },
+      {
+        name: "two instances in reversed order",
+        source: document([
+          "instance Absent = Select(p: none, items: [9, 8])",
+          "instance Present = Select(p: 4, items: [7])"
+        ], values),
+        expected: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
+      },
+      {
+        name: "single-instance control",
+        source: document(
+          ["instance Present = Select(p: 4, items: [7])"],
+          values.slice(0, 2)
+        ),
+        expected: { presentFirst: 4, presentLength: 1 }
+      },
+      {
+        name: "unselected failing some arm stays lazy",
+        source: document(
+          ["instance Absent = Select(p: none, items: [9, 8])"],
+          [
+            "const absentFirst: number = @Absent::first",
+            "const absentLength: number = @Absent::length"
+          ]
+        )
+          .replace(
+            "const localItems: number[] = @items",
+            "const localItems: number[] = @items\n  const failingItems: number[] = for y in @localItems { @y / 0 }"
+          )
+          .replace("some x => [@x]", "some x => @failingItems"),
+        expected: { absentFirst: 9, absentLength: 2 }
+      }
+    ];
+
+    for (const testCase of cases) {
+      const fixture = fixtureFromSource(testCase.source);
+      expect(fixture.compiled!.doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error"), testCase.name).toEqual([]);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture), testCase.name).toBe(true);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload), testCase.name).toEqual(normalizeParityPayload(tsPayload));
+
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors, testCase.name).toEqual([]);
+        for (const [name, value] of Object.entries(testCase.expected)) {
+          expect(scalarFor(fixture, payload, name), `${testCase.name}: ${name}`).toMatchObject({
+            status: "ok",
+            value: { kind: "number", value }
+          });
+        }
+      }
+    }
+  }, 60_000);
 });
