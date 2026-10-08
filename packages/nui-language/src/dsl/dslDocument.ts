@@ -1556,6 +1556,7 @@ export const compileDslDocument = (
   // Geometry-valued carries reuse the existing geometry-array semantic graph.
   // The loop plan only adds a stable carry collection identity; its sources
   // remain ordinary geometry collection nodes or existing collection IDs.
+  let moduleScalarCompilation: ModuleScalarRuntimeCompilation | undefined;
   const geometryCollectionNodesByValueId = new Map<string, GeometryInputCollectionNode>(
     compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId ?? []
   );
@@ -1582,6 +1583,11 @@ export const compileDslDocument = (
   const geometryCollectionNodeForValueId = (valueId: string, seen = new Set<string>()): GeometryInputCollectionNode | null => {
     const existing = geometryCollectionNodesByValueId.get(valueId);
     if (existing) return existing;
+    const compiledRuntimeNode = moduleScalarCompilation?.geometryCollectionNodesByValueId.get(valueId);
+    if (compiledRuntimeNode) {
+      geometryCollectionNodesByValueId.set(valueId, compiledRuntimeNode);
+      return compiledRuntimeNode;
+    }
     if (seen.has(valueId)) return null;
     const semantic = geometryArraySemanticForValueId(valueId);
     const value = semantic?.value;
@@ -1671,8 +1677,9 @@ export const compileDslDocument = (
         const semanticValueType = semantic ? ("valueType" in semantic ? semantic.valueType : semantic.declaredValueType) : null;
         const semanticRequiredType = semanticValueType ? dslRequiredValueTypeOf(semanticValueType) : null;
         if (semantic && semanticRequiredType?.kind === "array" && isDslGeometryValueType(semanticRequiredType.elementType)) {
-          const node = geometryCollectionNodeForValueId(semantic.statementId);
-          return node ? { source: { kind: "value", valueId: semantic.statementId }, valueType: semanticRequiredType } : null;
+          // Keep the compiled value identity even when the node is a deferred
+          // value-for map; the Module runtime installs its path-specific node.
+          return { source: { kind: "value", valueId: semantic.statementId }, valueType: semanticRequiredType };
         }
         // A record field collection uses the same authored collection
         // expression as the record constructor. Resolve that expression and
@@ -1712,8 +1719,7 @@ export const compileDslDocument = (
         const semanticValueType = semantic ? ("valueType" in semantic ? semantic.valueType : semantic.declaredValueType) : null;
         const semanticRequiredType = semanticValueType ? dslRequiredValueTypeOf(semanticValueType) : null;
         if (semantic && semanticRequiredType?.kind === "array" && isDslGeometryValueType(semanticRequiredType.elementType)) {
-          const node = geometryCollectionNodeForValueId(semantic.statementId);
-          return node ? { source: { kind: "value", valueId: semantic.statementId }, valueType: semanticRequiredType } : null;
+          return { source: { kind: "value", valueId: semantic.statementId }, valueType: semanticRequiredType };
         }
       }
     }
@@ -3313,6 +3319,28 @@ export const compileDslDocument = (
         sourceText
       };
     }
+    if (target.kind === "collectionIndex") {
+      // Ordinary authored collections already have established target lowering
+      // through the document compiler. This semantic path is needed for
+      // runtime-backed carry snapshots, which have no authored member list.
+      if (!target.collectionValueId.startsWith("carry-collection:")) return undefined;
+      let index: import("../scalars/typedExpressionAst").TypedScalarExpression;
+      try {
+        index = lowerExpression(target.index, () => undefined, new Map()).expression;
+      } catch {
+        return undefined;
+      }
+      const value = geometryCollectionNodeForValueId(target.collectionValueId);
+      return {
+        kind: "collectionIndex",
+        collectionValueId: target.collectionValueId,
+        collectionLength: target.collectionLength,
+        targetSourceOrder: target.targetSourceOrder,
+        index,
+        members: [],
+        ...(value ? { value } : {})
+      };
+    }
     if (target.kind === "forGroupOccurrence") {
       const templateElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
       return templateElementId
@@ -4157,7 +4185,6 @@ export const compileDslDocument = (
   }
   let scalarAnalysis = documentScalarAnalysis;
   let scalarProgram = documentScalarProgram;
-  let moduleScalarCompilation: ModuleScalarRuntimeCompilation | undefined;
   if (
     moduleSemanticCompilation &&
     !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
@@ -4184,6 +4211,37 @@ export const compileDslDocument = (
         carryName: declaration.name
       }];
     });
+    const moduleGeometryCollectionCarryInputs = immutableCarryCompilation?.declarations.flatMap((declaration) => {
+      if (declaration.fieldPath) return [];
+      const valueType = dslRequiredValueTypeOf(declaration.valueType);
+      if (!valueType || !isDslArrayValueType(valueType) || !isDslGeometryValueType(valueType.elementType)) return [];
+      const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
+      const next = immutableCarryCompilation.nexts.find((candidate) =>
+        candidate.ownerStatementIndex === declaration.ownerStatementIndex &&
+        candidate.carryName === declaration.name &&
+        !candidate.fieldPath
+      );
+      if (!ownerStatementId || !next) return [];
+      const initializer = geometryCollectionSourceForRaw(
+        declaration.initializer,
+        declaration.ownerStatementIndex,
+        new Set(),
+        valueType
+      );
+      const nextSource = geometryCollectionSourceForRaw(next.expression, next.statementIndex, new Set(), valueType);
+      if (!initializer || !nextSource || !isDslValueTypeAssignable(initializer.valueType, valueType) || !isDslValueTypeAssignable(nextSource.valueType, valueType)) return [];
+      return [{
+        bindingId: declaration.bindingId,
+        collectionValueId: immutableCarryCollectionValueId(declaration.bindingId),
+        initializer: initializer.source,
+        next: nextSource.source,
+        declaredType: valueType,
+        nextSourceOrder: next.statementIndex,
+        ownerStatementId,
+        ownerStatementIndex: declaration.ownerStatementIndex,
+        carryName: declaration.name
+      }];
+    }) ?? [];
     moduleScalarCompilation = compileModuleScalarRuntime({
       statements: parsed.statements,
       stableStatementIdByIndex,
@@ -4192,6 +4250,7 @@ export const compileDslDocument = (
       documentBindingAnalysis: documentScalarAnalysis?.bindingAnalysis,
       documentScalarProgram,
       collectionCarryInputs: moduleCollectionCarryInputs,
+      geometryCollectionCarryInputs: moduleGeometryCollectionCarryInputs,
       collectionCarryValues: carryCollectionRuntime.values,
       collectionCarrySemanticValues: immutableCarryCollectionValues.filter((value) => value.ownerModuleDefinitionStatementIndex !== null),
       reconciledContainers: {
@@ -4796,7 +4855,8 @@ export const compileDslDocument = (
         (candidate.fieldPath?.join(".") ?? "") === (declaration.fieldPath?.join(".") ?? "")
       );
       const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
-      if (!next || !ownerStatementId) continue;
+      const ownerStatement = parsed.statements[declaration.ownerStatementIndex];
+      if (!next || !ownerStatementId || !ownerStatement || !includeStatement(ownerStatement, declaration.ownerStatementIndex)) continue;
       const initializer = geometryCollectionSourceForRaw(declaration.initializer, declaration.ownerStatementIndex, new Set(), valueType);
       const nextSource = geometryCollectionSourceForRaw(next.expression, next.statementIndex, new Set(), valueType);
       const initializerAssignable = initializer && isDslValueTypeAssignable(initializer.valueType, valueType);

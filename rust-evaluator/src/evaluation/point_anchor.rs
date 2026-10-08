@@ -295,10 +295,15 @@ pub(crate) fn point_anchor_or_error(
                 .get("mappedMemberIndex")
                 .and_then(Value::as_u64)
                 .and_then(|value| usize::try_from(value).ok());
+            let runtime_generation = occurrence
+                .get("runtimeGeneration")
+                .and_then(Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok());
             let occurrence = GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
                 mapped_member_index,
+                runtime_generation,
             };
             let geometry = state.computed_geometry_values.get(&occurrence)?;
             let point = if let Some(point_key) = anchor.get("pointKey").and_then(Value::as_str) {

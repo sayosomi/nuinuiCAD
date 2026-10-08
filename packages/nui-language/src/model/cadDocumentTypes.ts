@@ -207,13 +207,32 @@ export type GeometryValueOccurrence = {
   /** Present only for a member produced by a geometry collection map. This is
    * a separate occurrence namespace from Module instance identity. */
   mappedMemberIndex?: number;
+  /** Runtime generation for a deferred immutable carry map. This is separate
+   * from both the Module instance path and authored statement identity. */
+  runtimeGeneration?: number;
 };
+
+export type GeometryInputCollectionSource =
+  | { kind: "value"; valueId: string }
+  | { kind: "node"; node: GeometryInputCollectionNode };
 
 /** Runtime-only input for a read-only geometry consumer. This is deliberately
  * separate from persisted ElementId fields and is never a drawable identity. */
 export type GeometryInputCollectionNode =
   | { kind: "none" }
   | { kind: "leaf"; targets: readonly Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
+  | {
+      kind: "geometryValueMap";
+      source: GeometryInputCollectionSource;
+      sourceStatementId: string;
+      instancePath: readonly string[];
+      binderId: string;
+      geometryType: "point" | "line" | "path";
+      declaredInterfaceType: "point" | "line" | "path";
+      program: import("../dsl/moduleGeometryValueProgram").GeometryValueProgramNode;
+      executionPosition: number;
+      runtimeGeneration?: number;
+    }
   | { kind: "if"; condition: TypedScalarExpression; sourceOrder: number; thenBranch: GeometryInputCollectionNode; elseBranch: GeometryInputCollectionNode }
   | { kind: "match"; scrutinee: TypedScalarExpression; sourceOrder: number; arms: readonly { label: string; value: GeometryInputCollectionNode }[] }
   | { kind: "coalesce"; leftBranch: GeometryInputCollectionNode; rightBranch: GeometryInputCollectionNode };

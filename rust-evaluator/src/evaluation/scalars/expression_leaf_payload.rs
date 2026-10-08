@@ -476,7 +476,12 @@ pub(crate) fn decode_geometry_property(
             let occurrence = as_object(value, "geometryProperty node geometryValueOccurrence")?;
             reject_unexpected_fields(
                 occurrence,
-                &["sourceStatementId", "instancePath", "mappedMemberIndex"],
+                &[
+                    "sourceStatementId",
+                    "instancePath",
+                    "mappedMemberIndex",
+                    "runtimeGeneration",
+                ],
                 "geometryProperty node geometryValueOccurrence",
             )?;
             let source_statement_id = require_field(occurrence, "sourceStatementId", "geometryProperty node geometryValueOccurrence")?
@@ -503,10 +508,23 @@ pub(crate) fn decode_geometry_property(
                     })
                 })
                 .transpose()?;
+            let runtime_generation = occurrence
+                .get("runtimeGeneration")
+                .and_then(Value::as_u64)
+                .map(|value| {
+                    usize::try_from(value).map_err(|_| {
+                        issue(
+                            Code::InvalidFieldType,
+                            "geometryProperty node geometryValueOccurrence runtimeGeneration is too large",
+                        )
+                    })
+                })
+                .transpose()?;
             Some(Box::new(GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
                 mapped_member_index,
+                runtime_generation,
             }))
         }
     };

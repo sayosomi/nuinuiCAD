@@ -12,14 +12,25 @@ pub(crate) enum GeometryInputCollectionNode {
     Leaf {
         targets: Vec<GeometryInputTarget>,
     },
+    GeometryValueMap {
+        source: GeometryInputCollectionSource,
+        source_statement_id: String,
+        instance_path: Vec<String>,
+        binder_id: String,
+        geometry_type: String,
+        declared_interface_type: String,
+        program: Arc<super::geometry_value_runtime::GeometryValueConstruction>,
+        execution_position: f64,
+        runtime_generation: Option<usize>,
+    },
     If {
-        condition: TypedScalarExpression,
+        condition: Arc<TypedScalarExpression>,
         source_order: f64,
         then_branch: Box<GeometryInputCollectionNode>,
         else_branch: Box<GeometryInputCollectionNode>,
     },
     Match {
-        scrutinee: TypedScalarExpression,
+        scrutinee: Arc<TypedScalarExpression>,
         source_order: f64,
         arms: Vec<(String, GeometryInputCollectionNode)>,
     },
@@ -27,6 +38,12 @@ pub(crate) enum GeometryInputCollectionNode {
         left_branch: Box<GeometryInputCollectionNode>,
         right_branch: Box<GeometryInputCollectionNode>,
     },
+}
+
+#[derive(Debug)]
+pub(crate) enum GeometryInputCollectionSource {
+    Value(String),
+    Node(Arc<GeometryInputCollectionNode>),
 }
 
 pub type ElementId = String;
@@ -38,6 +55,8 @@ pub(crate) struct GeometryValueOccurrence {
     pub(crate) instance_path: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) mapped_member_index: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) runtime_generation: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -67,7 +86,7 @@ pub(crate) enum GeometryInputTarget {
         geometry_type: String,
         point_key: Option<String>,
         source: Box<GeometryInputTarget>,
-        program: Box<super::geometry_value_runtime::GeometryValueConstruction>,
+        program: Arc<super::geometry_value_runtime::GeometryValueConstruction>,
         execution_position: f64,
         declared_interface_type: String,
     },

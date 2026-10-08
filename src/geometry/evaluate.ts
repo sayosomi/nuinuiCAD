@@ -43,6 +43,7 @@ import type { BindingVersionGraph } from "@nuinuicad/nui-language";
 import {
   createDocumentLinearScalarBindingResolver,
   createDocumentScalarBindingResolver,
+  geometryCollectionLengthForNode,
   resolveGeometryCollectionMemberForNode,
   resolveDocumentGeometryProperty,
   resolveDocumentGeometryTarget
@@ -913,6 +914,33 @@ export const evaluateElements = (
         const targets = node.targets.map(materialize);
         return targets.some((target) => target === null) ? null : targets as GeometryInputTarget[];
       }
+      if (node.kind === "geometryValueMap") {
+        const collectionResolvers = {
+          resolveSourceCollectionNode: (valueId: string) => geometryCollectionNodesByValueId.get(valueId),
+          materializeGeometryValueMap: (target: Extract<GeometryInputTarget, { kind: "geometryValueMap" }>) => {
+            const mapped = materializeGeometryValueMapTarget(target, sourceOrder);
+            return computedGeometryValues.has(geometryValueOccurrenceKey(mapped.occurrence)) ? mapped : undefined;
+          }
+        };
+        const sourceNode = node.source.kind === "node"
+          ? node.source.node
+          : geometryCollectionNodesByValueId.get(node.source.valueId);
+        const length = sourceNode
+          ? geometryCollectionLengthForNode(sourceNode, scalarEnvironmentFor, collectionResolvers.resolveSourceCollectionNode)
+          : undefined;
+        if (length === undefined || !Number.isInteger(length) || length < 0) return null;
+        const members: GeometryInputTarget[] = [];
+        for (let index = 0; index < length; index += 1) {
+          const target = resolveGeometryCollectionMemberForNode(node, index, scalarEnvironmentFor, collectionResolvers);
+          if (!target) return null;
+          const mapped = target.kind === "geometryValueMap"
+            ? collectionResolvers.materializeGeometryValueMap(target)
+            : materialize(target);
+          if (!mapped) return null;
+          members.push(mapped);
+        }
+        return members;
+      }
       if (node.kind === "if") {
         const environment = scalarEnvironmentFor(node.sourceOrder);
         const condition = evaluateTypedExpression(node.condition, environment);
@@ -931,6 +959,19 @@ export const evaluateElements = (
       if (label === undefined) return null;
       const arm = node.arms.find((candidate) => candidate.label === label);
       return arm ? materializeCollectionNode(arm.value) : null;
+    };
+    const containsDeferredGeometryValueMap = (
+      node: import("../types/geometry").GeometryInputCollectionNode
+    ): boolean => {
+      if (node.kind === "geometryValueMap") return true;
+      if (node.kind === "if") {
+        return containsDeferredGeometryValueMap(node.thenBranch) || containsDeferredGeometryValueMap(node.elseBranch);
+      }
+      if (node.kind === "match") return node.arms.some((arm) => containsDeferredGeometryValueMap(arm.value));
+      if (node.kind === "coalesce") {
+        return containsDeferredGeometryValueMap(node.leftBranch) || containsDeferredGeometryValueMap(node.rightBranch);
+      }
+      return false;
     };
     const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
       if (target.kind === "geometryCarry") {
@@ -1005,7 +1046,37 @@ export const evaluateElements = (
         invalid(target, "evaluation-collection-index-invalid");
         return null;
       }
-      const members = target.value ? materializeCollectionNode(target.value) : target.members.map(materialize);
+      const collectionNode = target.value ?? (target.members.length === 0
+        ? geometryCollectionNodesByValueId.get(target.collectionValueId)
+        : undefined);
+      if (collectionNode && containsDeferredGeometryValueMap(collectionNode)) {
+        const collectionResolvers = {
+          resolveSourceCollectionNode: (valueId: string) => geometryCollectionNodesByValueId.get(valueId),
+          materializeGeometryValueMap: (mapTarget: Extract<GeometryInputTarget, { kind: "geometryValueMap" }>) => {
+            const mapped = materializeGeometryValueMapTarget(mapTarget, sourceOrder);
+            return computedGeometryValues.has(geometryValueOccurrenceKey(mapped.occurrence)) ? mapped : undefined;
+          }
+        };
+        const selected = resolveGeometryCollectionMemberForNode(
+          collectionNode,
+          index,
+          scalarEnvironmentFor,
+          collectionResolvers
+        );
+        if (!selected) {
+          invalid(target, "evaluation-collection-index-invalid");
+          return null;
+        }
+        const mapped = selected.kind === "geometryValueMap"
+          ? collectionResolvers.materializeGeometryValueMap(selected)
+          : materialize(selected as GeometryInputTarget);
+        if (!mapped) {
+          invalid(target, "evaluation-collection-index-invalid");
+          return null;
+        }
+        return mapped;
+      }
+      const members = collectionNode ? materializeCollectionNode(collectionNode) : target.members.map(materialize);
       if (!members || members.some((member) => member === null)) {
         invalid(target, "evaluation-collection-index-invalid");
         return null;
@@ -2300,7 +2371,14 @@ export const evaluateElements = (
                   lookupCollectionLengthEvaluation: (collectionValueId: string) =>
                     scalarBindingResolver.resolveCollectionLengthEvaluation!(collectionValueId, currentSourceOrder)
                 } : {})
-              })
+              }),
+              {
+                resolveSourceCollectionNode: (valueId) => geometryCollectionNodesByValueId.get(valueId),
+                materializeGeometryValueMap: (target) => {
+                  const mapped = materializeGeometryValueMapTarget(target, sourceOrder);
+                  return computedGeometryValues.has(geometryValueOccurrenceKey(mapped.occurrence)) ? mapped : undefined;
+                }
+              }
             );
             if (target?.kind !== "geometryValueMap") return target;
             const materialized = materializeGeometryValueMapTarget(target, sourceOrder);
@@ -2370,23 +2448,73 @@ export const evaluateElements = (
           if (initial) geometryCarryValues.set(carry.bindingId, initial);
         }
       };
+      const captureGeometryCollectionNode = (
+        node: import("../types/geometry").GeometryInputCollectionNode,
+        nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>,
+        runtimeGeneration: number | undefined,
+        seen: ReadonlySet<string>
+      ): import("../types/geometry").GeometryInputCollectionNode | undefined => {
+        if (node.kind === "geometryValueMap") {
+          if (node.source.kind === "node") return node;
+          if (seen.has(node.source.valueId)) return undefined;
+          const sourceNode = nodes.get(node.source.valueId);
+          if (!sourceNode) return undefined;
+          const capturedSource = captureGeometryCollectionNode(
+            sourceNode,
+            nodes,
+            runtimeGeneration,
+            new Set([...seen, node.source.valueId])
+          );
+          return capturedSource
+            ? {
+                ...node,
+                source: { kind: "node", node: capturedSource },
+                ...(runtimeGeneration === undefined ? {} : { runtimeGeneration })
+              }
+            : undefined;
+        }
+        if (node.kind === "if") {
+          const thenBranch = captureGeometryCollectionNode(node.thenBranch, nodes, runtimeGeneration, seen);
+          const elseBranch = captureGeometryCollectionNode(node.elseBranch, nodes, runtimeGeneration, seen);
+          return thenBranch && elseBranch ? { ...node, thenBranch, elseBranch } : undefined;
+        }
+        if (node.kind === "match") {
+          const arms = node.arms.map((arm) => ({ ...arm, value: captureGeometryCollectionNode(arm.value, nodes, runtimeGeneration, seen) }));
+          return arms.every((arm) => arm.value !== undefined)
+            ? { ...node, arms: arms as { label: string; value: import("../types/geometry").GeometryInputCollectionNode }[] }
+            : undefined;
+        }
+        if (node.kind === "coalesce") {
+          const leftBranch = captureGeometryCollectionNode(node.leftBranch, nodes, runtimeGeneration, seen);
+          const rightBranch = captureGeometryCollectionNode(node.rightBranch, nodes, runtimeGeneration, seen);
+          return leftBranch && rightBranch ? { ...node, leftBranch, rightBranch } : undefined;
+        }
+        return node;
+      };
       const geometryCollectionSource = (
         source: import("@nuinuicad/nui-language").ImmutableGeometryCollectionSource,
-        nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>
-      ) => source.kind === "node" ? source.node : nodes.get(source.valueId);
+        nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>,
+        runtimeGeneration?: number
+      ) => {
+        if (source.kind === "node") return captureGeometryCollectionNode(source.node, nodes, runtimeGeneration, new Set());
+        const sourceNode = nodes.get(source.valueId);
+        if (!sourceNode) return undefined;
+        return captureGeometryCollectionNode(sourceNode, nodes, runtimeGeneration, new Set([source.valueId]));
+      };
       const initializeGeometryCollectionCarries = () => {
+        const snapshot = new Map(geometryCollectionNodesByValueId);
         for (const carry of immutableForGroupPlan?.geometryCollectionCarries ?? []) {
-          const node = geometryCollectionSource(carry.initializer, geometryCollectionNodesByValueId);
+          const node = geometryCollectionSource(carry.initializer, snapshot);
           if (node) geometryCollectionNodesByValueId.set(carry.collectionValueId, node);
         }
       };
-      const commitGeometryCollectionCarries = () => {
+      const commitGeometryCollectionCarries = (iterationIndex: number) => {
         const carries = immutableForGroupPlan?.geometryCollectionCarries ?? [];
         if (carries.length === 0) return;
         const snapshot = new Map(geometryCollectionNodesByValueId);
         const nextNodes = new Map<string, import("../types/geometry").GeometryInputCollectionNode>();
         for (const carry of carries) {
-          const node = geometryCollectionSource(carry.next, snapshot);
+          const node = geometryCollectionSource(carry.next, snapshot, iterationIndex);
           if (node) nextNodes.set(carry.collectionValueId, node);
           else errors.push({
             elementId: element.id,
@@ -2465,7 +2593,7 @@ export const evaluateElements = (
               const previousStatementForGeometryBinder = activeStatementForGeometryBinder;
               activeStatementForGeometryBinder = iterationGeometryMembersForLoop?.[context.iterationIndex] ?? null;
               try {
-                commitGeometryCollectionCarries();
+                commitGeometryCollectionCarries(context.iterationIndex);
                 return commitGeometryCarries();
               } finally {
                 activeStatementForGeometryBinder = previousStatementForGeometryBinder;
@@ -2572,6 +2700,7 @@ export const evaluateElements = (
             occurrencePath
           );
         }
+        commitGeometryCollectionCarries(iterationIndex);
         commitGeometryCarries();
       }
       return;

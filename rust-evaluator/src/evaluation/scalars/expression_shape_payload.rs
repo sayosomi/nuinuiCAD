@@ -388,7 +388,12 @@ pub(crate) fn decode_geometry_target_payload(
             let occurrence = as_object(value, "geometry reference target occurrence")?;
             reject_unexpected_fields(
                 occurrence,
-                &["sourceStatementId", "instancePath", "mappedMemberIndex"],
+                &[
+                    "sourceStatementId",
+                    "instancePath",
+                    "mappedMemberIndex",
+                    "runtimeGeneration",
+                ],
                 "geometry reference target occurrence",
             )?;
             let source_statement_id = require_field(
@@ -427,10 +432,23 @@ pub(crate) fn decode_geometry_target_payload(
                     })
                 })
                 .transpose()?;
+            let runtime_generation = occurrence
+                .get("runtimeGeneration")
+                .and_then(Value::as_u64)
+                .map(|value| {
+                    usize::try_from(value).map_err(|_| {
+                        issue(
+                            Code::InvalidFieldType,
+                            "geometry reference target occurrence runtimeGeneration is too large",
+                        )
+                    })
+                })
+                .transpose()?;
             Some(GeometryValueOccurrence {
                 source_statement_id,
                 instance_path,
                 mapped_member_index,
+                runtime_generation,
             })
         }
     };
@@ -636,7 +654,12 @@ fn decode_occurrence(
     let object = as_object(value, context)?;
     reject_unexpected_fields(
         object,
-        &["sourceStatementId", "instancePath", "mappedMemberIndex"],
+        &[
+            "sourceStatementId",
+            "instancePath",
+            "mappedMemberIndex",
+            "runtimeGeneration",
+        ],
         context,
     )?;
     let source_statement_id = require_field(object, "sourceStatementId", context)?
@@ -682,10 +705,23 @@ fn decode_occurrence(
             })
         })
         .transpose()?;
+    let runtime_generation = object
+        .get("runtimeGeneration")
+        .and_then(Value::as_u64)
+        .map(|value| {
+            usize::try_from(value).map_err(|_| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} runtimeGeneration is too large"),
+                )
+            })
+        })
+        .transpose()?;
     Ok(GeometryValueOccurrence {
         source_statement_id,
         instance_path,
         mapped_member_index,
+        runtime_generation,
     })
 }
 

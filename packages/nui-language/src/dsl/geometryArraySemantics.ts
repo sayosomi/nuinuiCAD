@@ -72,6 +72,9 @@ export type GeometryArrayMappedValue = {
   kind: "map";
   type: GeometryArrayType;
   sourceValueId: string;
+  /** True when the source is an immutable geometry collection carry whose
+   * members are supplied by the evaluator's incoming runtime snapshot. */
+  sourceIsImmutableCarry?: boolean;
   sourceElementType: ModuleGeometryInterfaceType;
   resultElementType: ModuleGeometryInterfaceType;
   binderId: string;
