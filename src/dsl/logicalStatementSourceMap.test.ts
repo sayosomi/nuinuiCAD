@@ -136,6 +136,101 @@ describe("logicalStatementSourceMap", () => {
     expect(compileDslWithStableIds(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("keeps multiline optional match arms in immutable carry next within their physical source span", () => {
+    const source = [
+      "nui 1",
+      "const p: number? = 1",
+      "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "  next selected = match @p {",
+      "    // optional match arms stay attached across comments",
+      "    none => [2] // selected when p is none",
+      "    some x => [@x]",
+      "  }",
+      "}",
+      "const result: number = @selected[0]"
+    ].join("\n");
+    const snapshot = { normalizedSource: source, sourceRevision: 42 };
+    const map = createLogicalStatementSourceMap(snapshot);
+    const next = map.statements.find((statement) => statement.logicalText.startsWith("next selected ="));
+
+    expect(map.statements.map((statement) => statement.logicalText)).toEqual([
+      "nui 1",
+      "const p: number? = 1",
+      "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "next selected = match @p { none => [2] some x => [@x] }",
+      "}",
+      "const result: number = @selected[0]"
+    ]);
+    expect(next).toMatchObject({
+      range: { startLine: 4, endLine: 8, sourceRevision: 42 },
+      continuationLines: [4, 5, 6, 7],
+      structural: null
+    });
+    expect(map.statements[4]).toMatchObject({ structural: "close", range: { startLine: 9, endLine: 9 } });
+    expect(physicalSpanForStatement(next!)).toMatchObject({ sourceRevision: 42 });
+    expect(physicalSpanForStatement(next!).segments.every((segment) =>
+      !source.slice(segment.from, segment.to).includes("optional match arms") &&
+      !source.slice(segment.from, segment.to).includes("selected when p is none")
+    )).toBe(true);
+
+    const somePhysicalOffset = source.indexOf("some x");
+    const someLogicalOffset = next!.logicalText.indexOf("some x");
+    expect(physicalToLogicalOffset(map, next!, somePhysicalOffset)).toBe(someLogicalOffset);
+    expect(logicalOffsetToPhysical(map, next!, someLogicalOffset)).toBe(somePhysicalOffset);
+    expect(physicalSpanForStatement(next!).sourceRevision).toBe(42);
+
+    for (const parsed of [parseDsl(source), parseDslSnapshot(snapshot)]) {
+      expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    }
+    expect(compileDslWithStableIds(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps multiline exhaustive choice match arms in immutable carry next before the structural loop close", () => {
+    const source = [
+      "nui 1",
+      "const side: choice(left, right) = right",
+      "for i in range(min: 0, max: 0, step: 1) carry selected: number = 0 {",
+      "  next selected = match @side {",
+      "    left => 1",
+      "    right => 2",
+      "  }",
+      "}",
+      "const after: number = @selected"
+    ].join("\n");
+    const snapshot = { normalizedSource: source, sourceRevision: 43 };
+    const map = createLogicalStatementSourceMap(snapshot);
+    const next = map.statements.find((statement) => statement.logicalText.startsWith("next selected ="));
+
+    expect(next?.logicalText).toBe("next selected = match @side { left => 1 right => 2 }");
+    expect(next?.range).toMatchObject({ startLine: 4, endLine: 7, sourceRevision: 43 });
+    expect(map.statements[4]).toMatchObject({ logicalText: "}", structural: "close", range: { startLine: 8, endLine: 8 } });
+    for (const parsed of [parseDsl(source), parseDslSnapshot(snapshot)]) {
+      expect(parsed.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    }
+    expect(compileDslWithStableIds(source).diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("contains an incomplete next match before an unrelated following statement", () => {
+    const source = [
+      "nui 1",
+      "const side: choice(left, right) = left",
+      "for i in range(min: 0, max: 0, step: 1) carry selected: number = 0 {",
+      "  next selected = match @side {",
+      "    left => 1",
+      "  const unrelated: number = 30",
+      "  }",
+      "}",
+      "const after: number = 40"
+    ].join("\n");
+    const map = createLogicalStatementSourceMap({ normalizedSource: source, sourceRevision: 44 });
+    const next = map.statements.find((statement) => statement.logicalText.startsWith("next selected ="));
+
+    expect(next?.logicalText).toBe("next selected = match @side { left => 1");
+    expect(map.invalidContinuationLines).toContain(5);
+    expect(map.statements.some((statement) => statement.logicalText === "const unrelated: number = 30")).toBe(true);
+    expect(map.statements.some((statement) => statement.logicalText === "const after: number = 40")).toBe(true);
+  });
+
   it("keeps single-line value-match syntax valid", () => {
     const source = [
       "nui 1",

@@ -218,6 +218,25 @@ describe("geometry array source semantic integration", () => {
     });
   });
 
+  it("compiles multiline optional match arms in an immutable carry next assignment", () => {
+    const compiled = compile([
+      "nui 1",
+      "const p: number? = 1",
+      "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "  next selected = match @p {",
+      "    none => [2]",
+      "    some x => [@x]",
+      "  }",
+      "}",
+      "const result: number = @selected[0]"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(compiled.bindingAnalysis?.catalog.bindings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "typed", name: "result" })
+    ]));
+  });
+
   it("supports optional collection results for omitted-else if and optional match", () => {
     const compiled = compile([
       "nui 1",

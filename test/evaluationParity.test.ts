@@ -2187,6 +2187,74 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("executes multiline optional and choice match arms in root and Module collection carries through TypeScript and persistent Rust", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const p: number? = 1",
+      "const present: number? = 5",
+      "const absent: number? = none",
+      "const side: choice(left, right) = right",
+      "for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "  next selected = match @p {",
+      "    none => [2]",
+      "    some x => [@x]",
+      "  }",
+      "}",
+      "for i in range(min: 0, max: 0, step: 1) carry fromAbsent: number[] = [] {",
+      "  next fromAbsent = match @absent {",
+      "    none => [9, 10]",
+      "    some value => [@value]",
+      "  }",
+      "}",
+      "for i in range(min: 0, max: 0, step: 1) carry fromChoice: number[] = [] {",
+      "  next fromChoice = match @side {",
+      "    left => [1]",
+      "    right => [3, 4]",
+      "  }",
+      "}",
+      "for i in range(min: 0, max: 0, step: 1) carry lazyValue: number = 0 {",
+      "  next lazyValue = match @present {",
+      "    none => 1 / 0",
+      "    some value => @value",
+      "  }",
+      "}",
+      "const result: number = @selected[0]",
+      "const rootAbsent: number = @fromAbsent[0]",
+      "const rootChoice: number = @fromChoice[1]",
+      "const rootLazy: number = @lazyValue",
+      "module M(value: number?) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    next selected = match @value {",
+      "      none => [17]",
+      "      some item => [@item]",
+      "    }",
+      "  }",
+      "  export const output: number = @selected[0]",
+      "}",
+      "instance ModulePresent = M(value: 13)",
+      "instance ModuleAbsent = M(value: none)",
+      "const modulePresent: number = @ModulePresent::output",
+      "const moduleAbsent: number = @ModuleAbsent::output"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const options = optionsFor(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "result"), 1);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "rootAbsent"), 9);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "rootChoice"), 4);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "rootLazy"), 5);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "modulePresent"), 13);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "moduleAbsent"), 17);
+    }
+  }, 60000);
+
   it("materializes Module-export geometry aliases and root alias chains across the persistent Rust stdio boundary", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

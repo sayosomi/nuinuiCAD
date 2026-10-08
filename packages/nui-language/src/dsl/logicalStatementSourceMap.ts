@@ -119,11 +119,14 @@ const structuralKind = (code: string): LogicalStatement["structural"] => {
 const isTypedDeclarationValueControlFlowStart = (code: string): boolean =>
   /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*(?:if\s*\(|match\b|for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+@[^{}]+\{)/.test(code);
 
+const isImmutableCarryNextValueMatchStart = (code: string): boolean =>
+  /^\s*next\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*match\b/.test(code);
+
 const isTypedDeclarationValueControlFlowTrailingEquals = (code: string): boolean =>
   /^\s*(?:export\s+)?(?:const|let)\b[\s\S]*=\s*$/.test(code);
 
-/** Counts only typed value-control-flow braces. This is deliberately local to the typed
- * declaration continuation path; ordinary DSL block ownership and the
+/** Counts only value-control-flow braces. This is deliberately local to the
+ * value continuation path; ordinary DSL block ownership and the
  * shared call/list scanner remain parenthesis/bracket based. */
 const valueControlFlowBraceDelta = (code: string): number => {
   let delta = 0;
@@ -258,7 +261,8 @@ export const createLogicalStatementSourceMap = (snapshot: SourceSnapshot): Logic
     const fragments: string[] = [];
     const segments: DslPhysicalSegment[] = [];
     const continuationLines: number[] = [];
-    let valueControlFlowContinuation = isTypedDeclarationValueControlFlowStart(first.codeText);
+    let valueControlFlowContinuation = isTypedDeclarationValueControlFlowStart(first.codeText) ||
+      isImmutableCarryNextValueMatchStart(first.codeText);
     let awaitingValueControlFlowHeader = !valueControlFlowContinuation && isTypedDeclarationValueControlFlowTrailingEquals(first.codeText);
     let valueControlFlowBraceDepth = 0;
     let statementForCarryContinuation = false;
