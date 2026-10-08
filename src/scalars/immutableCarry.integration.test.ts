@@ -308,6 +308,114 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("resolves inline optional collection carry matches inside isolated Module instances", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Select(p: number?, items: number[]) {",
+      "  const selector: number? = @p",
+      "  const localItems: number[] = @items",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    next selected = match @selector { none => @localItems some x => [@x] }",
+      "  }",
+      "  export const first: number = @selected[0]",
+      "  export const length: number = @selected.length",
+      "}",
+      "instance Absent = Select(p: none, items: [9, 8])",
+      "const absentFirst: number = @Absent::first",
+      "const absentLength: number = @Absent::length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    for (const [name, expected] of [
+      ["absentFirst", 9],
+      ["absentLength", 2]
+    ] as const) {
+      expect(scalarFor(compiled, evaluation, name)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: expected }
+      });
+    }
+  });
+
+  it("keeps Module optional collection carry values isolated across different parameter inputs", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Select(p: number?) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    next selected = match @p { none => [31, 32] some x => [@x] }",
+      "  }",
+      "  export const first: number = @selected[0]",
+      "  export const length: number = @selected.length",
+      "}",
+      "instance Present = Select(p: 4)",
+      "instance Absent = Select(p: none)",
+      "const presentFirst: number = @Present::first",
+      "const presentLength: number = @Present::length",
+      "const absentFirst: number = @Absent::first",
+      "const absentLength: number = @Absent::length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    for (const [name, expected] of [
+      ["presentFirst", 4],
+      ["presentLength", 1],
+      ["absentFirst", 31],
+      ["absentLength", 2]
+    ] as const) {
+      expect(scalarFor(compiled, evaluation, name)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: expected }
+      });
+    }
+  });
+
+  it("keeps an unselected error-producing Module collection carry arm lazy", () => {
+    const compiled = compile([
+      "nui 1",
+      "module Select(p: number?) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    next selected = match @p { none => if (1 / 0 > 0) { [90] } else { [91] } some x => [@x] }",
+      "  }",
+      "  export const result: number = @selected[0]",
+      "}",
+      "instance Present = Select(p: 5)",
+      "const result: number = @Present::result"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 5 }
+    });
+  });
+
+  it("preserves nominal record collection types through Module carry matches", () => {
+    const compiled = compile([
+      "nui 1",
+      "record Pair(value: number)",
+      "record Other(value: number)",
+      "const pair: Pair = Pair(value: 12)",
+      "module Select(p: number?) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: Pair[] = [] {",
+      "    next selected = match @p { none => [] some x => [@pair] }",
+      "  }",
+      "  export const length: number = @selected.length",
+      "}",
+      "instance Present = Select(p: 1)",
+      "const length: number = @Present::length"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "length")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 1 }
+    });
+  });
+
   it("resolves a completed nested collection carry at the outer next statement", () => {
     const compiled = compile([
       "nui 1",

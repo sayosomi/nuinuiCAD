@@ -1473,12 +1473,13 @@ export const compileDslDocument = (
       isDslArrayValueType(dslRequiredValueTypeOf(candidate.valueType))
     ) ?? null;
   const carryCollectionDiagnostics: DslDiagnostic[] = [];
-  const immutableCarryCollectionRootValues: GenericArrayValueSemantic[] = [];
+  const immutableCarryCollectionValues: GenericArrayValueSemantic[] = [];
   const immutableCarryCollectionControlFlowValues: {
     statementIndex: number;
+    ownerModuleDefinitionStatementIndex: number | null;
     source: string;
     value: NonNullable<GenericArrayValueSemantic["value"]>;
-    }[] = [];
+  }[] = [];
   const collectionSemanticAnalysis = sourceLexicalNamespace?.geometryArraySemanticAnalysis;
   for (const declaration of immutableCarryCompilation?.declarations ?? []) {
     const declarationType = declaration.valueType;
@@ -1486,9 +1487,9 @@ export const compileDslDocument = (
     if (
       !declarationType ||
       !valueType ||
-      !isDslArrayValueType(valueType) ||
-      geometryArrayModuleOwnerIndexOf(parsed.statements, declaration.ownerStatementIndex) !== null
+      !isDslArrayValueType(valueType)
     ) continue;
+    const ownerModuleDefinitionStatementIndex = geometryArrayModuleOwnerIndexOf(parsed.statements, declaration.ownerStatementIndex);
     const next = immutableCarryCompilation?.nexts.find((candidate) =>
       candidate.ownerStatementIndex === declaration.ownerStatementIndex &&
       candidate.carryName === (declaration.fieldPath ? declaration.name.slice(0, declaration.name.indexOf(".")) : declaration.name) &&
@@ -1513,10 +1514,11 @@ export const compileDslDocument = (
     for (const expressionSource of expressions) {
       const parsedExpression = parseGeometryArrayExpression(expressionSource.raw);
       const expressionKind = parsedExpression.expression?.kind;
+      const isCollectionControlFlow = expressionKind === "if" || expressionKind === "match" || expressionKind === "coalesce" || expressionKind === "none";
       if (
         !parsedExpression.expression ||
         parsedExpression.diagnostics.length > 0 ||
-        (expressionKind !== "if" && expressionKind !== "match" && expressionKind !== "coalesce" && expressionKind !== "none")
+        (!isCollectionControlFlow && !(ownerModuleDefinitionStatementIndex !== null && expressionKind === "literal"))
       ) continue;
       const resolved = collectionSemanticAnalysis?.resolveGenericArrayExpressionAt({
         statementIndex: expressionSource.statementIndex,
@@ -1532,14 +1534,15 @@ export const compileDslDocument = (
         name: declaration.name,
         valueType: resolved.value.valueType,
         declaredValueType: declarationType,
-        ownerModuleDefinitionStatementIndex: null,
+        ownerModuleDefinitionStatementIndex,
         exported: false,
         value: resolved.value
       };
-      immutableCarryCollectionRootValues.push(semantic);
+      immutableCarryCollectionValues.push(semantic);
       if (resolved.value.kind === "if" || resolved.value.kind === "match" || resolved.value.kind === "coalesce") {
         immutableCarryCollectionControlFlowValues.push({
           statementIndex: expressionSource.statementIndex,
+          ownerModuleDefinitionStatementIndex,
           source: `${" ".repeat(expressionSource.span.start)}${expressionSource.raw}`,
           value: resolved.value
         });
@@ -2971,7 +2974,7 @@ export const compileDslDocument = (
       }
       return { valueId, kind: "literal", members };
     };
-    const semanticValueIds = new Set(immutableCarryCollectionRootValues.map((value) => value.statementId));
+    const semanticValueIds = new Set(immutableCarryCollectionValues.map((value) => value.statementId));
     const carryDescriptorFor = (
       declaration: typeof immutableCarryCompilation.declarations[number],
       raw: string,
@@ -3011,8 +3014,8 @@ export const compileDslDocument = (
       }
       if (
         loweredRootCollectionValues &&
-        ((initializer.kind === "semantic" && !loweredRootCollectionValues.some((value) => value.valueId === initializerValueId)) ||
-          (nextDescriptor.kind === "semantic" && !loweredRootCollectionValues.some((value) => value.valueId === nextValueId)))
+        ((initializer.kind === "semantic" && immutableCarryCollectionValues.some((value) => value.statementId === initializerValueId && value.ownerModuleDefinitionStatementIndex === null) && !loweredRootCollectionValues.some((value) => value.valueId === initializerValueId)) ||
+          (nextDescriptor.kind === "semantic" && immutableCarryCollectionValues.some((value) => value.statementId === nextValueId && value.ownerModuleDefinitionStatementIndex === null) && !loweredRootCollectionValues.some((value) => value.valueId === nextValueId)))
       ) {
         diagnostic(
           declaration,
@@ -3089,7 +3092,7 @@ export const compileDslDocument = (
     ? immutableCarryCollectionRuntime(documentScalarAnalysis.bindingAnalysis)
     : { values: [], carries: [] };
   let documentScalarProgram = documentScalarAnalysis
-    ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, undefined, documentScalarAnalysis.typedInitializerByBindingId, immutableCarryCollectionRootValues), ...carryCollectionRuntime.values] })
+    ? lowerScalarProgram({ ...documentScalarAnalysis, collectionValues: [...rootScalarCollectionValues(documentScalarAnalysis.bindingAnalysis, undefined, documentScalarAnalysis.typedInitializerByBindingId, immutableCarryCollectionValues.filter((value) => value.ownerModuleDefinitionStatementIndex === null)), ...carryCollectionRuntime.values] })
     : undefined;
   const logicalTextByStatementIndex = new Map<number, string>();
   for (const [statementIndex, statement] of parsed.statements.entries()) {
@@ -3160,7 +3163,7 @@ export const compileDslDocument = (
         spans,
         logicalTextByStatementIndex,
         documentScalarBindings,
-        additionalRootCollectionControlFlowValues: immutableCarryCollectionControlFlowValues,
+        additionalCollectionControlFlowValues: immutableCarryCollectionControlFlowValues,
         resolveConstructionInput,
         resolveGeometryStageSelection: ({ statementId, members }) => {
           const statementIndex = [...stableStatementIdByIndex.entries()].find(([, candidateId]) => candidateId === statementId)?.[0];
@@ -3995,7 +3998,7 @@ export const compileDslDocument = (
             documentScalarAnalysis.bindingAnalysis,
             moduleSemanticCompilation,
             documentScalarAnalysis.typedInitializerByBindingId,
-            immutableCarryCollectionRootValues
+            immutableCarryCollectionValues.filter((value) => value.ownerModuleDefinitionStatementIndex === null)
           )
         : [];
       carryCollectionRuntime = documentScalarAnalysis
@@ -4094,7 +4097,7 @@ export const compileDslDocument = (
         ownerStatement?.kind !== "element" ||
         ownerStatement.type !== "forGroup" ||
         !isDslArrayValueType(valueType) ||
-        !scalarExpressionTypeOfDslValueType(valueType.elementType)
+        (!scalarExpressionTypeOfDslValueType(valueType.elementType) && valueType.elementType.kind !== "record")
       ) return [];
       return [{
         ...carry,
@@ -4112,6 +4115,7 @@ export const compileDslDocument = (
       documentScalarProgram,
       collectionCarryInputs: moduleCollectionCarryInputs,
       collectionCarryValues: carryCollectionRuntime.values,
+      collectionCarrySemanticValues: immutableCarryCollectionValues.filter((value) => value.ownerModuleDefinitionStatementIndex !== null),
       reconciledContainers: {
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
         elements: compiled.elements

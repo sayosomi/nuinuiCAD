@@ -93,7 +93,7 @@ import {
 import { analyzeTypedDeclarations, type TypedDeclarationAnalysis } from "./typedDeclarationAnalysis";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, isDslRecordValueType, scalarExpressionTypeOfDslValueType, scalarTypeOfDslValueType, type DslNonArrayValueType, type DslValueType } from "../dsl/dslValueTypes";
 import { collectionLengthForValueId, geometryArrayDeferredModuleExportId, parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
-import type { GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
+import type { GenericArrayValueSemantic, GeometryArraySemanticAnalysis } from "../dsl/geometryArraySemanticAnalysis";
 import { immutableCarryCollectionValueId } from "./immutableCarryCompiler";
 import { scanScalarLiteral } from "./literalScanner";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
@@ -2041,6 +2041,7 @@ export const compileModuleScalarRuntime = ({
   documentScalarProgram,
   collectionCarryInputs = [],
   collectionCarryValues = [],
+  collectionCarrySemanticValues = [],
   reconciledContainers,
   includeStatement,
   elements,
@@ -2063,6 +2064,7 @@ export const compileModuleScalarRuntime = ({
     carryName: string;
   })[];
   collectionCarryValues?: readonly ScalarProgramCollection[];
+  collectionCarrySemanticValues?: readonly GenericArrayValueSemantic[];
   reconciledContainers: ReconciledCadContainerInput;
   includeStatement?: (statement: DslStatement, statementIndex: number) => boolean;
   elements: readonly CadElement[];
@@ -4028,13 +4030,17 @@ export const compileModuleScalarRuntime = ({
       valueId: string,
       context: InstanceContext,
       contextAnalysis: GeometryArraySemanticAnalysis,
-      sourceOrder: number
+      sourceOrder: number,
+      sourceOrderIsRuntimePosition = false
     ): void => {
+      const collectionSourceOrder = sourceOrderIsRuntimePosition
+        ? sourceOrder
+        : executionPositionForValue(context.path, sourceOrder);
       if (value.kind === "if") {
         const thenValueId = `${valueId}:then`;
         const elseValueId = `${valueId}:else`;
-        appendConditional(value.thenValue, thenValueId, context, contextAnalysis, sourceOrder);
-        appendConditional(value.elseValue, elseValueId, context, contextAnalysis, sourceOrder);
+        appendConditional(value.thenValue, thenValueId, context, contextAnalysis, sourceOrder, sourceOrderIsRuntimePosition);
+        appendConditional(value.elseValue, elseValueId, context, contextAnalysis, sourceOrder, sourceOrderIsRuntimePosition);
         if (!value.condition) return;
         const condition = lowerExpression(
           value.condition,
@@ -4047,14 +4053,14 @@ export const compileModuleScalarRuntime = ({
           (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue(context.path, sourceOrder) : sourceOrder,
           (target) => recordParameterCollectionForTargetContext(target, context)
         ).expression;
-        moduleCollectionValues.push({ valueId, kind: "if", condition, thenValueId, elseValueId, sourceOrder: executionPositionForValue(context.path, sourceOrder) });
+        moduleCollectionValues.push({ valueId, kind: "if", condition, thenValueId, elseValueId, sourceOrder: collectionSourceOrder });
         return;
       }
       if (value.kind === "match") {
         const arms: { label: string; valueId: string; binderId?: string }[] = [];
         for (const arm of value.arms) {
           const armValueId = `${valueId}:arm:${arm.label}`;
-          appendConditional(arm.value, armValueId, context, contextAnalysis, sourceOrder);
+          appendConditional(arm.value, armValueId, context, contextAnalysis, sourceOrder, sourceOrderIsRuntimePosition);
           arms.push({ label: arm.label, valueId: armValueId, ...(arm.binderId ? { binderId: arm.binderId } : {}) });
         }
         if (!value.scrutinee) return;
@@ -4092,21 +4098,21 @@ export const compileModuleScalarRuntime = ({
             loweredScrutinee,
             (binderId) => moduleCollectionBinderIdFor(context.path, binderId)
           )),
-          sourceOrder: executionPositionForValue(context.path, sourceOrder)
+          sourceOrder: collectionSourceOrder
         });
         return;
       }
       if (value.kind === "coalesce") {
         const leftValueId = `${valueId}:left`;
         const rightValueId = `${valueId}:right`;
-        appendConditional(value.left, leftValueId, context, contextAnalysis, sourceOrder);
-        appendConditional(value.right, rightValueId, context, contextAnalysis, sourceOrder);
+        appendConditional(value.left, leftValueId, context, contextAnalysis, sourceOrder, sourceOrderIsRuntimePosition);
+        appendConditional(value.right, rightValueId, context, contextAnalysis, sourceOrder, sourceOrderIsRuntimePosition);
         moduleCollectionValues.push({
           valueId,
           kind: "coalesce",
           leftValueId,
           rightValueId,
-          sourceOrder: executionPositionForValue(context.path, sourceOrder)
+          sourceOrder: collectionSourceOrder
         });
         return;
       }
@@ -4739,6 +4745,11 @@ export const compileModuleScalarRuntime = ({
     }
 
     const collectionCarryValueById = new Map(collectionCarryValues.map((value) => [value.valueId, value] as const));
+    const collectionCarrySemanticValueById = new Map(
+      collectionCarrySemanticValues.flatMap((value) => value.value && value.ownerModuleDefinitionStatementIndex !== null
+        ? [[value.statementId, value] as const]
+        : [])
+    );
     const registeredCollectionCarryValueIds = new Set(
       (documentScalarProgram?.collectionValues ?? []).map((value) => value.valueId)
     );
@@ -4788,6 +4799,23 @@ export const compileModuleScalarRuntime = ({
       for (const carry of collectionCarryInputs) {
         if (!bodyStatementIds.has(carry.ownerStatementId)) continue;
         for (const sourceValueId of [carry.initializerValueId, carry.nextValueId]) {
+          const semanticValue = collectionCarrySemanticValueById.get(sourceValueId);
+          if (semanticValue?.value) {
+            const contextAnalysis = sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis;
+            const valueId = collectionValueIdFor(sourceValueId, context);
+            if (contextAnalysis && !registeredCollectionCarryValueIds.has(valueId)) {
+              appendConditional(
+                semanticValue.value,
+                valueId,
+                context,
+                contextAnalysis,
+                executionOrderForValue(context.path, semanticValue.statementIndex),
+                true
+              );
+              registeredCollectionCarryValueIds.add(valueId);
+            }
+            continue;
+          }
           const sourceValue = collectionCarryValueById.get(sourceValueId);
           if (!sourceValue) continue;
           const projected = projectCollectionCarryValue(sourceValue, context);

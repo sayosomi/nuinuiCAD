@@ -7138,7 +7138,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   for (const value of sourceNamespace.geometryArraySemanticAnalysis?.values ?? []) {
     if (value.ownerModuleDefinitionStatementIndex === null && value.value) analyzeRootCollectionControlFlow(value.value, value.statementIndex);
   }
-  for (const value of input.additionalRootCollectionControlFlowValues ?? []) {
+  for (const value of input.additionalCollectionControlFlowValues ?? []) {
+    if (value.ownerModuleDefinitionStatementIndex !== null) continue;
     analyzeRootCollectionControlFlow(value.value, value.statementIndex, value.source);
   }
 
@@ -7254,6 +7255,33 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     });
     localScalarsByDefinition.set(definition.statementIndex, body.localScalars);
     immutableCarriesByDefinition.set(definition.statementIndex, body.immutableCarries);
+    const analyzeModuleCollectionControlFlow = (
+      statementIndex: number,
+      source: string,
+      value: DslArraySemanticValue<GenericArraySourceTarget> | GeometryArraySemanticValue<GeometryArraySourceTarget>
+    ) => analyzeCollectionControlFlow(
+      statementIndex,
+      definition.statementIndex,
+      source,
+      value,
+      (raw, span, expectedType, localBindings) => analyzeExpression(
+        statementIndex,
+        definition.statementIndex,
+        raw,
+        span,
+        expectedType,
+        (reference) => collectionControlFlowBindingFor(statementIndex, localBindings, reference) ??
+          resolveBodyScalar(statementIndex, definition.statementIndex, reference),
+        undefined,
+        (reference) => resolveGeometryProperty(statementIndex, definition.statementIndex, reference),
+        (reference) => resolveGeometry(statementIndex, definition.statementIndex, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
+          expectedInterfaceType: reference.expectedGeometryType,
+          role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
+        }),
+        undefined
+      ),
+      (diagnostic) => addLocal(statementIndex, diagnostic)
+    );
     const moduleCollectionAnalysisForControlFlow = sourceNamespace.geometryArraySemanticAnalysis;
     for (const collectionValue of [
       ...(moduleCollectionAnalysisForControlFlow?.genericValues ?? []),
@@ -7265,29 +7293,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const initializerSpan = statement.payloadSpans.initializer;
       if (!initializerSpan) continue;
       const source = `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
-      analyzeCollectionControlFlow(
-        collectionValue.statementIndex,
-        definition.statementIndex,
-        source,
-        collectionValue.value,
-        (raw, span, expectedType, localBindings) => analyzeExpression(
-          collectionValue.statementIndex,
-          definition.statementIndex,
-          raw,
-          span,
-          expectedType,
-          (reference) => collectionControlFlowBindingFor(collectionValue.statementIndex, localBindings, reference) ??
-            resolveBodyScalar(collectionValue.statementIndex, definition.statementIndex, reference),
-          undefined,
-          (reference) => resolveGeometryProperty(collectionValue.statementIndex, definition.statementIndex, reference),
-          (reference) => resolveGeometry(collectionValue.statementIndex, definition.statementIndex, reference.name.startsWith("@") ? reference.name : `@${reference.name}`, reference.span, reference.expectedGeometryType, {
-            expectedInterfaceType: reference.expectedGeometryType,
-            role: reference.expectedGeometryType === "point" ? "pointReference" : "lineReference"
-          }),
-          undefined
-        ),
-        (diagnostic) => addLocal(collectionValue.statementIndex, diagnostic)
-      );
+      analyzeModuleCollectionControlFlow(collectionValue.statementIndex, source, collectionValue.value);
+    }
+    for (const value of input.additionalCollectionControlFlowValues ?? []) {
+      if (value.ownerModuleDefinitionStatementIndex !== definition.statementIndex) continue;
+      analyzeModuleCollectionControlFlow(value.statementIndex, value.source, value.value);
     }
     const genericMappedValuesOf = (value: DslArraySemanticValue<GenericArraySourceTarget> | null): DslArrayMappedValue[] => {
       const mappedValues: DslArrayMappedValue[] = [];
