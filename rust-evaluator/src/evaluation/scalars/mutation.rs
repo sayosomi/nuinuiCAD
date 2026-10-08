@@ -648,6 +648,39 @@ impl<'a> ScalarMutationResolver<'a> {
         }
     }
 
+    fn collection_value_has_carry_snapshot(
+        &self,
+        value_id: &str,
+        inherited_snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
+    ) -> bool {
+        // Record-field indexing uses a projected collection identity. Follow
+        // its canonical aliases and field projection to the escaped carry.
+        let snapshots = inherited_snapshots.map_or(&self.collection_carry_snapshots, Arc::as_ref);
+        let mut current = value_id.to_owned();
+        let mut seen = HashSet::new();
+        while seen.insert(current.clone()) {
+            if snapshots.contains_key(&current) {
+                return true;
+            }
+            let Some(value) = self
+                .program
+                .collection_values
+                .iter()
+                .find(|value| value.value_id == current)
+            else {
+                return false;
+            };
+            match &value.value {
+                ValidatedScalarProgramCollectionValue::Alias(target) => current = target.clone(),
+                ValidatedScalarProgramCollectionValue::RecordField {
+                    source_value_id, ..
+                } => current = source_value_id.clone(),
+                _ => return false,
+            }
+        }
+        false
+    }
+
     fn collection_traversal_key(
         value_id: &str,
         snapshots: Option<&Arc<HashMap<String, CollectionCarrySnapshot>>>,
@@ -2043,7 +2076,13 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
         collection_length: Option<f64>,
         target_source_order: f64,
     ) -> ScalarEvaluation {
-        if target_source_order >= self.source_order {
+        let has_carry_snapshot = self.resolver.collection_value_has_carry_snapshot(
+            collection_value_id,
+            self.collection_carry_snapshots,
+        );
+        // Keep the source-order fence unless this resolved value has a carry
+        // snapshot proving that the statement-for value already escaped.
+        if target_source_order >= self.source_order && !has_carry_snapshot {
             return ScalarEvaluation::Error {
                 r#type: element_type.clone(),
                 issue_code: "evaluation-collection-index-unavailable".to_owned(),
