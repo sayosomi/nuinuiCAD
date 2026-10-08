@@ -338,6 +338,59 @@ describe("immutable statement-for carries", () => {
     }
   });
 
+  it("preserves inline optional-match collection carries across Module instances in either declaration order", () => {
+    const module = [
+      "module Select(p: number?, items: number[]) {",
+      "  const selector: number? = @p",
+      "  const localItems: number[] = @items",
+      "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+      "    next selected = match @selector {",
+      "      none => @localItems",
+      "      some x => [@x]",
+      "    }",
+      "  }",
+      "  export const first: number = @selected[0]",
+      "  export const length: number = @selected.length",
+      "}"
+    ];
+    const outputs = [
+      "const presentFirst: number = @Present::first",
+      "const presentLength: number = @Present::length",
+      "const absentFirst: number = @Absent::first",
+      "const absentLength: number = @Absent::length"
+    ];
+    const expected = { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 };
+    const cases = [
+      {
+        name: "present then absent",
+        instances: [
+          "instance Present = Select(p: 4, items: [7])",
+          "instance Absent = Select(p: none, items: [9, 8])"
+        ]
+      },
+      {
+        name: "absent then present",
+        instances: [
+          "instance Absent = Select(p: none, items: [9, 8])",
+          "instance Present = Select(p: 4, items: [7])"
+        ]
+      }
+    ];
+
+    for (const testCase of cases) {
+      const compiled = compile(["nui 1", ...module, ...testCase.instances, ...outputs].join("\n"));
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error"), testCase.name).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors, testCase.name).toEqual([]);
+      for (const [name, value] of Object.entries(expected)) {
+        expect(scalarFor(compiled, evaluation, name), `${testCase.name}: ${name}`).toMatchObject({
+          status: "ok",
+          value: { kind: "number", value }
+        });
+      }
+    }
+  });
+
   it("keeps Module optional collection carry values isolated across different parameter inputs", () => {
     const compiled = compile([
       "nui 1",

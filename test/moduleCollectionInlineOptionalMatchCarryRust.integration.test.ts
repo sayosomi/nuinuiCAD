@@ -42,6 +42,27 @@ const normalizePersistentParityPayload = (payload: EvaluationPayload): unknown =
   };
 };
 
+const inlineOptionalMatchModuleSource = (instances: string[]) => [
+  "nui 1",
+  "module Select(p: number?, items: number[]) {",
+  "  const selector: number? = @p",
+  "  const localItems: number[] = @items",
+  "  for i in range(min: 0, max: 0, step: 1) carry selected: number[] = [] {",
+  "    next selected = match @selector {",
+  "      none => @localItems",
+  "      some x => [@x]",
+  "    }",
+  "  }",
+  "  export const first: number = @selected[0]",
+  "  export const length: number = @selected.length",
+  "}",
+  ...instances,
+  "const presentFirst: number = @Present::first",
+  "const presentLength: number = @Present::length",
+  "const absentFirst: number = @Absent::first",
+  "const absentLength: number = @Absent::length"
+].join("\n");
+
 const cases: {
   name: string;
   source: string;
@@ -100,6 +121,22 @@ const cases: {
       "const result: number = @Present::result"
     ].join("\n"),
     expectedValues: { result: 5 }
+  },
+  {
+    name: "two inline-match Module instances in authored order",
+    source: inlineOptionalMatchModuleSource([
+      "instance Present = Select(p: 4, items: [7])",
+      "instance Absent = Select(p: none, items: [9, 8])"
+    ]),
+    expectedValues: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
+  },
+  {
+    name: "two inline-match Module instances in reversed order",
+    source: inlineOptionalMatchModuleSource([
+      "instance Absent = Select(p: none, items: [9, 8])",
+      "instance Present = Select(p: 4, items: [7])"
+    ]),
+    expectedValues: { presentFirst: 4, presentLength: 1, absentFirst: 9, absentLength: 2 }
   },
   {
     name: "nominal record collection elements retain their Module carry type",
