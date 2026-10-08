@@ -663,6 +663,32 @@ describe("module geometry runtime", () => {
     expect(result.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop.id)).toHaveLength(2);
   });
 
+  it("resolves a direct geometry collection parameter as a Module loop source", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const points: point[] = [(1, 2), (3, 4)]",
+      "module M(items: point[]) {",
+      "  for item in @items {",
+      "    point Mark = coordinate(x: @item.x, y: @item.y)",
+      "  }",
+      "}",
+      "instance Use = M(items: @points)"
+    ].join("\n"), "module-geometry-parameter-collection-for-group");
+    expectValid(compiled);
+    const loop = compiled.document!.elements.find((element) => element.type === "forGroup");
+    expect(loop).toMatchObject({
+      iterationSourceValueId: expect.stringMatching(/^module-collection:/),
+      iterationElementValueType: { kind: "point" }
+    });
+    if (!loop || loop.type !== "forGroup") throw new Error("expected a materialized Module geometry collection loop");
+    expect(loop).not.toHaveProperty("iterationElementType");
+    expect(compiled.moduleGeometryRuntime?.geometryCollectionNodesByValueId?.has(loop.iterationSourceValueId!)).toBe(true);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(result.forGroupGeneratedRows?.filter((row) => row.forGroupId === loop.id)).toHaveLength(2);
+  });
+
   it("selects conditional geometry collections for length, indexed, and whole-list consumers", () => {
     const compiled = compileWithIds([
       "nui 1",

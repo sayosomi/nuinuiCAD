@@ -1352,13 +1352,23 @@ export const compileDslDocument = (
           }
           const sourcePath = parsedSource.reference.path;
           const lookup = resolveSourceLexicalPath(baseSourceLexicalNamespace, slot.statementIndex, sourcePath);
-          if (lookup.kind !== "resolved") continue;
-          const declaredValueType = lookup.declaration.statement.kind === "typedDeclaration"
+          const moduleParameter = lookup.kind === "undefined" && !sourcePath.absolute && sourcePath.segments.length === 1
+            ? moduleParameterByName(parsed.statements, stableStatementIdByIndex!, slot.statementIndex, sourcePath.segments[0]!)
+            : null;
+          if (lookup.kind !== "resolved" && !moduleParameter) continue;
+          const declaredValueType = lookup.kind === "resolved" && lookup.declaration.statement.kind === "typedDeclaration"
             ? lookup.declaration.statement.valueType
             : null;
-          const collectionSemantic = baseSourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(lookup.declaration.statementId) ??
-            baseSourceLexicalNamespace.geometryArraySemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId);
-          const valueType = declaredValueType ?? collectionSemantic?.declaredValueType;
+          const collectionSemantic = lookup.kind === "resolved"
+            ? baseSourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(lookup.declaration.statementId) ??
+              baseSourceLexicalNamespace.geometryArraySemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId)
+            : undefined;
+          const parameterValueType = moduleParameter
+            ? baseSourceLexicalNamespace.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(
+                `${moduleParameter.definitionStatementId}:${moduleParameter.parameterIndex}`
+              )?.valueType ?? moduleParameter.parameter.valueType
+            : null;
+          const valueType = declaredValueType ?? collectionSemantic?.declaredValueType ?? parameterValueType;
           if (valueType && isDslArrayValueType(valueType)) {
             iterationSlots.set(scopeId, { ...slot, valueType: valueType.elementType });
           } else if (statement.forSource === undefined || /^range\s*\(/.test(statement.forSource.trim())) {
