@@ -871,6 +871,17 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
         )
     }
 
+    fn lookup_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        self.resolver.resolve_collection_length_evaluation(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
+        )
+    }
+
     fn lookup_optional_member(
         &self,
         target: &ScalarExpressionResolvedOptionalMemberTarget,

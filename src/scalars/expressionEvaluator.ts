@@ -59,6 +59,11 @@ export interface ScalarEvaluationEnvironment {
   /** Resolves the selected cardinality of a runtime-dependent collection. */
   lookupCollectionLength?: (collectionValueId: string) => number | undefined;
 
+  /** Error-capable collection cardinality lookup used by typed scalar evaluation. */
+  lookupCollectionLengthEvaluation?: (
+    collectionValueId: string
+  ) => number | Extract<ScalarEvaluation, { status: "error" }> | undefined;
+
   /** Resolves a compiler-resolved general optional member. The callback owns
    * the receiver-family runtime adapter and must return the lifted result. */
   lookupOptionalMember?: (
@@ -205,7 +210,11 @@ const evaluateGeometryProperty = (
   if (node.type === null) return staticTypeNullError();
   if (isDslOptionalValueType(node.type)) return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   if (node.collectionValueId !== undefined) {
-    const length = node.collectionLength ?? environment.lookupCollectionLength?.(node.collectionValueId);
+    const resolvedLength = node.collectionLength ??
+      environment.lookupCollectionLengthEvaluation?.(node.collectionValueId) ??
+      environment.lookupCollectionLength?.(node.collectionValueId);
+    if (typeof resolvedLength === "object") return propagateError(node.type, resolvedLength);
+    const length = resolvedLength;
     if (length === undefined) {
       return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
     }

@@ -177,6 +177,15 @@ pub(crate) trait ScalarDocumentBindingResolver {
         None
     }
 
+    fn resolve_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        Ok(self.resolve_collection_length(collection_value_id, state, seen))
+    }
+
     fn resolve_optional_collection_member(
         &self,
         _target: &ScalarExpressionResolvedOptionalMemberTarget,
@@ -207,7 +216,17 @@ pub(crate) fn result_for_declared_type(
     binding_id: &str,
 ) -> ScalarEvaluation {
     match &result {
-        ScalarEvaluation::Error { .. } => result,
+        ScalarEvaluation::Error {
+            issue_code,
+            binding_id,
+            context,
+            ..
+        } => ScalarEvaluation::Error {
+            r#type: declared_type.clone(),
+            issue_code: issue_code.clone(),
+            binding_id: binding_id.clone(),
+            context: context.clone(),
+        },
         ScalarEvaluation::Ok { r#type, value }
             if scalar_type_assignable(r#type, declared_type)
                 && scalar_value_matches_type(declared_type, value) =>
@@ -1324,6 +1343,20 @@ impl ScalarDocumentBindingResolver for ScalarBindingResolver<'_> {
         self.resolve_collection_length(collection_value_id, state, seen)
     }
 
+    fn resolve_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        self.resolve_collection_length_with_bindings(
+            collection_value_id,
+            state,
+            seen,
+            &HashMap::new(),
+        )
+    }
+
     fn resolve_optional_collection_member(
         &self,
         target: &ScalarExpressionResolvedOptionalMemberTarget,
@@ -1607,6 +1640,19 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
             collection_value_id,
             self.state,
             &mut HashSet::new(),
+        )
+    }
+
+    fn lookup_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        let empty_bindings = HashMap::new();
+        self.resolver.resolve_collection_length_with_bindings(
+            collection_value_id,
+            self.state,
+            &mut HashSet::new(),
+            self.local_bindings.unwrap_or(&empty_bindings),
         )
     }
 

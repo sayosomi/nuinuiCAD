@@ -209,6 +209,7 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
             CollectionCarrySnapshot {
                 value_id: "redirected-if".to_owned(),
                 local_bindings: HashMap::new(),
+                error: None,
             },
         ),
         (
@@ -216,6 +217,7 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
             CollectionCarrySnapshot {
                 value_id: "if-value".to_owned(),
                 local_bindings: HashMap::new(),
+                error: None,
             },
         ),
     ]);
@@ -258,12 +260,137 @@ fn collection_carry_snapshot_selects_if_branch_before_iteration_scope_exits() {
         &HashMap::new(),
         |_, _, _| ScalarEvaluation::Error {
             r#type: ScalarType::Boolean,
-            issue_code: "evaluation-binding-unavailable".to_owned(),
-            binding_id: None,
+            issue_code: "evaluation-remainder-by-zero".to_owned(),
+            binding_id: Some("binding:condition".to_owned()),
             context: None,
         },
+    )
+    .expect("a failed condition remains a committed snapshot");
+    assert_eq!(unresolved.value_id, "if-value");
+    assert_eq!(
+        unresolved.error,
+        Some(ScalarEvaluation::Error {
+            r#type: ScalarType::Boolean,
+            issue_code: "evaluation-remainder-by-zero".to_owned(),
+            binding_id: Some("binding:condition".to_owned()),
+            context: None,
+        })
     );
-    assert_eq!(unresolved, None);
+}
+
+#[test]
+fn collection_carry_snapshot_redirects_preserve_committed_errors_and_local_bindings() {
+    let captured = ScalarEvaluation::Ok {
+        r#type: ScalarType::Number,
+        value: ScalarValue::Number(19.0),
+    };
+    let error = ScalarEvaluation::Error {
+        r#type: ScalarType::Boolean,
+        issue_code: "evaluation-remainder-by-zero".to_owned(),
+        binding_id: Some("binding:decision".to_owned()),
+        context: None,
+    };
+    let redirects = HashMap::from([
+        (
+            "outer-carry".to_owned(),
+            CollectionCarrySnapshot {
+                value_id: "inner-carry".to_owned(),
+                local_bindings: HashMap::new(),
+                error: None,
+            },
+        ),
+        (
+            "inner-carry".to_owned(),
+            CollectionCarrySnapshot {
+                value_id: "failed-if".to_owned(),
+                local_bindings: HashMap::from([("captured".to_owned(), captured.clone())]),
+                error: Some(error.clone()),
+            },
+        ),
+    ]);
+
+    let resolved = resolve_collection_carry_snapshot(
+        "outer-carry",
+        &redirects,
+        &[],
+        &HashMap::new(),
+        |_, _, _| panic!("a committed error must not re-evaluate its decision"),
+    )
+    .expect("redirected failure is a committed carry snapshot");
+
+    assert_eq!(resolved.value_id, "failed-if");
+    assert_eq!(resolved.error, Some(error));
+    assert_eq!(resolved.local_bindings.get("captured"), Some(&captured));
+}
+
+#[test]
+fn collection_carry_consumers_return_the_committed_error_before_unavailable() {
+    let program = binding_versions(vec![number_collection("literal", &[1.0])]);
+    let mut resolver = ScalarMutationResolver::new(&program);
+    let error = ScalarEvaluation::Error {
+        r#type: ScalarType::Boolean,
+        issue_code: "evaluation-remainder-by-zero".to_owned(),
+        binding_id: Some("binding:decision".to_owned()),
+        context: None,
+    };
+    resolver.collection_carry_snapshots.insert(
+        "carry".to_owned(),
+        CollectionCarrySnapshot {
+            value_id: "redirect".to_owned(),
+            local_bindings: HashMap::new(),
+            error: None,
+        },
+    );
+    resolver.collection_carry_snapshots.insert(
+        "redirect".to_owned(),
+        CollectionCarrySnapshot {
+            value_id: "literal".to_owned(),
+            local_bindings: HashMap::new(),
+            error: Some(error.clone()),
+        },
+    );
+    let state = evaluation_state();
+
+    let index = resolver.resolve_collection_index_with_bindings(
+        "carry",
+        0.0,
+        &ScalarType::Number,
+        None,
+        &state,
+        &HashMap::new(),
+    );
+    assert_eq!(
+        index,
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-remainder-by-zero".to_owned(),
+            binding_id: Some("binding:decision".to_owned()),
+            context: None,
+        }
+    );
+    assert_eq!(
+        resolver.resolve_collection_length_with_bindings(
+            "carry",
+            &state,
+            &mut HashSet::new(),
+            &HashMap::new(),
+        ),
+        Err(error.clone())
+    );
+    assert_eq!(
+        lookup_optional_member(
+            &resolver,
+            &state,
+            &collection_length_target("carry", 0.0),
+            0.0
+        ),
+        ScalarEvaluation::Error {
+            r#type: optional_number_type(),
+            issue_code: "evaluation-remainder-by-zero".to_owned(),
+            binding_id: Some("binding:decision".to_owned()),
+            context: None,
+        }
+    );
 }
 
 #[test]
@@ -326,6 +453,7 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
             CollectionCarrySnapshot {
                 value_id: "redirected-match".to_owned(),
                 local_bindings: HashMap::new(),
+                error: None,
             },
         ),
         (
@@ -333,6 +461,7 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
             CollectionCarrySnapshot {
                 value_id: "match-value".to_owned(),
                 local_bindings: HashMap::new(),
+                error: None,
             },
         ),
     ]);
@@ -375,12 +504,22 @@ fn collection_carry_snapshot_selects_only_the_active_match_arm_through_aliases()
         &HashMap::new(),
         |_, _, _| ScalarEvaluation::Error {
             r#type: ScalarType::Number,
-            issue_code: "evaluation-binding-unavailable".to_owned(),
-            binding_id: None,
+            issue_code: "evaluation-divide-by-zero".to_owned(),
+            binding_id: Some("binding:scrutinee".to_owned()),
             context: None,
         },
+    )
+    .expect("a failed match scrutinee remains a committed snapshot");
+    assert_eq!(failed_selection.value_id, "match-value");
+    assert_eq!(
+        failed_selection.error,
+        Some(ScalarEvaluation::Error {
+            r#type: ScalarType::Number,
+            issue_code: "evaluation-divide-by-zero".to_owned(),
+            binding_id: Some("binding:scrutinee".to_owned()),
+            context: None,
+        })
     );
-    assert_eq!(failed_selection, None);
 }
 
 #[test]
@@ -472,6 +611,7 @@ fn collection_carry_snapshot_captures_optional_some_binder_and_keeps_selected_pa
         CollectionCarrySnapshot {
             value_id: "match-value".to_owned(),
             local_bindings: HashMap::from([("prior-flag".to_owned(), local_flag.clone())]),
+            error: None,
         },
     )]);
 
@@ -555,6 +695,7 @@ fn collection_carry_snapshot_captures_map_iteration_bindings_without_evaluating_
         CollectionCarrySnapshot {
             value_id: "mapped".to_owned(),
             local_bindings: HashMap::from([("prior".to_owned(), number(99.0))]),
+            error: None,
         },
     )]);
     let iteration_bindings = HashMap::from([

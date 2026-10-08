@@ -282,6 +282,16 @@ impl ScalarDocumentBindingResolver for IterationScalarBindingResolver<'_> {
         self.base
             .resolve_collection_length(collection_value_id, state, seen)
     }
+
+    fn resolve_collection_length_evaluation(
+        &self,
+        collection_value_id: &str,
+        state: &EvaluationState,
+        seen: &mut HashSet<String>,
+    ) -> Result<Option<f64>, ScalarEvaluation> {
+        self.base
+            .resolve_collection_length_evaluation(collection_value_id, state, seen)
+    }
 }
 
 /// Reads and validates a forGroup element's min/max/step. Shared by the
