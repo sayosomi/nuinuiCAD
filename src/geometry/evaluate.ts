@@ -677,14 +677,30 @@ export const evaluateElements = (
       );
       };
 
-  const pointAnchorForGeometryInputTarget = (target: GeometryInputTarget): PointAnchor | undefined => {
+  const isPointAnchorInput = (element: CadElement, parameterKey: string) =>
+    (parameterKey === "source" && element.type === "materializedPoint") ||
+    [
+      "points", "start", "end", "startPoint", "endPoint", "from", "fromPoint", "base", "basePoint",
+      "splitPoint", "point", "centerPoint", "point1", "point2", "point3", "axisPoint1", "axisPoint2",
+      "originPoint", "anchor"
+    ].includes(parameterKey) ||
+    (parameterKey.startsWith("intermediate:") && parameterKey.endsWith(":point"));
+
+  const pointAnchorForGeometryInputTarget = (
+    target: GeometryInputTarget,
+    allowLinePathEndpoint = false
+  ): PointAnchor | undefined => {
     if (target.kind === "coordinate") return target.anchor;
-    if (target.kind === "drawable" && target.geometryType === "point") {
+    const isPointAnchorTarget = (geometryType: "point" | "line" | "path", pointKey?: string) =>
+      geometryType === "point" ||
+      (allowLinePathEndpoint && (geometryType === "line" || geometryType === "path") &&
+        (pointKey === "start" || pointKey === "end"));
+    if (target.kind === "drawable" && isPointAnchorTarget(target.geometryType, target.pointKey)) {
       return target.pointKey
         ? { mode: "derived", elementId: target.elementId, pointKey: target.pointKey, ...(target.stagePath ? { stagePath: target.stagePath } : {}) }
         : { mode: "reference", pointId: target.elementId, ...(target.stagePath ? { stagePath: target.stagePath } : {}) };
     }
-    if (target.kind === "geometryValue" && target.geometryType === "point") {
+    if (target.kind === "geometryValue" && isPointAnchorTarget(target.geometryType, target.pointKey)) {
       return {
         mode: "geometryValue",
         occurrence: target.occurrence,
@@ -988,6 +1004,8 @@ export const evaluateElements = (
         // geometry value. The runtime target map is intentionally keyed by
         // the same synthetic id for both; downstream geometry consumers read
         // the shared line/path shape, while point carries use coordinates.
+        // `resolved` is already the carry's selected geometry snapshot, so
+        // its source stage must not be re-applied to this synthetic identity.
         computedGeometry.set(syntheticElementId, resolved as unknown as ComputedGeometry);
         return { kind: "drawable", elementId: syntheticElementId, geometryType: target.geometryType, ...(target.pointKey ? { pointKey: target.pointKey } : {}) };
       }
@@ -1103,7 +1121,7 @@ export const evaluateElements = (
         const members = materializeCollectionNode(selected.value);
         if (!members) return null;
         if (parameterKey === "points") {
-          const anchors = members.map(pointAnchorForGeometryInputTarget);
+          const anchors = members.map((member) => pointAnchorForGeometryInputTarget(member, true));
           if (anchors.every((anchor): anchor is PointAnchor => anchor !== undefined)) {
             materializedElement = setParameterValue(materializedElement, parameterKey, anchors);
           }
@@ -1113,7 +1131,7 @@ export const evaluateElements = (
       }
       materialized.set(parameterKey, selected);
       if (target.kind === "collectionIndex" || target.kind === "geometryValue" || target.kind === "geometryValueMap" || target.kind === "forGroupOccurrence" || target.kind === "geometryCarry") {
-        const anchor = pointAnchorForGeometryInputTarget(selected);
+        const anchor = pointAnchorForGeometryInputTarget(selected, isPointAnchorInput(element, parameterKey));
         if (anchor) materializedElement = setParameterValue(materializedElement, parameterKey, anchor);
       }
     }

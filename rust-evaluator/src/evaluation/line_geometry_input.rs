@@ -1118,28 +1118,71 @@ pub(crate) fn decode_geometry_input_targets(
     Ok(output)
 }
 
-fn point_anchor_for_target(target: &GeometryInputTarget) -> Option<Value> {
+fn is_point_anchor_parameter(element: &Value, parameter_key: &str) -> bool {
+    (parameter_key == "source"
+        && element.get("type").and_then(Value::as_str) == Some("materializedPoint"))
+        || matches!(
+            parameter_key,
+            "points"
+                | "start"
+                | "end"
+                | "startPoint"
+                | "endPoint"
+                | "from"
+                | "fromPoint"
+                | "base"
+                | "basePoint"
+                | "splitPoint"
+                | "point"
+                | "centerPoint"
+                | "point1"
+                | "point2"
+                | "point3"
+                | "axisPoint1"
+                | "axisPoint2"
+                | "originPoint"
+                | "anchor"
+        )
+        || (parameter_key.starts_with("intermediate:") && parameter_key.ends_with(":point"))
+}
+
+fn point_anchor_for_target(
+    target: &GeometryInputTarget,
+    allow_line_path_endpoint: bool,
+) -> Option<Value> {
     match target {
         GeometryInputTarget::Drawable {
             geometry_type,
             element_id,
             point_key,
             stage_path,
-        } if geometry_type == "point" => Some(match point_key {
-            Some(point_key) => json!({
-                "mode": "derived",
-                "elementId": element_id,
-                "pointKey": point_key,
-                "stagePath": stage_path,
-            }),
-            None => json!({ "mode": "reference", "pointId": element_id, "stagePath": stage_path }),
-        }),
+        } if geometry_type == "point"
+            || (allow_line_path_endpoint
+                && (geometry_type == "line" || geometry_type == "path")
+                && matches!(point_key.as_deref(), Some("start" | "end"))) =>
+        {
+            Some(match point_key {
+                Some(point_key) => json!({
+                    "mode": "derived",
+                    "elementId": element_id,
+                    "pointKey": point_key,
+                    "stagePath": stage_path,
+                }),
+                None => {
+                    json!({ "mode": "reference", "pointId": element_id, "stagePath": stage_path })
+                }
+            })
+        }
         GeometryInputTarget::GeometryValue {
             geometry_type,
             occurrence,
             point_key,
             stage_path,
-        } if geometry_type == "point" => {
+        } if geometry_type == "point"
+            || (allow_line_path_endpoint
+                && (geometry_type == "line" || geometry_type == "path")
+                && matches!(point_key.as_deref(), Some("start" | "end"))) =>
+        {
             let mut anchor = json!({
                 "mode": "geometryValue",
                 "occurrence": {
@@ -1733,7 +1776,7 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
         if parameter_key == "points" && !materialized.is_empty() {
             let anchors = materialized
                 .iter()
-                .filter_map(point_anchor_for_target)
+                .filter_map(|target| point_anchor_for_target(target, true))
                 .collect::<Vec<_>>();
             if anchors.len() == materialized.len() {
                 if let Some(object) = element.as_object_mut() {
@@ -1742,7 +1785,9 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
             }
         }
         if target_count == 1 && materialized.len() == 1 {
-            if let Some(anchor) = materialized.first().and_then(point_anchor_for_target) {
+            if let Some(anchor) = materialized.first().and_then(|target| {
+                point_anchor_for_target(target, is_point_anchor_parameter(element, &parameter_key))
+            }) {
                 if let Some(object) = element.as_object_mut() {
                     object.insert(parameter_key.clone(), anchor);
                 }
