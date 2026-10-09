@@ -42,6 +42,44 @@ const normalizePersistentParityPayload = (payload: EvaluationPayload): unknown =
 
 const successfulCases = [
   {
+    name: "nested record field selected from an ordinary collection index",
+    source: [
+      "nui 1",
+      "record Size(value: number)",
+      "record Pair(size: Size)",
+      "const seed: Pair = Pair(size: Size(value: 42))",
+      "const pairs: Pair[] = [@seed]",
+      "const chosen: Pair = @pairs[0]",
+      "const result: number = @chosen.size.value"
+    ].join("\n"),
+    expectedValues: { result: 42 }
+  },
+  {
+    name: "nested constructor access and whole-record aliases retain their field backing",
+    source: [
+      "nui 1",
+      "record Size(value: number)",
+      "record Pair(size: Size)",
+      "const seed: Pair = Pair(size: Size(value: 42))",
+      "const alias: Pair = @seed",
+      "const directResult: number = @seed.size.value",
+      "const aliasResult: number = @alias.size.value"
+    ].join("\n"),
+    expectedValues: { directResult: 42, aliasResult: 42 }
+  },
+  {
+    name: "simple record indexing keeps its scalar field identity",
+    source: [
+      "nui 1",
+      "record Pair(value: number)",
+      "const seed: Pair = Pair(value: 42)",
+      "const pairs: Pair[] = [@seed]",
+      "const chosen: Pair = @pairs[0]",
+      "const result: number = @chosen.value"
+    ].join("\n"),
+    expectedValues: { result: 42 }
+  },
+  {
     name: "empty statement-for source preserves its nominal-record initializer",
     source: [
       "nui 1",

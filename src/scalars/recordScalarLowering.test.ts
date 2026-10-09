@@ -93,6 +93,35 @@ describe("record scalar lowering planner", () => {
     expect(alias2).toBe(origin);
   });
 
+  it("projects nested record fields from an ordinary collection index with their full field path", () => {
+    const { sourceNamespace, records } = analyze([
+      "nui 1",
+      "record Size(value: number)",
+      "record Pair(size: Size)",
+      "const seed: Pair = Pair(size: Size(value: 42))",
+      "const pairs: Pair[] = [@seed]",
+      "const chosen: Pair = @pairs[0]",
+      "const result: number = @chosen.size.value"
+    ].join("\n"));
+    const plan = planRecordScalarLowering({ analysis: records, sourceNamespace });
+    const size = records.definitionsByStatementId.get("stable-1")!;
+    const pair = records.definitionsByStatementId.get("stable-2")!;
+    const chosenValue = records.valuesByStatementId.get("stable-5")!;
+    const initializer = plan.initializers.find((candidate) => candidate.recordValueStatementId === chosenValue.statementId);
+
+    expect(initializer).toMatchObject({
+      field: size.fields[0]!.identity,
+      fieldPath: [pair.fields[0]!.identity, size.fields[0]!.identity],
+      ast: {
+        kind: "collectionIndex",
+        name: expect.stringContaining('"path"'),
+        index: { kind: "numberLiteral", value: 0 }
+      }
+    });
+    expect(plan.bindingSeeds.map((binding) => binding.id)).toEqual(plan.initializers.map((candidate) => candidate.bindingId));
+    expect(plan.unresolvedValueStatementIds).toEqual([]);
+  });
+
   it("reuses externally supplied field backing for a qualified Module record alias", () => {
     const { sourceNamespace, records } = analyze([
       "nui 1",
