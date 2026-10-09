@@ -3493,6 +3493,11 @@ fn evaluate_document_input_with_scalar_program(
             .unwrap_or(usize::MAX)
     });
 
+    let computed_geometry_values = serialize_computed_geometry_values(
+        geometry_value_program.iter().map(|entry| &entry.occurrence),
+        &state.computed_geometry_values,
+    );
+
     EvaluationPayload {
         computed_geometry: state
             .computed_geometry_order
@@ -3500,20 +3505,7 @@ fn evaluate_document_input_with_scalar_program(
             .filter_map(|id| state.computed_geometry.get(id).cloned())
             .collect(),
         transformation_stage_geometry,
-        computed_geometry_values: geometry_value_program
-            .iter()
-            .filter_map(|entry| {
-                state
-                    .computed_geometry_values
-                    .get(&entry.occurrence)
-                    .map(|value| {
-                        serde_json::json!({
-                            "occurrence": entry.occurrence,
-                            "value": value,
-                        })
-                    })
-            })
-            .collect(),
+        computed_geometry_values,
         pre_mutation_geometry: state
             .computed_geometry_order
             .iter()
@@ -3549,4 +3541,46 @@ fn evaluate_document_input_with_scalar_program(
         computed_scalar_bindings,
         computed_scalar_binding_versions,
     }
+}
+
+fn serialize_computed_geometry_values<'a>(
+    static_occurrences: impl IntoIterator<Item = &'a GeometryValueOccurrence>,
+    computed_values: &HashMap<GeometryValueOccurrence, Value>,
+) -> Vec<Value> {
+    let mut seen = HashSet::with_capacity(computed_values.len());
+    let mut serialized = Vec::with_capacity(computed_values.len());
+
+    for occurrence in static_occurrences {
+        if !seen.insert(occurrence.clone()) {
+            continue;
+        }
+        if let Some(value) = computed_values.get(occurrence) {
+            serialized.push(json!({ "occurrence": occurrence, "value": value }));
+        }
+    }
+
+    // The state map also backs identity-bearing geometry carry inputs. Those
+    // remain runtime dependencies; only runtime-generated mapped occurrences
+    // belong in the immutable geometry-value payload channel.
+    let mut runtime_only = computed_values
+        .iter()
+        .filter(|(occurrence, _)| {
+            !seen.contains(*occurrence)
+                && (occurrence.mapped_member_index.is_some()
+                    || occurrence.runtime_generation.is_some())
+        })
+        .collect::<Vec<_>>();
+    runtime_only.sort_by(|(left, _), (right, _)| {
+        left.source_statement_id
+            .cmp(&right.source_statement_id)
+            .then_with(|| left.instance_path.cmp(&right.instance_path))
+            .then_with(|| left.mapped_member_index.cmp(&right.mapped_member_index))
+            .then_with(|| left.runtime_generation.cmp(&right.runtime_generation))
+    });
+    serialized.extend(
+        runtime_only
+            .into_iter()
+            .map(|(occurrence, value)| json!({ "occurrence": occurrence, "value": value })),
+    );
+    serialized
 }

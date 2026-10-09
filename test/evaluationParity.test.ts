@@ -55,6 +55,27 @@ const expectScalarNumberClose = (
   expect(value.value.value).toBeCloseTo(expected, 10);
 };
 
+const compilerMappedGeometryValueOccurrence = (
+  fixture: ReturnType<typeof fixtureFromSource>,
+  bindingName: string,
+  mappedMemberIndex: number,
+  runtimeGeneration?: number
+) => {
+  const compiled = fixture.compiled?.doc;
+  const binding = compiled?.bindingAnalysis?.catalog.bindings.find(
+    (candidate) => candidate.kind === "typed" && candidate.name === bindingName
+  );
+  if (!compiled || !binding) throw new Error(`typed binding "${bindingName}" not found`);
+  const sourceStatementId = compiled.statementMap?.statementIdByStatementIndex?.get(binding.statementIndex);
+  if (!sourceStatementId) throw new Error(`compiler statement identity for "${bindingName}" not found`);
+  return {
+    sourceStatementId,
+    instancePath: [],
+    mappedMemberIndex,
+    ...(runtimeGeneration === undefined ? {} : { runtimeGeneration })
+  };
+};
+
 const isGeometryInputTargetList = (
   target: GeometryInputTarget | readonly GeometryInputTarget[]
 ): target is readonly GeometryInputTarget[] => Array.isArray(target);
@@ -6495,6 +6516,175 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       ]));
     }
   }, 30000);
+
+  describe("SAY-491 computed geometry value publication", () => {
+    it("publishes the selected carried map member with its canonical occurrence exactly once", async () => {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        "const source: point[] = [(1, 2)]",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
+        "  const mapped: point[] = for item in @a { coordinate(x: @item.x + 1, y: @item.y) }",
+        "  next a = @mapped",
+        "}",
+        "line Use = segment(start: @a[0], end: (0, 0))"
+      ].join("\n"));
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+
+      const expectedOccurrence = compilerMappedGeometryValueOccurrence(fixture, "mapped", 0, 0);
+      const key = geometryValueOccurrenceKey(expectedOccurrence);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      const entriesFor = (payload: typeof tsPayload) => (payload.computedGeometryValues ?? [])
+        .filter((entry) => geometryValueOccurrenceKey(entry.occurrence) === key);
+
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      expect(entriesFor(tsPayload)).toHaveLength(1);
+      expect(entriesFor(rustPayload)).toHaveLength(1);
+      expect(entriesFor(rustPayload)[0]).toEqual({
+        occurrence: expectedOccurrence,
+        value: { kind: "point", x: 2, y: 2 }
+      });
+      const use = fixture.elements.find((element) => element.name === "Use")!;
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.computedGeometry.get(use.id)).toMatchObject({
+          kind: "line",
+          start: { x: 2, y: 2 },
+          end: { x: 0, y: 0 }
+        });
+        expect(result.computedGeometryValues?.get(key)).toEqual(entriesFor(payload)[0]);
+      }
+    }, 30000);
+
+    it("preserves the static mapped occurrence identity and program order", async () => {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        "const source: point[] = [(1, 2)]",
+        "const mapped: point[] = for item in @source { coordinate(x: @item.x + 1, y: @item.y) }",
+        "line Use = segment(start: @mapped[0], end: (0, 0))"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const expectedOccurrence = compilerMappedGeometryValueOccurrence(fixture, "mapped", 0);
+      const staticProgramOccurrences = (options.geometryValueProgram ?? [])
+        .filter((entry) => entry.occurrence.sourceStatementId === expectedOccurrence.sourceStatementId)
+        .map((entry) => entry.occurrence);
+      expect(staticProgramOccurrences).toEqual([expectedOccurrence]);
+
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const entries = payload.computedGeometryValues ?? [];
+        expect(entries.map((entry) => entry.occurrence)).toEqual(staticProgramOccurrences);
+        expect(entries[0]?.value).toEqual({ kind: "point", x: 2, y: 2 });
+      }
+    }, 30000);
+
+    it("does not publish an unselected carried map member", async () => {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        "const source: point[] = [(1, 2), (3, 4)]",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
+        "  const mapped: point[] = for item in @a { coordinate(x: @item.x + 1, y: @item.y) }",
+        "  next a = @mapped",
+        "}",
+        "line Use = segment(start: @a[0], end: (0, 0))"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const selected = compilerMappedGeometryValueOccurrence(fixture, "mapped", 0, 0);
+      const unselected = compilerMappedGeometryValueOccurrence(fixture, "mapped", 1, 0);
+      const selectedKey = geometryValueOccurrenceKey(selected);
+      const unselectedKey = geometryValueOccurrenceKey(unselected);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      const entriesFor = (payload: typeof tsPayload) => payload.computedGeometryValues ?? [];
+
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const entries = entriesFor(payload);
+        expect(entries).toHaveLength(1);
+        expect(entries.map((entry) => geometryValueOccurrenceKey(entry.occurrence))).toEqual([selectedKey]);
+        expect(entries.some((entry) => geometryValueOccurrenceKey(entry.occurrence) === unselectedKey)).toBe(false);
+        expect(payload.geometryValueErrors ?? []).toEqual([]);
+      }
+    }, 30000);
+
+    it("deduplicates repeated selections and retains distinct selected member identities in stable order", async () => {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        "const source: point[] = [(1, 2), (3, 4)]",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
+        "  const mapped: point[] = for item in @a { coordinate(x: @item.x + 1, y: @item.y) }",
+        "  next a = @mapped",
+        "}",
+        "line Repeat = segment(start: @a[0], end: @a[0])",
+        "line First = segment(start: @a[0], end: (0, 0))",
+        "line Second = segment(start: @a[1], end: (0, 0))"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const expectedOccurrences = [
+        compilerMappedGeometryValueOccurrence(fixture, "mapped", 0, 0),
+        compilerMappedGeometryValueOccurrence(fixture, "mapped", 1, 0)
+      ];
+      const expectedKeys = expectedOccurrences.map(geometryValueOccurrenceKey);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      const repeatedRustPayload = await rustStdio!.evaluate(fixture.elements, options);
+
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      expect(repeatedRustPayload.computedGeometryValues).toEqual(rustPayload.computedGeometryValues);
+      for (const payload of [tsPayload, rustPayload]) {
+        const entries = payload.computedGeometryValues ?? [];
+        expect(entries.map((entry) => geometryValueOccurrenceKey(entry.occurrence))).toEqual(expectedKeys);
+        expect(entries.filter((entry) => geometryValueOccurrenceKey(entry.occurrence) === expectedKeys[0])).toHaveLength(1);
+        expect(entries.filter((entry) => geometryValueOccurrenceKey(entry.occurrence) === expectedKeys[1])).toHaveLength(1);
+      }
+      const first = fixture.elements.find((element) => element.name === "First")!;
+      const second = fixture.elements.find((element) => element.name === "Second")!;
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.computedGeometry.get(first.id)).toMatchObject({ start: { x: 2, y: 2 } });
+        expect(result.computedGeometry.get(second.id)).toMatchObject({ start: { x: 4, y: 4 } });
+      }
+    }, 30000);
+
+    it("preserves selected carried construction errors without publishing a failed value", async () => {
+      const fixture = fixtureFromSource([
+        "nui 1",
+        "line H = segment(start: (0, 0), end: (10, 0))",
+        "line V = segment(start: (3, -5), end: (3, 5))",
+        "const source: point[] = [(-1, 0), (0, 0)]",
+        "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @source {",
+        "  const mapped: point[] = for item in @a { intersection(line1: @H, line2: @V, index: @item.x) }",
+        "  next a = @mapped",
+        "}",
+        "line Use = segment(start: @a[0], end: (0, 0))"
+      ].join("\n"));
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const failedOccurrence = compilerMappedGeometryValueOccurrence(fixture, "mapped", 0, 0);
+      const failedKey = geometryValueOccurrenceKey(failedOccurrence);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+
+      expect(tsPayload.geometryValueErrors).toEqual(rustPayload.geometryValueErrors);
+      expect(tsPayload.geometryValueErrors).toEqual([{
+        occurrence: failedOccurrence,
+        message: "intersection geometry value index must be a finite non-negative integer."
+      }]);
+      for (const payload of [tsPayload, rustPayload]) {
+        expect((payload.computedGeometryValues ?? []).some(
+          (entry) => geometryValueOccurrenceKey(entry.occurrence) === failedKey
+        )).toBe(false);
+        expect(evaluationPayloadToResult(payload).computedGeometryValues?.has(failedKey)).toBe(false);
+      }
+    }, 30000);
+  });
 
   it.each(fixtureNames)("%s matches the TypeScript reference payload", (name: string) => {
     const fixture = readParityFixture(repoRoot, name);

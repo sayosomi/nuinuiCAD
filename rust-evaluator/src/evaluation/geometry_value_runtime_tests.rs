@@ -5,7 +5,7 @@ use super::geometry_value_runtime::{
     decode_geometry_value_program, evaluate_geometry_value_entry, EmptyBindingResolver,
 };
 use super::types::{EvaluationState, GeometryInputTarget, GeometryValueOccurrence};
-use super::{evaluate_document_input, EvaluationInput};
+use super::{evaluate_document_input, serialize_computed_geometry_values, EvaluationInput};
 
 fn number(value: f64) -> Value {
     json!({
@@ -308,6 +308,101 @@ fn computed_geometry_value_payload_preserves_mapped_occurrence_identity() {
         .as_object()
         .expect("occurrence must serialize as an object")
         .contains_key("mappedMemberIndex"));
+}
+
+#[test]
+fn computed_geometry_value_payload_preserves_static_order_and_sorts_runtime_occurrences() {
+    let occurrence =
+        |source_statement_id: &str,
+         instance_path: &[&str],
+         mapped_member_index: Option<usize>,
+         runtime_generation: Option<usize>| GeometryValueOccurrence {
+            source_statement_id: source_statement_id.to_owned(),
+            instance_path: instance_path
+                .iter()
+                .map(|part| (*part).to_owned())
+                .collect(),
+            mapped_member_index,
+            runtime_generation,
+        };
+    let static_z = occurrence("static:z", &[], None, None);
+    let static_a = occurrence("static:a", &[], None, None);
+    let static_missing = occurrence("static:failed", &[], None, None);
+    let runtime_one = occurrence("runtime:mapped", &["instance:A"], Some(1), Some(0));
+    let runtime_zero = occurrence("runtime:mapped", &["instance:A"], Some(0), Some(0));
+    let runtime_other = occurrence("runtime:other", &["instance:B"], Some(0), Some(1));
+    let carry_input = occurrence("carry:cursor", &[], None, None);
+
+    let entries = vec![
+        (
+            runtime_one.clone(),
+            json!({ "kind": "point", "x": 4.0, "y": 5.0 }),
+        ),
+        (
+            static_a.clone(),
+            json!({ "kind": "point", "x": 2.0, "y": 3.0 }),
+        ),
+        (
+            runtime_other.clone(),
+            json!({ "kind": "point", "x": 8.0, "y": 9.0 }),
+        ),
+        (
+            static_z.clone(),
+            json!({ "kind": "point", "x": 0.0, "y": 1.0 }),
+        ),
+        (
+            runtime_zero.clone(),
+            json!({ "kind": "point", "x": 2.0, "y": 3.0 }),
+        ),
+        (
+            carry_input,
+            json!({ "kind": "point", "elementId": "source", "name": "Source", "x": 5.0, "y": 6.0 }),
+        ),
+    ];
+    let values = entries.iter().cloned().collect::<HashMap<_, _>>();
+    let reversed_values = entries.into_iter().rev().collect::<HashMap<_, _>>();
+    let static_program_order = [&static_z, &static_a, &static_z, &static_missing];
+
+    let serialized = serialize_computed_geometry_values(static_program_order, &values);
+    let serialized_again =
+        serialize_computed_geometry_values(static_program_order, &reversed_values);
+
+    assert_eq!(serialized, serialized_again);
+    assert_eq!(
+        serialized
+            .iter()
+            .map(|entry| entry["occurrence"].clone())
+            .collect::<Vec<_>>(),
+        vec![
+            json!({ "sourceStatementId": "static:z", "instancePath": [] }),
+            json!({ "sourceStatementId": "static:a", "instancePath": [] }),
+            json!({
+                "sourceStatementId": "runtime:mapped",
+                "instancePath": ["instance:A"],
+                "mappedMemberIndex": 0,
+                "runtimeGeneration": 0
+            }),
+            json!({
+                "sourceStatementId": "runtime:mapped",
+                "instancePath": ["instance:A"],
+                "mappedMemberIndex": 1,
+                "runtimeGeneration": 0
+            }),
+            json!({
+                "sourceStatementId": "runtime:other",
+                "instancePath": ["instance:B"],
+                "mappedMemberIndex": 0,
+                "runtimeGeneration": 1
+            }),
+        ]
+    );
+    assert_eq!(serialized.len(), values.len() - 1);
+    assert!(serialized
+        .iter()
+        .all(|entry| entry["occurrence"]["sourceStatementId"] != "static:failed"));
+    assert!(serialized
+        .iter()
+        .all(|entry| entry["occurrence"]["sourceStatementId"] != "carry:cursor"));
 }
 
 fn input(elements: Vec<Value>, program: Vec<Value>) -> EvaluationInput {
