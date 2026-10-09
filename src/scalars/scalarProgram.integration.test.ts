@@ -192,6 +192,57 @@ describe("compiled scalar program", () => {
     }
   });
 
+  it("lowers every root record collection branch to a canonical descriptor", () => {
+    const compiled = compileCanonical([
+      "nui 1",
+      "record Pair(x: number)",
+      "const seed: Pair = Pair(x: 1)",
+      "const selector: choice(left, right) = left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] carry b: Pair[] = [@seed] {",
+      "  next a = if (true) { @a } else { [@seed] }",
+      "  next b = match @selector { left => @b right => [@seed] }",
+      "}",
+      "const chosenA: Pair = @a[0]",
+      "const chosenB: Pair = @b[0]",
+      "const result: number = @chosenA.x + @chosenB.x"
+    ].join("\n"));
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const collectionValues = compiled.scalarProgram?.collectionValues ?? [];
+    const collectionsById = new Map(collectionValues.map((value) => [value.valueId, value]));
+    const ifValues = collectionValues.filter((value) => value.kind === "if");
+    const matchValues = collectionValues.filter((value) => value.kind === "match");
+
+    expect(ifValues.length).toBeGreaterThan(0);
+    expect(matchValues.length).toBeGreaterThan(0);
+    for (const value of ifValues) {
+      expect(collectionsById.has(value.thenValueId)).toBe(true);
+      expect(collectionsById.has(value.elseValueId)).toBe(true);
+    }
+    for (const value of matchValues) {
+      for (const arm of value.arms) expect(collectionsById.has(arm.valueId)).toBe(true);
+    }
+
+    const selectedIf = ifValues.find((value) => collectionsById.get(value.thenValueId)?.kind === "alias");
+    expect(selectedIf).toBeDefined();
+    expect(collectionsById.get(selectedIf!.thenValueId)).toMatchObject({
+      valueId: selectedIf!.thenValueId,
+      kind: "alias",
+      targetValueId: selectedIf!.valueId.replace(/:next$/, "")
+    });
+
+    const selectedMatch = matchValues.find((value) =>
+      value.arms.some((arm) => arm.label === "left" && collectionsById.get(arm.valueId)?.kind === "alias")
+    );
+    expect(selectedMatch).toBeDefined();
+    const selectedReferenceArm = selectedMatch!.arms.find((arm) => arm.label === "left")!;
+    expect(collectionsById.get(selectedReferenceArm.valueId)).toMatchObject({
+      valueId: selectedReferenceArm.valueId,
+      kind: "alias",
+      targetValueId: selectedMatch!.valueId.replace(/:next$/, "")
+    });
+  });
+
   it("compiles and evaluates exhaustive choice matches through the canonical scalar program", () => {
     const compiled = compileCanonical([
       "nui 1",
