@@ -1859,6 +1859,35 @@ describe("pure geometry construction runtime", () => {
     ]);
   });
 
+  it("keeps a selected failing mapped point's construction error on its compiler-authored occurrence", () => {
+    const { compiled, result } = evaluate([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "line Vertical = segment(start: (5, -5), end: (5, 5))",
+      "const points: point[] = [(0, 0), (3, 4)]",
+      "const mapped: point[] = for item in @points {",
+      "  if (@item.x == 0) {",
+      "    intersection(line1: @Horizontal, line2: @Vertical, index: 1 / 0)",
+      "  } else {",
+      "    coordinate(x: @item.x, y: @item.y)",
+      "  }",
+      "}",
+      "line Use = segment(start: @mapped[0], end: (20, 20))"
+    ].join("\n"));
+    const failed = compiled.geometryValueProgram?.find((entry) => entry.occurrence.mappedMemberIndex === 0);
+    const use = compiled.document?.elements.find((element) => element.name === "Use");
+
+    expect(failed).toBeDefined();
+    expect(result.geometryValueErrors).toEqual([{
+      occurrence: failed!.occurrence,
+      message: "intersection geometry value index must be a finite non-negative integer."
+    }]);
+    expect(result.computedGeometryValues?.has(geometryValueOccurrenceKey(failed!.occurrence))).toBe(false);
+    expect(use && result.computedGeometry.has(use.id)).toBe(false);
+    expect(result.errors.map((error) => error.message).join("\n"))
+      .not.toContain("evaluation-collection-index-invalid");
+  });
+
   it("preserves ratio semantics for coincident pure between endpoints", () => {
     const { result } = evaluate([
       "nui 1",
