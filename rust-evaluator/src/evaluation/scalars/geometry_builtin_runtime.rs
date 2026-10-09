@@ -16,6 +16,7 @@ pub(crate) enum GeometryBuiltinRuntimeTarget {
     Line { start: Point, end: Point },
     GeometryValuePoint { x: f64, y: f64 },
     GeometryValueLine { start: (f64, f64), end: (f64, f64) },
+    GeometryValuePath { value: Value },
 }
 
 pub(crate) fn geometry_builtin_runtime_target_value(
@@ -44,6 +45,7 @@ pub(crate) fn geometry_builtin_runtime_target_value(
             "end": { "x": end.0, "y": end.1 },
             "length": ((end.0 - start.0).powi(2) + (end.1 - start.1).powi(2)).sqrt()
         }),
+        GeometryBuiltinRuntimeTarget::GeometryValuePath { value } => value.clone(),
     }
 }
 
@@ -95,6 +97,9 @@ impl PartialEq for GeometryBuiltinRuntimeTarget {
                     end: right_end,
                 },
             ) => left_start == right_start && left_end == right_end,
+            (Self::GeometryValuePath { value: left }, Self::GeometryValuePath { value: right }) => {
+                left == right
+            }
             _ => false,
         }
     }
@@ -233,7 +238,9 @@ pub(crate) fn resolve_geometry_builtin_target(
                 }
                 Ok(GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end })
             }
-            GeometryInterfaceType::Path => Err(GeometryBuiltinRuntimeError::Unavailable),
+            GeometryInterfaceType::Path => Ok(GeometryBuiltinRuntimeTarget::GeometryValuePath {
+                value: geometry.clone(),
+            }),
         };
     }
     if !state.elements_by_id.contains_key(&target.statement_id) {

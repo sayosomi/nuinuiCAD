@@ -4807,11 +4807,33 @@ export const compileDslDocument = (
         geometryTargetForCarryExpression(next.expression, next.statementIndex, declaration.bindingId)
       );
       const ownerStatementId = stableStatementIdByIndex.get(declaration.ownerStatementIndex);
+      const ownerStatementIndex = ownerStatementId === undefined
+        ? undefined
+        : [...stableStatementIdByIndex].find(([, statementId]) => statementId === ownerStatementId)?.[0];
+      const ownerElementId = ownerStatementIndex === undefined
+        ? undefined
+        : compiled.elementIdsByStatementIndex?.get(ownerStatementIndex);
+      const ownerExecutionPosition = ownerElementId
+        ? rootScalarExecutionPositionByRuntimeElementId?.get(ownerElementId) ??
+          moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId.get(ownerElementId)
+        : undefined;
+      const targetAvailableAt = (
+        target: ScalarExpressionResolvedGeometryTarget | null | undefined,
+        sourceOrder: number | undefined
+      ): ScalarExpressionResolvedGeometryTarget | null | undefined =>
+        target?.kind === "geometryValue" && sourceOrder !== undefined && target.statementIndex > sourceOrder
+          ? { ...target, statementIndex: sourceOrder }
+          : target;
+      const loopEntryInitializerTarget = targetAvailableAt(initializerTarget, ownerExecutionPosition);
+      const loopNextTarget = targetAvailableAt(
+        nextTarget,
+        rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(next.statementIndex)
+      );
       const targetValueType = (target: ScalarExpressionResolvedGeometryTarget): import("./dslValueTypes").DslGeometryValueType => ({
         kind: target.pointKey ? "point" : target.geometryType
       });
-      const initializerAssignable = initializerTarget && isDslValueTypeAssignable(targetValueType(initializerTarget), valueType);
-      const nextAssignable = nextTarget && isDslValueTypeAssignable(targetValueType(nextTarget), valueType);
+      const initializerAssignable = loopEntryInitializerTarget && isDslValueTypeAssignable(targetValueType(loopEntryInitializerTarget), valueType);
+      const nextAssignable = loopNextTarget && isDslValueTypeAssignable(targetValueType(loopNextTarget), valueType);
       if (initializerTarget && !initializerAssignable) {
         carryCollectionDiagnostics.push({
           severity: "error",
@@ -4842,7 +4864,7 @@ export const compileDslDocument = (
           statementIndex: next.statementIndex
         });
       }
-      if (!initializerTarget || !nextTarget || !initializerAssignable || !nextAssignable || !ownerStatementId) continue;
+      if (!loopEntryInitializerTarget || !loopNextTarget || !initializerAssignable || !nextAssignable || !ownerStatementId) continue;
       const plan: import("../scalars/bindingVersions").ImmutableForGroupPlan = immutableForGroups.get(ownerStatementId) ?? {
         ownerStatementId,
         executionOwner: immutableExecutionOwnerFor(declaration.ownerStatementIndex, ownerStatementId),
@@ -4851,8 +4873,8 @@ export const compileDslDocument = (
       const geometryCarries = [...(plan.geometryCarries ?? []), {
         bindingId: declaration.bindingId,
         declaredType: valueType,
-        initializerTarget,
-        nextTarget,
+        initializerTarget: loopEntryInitializerTarget,
+        nextTarget: loopNextTarget,
         nextSourceOrder: rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(next.statementIndex) ?? next.statementIndex
       }];
       immutableForGroups.set(ownerStatementId, { ...plan, geometryCarries });
@@ -5041,9 +5063,37 @@ export const compileDslDocument = (
     if (previous?.[1].length) return Math.max(0, Math.max(...previous[1]) + 0.5);
     return 0;
   };
+  const stableStatementIndexById = new Map(
+    [...(stableStatementIdByIndex ?? [])].map(([statementIndex, statementId]) => [statementId, statementIndex] as const)
+  );
+  const rootCarrySeedSourcePositionByOccurrence = new Map<string, number>();
+  for (const plan of immutableForGroups.values()) {
+    const ownerStatementIndex = stableStatementIndexById.get(plan.ownerStatementId);
+    const ownerElementId = ownerStatementIndex === undefined
+      ? undefined
+      : compiled.elementIdsByStatementIndex?.get(ownerStatementIndex);
+    const ownerElement = ownerElementId ? compiled.elements.find((element) => element.id === ownerElementId) : undefined;
+    const entrySourceOrder = ownerElementId
+      ? rootScalarExecutionPositionByRuntimeElementId?.get(ownerElementId) ??
+        moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId.get(ownerElementId)
+      : undefined;
+    if (ownerElement?.type !== "forGroup" || entrySourceOrder === undefined) continue;
+    for (const carry of plan.geometryCarries ?? []) {
+      if (carry.initializerTarget.kind !== "geometryValue") continue;
+      const occurrenceKey = geometryValueOccurrenceKey(carry.initializerTarget.occurrence);
+      const current = rootCarrySeedSourcePositionByOccurrence.get(occurrenceKey);
+      rootCarrySeedSourcePositionByOccurrence.set(
+        occurrenceKey,
+        current === undefined ? entrySourceOrder : Math.min(current, entrySourceOrder)
+      );
+    }
+  }
   const geometryValueProgramWithSourcePositions = geometryValueProgramForGraph?.map((entry) => ({
     ...entry,
-    sourceExecutionPosition: entry.sourceExecutionPosition ?? sourcePositionForGeometryValueStatement(entry.sourceStatementIndex)
+    sourceExecutionPosition: Math.min(
+      entry.sourceExecutionPosition ?? sourcePositionForGeometryValueStatement(entry.sourceStatementIndex),
+      rootCarrySeedSourcePositionByOccurrence.get(geometryValueOccurrenceKey(entry.occurrence)) ?? Number.POSITIVE_INFINITY
+    )
   }));
   const geometryInputTargetsForGraph = new Map([
     ...(geometryInputTargetsByElementId ?? []),
@@ -5053,6 +5103,7 @@ export const compileDslDocument = (
     elements: compiled.elements,
     drawingModifiers: compiled.modifiers,
     elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
+    statementIdByStatementIndex: stableStatementIdByIndex,
     bindingAnalysis: scalarAnalysis?.bindingAnalysis,
     bindingVersions,
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,

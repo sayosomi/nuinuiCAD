@@ -136,6 +136,9 @@ export type TypedDependencyGraphInput = {
   elements: readonly CadElement[];
   drawingModifiers?: readonly DrawingModifierDefinition[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
+  /** Stable compiler statement identities used to join root control owners to
+   * their compiled runtime elements. */
+  statementIdByStatementIndex?: ReadonlyMap<number, string>;
   bindingAnalysis?: BindingAnalysis;
   bindingVersions?: BindingVersionGraph;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
@@ -846,7 +849,9 @@ export const buildTypedDependencyGraph = ({
   elements,
   drawingModifiers,
   elementIdByStatementIndex,
+  statementIdByStatementIndex,
   bindingAnalysis,
+  bindingVersions,
   propertyBindings,
   numericBindings,
   transformationNumericBindings,
@@ -997,6 +1002,13 @@ export const buildTypedDependencyGraph = ({
   // against every element id (which made graph construction quadratic).
   const elementStatementIndex = new Map<ElementId, number>();
   for (const [statementIndex, elementId] of elementIdByStatementIndex) elementStatementIndex.set(elementId, statementIndex);
+  const rootForGroupElementIdByStatementId = new Map<string, ElementId>();
+  for (const [statementIndex, statementId] of statementIdByStatementIndex ?? []) {
+    const elementId = elementIdByStatementIndex.get(statementIndex);
+    if (elementId && elementsById.get(elementId)?.type === "forGroup") {
+      rootForGroupElementIdByStatementId.set(statementId, elementId);
+    }
+  }
   const scalarOwnedParameterKeysByElementId = new Map<ElementId, ReadonlySet<string>>();
   const typedScalarGeometryDependencyIdsByElementId = new Map<ElementId, Set<ElementId>>();
   const addTypedScalarGeometryDependencies = (key: string, expression: TypedScalarExpression | undefined) => {
@@ -1265,6 +1277,30 @@ export const buildTypedDependencyGraph = ({
       ...(guards.length ? { activation: { guards } } : {})
     }, occurrenceNamespace);
   };
+  // A root immutable geometry carry is initialized at loop entry. Make its
+  // resolved pure geometry-value occurrence a prerequisite of the compiled
+  // loop execution owner so both evaluators release the same seed first.
+  // Module loop owners are materialized separately and therefore do not join
+  // through this root statement-to-element map.
+  for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
+    const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId);
+    if (!ownerElementId) continue;
+    const from = elementEndpoint(
+      elementsById,
+      ownerElementId,
+      elementStatementIndex.get(ownerElementId) ?? 0
+    );
+    for (const carry of plan.geometryCarries ?? []) {
+      if (carry.initializerTarget.kind !== "geometryValue") continue;
+      addGeometryValueDependency(
+        from,
+        carry.initializerTarget.occurrence,
+        null,
+        [],
+        `${plan.ownerStatementId}:${carry.bindingId}:initializer`
+      );
+    }
+  }
   const addScalarProgramDependencies = (
     from: TypedDependencyEndpoint,
     expression: TypedScalarExpression,

@@ -671,6 +671,70 @@ describe("Task 26 text template wiring", () => {
 });
 
 describe("Task 36 typed dependency graph wiring", () => {
+  it("schedules a root pure geometry carry seed by its resolved occurrence", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "for i in range(min: 0, max: 1, step: 1) carry route: path = @Seed {",
+      "  next route = @Seed",
+      "}",
+      "const CarryLength: number = @route.length",
+      "const Seed: path = segment(start: (0, 0), end: (3, 4))",
+      "path Use = from(source: @route)"
+    ].join("\n"), {
+      assignedElementIds: new Map([[1, "say493:loop"], [6, "say493:use"]]),
+      assignedStatementIds: new Map([
+        [1, "say493:loop"],
+        [4, "say493:carry-length"],
+        [5, "say493:seed"],
+        [6, "say493:use"]
+      ])
+    });
+    const loop = compiled.document?.elements.find((element) => element.type === "forGroup");
+    const plan = [...(compiled.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .find((candidate) => candidate.geometryCarries?.length);
+    const carry = plan?.geometryCarries?.[0];
+    const graph = compiled.typedDependencyGraph;
+    if (!loop || !plan || !carry || carry.initializerTarget.kind !== "geometryValue" || !graph) {
+      throw new Error(`expected compiled root loop, geometry carry plan, and dependency graph: ${JSON.stringify({ diagnostics: compiled.diagnostics, loop, plan, graph: Boolean(graph) })}`);
+    }
+
+    const occurrenceId = geometryValueOccurrenceKey(carry.initializerTarget.occurrence);
+    const seedEntries = compiled.geometryValueProgram?.filter((entry) =>
+      geometryValueOccurrenceKey(entry.occurrence) === occurrenceId
+    ) ?? [];
+    expect(seedEntries).toHaveLength(1);
+    expect(seedEntries[0]?.occurrence).toEqual(carry.initializerTarget.occurrence);
+    expect(seedEntries[0]?.sourceStatementIndex).toBeGreaterThan(
+      compiled.statementMap?.byElementId.get(loop.id)?.statementIndex ?? -1
+    );
+    expect(compiled.document?.elements.some((element) => element.name === "Seed")).toBe(false);
+
+    const prerequisite = graph.edges.find((edge) =>
+      edge.kind === "geometry" && edge.from.kind === "element" && edge.from.id === loop.id &&
+      edge.to.kind === "geometry-value" && edge.to.id === occurrenceId
+    );
+    expect(prerequisite).toMatchObject({ requiredness: "required" });
+    const dependencyOrder = resolveTypedDependencyGraphRuntime(graph, new Map()).dependencyOrder;
+    expect(dependencyOrder.indexOf(`geometry-value:${occurrenceId}`)).toBeGreaterThanOrEqual(0);
+    expect(dependencyOrder.indexOf(`element:${loop.id}`)).toBeGreaterThanOrEqual(0);
+    expect(dependencyOrder.indexOf(`geometry-value:${occurrenceId}`)).toBeLessThan(
+      dependencyOrder.indexOf(`element:${loop.id}`)
+    );
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps immutable geometry cycle diagnostics", () => {
+    const cycle = compileDslDocument([
+      "nui 1",
+      "const A: path = @B",
+      "const B: path = @A"
+    ].join("\n"), {
+      assignedStatementIds: new Map([[1, "say493:cycle-a"], [2, "say493:cycle-b"]])
+    });
+    expect(cycle.diagnostics.map((diagnostic) => diagnostic.code)).toContain("dependency-cycle");
+    expect(cycle.typedDependencyGraph?.cycles.length).toBeGreaterThan(0);
+  });
+
   it("keeps static missing and resolved forward initializer navigation on the compiled document", () => {
     const compiled = compileDslDocument(
       ["nui 1", "const missing: number = @unknown", "const late: number = @later", "const later: number = 1"].join("\n"),
