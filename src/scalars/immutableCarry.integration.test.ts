@@ -1119,6 +1119,125 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("initializes root geometry carries from pure point, line, and path values", () => {
+    const evaluate = (source: string) => {
+      const compiled = compile(source);
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+      expect(evaluation.errors).toEqual([]);
+      expect(evaluation.geometryValueErrors ?? []).toEqual([]);
+      return { compiled, evaluation };
+    };
+
+    const point = evaluate([
+      "nui 1",
+      "const points: point[] = []",
+      "for item in @points carry cursor: point = @Seed {",
+      "  next cursor = @Seed",
+      "}",
+      "const Seed: point = coordinate(x: 8, y: 9)",
+      "const EscapedX: number = @cursor.x",
+      "line Use = segment(start: @cursor, end: (11, 9))"
+    ].join("\n"));
+    const pointUse = point.compiled.document.elements.find((element) => element.name === "Use");
+    expect(pointUse && point.evaluation.computedGeometry.get(pointUse.id)).toMatchObject({
+      kind: "line", start: { x: 8, y: 9 }, end: { x: 11, y: 9 }
+    });
+    expect(scalarFor(point.compiled, point.evaluation, "EscapedX")).toMatchObject({
+      status: "ok", value: { kind: "number", value: 8 }
+    });
+
+    const line = evaluate([
+      "nui 1",
+      "const Seed: line = segment(start: (2, 3), end: (8, 11))",
+      "for i in range(min: 0, max: 1, step: 1) carry edge: line = @Seed {",
+      "  next edge = @Seed",
+      "}",
+      "const EscapedLength: number = @edge.length",
+      "line Use = segment(start: @edge.start, end: @edge.end)"
+    ].join("\n"));
+    const lineUse = line.compiled.document.elements.find((element) => element.name === "Use");
+    expect(lineUse && line.evaluation.computedGeometry.get(lineUse.id)).toMatchObject({
+      kind: "line", start: { x: 2, y: 3 }, end: { x: 8, y: 11 }, length: 10
+    });
+    expect(scalarFor(line.compiled, line.evaluation, "EscapedLength")).toMatchObject({
+      status: "ok", value: { kind: "number", value: 10 }
+    });
+
+    const path = evaluate([
+      "nui 1",
+      "for i in range(min: 0, max: 1, step: 1) carry route: path = @Seed {",
+      "  next route = @Seed",
+      "}",
+      "const Seed: path = segment(start: (0, 0), end: (3, 4))",
+      "const EscapedLength: number = @route.length",
+      "path Use = from(source: @route)"
+    ].join("\n"));
+    const pathUse = path.compiled.document.elements.find((element) => element.name === "Use");
+    expect(pathUse && path.evaluation.computedGeometry.get(pathUse.id)).toMatchObject({
+      kind: "line", start: { x: 0, y: 0 }, end: { x: 3, y: 4 }, length: 5
+    });
+    expect(scalarFor(path.compiled, path.evaluation, "EscapedLength")).toMatchObject({
+      status: "ok", value: { kind: "number", value: 5 }
+    });
+  });
+
+  it("preserves the pure initializer for an empty loop and incoming/final values for nested heterogeneous carries", () => {
+    const empty = compile([
+      "nui 1",
+      "const points: point[] = []",
+      "const Seed: point = coordinate(x: 4, y: 6)",
+      "for item in @points carry cursor: point = @Seed {",
+      "  next cursor = @item",
+      "}",
+      "line Use = segment(start: @cursor, end: (10, 6))"
+    ].join("\n"));
+    expect(empty.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const emptyEvaluation = evaluateElements(empty.document.elements, optionsFor(empty));
+    expect(emptyEvaluation.errors).toEqual([]);
+    const emptyUse = empty.document.elements.find((element) => element.name === "Use");
+    expect(emptyUse && emptyEvaluation.computedGeometry.get(emptyUse.id)).toMatchObject({
+      kind: "line", start: { x: 4, y: 6 }, end: { x: 10, y: 6 }
+    });
+
+    const nested = compile([
+      "nui 1",
+      "const Start: point = coordinate(x: 1, y: 2)",
+      "const StartPath: path = segment(start: (0, 0), end: (3, 4))",
+      "for outer in range(min: 0, max: 1, step: 1) carry cursor: point = @Start carry route: path = @StartPath {",
+      "  line Incoming = segment(start: @cursor, end: @Start)",
+      "  for inner in range(min: 0, max: 0, step: 1) carry innerCursor: point = @cursor carry innerRoute: path = @route {",
+      "    next innerCursor = @innerCursor",
+      "    next innerRoute = @innerRoute",
+      "  }",
+      "  next cursor = @innerCursor",
+      "  next route = @innerRoute",
+      "}",
+      "const EscapedLength: number = @route.length",
+      "line Use = segment(start: @cursor, end: @Start)",
+      "path PathUse = from(source: @route)"
+    ].join("\n"));
+    expect(nested.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const nestedEvaluation = evaluateElements(nested.document.elements, optionsFor(nested));
+    expect(nestedEvaluation.errors).toEqual([]);
+    const incomingTemplate = nested.document.elements.find((element) => element.name === "Incoming");
+    const incomingRow = nestedEvaluation.forGroupGeneratedRows?.find((row) => row.templateElementId === incomingTemplate?.id);
+    expect(incomingRow && nestedEvaluation.computedGeometry.get(incomingRow.generatedElementId)).toMatchObject({
+      kind: "line", start: { x: 1, y: 2 }, end: { x: 1, y: 2 }
+    });
+    const pointUse = nested.document.elements.find((element) => element.name === "Use");
+    const pathUse = nested.document.elements.find((element) => element.name === "PathUse");
+    expect(pointUse && nestedEvaluation.computedGeometry.get(pointUse.id)).toMatchObject({
+      kind: "line", start: { x: 1, y: 2 }, end: { x: 1, y: 2 }
+    });
+    expect(pathUse && nestedEvaluation.computedGeometry.get(pathUse.id)).toMatchObject({
+      kind: "line", start: { x: 0, y: 0 }, end: { x: 3, y: 4 }, length: 5
+    });
+    expect(scalarFor(nested, nestedEvaluation, "EscapedLength")).toMatchObject({
+      status: "ok", value: { kind: "number", value: 5 }
+    });
+  });
+
   it("iterates immutable geometry collection members", () => {
     const compiled = compile([
       "nui 1",
