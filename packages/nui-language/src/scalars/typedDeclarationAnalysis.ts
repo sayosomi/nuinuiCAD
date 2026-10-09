@@ -67,7 +67,7 @@ export type AdditionalScalarInitializer = {
   ast?: ScalarExpressionAst;
   /** Embedded scalar expressions may have a result type distinct from the
    * synthetic binding used to type their lexical references. */
-  expectedType?: ScalarExpressionType;
+  expectedType?: ScalarExpressionType | null;
   /** Compiler-only metadata for root record field projections. */
   recordControlFlowProjection?: RecordScalarControlFlowProjection;
 };
@@ -1124,7 +1124,9 @@ export const analyzeTypedDeclarations = ({
       }
     );
     const checked = typecheckScalarExpression(prepared?.ast ?? parsed.ast, {
-      expectedType: additional?.expectedType ?? scalarExpressionTypeOfDslValueType(binding.declaredType),
+      expectedType: additional && Object.hasOwn(additional, "expectedType")
+        ? additional.expectedType ?? null
+        : scalarExpressionTypeOfDslValueType(binding.declaredType),
       references: prepared?.references ?? referenceResolutionsForAst(
         parsed.ast,
         collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),

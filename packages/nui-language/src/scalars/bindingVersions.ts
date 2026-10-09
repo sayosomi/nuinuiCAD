@@ -9,6 +9,8 @@ import type { ScalarExpressionType } from "./types";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarExpressionResolvedGeometryTarget } from "./typedExpressionAst";
 import type { GeometryInputCollectionNode } from "../model/cadDocumentTypes";
+import type { GeometryValueOccurrence } from "../model/cadDocumentTypes";
+import type { GeometryValueProgramNode } from "../dsl/moduleGeometryValueProgram";
 
 export type BindingVersionId = string;
 
@@ -138,9 +140,38 @@ export type ImmutableGeometryCarry = {
   bindingId: BindingId;
   declaredType: DslGeometryValueType;
   initializerTarget: ScalarExpressionResolvedGeometryTarget;
-  nextTarget: ScalarExpressionResolvedGeometryTarget;
+  nextTarget: ImmutableGeometryCarryTargetPlan;
   nextSourceOrder: number;
 };
+
+/** A geometry carry next value is lowered to canonical targets before it
+ * crosses the compiler/runtime boundary. Conditional nodes retain only their
+ * typed controller and resolved child descriptors; evaluators never parse
+ * source text or resolve a geometry name. */
+export type ImmutableGeometryCarryTargetPlan =
+  | ScalarExpressionResolvedGeometryTarget
+  | {
+      readonly kind: "geometryValueConstruction";
+      readonly sourceStatementId: string;
+      readonly sourceStatementIndex: number;
+      readonly occurrence: GeometryValueOccurrence;
+      readonly geometryType: DslGeometryValueType["kind"];
+      readonly construction: GeometryValueProgramNode;
+    }
+  | {
+      readonly kind: "if";
+      readonly condition: TypedScalarExpression;
+      readonly thenTarget: ImmutableGeometryCarryTargetPlan;
+      readonly elseTarget: ImmutableGeometryCarryTargetPlan;
+    }
+  | {
+      readonly kind: "match";
+      readonly scrutinee: TypedScalarExpression;
+      readonly arms: readonly {
+        readonly label: string;
+        readonly target: ImmutableGeometryCarryTargetPlan;
+      }[];
+    };
 
 export type ImmutableGeometryCollectionSource =
   | { kind: "node"; node: GeometryInputCollectionNode }

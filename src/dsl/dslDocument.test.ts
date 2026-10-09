@@ -6,6 +6,7 @@ import {
   layoutElementTree,
   parseDslDocument,
   serializeDocumentToDsl,
+  type ImmutableGeometryCarryTargetPlan,
   type DslDocumentData
 } from "@nuinuicad/nui-language";
 import {
@@ -721,6 +722,127 @@ describe("Task 36 typed dependency graph wiring", () => {
       dependencyOrder.indexOf(`element:${loop.id}`)
     );
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("retains typed if and exhaustive match geometry carry targets in the canonical plan", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "point Seed = coordinate(x: 1, y: 2)",
+      "point Alternate = coordinate(x: 7, y: 9)",
+      "const chooseSeed: boolean = true",
+      "const side: choice(left, right) = right",
+      "for i in range(min: 0, max: 0, step: 1) carry conditional: point = @Seed carry selected: point = @Seed {",
+      "  next conditional = if (@chooseSeed) { @Seed } else { @Alternate }",
+      "  next selected = match @side { left => @Alternate right => @Seed }",
+      "}",
+      "point Use = from(source: @selected)"
+    ].join("\n"), {
+      assignedElementIds: new Map([[1, "say496:seed"], [2, "say496:alternate"], [5, "say496:loop"], [9, "say496:use"]]),
+      assignedStatementIds: new Map([
+        [1, "say496:seed"],
+        [2, "say496:alternate"],
+        [3, "say496:choose"],
+        [4, "say496:side"],
+        [5, "say496:loop"],
+        [9, "say496:use"]
+      ])
+    });
+    const loop = compiled.document?.elements.find((element) => element.id === "say496:loop");
+    const plan = [...(compiled.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .find((candidate) => candidate.ownerStatementId === "say496:loop");
+    const conditional = plan?.geometryCarries?.[0];
+    const selected = plan?.geometryCarries?.[1];
+    const graph = compiled.typedDependencyGraph;
+    if (!loop || !plan || !conditional || !selected || !graph) {
+      throw new Error(`expected conditional geometry carry descriptors: ${JSON.stringify({ diagnostics: compiled.diagnostics, plan, graph: Boolean(graph) })}`);
+    }
+
+    expect(conditional.nextTarget).toMatchObject({
+      kind: "if",
+      condition: { type: { kind: "boolean" } },
+      thenTarget: { statementId: "say496:seed" },
+      elseTarget: { statementId: "say496:alternate" }
+    });
+    expect(selected.nextTarget).toMatchObject({
+      kind: "match",
+      scrutinee: { type: { kind: "choice", options: ["left", "right"] } },
+      arms: [
+        { label: "left", target: { statementId: "say496:alternate" } },
+        { label: "right", target: { statementId: "say496:seed" } }
+      ]
+    });
+    expect(conditional.nextSourceOrder).toBeGreaterThanOrEqual(0);
+    expect(selected.nextSourceOrder).toBeGreaterThanOrEqual(0);
+    const guardedTargetEdges = graph.edges.filter((edge) =>
+      edge.from.kind === "element" && edge.from.id === loop.id &&
+      edge.activation?.guards.some((guard) => guard.controllerId.includes("geometry-carry"))
+    );
+    expect(guardedTargetEdges.map((edge) => edge.to.kind === "geometry-stage" ? edge.to.ownerId : edge.to.id)).toEqual(
+      expect.arrayContaining(["say496:seed", "say496:alternate"])
+    );
+    expect(guardedTargetEdges.every((edge) => edge.requiredness === "conditional")).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
+  it("keeps accepted construction leaves in direct, if, and choice-match carry plans", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "const seed: point = coordinate(x: 1, y: 2)",
+      "const choose: boolean = true",
+      "const side: choice(left, right) = right",
+      "for i in range(min: 0, max: 0, step: 1) carry direct: point = @seed carry branch: point = @seed carry selected: point = @seed {",
+      "  next direct = coordinate(x: 3, y: 4)",
+      "  next branch = if (@choose) { coordinate(x: 5, y: 6) } else { @seed }",
+      "  next selected = match @side { left => coordinate(x: 7, y: 8) right => coordinate(x: 9, y: 10) }",
+      "}",
+      "point Use = from(source: @selected)"
+    ].join("\n"), {
+      assignedElementIds: new Map([[4, "say496:construction-loop"], [9, "say496:construction-use"]]),
+      assignedStatementIds: new Map([
+        [1, "say496:construction-seed"],
+        [2, "say496:construction-choose"],
+        [3, "say496:construction-side"],
+        [4, "say496:construction-loop"],
+        [9, "say496:construction-use"]
+      ])
+    });
+    const carries = [...(compiled.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .flatMap((plan) => plan.geometryCarries ?? []);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(carries).toHaveLength(3);
+    expect(carries.map((carry) => carry.nextTarget.kind)).toEqual(["geometryValueConstruction", "if", "match"]);
+    const direct = carries[0]?.nextTarget;
+    const conditional = carries[1]?.nextTarget;
+    const matched = carries[2]?.nextTarget;
+    expect(direct).toMatchObject({ kind: "geometryValueConstruction", geometryType: "point", construction: { kind: "coordinate" } });
+    expect(conditional).toMatchObject({
+      kind: "if",
+      thenTarget: { kind: "geometryValueConstruction", geometryType: "point", construction: { kind: "coordinate" } },
+      elseTarget: { kind: "geometryValue", geometryType: "point" }
+    });
+    expect(matched).toMatchObject({
+      kind: "match",
+      arms: [
+        { label: "left", target: { kind: "geometryValueConstruction", construction: { kind: "coordinate" } } },
+        { label: "right", target: { kind: "geometryValueConstruction", construction: { kind: "coordinate" } } }
+      ]
+    });
+    type ConstructionTarget = Extract<ImmutableGeometryCarryTargetPlan, { kind: "geometryValueConstruction" }>;
+    const leaves = carries.flatMap((carry) => {
+      const visit = (target: ImmutableGeometryCarryTargetPlan): ConstructionTarget[] => {
+        if (target.kind === "if") return [...visit(target.thenTarget), ...visit(target.elseTarget)];
+        if (target.kind === "match") return target.arms.flatMap((arm) => visit(arm.target));
+        return target.kind === "geometryValueConstruction" ? [target] : [];
+      };
+      return visit(carry.nextTarget);
+    });
+    expect(leaves).toHaveLength(4);
+    for (const leaf of leaves) {
+      expect(leaf.sourceStatementId).toBe(leaf.occurrence.sourceStatementId);
+      expect(leaf.occurrence.instancePath).toEqual([]);
+      expect(Number.isFinite(leaf.sourceStatementIndex)).toBe(true);
+      expect(leaf.construction.kind).toBe("coordinate");
+    }
   });
 
   it("keeps immutable geometry cycle diagnostics", () => {

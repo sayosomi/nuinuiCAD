@@ -422,6 +422,18 @@ fn decode_nested_construction(value: &Value) -> Result<GeometryValueConstruction
     decode_entry(&wrapped).map(|entry| entry.construction)
 }
 
+pub(crate) fn decode_geometry_value_construction_payload(
+    value: &Value,
+) -> Result<GeometryValueConstruction, String> {
+    decode_nested_construction(value)
+}
+
+pub(crate) fn decode_geometry_value_occurrence_payload(
+    value: &Value,
+) -> Result<GeometryValueOccurrence, String> {
+    occurrence(value, "geometry carry construction occurrence")
+}
+
 fn decode_typed_field(
     object: &serde_json::Map<String, Value>,
     name: &str,

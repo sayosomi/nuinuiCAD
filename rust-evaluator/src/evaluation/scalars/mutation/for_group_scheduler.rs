@@ -6,6 +6,7 @@ use super::super::bindings::select_collection_match_arm;
 use super::super::bindings::ScalarDocumentBindingResolver;
 use super::*;
 use crate::evaluation::for_group::PreparedForGroupIterations;
+use crate::evaluation::geometry_value_runtime::evaluate_geometry_value_program_parts;
 use crate::evaluation::scalar_expression_runtime::{
     evaluate_document_typed_expression, lookup_for_group_geometry_property,
     lookup_geometry_property, lookup_geometry_value_binder_property,
@@ -20,7 +21,8 @@ use crate::evaluation::scalars::geometry_builtin_runtime::{
     geometry_builtin_runtime_target_value, resolve_geometry_builtin_target,
 };
 use crate::evaluation::scalars::mutation_payload::{
-    ValidatedImmutableGeometryCarry, ValidatedImmutableGeometryCollectionSource,
+    ValidatedImmutableGeometryCarry, ValidatedImmutableGeometryCarryTargetPlan,
+    ValidatedImmutableGeometryCollectionSource,
 };
 use crate::evaluation::types::{
     GeometryInputCollectionNode, GeometryInputCollectionSource, GeometryInputTarget,
@@ -157,6 +159,84 @@ impl ScalarMutationResolver<'_> {
         );
     }
 
+    fn remove_geometry_carry_value(&self, state: &mut EvaluationState, binding_id: &str) {
+        state.geometry_value_binders.remove(binding_id);
+        state
+            .computed_geometry_values
+            .remove(&GeometryValueOccurrence {
+                source_statement_id: binding_id.to_owned(),
+                instance_path: Vec::new(),
+                mapped_member_index: None,
+                runtime_generation: None,
+            });
+    }
+
+    fn select_geometry_carry_target<'target>(
+        &self,
+        plan: &'target ValidatedImmutableGeometryCarryTargetPlan,
+        resolver: &dyn ScalarDocumentBindingResolver,
+        state: &EvaluationState,
+        source_order: usize,
+    ) -> Result<
+        &'target ValidatedImmutableGeometryCarryTargetPlan,
+        super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
+    > {
+        match plan {
+            ValidatedImmutableGeometryCarryTargetPlan::Target(_)
+            | ValidatedImmutableGeometryCarryTargetPlan::Construction { .. } => Ok(plan),
+            ValidatedImmutableGeometryCarryTargetPlan::If {
+                condition,
+                then_target,
+                else_target,
+            } => {
+                let evaluation = evaluate_document_typed_expression(
+                    condition,
+                    resolver,
+                    state,
+                    Some(source_order as f64),
+                );
+                match evaluation {
+                    ScalarEvaluation::Ok {
+                        value: super::super::types::ScalarValue::Boolean(value),
+                        ..
+                    } => self.select_geometry_carry_target(
+                        if value { then_target } else { else_target },
+                        resolver,
+                        state,
+                        source_order,
+                    ),
+                    ScalarEvaluation::Ok { .. } => Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::InvalidArgument),
+                    ScalarEvaluation::Error { issue_code, .. } => Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::EvaluationIssue(issue_code)),
+                }
+            }
+            ValidatedImmutableGeometryCarryTargetPlan::Match { scrutinee, arms } => {
+                let evaluation = evaluate_document_typed_expression(
+                    scrutinee,
+                    resolver,
+                    state,
+                    Some(source_order as f64),
+                );
+                let label = match evaluation {
+                    ScalarEvaluation::Ok {
+                        value: super::super::types::ScalarValue::Choice { value, .. },
+                        ..
+                    } => value,
+                    ScalarEvaluation::Ok {
+                        value: super::super::types::ScalarValue::None,
+                        ..
+                    } => "none".to_owned(),
+                    ScalarEvaluation::Ok { .. } => "some".to_owned(),
+                    ScalarEvaluation::Error { issue_code, .. } => return Err(
+                        super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::EvaluationIssue(issue_code),
+                    ),
+                };
+                let (_, selected) = arms.iter().find(|(arm_label, _)| *arm_label == label)
+                    .ok_or(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::InvalidArgument)?;
+                self.select_geometry_carry_target(selected, resolver, state, source_order)
+            }
+        }
+    }
+
     fn seed_for_group_carries(
         &mut self,
         owner_statement_id: &str,
@@ -286,6 +366,10 @@ impl ScalarMutationResolver<'_> {
         }
 
         let resolver = self.for_group_binding_resolver(environment);
+        let snapshot_resolver = ForGroupExecutionBindingResolverWithLocals {
+            resolver: &resolver,
+            local_bindings: &iteration_bindings,
+        };
         let iteration_binding_id = self
             .program
             .for_group_owners_by_element_id
@@ -296,52 +380,103 @@ impl ScalarMutationResolver<'_> {
             .geometry_carries
             .iter()
             .map(|carry| {
-                let template_element_id = carry
-                    .next
-                    .for_group_template_element_id
-                    .as_deref()
-                    .or_else(|| {
-                        state
-                            .for_group_generated_rows
-                            .iter()
-                            .any(|row| row.template_element_id == carry.next.statement_id)
-                            .then_some(carry.next.statement_id.as_str())
-                    });
-                let resolved = if let Some(template_element_id) = template_element_id {
-                    let row = state
-                        .for_group_generated_rows
-                        .iter()
-                        .rev()
-                        .find(|row| row.template_element_id == template_element_id);
-                    if let Some(row) = row {
-                        let mut target = carry.next.clone();
-                        target.statement_id = row.generated_element_id.clone();
-                        target.statement_index = -1.0;
-                        target.for_group_template_element_id = None;
-                        target.for_group_target_source_order = None;
-                        target.for_group_index = None;
-                        resolve_geometry_builtin_target(state, f64::INFINITY, &target)
-                    } else {
-                        Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::CollectionIndexUnavailable)
+                let selected_plan = self.select_geometry_carry_target(
+                    &carry.next,
+                    &snapshot_resolver,
+                    state,
+                    carry.next_source_order,
+                );
+                let selected_target = match selected_plan {
+                    Ok(ValidatedImmutableGeometryCarryTargetPlan::Target(target)) => Some(target.clone()),
+                    Ok(ValidatedImmutableGeometryCarryTargetPlan::Construction {
+                        source_statement_id,
+                        source_statement_index,
+                        occurrence,
+                        geometry_type,
+                        construction,
+                    }) => {
+                        state.computed_geometry_values.remove(occurrence);
+                        state.geometry_value_errors.retain(|error| &error.occurrence != occurrence);
+                        evaluate_geometry_value_program_parts(
+                            source_statement_id,
+                            match geometry_type {
+                                super::super::types::GeometryInterfaceType::Point => "point",
+                                super::super::types::GeometryInterfaceType::Line => "line",
+                                super::super::types::GeometryInterfaceType::Path => "path",
+                            },
+                            occurrence,
+                            carry.next_source_order as f64,
+                            construction,
+                            &snapshot_resolver,
+                            state,
+                        );
+                        Some(super::super::types::ScalarExpressionResolvedGeometryTarget {
+                            statement_id: source_statement_id.clone(),
+                            statement_index: *source_statement_index as f64,
+                            geometry_type: *geometry_type,
+                            point_key: None,
+                            stage_path: None,
+                            geometry_value_occurrence: Some(occurrence.clone()),
+                            geometry_value_binder_id: None,
+                            for_group_template_element_id: None,
+                            for_group_target_source_order: None,
+                            for_group_index: None,
+                        })
                     }
-                } else {
-                    resolve_for_group_geometry_builtin_target(
-                        state,
-                        &resolver,
-                        f64::INFINITY,
-                        &carry.next,
-                    )
+                    Ok(_) => None,
+                    Err(_) => None,
                 };
-                (carry, resolved)
+                let resolved = match selected_target.as_ref() {
+                    Some(target) => {
+                        let template_element_id = target
+                            .for_group_template_element_id
+                            .as_deref()
+                            .or_else(|| {
+                                state
+                                    .for_group_generated_rows
+                                    .iter()
+                                    .any(|row| row.template_element_id == target.statement_id)
+                                    .then_some(target.statement_id.as_str())
+                            });
+                        let resolved = if let Some(template_element_id) = template_element_id {
+                            let row = state
+                                .for_group_generated_rows
+                                .iter()
+                                .rev()
+                                .find(|row| row.template_element_id == template_element_id);
+                            if let Some(row) = row {
+                                let mut runtime_target = target.clone();
+                                runtime_target.statement_id = row.generated_element_id.clone();
+                                runtime_target.statement_index = -1.0;
+                                runtime_target.for_group_template_element_id = None;
+                                runtime_target.for_group_target_source_order = None;
+                                runtime_target.for_group_index = None;
+                                resolve_geometry_builtin_target(state, f64::INFINITY, &runtime_target)
+                            } else {
+                                Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::CollectionIndexUnavailable)
+                            }
+                        } else {
+                            resolve_for_group_geometry_builtin_target(
+                                state,
+                                &snapshot_resolver,
+                                f64::INFINITY,
+                                target,
+                            )
+                        };
+                        resolved
+                    }
+                    None => Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::InvalidArgument),
+                };
+                (carry, selected_target, resolved)
             })
             .collect::<Vec<_>>();
-        for (carry, resolved) in geometry_next_values {
+        for (carry, selected_target, resolved) in geometry_next_values {
             match resolved {
                 Ok(value) => {
                     self.install_geometry_carry_value(
                         state,
                         &carry.binding_id,
-                        &carry.next,
+                        &selected_target.expect("resolved geometry carry has a selected target"),
                         &value,
                     );
                 }
@@ -349,16 +484,38 @@ impl ScalarMutationResolver<'_> {
                     if iteration_binding_id
                         .as_deref()
                         .is_some_and(|iteration_binding_id| {
-                            carry.next.geometry_value_binder_id.as_deref()
+                            selected_target
+                                .as_ref()
+                                .and_then(|target| target.geometry_value_binder_id.as_deref())
                                 == Some(iteration_binding_id)
                         }) =>
                 {
                     // A failed collection iteration member consumes the next
                     // geometry carry as unavailable. Keep it from silently
                     // retaining the prior iteration's or initializer's value.
-                    state.geometry_value_binders.remove(&carry.binding_id);
+                    self.remove_geometry_carry_value(state, &carry.binding_id);
                 }
-                Err(_) => {}
+                Err(_) => {
+                    self.remove_geometry_carry_value(state, &carry.binding_id);
+                    if let Some(index) = state.elements_by_id.get(owner_element_id).copied() {
+                        let element = &state.elements[index];
+                        let element_name = if crate::evaluation::types::element_type(element)
+                            == Some("forGroup")
+                        {
+                            "forブロック".to_owned()
+                        } else {
+                            crate::evaluation::types::element_display_name(element)
+                        };
+                        let mut error = super::super::super::errors::geometry_error(
+                            element,
+                            format!("{} の carry next geometry を評価できません。", element_name),
+                        );
+                        error.element_name = element_name;
+                        error.missing_dependency_id = carry.binding_id.clone();
+                        error.missing_dependency_name = Some(carry.binding_id.clone().into());
+                        state.errors.push(error);
+                    }
+                }
             }
         }
         let geometry_collection_snapshot = state.geometry_collection_nodes.clone();
