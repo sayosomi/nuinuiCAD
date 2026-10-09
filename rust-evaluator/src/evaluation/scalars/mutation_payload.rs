@@ -85,7 +85,22 @@ pub(crate) struct ValidatedImmutableForGroupCarry {
 pub(crate) struct ValidatedImmutableGeometryCarry {
     pub(crate) binding_id: BindingId,
     pub(crate) initializer: super::types::ScalarExpressionResolvedGeometryTarget,
-    pub(crate) next: super::types::ScalarExpressionResolvedGeometryTarget,
+    pub(crate) next: ValidatedImmutableGeometryCarryTargetPlan,
+    pub(crate) next_source_order: usize,
+}
+
+#[derive(Debug)]
+pub(crate) enum ValidatedImmutableGeometryCarryTargetPlan {
+    Target(super::types::ScalarExpressionResolvedGeometryTarget),
+    If {
+        condition: TypedScalarExpression,
+        then_target: Box<ValidatedImmutableGeometryCarryTargetPlan>,
+        else_target: Box<ValidatedImmutableGeometryCarryTargetPlan>,
+    },
+    Match {
+        scrutinee: TypedScalarExpression,
+        arms: Vec<(String, ValidatedImmutableGeometryCarryTargetPlan)>,
+    },
 }
 
 #[derive(Debug)]
@@ -370,6 +385,153 @@ fn decode_geometry_target(
                 format!("{context} must not be null"),
             )
         })
+}
+
+fn typed_expression_type(expression: &TypedScalarExpression) -> Option<&ScalarType> {
+    match expression {
+        TypedScalarExpression::NumberLiteral { r#type, .. }
+        | TypedScalarExpression::StringLiteral { r#type, .. }
+        | TypedScalarExpression::BooleanLiteral { r#type, .. }
+        | TypedScalarExpression::NoneLiteral { r#type, .. }
+        | TypedScalarExpression::GeometryProperty { r#type, .. } => Some(r#type),
+        TypedScalarExpression::ChoiceLiteral { r#type, .. }
+        | TypedScalarExpression::Reference { r#type, .. }
+        | TypedScalarExpression::CollectionIndex { r#type, .. }
+        | TypedScalarExpression::OptionalMember { r#type, .. }
+        | TypedScalarExpression::Unary { r#type, .. }
+        | TypedScalarExpression::Binary { r#type, .. }
+        | TypedScalarExpression::Group { r#type, .. }
+        | TypedScalarExpression::ValueIf { r#type, .. }
+        | TypedScalarExpression::ValueMatch { r#type, .. }
+        | TypedScalarExpression::Call { r#type, .. } => r#type.as_ref(),
+    }
+}
+
+fn geometry_carry_plan_assignable(
+    plan: &ValidatedImmutableGeometryCarryTargetPlan,
+    expected: super::types::GeometryInterfaceType,
+) -> bool {
+    match plan {
+        ValidatedImmutableGeometryCarryTargetPlan::Target(target) => {
+            geometry_type_assignable(resolved_geometry_target_type(target), expected)
+        }
+        ValidatedImmutableGeometryCarryTargetPlan::If {
+            then_target,
+            else_target,
+            ..
+        } => {
+            geometry_carry_plan_assignable(then_target, expected)
+                && geometry_carry_plan_assignable(else_target, expected)
+        }
+        ValidatedImmutableGeometryCarryTargetPlan::Match { arms, .. } => {
+            !arms.is_empty()
+                && arms
+                    .iter()
+                    .all(|(_, target)| geometry_carry_plan_assignable(target, expected))
+        }
+    }
+}
+
+fn decode_geometry_carry_target_plan(
+    value: &Value,
+    context: &str,
+) -> Result<ValidatedImmutableGeometryCarryTargetPlan, ScalarPayloadIssue> {
+    let object = as_object(value, context)?;
+    match object.get("kind").and_then(Value::as_str) {
+        Some("if") => {
+            reject_unexpected_fields(
+                object,
+                &["kind", "condition", "thenTarget", "elseTarget"],
+                context,
+            )?;
+            let condition =
+                validate_typed_expression_payload(require_field(object, "condition", context)?)?;
+            if typed_expression_type(&condition) != Some(&ScalarType::Boolean) {
+                return Err(issue(
+                    Code::LiteralTypeMismatch,
+                    format!("{context} if condition must have boolean type"),
+                ));
+            }
+            let then_target = decode_geometry_carry_target_plan(
+                require_field(object, "thenTarget", context)?,
+                context,
+            )?;
+            let else_target = decode_geometry_carry_target_plan(
+                require_field(object, "elseTarget", context)?,
+                context,
+            )?;
+            Ok(ValidatedImmutableGeometryCarryTargetPlan::If {
+                condition,
+                then_target: Box::new(then_target),
+                else_target: Box::new(else_target),
+            })
+        }
+        Some("match") => {
+            reject_unexpected_fields(object, &["kind", "scrutinee", "arms"], context)?;
+            let scrutinee =
+                validate_typed_expression_payload(require_field(object, "scrutinee", context)?)?;
+            let scrutinee_type = typed_expression_type(&scrutinee).ok_or_else(|| {
+                issue(
+                    Code::LiteralTypeMismatch,
+                    format!("{context} match scrutinee must be typed"),
+                )
+            })?;
+            let entries = require_field(object, "arms", context)?
+                .as_array()
+                .ok_or_else(|| {
+                    issue(
+                        Code::InvalidFieldType,
+                        format!("{context} match arms must be an array"),
+                    )
+                })?;
+            let mut arms = Vec::with_capacity(entries.len());
+            let mut labels = HashSet::new();
+            for arm in entries {
+                let arm = as_object(arm, &format!("{context} match arm"))?;
+                reject_unexpected_fields(
+                    arm,
+                    &["label", "target"],
+                    &format!("{context} match arm"),
+                )?;
+                let label = string(
+                    require_field(arm, "label", &format!("{context} match arm"))?,
+                    &format!("{context} match arm label"),
+                )?
+                .to_owned();
+                if !labels.insert(label.clone()) {
+                    return Err(issue(
+                        Code::LiteralTypeMismatch,
+                        format!("{context} match labels must be unique"),
+                    ));
+                }
+                let target = decode_geometry_carry_target_plan(
+                    require_field(arm, "target", &format!("{context} match arm"))?,
+                    context,
+                )?;
+                arms.push((label, target));
+            }
+            let exhaustive = match scrutinee_type {
+                ScalarType::Choice { options } => {
+                    labels.len() == options.len()
+                        && options.iter().all(|label| labels.contains(label))
+                }
+                ScalarType::Optional { .. } => {
+                    labels.len() == 2 && labels.contains("none") && labels.contains("some")
+                }
+                _ => false,
+            };
+            if !exhaustive || arms.is_empty() {
+                return Err(issue(
+                    Code::LiteralTypeMismatch,
+                    format!("{context} match arms must exhaustively cover the scrutinee type"),
+                ));
+            }
+            Ok(ValidatedImmutableGeometryCarryTargetPlan::Match { scrutinee, arms })
+        }
+        _ => Ok(ValidatedImmutableGeometryCarryTargetPlan::Target(
+            decode_geometry_target(value, context)?,
+        )),
+    }
 }
 
 fn decode_geometry_collection_source(
@@ -1030,21 +1192,19 @@ pub(crate) fn validate_binding_versions_payload(
                         require_field(carry, "initializerTarget", "immutable geometry carry")?,
                         "immutable geometry carry initializerTarget",
                     )?;
-                    let next = decode_geometry_target(
+                    let next = decode_geometry_carry_target_plan(
                         require_field(carry, "nextTarget", "immutable geometry carry")?,
                         "immutable geometry carry nextTarget",
                     )?;
-                    integer(
+                    let next_source_order = integer(
                         require_field(carry, "nextSourceOrder", "immutable geometry carry")?,
                         "immutable geometry carry nextSourceOrder",
                     )?;
                     if !geometry_type_assignable(
                         resolved_geometry_target_type(&initializer),
                         declared_type,
-                    ) || !geometry_type_assignable(
-                        resolved_geometry_target_type(&next),
-                        declared_type,
-                    ) {
+                    ) || !geometry_carry_plan_assignable(&next, declared_type)
+                    {
                         return Err(issue(
                             Code::LiteralTypeMismatch,
                             "immutable geometry carry target type must be assignable to declaredType",
@@ -1054,6 +1214,7 @@ pub(crate) fn validate_binding_versions_payload(
                         binding_id,
                         initializer,
                         next,
+                        next_source_order,
                     });
                 }
             }

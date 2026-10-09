@@ -17,7 +17,8 @@ import {
   isConditionalGroupElement,
   isForGroupElement,
   isContainerElement,
-  moduleRecordCollectionBinderFieldIdForPath
+  moduleRecordCollectionBinderFieldIdForPath,
+  elementDisplayName
 } from "@nuinuicad/nui-language";
 import {
   activityAllowsEvaluation,
@@ -927,7 +928,7 @@ export const evaluateElements = (
     const materializeCollectionNode = (node: import("../types/geometry").GeometryInputCollectionNode): GeometryInputTarget[] | null => {
       if (node.kind === "none") return null;
       if (node.kind === "leaf") {
-        const targets = node.targets.map(materialize);
+        const targets = node.targets.map((target) => materialize(target));
         return targets.some((target) => target === null) ? null : targets as GeometryInputTarget[];
       }
       if (node.kind === "geometryValueMap") {
@@ -989,14 +990,27 @@ export const evaluateElements = (
       }
       return false;
     };
-    const materialize = (target: GeometryInputTarget): GeometryInputTarget | null => {
+    const materialize = (target: GeometryInputTarget, parameterKey?: string): GeometryInputTarget | null => {
       if (target.kind === "geometryCarry") {
         const resolved = geometryCarryValues.get(target.bindingId);
         if (!resolved || resolved.kind === "unavailable") {
+          if (parameterKey === "source" && (element.type === "materializedPoint" || element.type === "materializedLine" || element.type === "materializedPath")) {
+            errors.push(geometryError(element, `${element.name} の source geometry が利用できません。依存先を確認してください。`));
+            return null;
+          }
           invalid(target, "evaluation-geometry-property-unavailable");
           return null;
         }
         if (resolved.kind === "point") {
+          if (element.type === "materializedPoint" && parameterKey === "source") {
+            const syntheticElementId = `geometry-carry:${target.bindingId}`;
+            computedGeometry.set(syntheticElementId, {
+              ...resolved,
+              elementId: syntheticElementId,
+              name: `Geometry carry ${target.bindingId}`
+            });
+            return { kind: "drawable", elementId: syntheticElementId, geometryType: "point" };
+          }
           return { kind: "coordinate", anchor: { mode: "coordinate", x: resolved.x, y: resolved.y } };
         }
         const syntheticElementId = `geometry-carry:${target.bindingId}`;
@@ -1095,7 +1109,7 @@ export const evaluateElements = (
         }
         return mapped;
       }
-      const members = collectionNode ? materializeCollectionNode(collectionNode) : target.members.map(materialize);
+      const members = collectionNode ? materializeCollectionNode(collectionNode) : target.members.map((member) => materialize(member));
       if (!members || members.some((member) => member === null)) {
         invalid(target, "evaluation-collection-index-invalid");
         return null;
@@ -1110,12 +1124,12 @@ export const evaluateElements = (
 
     for (const [parameterKey, target] of targets) {
       if (isTargetList(target)) {
-        const selected = target.map(materialize);
+        const selected = target.map((candidate) => materialize(candidate, parameterKey));
         if (selected.some((candidate) => candidate === null)) return null;
         materialized.set(parameterKey, selected as GeometryInputTarget[]);
         continue;
       }
-      const selected = materialize(target);
+      const selected = materialize(target, parameterKey);
       if (!selected) return null;
       if (selected.kind === "collectionValue") {
         const members = materializeCollectionNode(selected.value);
@@ -2456,6 +2470,36 @@ export const evaluateElements = (
       const immutableForGroupPlan = options.bindingVersions?.immutableForGroups?.get(
         mutationOwner?.ownerStatementId ?? (sourceElement ?? element).id
       );
+      const selectGeometryCarryTarget = (
+        plan: import("@nuinuicad/nui-language").ImmutableGeometryCarryTargetPlan,
+        sourceOrder: number,
+        incomingBindings: ReadonlyMap<BindingId, ScalarEvaluation>
+      ): import("@nuinuicad/nui-language").ScalarExpressionResolvedGeometryTarget | undefined => {
+        const incomingLookup = (bindingId: BindingId) => incomingBindings.get(bindingId) ?? lookupBinding(bindingId);
+        if (plan.kind === "if") {
+          const condition = evaluateTypedExpression(plan.condition, {
+            lookupBinding: incomingLookup,
+            lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, incomingLookup),
+            lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, incomingLookup)
+          });
+          if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+          return selectGeometryCarryTarget(condition.value.value ? plan.thenTarget : plan.elseTarget, sourceOrder, incomingBindings);
+        }
+        if (plan.kind === "match") {
+          const scrutinee = evaluateTypedExpression(plan.scrutinee, {
+            lookupBinding: incomingLookup,
+            lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, incomingLookup),
+            lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, incomingLookup)
+          });
+          if (scrutinee.status !== "ok") return undefined;
+          const label = scrutinee.value.kind === "choice"
+            ? scrutinee.value.value
+            : scrutinee.value.kind === "none" ? "none" : "some";
+          const arm = plan.arms.find((candidate) => candidate.label === label);
+          return arm ? selectGeometryCarryTarget(arm.target, sourceOrder, incomingBindings) : undefined;
+        }
+        return plan;
+      };
       const initializeGeometryCarries = () => {
         for (const carry of immutableForGroupPlan?.geometryCarries ?? []) {
           const initial = resolveGeometryTargetForEvaluation(
@@ -2464,7 +2508,7 @@ export const evaluateElements = (
             lookupBinding,
             geometryCarryValues
           );
-          if (initial) geometryCarryValues.set(carry.bindingId, initial);
+          if (initial && initial.kind !== "unavailable") geometryCarryValues.set(carry.bindingId, initial);
         }
       };
       const captureGeometryCollectionNode = (
@@ -2545,32 +2589,33 @@ export const evaluateElements = (
         }
         for (const [valueId, node] of nextNodes) geometryCollectionNodesByValueId.set(valueId, node);
       };
-      const commitGeometryCarries = () => {
+      const commitGeometryCarries = (incomingBindings: ReadonlyMap<BindingId, ScalarEvaluation> = new Map()) => {
         if (!immutableForGroupPlan?.geometryCarries?.length) return;
         const snapshot = new Map(geometryCarryValues);
         const nextValues = new Map<BindingId, GeometryBuiltinTargetLookupResult>();
         for (const carry of immutableForGroupPlan.geometryCarries) {
-          const next = resolveGeometryTargetForEvaluation(
-            carry.nextTarget,
-            carry.nextSourceOrder,
-            lookupBinding,
-            snapshot
-          );
-          if (next) nextValues.set(carry.bindingId, next);
+          const selectedTarget = selectGeometryCarryTarget(carry.nextTarget, carry.nextSourceOrder, incomingBindings);
+          const next = selectedTarget
+            ? resolveGeometryTargetForEvaluation(selectedTarget, carry.nextSourceOrder, lookupBinding, snapshot)
+            : undefined;
+          if (next && next.kind !== "unavailable") nextValues.set(carry.bindingId, next);
           else if (iterationGeometryMembersForLoop &&
-            carry.nextTarget.kind === "geometryValueForBinder" &&
-            carry.nextTarget.binderId === iterationBindingId) {
+            selectedTarget?.kind === "geometryValueForBinder" &&
+            selectedTarget.binderId === iterationBindingId) {
             // A failed collection member consumes this iteration's geometry
             // carry as unavailable, matching the active binder semantics.
             geometryCarryValues.delete(carry.bindingId);
           }
-          else errors.push({
-            elementId: element.id,
-            elementName: element.name,
-            missingDependencyId: carry.bindingId,
-            missingDependencyName: carry.bindingId,
-            message: `${element.name} の carry next geometry を評価できません。`
-          });
+          else {
+            geometryCarryValues.delete(carry.bindingId);
+            errors.push({
+              elementId: element.id,
+              elementName: elementDisplayName(element),
+              missingDependencyId: carry.bindingId,
+              missingDependencyName: carry.bindingId,
+              message: `${elementDisplayName(element)} の carry next geometry を評価できません。`
+            });
+          }
         }
         for (const [bindingId, value] of nextValues) geometryCarryValues.set(bindingId, value);
       };
@@ -2608,12 +2653,12 @@ export const evaluateElements = (
           ...(iterationRecordFieldOverrides ? { iterationRecordFieldOverrides } : {}),
           statements,
         ...(immutableForGroupPlan?.geometryCarries?.length || immutableForGroupPlan?.geometryCollectionCarries?.length ? {
-          onIterationComplete: (_frame, context) => {
+          onIterationComplete: (_frame, context, incomingBindings) => {
               const previousStatementForGeometryBinder = activeStatementForGeometryBinder;
               activeStatementForGeometryBinder = iterationGeometryMembersForLoop?.[context.iterationIndex] ?? null;
               try {
                 commitGeometryCollectionCarries(context.iterationIndex);
-                return commitGeometryCarries();
+                return commitGeometryCarries(incomingBindings);
               } finally {
                 activeStatementForGeometryBinder = previousStatementForGeometryBinder;
               }

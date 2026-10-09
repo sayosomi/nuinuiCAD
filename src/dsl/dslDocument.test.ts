@@ -723,6 +723,66 @@ describe("Task 36 typed dependency graph wiring", () => {
     expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
   });
 
+  it("retains typed if and exhaustive match geometry carry targets in the canonical plan", () => {
+    const compiled = compileDslDocument([
+      "nui 1",
+      "point Seed = coordinate(x: 1, y: 2)",
+      "point Alternate = coordinate(x: 7, y: 9)",
+      "const chooseSeed: boolean = true",
+      "const side: choice(left, right) = right",
+      "for i in range(min: 0, max: 0, step: 1) carry conditional: point = @Seed carry selected: point = @Seed {",
+      "  next conditional = if (@chooseSeed) { @Seed } else { @Alternate }",
+      "  next selected = match @side { left => @Alternate right => @Seed }",
+      "}",
+      "point Use = from(source: @selected)"
+    ].join("\n"), {
+      assignedElementIds: new Map([[1, "say496:seed"], [2, "say496:alternate"], [5, "say496:loop"], [9, "say496:use"]]),
+      assignedStatementIds: new Map([
+        [1, "say496:seed"],
+        [2, "say496:alternate"],
+        [3, "say496:choose"],
+        [4, "say496:side"],
+        [5, "say496:loop"],
+        [9, "say496:use"]
+      ])
+    });
+    const loop = compiled.document?.elements.find((element) => element.id === "say496:loop");
+    const plan = [...(compiled.bindingVersions?.immutableForGroups?.values() ?? [])]
+      .find((candidate) => candidate.ownerStatementId === "say496:loop");
+    const conditional = plan?.geometryCarries?.[0];
+    const selected = plan?.geometryCarries?.[1];
+    const graph = compiled.typedDependencyGraph;
+    if (!loop || !plan || !conditional || !selected || !graph) {
+      throw new Error(`expected conditional geometry carry descriptors: ${JSON.stringify({ diagnostics: compiled.diagnostics, plan, graph: Boolean(graph) })}`);
+    }
+
+    expect(conditional.nextTarget).toMatchObject({
+      kind: "if",
+      condition: { type: { kind: "boolean" } },
+      thenTarget: { statementId: "say496:seed" },
+      elseTarget: { statementId: "say496:alternate" }
+    });
+    expect(selected.nextTarget).toMatchObject({
+      kind: "match",
+      scrutinee: { type: { kind: "choice", options: ["left", "right"] } },
+      arms: [
+        { label: "left", target: { statementId: "say496:alternate" } },
+        { label: "right", target: { statementId: "say496:seed" } }
+      ]
+    });
+    expect(conditional.nextSourceOrder).toBeGreaterThanOrEqual(0);
+    expect(selected.nextSourceOrder).toBeGreaterThanOrEqual(0);
+    const guardedTargetEdges = graph.edges.filter((edge) =>
+      edge.from.kind === "element" && edge.from.id === loop.id &&
+      edge.activation?.guards.some((guard) => guard.controllerId.includes("geometry-carry"))
+    );
+    expect(guardedTargetEdges.map((edge) => edge.to.kind === "geometry-stage" ? edge.to.ownerId : edge.to.id)).toEqual(
+      expect.arrayContaining(["say496:seed", "say496:alternate"])
+    );
+    expect(guardedTargetEdges.every((edge) => edge.requiredness === "conditional")).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+  });
+
   it("keeps immutable geometry cycle diagnostics", () => {
     const cycle = compileDslDocument([
       "nui 1",

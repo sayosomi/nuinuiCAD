@@ -86,7 +86,8 @@ export type ForGroupExecutionExecutionPlan = {
   /** Called after the loop body's immutable carry snapshot has been committed. */
   onIterationComplete?: (
     frame: ForGroupExecutionFrame<ScalarEvaluation>,
-    context: Omit<ForGroupExecutionExecutionContext, "statement">
+    context: Omit<ForGroupExecutionExecutionContext, "statement">,
+    incomingBindings: ReadonlyMap<BindingId, ScalarEvaluation>
   ) => ForGroupExecutionRunOutcome | void;
 };
 export type ForGroupExecutionExecutionContext = {
@@ -655,6 +656,7 @@ export const createIncrementalLinearMutationEvaluator = (
         generatedStatements: plan.statements,
         ...(immutableCarryPlan || plan.onIterationComplete ? {
           onIterationComplete: (frame, context) => {
+            const incomingBindings = new Map<BindingId, ScalarEvaluation>();
             if (immutableCarryPlan) {
             const collectionSnapshot = new Map(collectionCarrySnapshots);
             activeCollectionCarrySnapshots = collectionSnapshot;
@@ -665,9 +667,8 @@ export const createIncrementalLinearMutationEvaluator = (
                 ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
                 : value ?? unavailable(carry.bindingId));
             }
-            const iterationBindings = new Map<BindingId, ScalarEvaluation>();
             for (const [bindingId, value] of frame.visibleBindings()) {
-              iterationBindings.set(bindingId as BindingId, typeof value === "number"
+              incomingBindings.set(bindingId as BindingId, typeof value === "number"
                 ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
                 : value);
             }
@@ -696,15 +697,21 @@ export const createIncrementalLinearMutationEvaluator = (
             for (const [bindingId, value] of nextValues) frame.commit(bindingId, value);
             const collectionNextSnapshots = (immutableCarryPlan.collectionCarries ?? []).map((carry) => [
               carry.collectionValueId,
-              materializeCollectionSnapshot(carry.nextValueId, collectionSnapshot, iterationBindings)
+              materializeCollectionSnapshot(carry.nextValueId, collectionSnapshot, incomingBindings)
             ] as const);
             for (const [collectionValueId, snapshot] of collectionNextSnapshots) {
               if (snapshot === undefined) collectionCarrySnapshots.delete(collectionValueId);
               else collectionCarrySnapshots.set(collectionValueId, snapshot);
             }
             activeCollectionCarrySnapshots = collectionCarrySnapshots;
+            } else {
+              for (const [bindingId, value] of frame.visibleBindings()) {
+                incomingBindings.set(bindingId as BindingId, typeof value === "number"
+                  ? { status: "ok", type: { kind: "number" }, value: { kind: "number", value } }
+                  : value);
+              }
             }
-            return plan.onIterationComplete?.(frame, context) ?? "completed";
+            return plan.onIterationComplete?.(frame, context, incomingBindings) ?? "completed";
           }
         } : {})
       }, (_frame: ForGroupExecutionFrame<ScalarEvaluation>, context: ForGroupIterationContext<ForGroupExecutionStatement>) => {
