@@ -2650,6 +2650,10 @@ export const compileDslDocument = (
         values.push({ valueId, kind: "none" });
         return;
       }
+      if (collectionValue.kind === "alias") {
+        values.push({ valueId, kind: "alias", targetValueId: collectionValue.targetValueId });
+        return;
+      }
       const collectionRecordType = collectionValue.valueType.elementType;
       if (collectionRecordType.kind === "record") {
         if (collectionValue.kind !== "literal") return;
@@ -2693,10 +2697,6 @@ export const compileDslDocument = (
         if (collectionValue.sourceElementType.kind === "record" || collectionValue.resultElementType.kind === "record") return;
         if (!collectionValue.body) return;
         values.push({ valueId, kind: "map", sourceValueId: collectionValue.sourceValueId, sourceElementType: collectionValue.sourceElementType, resultElementType: collectionValue.resultElementType, binderId: collectionValue.binderId, body: collectionValue.body, sourceOrder: collectionValue.sourceOrder });
-        return;
-      }
-      if (collectionValue.kind === "alias") {
-        values.push({ valueId, kind: "alias", targetValueId: collectionValue.targetValueId });
         return;
       }
       const members: ScalarProgramCollectionMember[] = [];

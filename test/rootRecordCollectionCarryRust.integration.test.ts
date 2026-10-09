@@ -92,6 +92,115 @@ const successfulCases = [
       "const resultY: number = @chosen.y"
     ].join("\n"),
     expectedValues: { resultX: 11, resultY: 22 }
+  },
+  {
+    name: "if-selected root record carry reference retains the incoming collection",
+    source: [
+      "nui 1",
+      "record Pair(x: number)",
+      "const seed: Pair = Pair(x: 1)",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
+      "  next a = if (true) { @a } else { [@seed] }",
+      "}",
+      "const chosen: Pair = @a[0]",
+      "const result: number = @chosen.x"
+    ].join("\n"),
+    expectedValues: { result: 1 }
+  },
+  {
+    name: "exhaustive match can select a root record carry reference",
+    source: [
+      "nui 1",
+      "record Pair(x: number)",
+      "const seed: Pair = Pair(x: 1)",
+      "const selector: choice(left, right) = left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
+      "  next a = match @selector { left => @a right => [@seed] }",
+      "}",
+      "const chosen: Pair = @a[0]",
+      "const result: number = @chosen.x"
+    ].join("\n"),
+    expectedValues: { result: 1 }
+  },
+  {
+    name: "if and match collection carries swap from one incoming record snapshot",
+    source: [
+      "nui 1",
+      "record Pair(x: number)",
+      "const first: Pair = Pair(x: 1)",
+      "const second: Pair = Pair(x: 2)",
+      "const selector: choice(left, right) = left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@first] carry b: Pair[] = [@second] {",
+      "  next a = if (true) { @b } else { [@first] }",
+      "  next b = match @selector { left => @a right => @b }",
+      "}",
+      "const chosenA: Pair = @a[0]",
+      "const chosenB: Pair = @b[0]",
+      "const resultA: number = @chosenA.x",
+      "const resultB: number = @chosenB.x"
+    ].join("\n"),
+    expectedValues: { resultA: 2, resultB: 1 }
+  },
+  {
+    name: "unselected error-producing if record branch remains lazy",
+    source: [
+      "nui 1",
+      "record Pair(x: number)",
+      "const seed: Pair = Pair(x: 1)",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
+      "  next a = if (true) { @a } else { if (1 / 0 > 0) { [@seed] } else { [@seed] } }",
+      "}",
+      "const chosen: Pair = @a[0]",
+      "const result: number = @chosen.x"
+    ].join("\n"),
+    expectedValues: { result: 1 }
+  },
+  {
+    name: "unselected error-producing exhaustive match record arm remains lazy",
+    source: [
+      "nui 1",
+      "record Pair(x: number)",
+      "const seed: Pair = Pair(x: 1)",
+      "const selector: choice(left, right) = left",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
+      "  next a = match @selector { left => @a right => if (1 / 0 > 0) { [@seed] } else { [@seed] } }",
+      "}",
+      "const chosen: Pair = @a[0]",
+      "const result: number = @chosen.x"
+    ].join("\n"),
+    expectedValues: { result: 1 }
+  },
+  {
+    name: "a selected record literal branch keeps nominal field lowering",
+    source: [
+      "nui 1",
+      "record Pair(x: number)",
+      "const seed: Pair = Pair(x: 1)",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@seed] {",
+      "  next a = if (true) { [@seed] } else { @a }",
+      "}",
+      "const chosen: Pair = @a[0]",
+      "const result: number = @chosen.x"
+    ].join("\n"),
+    expectedValues: { result: 1 }
+  },
+  {
+    name: "direct root record carry swaps retain both incoming fields",
+    source: [
+      "nui 1",
+      "record Pair(x: number)",
+      "const first: Pair = Pair(x: 1)",
+      "const second: Pair = Pair(x: 2)",
+      "for i in range(min: 0, max: 0, step: 1) carry a: Pair[] = [@first] carry b: Pair[] = [@second] {",
+      "  next a = @b",
+      "  next b = @a",
+      "}",
+      "const chosenA: Pair = @a[0]",
+      "const chosenB: Pair = @b[0]",
+      "const resultA: number = @chosenA.x",
+      "const resultB: number = @chosenB.x"
+    ].join("\n"),
+    expectedValues: { resultA: 2, resultB: 1 }
   }
 ] as const;
 
@@ -156,6 +265,7 @@ describe("SAY-488 record collection carry indexing through persistent Rust stdio
       status: "error",
       issueCode: "evaluation-collection-index-unavailable"
     });
+    expect(JSON.stringify(forwardRustPayload)).toContain("evaluation-collection-index-unavailable");
   }, 60_000);
 
   it.each(successfulCases)("$name", async (testCase) => {
