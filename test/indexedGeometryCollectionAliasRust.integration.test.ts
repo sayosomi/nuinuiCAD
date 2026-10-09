@@ -12,6 +12,7 @@ import {
   evaluationPayloadToResult,
   type EvaluationPayload
 } from "../src/geometry/evaluationPayload";
+import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import {
   createRustStdioParityClient,
@@ -53,6 +54,24 @@ const rawEntryForOccurrence = (payload: EvaluationPayload, occurrence: GeometryV
 };
 
 const evaluateRust = (fixture: EvaluationFixture) => rustStdio.evaluate(fixture.elements, optionsFor(fixture));
+
+const mappedPointFixture = (index: number) => fixtureFromSource([
+  "nui 1",
+  "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+  "line Vertical = segment(start: (5, -5), end: (5, 5))",
+  "const points: point[] = [(0, 0), (3, 4)]",
+  "const mapped: point[] = for item in @points {",
+  "  if (@item.x == 0) {",
+  "    intersection(line1: @Horizontal, line2: @Vertical, index: 1 / 0)",
+  "  } else {",
+  "    coordinate(x: @item.x, y: @item.y)",
+  "  }",
+  "}",
+  `line Use = segment(start: @mapped[${index}], end: (20, 20))`
+].join("\n"));
+
+const errorMessages = (result: ReturnType<typeof evaluationPayloadToResult>) =>
+  result.errors.map((error) => error.message).join("\n");
 
 const geometryFor = (fixture: EvaluationFixture, payload: EvaluationPayload, elementName: string) => {
   const element = fixture.elements.find((candidate) => candidate.name === elementName);
@@ -228,6 +247,75 @@ describe("indexed immutable geometry collection aliases through Rust", () => {
       message: "intersection geometry value cannot intersect the same source geometry twice."
     }]);
     expect(result.computedGeometryValues.has(geometryValueOccurrenceKey(same.occurrence))).toBe(false);
+  }, 30_000);
+
+  it("reports a selected mapped construction failure by occurrence without invalidating its index", async () => {
+    const fixture = mappedPointFixture(0);
+    const options = optionsFor(fixture);
+    const mappedEntries = options.geometryValueProgram?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined) ?? [];
+    expect(mappedEntries.map((entry) => entry.occurrence.mappedMemberIndex)).toEqual([0, 1]);
+    const failed = mappedEntries[0]!;
+    const expectedError = {
+      occurrence: failed.occurrence,
+      message: "intersection geometry value index must be a finite non-negative integer."
+    };
+    const referencePayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await evaluateRust(fixture);
+
+    for (const payload of [referencePayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.geometryValueErrors).toEqual([expectedError]);
+      expect(result.computedGeometryValues.has(geometryValueOccurrenceKey(failed.occurrence))).toBe(false);
+      expect(errorMessages(result)).not.toContain("evaluation-collection-index-invalid");
+      expect(errorMessages(result)).not.toContain("evaluation-geometry-value-unavailable");
+      expect(geometryFor(fixture, payload, "Use")).toBeUndefined();
+    }
+  }, 30_000);
+
+  it("leaves an unselected failing mapped point lazy when another member is selected", async () => {
+    const fixture = mappedPointFixture(1);
+    const options = optionsFor(fixture);
+    const mappedEntries = options.geometryValueProgram?.filter((entry) => entry.occurrence.mappedMemberIndex !== undefined) ?? [];
+    const failed = mappedEntries.find((entry) => entry.occurrence.mappedMemberIndex === 0)!;
+    const selected = mappedEntries.find((entry) => entry.occurrence.mappedMemberIndex === 1)!;
+    const referencePayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await evaluateRust(fixture);
+
+    for (const payload of [referencePayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(result.computedGeometryValues.has(geometryValueOccurrenceKey(failed.occurrence))).toBe(false);
+      expect(result.computedGeometryValues.get(geometryValueOccurrenceKey(selected.occurrence))?.value)
+        .toEqual({ kind: "point", x: 3, y: 4 });
+      expect(geometryFor(fixture, payload, "Use")).toMatchObject({
+        kind: "line",
+        start: { x: 3, y: 4 },
+        end: { x: 20, y: 20 }
+      });
+    }
+  }, 30_000);
+
+  it.each([
+    ["negative", "-1"],
+    ["fractional", "0.5"],
+    ["out-of-range", "2"]
+  ])("preserves the invalid collection index diagnostic for a %s runtime index", async (_label, indexExpression) => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const points: point[] = [(1, 2)]",
+      `const selectedIndex: number = ${indexExpression}`,
+      "line Use = segment(start: @points[@selectedIndex], end: (20, 20))"
+    ].join("\n"));
+    const options = optionsFor(fixture);
+    const referencePayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await evaluateRust(fixture);
+
+    for (const payload of [referencePayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(errorMessages(result)).toContain("evaluation-collection-index-invalid");
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(geometryFor(fixture, payload, "Use")).toBeUndefined();
+    }
   }, 30_000);
 
   it("keeps indexed mapped aliases distinct across Module instance paths", async () => {

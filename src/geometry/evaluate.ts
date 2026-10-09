@@ -1053,8 +1053,9 @@ export const evaluateElements = (
         const collectionResolvers = {
           resolveSourceCollectionNode: (valueId: string) => geometryCollectionNodesByValueId.get(valueId),
           materializeGeometryValueMap: (mapTarget: Extract<GeometryInputTarget, { kind: "geometryValueMap" }>) => {
-            const mapped = materializeGeometryValueMapTarget(mapTarget, sourceOrder);
-            return computedGeometryValues.has(geometryValueOccurrenceKey(mapped.occurrence)) ? mapped : undefined;
+            // Selection remains valid when this mapped occurrence records a
+            // construction error; geometryValueErrors owns that failure.
+            return materializeGeometryValueMapTarget(mapTarget, sourceOrder);
           }
         };
         const selected = resolveGeometryCollectionMemberForNode(

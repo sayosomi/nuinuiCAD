@@ -1459,7 +1459,12 @@ fn materialize_target(
                     .insert(PENDING_GEOMETRY_MAP_BINDER_ID.to_owned(), previous_binder);
             }
             state.computed_geometry.remove(binder_id);
-            if !state.computed_geometry_values.contains_key(occurrence) {
+            if !state.computed_geometry_values.contains_key(occurrence)
+                && !state
+                    .geometry_value_errors
+                    .iter()
+                    .any(|error| error.occurrence == *occurrence)
+            {
                 return Err("evaluation-geometry-value-unavailable".to_owned());
             }
             Ok(vec![GeometryInputTarget::GeometryValue {
