@@ -4623,6 +4623,11 @@ export const compileDslDocument = (
     const pointKey = parsedReference.reference.property === "start" || parsedReference.reference.property === "end"
       ? parsedReference.reference.property
       : undefined;
+    const stagePathFor = (ownerId: ElementId) => resolveTransformationStageSelection({
+      ownerId,
+      members: parsedReference.reference.property?.split(".") ?? [],
+      recipes: compiled.transformationRecipes ?? []
+    }).stagePath;
     const propertyFieldPath = parsedReference.reference.property && !pointKey
       ? [parsedReference.reference.property]
       : [];
@@ -4711,7 +4716,13 @@ export const compileDslDocument = (
       const geometryType = lookup.declaration.statement.kind === "element"
         ? lookup.declaration.statement.category === "point" ? "point" : lookup.declaration.statement.category === "line" ? "line" : "path"
         : "path";
-      return { statementId: elementId, statementIndex: lookup.declaration.statementIndex, geometryType, ...(pointKey ? { pointKey } : {}) };
+      return {
+        statementId: elementId,
+        statementIndex: lookup.declaration.statementIndex,
+        geometryType,
+        stagePath: stagePathFor(elementId),
+        ...(pointKey ? { pointKey } : {})
+      };
     }
     if ((lookup.declaration.kind === "typedDeclaration" || lookup.declaration.kind === "recordValue") && propertyFieldPath.length > 0) {
       const sourceStatement = lookup.declaration.statement as Extract<DslStatement, { kind: "typedDeclaration" }>;
