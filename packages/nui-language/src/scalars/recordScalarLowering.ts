@@ -260,8 +260,18 @@ const syntheticRecordField = (
 
 const recordCollectionFieldIndexNameFor = (
   baseName: string,
-  field: { identity?: RecordFieldIdentity; fieldIndex: number }
-) => `__nui_record_field__${JSON.stringify([baseName, field.identity?.recordStatementId ?? null, field.fieldIndex])}`;
+  fieldPath: readonly RecordFieldIdentity[]
+) => {
+  const field = fieldPath.at(-1);
+  if (!field) throw new Error("recordScalarLowering: collection field projection requires a non-empty field path");
+  return fieldPath.length === 1
+    ? `__nui_record_field__${JSON.stringify([baseName, field.recordStatementId, field.fieldIndex])}`
+    : `__nui_record_field__${JSON.stringify([
+        baseName,
+        "path",
+        fieldPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])
+      ])}`;
+};
 
 /** Retains authored optional-match binder metadata when projecting a record
  * control-flow arm into its scalar field expression. */
@@ -282,7 +292,8 @@ export const recordScalarMatchArmFor = (
  * name exists only inside the compiler and cannot become a source occurrence. */
 const projectRecordFieldExpression = (
   expression: RecordValueExpressionSemantic,
-  field: { fieldIndex: number; name: string }
+  field: { fieldIndex: number; name: string },
+  fieldPath: readonly RecordFieldIdentity[]
 ): ScalarExpressionAst | null => {
   if (expression.kind === "constructor") {
     const constructorField = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex);
@@ -296,12 +307,12 @@ const projectRecordFieldExpression = (
   if (expression.kind === "collectionIndex") {
     return {
       ...expression.expression,
-      name: recordCollectionFieldIndexNameFor(expression.expression.name, field)
+      name: recordCollectionFieldIndexNameFor(expression.expression.name, fieldPath)
     };
   }
   if (expression.kind === "if") {
-    const thenBranch = expression.thenBranch ? projectRecordFieldExpression(expression.thenBranch, field) : null;
-    const elseBranch = expression.elseBranch ? projectRecordFieldExpression(expression.elseBranch, field) : null;
+    const thenBranch = expression.thenBranch ? projectRecordFieldExpression(expression.thenBranch, field, fieldPath) : null;
+    const elseBranch = expression.elseBranch ? projectRecordFieldExpression(expression.elseBranch, field, fieldPath) : null;
     return thenBranch && elseBranch
       ? {
           kind: "valueIf",
@@ -315,7 +326,7 @@ const projectRecordFieldExpression = (
   if (expression.kind === "none" || expression.kind === "coalesce") return null;
   const scrutinee = expression.scrutinee;
   const arms = expression.arms.map((arm) => ({
-    expression: arm.expression ? projectRecordFieldExpression(arm.expression, field) : null
+    expression: arm.expression ? projectRecordFieldExpression(arm.expression, field, fieldPath) : null
   }));
   return arms.every((arm) => arm.expression)
     ? {
@@ -452,6 +463,11 @@ export const planRecordScalarLowering = ({
       let seedOrder = 0;
       for (const { field, path, type: expectedType } of scalarFieldPathsFor(definition)) {
         const bindingId = recordScalarBindingIdForPath(value.statementId, path);
+        const ast = projectRecordFieldExpression(value.valueExpression, field, path);
+        if (!ast) {
+          complete = false;
+          continue;
+        }
         if (path.length === 1) fieldBindings.set(field.fieldIndex, bindingId);
         pathBindings.set(recordFieldPathKey(path), bindingId);
         bindingSeeds.push({
@@ -469,11 +485,6 @@ export const planRecordScalarLowering = ({
           resolutionMode: "preResolvedOnly",
           catalogOrder: "source"
         });
-        const ast = path.length === 1 ? projectRecordFieldExpression(value.valueExpression, field) : null;
-        if (!ast) {
-          complete = false;
-          continue;
-        }
         const diagnosticOwner = !diagnosticOwnerAssigned;
         diagnosticOwnerAssigned = true;
         initializers.push({
