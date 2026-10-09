@@ -6,6 +6,7 @@ use super::super::bindings::select_collection_match_arm;
 use super::super::bindings::ScalarDocumentBindingResolver;
 use super::*;
 use crate::evaluation::for_group::PreparedForGroupIterations;
+use crate::evaluation::geometry_value_runtime::evaluate_geometry_value_program_parts;
 use crate::evaluation::scalar_expression_runtime::{
     evaluate_document_typed_expression, lookup_for_group_geometry_property,
     lookup_geometry_property, lookup_geometry_value_binder_property,
@@ -177,11 +178,12 @@ impl ScalarMutationResolver<'_> {
         state: &EvaluationState,
         source_order: usize,
     ) -> Result<
-        &'target super::super::types::ScalarExpressionResolvedGeometryTarget,
+        &'target ValidatedImmutableGeometryCarryTargetPlan,
         super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
     > {
         match plan {
-            ValidatedImmutableGeometryCarryTargetPlan::Target(target) => Ok(target),
+            ValidatedImmutableGeometryCarryTargetPlan::Target(_)
+            | ValidatedImmutableGeometryCarryTargetPlan::Construction { .. } => Ok(plan),
             ValidatedImmutableGeometryCarryTargetPlan::If {
                 condition,
                 then_target,
@@ -378,14 +380,54 @@ impl ScalarMutationResolver<'_> {
             .geometry_carries
             .iter()
             .map(|carry| {
-                let selected_target = self.select_geometry_carry_target(
+                let selected_plan = self.select_geometry_carry_target(
                     &carry.next,
                     &snapshot_resolver,
                     state,
                     carry.next_source_order,
                 );
-                let (selected_target, resolved) = match selected_target {
-                    Ok(target) => {
+                let selected_target = match selected_plan {
+                    Ok(ValidatedImmutableGeometryCarryTargetPlan::Target(target)) => Some(target.clone()),
+                    Ok(ValidatedImmutableGeometryCarryTargetPlan::Construction {
+                        source_statement_id,
+                        source_statement_index,
+                        occurrence,
+                        geometry_type,
+                        construction,
+                    }) => {
+                        state.computed_geometry_values.remove(occurrence);
+                        state.geometry_value_errors.retain(|error| &error.occurrence != occurrence);
+                        evaluate_geometry_value_program_parts(
+                            source_statement_id,
+                            match geometry_type {
+                                super::super::types::GeometryInterfaceType::Point => "point",
+                                super::super::types::GeometryInterfaceType::Line => "line",
+                                super::super::types::GeometryInterfaceType::Path => "path",
+                            },
+                            occurrence,
+                            carry.next_source_order as f64,
+                            construction,
+                            &snapshot_resolver,
+                            state,
+                        );
+                        Some(super::super::types::ScalarExpressionResolvedGeometryTarget {
+                            statement_id: source_statement_id.clone(),
+                            statement_index: *source_statement_index as f64,
+                            geometry_type: *geometry_type,
+                            point_key: None,
+                            stage_path: None,
+                            geometry_value_occurrence: Some(occurrence.clone()),
+                            geometry_value_binder_id: None,
+                            for_group_template_element_id: None,
+                            for_group_target_source_order: None,
+                            for_group_index: None,
+                        })
+                    }
+                    Ok(_) => None,
+                    Err(_) => None,
+                };
+                let resolved = match selected_target.as_ref() {
+                    Some(target) => {
                         let template_element_id = target
                             .for_group_template_element_id
                             .as_deref()
@@ -421,9 +463,9 @@ impl ScalarMutationResolver<'_> {
                                 target,
                             )
                         };
-                        (Some(target), resolved)
+                        resolved
                     }
-                    Err(error) => (None, Err(error)),
+                    None => Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::InvalidArgument),
                 };
                 (carry, selected_target, resolved)
             })
@@ -434,7 +476,7 @@ impl ScalarMutationResolver<'_> {
                     self.install_geometry_carry_value(
                         state,
                         &carry.binding_id,
-                        selected_target.expect("resolved geometry carry has a selected target"),
+                        &selected_target.expect("resolved geometry carry has a selected target"),
                         &value,
                     );
                 }
@@ -443,6 +485,7 @@ impl ScalarMutationResolver<'_> {
                         .as_deref()
                         .is_some_and(|iteration_binding_id| {
                             selected_target
+                                .as_ref()
                                 .and_then(|target| target.geometry_value_binder_id.as_deref())
                                 == Some(iteration_binding_id)
                         }) =>

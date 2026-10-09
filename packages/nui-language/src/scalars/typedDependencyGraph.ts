@@ -1331,10 +1331,11 @@ export const buildTypedDependencyGraph = ({
     from: TypedDependencyEndpoint,
     expression: TypedScalarExpression,
     guards: readonly TypedDependencyActivationGuard[],
-    occurrenceNamespace?: string
+    occurrenceNamespace?: string,
+    ignoredBindingIds: ReadonlySet<BindingId> = new Set()
   ) => {
     for (const reference of referencesIn(expression)) {
-      if (!reference.bindingId || !bindingAnalysis?.catalog.bindingsById.has(reference.bindingId)) continue;
+      if (!reference.bindingId || ignoredBindingIds.has(reference.bindingId) || !bindingAnalysis?.catalog.bindingsById.has(reference.bindingId)) continue;
       const mergedGuards = [...guards, ...(reference.activation?.guards ?? [])];
       add({
         kind: "initializer",
@@ -1364,7 +1365,7 @@ export const buildTypedDependencyGraph = ({
         addGeometryValueDependency(from, reference.geometryValueOccurrence, reference.span, mergedGuards, occurrenceNamespace);
       } else {
         const bindingId = reference.geometryCarryBindingId ?? reference.geometryValueBinderId;
-        if (bindingId && bindingAnalysis?.catalog.bindingsById.has(bindingId)) {
+        if (bindingId && !ignoredBindingIds.has(bindingId) && bindingAnalysis?.catalog.bindingsById.has(bindingId)) {
           add({
             kind: "geometry-property",
             from,
@@ -1386,17 +1387,18 @@ export const buildTypedDependencyGraph = ({
           });
         }
       }
-      if (reference.forGroupOccurrenceIndex) addScalarProgramDependencies(from, reference.forGroupOccurrenceIndex, mergedGuards, occurrenceNamespace);
+      if (reference.forGroupOccurrenceIndex) addScalarProgramDependencies(from, reference.forGroupOccurrenceIndex, mergedGuards, occurrenceNamespace, ignoredBindingIds);
     }
   };
   const addProgramTargetDependency = (
     from: TypedDependencyEndpoint,
     target: GeometryValueProgramTarget,
     guards: readonly TypedDependencyActivationGuard[],
-    occurrenceNamespace?: string
+    occurrenceNamespace?: string,
+    ignoredBindingIds: ReadonlySet<BindingId> = new Set()
   ) => {
     if (target.kind === "geometryInputTarget") {
-      addScalarProgramDependencies(from, target.target.index, guards, occurrenceNamespace);
+      addScalarProgramDependencies(from, target.target.index, guards, occurrenceNamespace, ignoredBindingIds);
       const input = target.target;
       for (const dependency of geometryValueOccurrencesInInput(input)) {
         const mergedGuards = [...guards, ...dependency.guards];
@@ -1422,7 +1424,7 @@ export const buildTypedDependencyGraph = ({
       addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
     } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
       const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-      if (bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+      if (!ignoredBindingIds.has(bindingId) && bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
         kind: "geometry",
         from,
         to: bindingEndpoint(bindingAnalysis, bindingId),
@@ -1562,6 +1564,26 @@ export const buildTypedDependencyGraph = ({
             ? { controllerExpression: targetPlan.scrutinee }
             : { staticSelection: arm.label === selectedLabel ? "selected" : "unselected" })
         }]));
+        return;
+      }
+      if (targetPlan.kind === "geometryValueConstruction") {
+        const entry: GeometryValueProgramEntry = {
+          sourceStatementId: targetPlan.sourceStatementId,
+          sourceStatementIndex: targetPlan.sourceStatementIndex,
+          declaredInterfaceType: targetPlan.geometryType,
+          occurrence: targetPlan.occurrence,
+          sourceExecutionPosition: targetPlan.sourceStatementIndex,
+          executionPosition: targetPlan.sourceStatementIndex,
+          construction: targetPlan.construction
+        };
+        for (const dependency of geometryValueProgramDependencies(entry)) {
+          const mergedGuards = [...guards, ...dependency.guards];
+          if (dependency.kind === "scalar") {
+            addScalarProgramDependencies(from, dependency.expression, mergedGuards, namespace, loopCarryBindingIds);
+          } else {
+            addProgramTargetDependency(from, dependency.target, mergedGuards, namespace, loopCarryBindingIds);
+          }
+        }
         return;
       }
       targetDependency(targetPlan, guards);

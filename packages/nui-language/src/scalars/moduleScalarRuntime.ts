@@ -168,6 +168,7 @@ export type ModuleScalarRuntimeCompilation = {
   conditionalOwnerStatementIdByElementId: ReadonlyMap<ElementId, string>;
   forGroupMutationOwnerByElementId: ReadonlyMap<ElementId, Extract<BindingControlOwner, { kind: "forGroup" }> & { elementId: ElementId }>;
   geometryValueProgram: GeometryValueProgram;
+  geometryCarryNextPrograms: ReadonlyMap<string, GeometryValueProgramNode>;
   geometryInputTargetsByRuntimeElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   geometryCollectionNodesByValueId: ReadonlyMap<string, GeometryInputCollectionNode>;
   immutableForGroups: ReadonlyMap<string, ImmutableForGroupPlan>;
@@ -2061,6 +2062,7 @@ export const compileModuleScalarRuntime = ({
   moduleMaterialization,
   documentBindingAnalysis,
   documentScalarProgram,
+  geometryCarryNextValues = [],
   collectionCarryInputs = [],
   collectionCarryValues = [],
   collectionCarrySemanticValues = [],
@@ -2081,6 +2083,7 @@ export const compileModuleScalarRuntime = ({
   moduleMaterialization: ModuleMaterialization;
   documentBindingAnalysis?: BindingAnalysis;
   documentScalarProgram?: ScalarProgram;
+  geometryCarryNextValues?: readonly import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic[];
   collectionCarryInputs?: readonly (ImmutableCollectionCarry & {
     ownerStatementId: string;
     ownerStatementIndex: number;
@@ -6310,6 +6313,7 @@ export const compileModuleScalarRuntime = ({
   for (const [bindingId, initializer] of moduleInitializers) initializers.set(bindingId, initializer);
 
   const geometryValueProgramEntries: GeometryValueProgramEntry[] = [];
+  const geometryCarryNextPrograms = new Map<string, GeometryValueProgramNode>();
 
   const lowerGeometryValueScalar = (semantic: ModuleScalarExpressionSemantic, context?: InstanceContext) => {
     const lowered = context
@@ -7030,6 +7034,10 @@ export const compileModuleScalarRuntime = ({
   for (const value of moduleSemanticAnalysis.geometryValues) {
     if (value.ownerModuleDefinitionStatementId !== null) continue;
     addGeometryValueProgramEntry(value);
+  }
+  for (const value of geometryCarryNextValues) {
+    const construction = addGeometryValueProgramEntry(value, undefined, false);
+    if (construction) geometryCarryNextPrograms.set(value.statementId, construction);
   }
   for (const recordValue of moduleSemanticAnalysis.rootRecordValuesByStatementId.values()) {
     if (!recordValue.target || !recordValue.valueExpression || !recordValue.value.typeIdentity) continue;
@@ -7861,6 +7869,7 @@ export const compileModuleScalarRuntime = ({
     conditionalOwnerStatementIdByElementId,
     forGroupMutationOwnerByElementId,
     geometryValueProgram,
+    geometryCarryNextPrograms,
     geometryInputTargetsByRuntimeElementId,
     geometryCollectionNodesByValueId,
     immutableForGroups

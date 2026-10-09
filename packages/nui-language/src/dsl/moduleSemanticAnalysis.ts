@@ -517,6 +517,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   const definitionStates: DefinitionState[] = [];
   const stateByIndex = new Map<number, DefinitionState>();
   const geometryValuesByStatementIndex = new Map<number, ModuleGeometryValueSemantic>();
+  const geometryCarryNextValues: ModuleGeometryValueSemantic[] = [];
   const instances: ModuleInstanceSemantic[] = [];
   const definitions = statements
     .map((statement, statementIndex) => ({ statement, statementIndex }))
@@ -6428,6 +6429,39 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ]);
     }
   }
+  for (const request of input.geometryCarryNextConstructions ?? []) {
+    const source = input.logicalTextByStatementIndex?.get(request.statementIndex) ?? "";
+    const raw = source.slice(request.span.start, request.span.end);
+    const construction = parseGeometryValueConstruction(
+      request.statementIndex,
+      null,
+      raw,
+      request.span,
+      request.expectedInterfaceType,
+      {
+        scalarResolver: (reference) => input.resolveGeometryCarryNextScalar?.({
+          statementIndex: request.statementIndex,
+          name: reference.name,
+          span: reference.span
+        }) ?? resolveSourceScalar(request.statementIndex, null, reference.name, null, reference.span)
+      }
+    );
+    if (!construction) continue;
+    geometryCarryNextValues.push({
+      statementId: request.statementId,
+      statementIndex: request.statementIndex,
+      name: request.statementId,
+      declaredInterfaceType: request.expectedInterfaceType,
+      declaredValueType: { kind: request.expectedInterfaceType },
+      ownerModuleDefinitionStatementId: null,
+      ownerModuleDefinitionStatementIndex: null,
+      exported: false,
+      initializer: null,
+      construction,
+      valueExpression: null,
+      backingTarget: null
+    });
+  }
   const parentArg = commonArgSpecs.find((arg) => arg.special === "parent");
   const resolveRootParent = (
     statementIndex: number,
@@ -7821,6 +7855,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     rootGeometryReferencesByStatementId,
     rootRecordValuesByStatementId,
     geometryValues,
+    ...(geometryCarryNextValues.length ? { geometryCarryNextValues } : {}),
     geometryValuesByStatementId,
     geometryValuesByStatementIndex,
     rootParentReferencesByStatementId,

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import type { ComputedGeometry } from "../src/geometry/evaluationTypes";
-import type { ImmutableGeometryCarryTargetPlan, ScalarExpressionResolvedGeometryTarget } from "@nuinuicad/nui-language";
+import type { ImmutableGeometryCarryTargetPlan } from "@nuinuicad/nui-language";
 import {
   createRustStdioParityClient,
   fixtureFromSource,
@@ -42,7 +42,9 @@ const geometryCarries = (fixture: ReturnType<typeof fixtureFromSource>) =>
   [...(fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
     .flatMap((plan) => plan.geometryCarries ?? []);
 
-const targetLeaves = (plan: ImmutableGeometryCarryTargetPlan): ScalarExpressionResolvedGeometryTarget[] => {
+type GeometryCarryLeafTarget = Exclude<ImmutableGeometryCarryTargetPlan, { kind: "if" | "match" }>;
+
+const targetLeaves = (plan: ImmutableGeometryCarryTargetPlan): GeometryCarryLeafTarget[] => {
   if (plan.kind === "if") return [...targetLeaves(plan.thenTarget), ...targetLeaves(plan.elseTarget)];
   if (plan.kind === "match") return plan.arms.flatMap((arm) => targetLeaves(arm.target));
   return [plan];
@@ -75,7 +77,14 @@ const expectCanonicalTargets = (
     )
   );
   for (const target of targetLeaves(carry.nextTarget)) {
-    if (target.kind === "geometryCarry") expect(targetBindingIds.has(target.bindingId)).toBe(true);
+    if (target.kind === "geometryValueConstruction") {
+      expect(target.sourceStatementId).toBe(target.occurrence.sourceStatementId);
+      expect(target.occurrence.instancePath).toEqual([]);
+      expect(Number.isFinite(target.sourceStatementIndex)).toBe(true);
+      expect(target.sourceStatementIndex).toBeGreaterThanOrEqual(0);
+      expect(target.construction.kind).not.toBe("none");
+    }
+    else if (target.kind === "geometryCarry") expect(targetBindingIds.has(target.bindingId)).toBe(true);
     else if (target.kind === "geometryValueForBinder") expect(targetBindingIds.has(target.binderId)).toBe(true);
     else if (target.kind === "geometryValue") expect(geometryValueOccurrences.has(JSON.stringify(target.occurrence))).toBe(true);
     else if (target.kind === "forGroupOccurrence") expect(targetElementIds.has(target.templateElementId)).toBe(true);
@@ -183,6 +192,69 @@ describe("SAY-496 geometry carry conditional next plans through persistent Rust 
       for (const payload of [conditionalPoint.tsPayload, conditionalPoint.rustPayload]) {
         expect(geometryFor(conditionalPoint.fixture, payload, "Use")).toMatchObject({ kind: "point", x: 1, y: 2 });
       }
+    }
+  }, 60_000);
+
+  it("lowers direct, if, and choice-match construction leaves and keeps unselected leaves lazy", async () => {
+    const constructed = await evaluateBoth([
+      "nui 1",
+      "const seed: point = coordinate(x: 1, y: 2)",
+      "const useBranch: boolean = true",
+      "const side: choice(left, right) = right",
+      "for i in range(min: 0, max: 0, step: 1) carry first: number = 3 carry second: number = 4 carry direct: point = @seed carry branch: point = @seed carry selected: point = @seed {",
+      "  next direct = coordinate(x: @first, y: @second)",
+      "  next first = @second",
+      "  next second = @first",
+      "  next branch = if (@useBranch) { coordinate(x: 5, y: 6) } else { @seed }",
+      "  next selected = match @side { left => coordinate(x: 1 / 0, y: 9) right => coordinate(x: 7, y: 8) }",
+      "}",
+      "point DirectUse = from(source: @direct)",
+      "point BranchUse = from(source: @branch)",
+      "point MatchUse = from(source: @selected)",
+      "const FirstAfter: number = @first",
+      "const SecondAfter: number = @second"
+    ].join("\n"));
+    const carries = geometryCarries(constructed.fixture);
+    expect(carries).toHaveLength(3);
+    expect(carries.map((carry) => carry.nextTarget.kind)).toEqual(["geometryValueConstruction", "if", "match"]);
+    for (const carry of carries) expectCanonicalTargets(constructed.fixture, carry);
+    expect(carries[1]?.nextTarget).toMatchObject({
+      kind: "if",
+      thenTarget: { kind: "geometryValueConstruction", geometryType: "point" },
+      elseTarget: { statementId: expect.any(String) }
+    });
+    expect(carries[2]?.nextTarget).toMatchObject({
+      kind: "match",
+      arms: [
+        { label: "left", target: { kind: "geometryValueConstruction", geometryType: "point" } },
+        { label: "right", target: { kind: "geometryValueConstruction", geometryType: "point" } }
+      ]
+    });
+    for (const payload of [constructed.tsPayload, constructed.rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expect(geometryFor(constructed.fixture, payload, "DirectUse")).toMatchObject({ kind: "point", x: 3, y: 4 });
+      expect(geometryFor(constructed.fixture, payload, "BranchUse")).toMatchObject({ kind: "point", x: 5, y: 6 });
+      expect(geometryFor(constructed.fixture, payload, "MatchUse")).toMatchObject({ kind: "point", x: 7, y: 8 });
+      expect(scalarFor(constructed.fixture, payload, "FirstAfter")).toMatchObject({ status: "ok", value: { kind: "number", value: 4 } });
+      expect(scalarFor(constructed.fixture, payload, "SecondAfter")).toMatchObject({ status: "ok", value: { kind: "number", value: 3 } });
+    }
+  }, 60_000);
+
+  it("drops a previous geometry carry when a later selected construction is invalid", async () => {
+    const failed = await evaluateBoth([
+      "nui 1",
+      "const seed: point = coordinate(x: 1, y: 2)",
+      "for i in range(min: 0, max: 1, step: 1) carry p: point = @seed {",
+      "  next p = if (@i == 0) { coordinate(x: 3, y: 4) } else { coordinate(x: 1 / 0, y: 9) }",
+      "}",
+      "point Use = from(source: @p)"
+    ].join("\n"));
+    const carry = geometryCarries(failed.fixture)[0];
+    expect(carry?.nextTarget.kind).toBe("if");
+    expectCanonicalTargets(failed.fixture, carry!);
+    for (const payload of [failed.tsPayload, failed.rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors.length).toBeGreaterThan(0);
+      expect(geometryFor(failed.fixture, payload, "Use")).toBeUndefined();
     }
   }, 60_000);
 

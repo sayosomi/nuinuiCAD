@@ -28,6 +28,7 @@ import {
   remapTypedExpressionSourceOrders
 } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
+import { resolveReferencesAtSites } from "../scalars/bindingResolution";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
 import { optionalCollectionMatchPresenceProjection } from "../scalars/expressionTypecheck";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
@@ -1440,6 +1441,41 @@ export const compileDslDocument = (
         sourceNamespace: sourceLexicalNamespace
       })
     : undefined;
+  const geometryCarryNextConstructionId = (bindingId: string, branchPath: readonly string[]) =>
+    `geometry-carry-next:${encodeURIComponent(bindingId)}:${branchPath.length ? branchPath.map(encodeURIComponent).join("/") : "root"}`;
+  const geometryCarryNextConstructionRequests: NonNullable<Parameters<typeof analyzeModuleSemantics>[0]["geometryCarryNextConstructions"]>[number][] = [];
+  for (const declaration of immutableCarryCompilation?.declarations ?? []) {
+    const valueType = dslRequiredValueTypeOf(declaration.valueType);
+    if (!valueType || !isDslGeometryValueType(valueType)) continue;
+    const next = immutableCarryCompilation?.nexts.find((candidate) =>
+      candidate.ownerStatementIndex === declaration.ownerStatementIndex &&
+      candidate.carryName === (declaration.fieldPath ? declaration.name.slice(0, declaration.name.indexOf(".")) : declaration.name) &&
+      (candidate.fieldPath?.join(".") ?? "") === (declaration.fieldPath?.join(".") ?? "")
+    );
+    if (!next) continue;
+    const parsedNext = parseScalarExpression(" ".repeat(next.expressionSpan.start) + next.expression, next.expressionSpan);
+    if (!parsedNext.ast) continue;
+    const collect = (node: ScalarExpressionAst, branchPath: readonly string[]) => {
+      if (node.kind === "group") {
+        collect(node.expression, branchPath);
+      } else if (node.kind === "valueIf") {
+        if (node.elseBranch) {
+          collect(node.thenBranch, [...branchPath, "if:then"]);
+          collect(node.elseBranch, [...branchPath, "if:else"]);
+        }
+      } else if (node.kind === "valueMatch") {
+        for (const arm of node.arms) collect(arm.expression, [...branchPath, `match:${arm.label}`]);
+      } else if (node.kind === "call") {
+        geometryCarryNextConstructionRequests.push({
+          statementId: geometryCarryNextConstructionId(declaration.bindingId, branchPath),
+          statementIndex: next.statementIndex,
+          span: node.span,
+          expectedInterfaceType: valueType.kind
+        });
+      }
+    };
+    collect(parsedNext.ast, []);
+  }
   const rootImmutableCarryBindingIds = new Set(
     (immutableCarryCompilation?.bindings ?? [])
       .filter((binding) => includeStatement(parsed.statements[binding.statementIndex]!, binding.statementIndex))
@@ -3293,6 +3329,56 @@ export const compileDslDocument = (
         spans,
         logicalTextByStatementIndex,
         documentScalarBindings,
+        geometryCarryNextConstructions: geometryCarryNextConstructionRequests,
+        resolveGeometryCarryNextScalar: ({ statementIndex, name }) => {
+          const scalarBindings = documentScalarAnalysis?.bindingAnalysis;
+          const scopeId = sourceLexicalNamespace?.scopeIndex.scopeOfStatement.get(statementIndex) ??
+            sourceLexicalNamespace?.scopeIndex.rootScopeId;
+          if (scalarBindings && scopeId) {
+            const key = "geometry-carry-next";
+            const resolution = resolveReferencesAtSites(scalarBindings.catalog, [{
+              key,
+              name,
+              site: { statementIndex, scopeId }
+            }]).get(key);
+            if (resolution?.kind === "resolved") {
+              const binding = resolution.binding;
+              const type = binding.declaredType ? scalarExpressionTypeOfDslValueType(binding.declaredType) : null;
+              const statementId = stableStatementIdByIndex?.get(binding.statementIndex);
+              if (type && statementId) return {
+                target: {
+                  kind: "documentBinding",
+                  bindingId: binding.id,
+                  statementId,
+                  statementIndex: binding.statementIndex
+                },
+                type,
+                resolution: "resolved" as const
+              };
+            }
+          }
+          const carry = immutableCarryCompilation?.resolver(
+            name,
+            statementIndex,
+            scopeId ?? sourceLexicalNamespace?.scopeIndex.rootScopeId ?? "root"
+          );
+          if (carry?.kind !== "resolved") return null;
+          const declaration = immutableCarryCompilation?.declarations.find((candidate) => candidate.bindingId === carry.bindingId);
+          const type = declaration?.valueType ? scalarExpressionTypeOfDslValueType(declaration.valueType) : null;
+          const statementId = declaration && stableStatementIdByIndex?.get(declaration.ownerStatementIndex);
+          return type && declaration && statementId
+            ? {
+                target: {
+                  kind: "documentBinding" as const,
+                  bindingId: carry.bindingId,
+                  statementId,
+                  statementIndex: declaration.ownerStatementIndex
+                },
+                type,
+                resolution: "resolved" as const
+              }
+            : null;
+        },
         additionalCollectionControlFlowValues: immutableCarryCollectionControlFlowValues,
         resolveConstructionInput,
         resolveGeometryStageSelection: ({ statementId, members }) => {
@@ -4345,6 +4431,7 @@ export const compileDslDocument = (
       moduleMaterialization: compiled.moduleMaterialization,
       documentBindingAnalysis: documentScalarAnalysis?.bindingAnalysis,
       documentScalarProgram,
+      geometryCarryNextValues: locallyAnalyzedSourceSemanticCompilation?.geometryCarryNextValues,
       collectionCarryInputs: moduleCollectionCarryInputs,
       geometryCollectionCarryInputs: moduleGeometryCollectionCarryInputs,
       collectionCarryValues: carryCollectionRuntime.values,
@@ -4905,9 +4992,10 @@ export const compileDslDocument = (
   const geometryCarryTargetPlanForAst = (
     node: ScalarExpressionAst,
     declaration: ImmutableCarryDeclaration,
-    next: ImmutableCarryNext
+    next: ImmutableCarryNext,
+    branchPath: readonly string[] = []
   ): ImmutableGeometryCarryTargetPlan | null => {
-    if (node.kind === "group") return geometryCarryTargetPlanForAst(node.expression, declaration, next);
+    if (node.kind === "group") return geometryCarryTargetPlanForAst(node.expression, declaration, next, branchPath);
     if (node.kind === "valueIf") {
       if (!node.elseBranch) return null;
       const controllerId = geometryCarryControllerBindingIdByNode.get(geometryCarryControllerKey(declaration.bindingId, node));
@@ -4915,8 +5003,8 @@ export const compileDslDocument = (
         ? documentScalarAnalysis?.typedInitializerByBindingId.get(controllerId)
         : undefined;
       if (!condition || condition.type?.kind !== "boolean") return null;
-      const thenTarget = geometryCarryTargetPlanForAst(node.thenBranch, declaration, next);
-      const elseTarget = geometryCarryTargetPlanForAst(node.elseBranch, declaration, next);
+      const thenTarget = geometryCarryTargetPlanForAst(node.thenBranch, declaration, next, [...branchPath, "if:then"]);
+      const elseTarget = geometryCarryTargetPlanForAst(node.elseBranch, declaration, next, [...branchPath, "if:else"]);
       return thenTarget && elseTarget
         ? {
             kind: "if",
@@ -4934,7 +5022,7 @@ export const compileDslDocument = (
       if (selector?.kind !== "valueMatch" || selector.type?.kind !== "string") return null;
       const arms = node.arms.map((arm) => {
         const typedArm = selector.arms.find((candidate) => candidate.label === arm.label);
-        const target = geometryCarryTargetPlanForAst(arm.expression, declaration, next);
+        const target = geometryCarryTargetPlanForAst(arm.expression, declaration, next, [...branchPath, `match:${arm.label}`]);
         return typedArm && target ? { label: arm.label, target } : null;
       });
       if (arms.some((arm) => arm === null) || arms.length !== selector.arms.length) return null;
@@ -4944,6 +5032,25 @@ export const compileDslDocument = (
         arms: arms as { label: string; target: ImmutableGeometryCarryTargetPlan }[]
       };
     }
+    if (node.kind === "call") {
+      const declaredGeometryType = dslRequiredValueTypeOf(declaration.valueType);
+      if (!declaredGeometryType || !isDslGeometryValueType(declaredGeometryType)) return null;
+      const sourceStatementId = geometryCarryNextConstructionId(declaration.bindingId, branchPath);
+      const construction = moduleScalarCompilation?.geometryCarryNextPrograms.get(sourceStatementId) ??
+        buildRootGeometryValueProgram({
+          values: locallyAnalyzedSourceSemanticCompilation?.geometryCarryNextValues ?? [],
+          elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
+        }).find((entry) => entry.sourceStatementId === sourceStatementId)?.construction;
+      if (!construction) return null;
+      return {
+        kind: "geometryValueConstruction",
+        sourceStatementId,
+        sourceStatementIndex: next.statementIndex,
+        occurrence: { sourceStatementId, instancePath: [] },
+        geometryType: declaredGeometryType.kind,
+        construction
+      };
+    }
     const raw = controllerRawFor(next.expression, next.expressionSpan, node.span);
     return rootExecutionOrderGeometryTarget(
       geometryTargetForCarryExpression(raw, next.statementIndex, declaration.bindingId)
@@ -4951,7 +5058,7 @@ export const compileDslDocument = (
   };
   const geometryTargetsInCarryPlan = (
     plan: ImmutableGeometryCarryTargetPlan
-  ): readonly ScalarExpressionResolvedGeometryTarget[] => {
+  ): readonly Exclude<ImmutableGeometryCarryTargetPlan, { kind: "if" | "match" }>[] => {
     if (plan.kind === "if") return [
       ...geometryTargetsInCarryPlan(plan.thenTarget),
       ...geometryTargetsInCarryPlan(plan.elseTarget)
@@ -4972,6 +5079,7 @@ export const compileDslDocument = (
       ...plan,
       arms: plan.arms.map((arm) => ({ ...arm, target: mapGeometryCarryPlanTargets(arm.target, mapTarget) }))
     };
+    if (plan.kind === "geometryValueConstruction") return plan;
     return mapTarget(plan);
   };
   if (bindingVersionsBase && immutableCarryCompilation && sourceLexicalNamespace && stableStatementIdByIndex) {
@@ -5010,15 +5118,16 @@ export const compileDslDocument = (
           ? { ...target, statementIndex: sourceOrder }
           : target;
       const loopEntryInitializerTarget = targetAvailableAt(initializerTarget, ownerExecutionPosition);
-      const targetValueType = (target: ScalarExpressionResolvedGeometryTarget): import("./dslValueTypes").DslGeometryValueType => ({
-        kind: target.pointKey ? "point" : target.geometryType
-      });
+      const targetValueType = (target: Exclude<ImmutableGeometryCarryTargetPlan, { kind: "if" | "match" }>): import("./dslValueTypes").DslGeometryValueType =>
+        target.kind === "geometryValueConstruction"
+          ? { kind: target.geometryType }
+          : { kind: target.pointKey ? "point" : target.geometryType };
       const initializerAssignable = loopEntryInitializerTarget && isDslValueTypeAssignable(targetValueType(loopEntryInitializerTarget), valueType);
       const loopNextTarget = nextPlan
         ? mapGeometryCarryPlanTargets(nextPlan, (target) => targetAvailableAt(
             target,
             rootScalarExecutionOrder?.sourceOrderByStatementIndex.get(next.statementIndex)
-          ) as ScalarExpressionResolvedGeometryTarget)
+        ) as ScalarExpressionResolvedGeometryTarget)
         : null;
       const nextPlanTargets = loopNextTarget ? geometryTargetsInCarryPlan(loopNextTarget) : [];
       const nextAssignable = nextPlanTargets.length > 0 && nextPlanTargets.every((target) =>

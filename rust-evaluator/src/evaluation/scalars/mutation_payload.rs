@@ -15,6 +15,10 @@ use super::program_payload::{
 };
 use super::scalar_payload::{decode_scalar_type, scalar_type_assignable};
 use super::types::{BindingId, ScalarType, TypedBuiltinArgument, TypedScalarExpression};
+use crate::evaluation::geometry_value_runtime::{
+    decode_geometry_value_construction_payload, decode_geometry_value_occurrence_payload,
+    GeometryValueConstruction,
+};
 use crate::evaluation::line_geometry_input::decode_collection_node;
 use crate::evaluation::types::{GeometryInputCollectionNode, GeometryInputTarget};
 
@@ -92,6 +96,13 @@ pub(crate) struct ValidatedImmutableGeometryCarry {
 #[derive(Debug)]
 pub(crate) enum ValidatedImmutableGeometryCarryTargetPlan {
     Target(super::types::ScalarExpressionResolvedGeometryTarget),
+    Construction {
+        source_statement_id: String,
+        source_statement_index: usize,
+        occurrence: crate::evaluation::types::GeometryValueOccurrence,
+        geometry_type: super::types::GeometryInterfaceType,
+        construction: GeometryValueConstruction,
+    },
     If {
         condition: TypedScalarExpression,
         then_target: Box<ValidatedImmutableGeometryCarryTargetPlan>,
@@ -415,6 +426,9 @@ fn geometry_carry_plan_assignable(
         ValidatedImmutableGeometryCarryTargetPlan::Target(target) => {
             geometry_type_assignable(resolved_geometry_target_type(target), expected)
         }
+        ValidatedImmutableGeometryCarryTargetPlan::Construction { geometry_type, .. } => {
+            geometry_type_assignable(*geometry_type, expected)
+        }
         ValidatedImmutableGeometryCarryTargetPlan::If {
             then_target,
             else_target,
@@ -438,6 +452,76 @@ fn decode_geometry_carry_target_plan(
 ) -> Result<ValidatedImmutableGeometryCarryTargetPlan, ScalarPayloadIssue> {
     let object = as_object(value, context)?;
     match object.get("kind").and_then(Value::as_str) {
+        Some("geometryValueConstruction") => {
+            reject_unexpected_fields(
+                object,
+                &[
+                    "kind",
+                    "sourceStatementId",
+                    "sourceStatementIndex",
+                    "occurrence",
+                    "geometryType",
+                    "construction",
+                ],
+                context,
+            )?;
+            let source_statement_id = string(
+                require_field(object, "sourceStatementId", context)?,
+                &format!("{context} sourceStatementId"),
+            )?
+            .to_owned();
+            let source_statement_index = integer(
+                require_field(object, "sourceStatementIndex", context)?,
+                &format!("{context} sourceStatementIndex"),
+            )?;
+            let occurrence = decode_geometry_value_occurrence_payload(require_field(
+                object,
+                "occurrence",
+                context,
+            )?)
+            .map_err(|error| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} occurrence is invalid: {error}"),
+                )
+            })?;
+            if occurrence.source_statement_id != source_statement_id {
+                return Err(issue(
+                    Code::InvalidFieldType,
+                    format!("{context} occurrence must use sourceStatementId"),
+                ));
+            }
+            let geometry_type_name = string(
+                require_field(object, "geometryType", context)?,
+                &format!("{context} geometryType"),
+            )?;
+            let geometry_type =
+                super::types::GeometryInterfaceType::from_wire_name(geometry_type_name)
+                    .ok_or_else(|| {
+                        issue(
+                            Code::InvalidFieldType,
+                            format!("{context} geometryType is unsupported"),
+                        )
+                    })?;
+            let construction = decode_geometry_value_construction_payload(require_field(
+                object,
+                "construction",
+                context,
+            )?)
+            .map_err(|error| {
+                issue(
+                    Code::InvalidFieldType,
+                    format!("{context} construction is invalid: {error}"),
+                )
+            })?;
+            Ok(ValidatedImmutableGeometryCarryTargetPlan::Construction {
+                source_statement_id,
+                source_statement_index,
+                occurrence,
+                geometry_type,
+                construction,
+            })
+        }
         Some("if") => {
             reject_unexpected_fields(
                 object,

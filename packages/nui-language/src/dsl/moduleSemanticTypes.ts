@@ -28,6 +28,7 @@ import type {
   RecordTypeIdentity,
   RecordValueSemantic
 } from "./recordSemanticAnalysis";
+import type { ModuleScalarReferenceResolution } from "./moduleScalarExpression";
 
 export type ModuleParameterSlot = {
   definitionStatementId: StatementIdentity;
@@ -1149,6 +1150,10 @@ export type ModuleSemanticAnalysis = {
   rootRecordValuesByStatementId: ReadonlyMap<StatementIdentity, ModuleRecordValueSemantic>;
   /** Source-only immutable single-geometry values, including Module locals. */
   geometryValues: readonly ModuleGeometryValueSemantic[];
+  /** Pure construction leaves used by immutable geometry-carry next plans.
+   * Kept separate from source declarations so they never become ordinary
+   * eager geometry-value program entries. */
+  geometryCarryNextValues?: readonly ModuleGeometryValueSemantic[];
   geometryValuesByStatementId: ReadonlyMap<StatementIdentity, ModuleGeometryValueSemantic>;
   geometryValuesByStatementIndex: ReadonlyMap<number, ModuleGeometryValueSemantic>;
   /** Source-only parent container references in the root document. */
@@ -1166,6 +1171,22 @@ export type ModuleSemanticAnalysisInput = {
   spans: import("./dslDiagnosticSpan").DiagnosticSpanContext;
   logicalTextByStatementIndex?: ReadonlyMap<number, string>;
   documentScalarBindings?: ReadonlyMap<number, { bindingId: BindingId; statementId: StatementIdentity }>;
+  /** Geometry-valued carry-next constructor leaves discovered by the root
+   * compiler. They reuse this semantic pass's construction and reference
+   * resolution without becoming declarations in the source namespace. */
+  geometryCarryNextConstructions?: readonly {
+    statementId: StatementIdentity;
+    statementIndex: number;
+    span: DslSpan;
+    expectedInterfaceType: ModuleGeometryInterfaceType;
+  }[];
+  /** Bridges scalar references inside carry-next geometry constructions to
+   * the document scalar compiler's canonical bindings. */
+  resolveGeometryCarryNextScalar?: (input: {
+    statementIndex: number;
+    name: string;
+    span: DslSpan;
+  }) => ModuleScalarReferenceResolution | null;
   /** Exact owner used for document-qualified semantic identities. */
   documentId?: DocumentId;
   source?: DocumentSourceIdentity;
