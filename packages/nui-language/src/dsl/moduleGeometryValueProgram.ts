@@ -38,7 +38,7 @@ export type GeometryValueProgramTarget =
   | {
       kind: "geometryInputTarget";
       target: Extract<GeometryInputTarget, { kind: "collectionIndex" }>;
-      geometryType: "point" | "line";
+      geometryType: ModuleGeometryInterfaceType;
     };
 
 export type GeometryValueProgramPlacement = {

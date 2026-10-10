@@ -353,7 +353,7 @@ fn decode_program_target(value: &Value) -> Result<Option<GeometryValueProgramTar
             "geometryType",
             "geometry value program target",
         )?;
-        if geometry_type != "point" && geometry_type != "line" {
+        if geometry_type != "point" && geometry_type != "line" && geometry_type != "path" {
             return Err("geometry value program target geometryType is unsupported".to_owned());
         }
         let target = super::line_geometry_input::decode_target(
