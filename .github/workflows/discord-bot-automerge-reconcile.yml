@@ -8,13 +8,16 @@ on:
       - CI
     types:
       - completed
+  issue_comment:
+    types:
+      - created
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
   issues: write
 
 concurrency:
@@ -24,9 +27,16 @@ concurrency:
 jobs:
   notify:
     if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       github.event.comment.user.login == 'sayosomi' &&
+       github.event.comment.author_association == 'OWNER' &&
+       github.event.comment.body == '/discord-reconcile-bot-merges') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout trusted notification implementation
@@ -48,6 +58,7 @@ jobs:
           cutoff="$(date -u -d '48 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
 
           # A bounded current-state scan, not a replay of every historical PR.
+          echo "DIAG: LIST closed PRs" >&2
           recent="$(gh api "repos/$REPO/pulls?state=closed&sort=updated&direction=desc&per_page=100")"
           jq -e --arg cutoff "$cutoff" '
             type == "array" and
@@ -62,6 +73,7 @@ jobs:
             [[ -n "$number" ]] || continue
             [[ "$number" =~ ^[1-9][0-9]*$ ]] || exit 1
 
+            echo "DIAG: FETCH PR #$number" >&2
             pr="$(gh api "repos/$REPO/pulls/$number")"
             jq -e --arg cutoff "$cutoff" '
               .state == "closed" and
@@ -78,6 +90,7 @@ jobs:
 
             # A bot-authored PR comment is the durable receipt. A replay after
             # a crash may resend, but a recorded success is never resent.
+            echo "DIAG: LIST issue comments PR #$number" >&2
             comments="$(gh api --paginate "repos/$REPO/issues/$number/comments?per_page=100")"
             if jq -se --arg marker "$marker" '
               any(.[][]; .user.login == "github-actions[bot]" and .body == $marker)
@@ -90,7 +103,9 @@ jobs:
             export PR_NUMBER="$number"
             export PR_TITLE="$(jq -r '.title' <<< "$pr")"
             export PR_URL="$(jq -r '.html_url' <<< "$pr")"
+            echo "DIAG: SEND Discord PR #$number" >&2
             node scripts/ci/discordPrNotification.mjs merge
+            echo "DIAG: WRITE receipt PR #$number" >&2
             gh api -X POST "repos/$REPO/issues/$number/comments" -f body="$marker" --jq '.id' >/dev/null
             echo "DISCORD BOT MERGE NOTIFIED PR #$number ($merge_sha)"
           done <<< "$numbers"
