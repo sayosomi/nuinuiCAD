@@ -10,6 +10,7 @@ import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   geometryValueOccurrenceKey,
   propertyBindingOccurrenceKey,
+  resolveTypedDependencyGraphRuntime,
   sourceOwnerForRuntimeElementId
 } from "@nuinuicad/nui-language";
 import { compileDslDocument } from "@nuinuicad/nui-language";
@@ -454,6 +455,75 @@ describe("module geometry runtime", () => {
     expect(result.errors).toEqual([]);
     expect(result.computedGeometry.get(named(compiled, "LineUse").id)).toMatchObject({ kind: "offsetLine" });
     expect(result.computedGeometry.get(named(compiled, "PathUse").id)).toMatchObject({ kind: "offsetLine" });
+  });
+
+  it("schedules pure Module geometry arguments before empty carry initializers", () => {
+    const cases = [
+      {
+        name: "line",
+        declaration: "const seed: line = segment(start: (0, 0), end: (3, 4))",
+        geometryType: "line",
+        property: "length",
+        expected: 5
+      },
+      {
+        name: "point",
+        declaration: "const seed: point = coordinate(x: 3, y: 4)",
+        geometryType: "point",
+        property: "x",
+        expected: 3
+      }
+    ] as const;
+
+    for (const testCase of cases) {
+      const compiled = compileWithIds([
+        "nui 1",
+        testCase.declaration,
+        `module M(input: ${testCase.geometryType}) {`,
+        `  for i in range(min: 0, max: 0, step: 1) carry p: ${testCase.geometryType} = @input {`,
+        "    next p = @p",
+        "  }",
+        `  export const output: number = @p.${testCase.property}`,
+        "}",
+        "instance A = M(input: @seed)",
+        "const result: number = @A::output"
+      ].join("\n"), `module-pure-carry-${testCase.name}`);
+      expectValid(compiled);
+
+      const loop = compiled.document!.elements.find((element) => element.type === "forGroup");
+      if (!loop || loop.type !== "forGroup") throw new Error(`missing ${testCase.name} Module carry loop`);
+      const owner = compiled.moduleForGroupExecutionOwnerByElementId?.get(loop.id);
+      if (!owner) throw new Error(`missing ${testCase.name} Module carry owner`);
+      const carry = compiled.bindingVersions?.immutableForGroups?.get(owner.ownerStatementId)?.geometryCarries?.[0];
+      if (carry?.initializerTarget.kind !== "geometryValue") {
+        throw new Error(`expected a pure geometry initializer target for the ${testCase.name} carry`);
+      }
+
+      const graph = compiled.typedDependencyGraph;
+      if (!graph) throw new Error("missing compiled dependency graph");
+      const occurrenceId = geometryValueOccurrenceKey(carry.initializerTarget.occurrence);
+      expect(graph.edges).toContainEqual(expect.objectContaining({
+        kind: "geometry",
+        from: expect.objectContaining({ kind: "element", id: loop.id }),
+        to: expect.objectContaining({ kind: "geometry-value", id: occurrenceId })
+      }));
+      const dependencyOrder = resolveTypedDependencyGraphRuntime(graph, new Map()).dependencyOrder;
+      expect(dependencyOrder.indexOf(`geometry-value:${occurrenceId}`)).toBeLessThan(
+        dependencyOrder.indexOf(`element:${loop.id}`)
+      );
+
+      const evaluation = evaluateCompiled(compiled);
+      expect(evaluation.errors).toEqual([]);
+      expect(evaluation.geometryValueErrors ?? []).toEqual([]);
+      const resultBinding = compiled.bindingAnalysis?.catalog.bindings.find(
+        (binding) => binding.kind === "typed" && binding.name === "result"
+      );
+      if (!resultBinding) throw new Error("missing Module carry result binding");
+      expect(evaluation.computedScalarBindings?.get(resultBinding.id)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: testCase.expected }
+      });
+    }
   });
 
   it("projects immutable line and path endpoints to point-shaped geometry-value targets", () => {

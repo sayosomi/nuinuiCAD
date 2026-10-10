@@ -21,6 +21,7 @@ import type { TextTemplateAst } from "./textTemplate";
 import type { TypedScalarExpression } from "./typedExpressionAst";
 import type { ScalarProgram } from "./scalarProgram";
 import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "../dsl/transformationRecipes";
+import { moduleOwnerIdFor } from "../dsl/moduleMaterialization";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { GeometryValueProgramEntry, GeometryValueProgramNode, GeometryValueProgramPoint, GeometryValueProgramPath, GeometryValueProgramTarget } from "../dsl/moduleGeometryValueProgram";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
@@ -1009,6 +1010,14 @@ export const buildTypedDependencyGraph = ({
       rootForGroupElementIdByStatementId.set(statementId, elementId);
     }
   }
+  const moduleForGroupExecutionStatementByOwnerStatementId = new Map<string, ModuleMaterialization["executionStatements"][number]>();
+  for (const executionStatement of moduleMaterialization?.executionStatements ?? []) {
+    if (executionStatement.type !== "forGroup" || executionStatement.instancePath.length === 0) continue;
+    moduleForGroupExecutionStatementByOwnerStatementId.set(
+      moduleOwnerIdFor(executionStatement.instancePath, executionStatement.sourceStatementId),
+      executionStatement
+    );
+  }
   const scalarOwnedParameterKeysByElementId = new Map<ElementId, ReadonlySet<string>>();
   const typedScalarGeometryDependencyIdsByElementId = new Map<ElementId, Set<ElementId>>();
   const addTypedScalarGeometryDependencies = (key: string, expression: TypedScalarExpression | undefined) => {
@@ -1277,18 +1286,19 @@ export const buildTypedDependencyGraph = ({
       ...(guards.length ? { activation: { guards } } : {})
     }, occurrenceNamespace);
   };
-  // A root immutable geometry carry is initialized at loop entry. Make its
+  // An immutable geometry carry is initialized at loop entry. Make its
   // resolved geometry source a prerequisite of the compiled loop execution
-  // owner so both evaluators release the same seed first.
-  // Module loop owners are materialized separately and therefore do not join
-  // through this root statement-to-element map.
+  // owner so both evaluators release the same seed first. Module owners join
+  // through the materialized source statement identity and call path.
   for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
-    const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId);
+    const moduleExecutionStatement = moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId);
+    const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId)
+      ?? moduleExecutionStatement?.runtimeElementId;
     if (!ownerElementId) continue;
     const from = elementEndpoint(
       elementsById,
       ownerElementId,
-      elementStatementIndex.get(ownerElementId) ?? 0
+      moduleExecutionStatement?.executionUnitStatementIndex ?? elementStatementIndex.get(ownerElementId) ?? 0
     );
     for (const carry of plan.geometryCarries ?? []) {
       const target = carry.initializerTarget;

@@ -148,6 +148,10 @@ export const materializedRuntimeElementId = (
   path: readonly StatementIdentity[]
 ) => `module-runtime:${materializedRuntimeIdentityKey(kind, path)}`;
 
+/** Stable owner identity shared by Module scalar plans and materialized graph consumers. */
+export const moduleOwnerIdFor = (path: readonly string[], sourceOwnerId: string) =>
+  `module-owner:${encodeIdentityTuple([...path, sourceOwnerId])}`;
+
 const runtimeIdentityOf = (
   kind: MaterializedRuntimeIdentity["kind"],
   path: readonly StatementIdentity[]

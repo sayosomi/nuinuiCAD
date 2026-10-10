@@ -1667,6 +1667,200 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 60000);
 
+  it("schedules pure geometry argument seeds before Module carry initialization across TypeScript and Rust", async () => {
+    const evaluateBoth = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors).toEqual([]);
+        expect(result.geometryValueErrors ?? []).toEqual([]);
+      }
+      return { fixture, tsPayload, rustPayload };
+    };
+    const expectNumbers = (
+      evaluated: Awaited<ReturnType<typeof evaluateBoth>>,
+      values: Readonly<Record<string, number>>
+    ) => {
+      for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
+        for (const [name, value] of Object.entries(values)) {
+          expectScalarNumberClose(scalarBindingFor(evaluated.fixture, payload, name), value);
+        }
+      }
+    };
+    const sourceForModuleCarry = (seed: string, type: "point" | "line", property: string, before: readonly string[] = []) => [
+      "nui 1",
+      seed,
+      ...before,
+      `module M(input: ${type}) {`,
+      `  for i in range(min: 0, max: 0, step: 1) carry p: ${type} = @input {`,
+      "    next p = @p",
+      "  }",
+      `  export const output: number = @p.${property}`,
+      "}",
+      "instance A = M(input: @seed)",
+      "const result: number = @A::output"
+    ].join("\n");
+
+    const lineSeed = await evaluateBoth(sourceForModuleCarry(
+      "const seed: line = segment(start: (0, 0), end: (3, 4))",
+      "line",
+      "length"
+    ));
+    expectNumbers(lineSeed, { result: 5 });
+
+    const pointSeed = await evaluateBoth(sourceForModuleCarry(
+      "const seed: point = coordinate(x: 3, y: 4)",
+      "point",
+      "x"
+    ));
+    expectNumbers(pointSeed, { result: 3 });
+
+    // The prior-consumer case remains a control for the same pure seed.
+    const preread = await evaluateBoth(sourceForModuleCarry(
+      "const seed: line = segment(start: (0, 0), end: (3, 4))",
+      "line",
+      "length",
+      ["line Pre = from(source: @seed)"]
+    ));
+    expectNumbers(preread, { result: 5 });
+
+    // Drawable Module arguments and root pure geometry carries keep their existing paths.
+    const drawable = await evaluateBoth([
+      "nui 1",
+      "line seed = segment(start: (0, 0), end: (3, 4))",
+      "module M(input: line) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: line = @input {",
+      "    next p = @p",
+      "  }",
+      "  export const output: number = @p.length",
+      "}",
+      "instance A = M(input: @seed)",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expectNumbers(drawable, { result: 5 });
+
+    const rootCarry = await evaluateBoth([
+      "nui 1",
+      "const seed: line = segment(start: (0, 0), end: (3, 4))",
+      "for i in range(min: 0, max: 0, step: 1) carry p: line = @seed {",
+      "  next p = @p",
+      "}",
+      "const result: number = @p.length"
+    ].join("\n"));
+    expectNumbers(rootCarry, { result: 5 });
+  }, 60000);
+
+  it("preserves isolated asymmetric Module carry seeds and selected geometry stages", async () => {
+    const evaluateBoth = async (source: string) => {
+      const fixture = fixtureFromSource(source);
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      const options = optionsFor(fixture);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      for (const payload of [tsPayload, rustPayload]) {
+        const result = evaluationPayloadToResult(payload);
+        expect(result.errors).toEqual([]);
+        expect(result.geometryValueErrors ?? []).toEqual([]);
+      }
+      return { fixture, tsPayload, rustPayload };
+    };
+    const expectNumbers = (
+      evaluated: Awaited<ReturnType<typeof evaluateBoth>>,
+      values: Readonly<Record<string, number>>
+    ) => {
+      for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
+        for (const [name, value] of Object.entries(values)) {
+          expectScalarNumberClose(scalarBindingFor(evaluated.fixture, payload, name), value);
+        }
+      }
+    };
+
+    const instancesFor = (bFirst: boolean) => [
+      "nui 1",
+      "const SeedA: point = coordinate(x: 2, y: 3)",
+      "const SeedB: point = coordinate(x: 9, y: 7)",
+      "module M(input: point) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: point = @input {",
+      "    next p = @p",
+      "  }",
+      "  export const output: number = @p.x",
+      "}",
+      ...(bFirst
+        ? ["instance B = M(input: @SeedB)", "instance A = M(input: @SeedA)"]
+        : ["instance A = M(input: @SeedA)", "instance B = M(input: @SeedB)"]),
+      "const resultA: number = @A::output",
+      "const resultB: number = @B::output"
+    ].join("\n");
+    for (const bFirst of [false, true]) {
+      const isolated = await evaluateBoth(instancesFor(bFirst));
+      expectNumbers(isolated, { resultA: 2, resultB: 9 });
+
+      const compiled = isolated.fixture.compiled?.doc;
+      if (!compiled) throw new Error("missing compiled Module instance document");
+      const options = optionsFor(isolated.fixture);
+      const graph = compiled.typedDependencyGraph;
+      if (!graph) throw new Error("missing Module instance dependency graph");
+      const seedStatementId = (name: "SeedA" | "SeedB") => {
+        const binding = compiled.bindingAnalysis?.catalog.bindings.find(
+          (candidate) => candidate.kind === "typed" && candidate.name === name
+        );
+        if (!binding) throw new Error(`missing pure seed binding ${name}`);
+        const statementId = compiled.statementMap?.statementIdByStatementIndex.get(binding.statementIndex);
+        if (!statementId) throw new Error(`missing pure seed statement identity ${name}`);
+        return statementId;
+      };
+      for (const [instanceName, seedName] of [["A", "SeedA"], ["B", "SeedB"]] as const) {
+        const instance = compiled.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === instanceName);
+        if (!instance) throw new Error(`missing Module instance ${instanceName}`);
+        const loop = isolated.fixture.elements.find((element) => element.type === "forGroup" &&
+          options.moduleMaterialization?.originByRuntimeElementId.get(element.id)?.instancePath.includes(instance.statementId));
+        if (!loop || loop.type !== "forGroup") throw new Error(`missing ${instanceName} carry loop`);
+        const owner = options.moduleForGroupExecutionOwnerByElementId?.get(loop.id);
+        const carry = owner && compiled.bindingVersions?.immutableForGroups?.get(owner.ownerStatementId)?.geometryCarries?.[0];
+        if (carry?.initializerTarget.kind !== "geometryValue") {
+          throw new Error(`missing pure geometry initializer target for ${instanceName}`);
+        }
+        const occurrenceId = geometryValueOccurrenceKey(carry.initializerTarget.occurrence);
+        expect(carry.initializerTarget.occurrence).toEqual({
+          sourceStatementId: seedStatementId(seedName),
+          instancePath: []
+        });
+        expect(graph.edges).toContainEqual(expect.objectContaining({
+          kind: "geometry",
+          from: expect.objectContaining({ kind: "element", id: loop.id }),
+          to: expect.objectContaining({ kind: "geometry-value", id: occurrenceId })
+        }));
+        const dependencyOrder = resolveTypedDependencyGraphRuntime(graph, new Map()).dependencyOrder;
+        expect(dependencyOrder.indexOf(`geometry-value:${occurrenceId}`)).toBeLessThan(
+          dependencyOrder.indexOf(`element:${loop.id}`)
+        );
+      }
+    }
+
+    const selectedStage = await evaluateBoth([
+      "nui 1",
+      "line A = segment(start: (0, 0), end: (10, 0))",
+      "move A as stretched (from: (0, 0), to: (0, 0), scale: 2)",
+      "module M(input: line) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry p: line = @input {",
+      "    next p = @p",
+      "  }",
+      "  export const output: number = @p.length",
+      "}",
+      "instance Selected = M(input: @A.stretched)",
+      "const result: number = @Selected::output"
+    ].join("\n"));
+    expectNumbers(selectedStage, { result: 20 });
+  }, 60000);
+
   it("keeps Module geometry carry identity and order paired across instances", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
