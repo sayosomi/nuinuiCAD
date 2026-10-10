@@ -200,6 +200,8 @@ pub(crate) struct ModuleMaterializationInput {
 pub(crate) struct ModuleMaterializationSnapshotInput {
     pub(crate) instance_id: ElementId,
     pub(crate) descendant_ids: Vec<ElementId>,
+    #[serde(default)]
+    pub(crate) instance_path: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]

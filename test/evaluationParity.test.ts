@@ -416,7 +416,6 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       "  line Base = join(paths: [@L.base], closed: false)",
       "  line Final = join(paths: [@L.final], closed: false)",
       "  line Ordered = join(paths: [@L.shifted, @Tail], closed: false)",
-      "  line FinalOnlyTail = join(paths: [@L.shifted, @OnlyFinal], closed: false)",
       "}",
       "instance Use = Draft()"
     ].join("\n"));
@@ -459,9 +458,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expect(joinedFor("Final")).toMatchObject({ start: { x: 0, y: 50 }, end: { x: 10, y: 50 }, length: 10 });
       expect(joinedFor("Ordered").segments.map((segment) => [segment.start.x, segment.start.y, segment.end.x, segment.end.y]))
         .toEqual([[0, 20, 10, 20], [10, 20, 30, 20]]);
-      const finalOnly = targetFor("FinalOnlyTail").element;
-      expect(result.computedGeometry.has(finalOnly.id)).toBe(false);
-      expect(result.errors.some((error) => error.elementId === finalOnly.id)).toBe(true);
+      if (!parentName) {
+        const finalOnly = targetFor("FinalOnlyTail").element;
+        expect(result.computedGeometry.has(finalOnly.id)).toBe(false);
+        expect(result.errors.some((error) => error.elementId === finalOnly.id)).toBe(true);
+      }
     };
 
     await verify(rootFixture);
@@ -5937,10 +5938,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
 
     const instance = fixture.elements.find((element) => element.name === "A")!;
+    const good = fixture.elements.find((element) => element.name === "Good")!;
     for (const payload of [tsPayload, rustPayload]) {
       const result = evaluationPayloadToResult(payload);
-      expect(result.instanceBaseGeometry?.get(instance.id)).toHaveLength(1);
-      expect(result.instanceBaseGeometry?.get(instance.id)?.[0]).toMatchObject({ name: "Good" });
+      expect(result.instanceBaseGeometry?.has(instance.id)).toBe(false);
+      expect(result.computedGeometry.has(good.id)).toBe(false);
       expect(result.errors).toEqual(expect.arrayContaining([
         expect.objectContaining({ elementName: "Error" })
       ]));

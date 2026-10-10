@@ -23,6 +23,7 @@ import type { ScalarProgram } from "./scalarProgram";
 import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "../dsl/transformationRecipes";
 import { moduleOwnerIdFor } from "../dsl/moduleMaterialization";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import { encodeIdentityTuple } from "../document/identityTuple";
 import type { GeometryValueProgramEntry, GeometryValueProgramNode, GeometryValueProgramPoint, GeometryValueProgramPath, GeometryValueProgramTarget } from "../dsl/moduleGeometryValueProgram";
 import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import type { GeometryValueOccurrence } from "../model/cadDocumentTypes";
@@ -890,8 +891,8 @@ export const buildTypedDependencyGraph = ({
     occurrenceNamespace?: string;
   }> = [];
   const seen = new Map<string, number>();
-  const add = (edge: TypedDependencyEdge, occurrenceNamespace?: string) => {
-    const scopedEdge = edge.activation
+  const add = (edge: TypedDependencyEdge, occurrenceNamespace?: string, activationIsScoped = false) => {
+    const scopedEdge = edge.activation && !activationIsScoped
       ? { ...edge, activation: scopeActivationToSource(edge.activation, edge.from, occurrenceNamespace) }
       : edge;
     const activationKey = scopedEdge.activation
@@ -1107,6 +1108,26 @@ export const buildTypedDependencyGraph = ({
         kind: "geometry",
         from: occurrence,
         to: elementEndpoint(elementsById, descendantId, elementStatementIndex.get(descendantId) ?? 0),
+        span: null,
+        requiredness: "required"
+      });
+    }
+    const instancePath = snapshot.instancePath ?? moduleMaterialization?.executionStatements.find((entry) =>
+      entry.runtimeElementId === snapshot.instanceId
+    )?.runtimeIdentity?.path ?? [];
+    for (const entry of geometryValueProgram ?? []) {
+      if (entry.occurrence.instancePath.length < instancePath.length ||
+        !instancePath.every((part, index) => entry.occurrence.instancePath[index] === part)) continue;
+      const geometryValue: TypedDependencyEndpoint = {
+        kind: "geometry-value",
+        id: geometryValueOccurrenceKey(entry.occurrence),
+        name: entry.sourceStatementId,
+        statementIndex: entry.sourceStatementIndex
+      };
+      add({
+        kind: "geometry",
+        from: occurrence,
+        to: geometryValue,
         span: null,
         requiredness: "required"
       });
@@ -1772,6 +1793,103 @@ export const buildTypedDependencyGraph = ({
       addStageDependency(stageEndpoint({ ownerId: element.id, stagePath: ["final"] }), base, "geometry");
     }
   }
+
+  // A consumer of one exported member must wait for the owning instance's
+  // entire materialization boundary. The snapshot already owns the canonical
+  // instance identity and descendant set; this adds that prerequisite to the
+  // same graph used by both evaluator schedulers.
+  const instancePathById = new Map(
+    (moduleMaterialization?.executionStatements ?? [])
+      .filter((entry) => entry.type === "moduleInstance" || entry.runtimeIdentity?.kind === "moduleBody")
+      .map((entry) => [
+        entry.runtimeElementId,
+        entry.runtimeIdentity?.path ?? entry.runtimeInstancePath ?? entry.instancePath
+      ] as const)
+  );
+  const geometryValuePathByEndpointId = new Map<string, readonly string[]>(
+    (geometryValueProgram ?? []).map((entry) => [
+      `geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`,
+      entry.occurrence.instancePath
+    ] as const)
+  );
+  const instancePathFor = (snapshot: ModuleMaterialization["instanceBaseGeometrySnapshots"][number]) =>
+    snapshot.instancePath ?? instancePathById.get(snapshot.instanceId) ?? [];
+  const pathStartsWith = (path: readonly string[] | undefined, prefix: readonly string[]) =>
+    Boolean(path && path.length >= prefix.length && prefix.every((part, index) => path[index] === part));
+  const endpointBelongsToInstance = (
+    endpoint: TypedDependencyEndpoint,
+    snapshot: ModuleMaterialization["instanceBaseGeometrySnapshots"][number],
+    instancePath: readonly string[]
+  ) => {
+    if (endpoint.kind === "element") {
+      return endpoint.id === snapshot.instanceId || snapshot.descendantIds.includes(endpoint.id) ||
+        pathStartsWith(instancePathById.get(endpoint.id), instancePath);
+    }
+    if (endpoint.kind === "geometry-stage" || endpoint.kind === "transformation-recipe") {
+      return snapshot.descendantIds.includes(endpoint.ownerId) ||
+        pathStartsWith(instancePathById.get(endpoint.ownerId), instancePath);
+    }
+    if (endpoint.kind === "geometry-value") {
+      return pathStartsWith(geometryValuePathByEndpointId.get(endpointId(endpoint)), instancePath);
+    }
+    if (endpoint.kind === "binding" || endpoint.kind === "version") {
+      const bindingId = endpoint.kind === "binding" ? endpoint.id : endpoint.bindingId;
+      return bindingId.startsWith(`module-binding:${encodeIdentityTuple(["local", ...instancePath])}`);
+    }
+    if (endpoint.kind === "module-occurrence") {
+      const endpointInstanceId = endpoint.id.replace(/^module-occurrence:/, "");
+      return endpointInstanceId === snapshot.instanceId ||
+        pathStartsWith(instancePathById.get(endpointInstanceId), instancePath);
+    }
+    return false;
+  };
+  const dependentsByEndpointId = new Map<string, TypedDependencyEdge[]>();
+  const endpointsById = new Map<string, TypedDependencyEndpoint>();
+  for (const edge of edges) {
+    const dependents = dependentsByEndpointId.get(endpointId(edge.to)) ?? [];
+    dependents.push(edge);
+    dependentsByEndpointId.set(endpointId(edge.to), dependents);
+    endpointsById.set(endpointId(edge.from), edge.from);
+    endpointsById.set(endpointId(edge.to), edge.to);
+  }
+  for (const snapshot of moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
+    const instancePath = instancePathFor(snapshot);
+    const occurrence: TypedDependencyEndpoint = {
+      kind: "module-occurrence",
+      id: `module-occurrence:${snapshot.instanceId}`,
+      name: snapshot.instanceId,
+      statementIndex: elementStatementIndex.get(snapshot.instanceId) ?? 0
+    };
+    const pending = [...endpointsById.values()]
+      .filter((endpoint) => endpointBelongsToInstance(endpoint, snapshot, instancePath))
+      .map((endpoint) => ({ endpoint, activation: undefined as TypedDependencyActivation | undefined }));
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const currentId = endpointId(current.endpoint);
+      const visitKey = `${currentId}:${JSON.stringify(current.activation?.guards ?? [])}`;
+      if (visited.has(visitKey)) continue;
+      visited.add(visitKey);
+      for (const edge of dependentsByEndpointId.get(currentId) ?? []) {
+        const source = edge.from;
+        const activation = edge.activation
+          ? { guards: [...(current.activation?.guards ?? []), ...edge.activation.guards] }
+          : current.activation;
+        if (source.kind === "element" && !endpointBelongsToInstance(source, snapshot, instancePath)) {
+          add({
+            kind: "geometry",
+            from: source,
+            to: occurrence,
+            span: edge.span,
+            requiredness: activation?.guards.length ? "conditional" : "required",
+            ...(activation ? { activation } : {})
+          }, undefined, true);
+        }
+        pending.push({ endpoint: source, activation });
+      }
+    }
+  }
+
   directByEndpointId.clear();
   reverseByEndpointId.clear();
   for (const edge of edges) {

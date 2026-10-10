@@ -2056,17 +2056,17 @@ fn evaluate_document_input_with_scalar_program(
         geometry_value_errors: Vec::new(),
         warnings: Vec::new(),
     };
-    for snapshot in &instance_snapshots {
-        if snapshot
-            .descendant_ids
-            .iter()
-            .all(|id| evaluated_ids.contains(id))
-        {
-            state
-                .instance_base_geometry
-                .insert(snapshot.instance_id.clone(), Vec::new());
-        }
-    }
+    let module_instance_ids_within_evaluation_limit = instance_snapshots
+        .iter()
+        .filter(|snapshot| {
+            evaluated_ids.contains(&snapshot.instance_id)
+                && snapshot
+                    .descendant_ids
+                    .iter()
+                    .all(|id| evaluated_ids.contains(id))
+        })
+        .map(|snapshot| snapshot.instance_id.clone())
+        .collect::<HashSet<_>>();
     let mut conditional_group_states = HashMap::<ElementId, Option<&'static str>>::new();
     let mut condition_inactive_ids = HashSet::<ElementId>::new();
     let mut effective_enabled_ids = HashSet::<ElementId>::new();
@@ -2075,27 +2075,129 @@ fn evaluate_document_input_with_scalar_program(
     let mut for_group_effective_show_generated_ids = Vec::<ElementId>::new();
     let mut completed_element_ids = HashSet::<ElementId>::new();
     let mut captured_instance_ids = HashSet::<ElementId>::new();
+    let mut completed_instance_ids = HashSet::<ElementId>::new();
+    let mut failed_instance_ids = HashSet::<ElementId>::new();
+    let mut failed_element_ids = HashSet::<ElementId>::new();
+    let mut evaluation_limit_excluded_element_ids = HashSet::<ElementId>::new();
     let capture_completed_instances =
         |state: &mut EvaluationState,
          completed_element_ids: &HashSet<ElementId>,
-         captured_instance_ids: &mut HashSet<ElementId>| {
+         captured_instance_ids: &mut HashSet<ElementId>,
+         completed_instance_ids: &mut HashSet<ElementId>,
+         failed_instance_ids: &mut HashSet<ElementId>,
+         failed_element_ids: &HashSet<ElementId>,
+         evaluation_limit_excluded_element_ids: &HashSet<ElementId>,
+         evaluated_geometry_value_entries: &[bool]| {
             for snapshot in &instance_snapshots {
-                if captured_instance_ids.contains(&snapshot.instance_id)
+                if captured_instance_ids.contains(&snapshot.instance_id) {
+                    continue;
+                }
+                if !evaluated_ids.contains(&snapshot.instance_id)
                     || !snapshot
                         .descendant_ids
                         .iter()
-                        .all(|id| completed_element_ids.contains(id))
+                        .all(|id| evaluated_ids.contains(id))
+                    || snapshot
+                        .descendant_ids
+                        .iter()
+                        .any(|id| evaluation_limit_excluded_element_ids.contains(id))
+                {
+                    captured_instance_ids.insert(snapshot.instance_id.clone());
+                    continue;
+                }
+                if !snapshot
+                    .descendant_ids
+                    .iter()
+                    .all(|id| completed_element_ids.contains(id))
                 {
                     continue;
                 }
-                let geometry = snapshot
+                let instance_path = &snapshot.instance_path;
+                let has_unevaluated_geometry_value =
+                    geometry_value_program
+                        .iter()
+                        .enumerate()
+                        .any(|(index, entry)| {
+                            entry.occurrence.instance_path.len() >= instance_path.len()
+                                && instance_path
+                                    .iter()
+                                    .zip(&entry.occurrence.instance_path)
+                                    .all(|(left, right)| left == right)
+                                && !evaluated_geometry_value_entries
+                                    .get(index)
+                                    .copied()
+                                    .unwrap_or(false)
+                        });
+                if has_unevaluated_geometry_value {
+                    continue;
+                }
+                let has_geometry_value_failure = !instance_path.is_empty()
+                    && state.geometry_value_errors.iter().any(|error| {
+                        error.occurrence.instance_path.len() >= instance_path.len()
+                            && instance_path
+                                .iter()
+                                .zip(&error.occurrence.instance_path)
+                                .all(|(left, right)| left == right)
+                    });
+                let failed = snapshot
                     .descendant_ids
                     .iter()
-                    .filter_map(|id| state.computed_geometry.get(id).cloned())
-                    .collect::<Vec<_>>();
-                state
-                    .instance_base_geometry
-                    .insert(snapshot.instance_id.clone(), geometry);
+                    .any(|id| failed_element_ids.contains(id))
+                    || snapshot
+                        .descendant_ids
+                        .iter()
+                        .any(|id| state.errors.iter().any(|error| &error.element_id == id))
+                    || has_geometry_value_failure;
+                completed_instance_ids.insert(snapshot.instance_id.clone());
+                if failed {
+                    let descendant_ids = snapshot
+                        .descendant_ids
+                        .iter()
+                        .cloned()
+                        .collect::<HashSet<_>>();
+                    state.instance_base_geometry.remove(&snapshot.instance_id);
+                    state
+                        .computed_geometry
+                        .retain(|id, _| !descendant_ids.contains(id));
+                    state
+                        .base_transformation_geometry
+                        .retain(|id, _| !descendant_ids.contains(id));
+                    state
+                        .pre_mutation_geometry
+                        .retain(|id, _| !descendant_ids.contains(id));
+                    state
+                        .computed_geometry_order
+                        .retain(|id| !descendant_ids.contains(id));
+                    state.transformation_stage_geometry.retain(|key, _| {
+                        !descendant_ids
+                            .iter()
+                            .any(|id| key.starts_with(&format!("{id}\u{0}")))
+                    });
+                    state.computed_geometry_values.retain(|occurrence, _| {
+                        occurrence.instance_path.len() < instance_path.len()
+                            || !instance_path
+                                .iter()
+                                .zip(&occurrence.instance_path)
+                                .all(|(left, right)| left == right)
+                    });
+                    state.geometry_mutation_executions.retain(|execution| {
+                        !descendant_ids.contains(&execution.mutation_element_id)
+                            && !execution
+                                .target_element_ids
+                                .iter()
+                                .any(|id| descendant_ids.contains(id))
+                    });
+                    failed_instance_ids.insert(snapshot.instance_id.clone());
+                } else {
+                    let geometry = snapshot
+                        .descendant_ids
+                        .iter()
+                        .filter_map(|id| state.computed_geometry.get(id).cloned())
+                        .collect::<Vec<_>>();
+                    state
+                        .instance_base_geometry
+                        .insert(snapshot.instance_id.clone(), geometry);
+                }
                 captured_instance_ids.insert(snapshot.instance_id.clone());
             }
         };
@@ -2940,6 +3042,11 @@ fn evaluate_document_input_with_scalar_program(
                     &mut state,
                     &completed_element_ids,
                     &mut captured_instance_ids,
+                    &mut completed_instance_ids,
+                    &mut failed_instance_ids,
+                    &failed_element_ids,
+                    &evaluation_limit_excluded_element_ids,
+                    &evaluated_geometry_value_entries,
                 );
                 run_transformation_recipes_through!(current_execution_position);
                 continue 'elements;
@@ -2968,6 +3075,24 @@ fn evaluate_document_input_with_scalar_program(
         }
         if effective_enabled_ids.insert(id.clone()) {
             effective_enabled_order.push(id.clone());
+        }
+
+        let unavailable_module_prerequisite =
+            conditional_dependency_graph.as_ref().and_then(|graph| {
+                graph.unavailable_module_instance_prerequisite(
+                    &format!("element:{id}"),
+                    &conditional_branch_selections,
+                    &failed_instance_ids,
+                    &module_instance_ids_within_evaluation_limit,
+                )
+            });
+        if let Some((_, failed)) = unavailable_module_prerequisite {
+            if failed {
+                failed_element_ids.insert(id.clone());
+            } else {
+                evaluation_limit_excluded_element_ids.insert(id.clone());
+            }
+            complete_attempt_and_continue!();
         }
 
         let numeric_geometry_prerequisites_have_failed = match conditional_dependency_graph.as_ref()
@@ -3133,6 +3258,11 @@ fn evaluate_document_input_with_scalar_program(
                         &mut state,
                         &completed_element_ids,
                         &mut captured_instance_ids,
+                        &mut completed_instance_ids,
+                        &mut failed_instance_ids,
+                        &failed_element_ids,
+                        &evaluation_limit_excluded_element_ids,
+                        &evaluated_geometry_value_entries,
                     );
                     break 'elements;
                 }
@@ -3279,6 +3409,11 @@ fn evaluate_document_input_with_scalar_program(
             &mut state,
             &completed_element_ids,
             &mut captured_instance_ids,
+            &mut completed_instance_ids,
+            &mut failed_instance_ids,
+            &failed_element_ids,
+            &evaluation_limit_excluded_element_ids,
+            &evaluated_geometry_value_entries,
         );
         run_transformation_recipes_through!(current_execution_position);
     }
@@ -3435,6 +3570,11 @@ fn evaluate_document_input_with_scalar_program(
             &mut state,
             &completed_element_ids,
             &mut captured_instance_ids,
+            &mut completed_instance_ids,
+            &mut failed_instance_ids,
+            &failed_element_ids,
+            &evaluation_limit_excluded_element_ids,
+            &evaluated_geometry_value_entries,
         );
     }
 

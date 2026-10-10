@@ -881,6 +881,35 @@ impl ConditionalDependencyGraph {
             })
     }
 
+    pub(crate) fn unavailable_module_instance_prerequisite(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        failed_instance_ids: &HashSet<ElementId>,
+        included_instance_ids: &HashSet<ElementId>,
+    ) -> Option<(ElementId, bool)> {
+        let mut excluded_instance_id = None;
+        for edge in self.edges.iter().filter(|edge| {
+            endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
+        }) {
+            if edge.to.kind != "module-occurrence" {
+                continue;
+            }
+            let instance_id = edge
+                .to
+                .id
+                .strip_prefix("module-occurrence:")
+                .unwrap_or(&edge.to.id);
+            if failed_instance_ids.contains(instance_id) {
+                return Some((instance_id.to_owned(), true));
+            }
+            if !included_instance_ids.contains(instance_id) {
+                excluded_instance_id = Some(instance_id.to_owned());
+            }
+        }
+        excluded_instance_id.map(|instance_id| (instance_id, false))
+    }
+
     fn geometry_prerequisite_is_ready_inner(
         &self,
         endpoint_id: &str,
