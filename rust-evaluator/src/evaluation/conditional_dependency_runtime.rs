@@ -27,8 +27,17 @@ struct RawConditionalDependencyGraph {
 struct RawConditionalDependencyEdge {
     from: RawConditionalDependencyEndpoint,
     to: RawConditionalDependencyEndpoint,
+    #[serde(default)]
+    span: Option<RawConditionalDependencySpan>,
     requiredness: Option<String>,
     activation: Option<RawConditionalDependencyActivation>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawConditionalDependencySpan {
+    start: usize,
+    end: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +73,7 @@ struct RawConditionalDependencyGuard {
 struct ConditionalDependencyEdge {
     from: ConditionalDependencyEndpoint,
     to: ConditionalDependencyEndpoint,
+    span: Option<(usize, usize)>,
     requiredness: Option<String>,
     activation: Option<ConditionalDependencyActivation>,
 }
@@ -195,6 +205,7 @@ pub(crate) fn decode_conditional_dependency_graph(
                 stage_path: raw_edge.to.stage_path,
             },
             requiredness: raw_edge.requiredness,
+            span: raw_edge.span.map(|span| (span.start, span.end)),
             activation,
         });
     }
@@ -465,6 +476,37 @@ impl ConditionalDependencyGraph {
             }
         }
         scheduled_binding_ids
+    }
+
+    /// Scalar bindings referenced by if/match selectors in immutable geometry
+    /// values. Source ranges associate the selector expressions with existing
+    /// canonical graph edges; binding identities are never resolved here.
+    pub(crate) fn bindings_with_active_geometry_value_selector_dependency(
+        &self,
+        branch_selections: &HashMap<String, String>,
+        selector_spans_by_endpoint_id: &HashMap<String, Vec<(usize, usize)>>,
+    ) -> HashSet<String> {
+        self.edges
+            .iter()
+            .filter(|edge| {
+                edge.from.kind == "geometry-value"
+                    && edge.to.kind == "binding"
+                    && edge_is_active(edge, branch_selections)
+            })
+            .filter(|edge| {
+                let Some((edge_start, edge_end)) = edge.span else {
+                    return false;
+                };
+                selector_spans_by_endpoint_id
+                    .get(&endpoint_key(&edge.from))
+                    .is_some_and(|selector_spans| {
+                        selector_spans
+                            .iter()
+                            .any(|(start, end)| edge_start >= *start && edge_end <= *end)
+                    })
+            })
+            .map(|edge| edge.to.id.clone())
+            .collect()
     }
 
     pub(crate) fn active_scheduled_binding_prerequisites(
@@ -1096,6 +1138,21 @@ mod tests {
         ConditionalDependencyEdge {
             from,
             to,
+            span: None,
+            requiredness: Some("required".to_owned()),
+            activation: None,
+        }
+    }
+
+    fn required_edge_with_span(
+        from: ConditionalDependencyEndpoint,
+        to: ConditionalDependencyEndpoint,
+        span: (usize, usize),
+    ) -> ConditionalDependencyEdge {
+        ConditionalDependencyEdge {
+            from,
+            to,
+            span: Some(span),
             requiredness: Some("required".to_owned()),
             activation: None,
         }
@@ -1128,6 +1185,62 @@ mod tests {
             geometry_value_errors: Vec::new(),
             warnings: Vec::new(),
         }
+    }
+
+    #[test]
+    fn geometry_value_selector_bindings_use_canonical_selector_spans() {
+        let graph = ConditionalDependencyGraph {
+            edges: vec![
+                required_edge_with_span(
+                    endpoint("geometry-value", "chosen", "chosen"),
+                    endpoint("binding", "flag", "flag"),
+                    (12, 17),
+                ),
+                required_edge_with_span(
+                    endpoint("geometry-value", "chosen", "chosen"),
+                    endpoint("binding", "leafValue", "leaf value"),
+                    (30, 37),
+                ),
+                ConditionalDependencyEdge {
+                    from: endpoint("geometry-value", "chosen", "chosen"),
+                    to: endpoint("binding", "nestedFlag", "nested flag"),
+                    span: Some((15, 19)),
+                    requiredness: Some("conditional".to_owned()),
+                    activation: Some(ConditionalDependencyActivation {
+                        guards: vec![ConditionalDependencyGuard {
+                            controller_id: "outer-controller".to_owned(),
+                            branch: "then".to_owned(),
+                            controller_kind: None,
+                            static_selection: None,
+                            controller_expression: None,
+                        }],
+                    }),
+                },
+                required_edge_with_span(
+                    endpoint("element", "other", "other"),
+                    endpoint("binding", "otherFlag", "other flag"),
+                    (15, 19),
+                ),
+            ],
+        };
+
+        let selector_spans = HashMap::from([("geometry-value:chosen".to_owned(), vec![(10, 20)])]);
+        assert_eq!(
+            graph.bindings_with_active_geometry_value_selector_dependency(
+                &HashMap::new(),
+                &selector_spans,
+            ),
+            HashSet::from(["flag".to_owned()]),
+            "only unconditional canonical binding edges inside selector spans should be scheduled"
+        );
+        assert_eq!(
+            graph.bindings_with_active_geometry_value_selector_dependency(
+                &HashMap::from([("outer-controller".to_owned(), "then".to_owned())]),
+                &selector_spans,
+            ),
+            HashSet::from(["flag".to_owned(), "nestedFlag".to_owned()]),
+            "active nested selectors should use their canonical conditional prerequisite edge"
+        );
     }
 
     #[test]
@@ -1287,6 +1400,7 @@ mod tests {
             edges: vec![ConditionalDependencyEdge {
                 from: endpoint("binding", outer, "Outer.Forwarded"),
                 to: endpoint("binding", child, "Nested.Value"),
+                span: None,
                 requiredness: Some("conditional".to_owned()),
                 activation: Some(ConditionalDependencyActivation {
                     guards: vec![ConditionalDependencyGuard {

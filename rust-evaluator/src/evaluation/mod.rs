@@ -2251,6 +2251,18 @@ fn evaluate_document_input_with_scalar_program(
         .enumerate()
         .map(|(index, entry)| (geometry_value_endpoint_id(&entry.occurrence), index))
         .collect::<HashMap<_, _>>();
+    let geometry_value_selector_spans_by_endpoint_id = geometry_value_program
+        .iter()
+        .filter_map(|entry| {
+            let selector_spans = geometry_value_runtime::geometry_value_selector_spans(entry);
+            (!selector_spans.is_empty()).then(|| {
+                (
+                    geometry_value_endpoint_id(&entry.occurrence),
+                    selector_spans,
+                )
+            })
+        })
+        .collect::<HashMap<_, _>>();
     let graph_element_ids = state
         .elements
         .iter()
@@ -2310,6 +2322,12 @@ fn evaluate_document_input_with_scalar_program(
                         })
                         .unwrap_or_default();
                     if let Some(graph) = conditional_dependency_graph.as_ref() {
+                        scheduled_binding_ids.extend(
+                            graph.bindings_with_active_geometry_value_selector_dependency(
+                                branch_selections,
+                                &geometry_value_selector_spans_by_endpoint_id,
+                            ),
+                        );
                         scheduled_binding_ids.extend(
                             graph.bindings_with_active_forward_binding_dependency(
                                 branch_selections,
