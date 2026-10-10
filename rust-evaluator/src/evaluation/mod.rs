@@ -3327,7 +3327,7 @@ fn evaluate_document_input_with_scalar_program(
             &evaluated_geometry_value_entries,
             readiness_resolver,
         );
-        if let Some(resolver) = scalar_mutation_resolver.as_mut() {
+        let made_progress = if let Some(resolver) = scalar_mutation_resolver.as_mut() {
             resolver.advance_before_with_geometry_values(
                 source_order,
                 f64::INFINITY,
@@ -3349,7 +3349,7 @@ fn evaluate_document_input_with_scalar_program(
                     source_position_fence: linear_mutation_ordering_active,
                     evaluated: &mut evaluated_geometry_value_entries,
                 },
-            );
+            )
         } else {
             let mut geometry_value_indices = (0..geometry_value_program.len()).collect::<Vec<_>>();
             geometry_value_indices.sort_by(|left, right| {
@@ -3375,6 +3375,59 @@ fn evaluate_document_input_with_scalar_program(
                 }
                 evaluated_geometry_value_entries[geometry_value_index] = true;
             }
+            true
+        };
+        if !made_progress {
+            let eligible_element_ids = completed_element_ids
+                .intersection(&effective_enabled_ids)
+                .cloned()
+                .collect::<HashSet<_>>();
+            let terminal_release_allowed = geometry_value_program
+                .iter()
+                .map(|entry| {
+                    conditional_dependency_graph.as_ref().is_some_and(|graph| {
+                        graph.geometry_value_has_evaluated_element_consumer(
+                            &geometry_value_endpoint_id(&entry.occurrence),
+                            &conditional_branch_selections,
+                            &eligible_element_ids,
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            if let Some(resolver) = scalar_mutation_resolver.as_ref() {
+                resolver.release_terminal_geometry_values(
+                    f64::INFINITY,
+                    source_order,
+                    &mut state,
+                    GeometryValueReleaseContext {
+                        program: &geometry_value_program,
+                        execution_positions: &geometry_value_execution_positions,
+                        selector_binding_ids_by_index:
+                            &geometry_value_selector_binding_ids_by_index,
+                        binding_schedule: &DependencyBindingSchedule {
+                            execution_positions: &binding_execution_positions,
+                            prerequisites: &binding_prerequisites_by_id,
+                        },
+                        dependency_ready_binding_ids: &dependency_ready_binding_ids,
+                        dependency_order_available: conditional_dependency_graph.is_some(),
+                        dependency_execution_position: conditional_dependency_graph
+                            .as_ref()
+                            .map(|_| f64::INFINITY),
+                        release_allowed: &terminal_release_allowed,
+                        source_position_fence: linear_mutation_ordering_active,
+                        evaluated: &mut evaluated_geometry_value_entries,
+                    },
+                );
+            }
+            for (evaluated, release_allowed) in evaluated_geometry_value_entries
+                .iter_mut()
+                .zip(&terminal_release_allowed)
+            {
+                if !release_allowed {
+                    *evaluated = true;
+                }
+            }
+            break;
         }
     }
     if evaluation_limit_index > 0 {

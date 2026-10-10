@@ -5,6 +5,7 @@ import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import {
   createRustStdioParityClient,
   fixtureFromSource,
+  isRustEligibleFixture,
   normalizeParityPayload,
   optionsFor
 } from "./evaluationParitySupport";
@@ -242,5 +243,86 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     expect(normalizeParityPayload(observable(fullAfter.fixture, fullAfter.rustPayload))).toEqual(
       normalizeParityPayload(observable(fullBefore.fixture, fullBefore.rustPayload))
     );
+  }, 60_000);
+
+  it("terminates excluded Module selectors whose scalar prerequisite is outside the limit", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(x: number) {",
+      "  const flag: boolean = @L.length > 5",
+      "  const chosen: line = if (@flag) { segment(start: (0, 0), end: (10, 0)) } else { segment(start: (0, 0), end: (5, 0)) }",
+      "  export line Use = from(source: @chosen)",
+      "  line L = segment(start: (0, 0), end: (@x, 0))",
+      "}",
+      "instance A = M(x: 4)",
+      "instance B = M(x: 9)"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const fullBefore = await evaluateFixtureBoth(fixture);
+    const fullResult = evaluationPayloadToResult(fullBefore.rustPayload);
+    const uses = fixture.elements.filter((element) => element.name === "Use");
+    expect(uses).toHaveLength(2);
+    expect(fullResult.errors).toEqual([]);
+    expect(fullResult.geometryValueErrors ?? []).toEqual([]);
+    expect(fullResult.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "line", end: { x: 5, y: 0 } });
+    expect(fullResult.computedGeometry.get(uses[1]!.id)).toMatchObject({ kind: "line", end: { x: 10, y: 0 } });
+
+    const baseOptions = optionsFor(fixture);
+    const zeroPayload = await rustStdio!.evaluate(fixture.elements, {
+      ...baseOptions,
+      evaluationLimitIndex: 0
+    });
+    const zeroResult = evaluationPayloadToResult(zeroPayload);
+    expect(zeroResult.evaluatedElementIds).toEqual(new Set());
+    expect(zeroResult.computedGeometry.size).toBe(0);
+    expect(zeroResult.errors).toEqual([]);
+    expect(zeroResult.geometryValueErrors ?? []).toEqual([]);
+
+    const snapshots = baseOptions.moduleMaterialization?.instanceBaseGeometrySnapshots;
+    if (!snapshots || snapshots.length !== 2) throw new Error("expected two compiler-derived Module boundaries");
+    const elementIndexById = new Map(fixture.elements.map((element, index) => [element.id, index]));
+    const firstInstanceIndices = snapshots[0]!.descendantIds.map((id) => elementIndexById.get(id));
+    if (firstInstanceIndices.some((index) => index === undefined)) {
+      throw new Error("first Module boundary must refer to materialized elements");
+    }
+    const firstInstanceBoundary = Math.max(...firstInstanceIndices as number[]) + 1;
+    const partialPayload = await rustStdio!.evaluate(fixture.elements, {
+      ...baseOptions,
+      evaluationLimitIndex: firstInstanceBoundary
+    });
+    const partialResult = evaluationPayloadToResult(partialPayload);
+    expect(partialResult.errors).toEqual([]);
+    expect(partialResult.geometryValueErrors ?? []).toEqual([]);
+    expect(partialResult.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "line", end: { x: 5, y: 0 } });
+    expect(partialResult.computedGeometry.get(uses[1]!.id)).toBeUndefined();
+
+    const fullAfter = await evaluateFixtureBoth(fixture);
+    expect(normalizeParityPayload(observable(fullAfter.fixture, fullAfter.rustPayload))).toEqual(
+      normalizeParityPayload(observable(fullBefore.fixture, fullBefore.rustPayload))
+    );
+  }, 60_000);
+
+  it("reports unavailable Module selectors after terminal release makes no scalar progress", async () => {
+    const evaluated = await evaluateBoth([
+      "nui 1",
+      "module M() {",
+      "  const flag: boolean = @L.length > 5",
+      "  const chosen: line = if (@flag) { segment(start: (0, 0), end: (10, 0)) } else { segment(start: (0, 0), end: (5, 0)) }",
+      "  export line Use = from(source: @chosen)",
+      "  line L = segment(start: (0, 0), end: (1 / 0, 0))",
+      "}",
+      "instance A = M()"
+    ].join("\n"));
+
+    for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.geometryValueErrors).toHaveLength(1);
+      expect(result.geometryValueErrors[0]?.message).toBe(
+        "Geometry value if condition is unavailable or not boolean."
+      );
+      expect(geometryFor(evaluated.fixture, payload, "Use")).toBeUndefined();
+    }
   }, 60_000);
 });

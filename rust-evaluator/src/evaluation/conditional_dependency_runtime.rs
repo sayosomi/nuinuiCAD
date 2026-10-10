@@ -753,6 +753,47 @@ impl ConditionalDependencyGraph {
             })
     }
 
+    /// Whether an active, evaluated drawable depends on this geometry value.
+    /// Terminal release uses this to distinguish unavailable values that can
+    /// still produce user-facing diagnostics from Module occurrences excluded
+    /// by the current evaluation limit.
+    pub(crate) fn geometry_value_has_evaluated_element_consumer(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        evaluated_element_ids: &HashSet<ElementId>,
+    ) -> bool {
+        let mut dependents_by_prerequisite =
+            HashMap::<String, Vec<&ConditionalDependencyEndpoint>>::new();
+        for edge in &self.edges {
+            if edge_is_active(edge, branch_selections) {
+                dependents_by_prerequisite
+                    .entry(endpoint_key(&edge.to))
+                    .or_default()
+                    .push(&edge.from);
+            }
+        }
+
+        let mut pending = vec![endpoint_id.to_owned()];
+        let mut visited = HashSet::new();
+        while let Some(prerequisite_id) = pending.pop() {
+            if !visited.insert(prerequisite_id.clone()) {
+                continue;
+            }
+            for dependent in dependents_by_prerequisite
+                .get(&prerequisite_id)
+                .into_iter()
+                .flatten()
+            {
+                if dependent.kind == "element" && evaluated_element_ids.contains(&dependent.id) {
+                    return true;
+                }
+                pending.push(endpoint_key(dependent));
+            }
+        }
+        false
+    }
+
     #[cfg(test)]
     pub(crate) fn ready_geometry_dependent_binding_ids(
         &self,
