@@ -1,0 +1,66 @@
+name: Auto-merge request dry run
+
+# This experimental workflow has no write permissions and never reserves or merges.
+# issue_comment workflows are loaded from the default branch.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  inspect-request:
+    if: >-
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.login == 'sayosomi' &&
+      startsWith(github.event.comment.body, '/auto-merge-dry-run')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Parse exact request
+        id: request
+        env:
+          REQUEST_BODY: ${{ github.event.comment.body }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          pattern = r"/auto-merge-dry-run\nhead=([0-9a-f]{40})\nbase=([0-9a-f]{40})\n?"
+          match = re.fullmatch(pattern, os.environ["REQUEST_BODY"])
+          if match is None:
+              sys.exit("BLOCKED: invalid dry-run request format")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"head={match.group(1)}\n")
+              output.write(f"base={match.group(2)}\n")
+          PY
+
+      - name: Verify live PR and authoritative main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.head }}
+          EXPECTED_MAIN: ${{ steps.request.outputs.base }}
+        run: |
+          set -euo pipefail
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || { echo "BLOCKED: invalid PR number"; exit 1; }
+          pr_json="$(gh api "repos/$REPO/pulls/$PR")"
+          pr_head="$(jq -r '.head.sha' <<< "$pr_json")"
+          pr_base="$(jq -r '.base.ref' <<< "$pr_json")"
+          pr_state="$(jq -r '.state' <<< "$pr_json")"
+          pr_draft="$(jq -r '.draft' <<< "$pr_json")"
+          main_head="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+
+          [[ "$pr_state" == open && "$pr_draft" == false && "$pr_base" == main ]] ||
+            { echo "BLOCKED: not an open, non-draft PR against main"; exit 1; }
+          [[ "$pr_head" == "$EXPECTED_HEAD" ]] ||
+            { echo "BLOCKED: reviewed PR head changed"; exit 1; }
+          [[ "$main_head" == "$EXPECTED_MAIN" ]] ||
+            { echo "BLOCKED: authoritative main changed"; exit 1; }
+
+          echo "DRY RUN PASS: PR and immutable expected refs match current GitHub state"
+          echo "DRY RUN ONLY: no auto-merge was reserved and no PR was merged"
