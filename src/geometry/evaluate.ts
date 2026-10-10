@@ -1040,6 +1040,10 @@ export const evaluateElements = (
         };
       }
       if (target.kind === "forGroupOccurrence") {
+        if (target.targetSourceOrder >= sourceOrder) {
+          invalid(target, "evaluation-collection-index-unavailable");
+          return null;
+        }
         const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === target.templateElementId);
         const expectedOccurrenceCount = forGroupExpectedOccurrenceCountByTemplateId.get(target.templateElementId);
         const index = target.index
