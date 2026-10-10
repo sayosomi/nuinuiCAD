@@ -1,0 +1,122 @@
+name: Auto-merge pilot (test PRs only)
+
+# Pilot only: never enable for production PRs without separately reviewed policy.
+# The request is issued by the repository owner from the reviewed ChatGPT turn.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  checks: read
+  statuses: read
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-pilot-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  reserve-test-pr-only:
+    if: >-
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.login == 'sayosomi' &&
+      github.event.comment.author_association == 'OWNER' &&
+      startsWith(github.event.comment.body, '/auto-merge-pilot')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify two immutable refs and reserve test PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+          BODY: ${{ github.event.comment.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Requests must be exact to prevent accidental triggers from prose.
+          [[ "$BODY" =~ ^/auto-merge-pilot$'\n'head=([0-9a-f]{40})$'\n'base=([0-9a-f]{40})$ ]] ||
+            { echo "BLOCKED: malformed pilot request"; exit 1; }
+          EXPECTED_HEAD="${BASH_REMATCH[1]}"
+          EXPECTED_MAIN="${BASH_REMATCH[2]}"
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || exit 1
+
+          verify() {
+            local pr_json current_main comparison graphql state draft base head title branch head_repo mergeable existing id files checks rc
+            pr_json="$(gh api "repos/$REPO/pulls/$PR")" || return 1
+            state="$(jq -r '.state' <<< "$pr_json")"
+            draft="$(jq -r '.draft' <<< "$pr_json")"
+            base="$(jq -r '.base.ref' <<< "$pr_json")"
+            head="$(jq -r '.head.sha' <<< "$pr_json")"
+            title="$(jq -r '.title' <<< "$pr_json")"
+            branch="$(jq -r '.head.ref' <<< "$pr_json")"
+            head_repo="$(jq -r '.head.repo.full_name' <<< "$pr_json")"
+            [[ "$state" == open && "$draft" == false && "$base" == main ]] ||
+              { echo "BLOCKED: PR state/base/draft"; return 1; }
+            [[ "$head" == "$EXPECTED_HEAD" && "$head_repo" == "$REPO" ]] ||
+              { echo "BLOCKED: reviewed head or head repository mismatch"; return 1; }
+            [[ "$title" == "Test: auto-merge pilot smoke" ]] ||
+              { echo "BLOCKED: only the designated test PR title is eligible"; return 1; }
+            [[ "$branch" == sayosomi/auto-merge-pilot-smoke-* ]] ||
+              { echo "BLOCKED: not a pilot test branch"; return 1; }
+
+            files="$(gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" --jq '.[].filename')" || return 1
+            [[ "$files" == "docs/auto-merge-pilot-smoke.md" ]] ||
+              { echo "BLOCKED: pilot PR has unexpected changed files"; return 1; }
+
+            current_main="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')" || return 1
+            [[ "$current_main" == "$EXPECTED_MAIN" ]] ||
+              { echo "BLOCKED: authoritative main changed"; return 1; }
+            comparison="$(gh api "repos/$REPO/compare/$EXPECTED_MAIN...$EXPECTED_HEAD")" || return 1
+            jq -e --arg main "$EXPECTED_MAIN" '
+              (.status == "ahead") and
+              (.base_commit.sha == $main) and
+              (.merge_base_commit.sha == $main) and
+              (.behind_by == 0)
+            ' <<< "$comparison" >/dev/null ||
+              { echo "BLOCKED: PR has not integrated current main"; return 1; }
+
+            graphql="$(gh api graphql -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){id mergeable autoMergeRequest{mergeMethod}}}}' -f owner="${REPO%/*}" -f repo="${REPO#*/}" -F number="$PR")" || return 1
+            mergeable="$(jq -r '.data.repository.pullRequest.mergeable' <<< "$graphql")"
+            existing="$(jq -r '.data.repository.pullRequest.autoMergeRequest.mergeMethod // "NONE"' <<< "$graphql")"
+            id="$(jq -r '.data.repository.pullRequest.id' <<< "$graphql")"
+            [[ "$mergeable" == MERGEABLE && "$existing" == NONE && "$id" != null && -n "$id" ]] ||
+              { echo "BLOCKED: ambiguous mergeability or existing auto-merge"; return 1; }
+
+            # The CLI marks required checks using authoritative branch rules.
+            # If rule visibility is missing, output is empty/error and fails closed.
+            rc=0
+            checks="$(gh pr checks "$PR" -R "$REPO" --required --json name,bucket 2>/dev/null)" || rc=$?
+            [[ "$rc" == 0 || "$rc" == 1 || "$rc" == 8 ]] ||
+              { echo "BLOCKED: unable to read required check states"; return 1; }
+            jq -e '
+              (length > 0) and
+              any(.[]; .name == "CI") and
+              all(.[]; .bucket == "pass" or .bucket == "pending") and
+              any(.[]; .bucket == "pending")
+            ' <<< "$checks" >/dev/null ||
+              { echo "BLOCKED: CI not required, not pending, or a required check failed"; return 1; }
+            printf '%s' "$id"
+          }
+
+          # Recheck GitHub state immediately before reservation.
+          ID="$(verify)" || exit 1
+          ID_AGAIN="$(verify)" || exit 1
+          [[ "$ID" == "$ID_AGAIN" ]] ||
+            { echo "BLOCKED: PR identity changed before mutation"; exit 1; }
+
+          # Reservation only; no direct merge fallback and no retry.
+          gh api graphql \
+            -f query='mutation($id:ID!,$head:GitObjectID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:MERGE,expectedHeadOid:$head}){clientMutationId}}' \
+            -f id="$ID" -f head="$EXPECTED_HEAD" >/dev/null
+
+          # Read back exact reservation, not merely API mutation success.
+          proof="$(gh api graphql -f query='query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){id state headRefOid autoMergeRequest{mergeMethod}}}}' -f owner="${REPO%/*}" -f repo="${REPO#*/}" -F number="$PR")" || exit 1
+          jq -e --arg id "$ID" --arg head "$EXPECTED_HEAD" '
+            .data.repository.pullRequest as $pr |
+            $pr.id == $id and $pr.state == "OPEN" and
+            $pr.headRefOid == $head and $pr.autoMergeRequest.mergeMethod == "MERGE"
+          ' <<< "$proof" >/dev/null ||
+            { echo "BLOCKED: auto-merge read-back mismatch (inspect remote state)"; exit 1; }
+          echo "AUTO-MERGE PILOT RESERVED: PR=$PR HEAD=$EXPECTED_HEAD MAIN=$EXPECTED_MAIN METHOD=MERGE"
