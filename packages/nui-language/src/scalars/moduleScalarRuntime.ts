@@ -19,7 +19,7 @@ import type {
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
 import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
-import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
+import { moduleOwnerIdFor, type ModuleMaterialization } from "../dsl/moduleMaterialization";
 import type { ModuleGeometryPropertyRuntimeTarget, ModuleGeometryRuntimeCompilation } from "../dsl/moduleGeometryRuntime";
 import { geometryInputTargetForAlias, geometryValueOccurrenceForRecordField, moduleCarryBindingIdFor, type GeometryAlias, type RuntimeGeometryCollectionNode, type RuntimeGeometryInputTarget } from "../dsl/moduleGeometryRuntimeLowering";
 import type {
@@ -910,9 +910,6 @@ const declarationVersionIdFor = (kind: "parameter" | "local", context: InstanceC
 
 const moduleScopeIdFor = (path: readonly string[], sourceScopeId: string) =>
   `module-instance-scope:${encodeIdentityTuple([...path, sourceScopeId])}`;
-
-const moduleOwnerIdFor = (path: readonly string[], sourceOwnerId: string) =>
-  `module-owner:${encodeIdentityTuple([...path, sourceOwnerId])}`;
 
 const moduleIterationIdFor = (path: readonly string[], sourceOwnerId: string) =>
   `module-iteration:${encodeIdentityTuple([...path, sourceOwnerId])}`;

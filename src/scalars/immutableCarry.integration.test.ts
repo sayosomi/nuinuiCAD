@@ -1182,6 +1182,30 @@ describe("immutable statement-for carries", () => {
     });
   });
 
+  it("keeps a pure Module argument seed through an empty geometry carry", () => {
+    const compiled = compile([
+      "nui 1",
+      "const Seed: line = segment(start: (0, 0), end: (3, 4))",
+      "module M(input: line) {",
+      "  for i in range(min: 0, max: 0, step: 1) carry last: line = @input {",
+      "    next last = @last",
+      "  }",
+      "  export const output: number = @last.length",
+      "}",
+      "instance A = M(input: @Seed)",
+      "const result: number = @A::output"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const evaluation = evaluateElements(compiled.document.elements, optionsFor(compiled));
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.geometryValueErrors ?? []).toEqual([]);
+    expect(scalarFor(compiled, evaluation, "result")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 5 }
+    });
+  });
+
   it("preserves the pure initializer for an empty loop and incoming/final values for nested heterogeneous carries", () => {
     const empty = compile([
       "nui 1",
