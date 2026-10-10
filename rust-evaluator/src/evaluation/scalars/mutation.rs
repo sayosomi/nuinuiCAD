@@ -74,6 +74,7 @@ pub(crate) struct DependencyBindingSchedule<'a> {
 pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) program: &'a [GeometryValueProgramEntry],
     pub(crate) execution_positions: &'a [f64],
+    pub(crate) selector_binding_ids_by_index: &'a [HashSet<String>],
     pub(crate) binding_schedule: &'a DependencyBindingSchedule<'a>,
     pub(crate) dependency_ready_binding_ids: &'a HashSet<String>,
     pub(crate) dependency_order_available: bool,
@@ -268,6 +269,20 @@ impl<'a> ScalarMutationResolver<'a> {
             state,
         );
     }
+    fn selector_binding_is_pending(
+        &self,
+        binding_ids: &HashSet<String>,
+        state: &EvaluationState,
+    ) -> bool {
+        binding_ids.iter().any(|binding_id| {
+            self.program.binding_ids.contains(binding_id)
+                && matches!(
+                    self.resolve(binding_id, state),
+                    ScalarEvaluation::Error { issue_code, .. }
+                        if issue_code == BINDING_UNAVAILABLE
+                )
+        })
+    }
     fn evaluate_geometry_values_through(
         &self,
         geometry_execution_position: f64,
@@ -312,6 +327,20 @@ impl<'a> ScalarMutationResolver<'a> {
                 || release_position > geometry_execution_position
                 || (geometry_values.source_position_fence
                     && entry.source_execution_position > source_order as f64)
+            {
+                continue;
+            }
+            // Root selectors retain the established SAY-501 schedule. A
+            // Module occurrence can reach this release pass before its local
+            // selector binding has become visible, so defer only that
+            // instance-owned value until the canonical binding is available.
+            if geometry_values
+                .selector_binding_ids_by_index
+                .get(index)
+                .is_some_and(|binding_ids| {
+                    !entry.occurrence.instance_path.is_empty()
+                        && self.selector_binding_is_pending(binding_ids, state)
+                })
             {
                 continue;
             }

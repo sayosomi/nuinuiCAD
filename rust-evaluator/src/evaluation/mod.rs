@@ -2263,6 +2263,29 @@ fn evaluate_document_input_with_scalar_program(
             })
         })
         .collect::<HashMap<_, _>>();
+    let selector_binding_ids_by_index_for_selections =
+        |branch_selections: &HashMap<String, String>| {
+            let binding_ids_by_endpoint_id = conditional_dependency_graph
+                .as_ref()
+                .map(|graph| {
+                    graph.geometry_value_selector_binding_ids_by_endpoint_id(
+                        branch_selections,
+                        &geometry_value_selector_spans_by_endpoint_id,
+                    )
+                })
+                .unwrap_or_default();
+            geometry_value_program
+                .iter()
+                .map(|entry| {
+                    binding_ids_by_endpoint_id
+                        .get(&geometry_value_endpoint_id(&entry.occurrence))
+                        .cloned()
+                        .unwrap_or_default()
+                })
+                .collect::<Vec<_>>()
+        };
+    let mut geometry_value_selector_binding_ids_by_index =
+        selector_binding_ids_by_index_for_selections(&conditional_branch_selections);
     let graph_element_ids = state
         .elements
         .iter()
@@ -2526,6 +2549,8 @@ fn evaluate_document_input_with_scalar_program(
                     GeometryValueReleaseContext {
                         program: &geometry_value_program,
                         execution_positions: &geometry_value_execution_positions,
+                        selector_binding_ids_by_index:
+                            &geometry_value_selector_binding_ids_by_index,
                         binding_schedule: &DependencyBindingSchedule {
                             execution_positions: &binding_execution_positions,
                             prerequisites: &binding_prerequisites_by_id,
@@ -2718,6 +2743,8 @@ fn evaluate_document_input_with_scalar_program(
                     &conditional_branch_selections,
                     &binding_execution_positions,
                 );
+                geometry_value_selector_binding_ids_by_index =
+                    selector_binding_ids_by_index_for_selections(&conditional_branch_selections);
                 geometry_value_execution_positions = geometry_value_program
                     .iter()
                     .map(|entry| {
@@ -2824,6 +2851,8 @@ fn evaluate_document_input_with_scalar_program(
                     GeometryValueReleaseContext {
                         program: &geometry_value_program,
                         execution_positions: &geometry_value_execution_positions,
+                        selector_binding_ids_by_index:
+                            &geometry_value_selector_binding_ids_by_index,
                         binding_schedule: &DependencyBindingSchedule {
                             execution_positions: &binding_execution_positions,
                             prerequisites: &binding_prerequisites_by_id,
@@ -3306,6 +3335,7 @@ fn evaluate_document_input_with_scalar_program(
                 GeometryValueReleaseContext {
                     program: &geometry_value_program,
                     execution_positions: &geometry_value_execution_positions,
+                    selector_binding_ids_by_index: &geometry_value_selector_binding_ids_by_index,
                     binding_schedule: &DependencyBindingSchedule {
                         execution_positions: &binding_execution_positions,
                         prerequisites: &binding_prerequisites_by_id,
