@@ -494,7 +494,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // nested-record validation to report from this semantic pass.
   let suppressScalarRecordFieldDiagnostics = false;
   const addLocal = (statementIndex: number, local: LocalDiagnostic) => {
-    if (suppressLocalDiagnostics) return;
+    if (suppressLocalDiagnostics && local.code !== "module-collection-index-type") return;
     const bucket = localDiagnosticsByStatement.get(statementIndex) ?? [];
     bucket.push(local);
     localDiagnosticsByStatement.set(statementIndex, bucket);
@@ -2232,6 +2232,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   let activeGeometryValueBinder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> | null = null;
   let activeRecordValueBinder: Extract<ModuleRecordSourceTarget, { kind: "recordValueForBinder" }> | null = null;
   const constructionInputResolutionStack = new Set<string>();
+  const indexedForGroupTemplateCandidates = (name: string, ownerIndex: number | null) =>
+    sourceNamespace.allDeclarations.filter((candidate) =>
+      candidate.kind === "geometry" &&
+      candidate.name === name &&
+      isMaterializedForGroupTemplate(statements, candidate.statementIndex) &&
+      moduleOwnerIndexOf(statements, candidate.statementIndex) === ownerIndex
+    );
 
   const resolveGeometry = (
     statementIndex: number,
@@ -2380,11 +2387,34 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         options.geometryPropertyResolver,
         undefined
       );
-      if (!indexSemantic || indexSemantic.type?.kind !== "number") return semantic(null, "invalid");
-      if (generatedLookup.kind === "resolved" && generatedLookup.declaration.kind === "geometry" &&
-          isMaterializedForGroupTemplate(statements, generatedLookup.declaration.statementIndex)) {
-        const declarationOwner = moduleOwnerIndexOf(statements, generatedLookup.declaration.statementIndex);
-        const declarationRelated = relatedForDeclaration(generatedLookup.declaration);
+      if (!indexSemantic || indexSemantic.type?.kind !== "number") {
+        const diagnosticSpan = logicalSource
+          ? indexSpan
+          : { start: semanticSpan.start + indexSpan.start, end: semanticSpan.start + indexSpan.end };
+        addLocal(statementIndex, issue(
+          "module-collection-index-type",
+          diagnosticSpan,
+          "geometry occurrence index は number 型である必要があります。"
+        ));
+        return semantic(null, "invalid");
+      }
+      const occurrenceCandidates = !path.absolute && path.segments.length === 1 && generatedLookup.kind !== "resolved"
+        ? indexedForGroupTemplateCandidates(base, ownerIndex)
+        : [];
+      if (occurrenceCandidates.length > 1) {
+        addLocal(statementIndex, issue("module-ambiguous-geometry-reference", baseSpan, `generated geometry「${base}」を一意に解決できません。`, {
+          relatedSources: occurrenceCandidates.flatMap((candidate) => relatedForDeclaration(candidate)),
+          presentation: { key: "diagnostic.module-ambiguous-geometry-reference", parameters: { target: base } }
+        }));
+        return semantic(null, "invalid");
+      }
+      const occurrenceDeclaration = generatedLookup.kind === "resolved"
+        ? generatedLookup.declaration
+        : occurrenceCandidates[0];
+      if (occurrenceDeclaration?.kind === "geometry" &&
+          isMaterializedForGroupTemplate(statements, occurrenceDeclaration.statementIndex)) {
+        const declarationOwner = moduleOwnerIndexOf(statements, occurrenceDeclaration.statementIndex);
+        const declarationRelated = relatedForDeclaration(occurrenceDeclaration);
         if (ownerIndex !== null && declarationOwner !== ownerIndex) {
           addLocal(statementIndex, issue("module-outer-capture", baseSpan, `module body から outer geometry「${base}」を暗黙 capture できません。`, {
             relatedSources: declarationRelated,
@@ -2392,8 +2422,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }));
           return semantic(null, "outerCapture");
         }
-        const sourceTarget = declarationGeometryTarget(generatedLookup.declaration, stableStatementIdByIndex);
-        const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(generatedLookup.declaration.statement);
+        const sourceTarget = declarationGeometryTarget(occurrenceDeclaration, stableStatementIdByIndex);
+        const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(occurrenceDeclaration.statement);
         if (!sourceTarget || !actualInterfaceType || !isModuleGeometryInterfaceAssignable(actualInterfaceType, expectedInterfaceType)) {
           addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
             relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
@@ -2660,11 +2690,25 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     const path = parseDslReferenceToken(base);
     const overlayLookup = resolveModuleLexicalPath(statementIndex, ownerIndex, path);
-    const lookup = overlayLookup.kind === "iteration"
+    const lexicalLookup = overlayLookup.kind === "iteration"
       ? overlayLookup
       : ownerIndex === null
         ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, base)
         : overlayLookup;
+    const occurrenceCandidates = reference.occurrenceIndex !== null && inputMembers[0] !== "input" &&
+      !path.absolute && path.segments.length === 1 && lexicalLookup.kind === "undefined"
+      ? indexedForGroupTemplateCandidates(base, ownerIndex)
+      : [];
+    if (occurrenceCandidates.length > 1) {
+      addLocal(statementIndex, issue("module-ambiguous-geometry-reference", baseSpan, `generated geometry「${base}」を一意に解決できません。`, {
+        relatedSources: occurrenceCandidates.flatMap((candidate) => relatedForDeclaration(candidate)),
+        presentation: { key: "diagnostic.module-ambiguous-geometry-reference", parameters: { target: base } }
+      }));
+      return semantic(null, "invalid", null, derivedRole);
+    }
+    const lookup = lexicalLookup.kind === "undefined" && occurrenceCandidates.length === 1
+      ? { kind: "resolved" as const, declaration: occurrenceCandidates[0]! }
+      : lexicalLookup;
     if (inputMembers[0] === "input") {
       if (inputArgument === null) {
         addLocal(statementIndex, issue(
@@ -2676,12 +2720,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return semantic(null, "invalid", null, derivedRole);
       }
       const occurrenceOwnerCandidates = reference.occurrenceIndex !== null && lookup.kind !== "resolved"
-        ? sourceNamespace.allDeclarations.filter((candidate) =>
-            candidate.kind === "geometry" &&
-            candidate.name === base &&
-            isMaterializedForGroupTemplate(statements, candidate.statementIndex) &&
-            moduleOwnerIndexOf(statements, candidate.statementIndex) === ownerIndex
-          )
+        ? indexedForGroupTemplateCandidates(base, ownerIndex)
         : [];
       const occurrenceOwner = occurrenceOwnerCandidates.length === 1 ? occurrenceOwnerCandidates[0] : null;
       if (occurrenceOwnerCandidates.length > 1) {
@@ -3051,7 +3090,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             undefined
           )
         : null;
-      if (!sourceTarget || !compatible || (reference.occurrenceIndex && (!indexSemantic || indexSemantic.type?.kind !== "number"))) {
+      if (reference.occurrenceIndex && (!indexSemantic || indexSemantic.type?.kind !== "number")) {
+        addLocal(statementIndex, issue(
+          "module-collection-index-type",
+          indexSpan ?? baseSpan,
+          "geometry occurrence index は number 型である必要があります。"
+        ));
+        return semantic(null, "invalid", null, derivedRole);
+      }
+      if (!sourceTarget || !compatible) {
         addLocal(statementIndex, issue("module-geometry-type-mismatch", baseSpan, `geometry reference「${base}」の型が一致しません(期待: ${expectedDiagnosticType})。`, {
           relatedSources: expectedRelatedSources.length ? expectedRelatedSources : declarationRelated,
           presentation: { key: "diagnostic.module-geometry-type-mismatch", parameters: { target: base } }
@@ -4592,11 +4639,29 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     const path = parseDslReferenceToken(reference.elementName);
     const overlayLookup = resolveModuleLexicalPath(statementIndex, ownerIndex, path);
-    const lookup = overlayLookup.kind === "iteration"
+    const lexicalLookup = overlayLookup.kind === "iteration"
       ? overlayLookup
       : ownerIndex === null
         ? qualifiedSourceDeclarationResolution(sourceNamespace, statementIndex, path) ?? sourceDeclarationResolution(sourceNamespace, statementIndex, reference.elementName)
         : overlayLookup;
+    const occurrenceCandidates = reference.occurrenceIndex !== null && !path.absolute &&
+      path.segments.length === 1 && lexicalLookup.kind === "undefined"
+      ? indexedForGroupTemplateCandidates(reference.elementName, ownerIndex)
+      : [];
+    if (occurrenceCandidates.length > 1) {
+      return {
+        target: null,
+        type: null,
+        resolution: "invalid",
+        diagnostic: issue("module-ambiguous-geometry-reference", reference.span, `generated geometry「${reference.elementName}」を一意に解決できません。`, {
+          relatedSources: occurrenceCandidates.flatMap((candidate) => relatedForDeclaration(candidate)),
+          presentation: { key: "diagnostic.module-ambiguous-geometry-reference", parameters: { target: reference.elementName } }
+        })
+      };
+    }
+    const lookup = lexicalLookup.kind === "undefined" && occurrenceCandidates.length === 1
+      ? { kind: "resolved" as const, declaration: occurrenceCandidates[0]! }
+      : lexicalLookup;
     if (lookup.kind === "resolved" && lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
       const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
       const valueType = dslRequiredValueTypeOf(carry?.valueType);
@@ -4731,7 +4796,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           )
           ? { kind: "number" as const }
           : choiceGeometryPropertyTypeForStatement(lookup.declaration.statement, reference.property);
-      if (!sourceTarget || !type || (reference.occurrenceIndex && (!indexSemantic || indexSemantic.type?.kind !== "number"))) return unknownProperty();
+      if (reference.occurrenceIndex && (!indexSemantic || indexSemantic.type?.kind !== "number")) {
+        const indexSpan = reference.occurrenceIndexSpan ?? reference.occurrenceIndex.span;
+        addLocal(statementIndex, issue(
+          "module-collection-index-type",
+          indexSpan,
+          "geometry occurrence index は number 型である必要があります。"
+        ));
+        return { target: null, type: null, resolution: "invalid" };
+      }
+      if (!sourceTarget || !type) return unknownProperty();
       return {
         target: {
           kind: "forGroupOccurrenceProperty",

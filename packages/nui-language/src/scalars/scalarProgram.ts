@@ -165,15 +165,17 @@ export const buildRootScalarExecutionOrder = (
 
 export const remapTypedExpressionSourceOrders = (
   expression: TypedScalarExpression,
-  sourceOrderFor: (sourceOrder: number) => number
+  sourceOrderFor: (sourceOrder: number) => number,
+  options?: { generatedOccurrencePropertiesOnly?: boolean }
 ): TypedScalarExpression => {
   const remapGeometryTarget = (target: ScalarExpressionResolvedGeometryTarget | null): ScalarExpressionResolvedGeometryTarget | null => {
     if (!target) return target;
+    if (options?.generatedOccurrencePropertiesOnly) return target;
     if (target.kind === "forGroupOccurrence") {
       return {
         ...target,
         targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder,
-        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
+        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor, options) : null
       };
     }
     return { ...target, statementIndex: target.statementIndex >= 0 ? sourceOrderFor(target.statementIndex) : target.statementIndex };
@@ -182,22 +184,24 @@ export const remapTypedExpressionSourceOrders = (
     case "collectionIndex":
       return {
         ...expression,
-        targetSourceOrder: expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
+        targetSourceOrder: !options?.generatedOccurrencePropertiesOnly && expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
           ? sourceOrderFor(expression.targetSourceOrder)
           : expression.targetSourceOrder,
-        index: remapTypedExpressionSourceOrders(expression.index, sourceOrderFor)
+        index: remapTypedExpressionSourceOrders(expression.index, sourceOrderFor, options)
       };
     case "geometryProperty":
       return {
         ...expression,
-        targetSourceOrder: expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
+        targetSourceOrder: (!options?.generatedOccurrencePropertiesOnly || Boolean(expression.forGroupOccurrenceTemplateElementId)) &&
+          expression.targetSourceOrder !== null && expression.targetSourceOrder >= 0
           ? sourceOrderFor(expression.targetSourceOrder)
           : expression.targetSourceOrder,
         ...(expression.forGroupOccurrenceIndex
-          ? { forGroupOccurrenceIndex: remapTypedExpressionSourceOrders(expression.forGroupOccurrenceIndex, sourceOrderFor) }
+          ? { forGroupOccurrenceIndex: remapTypedExpressionSourceOrders(expression.forGroupOccurrenceIndex, sourceOrderFor, options) }
           : {})
       };
     case "optionalMember": {
+      if (options?.generatedOccurrencePropertiesOnly) return expression;
       const target = expression.target;
       const remapReference = (reference: ScalarExpressionResolvedGeometryProperty): ScalarExpressionResolvedGeometryProperty => ({
         ...reference,
@@ -232,28 +236,28 @@ export const remapTypedExpressionSourceOrders = (
               : target
       };
     }
-    case "unary": return { ...expression, operand: remapTypedExpressionSourceOrders(expression.operand, sourceOrderFor) };
+    case "unary": return { ...expression, operand: remapTypedExpressionSourceOrders(expression.operand, sourceOrderFor, options) };
     case "binary": return {
       ...expression,
-      left: remapTypedExpressionSourceOrders(expression.left, sourceOrderFor),
-      right: remapTypedExpressionSourceOrders(expression.right, sourceOrderFor)
+      left: remapTypedExpressionSourceOrders(expression.left, sourceOrderFor, options),
+      right: remapTypedExpressionSourceOrders(expression.right, sourceOrderFor, options)
     };
-    case "group": return { ...expression, expression: remapTypedExpressionSourceOrders(expression.expression, sourceOrderFor) };
+    case "group": return { ...expression, expression: remapTypedExpressionSourceOrders(expression.expression, sourceOrderFor, options) };
     case "valueIf": return {
       ...expression,
-      condition: remapTypedExpressionSourceOrders(expression.condition, sourceOrderFor),
-      thenBranch: remapTypedExpressionSourceOrders(expression.thenBranch, sourceOrderFor),
-      elseBranch: remapTypedExpressionSourceOrders(expression.elseBranch, sourceOrderFor)
+      condition: remapTypedExpressionSourceOrders(expression.condition, sourceOrderFor, options),
+      thenBranch: remapTypedExpressionSourceOrders(expression.thenBranch, sourceOrderFor, options),
+      elseBranch: remapTypedExpressionSourceOrders(expression.elseBranch, sourceOrderFor, options)
     };
     case "valueMatch": return {
       ...expression,
-      scrutinee: remapTypedExpressionSourceOrders(expression.scrutinee, sourceOrderFor),
-      arms: expression.arms.map((arm) => ({ ...arm, expression: remapTypedExpressionSourceOrders(arm.expression, sourceOrderFor) }))
+      scrutinee: remapTypedExpressionSourceOrders(expression.scrutinee, sourceOrderFor, options),
+      arms: expression.arms.map((arm) => ({ ...arm, expression: remapTypedExpressionSourceOrders(arm.expression, sourceOrderFor, options) }))
     };
     case "call": return {
       ...expression,
       args: expression.args.map((argument) => argument.kind === "scalar"
-        ? { ...argument, expression: remapTypedExpressionSourceOrders(argument.expression, sourceOrderFor) }
+        ? { ...argument, expression: remapTypedExpressionSourceOrders(argument.expression, sourceOrderFor, options) }
         : { ...argument, target: remapGeometryTarget(argument.target) })
     };
     default: return expression;

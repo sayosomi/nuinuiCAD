@@ -68,7 +68,7 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import { resolveModuleLexicalDeclaration } from "./moduleLexicalResolution";
 import { analyzeModuleSemantics } from "./moduleSemanticAnalysis";
-import { unwrapModuleGeometrySourceTarget, type ModuleGeometrySourceTarget, type ModuleScalarSourceTarget, type ModuleSemanticAnalysis } from "./moduleSemanticTypes";
+import { unwrapModuleGeometrySourceTarget, type ModuleGeometrySourceTarget, type ModuleScalarExpressionSemantic, type ModuleScalarSourceTarget, type ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryRuntimeCompilation } from "./moduleGeometryRuntime";
@@ -3419,10 +3419,30 @@ export const compileDslDocument = (
       })
     )
   );
+  const hasRootForGroupOccurrenceGeometryTargets = Boolean(sourceSemanticCompilation && (
+    [...sourceSemanticCompilation.rootGeometryReferencesByStatementId.values()].some((sites) =>
+      sites.some((site) =>
+        site.reference.target?.kind === "forGroupOccurrence" && site.reference.target.index !== null
+      )
+    ) ||
+    [...sourceSemanticCompilation.rootScalarExpressionsByStatementId.values()].some((site) =>
+      site.expression.geometryBuiltinArguments.some((argument) =>
+        argument.reference.target?.kind === "forGroupOccurrence" && argument.reference.target.index !== null
+      ) ||
+      site.expression.geometryProperties.some((property) =>
+        property.target?.kind === "forGroupOccurrenceProperty" && property.target.index !== null
+      )
+    ) ||
+    [...sourceSemanticCompilation.rootElementScalarExpressionsByStatementId.values()].some((sites) =>
+      sites.some((site) => site.expression.geometryProperties.some((property) =>
+        property.target?.kind === "forGroupOccurrenceProperty" && property.target.index !== null
+      ))
+    )
+  ));
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences || hasRootForGroupOccurrenceGeometryTargets ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const constructionInputConsumerElementIds = new Set<ElementId>();
   const coordinateTargetFor = (coordinate: import("./moduleSemanticTypes").ModulePointCoordinateSemantic, statementIndex: number, sourceText: string): GeometryInputTarget => {
@@ -3434,10 +3454,10 @@ export const compileDslDocument = (
     };
     return { kind: "coordinate", anchor, sourceText };
   };
-  const loweredOccurrenceIndexFor = (target: Extract<ModuleGeometrySourceTarget, { kind: "forGroupOccurrence" }>): TypedScalarExpression | null => {
-    if (!target.index) return null;
+  const loweredOccurrenceIndexFor = (index: ModuleScalarExpressionSemantic | null): TypedScalarExpression | null => {
+    if (!index) return null;
     try {
-      return lowerExpression(target.index, () => undefined, new Map()).expression;
+      return lowerExpression(index, () => undefined, new Map()).expression;
     } catch {
       return null;
     }
@@ -3531,7 +3551,7 @@ export const compileDslDocument = (
             ...(target.pointKey ? { pointKey: target.pointKey } : {}),
             ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             targetSourceOrder: target.statementIndex,
-            index: loweredOccurrenceIndexFor(target),
+            index: loweredOccurrenceIndexFor(target.index),
             sourceText
           }
         : undefined;
@@ -3585,11 +3605,14 @@ export const compileDslDocument = (
       : exportBindingSeeds;
     const hasRootGeometryRuntimeOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
-        property.target?.kind === "sourceGeometryProperty" || property.target?.kind === "deferredModuleExportProperty"
+        property.target?.kind === "sourceGeometryProperty" ||
+        property.target?.kind === "deferredModuleExportProperty" ||
+        property.target?.kind === "forGroupOccurrenceProperty"
       ));
     const hasRootElementModuleGeometryPropertyOccurrences = [...moduleSemanticCompilation.rootElementScalarExpressionsByStatementId.values()]
       .some((sites) => sites.some((site) => site.expression.geometryProperties.some((property) =>
-        property.target?.kind === "deferredModuleExportProperty"
+        property.target?.kind === "deferredModuleExportProperty" ||
+        property.target?.kind === "forGroupOccurrenceProperty"
       )));
     const hasRootCollectionLengthOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.geometryProperties.some((property) =>
@@ -3899,12 +3922,14 @@ export const compileDslDocument = (
           };
         }
         if (target.kind === "forGroupOccurrenceProperty") {
+          const templateElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
+          if (!templateElementId) return null;
           return {
             kind: "forGroupOccurrence",
-            templateElementId: target.statementId,
+            templateElementId,
             property: target.property,
             targetSourceOrder: target.statementIndex,
-            index: null,
+            index: loweredOccurrenceIndexFor(target.index),
             ...(target.pointKey ? { pointKey: target.pointKey } : {}),
             ...(target.stagePath ? { stagePath: target.stagePath } : {}),
             type: property.type
@@ -4230,15 +4255,18 @@ export const compileDslDocument = (
             };
           }
           if (unwrapped.target.kind === "forGroupOccurrence") {
+            const templateElementId = compiled.elementIdsByStatementIndex?.get(unwrapped.target.statementIndex);
+            if (!templateElementId) return undefined;
             return {
               kind: "forGroupOccurrence",
-              templateElementId: unwrapped.target.statementId,
-              statementId: unwrapped.target.statementId,
+              templateElementId,
+              statementId: templateElementId,
               statementIndex: unwrapped.target.statementIndex,
               targetSourceOrder: unwrapped.target.statementIndex,
-              index: null,
+              index: loweredOccurrenceIndexFor(unwrapped.target.index),
               geometryType: expectedGeometryType,
-              ...(pointKey ? { pointKey } : {})
+              ...(pointKey ? { pointKey } : {}),
+              ...(unwrapped.target.stagePath ? { stagePath: unwrapped.target.stagePath } : {})
             };
           }
           if (unwrapped.target.kind === "geometryValueForBinder") return undefined;
@@ -4541,7 +4569,7 @@ export const compileDslDocument = (
         resolveGeometryStageSelection
       })
     : undefined;
-  const numericBindingCompilation = scalarAnalysis
+  let numericBindingCompilation = scalarAnalysis
     ? compileNumericBindings({
         statements: parsed.statements,
         elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map(),
@@ -4559,7 +4587,7 @@ export const compileDslDocument = (
         transformationRecipes: compiled.transformationRecipes
       })
     : undefined;
-  const transformationNumericBindings = [
+  let transformationNumericBindings = [
     ...(numericBindingCompilation?.transformationBindings ?? []),
     ...(moduleScalarCompilation?.materializedTransformationNumericBindings ?? [])
   ];
@@ -4631,6 +4659,82 @@ export const compileDslDocument = (
       if (sourceOrder !== undefined) scalarExecutionPositionByRuntimeElementId.set(elementId, sourceOrder);
     }
     rootScalarExecutionPositionByRuntimeElementId = scalarExecutionPositionByRuntimeElementId;
+  }
+  if (moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId || rootScalarExecutionPositionByRuntimeElementId) {
+    const sourceOrderFor = (sourceOrder: number) => {
+      const elementId = compiled.elementIdsByStatementIndex?.get(sourceOrder);
+      return elementId === undefined
+        ? sourceOrder
+        : moduleScalarCompilation?.scalarExecutionPositionByRuntimeElementId.get(elementId) ??
+          rootScalarExecutionPositionByRuntimeElementId?.get(elementId) ??
+          sourceOrder;
+    };
+    const remapOccurrenceTargets = (
+      targetsByElementId: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>
+    ) => new Map([...targetsByElementId].map(([elementId, targets]) => {
+      const remappedTargets = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
+      for (const [parameterKey, target] of targets) {
+        const remapTarget = (candidate: GeometryInputTarget): GeometryInputTarget =>
+          candidate.kind === "forGroupOccurrence"
+            ? {
+                ...candidate,
+                targetSourceOrder: sourceOrderFor(candidate.targetSourceOrder),
+                index: candidate.index ? remapTypedExpressionSourceOrders(candidate.index, sourceOrderFor) : null
+              }
+            : candidate;
+        remappedTargets.set(parameterKey, Array.isArray(target)
+          ? target.map((candidate) => remapTarget(candidate as GeometryInputTarget))
+          : remapTarget(target as GeometryInputTarget));
+      }
+      return [elementId, remappedTargets] as const;
+    }));
+    for (const [elementId, targets] of remapOccurrenceTargets(geometryInputTargetsByElementId)) {
+      geometryInputTargetsByElementId.set(elementId, targets);
+    }
+    if (moduleScalarCompilation) {
+      moduleScalarCompilation = {
+        ...moduleScalarCompilation,
+        geometryInputTargetsByRuntimeElementId: remapOccurrenceTargets(
+          moduleScalarCompilation.geometryInputTargetsByRuntimeElementId
+        )
+      };
+    }
+    if (compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId) {
+      compiled = {
+        ...compiled,
+        moduleGeometryRuntime: {
+          ...compiled.moduleGeometryRuntime,
+          geometryInputTargetsByRuntimeElementId: moduleScalarCompilation?.geometryInputTargetsByRuntimeElementId ??
+            remapOccurrenceTargets(compiled.moduleGeometryRuntime.geometryInputTargetsByRuntimeElementId)
+        }
+      };
+    }
+    if (numericBindingCompilation) {
+      const remapNumericBinding = (binding: import("../scalars/numericBindingCompiler").CompiledNumericBinding) => ({
+        ...binding,
+        ...(binding.typedExpression
+          ? {
+              typedExpression: remapTypedExpressionSourceOrders(binding.typedExpression, sourceOrderFor, {
+                generatedOccurrencePropertiesOnly: true
+              })
+            }
+          : {})
+      });
+      numericBindingCompilation = {
+        ...numericBindingCompilation,
+        sourcesByOccurrenceKey: new Map([...numericBindingCompilation.sourcesByOccurrenceKey].map(([key, binding]) =>
+          [key, remapNumericBinding(binding)] as const
+        )),
+        transformationBindings: numericBindingCompilation.transformationBindings.map((entry) => ({
+          ...entry,
+          binding: remapNumericBinding(entry.binding)
+        }))
+      };
+      transformationNumericBindings = [
+        ...numericBindingCompilation.transformationBindings,
+        ...(moduleScalarCompilation?.materializedTransformationNumericBindings ?? [])
+      ];
+    }
   }
   const sourceOrderByStatementIndex = moduleScalarCompilation?.scalarExecutionPositionByStatementIndex ??
     rootScalarExecutionOrder?.sourceOrderByStatementIndex;
