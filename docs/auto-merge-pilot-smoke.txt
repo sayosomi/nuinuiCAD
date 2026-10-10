@@ -1,0 +1,2 @@
+Disposable auto-merge pilot text fixture B.
+Full CI is intentional for pending reservation coverage; product behavior is unchanged.
