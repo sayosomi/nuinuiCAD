@@ -8,6 +8,9 @@ on:
       - CI
     types:
       - completed
+  issue_comment:
+    types:
+      - created
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -24,9 +27,16 @@ concurrency:
 jobs:
   notify:
     if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       github.event.comment.user.login == 'sayosomi' &&
+       github.event.comment.author_association == 'OWNER' &&
+       github.event.comment.body == '/discord-reconcile-bot-merges') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout trusted notification implementation
