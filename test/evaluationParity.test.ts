@@ -5626,6 +5626,240 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     }
   }, 30000);
 
+  it("does not emit selector diagnostics for excluded parameterized Module geometry values", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(x: number) {",
+      "  const flag: boolean = true",
+      "  const chosen: point = if (@flag) { coordinate(x: @x, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "  export point Use = from(source: @chosen)",
+      "}",
+      "instance A = M(x: 4)",
+      "instance B = M(x: 9)"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const fullOptions = optionsFor(fixture);
+    const zeroOptions = optionsFor({ ...fixture, evaluationLimitIndex: 0 });
+    const selectedBindingId = (instanceName: string) => {
+      const module = fixture.compiled?.doc.moduleSemanticAnalysis;
+      const instance = module?.instances.find((candidate) => candidate.name === instanceName);
+      if (!instance?.callee) throw new Error(`missing Module instance ${instanceName}`);
+      const definition = module?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+      const flag = definition?.localScalars.find((candidate) => candidate.name === "flag");
+      if (!definition || !flag) throw new Error("missing Module flag binding");
+      return moduleScalarBindingIdFor([instance.statementId], definition.statementId, flag.statementId);
+    };
+    const evaluateBoth = async (options: ReturnType<typeof optionsFor>) => {
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return { ts: evaluationPayloadToResult(tsPayload), rust: evaluationPayloadToResult(rustPayload) };
+    };
+
+    const full = await evaluateBoth(fullOptions);
+    for (const result of [full.ts, full.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      const uses = fixture.elements.filter((element) => element.name === "Use");
+      expect(uses).toHaveLength(2);
+      expect(result.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "point", x: 4, y: 2 });
+      expect(result.computedGeometry.get(uses[1]!.id)).toMatchObject({ kind: "point", x: 9, y: 2 });
+      for (const instanceName of ["A", "B"]) {
+        expect(result.computedScalarBindings?.get(selectedBindingId(instanceName))).toMatchObject({
+          status: "ok",
+          value: { kind: "boolean", value: true }
+        });
+      }
+    }
+
+    const zero = await evaluateBoth(zeroOptions);
+    for (const result of [zero.ts, zero.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(result.computedGeometry.size).toBe(0);
+    }
+
+    const fullAgain = await evaluateBoth(fullOptions);
+    for (const result of [fullAgain.ts, fullAgain.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      const uses = fixture.elements.filter((element) => element.name === "Use");
+      expect(result.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "point", x: 4, y: 2 });
+      expect(result.computedGeometry.get(uses[1]!.id)).toMatchObject({ kind: "point", x: 9, y: 2 });
+    }
+
+    const snapshots = fullOptions.moduleMaterialization?.instanceBaseGeometrySnapshots;
+    const indexByElementId = new Map(fixture.elements.map((element, index) => [element.id, index]));
+    if (!snapshots || snapshots.length !== 2) throw new Error("expected two compiled Module instance boundaries");
+    const firstInstanceIndices = snapshots[0]!.descendantIds.map((id) => indexByElementId.get(id));
+    const secondInstanceIndices = snapshots[1]!.descendantIds.map((id) => indexByElementId.get(id));
+    if (firstInstanceIndices.some((index) => index === undefined) || secondInstanceIndices.some((index) => index === undefined)) {
+      throw new Error("compiled Module boundaries must refer to materialized elements");
+    }
+    const firstInstanceBoundary = Math.max(...firstInstanceIndices as number[]) + 1;
+    expect(firstInstanceBoundary).toBeGreaterThan(0);
+    expect(firstInstanceBoundary).toBeLessThan(fixture.elements.length);
+    expect((firstInstanceIndices as number[]).every((index) => index < firstInstanceBoundary)).toBe(true);
+    expect((secondInstanceIndices as number[]).every((index) => index >= firstInstanceBoundary)).toBe(true);
+    const firstInstanceOnly = await evaluateBoth(optionsFor({ ...fixture, evaluationLimitIndex: firstInstanceBoundary }));
+    for (const result of [firstInstanceOnly.ts, firstInstanceOnly.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(result.computedGeometry.size).toBe(1);
+      const firstUse = fixture.elements.find((element) => element.name === "Use")!;
+      expect(result.computedGeometry.get(firstUse.id)).toMatchObject({ kind: "point", x: 4, y: 2 });
+    }
+  }, 30000);
+
+  it("preserves per-instance geometry-value match selectors at Module evaluation limits", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module M(x: number) {",
+      "  const side: choice(left, right) = if (@x > 5) { right } else { left }",
+      "  const chosen: point = match @side { left => coordinate(x: 7, y: 8) right => coordinate(x: @x, y: 2) }",
+      "  export point Use = from(source: @chosen)",
+      "}",
+      "instance A = M(x: 4)",
+      "instance B = M(x: 9)"
+    ].join("\n"));
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+
+    const fullOptions = optionsFor(fixture);
+    const zeroOptions = optionsFor({ ...fixture, evaluationLimitIndex: 0 });
+    const selectedBindingId = (instanceName: string) => {
+      const module = fixture.compiled?.doc.moduleSemanticAnalysis;
+      const instance = module?.instances.find((candidate) => candidate.name === instanceName);
+      if (!instance?.callee) throw new Error(`missing Module instance ${instanceName}`);
+      const definition = module?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+      const side = definition?.localScalars.find((candidate) => candidate.name === "side");
+      if (!definition || !side) throw new Error("missing Module side binding");
+      return moduleScalarBindingIdFor([instance.statementId], definition.statementId, side.statementId);
+    };
+    const evaluateBoth = async (options: ReturnType<typeof optionsFor>) => {
+      const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+      const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+      expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+      return { ts: evaluationPayloadToResult(tsPayload), rust: evaluationPayloadToResult(rustPayload) };
+    };
+    const expectedPoints = [
+      { instance: "A", x: 7, y: 8, side: "left" },
+      { instance: "B", x: 9, y: 2, side: "right" }
+    ] as const;
+    const uses = fixture.elements.filter((element) => element.name === "Use");
+
+    const full = await evaluateBoth(fullOptions);
+    for (const result of [full.ts, full.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(uses).toHaveLength(2);
+      for (const [index, expected] of expectedPoints.entries()) {
+        expect(result.computedGeometry.get(uses[index]!.id)).toMatchObject({
+          kind: "point",
+          x: expected.x,
+          y: expected.y
+        });
+        expect(result.computedScalarBindings?.get(selectedBindingId(expected.instance))).toMatchObject({
+          status: "ok",
+          value: { kind: "choice", value: expected.side }
+        });
+      }
+    }
+
+    const zero = await evaluateBoth(zeroOptions);
+    for (const result of [zero.ts, zero.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      expect(result.computedGeometry.size).toBe(0);
+    }
+
+    const fullAgain = await evaluateBoth(fullOptions);
+    for (const result of [fullAgain.ts, fullAgain.rust]) {
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors).toEqual([]);
+      for (const [index, expected] of expectedPoints.entries()) {
+        expect(result.computedGeometry.get(uses[index]!.id)).toMatchObject({
+          kind: "point",
+          x: expected.x,
+          y: expected.y
+        });
+      }
+    }
+  }, 30000);
+
+  it("preserves literal, root, and genuinely invalid geometry selectors at evaluation limits", async () => {
+    const fixtures = [
+      fixtureFromSource([
+        "nui 1",
+        "module Plain() {",
+        "  const chosen: point = if (true) { coordinate(x: 2, y: 3) } else { coordinate(x: 7, y: 8) }",
+        "  export point Use = from(source: @chosen)",
+        "}",
+        "instance Only = Plain()"
+      ].join("\n")),
+      fixtureFromSource([
+        "nui 1",
+        "const flag: boolean = true",
+        "const side: choice(left, right) = right",
+        "const SelectedIf: point = if (@flag) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+        "const SelectedMatch: point = match @side { left => coordinate(x: 7, y: 8) right => coordinate(x: 9, y: 4) }",
+        "point UseIf = from(source: @SelectedIf)",
+        "point UseMatch = from(source: @SelectedMatch)"
+      ].join("\n"))
+    ];
+    for (const fixture of fixtures) {
+      expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+      expect(isRustEligibleFixture(fixture)).toBe(true);
+      const fullOptions = optionsFor(fixture);
+      const zeroOptions = optionsFor({ ...fixture, evaluationLimitIndex: 0 });
+      for (const options of [zeroOptions, fullOptions]) {
+        const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+        const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+        expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+        const results = [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)];
+        for (const result of results) {
+          expect(result.errors).toEqual([]);
+          expect(result.geometryValueErrors).toEqual([]);
+          if (options.evaluationLimitIndex === 0) {
+            expect(result.computedGeometry.size).toBe(0);
+          } else if (fixture.elements.some((element) => element.name === "UseIf")) {
+            expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "UseIf")!.id))
+              .toMatchObject({ kind: "point", x: 1, y: 2 });
+            expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "UseMatch")!.id))
+              .toMatchObject({ kind: "point", x: 9, y: 4 });
+          } else {
+            expect(result.computedGeometry.get(fixture.elements.find((element) => element.name === "Use")!.id))
+              .toMatchObject({ kind: "point", x: 2, y: 3 });
+          }
+        }
+      }
+    }
+
+    const invalid = fixtureFromSource([
+      "nui 1",
+      "module M() {",
+      "  const invalid: boolean = (1 / 0) > 0",
+      "  const chosen: point = if (@invalid) { coordinate(x: 1, y: 2) } else { coordinate(x: 7, y: 8) }",
+      "  export point Use = from(source: @chosen)",
+      "}",
+      "instance Only = M()"
+    ].join("\n"));
+    expect(invalid.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(invalid)).toBe(true);
+    const invalidOptions = optionsFor(invalid);
+    const invalidTs = evaluateElementsReferencePayload(invalid.elements, invalidOptions);
+    const invalidRust = await rustStdio!.evaluate(invalid.elements, invalidOptions);
+    expect(normalizeParityPayload(invalidRust)).toEqual(normalizeParityPayload(invalidTs));
+    for (const payload of [invalidTs, invalidRust]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.geometryValueErrors).toHaveLength(1);
+      expect(result.geometryValueErrors?.[0]?.message)
+        .toBe("Geometry value if condition is unavailable or not boolean.");
+    }
+  }, 30000);
+
   it("matches Module collection length evaluation across TypeScript and Rust", () => {
     const fixture = fixtureFromSource([
       "nui 1",

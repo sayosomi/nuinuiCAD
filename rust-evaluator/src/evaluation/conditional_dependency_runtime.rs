@@ -486,27 +486,50 @@ impl ConditionalDependencyGraph {
         branch_selections: &HashMap<String, String>,
         selector_spans_by_endpoint_id: &HashMap<String, Vec<(usize, usize)>>,
     ) -> HashSet<String> {
-        self.edges
-            .iter()
-            .filter(|edge| {
-                edge.from.kind == "geometry-value"
-                    && edge.to.kind == "binding"
-                    && edge_is_active(edge, branch_selections)
-            })
-            .filter(|edge| {
-                let Some((edge_start, edge_end)) = edge.span else {
-                    return false;
-                };
-                selector_spans_by_endpoint_id
-                    .get(&endpoint_key(&edge.from))
-                    .is_some_and(|selector_spans| {
-                        selector_spans
-                            .iter()
-                            .any(|(start, end)| edge_start >= *start && edge_end <= *end)
-                    })
-            })
-            .map(|edge| edge.to.id.clone())
-            .collect()
+        self.geometry_value_selector_binding_ids_by_endpoint_id(
+            branch_selections,
+            selector_spans_by_endpoint_id,
+        )
+        .into_values()
+        .flatten()
+        .collect()
+    }
+
+    /// Direct canonical binding dependencies for each geometry-value selector.
+    /// The source spans distinguish if/match selector edges from other scalar
+    /// inputs to the same geometry value; binding IDs remain graph-owned.
+    pub(crate) fn geometry_value_selector_binding_ids_by_endpoint_id(
+        &self,
+        branch_selections: &HashMap<String, String>,
+        selector_spans_by_endpoint_id: &HashMap<String, Vec<(usize, usize)>>,
+    ) -> HashMap<String, HashSet<String>> {
+        let mut bindings_by_endpoint_id = HashMap::<String, HashSet<String>>::new();
+        for edge in &self.edges {
+            if edge.from.kind != "geometry-value"
+                || edge.to.kind != "binding"
+                || !edge_is_active(edge, branch_selections)
+            {
+                continue;
+            }
+            let Some((edge_start, edge_end)) = edge.span else {
+                continue;
+            };
+            let endpoint_id = endpoint_key(&edge.from);
+            if selector_spans_by_endpoint_id
+                .get(&endpoint_id)
+                .is_some_and(|selector_spans| {
+                    selector_spans
+                        .iter()
+                        .any(|(start, end)| edge_start >= *start && edge_end <= *end)
+                })
+            {
+                bindings_by_endpoint_id
+                    .entry(endpoint_id)
+                    .or_default()
+                    .insert(edge.to.id.clone());
+            }
+        }
+        bindings_by_endpoint_id
     }
 
     pub(crate) fn active_scheduled_binding_prerequisites(
@@ -728,6 +751,47 @@ impl ConditionalDependencyGraph {
                     &mut HashSet::new(),
                 )
             })
+    }
+
+    /// Whether an active, evaluated drawable depends on this geometry value.
+    /// Terminal release uses this to distinguish unavailable values that can
+    /// still produce user-facing diagnostics from Module occurrences excluded
+    /// by the current evaluation limit.
+    pub(crate) fn geometry_value_has_evaluated_element_consumer(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        evaluated_element_ids: &HashSet<ElementId>,
+    ) -> bool {
+        let mut dependents_by_prerequisite =
+            HashMap::<String, Vec<&ConditionalDependencyEndpoint>>::new();
+        for edge in &self.edges {
+            if edge_is_active(edge, branch_selections) {
+                dependents_by_prerequisite
+                    .entry(endpoint_key(&edge.to))
+                    .or_default()
+                    .push(&edge.from);
+            }
+        }
+
+        let mut pending = vec![endpoint_id.to_owned()];
+        let mut visited = HashSet::new();
+        while let Some(prerequisite_id) = pending.pop() {
+            if !visited.insert(prerequisite_id.clone()) {
+                continue;
+            }
+            for dependent in dependents_by_prerequisite
+                .get(&prerequisite_id)
+                .into_iter()
+                .flatten()
+            {
+                if dependent.kind == "element" && evaluated_element_ids.contains(&dependent.id) {
+                    return true;
+                }
+                pending.push(endpoint_key(dependent));
+            }
+        }
+        false
     }
 
     #[cfg(test)]
@@ -1225,6 +1289,17 @@ mod tests {
         };
 
         let selector_spans = HashMap::from([("geometry-value:chosen".to_owned(), vec![(10, 20)])]);
+        assert_eq!(
+            graph.geometry_value_selector_binding_ids_by_endpoint_id(
+                &HashMap::new(),
+                &selector_spans,
+            ),
+            HashMap::from([(
+                "geometry-value:chosen".to_owned(),
+                HashSet::from(["flag".to_owned()]),
+            )]),
+            "selector readiness should use canonical binding IDs per geometry-value occurrence"
+        );
         assert_eq!(
             graph.bindings_with_active_geometry_value_selector_dependency(
                 &HashMap::new(),

@@ -74,6 +74,7 @@ pub(crate) struct DependencyBindingSchedule<'a> {
 pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) program: &'a [GeometryValueProgramEntry],
     pub(crate) execution_positions: &'a [f64],
+    pub(crate) selector_binding_ids_by_index: &'a [HashSet<String>],
     pub(crate) binding_schedule: &'a DependencyBindingSchedule<'a>,
     pub(crate) dependency_ready_binding_ids: &'a HashSet<String>,
     pub(crate) dependency_order_available: bool,
@@ -171,7 +172,14 @@ impl<'a> ScalarMutationResolver<'a> {
         geometry_execution_position: f64,
         state: &mut EvaluationState,
         mut geometry_values: GeometryValueReleaseContext<'_>,
-    ) {
+    ) -> bool {
+        let next_version_index_before = self.next_version_index;
+        let history_len_before = self.history.len();
+        let evaluated_count_before = geometry_values
+            .evaluated
+            .iter()
+            .filter(|evaluated| **evaluated)
+            .count();
         if geometry_values.dependency_order_available
             && geometry_values.dependency_execution_position.is_some()
         {
@@ -205,6 +213,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         version.source_order,
                         &mut geometry_values,
                         state,
+                        false,
                     );
                     let dependency_ready_binding_ids =
                         geometry_values.dependency_ready_binding_ids.clone();
@@ -234,8 +243,16 @@ impl<'a> ScalarMutationResolver<'a> {
                 source_order,
                 &mut geometry_values,
                 state,
+                false,
             );
-            return;
+            return self.next_version_index != next_version_index_before
+                || self.history.len() != history_len_before
+                || geometry_values
+                    .evaluated
+                    .iter()
+                    .filter(|evaluated| **evaluated)
+                    .count()
+                    > evaluated_count_before;
         }
         while self.next_version_index < self.program.versions.len() {
             let version_source_order = self.program.versions[self.next_version_index].source_order;
@@ -255,6 +272,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 version_source_order,
                 &mut geometry_values,
                 state,
+                false,
             );
             self.next_version_index += 1;
             let version = &self.program.versions[self.next_version_index - 1];
@@ -266,7 +284,45 @@ impl<'a> ScalarMutationResolver<'a> {
             source_order,
             &mut geometry_values,
             state,
+            false,
         );
+        self.next_version_index != next_version_index_before
+            || self.history.len() != history_len_before
+            || geometry_values
+                .evaluated
+                .iter()
+                .filter(|evaluated| **evaluated)
+                .count()
+                > evaluated_count_before
+    }
+    pub(crate) fn release_terminal_geometry_values(
+        &self,
+        geometry_execution_position: f64,
+        source_order: usize,
+        state: &mut EvaluationState,
+        mut geometry_values: GeometryValueReleaseContext<'_>,
+    ) {
+        self.evaluate_geometry_values_through(
+            geometry_execution_position,
+            source_order,
+            &mut geometry_values,
+            state,
+            true,
+        );
+    }
+    fn selector_binding_is_pending(
+        &self,
+        binding_ids: &HashSet<String>,
+        state: &EvaluationState,
+    ) -> bool {
+        binding_ids.iter().any(|binding_id| {
+            self.program.binding_ids.contains(binding_id)
+                && matches!(
+                    self.resolve(binding_id, state),
+                    ScalarEvaluation::Error { issue_code, .. }
+                        if issue_code == BINDING_UNAVAILABLE
+                )
+        })
     }
     fn evaluate_geometry_values_through(
         &self,
@@ -274,6 +330,7 @@ impl<'a> ScalarMutationResolver<'a> {
         source_order: usize,
         geometry_values: &mut GeometryValueReleaseContext<'_>,
         state: &mut EvaluationState,
+        release_pending_module_selectors: bool,
     ) {
         let resolver: &dyn ScalarDocumentBindingResolver = self;
         let mut entry_indices = (0..geometry_values.program.len()).collect::<Vec<_>>();
@@ -312,6 +369,21 @@ impl<'a> ScalarMutationResolver<'a> {
                 || release_position > geometry_execution_position
                 || (geometry_values.source_position_fence
                     && entry.source_execution_position > source_order as f64)
+            {
+                continue;
+            }
+            // Root selectors retain the established SAY-501 schedule. A
+            // Module occurrence can reach this release pass before its local
+            // selector binding has become visible, so defer only that
+            // instance-owned value until the canonical binding is available.
+            if geometry_values
+                .selector_binding_ids_by_index
+                .get(index)
+                .is_some_and(|binding_ids| {
+                    !release_pending_module_selectors
+                        && !entry.occurrence.instance_path.is_empty()
+                        && self.selector_binding_is_pending(binding_ids, state)
+                })
             {
                 continue;
             }
@@ -405,6 +477,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         version.source_order,
                         geometry_values,
                         state,
+                        false,
                     );
                 }
                 self.execute(version, state);
@@ -461,6 +534,7 @@ impl<'a> ScalarMutationResolver<'a> {
                         version.source_order,
                         geometry_values,
                         state,
+                        false,
                     );
                 }
                 self.execute(version, state);

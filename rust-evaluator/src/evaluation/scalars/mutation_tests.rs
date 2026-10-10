@@ -69,6 +69,40 @@ fn binding_versions(
     }
 }
 
+#[test]
+fn geometry_value_selector_waits_for_pending_bindings_but_preserves_binding_errors() {
+    let binding_id = "module-binding:selector".to_owned();
+    let mut program = binding_versions(Vec::new());
+    program.binding_ids = HashSet::from([binding_id.clone()]);
+    let mut resolver = ScalarMutationResolver::new(&program);
+    let state = evaluation_state();
+    let selector_bindings = HashSet::from([binding_id.clone()]);
+
+    assert!(resolver.selector_binding_is_pending(&selector_bindings, &state));
+    assert!(!resolver
+        .selector_binding_is_pending(&HashSet::from(["unknown:binding".to_owned()]), &state,));
+
+    resolver.current.insert(
+        binding_id.clone(),
+        ScalarEvaluation::Ok {
+            r#type: ScalarType::Boolean,
+            value: ScalarValue::Boolean(true),
+        },
+    );
+    assert!(!resolver.selector_binding_is_pending(&selector_bindings, &state));
+
+    resolver.current.insert(
+        binding_id.clone(),
+        ScalarEvaluation::Error {
+            r#type: ScalarType::Boolean,
+            issue_code: "evaluation-division-by-zero".to_owned(),
+            binding_id: Some(binding_id),
+            context: None,
+        },
+    );
+    assert!(!resolver.selector_binding_is_pending(&selector_bindings, &state));
+}
+
 fn number_collection(value_id: &str, values: &[f64]) -> ValidatedScalarProgramCollection {
     ValidatedScalarProgramCollection {
         value_id: value_id.to_owned(),
