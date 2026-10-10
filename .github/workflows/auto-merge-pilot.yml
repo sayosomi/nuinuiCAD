@@ -85,20 +85,34 @@ jobs:
               { echo "BLOCKED: ambiguous mergeability or existing auto-merge" >&2; return 1; }
 
             echo "PILOT: live PR identity, file allowlist, main, integration, and mergeability verified" >&2
-            # The CLI marks required checks using authoritative branch rules.
-            # If rule visibility is missing, output is empty/error and fails closed.
-            rc=0
-            checks="$(gh pr checks "$PR" -R "$REPO" --required --json name,bucket)" || rc=$?
-            [[ "$rc" == 0 || "$rc" == 1 || "$rc" == 8 ]] ||
-              { echo "BLOCKED: unable to read required check states" >&2; return 1; }
-            jq -e '
-              (length > 0) and
-              any(.[]; .name == "CI") and
-              all(.[]; .bucket == "pass" or .bucket == "pending") and
-              any(.[]; .bucket == "pending")
-            ' <<< "$checks" >/dev/null ||
-              { echo "BLOCKED: CI not required, not pending, or a required check failed" >&2; return 1; }
-            echo "PILOT: pending required checks verified" >&2
+            # GitHub CLI --required cannot reliably resolve the base's required
+            # check from a PR head branch under the workflow's GITHUB_TOKEN.
+            # Prove main's actual protection directly, then read the check run
+            # from the exact reviewed PR commit and required GitHub Actions App.
+            protected_branch="$(gh api "repos/$REPO/branches/main")" || return 1
+            required_app="$(jq -er '
+              if .protected == true and
+                .protection.enabled == true and
+                .protection.required_status_checks.enforcement_level == "everyone" and
+                .protection.required_status_checks.contexts == ["CI"] and
+                (.protection.required_status_checks.checks | length) == 1 and
+                .protection.required_status_checks.checks[0].context == "CI" and
+                (.protection.required_status_checks.checks[0].app_id | type) == "number" and
+                .protection.required_status_checks.checks[0].app_id > 0
+              then .protection.required_status_checks.checks[0].app_id
+              else empty end
+            ' <<< "$protected_branch")" ||
+              { echo "BLOCKED: required CI protection not proven" >&2; return 1; }
+
+            check_runs="$(gh api "repos/$REPO/commits/$EXPECTED_HEAD/check-runs?per_page=100")" || return 1
+            jq -e --argjson app "$required_app" --arg head "$EXPECTED_HEAD" '
+              (.total_count <= 100) and
+              ([.check_runs[] | select(.name == "CI" and .app.id == $app and .head_sha == $head)] | length == 1) and
+              ([.check_runs[] | select(.name == "CI" and .app.id == $app and .head_sha == $head)][0] |
+                ((.status == "queued" or .status == "in_progress") and .conclusion == null))
+            ' <<< "$check_runs" >/dev/null ||
+              { echo "BLOCKED: required CI on the reviewed head is not pending" >&2; return 1; }
+            echo "PILOT: protected main requires exact CI provider; check is pending" >&2
             printf '%s' "$id"
           }
 
