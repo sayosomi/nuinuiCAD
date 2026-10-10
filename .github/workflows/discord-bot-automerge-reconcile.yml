@@ -45,6 +45,74 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
+      - name: Allow CI-triggered bot auto-merge to settle before reconciliation
+        if: >-
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.conclusion == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REVIEWED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+            { echo "BLOCKED: invalid completed CI head SHA" >&2; exit 1; }
+
+          # workflow_run.pull_requests can be empty even for a genuine PR run.
+          # Use the commit's authoritative associated PRs and refuse to guess.
+          linked="$(gh api "repos/$REPO/commits/$REVIEWED_SHA/pulls?per_page=100")"
+          pr_number="$(jq -er --arg repo "$REPO" --arg head "$REVIEWED_SHA" '
+            [.[] | select(
+              .head.sha == $head and
+              .head.repo.full_name == $repo and
+              .base.repo.full_name == $repo and
+              .base.ref == "main"
+            )] |
+            if length == 1 then .[0].number else empty end
+          ' <<< "$linked")" || {
+            echo "RECONCILE: no unique reviewed-head PR; proceed to normal bounded scan" >&2
+            pr_number=""
+          }
+          if [[ -n "$pr_number" ]]; then
+            [[ "$pr_number" =~ ^[1-9][0-9]*$ ]] ||
+              { echo "BLOCKED: invalid linked PR number" >&2; exit 1; }
+
+            # GitHub can finish required CI, emit workflow_run, and only then
+            # carry out the reserved merge. Wait here, not in the Human chat.
+            # Ordinary non-bot PRs exit immediately; schedule remains fallback.
+            for attempt in {1..18}; do
+              live="$(gh api "repos/$REPO/pulls/$pr_number")"
+              jq -e --arg repo "$REPO" --arg head "$REVIEWED_SHA" '
+                .head.sha == $head and
+                .head.repo.full_name == $repo and
+                .base.repo.full_name == $repo and
+                .base.ref == "main"
+              ' <<< "$live" >/dev/null || {
+                echo "RECONCILE: PR head/base drift; leave normal scan to handle state" >&2
+                break
+              }
+              if jq -e '.merged == true and .state == "closed"' <<< "$live" >/dev/null; then
+                echo "RECONCILE: PR #$pr_number merged; run notification scan" >&2
+                break
+              fi
+              if ! jq -e '
+                .state == "open" and
+                .auto_merge.merge_method == "merge" and
+                .auto_merge.enabled_by.login == "github-actions[bot]"
+              ' <<< "$live" >/dev/null; then
+                echo "RECONCILE: PR #$pr_number has no active GitHub-bot auto-merge; skip wait" >&2
+                break
+              fi
+              if [[ "$attempt" -eq 18 ]]; then
+                echo "RECONCILE: bot auto-merge still pending after bounded wait; scheduled scan remains fallback" >&2
+                break
+              fi
+              sleep 5
+            done
+          fi
+
       - name: Send previously missed GitHub-token merge notifications once
         shell: bash
         env:
@@ -58,7 +126,6 @@ jobs:
           cutoff="$(date -u -d '48 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
 
           # A bounded current-state scan, not a replay of every historical PR.
-          echo "DIAG: LIST closed PRs" >&2
           recent="$(gh api "repos/$REPO/pulls?state=closed&sort=updated&direction=desc&per_page=100")"
           jq -e --arg cutoff "$cutoff" '
             type == "array" and
@@ -73,7 +140,6 @@ jobs:
             [[ -n "$number" ]] || continue
             [[ "$number" =~ ^[1-9][0-9]*$ ]] || exit 1
 
-            echo "DIAG: FETCH PR #$number" >&2
             pr="$(gh api "repos/$REPO/pulls/$number")"
             jq -e --arg cutoff "$cutoff" '
               .state == "closed" and
@@ -90,7 +156,6 @@ jobs:
 
             # A bot-authored PR comment is the durable receipt. A replay after
             # a crash may resend, but a recorded success is never resent.
-            echo "DIAG: LIST issue comments PR #$number" >&2
             comments="$(gh api --paginate "repos/$REPO/issues/$number/comments?per_page=100")"
             if jq -se --arg marker "$marker" '
               any(.[][]; .user.login == "github-actions[bot]" and .body == $marker)
@@ -103,9 +168,7 @@ jobs:
             export PR_NUMBER="$number"
             export PR_TITLE="$(jq -r '.title' <<< "$pr")"
             export PR_URL="$(jq -r '.html_url' <<< "$pr")"
-            echo "DIAG: SEND Discord PR #$number" >&2
             node scripts/ci/discordPrNotification.mjs merge
-            echo "DIAG: WRITE receipt PR #$number" >&2
             gh api -X POST "repos/$REPO/issues/$number/comments" -f body="$marker" --jq '.id' >/dev/null
             echo "DISCORD BOT MERGE NOTIFIED PR #$number ($merge_sha)"
           done <<< "$numbers"
