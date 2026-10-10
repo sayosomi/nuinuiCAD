@@ -62,7 +62,7 @@ jobs:
               { echo "BLOCKED: not a pilot test branch" >&2; return 1; }
 
             files="$(gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" --jq '.[].filename')" || return 1
-            [[ "$files" == "docs/auto-merge-pilot-smoke.md" ]] ||
+            [[ "$files" == "docs/auto-merge-pilot-smoke.txt" ]] ||
               { echo "BLOCKED: pilot PR has unexpected changed files" >&2; return 1; }
 
             current_main="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')" || return 1
