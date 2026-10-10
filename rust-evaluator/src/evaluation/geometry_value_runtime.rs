@@ -244,6 +244,63 @@ pub(crate) struct GeometryValueProgramEntry {
     pub(crate) construction: GeometryValueConstruction,
 }
 
+/// Source ranges of if conditions and match scrutinees in this compiled
+/// geometry-value construction. The canonical dependency graph owns the
+/// binding identities; these ranges only associate its existing edges with
+/// selector expressions.
+pub(crate) fn geometry_value_selector_spans(
+    entry: &GeometryValueProgramEntry,
+) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    let mut pending = vec![&entry.construction];
+    while let Some(construction) = pending.pop() {
+        match construction {
+            GeometryValueConstruction::If {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let span = typed_expression_span(condition);
+                spans.push(span);
+                pending.push(else_branch);
+                pending.push(then_branch);
+            }
+            GeometryValueConstruction::Match { scrutinee, arms } => {
+                let span = typed_expression_span(scrutinee);
+                spans.push(span);
+                pending.extend(arms.iter().map(|arm| arm.expression.as_ref()));
+            }
+            GeometryValueConstruction::Coalesce { left, right } => {
+                pending.push(right);
+                pending.push(left);
+            }
+            _ => {}
+        }
+    }
+    spans
+}
+
+fn typed_expression_span(expression: &TypedScalarExpression) -> (usize, usize) {
+    let span = match expression {
+        TypedScalarExpression::NumberLiteral { span, .. }
+        | TypedScalarExpression::StringLiteral { span, .. }
+        | TypedScalarExpression::BooleanLiteral { span, .. }
+        | TypedScalarExpression::NoneLiteral { span, .. }
+        | TypedScalarExpression::ChoiceLiteral { span, .. }
+        | TypedScalarExpression::Reference { span, .. }
+        | TypedScalarExpression::CollectionIndex { span, .. }
+        | TypedScalarExpression::GeometryProperty { span, .. }
+        | TypedScalarExpression::OptionalMember { span, .. }
+        | TypedScalarExpression::Unary { span, .. }
+        | TypedScalarExpression::Binary { span, .. }
+        | TypedScalarExpression::Group { span, .. }
+        | TypedScalarExpression::ValueIf { span, .. }
+        | TypedScalarExpression::ValueMatch { span, .. }
+        | TypedScalarExpression::Call { span, .. } => span,
+    };
+    (span.start, span.end)
+}
+
 struct GeometryValueProgramEntryView<'a> {
     declared_interface_type: &'a str,
     occurrence: &'a GeometryValueOccurrence,
