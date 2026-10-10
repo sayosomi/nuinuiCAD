@@ -245,7 +245,7 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     );
   }, 60_000);
 
-  it("terminates excluded Module selectors whose scalar prerequisite is outside the limit", async () => {
+  it("keeps excluded Module selectors out of terminal release across zero, partial, and full limits", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "module M(x: number) {",
@@ -260,48 +260,72 @@ describe("Rust geometry-value if/match scalar selectors", () => {
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(isRustEligibleFixture(fixture)).toBe(true);
 
-    const fullBefore = await evaluateFixtureBoth(fixture);
-    const fullResult = evaluationPayloadToResult(fullBefore.rustPayload);
-    const uses = fixture.elements.filter((element) => element.name === "Use");
-    expect(uses).toHaveLength(2);
-    expect(fullResult.errors).toEqual([]);
-    expect(fullResult.geometryValueErrors ?? []).toEqual([]);
-    expect(fullResult.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "line", end: { x: 5, y: 0 } });
-    expect(fullResult.computedGeometry.get(uses[1]!.id)).toMatchObject({ kind: "line", end: { x: 10, y: 0 } });
-
     const baseOptions = optionsFor(fixture);
-    const zeroPayload = await rustStdio!.evaluate(fixture.elements, {
-      ...baseOptions,
-      evaluationLimitIndex: 0
-    });
-    const zeroResult = evaluationPayloadToResult(zeroPayload);
-    expect(zeroResult.evaluatedElementIds).toEqual(new Set());
-    expect(zeroResult.computedGeometry.size).toBe(0);
-    expect(zeroResult.errors).toEqual([]);
-    expect(zeroResult.geometryValueErrors ?? []).toEqual([]);
-
     const snapshots = baseOptions.moduleMaterialization?.instanceBaseGeometrySnapshots;
     if (!snapshots || snapshots.length !== 2) throw new Error("expected two compiler-derived Module boundaries");
     const elementIndexById = new Map(fixture.elements.map((element, index) => [element.id, index]));
     const firstInstanceIndices = snapshots[0]!.descendantIds.map((id) => elementIndexById.get(id));
-    if (firstInstanceIndices.some((index) => index === undefined)) {
-      throw new Error("first Module boundary must refer to materialized elements");
+    const secondInstanceIndices = snapshots[1]!.descendantIds.map((id) => elementIndexById.get(id));
+    if (firstInstanceIndices.some((index) => index === undefined) ||
+        secondInstanceIndices.some((index) => index === undefined)) {
+      throw new Error("Module boundaries must refer to compiled elements");
     }
     const firstInstanceBoundary = Math.max(...firstInstanceIndices as number[]) + 1;
-    const partialPayload = await rustStdio!.evaluate(fixture.elements, {
-      ...baseOptions,
-      evaluationLimitIndex: firstInstanceBoundary
-    });
-    const partialResult = evaluationPayloadToResult(partialPayload);
-    expect(partialResult.errors).toEqual([]);
-    expect(partialResult.geometryValueErrors ?? []).toEqual([]);
-    expect(partialResult.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "line", end: { x: 5, y: 0 } });
-    expect(partialResult.computedGeometry.get(uses[1]!.id)).toBeUndefined();
+    expect(snapshots[0]!.descendantIds.every((id) => elementIndexById.get(id)! < firstInstanceBoundary)).toBe(true);
+    expect(snapshots[1]!.descendantIds.every((id) => elementIndexById.get(id)! >= firstInstanceBoundary)).toBe(true);
 
-    const fullAfter = await evaluateFixtureBoth(fixture);
-    expect(normalizeParityPayload(observable(fullAfter.fixture, fullAfter.rustPayload))).toEqual(
-      normalizeParityPayload(observable(fullBefore.fixture, fullBefore.rustPayload))
-    );
+    const modulePath = (instanceId: string) => {
+      const path = baseOptions.moduleMaterialization?.runtimeIdentityByElementId.get(instanceId)?.path ??
+        baseOptions.moduleMaterialization?.originByRuntimeElementId.get(instanceId)?.instancePath;
+      if (!path) throw new Error(`Module instance ${instanceId} has no compiler-owned identity path`);
+      return path;
+    };
+    const excludedInstancePath = modulePath(snapshots[1]!.instanceId);
+    const errorsForPath = (payload: EvaluationPayload, path: readonly string[]) =>
+      (evaluationPayloadToResult(payload).geometryValueErrors ?? []).filter((error) =>
+        JSON.stringify(error.occurrence.instancePath) === JSON.stringify(path)
+      );
+    const fullBefore = await evaluateFixtureBoth(fixture, fixture.elements.length);
+    const zero = await evaluateFixtureBoth(fixture, 0);
+    const partial = await evaluateFixtureBoth(fixture, firstInstanceBoundary);
+    const fullAfter = await evaluateFixtureBoth(fixture, fixture.elements.length);
+    const uses = fixture.elements.filter((element) => element.name === "Use");
+    const lines = snapshots.map((snapshot) => snapshot.descendantIds
+      .map((id) => fixture.elements.find((element) => element.id === id))
+      .find((element) => element?.name === "L"));
+    expect(uses).toHaveLength(2);
+    expect(lines.every(Boolean)).toBe(true);
+
+    for (const payload of [zero.tsPayload, zero.rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.evaluatedElementIds).toEqual(new Set());
+      expect(result.computedGeometry.size).toBe(0);
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+    }
+    for (const payload of [partial.tsPayload, partial.rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+      expect(errorsForPath(payload, excludedInstancePath)).toEqual([]);
+      expect(result.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "line", end: { x: 5, y: 0 } });
+      expect(result.computedGeometry.get(lines[0]!.id)).toMatchObject({ kind: "line", end: { x: 4, y: 0 } });
+      expect(result.computedGeometry.size).toBe(snapshots[0]!.descendantIds.length);
+      for (const id of snapshots[0]!.descendantIds) expect(result.computedGeometry.has(id)).toBe(true);
+      for (const id of snapshots[1]!.descendantIds) {
+        expect(result.evaluatedElementIds.has(id)).toBe(false);
+        expect(result.computedGeometry.has(id)).toBe(false);
+      }
+    }
+    for (const payload of [fullBefore.tsPayload, fullBefore.rustPayload, fullAfter.tsPayload, fullAfter.rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      expect(result.geometryValueErrors ?? []).toEqual([]);
+      expect(result.computedGeometry.get(uses[0]!.id)).toMatchObject({ kind: "line", end: { x: 5, y: 0 } });
+      expect(result.computedGeometry.get(uses[1]!.id)).toMatchObject({ kind: "line", end: { x: 10, y: 0 } });
+      expect(result.computedGeometry.get(lines[0]!.id)).toMatchObject({ kind: "line", end: { x: 4, y: 0 } });
+      expect(result.computedGeometry.get(lines[1]!.id)).toMatchObject({ kind: "line", end: { x: 9, y: 0 } });
+    }
   }, 60_000);
 
   it("reports unavailable Module selectors after terminal release makes no scalar progress", async () => {

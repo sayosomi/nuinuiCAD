@@ -2020,6 +2020,40 @@ export const evaluateElements = (
 
   const geometryValueProgram = options.geometryValueProgram ?? [];
   const evaluatedGeometryValueEntries = new Set<number>();
+  // Preserve scalar-only Module values, while holding a selector whose active
+  // geometry prerequisite is outside its excluded instance's evaluation limit.
+  const moduleInstanceIdByGeometryValuePath = new Map<string, ElementId>();
+  for (const snapshot of instanceSnapshots) {
+    const instancePath = options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
+      options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath;
+    if (instancePath?.length) {
+      moduleInstanceIdByGeometryValuePath.set(JSON.stringify(instancePath), snapshot.instanceId);
+    }
+  }
+  const geometryValueEntryBlockedByExcludedModulePrerequisite = (
+    entry: (typeof geometryValueProgram)[number],
+    branchSelections: ReadonlyMap<string, string>
+  ) => {
+    const instancePath = entry.occurrence.instancePath;
+    const instanceId = moduleInstanceIdByGeometryValuePath.get(JSON.stringify(instancePath));
+    const dependencyGraph = options.typedDependencyGraph;
+    if (instanceId === undefined || instanceBaseGeometry.has(instanceId) || !dependencyGraph) return false;
+    const endpointId = `geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`;
+    return dependencyGraph.edges.some((edge) => {
+      const dependencyId = typedDependencyEndpointId(edge.to);
+      const isGeometryPrerequisite = edge.to.kind === "element" || edge.to.kind === "geometry-stage" ||
+        edge.to.kind === "module-occurrence" || edge.to.kind === "transformation-recipe" ||
+        (edge.to.kind === "binding" && typedDependencyBindingHasActiveGeometryPrerequisite(
+          dependencyGraph,
+          edge.to.id,
+          branchSelections
+        ));
+      return typedDependencyEndpointId(edge.from) === endpointId &&
+        graphEdgeIsActive(edge) &&
+        isGeometryPrerequisite &&
+        !endpointIsReady(dependencyId);
+    });
+  };
   let geometryValueEndpointRankById = new Map<string, number>();
   let geometryValuePrerequisitesReady: (endpointId: string) => boolean = () => true;
   const evaluateGeometryValuesThrough = (
@@ -2042,6 +2076,7 @@ export const evaluateElements = (
           )
         : false;
       if (evaluatedGeometryValueEntries.has(index) ||
+          geometryValueEntryBlockedByExcludedModulePrerequisite(entry, branchSelections) ||
           releasePosition > executionPosition ||
           (linearMutationOrderingActive &&
             (entry.sourceExecutionPosition ?? entry.executionPosition) > sourceExecutionPosition) ||
