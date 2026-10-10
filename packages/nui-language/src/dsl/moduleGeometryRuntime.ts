@@ -3,7 +3,11 @@ import type { CadElement, ElementId, GeometryInputCollectionNode, GeometryInputT
 import type { DslDiagnostic, DslStatement } from "./dslTypes";
 import type { DslGeometryResolverOverrides } from "./dslApplyArgs";
 import type { MaterializedExecutionStatement, ModuleMaterialization } from "./moduleMaterialization";
-import { moduleRuntimeGeometryKindOf, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
+import {
+  isModuleGeometryInterfaceAssignable,
+  moduleRuntimeGeometryKindOf,
+  type ModuleGeometryInterfaceType
+} from "./moduleGeometryInterfaces";
 import type {
   ModuleGeometryPropertySourceTarget,
   ModuleGeometryReferenceSemantic,
@@ -43,14 +47,14 @@ export type ModuleGeometryBuiltinRuntimeTarget =
   | {
       kind: "drawable";
       elementId: ElementId;
-      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      geometryType: ModuleGeometryInterfaceType;
       pointKey?: string;
       stagePath?: readonly string[];
     }
   | {
       kind: "geometryValue";
       occurrence: GeometryValueOccurrence;
-      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      geometryType: ModuleGeometryInterfaceType;
       pointKey?: string;
       stagePath?: readonly string[];
     }
@@ -59,14 +63,14 @@ export type ModuleGeometryBuiltinRuntimeTarget =
       templateElementId: ElementId;
       targetSourceOrder: number;
       index: ModuleScalarExpressionSemantic | null;
-      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      geometryType: ModuleGeometryInterfaceType;
       pointKey?: string;
       stagePath?: readonly string[];
     }
   | {
       kind: "geometryCarry";
       bindingId: string;
-      geometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      geometryType: ModuleGeometryInterfaceType;
       pointKey?: string;
       stagePath?: readonly string[];
     };
@@ -85,7 +89,7 @@ export type ModuleGeometryRuntimeCompilation = {
   resolveBuiltinTarget: (
     target: ModuleGeometrySourceTarget,
     instancePath: readonly string[],
-    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+    expectedGeometryType: ModuleGeometryInterfaceType
   ) => ModuleGeometryBuiltinRuntimeTarget | undefined;
   resolvePointReferenceList: (
     token: string,
@@ -558,9 +562,10 @@ export const buildModuleGeometryRuntime = ({
   const resolveBuiltinTarget = (
     target: ModuleGeometrySourceTarget,
     instancePath: readonly string[],
-    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+    expectedGeometryType: ModuleGeometryInterfaceType
   ): ModuleGeometryBuiltinRuntimeTarget | undefined => {
     if (target.kind === "geometryCarry") {
+      if (!isModuleGeometryInterfaceAssignable(target.geometryKind, expectedGeometryType)) return undefined;
       return {
         kind: "geometryCarry",
         bindingId: moduleCarryBindingIdFor(instancePath, target.bindingId),
@@ -572,6 +577,7 @@ export const buildModuleGeometryRuntime = ({
     const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
     if (!alias) return undefined;
     if (alias.kind === "forGroupOccurrence") {
+      if (!isModuleGeometryInterfaceAssignable(alias.geometryType, expectedGeometryType)) return undefined;
       return {
         kind: "forGroupOccurrence",
         templateElementId: alias.templateElementId,
@@ -582,10 +588,25 @@ export const buildModuleGeometryRuntime = ({
         ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
       };
     }
-    if (expectedGeometryType === "line" && alias.kind === "line") {
-      return { kind: "drawable", elementId: alias.elementId, geometryType: "line", ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) };
+    if ((expectedGeometryType === "line" || expectedGeometryType === "path") && alias.kind === "line") {
+      return { kind: "drawable", elementId: alias.elementId, geometryType: expectedGeometryType, ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) };
     }
-    if (alias.kind === "value" && alias.geometryType === expectedGeometryType) {
+    const isPointProjection = expectedGeometryType === "point" &&
+      (alias.kind === "value" || alias.kind === "mappedValue") &&
+      alias.geometryType === "point" &&
+      Boolean(alias.pointKey);
+    if (alias.kind === "value" &&
+        (isPointProjection || isModuleGeometryInterfaceAssignable(alias.interfaceType, expectedGeometryType))) {
+      return {
+        kind: "geometryValue",
+        occurrence: alias.occurrence,
+        geometryType: expectedGeometryType,
+        ...(alias.pointKey ? { pointKey: alias.pointKey } : {}),
+        ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
+      };
+    }
+    if (alias.kind === "mappedValue" &&
+        (isPointProjection || isModuleGeometryInterfaceAssignable(alias.interfaceType, expectedGeometryType))) {
       return {
         kind: "geometryValue",
         occurrence: alias.occurrence,

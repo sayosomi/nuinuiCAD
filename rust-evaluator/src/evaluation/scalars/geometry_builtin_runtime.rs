@@ -300,7 +300,9 @@ pub(crate) fn resolve_geometry_builtin_target(
             }
             Ok(GeometryBuiltinRuntimeTarget::Line { start, end })
         }
-        GeometryInterfaceType::Path => Err(GeometryBuiltinRuntimeError::Unavailable),
+        GeometryInterfaceType::Path => Ok(GeometryBuiltinRuntimeTarget::GeometryValuePath {
+            value: geometry.clone(),
+        }),
     }
 }
 
