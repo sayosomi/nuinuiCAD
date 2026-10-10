@@ -1,0 +1,2 @@
+Automerge pilot smoke test file.
+This disposable plain text fixture triggers full CI classification without changing product code.
