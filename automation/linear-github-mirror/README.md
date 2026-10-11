@@ -78,6 +78,7 @@ Secrets:
 
 Non-secret vars in `wrangler.jsonc`:
 
+- `MIRROR_MODE` — `active` enables mirroring; `disabled` blocks webhook enqueueing, acknowledges pending Queue messages without reconciliation, and skips scheduled sweeps. Missing or unsupported values fail closed as disabled.
 - `LINEAR_TEAM_ID`
 - `LINEAR_INITIATIVE_ID`
 - `GITHUB_OWNER`
@@ -107,8 +108,24 @@ curl https://<worker>/health
 Expected:
 
 ```json
-{"ok":true}
+{"ok":true,"mirrorMode":"active"}
 ```
+
+`mirrorMode` reports the effective mode. A missing or unsupported `MIRROR_MODE` is reported as `disabled`.
+
+## Production shutdown cutover
+
+The checked-in configuration remains `MIRROR_MODE: "active"` during implementation. Do not deploy this implementation as a production shutdown or switch the production Worker to disabled as part of this change.
+
+For a later, explicitly approved production cutover:
+
+1. Reconcile pending Linear updates while mirroring is active and verify the GitHub mirror is current.
+2. Inspect the Cloudflare Queue backlog and in-flight work. Let all intended work finish before shutdown; messages delivered while disabled are acknowledged and will not be reconciled later.
+3. In a reviewed, tracked configuration change, explicitly set `MIRROR_MODE` to `disabled`.
+4. Deploy that reviewed configuration to the intended Cloudflare Worker.
+5. Read back the deployed configuration/revision and confirm `/health` reports `mirrorMode: "disabled"`. Verify that valid signed webhooks are acknowledged without Queue dispatch, Queue messages are acknowledged without reconciliation, and no GitHub writes occur after cutover.
+
+Do not treat PR merge or the health response alone as proof of completed shutdown. Completion requires deployed-state read-back and verification that production GitHub writes have stopped.
 
 ## Verification
 

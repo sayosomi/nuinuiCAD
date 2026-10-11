@@ -9,7 +9,9 @@ import {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/health") return jsonResponse({ ok: true });
+    if (request.method === "GET" && url.pathname === "/health") {
+      return jsonResponse({ ok: true, mirrorMode: effectiveMirrorMode(env) });
+    }
     if (request.method !== "POST" || url.pathname !== "/webhooks/linear") return new Response("Not found", { status: 404 });
 
     const rawBody = await request.text();
@@ -26,12 +28,18 @@ export default {
     }
     if (!isFreshWebhook(payload.webhookTimestamp, Date.now())) return new Response("Stale webhook", { status: 401 });
     if (!shouldQueueExtendedPayload(payload)) return jsonResponse({ ok: true, ignored: true });
+    if (effectiveMirrorMode(env) === "disabled") return jsonResponse({ ok: true, disabled: true });
 
     await env.LINEAR_EVENTS.send({ deliveryId: request.headers.get("Linear-Delivery") ?? null, payload });
     return jsonResponse({ ok: true, queued: true });
   },
 
   async queue(batch, env) {
+    if (effectiveMirrorMode(env) === "disabled") {
+      for (const message of batch.messages) message.ack();
+      return;
+    }
+
     for (const message of batch.messages) {
       const payload = message.body?.payload ?? message.body;
       try {
@@ -50,10 +58,16 @@ export default {
   },
 
   async scheduled(controller, env) {
+    if (effectiveMirrorMode(env) === "disabled") return;
+
     await issueWorker.scheduled(controller, env);
     await enqueueDocumentSafetySweep(env);
   },
 };
+
+function effectiveMirrorMode(env) {
+  return env?.MIRROR_MODE === "active" ? "active" : "disabled";
+}
 
 function jsonResponse(value, status = 200) {
   return new Response(JSON.stringify(value), {
