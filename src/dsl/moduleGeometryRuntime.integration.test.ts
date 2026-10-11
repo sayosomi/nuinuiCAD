@@ -468,6 +468,20 @@ describe("module geometry runtime", () => {
         expected: 5
       },
       {
+        name: "line start angle",
+        declaration: "const seed: line = segment(start: (0, 0), end: (3, 4))",
+        geometryType: "line",
+        property: "startAngleDeg",
+        expected: 53.13010235415595
+      },
+      {
+        name: "line end angle",
+        declaration: "const seed: line = segment(start: (0, 0), end: (3, 4))",
+        geometryType: "line",
+        property: "endAngleDeg",
+        expected: 233.13010235415595
+      },
+      {
         name: "point",
         declaration: "const seed: point = coordinate(x: 3, y: 4)",
         geometryType: "point",
@@ -481,7 +495,8 @@ describe("module geometry runtime", () => {
         "nui 1",
         testCase.declaration,
         `module M(input: ${testCase.geometryType}) {`,
-        `  for i in range(min: 0, max: 0, step: 1) carry p: ${testCase.geometryType} = @input {`,
+        "  const empty: number[] = []",
+        `  for i in @empty carry p: ${testCase.geometryType} = @input {`,
         "    next p = @p",
         "  }",
         `  export const output: number = @p.${testCase.property}`,
