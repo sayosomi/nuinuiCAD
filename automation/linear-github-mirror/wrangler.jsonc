@@ -3,6 +3,7 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-08-21",
   "vars": {
+    "MIRROR_MODE": "active",
     "LINEAR_TEAM_ID": "1dc56742-6e6c-4cc5-9fa6-95e2641c9a2c",
     "LINEAR_INITIATIVE_ID": "635dd66c-cd88-46be-bd0b-64bbbe7cf18c",
     "GITHUB_OWNER": "sayosomi",
