@@ -17,6 +17,7 @@ const ISSUE_QUERY = `
       description
       priority
       updatedAt
+      archivedAt
       url
       team { id name key }
       state { id name type }
@@ -214,7 +215,7 @@ async function resolveGithubIssueNumber(issue, env) {
 
   const recovered = await findGithubIssueByLinearId(issue.id, env);
   if (recovered != null) {
-    await attachGithubIssue(issue, recovered, env);
+    if (!issue.archivedAt) await attachGithubIssue(issue, recovered, env);
     return recovered;
   }
 

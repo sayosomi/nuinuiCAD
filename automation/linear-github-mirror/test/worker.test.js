@@ -206,6 +206,128 @@ test("active Queue routes Issue, Comment, Document, and finalizer messages throu
   assert.ok(networkCalls.some((call) => call.path.endsWith("/issues/502") && call.method === "PATCH"));
 });
 
+test("active Queue recovers an archived marker match, updates it, and reconciles comments idempotently", async () => {
+  const calls = [];
+  const issue = {
+    id: "dd552676-79bb-4231-85ec-180cb19f7f12",
+    identifier: "SAY-452",
+    title: "Archived Linear mirror",
+    description: "Canonical archived issue body",
+    priority: 2,
+    updatedAt: "2026-10-11T00:00:00.000Z",
+    archivedAt: "2026-10-10T00:00:00.000Z",
+    url: "https://linear.app/sayosomi/issue/SAY-452/archived-linear-mirror",
+    team: { id: "team-a", name: "SAY", key: "SAY" },
+    state: { id: "state-canceled", name: "Canceled", type: "canceled" },
+    labels: { nodes: [{ name: "Archive" }] },
+    attachments: { nodes: [] },
+    relations: { nodes: [] },
+    inverseRelations: { nodes: [] },
+    project: null,
+    parent: null,
+  };
+  const linearComment = {
+    id: "comment-say-452",
+    body: "Keep this comment on the existing mirror.",
+    createdAt: "2026-10-09T00:00:00.000Z",
+    editedAt: null,
+    updatedAt: "2026-10-09T00:00:00.000Z",
+    parentId: issue.id,
+  };
+  const githubComments = [];
+  let nextCommentId = 1;
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    const call = { host: url.hostname, path: url.pathname, search: url.search, method };
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      call.query = query;
+      calls.push(call);
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      if (query.includes("query MirrorIssueCommentParent(")) {
+        return jsonResponse({ data: { issue: { ...issue, attachments: { nodes: [] } } } });
+      }
+      if (query.includes("query MirrorIssueComments(")) {
+        return jsonResponse({
+          data: { issue: { comments: { nodes: [linearComment], pageInfo: { hasNextPage: false } } } },
+        });
+      }
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    if (url.hostname === "api.github.com") {
+      if (init.body) call.body = JSON.parse(init.body);
+      calls.push(call);
+      if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues" && method === "GET") {
+        return jsonResponse([{
+          number: 1224,
+          body: `Existing GitHub issue\n\n<!-- linear-issue-id:${issue.id} -->`,
+        }]);
+      }
+      if (url.pathname === "/repos/sayosomi/nuinuiCAD/labels" && method === "GET") {
+        return jsonResponse([{ name: "Archive" }]);
+      }
+      if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/1224" && method === "PATCH") {
+        return jsonResponse({ number: 1224 });
+      }
+      if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/1224/comments" && method === "GET") {
+        return jsonResponse(githubComments);
+      }
+      if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/1224/comments" && method === "POST") {
+        const created = { id: nextCommentId++, body: call.body.body };
+        githubComments.push(created);
+        return jsonResponse(created, 201);
+      }
+      assert.fail(`unexpected GitHub request: ${method} ${url.pathname}${url.search}`);
+    }
+    assert.fail(`unexpected network host: ${url.hostname}`);
+  };
+
+  const message = {
+    body: { payload: { type: "Issue", action: "reconcile", data: { id: issue.id } } },
+  };
+  await withFetchMock(mockFetch, async () => {
+    await worker.queue({ messages: [message, message] }, envFor("active"));
+  });
+
+  const canonicalQueries = calls.filter((call) => call.query?.includes("query MirrorIssue("));
+  assert.equal(canonicalQueries.length, 2);
+  assert.ok(canonicalQueries.every((call) => call.query.includes("archivedAt")));
+  assert.equal(calls.filter((call) => call.query?.includes("mutation AttachGithubIssue(")).length, 0);
+
+  const issuePatches = calls.filter((call) => call.path === "/repos/sayosomi/nuinuiCAD/issues/1224" && call.method === "PATCH");
+  assert.equal(issuePatches.length, 2);
+  assert.deepEqual({
+    title: issuePatches[0].body.title,
+    state: issuePatches[0].body.state,
+    labels: issuePatches[0].body.labels,
+    state_reason: issuePatches[0].body.state_reason,
+  }, {
+    title: issue.title,
+    state: "closed",
+    labels: ["Archive"],
+    state_reason: "not_planned",
+  });
+  assert.match(issuePatches[0].body.body, /Canonical archived issue body/);
+  assert.match(issuePatches[0].body.body, /linear-issue-id:dd552676-79bb-4231-85ec-180cb19f7f12/);
+  assert.deepEqual(issuePatches[1].body, issuePatches[0].body);
+
+  const issueCommentFetches = calls.filter((call) => call.query?.includes("query MirrorIssueComments("));
+  assert.equal(issueCommentFetches.length, 2);
+  const commentCreates = calls.filter((call) => call.path === "/repos/sayosomi/nuinuiCAD/issues/1224/comments" && call.method === "POST");
+  assert.equal(commentCreates.length, 1);
+  assert.match(commentCreates[0].body.body, /Keep this comment on the existing mirror\./);
+  assert.match(commentCreates[0].body.body, /linear-comment-id:comment-say-452/);
+  assert.equal(githubComments.length, 1);
+  assert.equal(calls.filter((call) => call.path === "/repos/sayosomi/nuinuiCAD/issues" && call.method === "POST").length, 0);
+
+  const firstIssuePatch = calls.findIndex((call) => call.path === "/repos/sayosomi/nuinuiCAD/issues/1224" && call.method === "PATCH");
+  const firstCommentFetch = calls.findIndex((call) => call.query?.includes("query MirrorIssueComments("));
+  const firstCommentCreate = calls.findIndex((call) => call.path === "/repos/sayosomi/nuinuiCAD/issues/1224/comments" && call.method === "POST");
+  assert.ok(firstIssuePatch < firstCommentFetch);
+  assert.ok(firstCommentFetch < firstCommentCreate);
+});
+
 test("disabled Cron does not query Linear or enqueue either safety sweep", async () => {
   let sends = 0;
   await withFetchMock(async () => assert.fail("disabled Cron must not query Linear"), async () => {
