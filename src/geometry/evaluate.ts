@@ -751,7 +751,11 @@ export const evaluateElements = (
     lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([]),
     carryValues: ReadonlyMap<BindingId, GeometryBuiltinTargetLookupResult> = geometryCarryValues
   ): ReturnType<typeof resolveDocumentGeometryTarget> => {
-    if (target.kind === "geometryCarry") return carryValues.get(target.bindingId);
+    if (target.kind === "geometryCarry") {
+      const carried = carryValues.get(target.bindingId);
+      if (target.pointKey === undefined || !carried || carried.kind === "unavailable") return carried;
+      return resolveDerivedPoint(carried, target.pointKey, runtimeElementsById) ?? undefined;
+    }
     if ((target.kind === undefined || target.kind === "drawable") &&
         activeForGroupElementIdMap.has(target.statementId)) {
       const generatedId = activeForGroupElementIdMap.get(target.statementId)!;
