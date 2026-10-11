@@ -1214,6 +1214,30 @@ export const buildModuleGeometryArrayRuntime = ({
 
   const resolvePointReferenceAt = (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometryReferenceSemantic["target"]): PointAnchor | RuntimeGeometryInputTarget | null => {
     if (target?.kind === "collectionIndex") {
+      // Immutable Module geometry carries are supplied by the scalar runtime,
+      // so they are not present in this authored-array resolver. Keep their
+      // resolved collection identity and defer only the index to the consumer
+      // target lowering path.
+      const moduleContext = currentPath.length > 0
+        ? contextsByPath.get(pathKey(currentPath))
+        : undefined;
+      const runtimeSource = sourceForPath(currentPath);
+      const ownerIndex = moduleOwnerIndexOf(runtimeSource.statements, statementIndex);
+      const ownerStatementId = ownerIndex === null
+        ? undefined
+        : runtimeSource.stableStatementIdByIndex.get(ownerIndex);
+      if (
+        moduleContext &&
+        ownerStatementId === moduleContext.definitionStatementId &&
+        target.collectionValueId.startsWith("carry-collection:")
+      ) {
+        return {
+          kind: "collectionIndex",
+          target,
+          members: [],
+          currentPath
+        } satisfies GeometryInputTargetSource;
+      }
       const resolved = resolveWholeReference(target.source, statementIndex, currentPath, new Set());
       const indexed = indexedTargetFor(target, resolved.value, "point", currentPath);
       if (!indexed) return null;

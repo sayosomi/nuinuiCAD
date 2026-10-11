@@ -6249,7 +6249,7 @@ export const compileModuleScalarRuntime = ({
     return {
       kind: "collectionIndex",
       collectionValueId: collectionValueIdFor(source.target.collectionValueId, context ?? null),
-      collectionLength: source.target.collectionLength ?? (source.value ? null : members.length),
+      collectionLength: source.target.collectionLength ?? (source.value || members.length === 0 ? null : members.length),
       targetSourceOrder: context
         ? executionPositionForValue(context.path, source.target.targetSourceOrder)
         : executionPositionForValue([], source.target.targetSourceOrder),
