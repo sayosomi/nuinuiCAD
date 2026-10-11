@@ -163,6 +163,47 @@ pub(crate) fn resolve_for_group_geometry_builtin_target(
     target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
 ) -> Result<super::scalars::GeometryBuiltinRuntimeTarget, super::scalars::GeometryBuiltinRuntimeError>
 {
+    resolve_for_group_geometry_target_with_mode(
+        state,
+        resolver,
+        current_source_order,
+        target,
+        geometry_builtin_runtime::GeometryBuiltinTargetResolutionMode::StrictBuiltinArgument,
+    )
+}
+
+pub(crate) fn resolve_for_group_geometry_carry_target(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    current_source_order: f64,
+    target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+) -> Result<super::scalars::GeometryBuiltinRuntimeTarget, super::scalars::GeometryBuiltinRuntimeError>
+{
+    resolve_for_group_geometry_target_with_mode(
+        state,
+        resolver,
+        current_source_order,
+        target,
+        geometry_builtin_runtime::GeometryBuiltinTargetResolutionMode::ImmutableCarryValue,
+    )
+}
+
+fn resolve_for_group_geometry_target_with_mode(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    current_source_order: f64,
+    target: &super::scalars::ScalarExpressionResolvedGeometryTarget,
+    mode: geometry_builtin_runtime::GeometryBuiltinTargetResolutionMode,
+) -> Result<super::scalars::GeometryBuiltinRuntimeTarget, super::scalars::GeometryBuiltinRuntimeError>
+{
+    let resolve_target = match mode {
+        geometry_builtin_runtime::GeometryBuiltinTargetResolutionMode::StrictBuiltinArgument => {
+            super::scalars::resolve_geometry_builtin_target
+        }
+        geometry_builtin_runtime::GeometryBuiltinTargetResolutionMode::ImmutableCarryValue => {
+            geometry_builtin_runtime::resolve_geometry_carry_target
+        }
+    };
     if let Some(template_element_id) = target.for_group_template_element_id.as_deref() {
         let generated_id = for_group_occurrence_element_id(
             state,
@@ -189,13 +230,9 @@ pub(crate) fn resolve_for_group_geometry_builtin_target(
         bound.for_group_template_element_id = None;
         bound.for_group_target_source_order = None;
         bound.for_group_index = None;
-        return super::scalars::resolve_geometry_builtin_target(
-            state,
-            current_source_order,
-            &bound,
-        );
+        return resolve_target(state, current_source_order, &bound);
     }
-    super::scalars::resolve_geometry_builtin_target(state, current_source_order, target)
+    resolve_target(state, current_source_order, target)
 }
 
 #[derive(Debug, Clone, Copy)]

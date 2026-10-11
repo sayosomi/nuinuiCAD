@@ -569,15 +569,7 @@ describe("SAY-507 TypeScript geometry carry angles through persistent Rust stdio
       geometryCarryBindingId: carry.bindingId
     });
 
-    // SAY-508: Rust carry initialization still rejects zero-length line materialization; exclude only this carried-length parity field.
-    const withoutDegenerateCarryLength = (payload: EvaluationPayload): EvaluationPayload => ({
-      ...payload,
-      computedScalarBindings: payload.computedScalarBindings?.filter(({ bindingId }) => bindingId !== lengthBinding.id),
-      computedScalarBindingVersions: payload.computedScalarBindingVersions?.filter(({ bindingId }) => bindingId !== lengthBinding.id)
-    });
-    expect(normalizeParityPayload(withoutDegenerateCarryLength(rustPayload))).toEqual(
-      normalizeParityPayload(withoutDegenerateCarryLength(tsPayload))
-    );
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
 
     for (const payload of [tsPayload, rustPayload]) {
       const result = evaluationPayloadToResult(payload);
@@ -605,6 +597,6 @@ describe("SAY-507 TypeScript geometry carry angles through persistent Rust stdio
         })
       ]));
     }
-    expectRootNumber(fixture, tsPayload, "length", 0);
+    for (const payload of [tsPayload, rustPayload]) expectRootNumber(fixture, payload, "length", 0);
   }, 120_000);
 });
