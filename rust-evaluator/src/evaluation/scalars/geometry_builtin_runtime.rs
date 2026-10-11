@@ -116,6 +116,12 @@ pub(crate) enum GeometryBuiltinRuntimeError {
     ZeroLengthLine,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GeometryBuiltinTargetResolutionMode {
+    StrictBuiltinArgument,
+    ImmutableCarryValue,
+}
+
 pub(crate) fn selected_geometry<'a>(
     state: &'a EvaluationState,
     element_id: &str,
@@ -141,6 +147,33 @@ pub(crate) fn resolve_geometry_builtin_target(
     state: &EvaluationState,
     _current_source_order: f64,
     target: &ScalarExpressionResolvedGeometryTarget,
+) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+    resolve_geometry_builtin_target_with_mode(
+        state,
+        _current_source_order,
+        target,
+        GeometryBuiltinTargetResolutionMode::StrictBuiltinArgument,
+    )
+}
+
+pub(crate) fn resolve_geometry_carry_target(
+    state: &EvaluationState,
+    current_source_order: f64,
+    target: &ScalarExpressionResolvedGeometryTarget,
+) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
+    resolve_geometry_builtin_target_with_mode(
+        state,
+        current_source_order,
+        target,
+        GeometryBuiltinTargetResolutionMode::ImmutableCarryValue,
+    )
+}
+
+pub(crate) fn resolve_geometry_builtin_target_with_mode(
+    state: &EvaluationState,
+    _current_source_order: f64,
+    target: &ScalarExpressionResolvedGeometryTarget,
+    mode: GeometryBuiltinTargetResolutionMode,
 ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
     if let Some(binder_id) = &target.geometry_value_binder_id {
         let Some(source) = state.geometry_value_binders.get(binder_id) else {
@@ -181,7 +214,12 @@ pub(crate) fn resolve_geometry_builtin_target(
             }
             GeometryInputTarget::Coordinate { .. } => unreachable!(),
         }
-        return resolve_geometry_builtin_target(state, _current_source_order, &bound);
+        return resolve_geometry_builtin_target_with_mode(
+            state,
+            _current_source_order,
+            &bound,
+            mode,
+        );
     }
     if target.statement_id.is_empty() {
         return Err(GeometryBuiltinRuntimeError::Unavailable);
@@ -233,7 +271,9 @@ pub(crate) fn resolve_geometry_builtin_target(
                 let (Some(start), Some(end)) = (start, end) else {
                     return Err(GeometryBuiltinRuntimeError::Unavailable);
                 };
-                if (end.0 - start.0).hypot(end.1 - start.1) <= 1e-9 {
+                if mode == GeometryBuiltinTargetResolutionMode::StrictBuiltinArgument
+                    && (end.0 - start.0).hypot(end.1 - start.1) <= 1e-9
+                {
                     return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
                 }
                 Ok(GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end })
@@ -295,7 +335,8 @@ pub(crate) fn resolve_geometry_builtin_target(
             let dx = end.x - start.x;
             let dy = end.y - start.y;
             let length = dx.hypot(dy);
-            if length <= 1e-9 {
+            if mode == GeometryBuiltinTargetResolutionMode::StrictBuiltinArgument && length <= 1e-9
+            {
                 return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
             }
             Ok(GeometryBuiltinRuntimeTarget::Line { start, end })

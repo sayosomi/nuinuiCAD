@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use serde_json::json;
 
 use super::geometry_builtin_runtime::{
-    resolve_geometry_builtin_target, validate_geometry_builtin_arguments,
-    GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
+    resolve_geometry_builtin_target, resolve_geometry_carry_target,
+    validate_geometry_builtin_arguments, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
 use super::types::{
     BuiltinFunctionName, GeometryInterfaceType, ScalarExpressionResolvedGeometryTarget,
     TypedBuiltinArgument,
 };
-use crate::evaluation::types::{EvaluationState, Point};
+use crate::evaluation::types::{EvaluationState, GeometryValueOccurrence, Point};
 
 fn point_value(x: f64, y: f64) -> serde_json::Value {
     json!({"kind": "point", "elementId": "point", "name": "point", "x": x, "y": y})
@@ -368,6 +368,80 @@ fn zero_length_line_rejects_at_and_below_threshold() {
             Err(GeometryBuiltinRuntimeError::ZeroLengthLine)
         );
     }
+}
+
+#[test]
+fn immutable_carry_resolution_preserves_zero_length_drawable_lines() {
+    let state = state_with_geometry(
+        "line",
+        line_value(point_value(2.0, 2.0), point_value(2.0, 2.0)),
+        true,
+    );
+    let line_target = target("line", 1, GeometryInterfaceType::Line);
+
+    assert_eq!(
+        resolve_geometry_builtin_target(&state, 2.0, &line_target),
+        Err(GeometryBuiltinRuntimeError::ZeroLengthLine)
+    );
+    assert!(matches!(
+        resolve_geometry_carry_target(&state, 2.0, &line_target),
+        Ok(GeometryBuiltinRuntimeTarget::Line { start, end })
+            if start.x == 2.0 && start.y == 2.0 && end.x == 2.0 && end.y == 2.0
+    ));
+}
+
+#[test]
+fn immutable_carry_resolution_preserves_zero_length_geometry_values() {
+    let occurrence = GeometryValueOccurrence {
+        source_statement_id: "line-value".to_owned(),
+        instance_path: Vec::new(),
+        mapped_member_index: None,
+        runtime_generation: None,
+    };
+    let mut state = state_with_geometry("unrelated", point_value(0.0, 0.0), true);
+    state.computed_geometry_values.insert(
+        occurrence.clone(),
+        line_value(point_value(5.0, 7.0), point_value(5.0, 7.0)),
+    );
+    let mut line_target = target("line-value", 1, GeometryInterfaceType::Line);
+    line_target.geometry_value_occurrence = Some(occurrence);
+
+    assert_eq!(
+        resolve_geometry_builtin_target(&state, 2.0, &line_target),
+        Err(GeometryBuiltinRuntimeError::ZeroLengthLine)
+    );
+    assert_eq!(
+        resolve_geometry_carry_target(&state, 2.0, &line_target),
+        Ok(GeometryBuiltinRuntimeTarget::GeometryValueLine {
+            start: (5.0, 7.0),
+            end: (5.0, 7.0),
+        })
+    );
+}
+
+#[test]
+fn immutable_carry_resolution_keeps_missing_and_disabled_targets_unavailable() {
+    let missing_state = state_with_geometry("other", point_value(0.0, 0.0), true);
+    assert_eq!(
+        resolve_geometry_carry_target(
+            &missing_state,
+            2.0,
+            &target("missing", 1, GeometryInterfaceType::Line)
+        ),
+        Err(GeometryBuiltinRuntimeError::Unavailable)
+    );
+
+    let disabled_state = disabled_state_with_geometry(
+        "line",
+        line_value(point_value(2.0, 2.0), point_value(2.0, 2.0)),
+    );
+    let disabled_target = target("line", 1, GeometryInterfaceType::Line);
+    assert_eq!(
+        resolve_geometry_carry_target(&disabled_state, 2.0, &disabled_target),
+        Err(GeometryBuiltinRuntimeError::Disabled(Box::new(
+            disabled_target
+        )))
+    );
 }
 
 #[test]

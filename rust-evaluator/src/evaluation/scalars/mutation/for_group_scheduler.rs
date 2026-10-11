@@ -11,14 +11,14 @@ use crate::evaluation::scalar_expression_runtime::{
     evaluate_document_typed_expression, lookup_for_group_geometry_property,
     lookup_geometry_property, lookup_geometry_value_binder_property,
     lookup_geometry_value_property, resolve_for_group_geometry_builtin_target,
-    ForGroupGeometryPropertyRequest,
+    resolve_for_group_geometry_carry_target, ForGroupGeometryPropertyRequest,
 };
 use crate::evaluation::scalars::for_group_execution_core::{
     ForGroupExecutionEnvironment, ForGroupExecutionError, ForGroupExecutionPlan,
     ForGroupExecutionRunOutcome, ForGroupIterationContext, LoopRead,
 };
 use crate::evaluation::scalars::geometry_builtin_runtime::{
-    geometry_builtin_runtime_target_value, resolve_geometry_builtin_target,
+    geometry_builtin_runtime_target_value, resolve_geometry_carry_target,
 };
 use crate::evaluation::scalars::mutation_payload::{
     ValidatedImmutableGeometryCarry, ValidatedImmutableGeometryCarryTargetPlan,
@@ -270,7 +270,7 @@ impl ScalarMutationResolver<'_> {
             }
             let resolver = self.for_group_binding_resolver(environment);
             for carry in &plan.geometry_carries {
-                if let Ok(value) = resolve_for_group_geometry_builtin_target(
+                if let Ok(value) = resolve_for_group_geometry_carry_target(
                     state,
                     &resolver,
                     current_source_order,
@@ -451,12 +451,12 @@ impl ScalarMutationResolver<'_> {
                                 runtime_target.for_group_template_element_id = None;
                                 runtime_target.for_group_target_source_order = None;
                                 runtime_target.for_group_index = None;
-                                resolve_geometry_builtin_target(state, f64::INFINITY, &runtime_target)
+                                resolve_geometry_carry_target(state, f64::INFINITY, &runtime_target)
                             } else {
                                 Err(super::super::geometry_builtin_runtime::GeometryBuiltinRuntimeError::CollectionIndexUnavailable)
                             }
                         } else {
-                            resolve_for_group_geometry_builtin_target(
+                            resolve_for_group_geometry_carry_target(
                                 state,
                                 &snapshot_resolver,
                                 f64::INFINITY,
