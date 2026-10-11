@@ -127,6 +127,27 @@ export const buildEvaluationOptions = ({
           : [])
       ])
     : undefined;
+  const compiledGeometryInputTargets = compiledDocument.geometryInputTargetsByElementId;
+  const runtimeGeometryInputTargets =
+    compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId;
+  const geometryInputTargetsByElementId = compiledGeometryInputTargets || runtimeGeometryInputTargets
+    ? (() => {
+        const mergedTargetsByElementId = new Map(compiledGeometryInputTargets ?? []);
+        for (const [elementId, runtimeTargetsByParameter] of runtimeGeometryInputTargets ?? []) {
+          const compiledTargetsByParameter = compiledGeometryInputTargets?.get(elementId);
+          if (!compiledTargetsByParameter) {
+            mergedTargetsByElementId.set(elementId, runtimeTargetsByParameter);
+            continue;
+          }
+          const mergedTargetsByParameter = new Map(compiledTargetsByParameter);
+          for (const [parameterKey, target] of runtimeTargetsByParameter) {
+            mergedTargetsByParameter.set(parameterKey, target);
+          }
+          mergedTargetsByElementId.set(elementId, mergedTargetsByParameter);
+        }
+        return mergedTargetsByElementId;
+      })()
+    : undefined;
 
   return {
     evaluationLimitIndex,
@@ -160,14 +181,7 @@ export const buildEvaluationOptions = ({
     ...(compiledDocument.moduleMaterialization ? { moduleMaterialization: compiledDocument.moduleMaterialization } : {}),
     ...(sourceExecutionPositionByElementId ? { sourceExecutionPositionByElementId } : {}),
     ...(scalarExecutionPositionByElementId ? { scalarExecutionPositionByElementId } : {}),
-    ...((compiledDocument.geometryInputTargetsByElementId || compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId)
-      ? {
-          geometryInputTargetsByElementId: new Map([
-            ...(compiledDocument.geometryInputTargetsByElementId ?? []),
-            ...(compiledDocument.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? [])
-          ])
-        }
-      : {}),
+    ...(geometryInputTargetsByElementId ? { geometryInputTargetsByElementId } : {}),
     ...(compiledDocument.moduleGeometryRuntime?.geometryCollectionNodesByValueId
       ? { geometryCollectionNodesByValueId: compiledDocument.moduleGeometryRuntime.geometryCollectionNodesByValueId }
       : {}),

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import { emptyDocument } from "@nuinuicad/nui-language";
+import type { GeometryInputTarget } from "../types/geometry";
 import type { EvaluateElementsOptions } from "./evaluate";
 import { buildEvaluationOptions } from "./productionEvaluationContext";
 
@@ -85,6 +86,19 @@ const moduleScalarSource = [
   "  text Label = label(text: @label, anchor: none, size: 3)",
   "}",
   "instance I = M(value: 2, side: left, label: \"first\")"
+].join("\n");
+
+const geometryTargetOverlaySource = [
+  "nui 1",
+  "const seed: point[] = [(3, 4)]",
+  "const empty: number[] = []",
+  "for n in @empty carry pts: point[] = @seed {",
+  "  next pts = @pts",
+  "}",
+  "for i in range(min: 0, max: 0, step: 1) {",
+  "  point Mark = coordinate(x: 1, y: 2)",
+  "}",
+  "line Use = segment(start: @Mark[0], end: @pts[0])"
 ].join("\n");
 
 const optionsFor = (
@@ -247,6 +261,102 @@ describe("buildEvaluationOptions", () => {
     const moduleForGroupIds = [...(options.moduleForGroupExecutionOwnerByElementId?.keys() ?? [])];
     expect(sourceForGroupIds.length).toBeGreaterThan(0);
     expect(moduleForGroupIds.length).toBeGreaterThan(0);
+  });
+
+  it("keeps canonical compiled and runtime geometry targets by element and parameter slot", () => {
+    const compiled = compile(geometryTargetOverlaySource);
+    const use = elementByName(compiled, "Use");
+    const rootTargets = compiled.geometryInputTargetsByElementId?.get(use.id);
+    const runtimeTargets = compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId.get(use.id);
+    if (!rootTargets || !runtimeTargets) throw new Error("expected root and runtime targets for Use");
+
+    const rootStart = rootTargets.get("startPoint") as GeometryInputTarget;
+    const rootEnd = rootTargets.get("endPoint") as GeometryInputTarget;
+    const runtimeStart = runtimeTargets.get("startPoint") as GeometryInputTarget;
+    const rootEntriesBefore = [...rootTargets];
+    const runtimeEntriesBefore = [...runtimeTargets];
+    const options = optionsFor(compiled);
+    const mergedTargets = options.geometryInputTargetsByElementId?.get(use.id);
+    if (!mergedTargets) throw new Error("buildEvaluationOptions omitted Use geometry targets");
+
+    expect(rootStart).toMatchObject({
+      kind: "forGroupOccurrence",
+      templateElementId: expect.any(String),
+      geometryType: "point",
+      targetSourceOrder: 3,
+      index: { kind: "numberLiteral", span: { start: 32, end: 33 }, value: 0, type: { kind: "number" } },
+      sourceText: "@Mark[0]"
+    });
+    expect(runtimeStart).toMatchObject({
+      kind: "forGroupOccurrence",
+      templateElementId: rootStart.kind === "forGroupOccurrence" ? rootStart.templateElementId : undefined,
+      geometryType: "point",
+      targetSourceOrder: 3,
+      index: { kind: "numberLiteral", span: { start: 32, end: 33 }, value: 0, type: { kind: "number" } }
+    });
+    expect(rootEnd).toMatchObject({
+      kind: "collectionIndex",
+      collectionValueId: expect.stringMatching(/^carry-collection:/),
+      collectionLength: null,
+      targetSourceOrder: -1,
+      index: { kind: "numberLiteral", span: { start: 46, end: 47 }, value: 0, type: { kind: "number" } },
+      members: []
+    });
+    expect([...mergedTargets.keys()]).toEqual(["startPoint", "endPoint"]);
+    expect(mergedTargets.get("startPoint")).toBe(runtimeStart);
+    expect(mergedTargets.get("endPoint")).toBe(rootEnd);
+    expect([...rootTargets]).toEqual(rootEntriesBefore);
+    expect([...runtimeTargets]).toEqual(runtimeEntriesBefore);
+  });
+
+  it("keeps runtime replacement slot-local without mutating or combining either target map", () => {
+    const compiled = compile(geometryTargetOverlaySource);
+    const use = elementByName(compiled, "Use");
+    const rootTargets = compiled.geometryInputTargetsByElementId?.get(use.id);
+    const moduleRuntime = compiled.moduleGeometryRuntime;
+    const runtimeTargets = moduleRuntime?.geometryInputTargetsByRuntimeElementId.get(use.id);
+    if (!rootTargets || !moduleRuntime || !runtimeTargets) throw new Error("expected root and runtime targets for Use");
+
+    const rootStart = rootTargets.get("startPoint") as GeometryInputTarget;
+    const rootEnd = rootTargets.get("endPoint") as GeometryInputTarget;
+    const runtimeStart = runtimeTargets.get("startPoint") as GeometryInputTarget;
+    const rootList = [rootStart];
+    const runtimeList = [runtimeStart];
+    const rootTargetsWithList = new Map(rootTargets);
+    rootTargetsWithList.set("overlappingTargetList", rootList);
+    const runtimeTargetsWithList = new Map(runtimeTargets);
+    runtimeTargetsWithList.set("overlappingTargetList", runtimeList);
+    const rootTargetsByElementId = new Map(compiled.geometryInputTargetsByElementId);
+    rootTargetsByElementId.set(use.id, rootTargetsWithList);
+    const runtimeTargetsByElementId = new Map(moduleRuntime.geometryInputTargetsByRuntimeElementId);
+    runtimeTargetsByElementId.set(use.id, runtimeTargetsWithList);
+    const withOverlappingList = {
+      ...compiled,
+      geometryInputTargetsByElementId: rootTargetsByElementId,
+      moduleGeometryRuntime: {
+        ...moduleRuntime,
+        geometryInputTargetsByRuntimeElementId: runtimeTargetsByElementId
+      }
+    };
+
+    const overlaid = optionsFor(withOverlappingList).geometryInputTargetsByElementId?.get(use.id);
+    expect(overlaid?.get("startPoint")).toBe(runtimeStart);
+    expect(overlaid?.get("endPoint")).toBe(rootEnd);
+    expect(overlaid?.get("overlappingTargetList")).toBe(runtimeList);
+    expect(overlaid?.get("overlappingTargetList")).toHaveLength(1);
+    expect(rootTargets.has("overlappingTargetList")).toBe(false);
+    expect(runtimeTargets.has("overlappingTargetList")).toBe(false);
+
+    const rootOnly = optionsFor({ ...compiled, moduleGeometryRuntime: undefined })
+      .geometryInputTargetsByElementId?.get(use.id);
+    expect(rootOnly).toEqual(rootTargets);
+    expect(rootOnly?.get("startPoint")).toBe(rootStart);
+    expect(rootOnly?.get("endPoint")).toBe(rootEnd);
+
+    const runtimeOnly = optionsFor({ ...compiled, geometryInputTargetsByElementId: undefined })
+      .geometryInputTargetsByElementId?.get(use.id);
+    expect(runtimeOnly).toEqual(runtimeTargets);
+    expect(runtimeOnly?.get("startPoint")).toBe(runtimeStart);
   });
 
   it("keeps all-numeric text templates when scalarProgram is absent", () => {

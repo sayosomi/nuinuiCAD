@@ -223,60 +223,76 @@ const referencesRustSupportedPointCollectionNode = (
 
 const hasRustSupportedDeferredPointTarget = (
   element: CadElement,
+  parameterKey: string,
   options: EvaluateElementsOptions,
   elementsById: ReadonlyMap<ElementId, CadElement>
 ) => {
-  const targets = options.geometryInputTargetsByElementId?.get(element.id)?.values() ?? [];
-  return [...targets].some((target) => {
-    const candidates = Array.isArray(target) ? target : [target];
-    return candidates.some((candidate) =>
-      (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry") &&
-      referencesRustSupportedPointTargetValue(candidate, elementsById)
-    );
-  });
+  const target = options.geometryInputTargetsByElementId?.get(element.id)?.get(parameterKey);
+  if (!target) return false;
+  const candidates = Array.isArray(target) ? target : [target];
+  return candidates.length > 0 && candidates.every((candidate) =>
+    (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry") &&
+    referencesRustSupportedPointTargetValue(candidate, elementsById)
+  );
 };
 
-const pointAnchorsForElement = (element: CadElement): PointAnchor[] => {
+const pointAnchorInputsForElement = (element: CadElement): { parameterKey: string; anchor: PointAnchor }[] => {
   switch (element.type) {
     case "offsetPoint":
     case "polarOffsetPoint": {
       const fromPoint = pointAnchorForElement(element);
-      return fromPoint ? [fromPoint] : [];
+      return fromPoint ? [{ parameterKey: "fromPoint", anchor: fromPoint }] : [];
     }
     case "divisionPoint":
-      return [element.startPoint, element.endPoint];
+      return [
+        { parameterKey: "startPoint", anchor: element.startPoint },
+        { parameterKey: "endPoint", anchor: element.endPoint }
+      ];
     case "lineTangentOffsetPoint":
-      return [element.basePoint];
+      return [{ parameterKey: "basePoint", anchor: element.basePoint }];
     case "angleLengthLine":
-      return [element.startPoint];
+      return [{ parameterKey: "startPoint", anchor: element.startPoint }];
     case "line":
-      return [element.startPoint, element.endPoint];
+      return [
+        { parameterKey: "startPoint", anchor: element.startPoint },
+        { parameterKey: "endPoint", anchor: element.endPoint }
+      ];
     case "polyline":
-      return element.points;
+      return element.points.map((anchor) => ({ parameterKey: "points", anchor }));
     case "arcLine":
-      return [element.centerPoint];
+      return [{ parameterKey: "centerPoint", anchor: element.centerPoint }];
     case "threePointArcLine":
-      return [element.point1, element.point2, element.point3];
+      return [
+        { parameterKey: "point1", anchor: element.point1 },
+        { parameterKey: "point2", anchor: element.point2 },
+        { parameterKey: "point3", anchor: element.point3 }
+      ];
     case "extendTrim":
-      return [element.point];
+      return [{ parameterKey: "point", anchor: element.point }];
     case "bezierCurve":
       return [
-        element.startPoint,
-        ...element.intermediatePoints.map((point) => point.point),
-        element.endPoint
+        { parameterKey: "startPoint", anchor: element.startPoint },
+        ...element.intermediatePoints.map((point) => ({ parameterKey: "intermediatePoints", anchor: point.point })),
+        { parameterKey: "endPoint", anchor: element.endPoint }
       ];
     case "splitLine":
-      return [element.splitPoint];
+      return [{ parameterKey: "splitPoint", anchor: element.splitPoint }];
     case "copyLine":
     case "move":
-      return [element.startPoint, element.endPoint];
+      return [
+        { parameterKey: "startPoint", anchor: element.startPoint },
+        { parameterKey: "endPoint", anchor: element.endPoint }
+      ];
     case "symmetricCopyLine":
     case "symmetricMove":
-      return [element.axisPoint1, element.axisPoint2];
+      return [
+        { parameterKey: "axisPoint1", anchor: element.axisPoint1 },
+        { parameterKey: "axisPoint2", anchor: element.axisPoint2 }
+      ];
     case "image":
-      return [element.originPoint];
+      return [{ parameterKey: "originPoint", anchor: element.originPoint }];
     case "text":
-      return element.anchor ? [element.anchor] : [];
+      return element.anchor ? [{ parameterKey: "anchor", anchor: element.anchor }] : [];
     default:
       return [];
   }
@@ -384,11 +400,10 @@ const canUseRustEvaluationForElement = (
       referencesRustSupportedLineTargetValue(candidate, elementsById)
     );
   }
-  if (
-    pointAnchorsForElement(element).some(
-      (anchor) => !referencesRustSupportedPointAnchor(anchor, elementsById)
-    ) && !hasRustSupportedDeferredPointTarget(element, options, elementsById)
-  ) {
+  if (pointAnchorInputsForElement(element).some(
+    ({ parameterKey, anchor }) => !referencesRustSupportedPointAnchor(anchor, elementsById) &&
+      !hasRustSupportedDeferredPointTarget(element, parameterKey, options, elementsById)
+  )) {
     return false;
   }
   if (
