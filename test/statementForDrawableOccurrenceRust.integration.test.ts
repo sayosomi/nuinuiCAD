@@ -15,6 +15,7 @@ import {
   isRustEligibleFixture,
   normalizeParityPayload,
   optionsFor,
+  runtimeDiagnosticsFor,
   type EvaluationFixture
 } from "./evaluationParitySupport";
 
@@ -52,6 +53,18 @@ const geometryFor = (
   result: ReturnType<typeof evaluationPayloadToResult>,
   name: string
 ) => result.computedGeometry.get(elementNamed(fixture, name).id);
+
+const generatedLinesFor = (
+  fixture: EvaluationFixture,
+  result: ReturnType<typeof evaluationPayloadToResult>,
+  name: string
+) => result.forGroupGeneratedRows
+  .filter((row) => row.templateElementId === elementNamed(fixture, name).id)
+  .map((row) => {
+    const geometry = result.computedGeometry.get(row.generatedElementId);
+    if (geometry?.kind !== "line") throw new Error(`generated ${name} has no line geometry`);
+    return { row, geometry };
+  });
 
 const geometryTargetsFor = (fixture: EvaluationFixture, consumerName: string): GeometryInputTarget[] => {
   const id = elementNamed(fixture, consumerName).id;
@@ -396,5 +409,166 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
         value: { kind: "number", value: 3 }
       });
     }
+  }, 60_000);
+
+  it("preserves nested mapped geometry snapshots for each outer carry iteration", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const initial: point[] = [(1, 2)]",
+      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = @initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
+      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 1, y: @item.y) }",
+      "    next b = @mapped",
+      "  }",
+      "  line Observe = segment(start: @b[0], end: (0, 0))",
+      "  next a = @b",
+      "}",
+      "line EscapedCarry = segment(start: @a[0], end: (0, 0))",
+      "line Use = segment(start: @Observe[1].start, end: (0, 0))"
+    ].join("\n"));
+    expectCompiledWithoutErrors(fixture);
+    expect(isRustEligibleFixture(fixture)).toBe(false);
+    expect(geometryTargetsFor(fixture, "Observe")).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "collectionIndex" })])
+    );
+
+    const { options, referencePayload, rustPayload, reference, rust } = await evaluateBoth(fixture);
+    const referenceObservers = generatedLinesFor(fixture, reference, "Observe");
+    const rustObservers = generatedLinesFor(fixture, rust, "Observe");
+
+    expect(referenceObservers.map(({ geometry }) => ({ x: geometry.start.x, y: geometry.start.y })))
+      .toEqual([{ x: 2, y: 2 }, { x: 3, y: 2 }]);
+    expect(rustObservers.map(({ geometry }) => ({ x: geometry.start.x, y: geometry.start.y })))
+      .toEqual([{ x: 2, y: 2 }, { x: 3, y: 2 }]);
+    expect(new Set(rustObservers.map(({ row }) => row.generatedElementId)).size).toBe(2);
+    expect(rustObservers.map(({ row }) => row.occurrencePath)).toEqual(
+      referenceObservers.map(({ row }) => row.occurrencePath)
+    );
+    expect(rustObservers.map(({ row }) => row.occurrencePath.map((step) => step.iterationIndex)))
+      .toEqual([[0], [1]]);
+    expect(geometryFor(fixture, rust, "Use")).toMatchObject({
+      kind: "line",
+      start: { x: 3, y: 2 },
+      end: { x: 0, y: 0 }
+    });
+    expect(geometryFor(fixture, rust, "EscapedCarry")).toMatchObject({
+      kind: "line",
+      start: { x: 3, y: 2 },
+      end: { x: 0, y: 0 }
+    });
+    expect(rust.errors).toEqual([]);
+    expect(runtimeDiagnosticsFor(fixture, referencePayload)).toEqual([]);
+    expect(runtimeDiagnosticsFor(fixture, rustPayload)).toEqual([]);
+
+    const hostTransport = vi.fn<RustEvaluationTransport>((input) => rustStdio.evaluateInput(input));
+    const { result: host } = renderHook(() => useEvaluationEngine(fixture.elements, options, 1, hostTransport));
+    expect(host.current.rustEligible).toBe(false);
+    expect(host.current.source).toBe("reference");
+    expect(host.current.evaluation.errors).toEqual([]);
+    expect(geometryFor(fixture, host.current.evaluation, "Use")).toMatchObject({
+      kind: "line",
+      start: { x: 3, y: 2 }
+    });
+    expect(hostTransport).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it("carries three refreshed mapped geometry snapshots across outer iterations", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "const initial: point[] = [(1, 2)]",
+      "for i in range(min: 0, max: 2, step: 1) carry a: point[] = @initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
+      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 2, y: @item.y + 1) }",
+      "    next b = @mapped",
+      "  }",
+      "  line Observe = segment(start: @b[0], end: (0, 0))",
+      "  next a = @b",
+      "}"
+    ].join("\n"));
+    expectCompiledWithoutErrors(fixture);
+    const { reference, rust, referencePayload, rustPayload } = await evaluateBoth(fixture);
+
+    for (const result of [reference, rust]) {
+      const observers = generatedLinesFor(fixture, result, "Observe");
+      expect(observers.map(({ geometry }) => ({ x: geometry.start.x, y: geometry.start.y })))
+        .toEqual([{ x: 3, y: 3 }, { x: 5, y: 4 }, { x: 7, y: 5 }]);
+      expect(new Set(observers.map(({ row }) => row.generatedElementId)).size).toBe(3);
+      expect(observers.map(({ row }) => row.occurrencePath.map((step) => step.iterationIndex)))
+        .toEqual([[0], [1], [2]]);
+      expect(result.errors).toEqual([]);
+    }
+    expect(runtimeDiagnosticsFor(fixture, referencePayload)).toEqual([]);
+    expect(runtimeDiagnosticsFor(fixture, rustPayload)).toEqual([]);
+  }, 30_000);
+
+  it("preserves both mapped members in each nested carry snapshot and keeps root and one-iteration controls", async () => {
+    const twoMembers = fixtureFromSource([
+      "nui 1",
+      "const initial: point[] = [(1, 2), (3, 4)]",
+      "for i in range(min: 0, max: 1, step: 1) carry a: point[] = @initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
+      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 1, y: @item.y) }",
+      "    next b = @mapped",
+      "  }",
+      "  line Observe = segment(start: @b[0], end: @b[1])",
+      "  next a = @b",
+      "}"
+    ].join("\n"));
+    expectCompiledWithoutErrors(twoMembers);
+    const twoMemberResults = await evaluateBoth(twoMembers);
+    for (const result of [twoMemberResults.reference, twoMemberResults.rust]) {
+      const observers = generatedLinesFor(twoMembers, result, "Observe");
+      expect(observers.map(({ geometry }) => ({
+        start: { x: geometry.start.x, y: geometry.start.y },
+        end: { x: geometry.end.x, y: geometry.end.y }
+      }))).toEqual([
+        { start: { x: 2, y: 2 }, end: { x: 4, y: 4 } },
+        { start: { x: 3, y: 2 }, end: { x: 5, y: 4 } }
+      ]);
+      expect(new Set(observers.map(({ row }) => row.generatedElementId)).size).toBe(2);
+      expect(observers.map(({ row }) => row.occurrencePath.map((step) => step.iterationIndex)))
+        .toEqual([[0], [1]]);
+      expect(result.errors).toEqual([]);
+    }
+    expect(runtimeDiagnosticsFor(twoMembers, twoMemberResults.rustPayload)).toEqual([]);
+
+    const oneIteration = fixtureFromSource([
+      "nui 1",
+      "const initial: point[] = [(1, 2)]",
+      "for i in range(min: 0, max: 0, step: 1) carry a: point[] = @initial {",
+      "  for j in range(min: 0, max: 0, step: 1) carry b: point[] = @a {",
+      "    const mapped: point[] = for item in @b { coordinate(x: @item.x + 1, y: @item.y) }",
+      "    next b = @mapped",
+      "  }",
+      "  line Observe = segment(start: @b[0], end: (0, 0))",
+      "  next a = @b",
+      "}"
+    ].join("\n"));
+    expectCompiledWithoutErrors(oneIteration);
+    const oneIterationResults = await evaluateBoth(oneIteration);
+    for (const result of [oneIterationResults.reference, oneIterationResults.rust]) {
+      const observers = generatedLinesFor(oneIteration, result, "Observe");
+      expect(observers.map(({ geometry }) => ({ x: geometry.start.x, y: geometry.start.y })))
+        .toEqual([{ x: 2, y: 2 }]);
+      expect(result.errors).toEqual([]);
+    }
+
+    const rootMap = fixtureFromSource([
+      "nui 1",
+      "const points: point[] = [(1, 2), (4, 5)]",
+      "const mapped: point[] = for item in @points { coordinate(x: @item.x + 1, y: @item.y) }",
+      "line Use = segment(start: @mapped[1], end: (0, 0))"
+    ].join("\n"));
+    expectCompiledWithoutErrors(rootMap);
+    const rootResults = await evaluateBoth(rootMap);
+    for (const result of [rootResults.reference, rootResults.rust]) {
+      expect(geometryFor(rootMap, result, "Use")).toMatchObject({
+        kind: "line",
+        start: { x: 5, y: 5 },
+        end: { x: 0, y: 0 }
+      });
+      expect(result.errors).toEqual([]);
+    }
+    expect(runtimeDiagnosticsFor(rootMap, rootResults.rustPayload)).toEqual([]);
   }, 60_000);
 });
