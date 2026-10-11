@@ -384,6 +384,37 @@ test("active Queue propagates incomplete comment reconciliation without acknowle
   assert.equal(acknowledgements, 0);
 });
 
+test("active Queue propagates a missing Issue comment parent without acknowledging the message", async () => {
+  let acknowledgements = 0;
+  const message = {
+    body: { payload: { type: "Comment", action: "create", data: { id: "comment-a" } } },
+    ack: () => { acknowledgements += 1; },
+  };
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    assert.equal(url.hostname, "api.linear.app");
+    const { query } = JSON.parse(init.body);
+    if (query.includes("query MirrorComment(")) {
+      return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: null, issueId: "issue-a" } } });
+    }
+    if (query.includes("query MirrorIssueCommentParent(")) return jsonResponse({ data: {} });
+    assert.fail(`unexpected Linear query: ${query}`);
+  };
+
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await withFetchMock(mockFetch, async () => assert.rejects(
+      worker.queue({ messages: [message] }, envFor("active")),
+      /Linear issue comment parent is missing, malformed, or mismatched/,
+    ));
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(acknowledgements, 0);
+});
+
 test("disabled Cron does not query Linear or enqueue either safety sweep", async () => {
   let sends = 0;
   await withFetchMock(async () => assert.fail("disabled Cron must not query Linear"), async () => {

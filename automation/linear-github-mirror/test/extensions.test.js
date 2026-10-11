@@ -167,6 +167,16 @@ test("a missing Issue comments connection fails closed", async () => {
   );
 });
 
+test("a missing Issue comment parent fails closed", async () => {
+  await assert.rejects(
+    reconcileIssueComments("issue-a", commentEnv, {
+      linearGraphql: async () => ({}),
+      githubFetch: async () => assert.fail("GitHub must not be touched when the Linear parent is missing"),
+    }),
+    /Linear issue comment parent is missing, malformed, or mismatched/,
+  );
+});
+
 test("a missing Document comments connection fails closed", async () => {
   await assert.rejects(
     fetchDocumentComments("doc-a", commentEnv, async () => ({ document: { id: "doc-a" } })),

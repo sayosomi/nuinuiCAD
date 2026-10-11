@@ -92,8 +92,13 @@ export async function reconcileIssueComments(issueId, env, options = {}) {
   const queryLinear = options.linearGraphql ?? linearGraphql;
   const gh = options.githubFetch ?? githubFetch;
   const data = await queryLinear(ISSUE_COMMENT_PARENT_QUERY, { id: issueId }, env);
+  if (!isRecord(data)) throw new Error("Linear issue comment parent query returned malformed data");
   const issue = data.issue;
-  if (!issue || issue.team?.id !== env.LINEAR_TEAM_ID || !shouldMirrorIssueIdentifier(issue.identifier)) return false;
+  if (!isRecord(issue) || issue.id !== issueId) throw new Error("Linear issue comment parent is missing, malformed, or mismatched");
+  if (!isRecord(issue.team) || !isNonEmptyString(issue.team.id) || !isNonEmptyString(issue.identifier)) {
+    throw new Error("Linear issue comment parent has malformed scope data");
+  }
+  if (issue.team.id !== env.LINEAR_TEAM_ID || !shouldMirrorIssueIdentifier(issue.identifier)) return false;
 
   const issueNumber = await resolveExistingGithubIssueNumber(issue, env, gh);
   if (issueNumber == null) {
