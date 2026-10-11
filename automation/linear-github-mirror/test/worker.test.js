@@ -415,6 +415,103 @@ test("active Queue propagates a missing Issue comment parent without acknowledgi
   assert.equal(acknowledgements, 0);
 });
 
+test("active Queue propagates missing or malformed Linear Comment records without GitHub mutation or acknowledgement", async (t) => {
+  for (const [name, response] of [
+    ["missing comment", { data: {} }],
+    ["mismatched comment ID", { data: { comment: { id: "other-comment", archivedAt: null } } }],
+    ["missing archive marker", { data: { comment: { id: "comment-a" } } }],
+  ]) {
+    await t.test(name, async () => {
+      let acknowledgements = 0;
+      let githubCalls = 0;
+      const message = {
+        body: { payload: { type: "Comment", action: "update", data: { id: "comment-a" } } },
+        ack: () => { acknowledgements += 1; },
+      };
+      const mockFetch = async (input) => {
+        const url = new URL(input);
+        if (url.hostname === "api.linear.app") return jsonResponse(response);
+        if (url.hostname === "api.github.com") githubCalls += 1;
+        assert.fail(`incomplete Linear comment data must not call GitHub: ${url.hostname}`);
+      };
+
+      const originalConsoleError = console.error;
+      console.error = () => {};
+      try {
+        await withFetchMock(mockFetch, async () => assert.rejects(
+          worker.queue({ messages: [message] }, envFor("active")),
+          /Linear comment is missing or malformed/,
+        ));
+      } finally {
+        console.error = originalConsoleError;
+      }
+
+      assert.equal(githubCalls, 0);
+      assert.equal(acknowledgements, 0);
+    });
+  }
+});
+
+test("active Queue propagates malformed GitHub comment-list data for removal without acknowledgement", async (t) => {
+  for (const [name, response, expectedError] of [
+    ["non-array page", { message: "temporarily unavailable" }, /GitHub issue comment list page 1 returned a malformed response/],
+    ["malformed row", [{ id: 51 }], /GitHub issue comment list page 1 contains a malformed comment at index 0/],
+  ]) {
+    await t.test(name, async () => {
+      let acknowledgements = 0;
+      const githubCalls = [];
+      const message = {
+        body: { payload: { type: "Comment", action: "remove", data: { id: "comment-a" } } },
+        ack: () => { acknowledgements += 1; },
+      };
+      const mockFetch = async (input, init = {}) => {
+        const url = new URL(input);
+        githubCalls.push({ path: url.pathname, method: init.method ?? "GET" });
+        return jsonResponse(response);
+      };
+
+      const originalConsoleError = console.error;
+      console.error = () => {};
+      try {
+        await withFetchMock(mockFetch, async () => assert.rejects(
+          worker.queue({ messages: [message] }, envFor("active")),
+          expectedError,
+        ));
+      } finally {
+        console.error = originalConsoleError;
+      }
+
+      assert.equal(githubCalls.length, 1);
+      assert.equal(githubCalls[0].method, "GET");
+      assert.equal(acknowledgements, 0);
+    });
+  }
+});
+
+test("active Queue still deletes genuinely archived Linear comments", async () => {
+  const githubCalls = [];
+  const message = {
+    body: { payload: { type: "Comment", action: "update", data: { id: "comment-a" } } },
+  };
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: "2026-10-11T00:00:00.000Z" } } });
+    }
+    githubCalls.push({ path: url.pathname, method });
+    if (url.pathname.endsWith("/issues/comments") && method === "GET") {
+      return jsonResponse([{ id: 51, body: "Archived\n\n<!-- linear-comment-id:comment-a -->" }]);
+    }
+    if (url.pathname.endsWith("/issues/comments/51") && method === "DELETE") return new Response(null, { status: 204 });
+    assert.fail(`unexpected GitHub request: ${method} ${url.pathname}`);
+  };
+
+  await withFetchMock(mockFetch, async () => worker.queue({ messages: [message] }, envFor("active")));
+
+  assert.ok(githubCalls.some(({ path, method }) => path.endsWith("/issues/comments/51") && method === "DELETE"));
+});
+
 test("disabled Cron does not query Linear or enqueue either safety sweep", async () => {
   let sends = 0;
   await withFetchMock(async () => assert.fail("disabled Cron must not query Linear"), async () => {

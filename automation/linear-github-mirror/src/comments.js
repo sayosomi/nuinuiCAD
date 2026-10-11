@@ -70,22 +70,30 @@ export async function handleCommentPayload(payload, env, options = {}) {
 
   const queryLinear = options.linearGraphql ?? linearGraphql;
   const data = await queryLinear(COMMENT_QUERY, { id: commentId }, env);
+  if (!isRecord(data)) throw new Error("Linear comment query returned malformed data");
   const comment = data.comment;
-  if (!comment || comment.archivedAt) {
+  if (!isRecord(comment) || comment.id !== commentId ||
+      !Object.prototype.hasOwnProperty.call(comment, "archivedAt") ||
+      (comment.archivedAt !== null && !isDateTimeString(comment.archivedAt))) {
+    throw new Error("Linear comment is missing or malformed");
+  }
+  if (comment.archivedAt) {
     await deleteGithubCommentByLinearId(commentId, env, { githubFetch: gh });
     return;
   }
 
   const issueId = comment.issueId ?? comment.issue?.id ?? payload?.data?.issueId;
-  if (typeof issueId === "string") {
+  if (isNonEmptyString(issueId)) {
     await reconcileIssueComments(issueId, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
     return;
   }
 
   const documentId = comment.documentContent?.document?.id;
-  if (typeof documentId === "string" && typeof options.reconcileDocument === "function") {
+  if (isNonEmptyString(documentId) && typeof options.reconcileDocument === "function") {
     await options.reconcileDocument(documentId, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
+    return;
   }
+  throw new Error("Active Linear comment has no usable parent or reconciliation handler");
 }
 
 export async function reconcileIssueComments(issueId, env, options = {}) {
@@ -289,10 +297,15 @@ async function listGithubIssueComments(issueNumber, env, gh) {
 async function listAllGithubIssueComments(env, gh) {
   const result = [];
   for (let page = 1; ; page += 1) {
-    const rows = await gh(`/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues/comments?per_page=100&page=${page}`, {}, env);
-    if (!Array.isArray(rows)) break;
+    const rows = await gh(`/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues/comments?per_page=${GITHUB_COMMENT_PAGE_SIZE}&page=${page}`, {}, env);
+    if (!Array.isArray(rows)) throw new Error(`GitHub issue comment list page ${page} returned a malformed response`);
+    for (const [index, comment] of rows.entries()) {
+      if (!isRecord(comment) || !Number.isSafeInteger(comment.id) || comment.id <= 0 || typeof comment.body !== "string") {
+        throw new Error(`GitHub issue comment list page ${page} contains a malformed comment at index ${index}`);
+      }
+    }
     result.push(...rows);
-    if (rows.length < 100) break;
+    if (rows.length < GITHUB_COMMENT_PAGE_SIZE) break;
   }
   return result;
 }
