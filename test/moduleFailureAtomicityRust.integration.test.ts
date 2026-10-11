@@ -8,7 +8,8 @@ import {
   fixtureFromSource,
   isRustEligibleFixture,
   normalizeParityPayload,
-  optionsFor
+  optionsFor,
+  runtimeDiagnosticsFor
 } from "./evaluationParitySupport";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +45,13 @@ const descendantByName = (fixture: Fixture, snapshot: ModuleMaterializationSnaps
 };
 
 const resultFor = (payload: EvaluationPayload) => evaluationPayloadToResult(payload);
+const typedBindingIdForName = (fixture: Fixture, name: string) => {
+  const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
+    (candidate) => candidate.kind === "typed" && candidate.name === name
+  );
+  if (!binding) throw new Error(`typed binding "${name}" not found`);
+  return binding.id;
+};
 
 describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
   let rustStdio: ReturnType<typeof createRustStdioParityClient> | undefined;
@@ -67,6 +75,63 @@ describe("SAY-506 Module failure atomicity over persistent Rust stdio", () => {
     expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
     return { options, tsPayload, rustPayload };
   };
+
+  it("withholds failed scalar exports and dependent root bindings while keeping independent scalars", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "module Failing() {",
+      "  export const Good: number = 7",
+      "  point Bad = coordinate(x: 1 / 0, y: 0)",
+      "}",
+      "module Valid() {",
+      "  export const Good: number = 11",
+      "  export point Mark = coordinate(x: 3, y: 4)",
+      "}",
+      "instance A = Failing()",
+      "instance B = Valid()",
+      "const Leaked: number = @A::Good",
+      "const Chained: number = @Leaked + 1",
+      "const Independent: number = 13",
+      "const ValidB: number = @B::Good"
+    ].join("\n"));
+    const { options, tsPayload, rustPayload } = await evaluateBoth(fixture);
+    const snapshotA = instanceSnapshot(fixture, options, "A");
+    const bad = descendantByName(fixture, snapshotA, "Bad");
+    const snapshotB = instanceSnapshot(fixture, options, "B");
+    const bindingIds = new Map([
+      ["A::Good", typedBindingIdForName(fixture, "A::Good")],
+      ["Leaked", typedBindingIdForName(fixture, "Leaked")],
+      ["Chained", typedBindingIdForName(fixture, "Chained")],
+      ["Independent", typedBindingIdForName(fixture, "Independent")],
+      ["B::Good", typedBindingIdForName(fixture, "B::Good")],
+      ["ValidB", typedBindingIdForName(fixture, "ValidB")]
+    ]);
+
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = resultFor(payload);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toMatchObject({ elementId: bad.id, elementName: "Bad" });
+      expect(result.errors[0]?.message).toContain("除算");
+      expect(result.instanceBaseGeometry?.has(snapshotA.instanceId)).toBe(false);
+      expect(result.instanceBaseGeometry?.get(snapshotB.instanceId)).toHaveLength(1);
+      expect(result.computedScalarBindings?.has(bindingIds.get("A::Good")!)).toBe(false);
+      expect(result.computedScalarBindings?.has(bindingIds.get("Leaked")!)).toBe(false);
+      expect(result.computedScalarBindings?.has(bindingIds.get("Chained")!)).toBe(false);
+      expect(result.computedScalarBindings?.get(bindingIds.get("Independent")!)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 13 }
+      });
+      expect(result.computedScalarBindings?.get(bindingIds.get("B::Good")!)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 11 }
+      });
+      expect(result.computedScalarBindings?.get(bindingIds.get("ValidB")!)).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value: 11 }
+      });
+      expect(runtimeDiagnosticsFor(fixture, payload)).toEqual([]);
+    }
+  }, 60_000);
 
   it("does not publish partial geometry or exports from the canonical failed instance", async () => {
     const fixture = fixtureFromSource([

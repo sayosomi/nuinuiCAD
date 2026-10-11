@@ -79,6 +79,7 @@ import {
   type TransformationRecipe,
   type TransformationTargetSelector
 } from "@nuinuicad/nui-language";
+import { encodeIdentityTuple } from "@nuinuicad/nui-language/document";
 import type { TypedTransformationDependencyPlan } from "@nuinuicad/nui-language";
 import type { NumericValue } from "@nuinuicad/nui-language";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
@@ -3694,6 +3695,52 @@ export const evaluateElements = (
       }, dependencyScheduledPrerequisiteVersionIdsByVersionId)
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;
+  const unavailableModuleScalarBindingIds = new Set<BindingId>();
+  const unavailableModuleSnapshots = instanceSnapshots.filter((snapshot) =>
+    failedModuleInstanceIds.has(snapshot.instanceId) ||
+    !moduleInstanceIdsWithinEvaluationLimit.has(snapshot.instanceId)
+  );
+  const bindingIdsToWithhold = new Set<BindingId>([
+    ...(computedScalarBindings?.keys() ?? []),
+    ...(options.bindingVersions?.versions.map((version) => version.bindingId) ?? [])
+  ]);
+  for (const snapshot of unavailableModuleSnapshots) {
+    const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
+      options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
+    if (instancePath.length > 0) {
+      const localBindingPrefix = `module-binding:${encodeIdentityTuple(["local", ...instancePath])}`;
+      for (const bindingId of bindingIdsToWithhold) {
+        if (bindingId.startsWith(localBindingPrefix)) unavailableModuleScalarBindingIds.add(bindingId);
+      }
+    }
+
+    const localBindingPrefix = `module-binding:${encodeIdentityTuple(["local", ...instancePath])}`;
+    const pending = (options.typedDependencyGraph?.edges ?? [])
+      .flatMap((edge) => [edge.from, edge.to])
+      .filter((endpoint) => endpoint.kind === "binding" && endpoint.id.startsWith(localBindingPrefix))
+      .map((endpoint) => typedDependencyEndpointId(endpoint));
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const endpointId = pending.pop()!;
+      if (visited.has(endpointId)) continue;
+      visited.add(endpointId);
+      for (const edge of options.typedDependencyGraph?.reverseByEndpointId.get(endpointId) ?? []) {
+        if (!graphEdgeIsActive(edge) || edge.from.kind !== "binding") continue;
+        unavailableModuleScalarBindingIds.add(edge.from.id);
+        pending.push(typedDependencyEndpointId(edge.from));
+      }
+    }
+  }
+  const publishedComputedScalarBindings = computedScalarBindings
+    ? new Map([...computedScalarBindings].filter(([bindingId, evaluation]) =>
+      !unavailableModuleScalarBindingIds.has(bindingId) || evaluation.status !== "ok"
+    ))
+    : undefined;
+  const publishedComputedScalarBindingVersions = linearFinal
+    ? new Map([...linearFinal.historyByVersionId].filter(([, history]) =>
+      !unavailableModuleScalarBindingIds.has(history.bindingId) || history.evaluation?.status !== "ok"
+    ))
+    : undefined;
 
   // Generated ids are runtime identities. Their style semantics belong to
   // the source template, so use the evaluator-owned structured relationship
@@ -3765,7 +3812,7 @@ export const evaluateElements = (
     conditionEvaluationTraces,
     forGroupGeneratedRows,
     forGroupEffectiveShowGeneratedIds,
-    ...(computedScalarBindings ? { computedScalarBindings } : {}),
-    ...(linearFinal ? { computedScalarBindingVersions: linearFinal.historyByVersionId } : {})
+    ...(publishedComputedScalarBindings ? { computedScalarBindings: publishedComputedScalarBindings } : {}),
+    ...(publishedComputedScalarBindingVersions ? { computedScalarBindingVersions: publishedComputedScalarBindingVersions } : {})
   };
 };

@@ -142,7 +142,7 @@ use bezier_feature_point_evaluator::{evaluate_bezier_bulge_point, evaluate_bezie
 use common_tangent_evaluator::evaluate_common_tangent_line;
 use conditional_dependency_runtime::{
     branch_for_controller_value, decode_conditional_dependency_graph, geometry_value_endpoint_id,
-    ConditionalDependencyGraph, DependencyScheduledBindingReadiness,
+    local_module_binding_prefix, ConditionalDependencyGraph, DependencyScheduledBindingReadiness,
 };
 use control_boolean_runtime::{
     evaluate_scalar_expression_with_document_resolver, resolve_conditional_group_condition,
@@ -3594,7 +3594,7 @@ fn evaluate_document_input_with_scalar_program(
         &evaluated_geometry_value_entries,
         final_readiness_resolver,
     );
-    let (computed_scalar_bindings, computed_scalar_binding_versions) =
+    let (mut computed_scalar_bindings, mut computed_scalar_binding_versions) =
         if let Some(resolver) = scalar_mutation_resolver.as_mut() {
             resolver.finalize(
                 &mut state,
@@ -3614,6 +3614,66 @@ fn evaluate_document_input_with_scalar_program(
                 None,
             )
         };
+    let unavailable_module_instance_ids = instance_snapshots
+        .iter()
+        .filter(|snapshot| {
+            failed_instance_ids.contains(&snapshot.instance_id)
+                || !module_instance_ids_within_evaluation_limit.contains(&snapshot.instance_id)
+        })
+        .map(|snapshot| snapshot.instance_id.clone())
+        .collect::<HashSet<_>>();
+    let unavailable_local_module_binding_prefixes = instance_snapshots
+        .iter()
+        .filter(|snapshot| unavailable_module_instance_ids.contains(&snapshot.instance_id))
+        .map(|snapshot| local_module_binding_prefix(&snapshot.instance_path))
+        .collect::<Vec<_>>();
+    let mut unavailable_module_binding_ids = conditional_dependency_graph
+        .as_ref()
+        .map(|graph| {
+            graph.binding_ids_depending_on_module_bindings(
+                &unavailable_local_module_binding_prefixes,
+                &conditional_branch_selections,
+            )
+        })
+        .unwrap_or_default();
+    if let Some(program) = scalar_program.as_ref() {
+        for local_binding_prefix in &unavailable_local_module_binding_prefixes {
+            unavailable_module_binding_ids.extend(
+                program
+                    .statements
+                    .iter()
+                    .map(|statement| &statement.binding_id)
+                    .filter(|binding_id| binding_id.starts_with(local_binding_prefix))
+                    .cloned(),
+            );
+        }
+    }
+    if let Some(bindings) = computed_scalar_bindings.as_mut() {
+        bindings.retain(|entry| {
+            let Some(binding_id) = entry.get("bindingId").and_then(Value::as_str) else {
+                return true;
+            };
+            let unavailable = unavailable_module_binding_ids.contains(binding_id)
+                || unavailable_local_module_binding_prefixes
+                    .iter()
+                    .any(|prefix| binding_id.starts_with(prefix));
+            !unavailable
+                || entry.pointer("/evaluation/status").and_then(Value::as_str) != Some("ok")
+        });
+    }
+    if let Some(versions) = computed_scalar_binding_versions.as_mut() {
+        versions.retain(|entry| {
+            let Some(binding_id) = entry.get("bindingId").and_then(Value::as_str) else {
+                return true;
+            };
+            let unavailable = unavailable_module_binding_ids.contains(binding_id)
+                || unavailable_local_module_binding_prefixes
+                    .iter()
+                    .any(|prefix| binding_id.starts_with(prefix));
+            !unavailable
+                || entry.pointer("/evaluation/status").and_then(Value::as_str) != Some("ok")
+        });
+    }
 
     let mut effective_drawing_modifier_strokes = original_elements
         .iter()
