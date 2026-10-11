@@ -9,6 +9,7 @@ import worker, {
   githubStateFromLinearState,
   isFreshWebhook,
   legacyGithubIssueNumber,
+  mirrorPayload,
   priorityName,
   renderGithubBody,
   safetySweepMessage,
@@ -17,6 +18,57 @@ import worker, {
   summarizeRelations,
   verifyLinearSignature,
 } from "../src/index.js";
+
+const mirrorEnv = {
+  LINEAR_API_KEY: "linear-test-key",
+  LINEAR_TEAM_ID: "team-a",
+  GITHUB_TOKEN: "github-test-token",
+  GITHUB_OWNER: "sayosomi",
+  GITHUB_REPO: "nuinuiCAD",
+};
+
+function linearIssue(overrides = {}) {
+  return {
+    id: "linear-issue-a",
+    identifier: "SAY-452",
+    title: "Archived mirror recovery",
+    description: "Canonical Linear body",
+    priority: 2,
+    updatedAt: "2026-10-11T00:00:00.000Z",
+    archivedAt: null,
+    url: "https://linear.app/sayosomi/issue/SAY-452/archived-mirror-recovery",
+    team: { id: "team-a", name: "SAY", key: "SAY" },
+    state: { id: "state-a", name: "Todo", type: "unstarted" },
+    labels: { nodes: [] },
+    project: null,
+    parent: null,
+    attachments: { nodes: [] },
+    relations: { nodes: [] },
+    inverseRelations: { nodes: [] },
+    ...overrides,
+  };
+}
+
+function githubMarkerMatch(issue, number) {
+  return { number, body: `Mirror body\n\n<!-- linear-issue-id:${issue.id} -->` };
+}
+
+function jsonResponse(value, status = 200) {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
+async function withFetchMock(mock, callback) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mock;
+  try {
+    return await callback();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
 
 test("legacy GitHub mapping matches the migrated ranges", () => {
   assert.equal(legacyGithubIssueNumber("SAY-9"), 186);
@@ -182,4 +234,155 @@ test("Worker exposes a scheduled handler and Wrangler deploys it every 12 hours"
   const configText = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   const config = JSON.parse(configText);
   assert.deepEqual(config.triggers?.crons, ["0 */12 * * *"]);
+});
+
+test("non-archived marker recovery still attaches the existing GitHub issue", async () => {
+  const issue = linearIssue();
+  const linearMutations = [];
+  const githubWrites = [];
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      if (query.includes("mutation AttachGithubIssue(")) {
+        linearMutations.push(JSON.parse(init.body));
+        return jsonResponse({ data: { attachmentCreate: { success: true, attachment: { id: "attachment-a" } } } });
+      }
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    if (url.hostname === "api.github.com") {
+      if (url.pathname.endsWith("/issues") && method === "GET") {
+        return jsonResponse([githubMarkerMatch(issue, 1224)]);
+      }
+      if (url.pathname.endsWith("/issues/1224") && method === "PATCH") {
+        githubWrites.push({ path: url.pathname, body: JSON.parse(init.body) });
+        return jsonResponse({});
+      }
+      assert.fail(`unexpected GitHub request: ${method} ${url.pathname}${url.search}`);
+    }
+    assert.fail(`unexpected network host: ${url.hostname}`);
+  };
+
+  await withFetchMock(mockFetch, () => mirrorPayload({ type: "Issue", data: { id: issue.id } }, mirrorEnv));
+
+  assert.equal(linearMutations.length, 1);
+  assert.equal(linearMutations[0].query.includes("mutation AttachGithubIssue("), true);
+  assert.deepEqual(linearMutations[0].variables.input, {
+    issueId: issue.id,
+    title: "GitHub #1224",
+    subtitle: "Public mirror",
+    url: "https://github.com/sayosomi/nuinuiCAD/issues/1224",
+    metadata: { integration: "nuinuicad-linear-github-mirror", githubIssueNumber: 1224 },
+  });
+  assert.equal(githubWrites.length, 1);
+  assert.equal(githubWrites[0].body.state, "open");
+});
+
+test("duplicate marker matches fail closed before any GitHub write", async () => {
+  const issue = linearIssue();
+  const githubCalls = [];
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    if (url.hostname === "api.github.com") {
+      githubCalls.push({ method, path: url.pathname });
+      if (url.pathname.endsWith("/issues") && method === "GET") {
+        return jsonResponse([githubMarkerMatch(issue, 1224), githubMarkerMatch(issue, 1225)]);
+      }
+      assert.fail(`unexpected GitHub mutation: ${method} ${url.pathname}`);
+    }
+    assert.fail(`unexpected network host: ${url.hostname}`);
+  };
+
+  await withFetchMock(mockFetch, async () => {
+    await assert.rejects(
+      mirrorPayload({ type: "Issue", data: { id: issue.id } }, mirrorEnv),
+      /Multiple GitHub issues contain mirror marker/,
+    );
+  });
+
+  assert.deepEqual(githubCalls.map(({ method }) => method), ["GET"]);
+});
+
+test("Linear issue refetch GraphQL errors propagate without GitHub calls", async () => {
+  const calls = [];
+  const mockFetch = async (input, init = {}) => {
+    calls.push({ host: new URL(input).hostname, method: init.method ?? "GET" });
+    return jsonResponse({ errors: [{ message: "canonical Linear refetch failed" }] });
+  };
+
+  await withFetchMock(mockFetch, async () => {
+    await assert.rejects(
+      mirrorPayload({ type: "Issue", data: { id: "linear-issue-a" } }, mirrorEnv),
+      /Linear GraphQL:.*canonical Linear refetch failed/,
+    );
+  });
+
+  assert.deepEqual(calls, [{ host: "api.linear.app", method: "POST" }]);
+});
+
+test("GitHub marker lookup API errors propagate without GitHub writes", async () => {
+  const issue = linearIssue();
+  const githubCalls = [];
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    githubCalls.push({ method, path: url.pathname });
+    return jsonResponse({ message: "GitHub temporarily unavailable" }, 503);
+  };
+
+  await withFetchMock(mockFetch, async () => {
+    await assert.rejects(
+      mirrorPayload({ type: "Issue", data: { id: issue.id } }, mirrorEnv),
+      /GitHub API 503/,
+    );
+  });
+
+  assert.deepEqual(githubCalls.map(({ method }) => method), ["GET"]);
+});
+
+test("unrelated attachmentCreate GraphQL errors propagate for non-archived recovery", async () => {
+  const issue = linearIssue();
+  const githubCalls = [];
+  const linearMutations = [];
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      if (query.includes("mutation AttachGithubIssue(")) {
+        linearMutations.push(query);
+        return jsonResponse({ errors: [{ message: "attachment permission denied" }] });
+      }
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    githubCalls.push({ method, path: url.pathname });
+    if (url.pathname.endsWith("/issues") && method === "GET") {
+      return jsonResponse([githubMarkerMatch(issue, 1224)]);
+    }
+    assert.fail(`unexpected GitHub mutation: ${method} ${url.pathname}`);
+  };
+
+  await withFetchMock(mockFetch, async () => {
+    await assert.rejects(
+      mirrorPayload({ type: "Issue", data: { id: issue.id } }, mirrorEnv),
+      /Linear GraphQL:.*attachment permission denied/,
+    );
+  });
+
+  assert.equal(linearMutations.length, 1);
+  assert.deepEqual(githubCalls.map(({ method }) => method), ["GET"]);
 });
