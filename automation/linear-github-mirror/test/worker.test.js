@@ -166,7 +166,7 @@ test("active Queue routes Issue, Comment, Document, and finalizer messages throu
         return jsonResponse({ data: { issue: { ...issue, attachments: { nodes: issue.attachments.nodes } } } });
       }
       if (query.includes("query MirrorIssueComments(")) {
-        return jsonResponse({ data: { issue: { comments: { nodes: [], pageInfo: { hasNextPage: false } } } } });
+        return jsonResponse({ data: { issue: { id: issue.id, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } });
       }
       assert.fail(`unexpected Linear query: ${query}`);
     }
@@ -229,6 +229,7 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
   const linearComment = {
     id: "comment-say-452",
     body: "Keep this comment on the existing mirror.",
+    archivedAt: null,
     createdAt: "2026-10-09T00:00:00.000Z",
     editedAt: null,
     updatedAt: "2026-10-09T00:00:00.000Z",
@@ -250,7 +251,7 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
       }
       if (query.includes("query MirrorIssueComments(")) {
         return jsonResponse({
-          data: { issue: { comments: { nodes: [linearComment], pageInfo: { hasNextPage: false } } } },
+          data: { issue: { id: issue.id, comments: { nodes: [linearComment], pageInfo: { hasNextPage: false, endCursor: null } } } },
         });
       }
       assert.fail(`unexpected Linear query: ${query}`);
@@ -326,6 +327,61 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
   const firstCommentCreate = calls.findIndex((call) => call.path === "/repos/sayosomi/nuinuiCAD/issues/1224/comments" && call.method === "POST");
   assert.ok(firstIssuePatch < firstCommentFetch);
   assert.ok(firstCommentFetch < firstCommentCreate);
+});
+
+test("active Queue propagates incomplete comment reconciliation without acknowledging the message", async () => {
+  const linearCalls = [];
+  const githubCalls = [];
+  let acknowledgements = 0;
+  const message = {
+    body: { payload: { type: "Comment", action: "create", data: { id: "comment-a" } } },
+    ack: () => { acknowledgements += 1; },
+  };
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      linearCalls.push(query);
+      if (query.includes("query MirrorComment(")) {
+        return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: null, issueId: "issue-a" } } });
+      }
+      if (query.includes("query MirrorIssueCommentParent(")) {
+        return jsonResponse({
+          data: {
+            issue: {
+              id: "issue-a",
+              identifier: "SAY-86",
+              team: { id: "team-a" },
+              attachments: { nodes: [{ url: "https://github.com/sayosomi/nuinuiCAD/issues/401" }] },
+            },
+          },
+        });
+      }
+      if (query.includes("query MirrorIssueComments(")) return jsonResponse({ data: { issue: { id: "issue-a" } } });
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    if (url.hostname === "api.github.com") {
+      githubCalls.push({ path: url.pathname, method });
+      assert.fail(`incomplete Linear comments must not call GitHub: ${method} ${url.pathname}`);
+    }
+    assert.fail(`unexpected network host: ${url.hostname}`);
+  };
+
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await withFetchMock(mockFetch, async () => assert.rejects(
+      worker.queue({ messages: [message] }, envFor("active")),
+      /Linear issue comments connection is missing or malformed/,
+    ));
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(linearCalls.length, 3);
+  assert.deepEqual(githubCalls, []);
+  assert.equal(acknowledgements, 0);
 });
 
 test("disabled Cron does not query Linear or enqueue either safety sweep", async () => {

@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   deleteGithubCommentByLinearId,
   extractLinearCommentId,
+  fetchDocumentComments,
+  reconcileIssueComments,
   reconcileCommentsToGithubIssue,
   renderGithubComment,
 } from "../src/comments.js";
@@ -22,6 +24,43 @@ import {
 import { shouldQueueExtendedPayload } from "../src/extensions.js";
 import { findGithubIssueByMarker } from "../src/mirrorApi.js";
 import worker from "../src/worker.js";
+
+const commentEnv = { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD", LINEAR_TEAM_ID: "team-a" };
+
+function linearComment(id, overrides = {}) {
+  return {
+    id,
+    body: `Comment ${id}`,
+    archivedAt: null,
+    createdAt: "2026-10-11T00:00:00.000Z",
+    editedAt: null,
+    updatedAt: "2026-10-11T00:00:00.000Z",
+    parentId: "issue-a",
+    ...overrides,
+  };
+}
+
+function linearCommentsPage(parentType, nodes = [], pageInfo = { hasNextPage: false, endCursor: null }, id) {
+  id ??= parentType === "issue" ? "issue-a" : "doc-a";
+  return { [parentType]: { id, comments: { nodes, pageInfo } } };
+}
+
+const issueCommentParent = {
+  id: "issue-a",
+  identifier: "SAY-86",
+  team: { id: "team-a" },
+  attachments: { nodes: [{ url: "https://github.com/sayosomi/nuinuiCAD/issues/401" }] },
+};
+
+async function reconcileIssueCommentPages(pages, githubFetch = async () => []) {
+  return reconcileIssueComments("issue-a", commentEnv, {
+    linearGraphql: async (query, { after }) => {
+      if (query.includes("MirrorIssueCommentParent")) return { issue: issueCommentParent };
+      return pages.get(after ?? null);
+    },
+    githubFetch,
+  });
+}
 
 test("extended webhook routing accepts Issue, Comment, and Document", () => {
   assert.equal(shouldQueueExtendedPayload({ type: "Issue", action: "update" }), true);
@@ -104,6 +143,157 @@ test("comment reconciliation creates, updates, deletes stale comments, and remov
   assert.ok(calls.some((call) => call.path.endsWith("/issues/comments/12") && call.init.method === "DELETE"));
   assert.ok(calls.some((call) => call.path.endsWith("/issues/99/comments") && call.init.method === "POST"));
   assert.equal(calls.some((call) => call.path.endsWith("/issues/comments/13")), false);
+});
+
+test("valid zero-comment Issue and Document connections are accepted", async () => {
+  const githubCalls = [];
+  const issuePages = new Map([[null, linearCommentsPage("issue")]]);
+  assert.equal(await reconcileIssueCommentPages(issuePages, async (path) => {
+    githubCalls.push(path);
+    return [];
+  }), true);
+  assert.equal(githubCalls.length, 1);
+
+  const documentComments = await fetchDocumentComments("doc-a", commentEnv, async () => linearCommentsPage("document"));
+  assert.deepEqual(documentComments, []);
+});
+
+test("a missing Issue comments connection fails closed", async () => {
+  await assert.rejects(
+    reconcileIssueCommentPages(new Map([[null, { issue: issueCommentParent }]]), async () => {
+      assert.fail("GitHub comments must not be read for incomplete Linear data");
+    }),
+    /Linear issue comments connection is missing or malformed/,
+  );
+});
+
+test("a missing Document comments connection fails closed", async () => {
+  await assert.rejects(
+    fetchDocumentComments("doc-a", commentEnv, async () => ({ document: { id: "doc-a" } })),
+    /Linear document comments connection is missing or malformed/,
+  );
+});
+
+test("malformed Linear comment nodes and pagination fail closed", async (t) => {
+  const cases = [
+    ["parent is missing", {}],
+    ["parent ID does not match", { document: { id: "other-doc", comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } }],
+    ["nodes are missing", { document: { id: "doc-a", comments: { pageInfo: { hasNextPage: false, endCursor: null } } } }],
+    ["a node has no usable ID", linearCommentsPage("document", [{ ...linearComment(""), id: " " }])],
+    ["an active node has no body", linearCommentsPage("document", [{ ...linearComment("bad"), body: null }])],
+    ["pageInfo is missing", { document: { id: "doc-a", comments: { nodes: [] } } }],
+    ["hasNextPage is not a boolean", linearCommentsPage("document", [], { hasNextPage: "false", endCursor: null })],
+    ["endCursor is missing", { document: { id: "doc-a", comments: { nodes: [], pageInfo: { hasNextPage: false } } } }],
+    ["a next page has no cursor", linearCommentsPage("document", [linearComment("page-a")], { hasNextPage: true, endCursor: null })],
+  ];
+
+  for (const [name, response] of cases) {
+    await t.test(name, async () => {
+      await assert.rejects(
+        fetchDocumentComments("doc-a", commentEnv, async () => response),
+        /parent is missing|malformed nodes|malformed node|malformed pagination|incomplete or did not advance/,
+      );
+    });
+  }
+});
+
+test("a missing second Linear page fails before any managed comment write", async () => {
+  const calls = [];
+  const githubCalls = [];
+  await assert.rejects(reconcileIssueComments("issue-a", commentEnv, {
+    linearGraphql: async (query, { after }) => {
+      calls.push({ query, after });
+      if (query.includes("MirrorIssueCommentParent")) return { issue: issueCommentParent };
+      if (after === null) {
+        return linearCommentsPage("issue", [linearComment("partial")], { hasNextPage: true, endCursor: "cursor-2" });
+      }
+      return undefined;
+    },
+    githubFetch: async (path, init = {}) => {
+      githubCalls.push({ path, init });
+      return [];
+    },
+  }), /Linear issue comment query returned malformed data/);
+
+  assert.deepEqual(calls.filter((call) => call.query.includes("MirrorIssueComments")).map((call) => call.after), [null, "cursor-2"]);
+  assert.deepEqual(githubCalls, []);
+});
+
+test("duplicate Linear comment IDs fail closed across pages", async () => {
+  const githubCalls = [];
+  const pages = new Map([
+    [null, linearCommentsPage("issue", [linearComment("duplicate")], { hasNextPage: true, endCursor: "cursor-2" })],
+    ["cursor-2", linearCommentsPage("issue", [linearComment("duplicate")])],
+  ]);
+  await assert.rejects(reconcileIssueCommentPages(pages, async (...args) => {
+    githubCalls.push(args);
+    return [];
+  }), /duplicate comment ID duplicate/);
+  assert.deepEqual(githubCalls, []);
+});
+
+test("malformed GitHub comment-list pages fail closed", async (t) => {
+  for (const [name, response] of [
+    ["non-array response", { message: "rate limited" }],
+    ["malformed comment row", [{ id: 10 }]],
+  ]) {
+    await t.test(name, async () => {
+      const calls = [];
+      await assert.rejects(reconcileIssueCommentPages(
+        new Map([[null, linearCommentsPage("issue", [linearComment("current")])]]),
+        async (path, init = {}) => {
+          calls.push({ path, init });
+          return response;
+        },
+      ), /GitHub issue comment list page 1/);
+      assert.equal(calls.length, 1);
+      assert.equal(calls.some(({ init }) => ["POST", "PATCH", "DELETE"].includes(init.method)), false);
+    });
+  }
+});
+
+test("completed Linear comment pagination reconciles all pages and preserves GitHub-only comments", async () => {
+  const linearCalls = [];
+  const githubCalls = [];
+  const pages = new Map([
+    [null, linearCommentsPage("issue", [linearComment("current-a")], { hasNextPage: true, endCursor: "cursor-2" })],
+    ["cursor-2", linearCommentsPage("issue", [linearComment("current-b")])],
+  ]);
+  const githubComments = [
+    { id: 41, body: "Removed\n\n<!-- linear-comment-id:removed -->" },
+    { id: 42, body: "Human-owned GitHub comment" },
+  ];
+
+  await reconcileIssueComments("issue-a", commentEnv, {
+    linearGraphql: async (query, variables) => {
+      linearCalls.push(variables.after);
+      if (query.includes("MirrorIssueCommentParent")) return { issue: issueCommentParent };
+      return pages.get(variables.after ?? null);
+    },
+    githubFetch: async (path, init = {}) => {
+      githubCalls.push({ path, init });
+      if (path.includes("/issues/401/comments?")) return githubComments;
+      return {};
+    },
+  });
+
+  assert.deepEqual(linearCalls, [undefined, null, "cursor-2"]);
+  assert.equal(githubCalls.filter(({ init }) => init.method === "POST").length, 2);
+  assert.ok(githubCalls.some(({ path, init }) => path.endsWith("/issues/comments/41") && init.method === "DELETE"));
+  assert.equal(githubCalls.some(({ path, init }) => path.endsWith("/issues/comments/42")), false);
+});
+
+test("archived Linear comments remain eligible for managed GitHub deletion", async () => {
+  const calls = [];
+  const archived = linearComment("archived", { archivedAt: "2026-10-11T01:00:00.000Z" });
+  await reconcileIssueCommentPages(new Map([[null, linearCommentsPage("issue", [archived])]]), async (path, init = {}) => {
+    calls.push({ path, init });
+    if (path.includes("/issues/401/comments?")) {
+      return [{ id: 51, body: "Archived mirror\n\n<!-- linear-comment-id:archived -->" }];
+    }
+    return {};
+  });
+  assert.ok(calls.some(({ path, init }) => path.endsWith("/issues/comments/51") && init.method === "DELETE"));
 });
 
 test("comment removal finds managed comment repository-wide", async () => {
@@ -231,7 +421,9 @@ test("archived and trashed Documents close their existing mirrors as not planned
     };
 
     await reconcileDocumentById("doc-closed", env, {
-      linearGraphql: async () => ({ document }),
+      linearGraphql: async (query) => query.includes("MirrorDocumentComments")
+        ? linearCommentsPage("document", [], undefined, document.id)
+        : { document },
       githubFetch,
     });
 
