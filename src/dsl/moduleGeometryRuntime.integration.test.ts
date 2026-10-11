@@ -50,6 +50,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     scalarExecutionPositionByElementId: compiled.scalarExecutionPositionByRuntimeElementId,
     transformationRecipes: compiled.runtimeTransformationRecipes,
     transformationDependencyPlans: compiled.typedDependencyGraph?.transformationPlans,
+    moduleMaterialization: compiled.moduleMaterialization,
     transformationNumericBindingEntries: compiled.scalarProgram && compiled.transformationNumericBindings?.length
       ? buildTransformationNumericBindingRuntimeEntries(compiled.transformationNumericBindings)
       : undefined,

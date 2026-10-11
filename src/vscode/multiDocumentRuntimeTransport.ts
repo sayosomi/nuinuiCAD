@@ -145,7 +145,8 @@ export const projectVscodeMultiDocumentCanvasRuntime = ({
       instanceBaseGeometrySnapshots: materialization.instanceBaseGeometrySnapshots.map((snapshot) => ({
         instanceId: snapshot.instanceId,
         endRuntimeIndex: snapshot.endRuntimeIndex,
-        descendantIds: [...snapshot.descendantIds]
+        descendantIds: [...snapshot.descendantIds],
+        ...(snapshot.instancePath ? { instancePath: [...snapshot.instancePath] } : {})
       })),
       origins: [...materialization.originByRuntimeElementId.entries()].map(([runtimeElementId, origin]) => ({
         runtimeElementId,

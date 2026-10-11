@@ -50,6 +50,7 @@ const evaluateCompiled = (compiled: ReturnType<typeof compileWithIds>) => {
     ...(runtimeOptions.typedDependencyGraph ? { typedDependencyGraph: runtimeOptions.typedDependencyGraph } : {}),
     ...(runtimeOptions.evaluationOrder ? { evaluationOrder: runtimeOptions.evaluationOrder } : {}),
     ...(runtimeOptions.transformationDependencyPlans ? { transformationDependencyPlans: runtimeOptions.transformationDependencyPlans } : {}),
+    ...(runtimeOptions.moduleMaterialization ? { moduleMaterialization: runtimeOptions.moduleMaterialization } : {}),
     scalarProgram: compiled.scalarProgram,
     bindingVersions: compiled.bindingVersions,
     geometryInputTargetsByElementId: runtimeOptions.geometryInputTargetsByElementId,

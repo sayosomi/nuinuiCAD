@@ -222,6 +222,12 @@ fn encode_identity_tuple(parts: &[String]) -> String {
     encoded
 }
 
+pub(crate) fn local_module_binding_prefix(instance_path: &[String]) -> String {
+    let mut parts = vec!["local".to_owned()];
+    parts.extend(instance_path.iter().cloned());
+    format!("module-binding:{}", encode_identity_tuple(&parts))
+}
+
 pub(crate) fn geometry_value_endpoint_id(occurrence: &GeometryValueOccurrence) -> String {
     let mut parts = vec![
         if occurrence.runtime_generation.is_some() {
@@ -879,6 +885,71 @@ impl ConditionalDependencyGraph {
                         .iter()
                         .any(|error| error.element_id == dependency_id)
             })
+    }
+
+    pub(crate) fn unavailable_module_instance_prerequisite(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        failed_instance_ids: &HashSet<ElementId>,
+        included_instance_ids: &HashSet<ElementId>,
+    ) -> Option<(ElementId, bool)> {
+        let mut excluded_instance_id = None;
+        for edge in self.edges.iter().filter(|edge| {
+            endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
+        }) {
+            if edge.to.kind != "module-occurrence" {
+                continue;
+            }
+            let instance_id = edge
+                .to
+                .id
+                .strip_prefix("module-occurrence:")
+                .unwrap_or(&edge.to.id);
+            if failed_instance_ids.contains(instance_id) {
+                return Some((instance_id.to_owned(), true));
+            }
+            if !included_instance_ids.contains(instance_id) {
+                excluded_instance_id = Some(instance_id.to_owned());
+            }
+        }
+        excluded_instance_id.map(|instance_id| (instance_id, false))
+    }
+
+    pub(crate) fn binding_ids_depending_on_module_bindings(
+        &self,
+        local_binding_prefixes: &[String],
+        branch_selections: &HashMap<String, String>,
+    ) -> HashSet<String> {
+        let mut unavailable_bindings = HashSet::new();
+        let mut pending = self
+            .edges
+            .iter()
+            .flat_map(|edge| [&edge.from, &edge.to])
+            .filter(|endpoint| {
+                endpoint.kind == "binding"
+                    && local_binding_prefixes
+                        .iter()
+                        .any(|prefix| endpoint.id.starts_with(prefix))
+            })
+            .map(endpoint_key)
+            .collect::<Vec<_>>();
+        let mut visited = HashSet::new();
+        while let Some(endpoint_id) = pending.pop() {
+            if !visited.insert(endpoint_id.clone()) {
+                continue;
+            }
+            for edge in self.edges.iter().filter(|edge| {
+                endpoint_key(&edge.to) == endpoint_id && edge_is_active(edge, branch_selections)
+            }) {
+                if edge.from.kind != "binding" {
+                    continue;
+                }
+                unavailable_bindings.insert(edge.from.id.clone());
+                pending.push(endpoint_key(&edge.from));
+            }
+        }
+        unavailable_bindings
     }
 
     fn geometry_prerequisite_is_ready_inner(

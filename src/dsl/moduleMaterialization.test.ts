@@ -269,7 +269,7 @@ describe("module materialization", () => {
     });
   });
 
-  it("completes disabled, inactive, and errored descendants before capturing Module Base", () => {
+  it("withholds Module Base when an evaluated descendant fails", () => {
     const compiled = runtimeNames([
       "nui 1",
       "module M() {",
@@ -284,8 +284,9 @@ describe("module materialization", () => {
     ].join("\n"));
     const result = evaluateCompiled(compiled);
     const instance = compiled.document!.elements.find((element) => element.name === "A")!;
-    const snapshot = result.instanceBaseGeometry?.get(instance.id);
-    expect(snapshot?.map((geometry) => geometry.name)).toEqual(["Good"]);
+    const good = compiled.document!.elements.find((element) => element.name === "Good")!;
+    expect(result.instanceBaseGeometry?.has(instance.id)).toBe(false);
+    expect(result.computedGeometry.has(good.id)).toBe(false);
     expect(result.errors).toEqual(expect.arrayContaining([
       expect.objectContaining({ elementName: "Error" })
     ]));

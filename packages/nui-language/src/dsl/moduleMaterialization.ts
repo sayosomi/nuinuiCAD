@@ -76,6 +76,8 @@ export type ModuleMaterializationSnapshot = {
   instanceId: ElementId;
   endRuntimeIndex: number;
   descendantIds: readonly ElementId[];
+  /** Canonical runtime path used to associate per-instance geometry-value errors. */
+  instancePath?: readonly string[];
 };
 
 export type ModuleMaterialization = {
@@ -492,7 +494,8 @@ export const materializeModuleExecution = ({
         return {
           instanceId: entry.runtimeElementId,
           endRuntimeIndex,
-          descendantIds: descendants.map(({ candidate }) => candidate.runtimeElementId)
+          descendantIds: descendants.map(({ candidate }) => candidate.runtimeElementId),
+          instancePath: [...(entry.runtimeIdentity?.path ?? entry.runtimeInstancePath ?? entry.instancePath)]
         };
       }),
     evaluationLimitIndex: undefined

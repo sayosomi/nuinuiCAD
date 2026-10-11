@@ -79,6 +79,7 @@ import {
   type TransformationRecipe,
   type TransformationTargetSelector
 } from "@nuinuicad/nui-language";
+import { encodeIdentityTuple } from "@nuinuicad/nui-language/document";
 import type { TypedTransformationDependencyPlan } from "@nuinuicad/nui-language";
 import type { NumericValue } from "@nuinuicad/nui-language";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
@@ -307,11 +308,15 @@ export const evaluateElements = (
   const instanceBaseGeometry = new Map<ElementId, ComputedGeometry[]>();
   const instanceSnapshots = [...(options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? [])];
   const capturedInstanceIds = new Set<ElementId>();
-  for (const snapshot of options.moduleMaterialization?.instanceBaseGeometrySnapshots ?? []) {
-    if (snapshot.descendantIds.every((id) => evaluatedElementIds.has(id))) {
-      instanceBaseGeometry.set(snapshot.instanceId, []);
-    }
-  }
+  const moduleInstanceIdsWithinEvaluationLimit = new Set(instanceSnapshots
+    .filter((snapshot) => evaluatedElementIds.has(snapshot.instanceId) &&
+      snapshot.descendantIds.every((id) => evaluatedElementIds.has(id)))
+    .map((snapshot) => snapshot.instanceId));
+  const completedModuleInstanceIds = new Set<ElementId>();
+  const failedModuleInstanceIds = new Set<ElementId>();
+  const completedElementIds = new Set<ElementId>();
+  const failedElementIds = new Set<ElementId>();
+  const evaluationLimitExcludedElementIds = new Set<ElementId>();
   const errors: DependencyError[] = [];
   const warnings: EvaluationWarning[] = [];
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -2024,7 +2029,7 @@ export const evaluateElements = (
   // geometry prerequisite is outside its excluded instance's evaluation limit.
   const moduleInstanceIdByGeometryValuePath = new Map<string, ElementId>();
   for (const snapshot of instanceSnapshots) {
-    const instancePath = options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
+    const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
       options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath;
     if (instancePath?.length) {
       moduleInstanceIdByGeometryValuePath.set(JSON.stringify(instancePath), snapshot.instanceId);
@@ -2037,7 +2042,7 @@ export const evaluateElements = (
     const instancePath = entry.occurrence.instancePath;
     const instanceId = moduleInstanceIdByGeometryValuePath.get(JSON.stringify(instancePath));
     const dependencyGraph = options.typedDependencyGraph;
-    if (instanceId === undefined || instanceBaseGeometry.has(instanceId) || !dependencyGraph) return false;
+    if (instanceId === undefined || moduleInstanceIdsWithinEvaluationLimit.has(instanceId) || !dependencyGraph) return false;
     const endpointId = `geometry-value:${geometryValueOccurrenceKey(entry.occurrence)}`;
     return dependencyGraph.edges.some((edge) => {
       const dependencyId = typedDependencyEndpointId(edge.to);
@@ -2234,6 +2239,12 @@ export const evaluateElements = (
     effectiveEnabledIds.add(element.id);
 
     const sourceElementId = (sourceElement ?? element).id;
+    const unavailableModulePrerequisite = unavailableModulePrerequisiteForElement(sourceElementId);
+    if (unavailableModulePrerequisite) {
+      if (unavailableModulePrerequisite.failed) failedElementIds.add(element.id);
+      if (unavailableModulePrerequisite.excluded) evaluationLimitExcludedElementIds.add(element.id);
+      return;
+    }
     const sourceOrder = options.scalarExecutionPositionByElementId?.get(sourceElementId) ??
       options.scalarExecutionPositionByElementId?.get(element.id) ??
       options.statementInfoByElementId?.get(sourceElementId)?.statementIndex ??
@@ -2945,6 +2956,7 @@ export const evaluateElements = (
       if (geometry) baseTransformationGeometry.set(elementToEvaluate.id, structuredClone(geometry));
     }
     } finally {
+      if (errors.some((error) => error.elementId === element.id)) failedElementIds.add(element.id);
       completedElementIds.add(element.id);
       captureReadyModuleInstanceBases();
     }
@@ -2959,7 +2971,6 @@ export const evaluateElements = (
   const transformationPlanByRecipeIndex = new Map(
     transformationDependencyPlans.map((plan) => [plan.recipeIndex, plan])
   );
-  const completedElementIds = new Set<ElementId>();
   const generatedOwnerIds = new Set(
     elements
       .filter((element) => {
@@ -3329,7 +3340,11 @@ export const evaluateElements = (
       const recipeIndex = recipeList.findIndex((recipe) => `recipe:${recipe.id}` === endpoint.id);
       return recipeIndex >= 0 && completedTransformationRecipeIndices.has(recipeIndex);
     }
-    if (endpoint.kind === "module-occurrence") return instanceBaseGeometry.has(endpoint.id.replace(/^module-occurrence:/, ""));
+    if (endpoint.kind === "module-occurrence") {
+      const instanceId = endpoint.id.replace(/^module-occurrence:/, "");
+      return completedModuleInstanceIds.has(instanceId) &&
+        !failedModuleInstanceIds.has(instanceId) && instanceBaseGeometry.has(instanceId);
+    }
     if (endpoint.kind === "missing") return false;
     if (endpoint.kind === "version") return false;
     if (!scalarBindingResolver) return false;
@@ -3387,15 +3402,28 @@ export const evaluateElements = (
     return [...scheduledPositions, ...(currentPosition === undefined ? [] : [currentPosition])]
       .reduce<number | undefined>((maximum, position) => maximum === undefined ? position : Math.max(maximum, position), undefined);
   };
+  const unavailableModulePrerequisiteForElement = (elementId: ElementId): { failed: boolean; excluded: boolean } | undefined => {
+    const prerequisiteIds = (options.typedDependencyGraph?.directByEndpointId.get(`element:${elementId}`) ?? [])
+      .filter((edge) => edge.to.kind === "module-occurrence" && graphEdgeIsActive(edge))
+      .map((edge) => edge.to.id.replace(/^module-occurrence:/, ""));
+    for (const instanceId of prerequisiteIds) {
+      if (failedModuleInstanceIds.has(instanceId)) return { failed: true, excluded: false };
+      if (!moduleInstanceIdsWithinEvaluationLimit.has(instanceId)) return { failed: false, excluded: true };
+    }
+    return undefined;
+  };
   const hasFailedGeometryPrerequisite = (elementId: ElementId): boolean => {
     if (options.typedDependencyGraph) {
       return options.typedDependencyGraph.edges.some((edge) => {
         if (
           edge.from.kind !== "element" ||
           edge.from.id !== elementId ||
-          (edge.to.kind !== "element" && edge.to.kind !== "geometry-stage") ||
           !graphEdgeIsActive(edge)
         ) return false;
+        if (edge.to.kind === "module-occurrence") {
+          return failedModuleInstanceIds.has(edge.to.id.replace(/^module-occurrence:/, ""));
+        }
+        if (edge.to.kind !== "element" && edge.to.kind !== "geometry-stage") return false;
         const prerequisiteId = edge.to.kind === "geometry-stage" ? edge.to.ownerId : edge.to.id;
         if (prerequisiteId === elementId) return false;
         const runtimeDependencyId = activeForGroupElementIdMap.get(prerequisiteId) ?? prerequisiteId;
@@ -3548,12 +3576,60 @@ export const evaluateElements = (
   const captureReadyModuleInstanceBases = () => {
     for (const snapshot of instanceSnapshots) {
       if (capturedInstanceIds.has(snapshot.instanceId)) continue;
+      if (!evaluatedElementIds.has(snapshot.instanceId) ||
+          !snapshot.descendantIds.every((id) => evaluatedElementIds.has(id)) ||
+          snapshot.descendantIds.some((id) => evaluationLimitExcludedElementIds.has(id))) {
+        capturedInstanceIds.add(snapshot.instanceId);
+        continue;
+      }
       if (!snapshot.descendantIds.every((id) => completedElementIds.has(id))) continue;
+      const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
+        options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
+      const hasUnevaluatedGeometryValue = geometryValueProgram.some((entry, index) =>
+        entry.occurrence.instancePath.length >= instancePath.length &&
+        instancePath.every((part, pathIndex) => entry.occurrence.instancePath[pathIndex] === part) &&
+        !evaluatedGeometryValueEntries.has(index)
+      );
+      if (hasUnevaluatedGeometryValue) continue;
+      const hasGeometryValueFailure = instancePath.length > 0 && geometryValueErrors.some((error) =>
+        error.occurrence.instancePath.length >= instancePath.length &&
+        instancePath.every((part, index) => error.occurrence.instancePath[index] === part)
+      );
+      const failed = snapshot.descendantIds.some((id) => failedElementIds.has(id)) || hasGeometryValueFailure;
+      if (failed) {
+        failedModuleInstanceIds.add(snapshot.instanceId);
+        completedModuleInstanceIds.add(snapshot.instanceId);
+        instanceBaseGeometry.delete(snapshot.instanceId);
+        const descendantIds = new Set(snapshot.descendantIds);
+        for (const id of descendantIds) {
+          computedGeometry.delete(id);
+          preMutationGeometry.delete(id);
+          baseTransformationGeometry.delete(id);
+        }
+        for (const key of transformationStageGeometry.keys()) {
+          if ([...descendantIds].some((id) => key.startsWith(`${id}\u0000`))) transformationStageGeometry.delete(key);
+        }
+        for (const [key, entry] of computedGeometryValues) {
+          const path = entry.occurrence.instancePath;
+          if (path.length >= instancePath.length && instancePath.every((part, index) => path[index] === part)) {
+            computedGeometryValues.delete(key);
+          }
+        }
+        for (let index = geometryMutationExecutions.length - 1; index >= 0; index -= 1) {
+          const execution = geometryMutationExecutions[index]!;
+          if (descendantIds.has(execution.mutationElementId) || execution.targetElementIds.some((id) => descendantIds.has(id))) {
+            geometryMutationExecutions.splice(index, 1);
+          }
+        }
+        capturedInstanceIds.add(snapshot.instanceId);
+        continue;
+      }
       const geometry = snapshot.descendantIds
         .map((id) => computedGeometry.get(id))
         .filter((value): value is ComputedGeometry => Boolean(value))
         .map((value) => structuredClone(value));
       instanceBaseGeometry.set(snapshot.instanceId, geometry);
+      completedModuleInstanceIds.add(snapshot.instanceId);
       capturedInstanceIds.add(snapshot.instanceId);
     }
   };
@@ -3619,6 +3695,52 @@ export const evaluateElements = (
       }, dependencyScheduledPrerequisiteVersionIdsByVersionId)
     : undefined;
   const computedScalarBindings = linearFinal?.resultsByBindingId ?? declarationResolver?.finalize().resultsByBindingId;
+  const unavailableModuleScalarBindingIds = new Set<BindingId>();
+  const unavailableModuleSnapshots = instanceSnapshots.filter((snapshot) =>
+    failedModuleInstanceIds.has(snapshot.instanceId) ||
+    !moduleInstanceIdsWithinEvaluationLimit.has(snapshot.instanceId)
+  );
+  const bindingIdsToWithhold = new Set<BindingId>([
+    ...(computedScalarBindings?.keys() ?? []),
+    ...(options.bindingVersions?.versions.map((version) => version.bindingId) ?? [])
+  ]);
+  for (const snapshot of unavailableModuleSnapshots) {
+    const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
+      options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
+    if (instancePath.length > 0) {
+      const localBindingPrefix = `module-binding:${encodeIdentityTuple(["local", ...instancePath])}`;
+      for (const bindingId of bindingIdsToWithhold) {
+        if (bindingId.startsWith(localBindingPrefix)) unavailableModuleScalarBindingIds.add(bindingId);
+      }
+    }
+
+    const localBindingPrefix = `module-binding:${encodeIdentityTuple(["local", ...instancePath])}`;
+    const pending = (options.typedDependencyGraph?.edges ?? [])
+      .flatMap((edge) => [edge.from, edge.to])
+      .filter((endpoint) => endpoint.kind === "binding" && endpoint.id.startsWith(localBindingPrefix))
+      .map((endpoint) => typedDependencyEndpointId(endpoint));
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const endpointId = pending.pop()!;
+      if (visited.has(endpointId)) continue;
+      visited.add(endpointId);
+      for (const edge of options.typedDependencyGraph?.reverseByEndpointId.get(endpointId) ?? []) {
+        if (!graphEdgeIsActive(edge) || edge.from.kind !== "binding") continue;
+        unavailableModuleScalarBindingIds.add(edge.from.id);
+        pending.push(typedDependencyEndpointId(edge.from));
+      }
+    }
+  }
+  const publishedComputedScalarBindings = computedScalarBindings
+    ? new Map([...computedScalarBindings].filter(([bindingId, evaluation]) =>
+      !unavailableModuleScalarBindingIds.has(bindingId) || evaluation.status !== "ok"
+    ))
+    : undefined;
+  const publishedComputedScalarBindingVersions = linearFinal
+    ? new Map([...linearFinal.historyByVersionId].filter(([, history]) =>
+      !unavailableModuleScalarBindingIds.has(history.bindingId) || history.evaluation?.status !== "ok"
+    ))
+    : undefined;
 
   // Generated ids are runtime identities. Their style semantics belong to
   // the source template, so use the evaluator-owned structured relationship
@@ -3664,6 +3786,11 @@ export const evaluateElements = (
     (geometryValueProgramOrder.get(geometryValueOccurrenceKey(left.occurrence)) ?? Number.MAX_SAFE_INTEGER) -
     (geometryValueProgramOrder.get(geometryValueOccurrenceKey(right.occurrence)) ?? Number.MAX_SAFE_INTEGER)
   );
+  const instanceBaseGeometryInSnapshotOrder = new Map<ElementId, ComputedGeometry[]>();
+  for (const snapshot of instanceSnapshots) {
+    const geometry = instanceBaseGeometry.get(snapshot.instanceId);
+    if (geometry) instanceBaseGeometryInSnapshotOrder.set(snapshot.instanceId, geometry);
+  }
 
   return {
     computedGeometry,
@@ -3672,7 +3799,7 @@ export const evaluateElements = (
     geometryValueErrors,
     preMutationGeometry,
     geometryMutationExecutions,
-    instanceBaseGeometry,
+    instanceBaseGeometry: instanceBaseGeometryInSnapshotOrder,
     errors,
     warnings,
     evaluatedElementIds,
@@ -3685,7 +3812,7 @@ export const evaluateElements = (
     conditionEvaluationTraces,
     forGroupGeneratedRows,
     forGroupEffectiveShowGeneratedIds,
-    ...(computedScalarBindings ? { computedScalarBindings } : {}),
-    ...(linearFinal ? { computedScalarBindingVersions: linearFinal.historyByVersionId } : {})
+    ...(publishedComputedScalarBindings ? { computedScalarBindings: publishedComputedScalarBindings } : {}),
+    ...(publishedComputedScalarBindingVersions ? { computedScalarBindingVersions: publishedComputedScalarBindingVersions } : {})
   };
 };
