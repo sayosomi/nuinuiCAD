@@ -169,9 +169,7 @@ export const resolveDocumentGeometryProperty = (
           : undefined;
     const value = point && (reference.property === "x" || reference.property === "y")
       ? point[reference.property]
-      : reference.property === "length" && "length" in target
-        ? target.length
-        : undefined;
+      : computedReferencePathValue(target, reference.property);
     return typeof value === "number"
       ? { status: "ok", type: reference.type, value: { kind: "number", value } }
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
