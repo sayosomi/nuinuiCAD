@@ -1763,50 +1763,59 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
     let Some(parameters) = state.geometry_input_targets.remove(target_element_id) else {
         return Ok(());
     };
-    let mut materialized_parameters = HashMap::new();
-    for (parameter_key, targets) in parameters {
-        let target_count = targets.len();
-        let materialized = targets
-            .iter()
-            .map(|target| materialize_target(target, resolver, state, current_source_order, false))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        if parameter_key == "points" && !materialized.is_empty() {
-            let anchors = materialized
+    let materialized_parameters = (|| {
+        let mut materialized_parameters = HashMap::new();
+        for (parameter_key, targets) in &parameters {
+            let target_count = targets.len();
+            let materialized = targets
                 .iter()
-                .filter_map(|target| point_anchor_for_target(target, true))
+                .map(|target| {
+                    materialize_target(target, resolver, state, current_source_order, false)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
                 .collect::<Vec<_>>();
-            if anchors.len() == materialized.len() {
-                if let Some(object) = element.as_object_mut() {
-                    object.insert(parameter_key.clone(), Value::Array(anchors));
+            if parameter_key == "points" && !materialized.is_empty() {
+                let anchors = materialized
+                    .iter()
+                    .filter_map(|target| point_anchor_for_target(target, true))
+                    .collect::<Vec<_>>();
+                if anchors.len() == materialized.len() {
+                    if let Some(object) = element.as_object_mut() {
+                        object.insert(parameter_key.clone(), Value::Array(anchors));
+                    }
                 }
             }
-        }
-        if target_count == 1 && materialized.len() == 1 {
-            if let Some(anchor) = materialized.first().and_then(|target| {
-                point_anchor_for_target(target, is_point_anchor_parameter(element, &parameter_key))
-            }) {
-                if let Some(object) = element.as_object_mut() {
-                    object.insert(parameter_key.clone(), anchor);
+            if target_count == 1 && materialized.len() == 1 {
+                if let Some(anchor) = materialized.first().and_then(|target| {
+                    point_anchor_for_target(
+                        target,
+                        is_point_anchor_parameter(element, parameter_key),
+                    )
+                }) {
+                    if let Some(object) = element.as_object_mut() {
+                        object.insert(parameter_key.clone(), anchor);
+                    }
                 }
             }
+            materialized_parameters.insert(parameter_key.clone(), materialized);
         }
-        materialized_parameters.insert(parameter_key, materialized);
+        Ok::<_, String>(materialized_parameters)
+    })();
+    if target_element_id != runtime_element_id {
+        // Generated elements share compiler-authored input targets by template
+        // ID. Keep those deferred targets intact so each occurrence resolves
+        // against the current immutable carry snapshot. The materialized
+        // targets belong to this generated occurrence only.
+        state
+            .geometry_input_targets
+            .insert(target_element_id.to_owned(), parameters);
     }
-    // A forGroup template is materialized once per generated occurrence. Keep
-    // the resolved template targets available for the next occurrence; the
-    // immutable carry/collection identities they contain are intentionally
-    // re-read from the current evaluator state on each iteration.
-    let retained_id = if target_element_id == runtime_element_id {
-        runtime_element_id
-    } else {
-        target_element_id
-    };
+    let materialized_parameters = materialized_parameters?;
     state
         .geometry_input_targets
-        .insert(retained_id.to_owned(), materialized_parameters);
+        .insert(runtime_element_id.to_owned(), materialized_parameters);
     Ok(())
 }
 
