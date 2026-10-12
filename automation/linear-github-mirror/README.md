@@ -2,7 +2,7 @@
 
 Cloudflare Worker for the nuinuiCAD one-way public mirror.
 
-Linear is authoritative. GitHub is the public mirror. The Worker validates Linear webhooks, enqueues them through Cloudflare Queues, refetches canonical Linear data, and reconciles GitHub through the REST API.
+Until the separate GitHub-authority cutover, Linear remains authoritative and GitHub holds the existing public mirror. In active mode, the Worker validates Linear webhooks, enqueues them through Cloudflare Queues, refetches canonical Linear data, and reconciles GitHub through the REST API. The checked-in production mode is currently `disabled`.
 
 ## Scope
 
@@ -66,7 +66,7 @@ The HTTP handler only authenticates, validates freshness, and enqueues. The Queu
 
 GitHub issue discovery for hidden mirror markers uses repository issue listing rather than Search API indexing. After creating a Document mirror, the consumer waits until that marker is visible before completing the Queue message. This prevents a second queued webhook for the same new Document from creating a duplicate mirror during GitHub read-after-write propagation.
 
-A Cloudflare Cron Trigger runs every 12 hours (`0 */12 * * *`, UTC). It reconciles all Sayosomi Issues and all accessible Linear Documents, filters Documents to the nuinuiCAD Initiative subtree, reconciles managed comments, and closes orphaned managed Document mirrors. This catches webhook gaps and relation/comment-only changes.
+The Cloudflare Cron Trigger remains scheduled every 12 hours (`0 */12 * * *`, UTC). In active mode, it reconciles all Sayosomi Issues and accessible Linear Documents in the nuinuiCAD Initiative subtree, including managed comments and orphaned Document mirrors, to catch webhook gaps. In disabled mode, the scheduled handler returns without enqueueing or reconciling.
 
 ## Required secrets and variables
 
@@ -108,16 +108,16 @@ curl https://<worker>/health
 Expected:
 
 ```json
-{"ok":true,"mirrorMode":"active"}
+{"ok":true,"mirrorMode":"disabled"}
 ```
 
 `mirrorMode` reports the effective mode. A missing or unsupported `MIRROR_MODE` is reported as `disabled`.
 
 ## Production shutdown cutover
 
-The checked-in configuration remains `MIRROR_MODE: "active"` during implementation. Do not deploy this implementation as a production shutdown or switch the production Worker to disabled as part of this change.
+The checked-in configuration now sets `MIRROR_MODE: "disabled"` after reviewed [PR #1370](https://github.com/sayosomi/nuinuiCAD/pull/1370). The separately authorized 2026-10-12 production deploy reported version `41736512-dc33-440b-b292-e470e2541519` at 100% and `/health` reported `mirrorMode: "disabled"`. This is a deployment-time record, not a guarantee about future production state. Do not reactivate the Worker during test/documentation maintenance; GitHub Issues authority transfer remains a separate Phase C decision.
 
-For a later, explicitly approved production cutover:
+The approved shutdown procedure was (do not reactivate a disabled Worker just to repeat active-mode reconciliation steps):
 
 1. Reconcile pending Linear updates while mirroring is active and verify the GitHub mirror is current.
 2. Inspect the Cloudflare Queue backlog and in-flight work. Let all intended work finish before shutdown; messages delivered while disabled are acknowledged and will not be reconciled later.
