@@ -162,11 +162,18 @@ test("active Queue routes Issue, Comment, Document, and finalizer messages throu
     if (url.hostname === "api.linear.app") {
       const { query } = JSON.parse(init.body);
       if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      if (query.includes("query MirrorComment(")) return jsonResponse({ data: { comment: {
+        id: "comment-a",
+        archivedAt: "2026-10-11T00:00:00.000Z",
+        issueId: "issue-a",
+        issue: { id: "issue-a", archivedAt: null },
+        documentContent: null,
+      } } });
       if (query.includes("query MirrorIssueCommentParent(")) {
         return jsonResponse({ data: { issue: { ...issue, attachments: { nodes: issue.attachments.nodes } } } });
       }
       if (query.includes("query MirrorIssueComments(")) {
-        return jsonResponse({ data: { issue: { id: issue.id, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } });
+        return jsonResponse({ data: { issue: { id: issue.id, archivedAt: null, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } });
       }
       assert.fail(`unexpected Linear query: ${query}`);
     }
@@ -251,7 +258,7 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
       }
       if (query.includes("query MirrorIssueComments(")) {
         return jsonResponse({
-          data: { issue: { id: issue.id, comments: { nodes: [linearComment], pageInfo: { hasNextPage: false, endCursor: null } } } },
+          data: { issue: { id: issue.id, archivedAt: issue.archivedAt, comments: { nodes: [linearComment], pageInfo: { hasNextPage: false, endCursor: null } } } },
         });
       }
       assert.fail(`unexpected Linear query: ${query}`);
@@ -329,7 +336,7 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
   assert.ok(firstCommentFetch < firstCommentCreate);
 });
 
-test("active Queue reconciles historical SAY-385 only to #1108 and creates comments once", async () => {
+test("archived SAY-385 mirrors all three inherited comments to #1108 exactly once", async () => {
   const calls = [];
   const linearIssueId = "8bc80133-54b9-48f9-ac73-456d0823855e";
   const issue = {
@@ -339,7 +346,7 @@ test("active Queue reconciles historical SAY-385 only to #1108 and creates comme
     description: "Canonical Linear body",
     priority: 2,
     updatedAt: "2026-10-11T00:00:00.000Z",
-    archivedAt: "2026-10-03T00:00:00.000Z",
+    archivedAt: "2026-10-11T09:26:36.464Z",
     url: "https://linear.app/sayosomi/issue/SAY-385/historical-duplicate-mirror",
     team: { id: "team-a", name: "SAY", key: "SAY" },
     state: { id: "state-done", name: "Done", type: "completed" },
@@ -353,15 +360,15 @@ test("active Queue reconciles historical SAY-385 only to #1108 and creates comme
     project: null,
     parent: null,
   };
-  const linearComment = {
-    id: "comment-say-385",
-    body: "Preserve this historical comment on the canonical mirror.",
-    archivedAt: null,
-    createdAt: "2026-10-02T00:00:00.000Z",
+  const linearComments = Array.from({ length: 3 }, (_, index) => ({
+    id: `comment-say-385-${index + 1}`,
+    body: `Preserve historical comment ${index + 1} on the canonical mirror.`,
+    archivedAt: issue.archivedAt,
+    createdAt: `2026-10-0${index + 1}T00:00:00.000Z`,
     editedAt: null,
-    updatedAt: "2026-10-02T00:00:00.000Z",
+    updatedAt: `2026-10-0${index + 1}T00:00:00.000Z`,
     parentId: linearIssueId,
-  };
+  }));
   const githubComments = [];
   let nextCommentId = 11000;
   const mockFetch = async (input, init = {}) => {
@@ -377,8 +384,8 @@ test("active Queue reconciles historical SAY-385 only to #1108 and creates comme
       if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
       if (query.includes("query MirrorIssueCommentParent(")) return jsonResponse({ data: { issue } });
       if (query.includes("query MirrorIssueComments(")) {
-        return jsonResponse({ data: { issue: { id: linearIssueId, comments: {
-          nodes: [linearComment],
+        return jsonResponse({ data: { issue: { id: linearIssueId, archivedAt: issue.archivedAt, comments: {
+          nodes: linearComments,
           pageInfo: { hasNextPage: false, endCursor: null },
         } } } });
       }
@@ -425,9 +432,14 @@ test("active Queue reconciles historical SAY-385 only to #1108 and creates comme
   assert.equal(commentReads.length, 2);
   assert.ok(commentReads.every(({ path }) => path === "/repos/sayosomi/nuinuiCAD/issues/1108/comments"));
   const commentCreates = calls.filter(({ path, method }) => method === "POST" && path.endsWith("/comments"));
-  assert.deepEqual(commentCreates.map(({ path }) => path), ["/repos/sayosomi/nuinuiCAD/issues/1108/comments"]);
-  assert.equal(githubComments.length, 1);
-  assert.match(githubComments[0].body, /linear-comment-id:comment-say-385/);
+  assert.deepEqual(commentCreates.map(({ path }) => path), Array(3).fill("/repos/sayosomi/nuinuiCAD/issues/1108/comments"));
+  assert.equal(githubComments.length, 3);
+  assert.deepEqual(githubComments.map(({ body }) => body.match(/linear-comment-id:(comment-say-385-\d)/)?.[1]), [
+    "comment-say-385-1",
+    "comment-say-385-2",
+    "comment-say-385-3",
+  ]);
+  assert.equal(calls.some(({ path, method }) => path.includes("/issues/1107/comments") && ["GET", "POST", "PATCH", "DELETE"].includes(method)), false);
 });
 
 test("active Queue propagates incomplete comment reconciliation without acknowledging the message", async () => {
@@ -445,7 +457,10 @@ test("active Queue propagates incomplete comment reconciliation without acknowle
       const { query } = JSON.parse(init.body);
       linearCalls.push(query);
       if (query.includes("query MirrorComment(")) {
-        return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: null, issueId: "issue-a" } } });
+        return jsonResponse({ data: { comment: {
+          id: "comment-a", archivedAt: null, issueId: "issue-a",
+          issue: { id: "issue-a", archivedAt: null }, documentContent: null,
+        } } });
       }
       if (query.includes("query MirrorIssueCommentParent(")) {
         return jsonResponse({
@@ -459,7 +474,7 @@ test("active Queue propagates incomplete comment reconciliation without acknowle
           },
         });
       }
-      if (query.includes("query MirrorIssueComments(")) return jsonResponse({ data: { issue: { id: "issue-a" } } });
+      if (query.includes("query MirrorIssueComments(")) return jsonResponse({ data: { issue: { id: "issue-a", archivedAt: null } } });
       assert.fail(`unexpected Linear query: ${query}`);
     }
     if (url.hostname === "api.github.com") {
@@ -496,7 +511,10 @@ test("active Queue propagates a missing Issue comment parent without acknowledgi
     assert.equal(url.hostname, "api.linear.app");
     const { query } = JSON.parse(init.body);
     if (query.includes("query MirrorComment(")) {
-      return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: null, issueId: "issue-a" } } });
+      return jsonResponse({ data: { comment: {
+        id: "comment-a", archivedAt: null, issueId: "issue-a",
+        issue: { id: "issue-a", archivedAt: null }, documentContent: null,
+      } } });
     }
     if (query.includes("query MirrorIssueCommentParent(")) return jsonResponse({ data: {} });
     assert.fail(`unexpected Linear query: ${query}`);
@@ -567,7 +585,17 @@ test("active Queue propagates malformed GitHub comment-list data for removal wit
       };
       const mockFetch = async (input, init = {}) => {
         const url = new URL(input);
-        githubCalls.push({ path: url.pathname, method: init.method ?? "GET" });
+        const method = init.method ?? "GET";
+        if (url.hostname === "api.linear.app") {
+          return jsonResponse({ data: { comment: {
+            id: "comment-a",
+            archivedAt: "2026-10-11T01:00:00.000Z",
+            issueId: "issue-a",
+            issue: { id: "issue-a", archivedAt: null },
+            documentContent: null,
+          } } });
+        }
+        githubCalls.push({ path: url.pathname, method });
         return jsonResponse(response);
       };
 
@@ -589,7 +617,9 @@ test("active Queue propagates malformed GitHub comment-list data for removal wit
   }
 });
 
-test("active Queue still deletes genuinely archived Linear comments", async () => {
+test("ordinary Comment reconciliation does not restore an individually archived comment", async () => {
+  const parentArchivedAt = "2026-10-11T00:00:00.000Z";
+  const commentArchivedAt = "2026-10-10T00:00:00.000Z";
   const githubCalls = [];
   const message = {
     body: { payload: { type: "Comment", action: "update", data: { id: "comment-a" } } },
@@ -598,10 +628,40 @@ test("active Queue still deletes genuinely archived Linear comments", async () =
     const url = new URL(input);
     const method = init.method ?? "GET";
     if (url.hostname === "api.linear.app") {
-      return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: "2026-10-11T00:00:00.000Z" } } });
+      const { query } = JSON.parse(init.body);
+      if (query.includes("query MirrorComment(")) return jsonResponse({ data: { comment: {
+        id: "comment-a",
+        archivedAt: commentArchivedAt,
+        issueId: "issue-a",
+        issue: { id: "issue-a", archivedAt: parentArchivedAt },
+        documentContent: null,
+      } } });
+      if (query.includes("query MirrorIssueCommentParent(")) return jsonResponse({ data: { issue: {
+        id: "issue-a",
+        identifier: "SAY-86",
+        team: { id: "team-a" },
+        attachments: { nodes: [{ url: "https://github.com/sayosomi/nuinuiCAD/issues/401" }] },
+      } } });
+      if (query.includes("query MirrorIssueComments(")) return jsonResponse({ data: { issue: {
+        id: "issue-a",
+        archivedAt: parentArchivedAt,
+        comments: {
+          nodes: [{
+            id: "comment-a",
+            body: "Previously archived comment",
+            archivedAt: commentArchivedAt,
+            createdAt: "2026-10-09T00:00:00.000Z",
+            editedAt: null,
+            updatedAt: "2026-10-09T00:00:00.000Z",
+            parentId: "issue-a",
+          }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      } } });
+      assert.fail(`unexpected Linear query: ${query}`);
     }
     githubCalls.push({ path: url.pathname, method });
-    if (url.pathname.endsWith("/issues/comments") && method === "GET") {
+    if (url.pathname.endsWith("/issues/401/comments") && method === "GET") {
       return jsonResponse([{ id: 51, body: "Archived\n\n<!-- linear-comment-id:comment-a -->" }]);
     }
     if (url.pathname.endsWith("/issues/comments/51") && method === "DELETE") return new Response(null, { status: 204 });
@@ -611,6 +671,66 @@ test("active Queue still deletes genuinely archived Linear comments", async () =
   await withFetchMock(mockFetch, async () => worker.queue({ messages: [message] }, envFor("active")));
 
   assert.ok(githubCalls.some(({ path, method }) => path.endsWith("/issues/comments/51") && method === "DELETE"));
+});
+
+test("parent-cascade Comment event preserves its managed history", async () => {
+  const archivedAt = "2026-10-11T09:26:36.464Z";
+  const githubCalls = [];
+  const comment = {
+    id: "comment-cascade",
+    body: "Keep this historical comment.",
+    archivedAt,
+    createdAt: "2026-10-02T00:00:00.000Z",
+    editedAt: null,
+    updatedAt: "2026-10-02T00:00:00.000Z",
+    parentId: "issue-a",
+  };
+  const expectedBody = [
+    comment.body,
+    "",
+    "<!-- linear-comment-id:comment-cascade -->",
+    "<!-- linear-comment-updated-at:2026-10-02T00:00:00.000Z -->",
+    "<!-- linear-comment-parent-id:issue-a -->",
+  ].join("\n");
+  const message = {
+    body: { payload: { type: "Comment", action: "update", data: { id: comment.id } } },
+  };
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      if (query.includes("query MirrorComment(")) return jsonResponse({ data: { comment: {
+        id: comment.id,
+        archivedAt,
+        issueId: "issue-a",
+        issue: { id: "issue-a", archivedAt },
+        documentContent: null,
+      } } });
+      if (query.includes("query MirrorIssueCommentParent(")) return jsonResponse({ data: { issue: {
+        id: "issue-a",
+        identifier: "SAY-86",
+        team: { id: "team-a" },
+        attachments: { nodes: [{ url: "https://github.com/sayosomi/nuinuiCAD/issues/401" }] },
+      } } });
+      if (query.includes("query MirrorIssueComments(")) return jsonResponse({ data: { issue: {
+        id: "issue-a",
+        archivedAt,
+        comments: { nodes: [comment], pageInfo: { hasNextPage: false, endCursor: null } },
+      } } });
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    githubCalls.push({ path: url.pathname, method });
+    if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/401/comments" && method === "GET") {
+      return jsonResponse([{ id: 51, body: expectedBody }]);
+    }
+    assert.fail(`unexpected GitHub request: ${method} ${url.pathname}${url.search}`);
+  };
+
+  await withFetchMock(mockFetch, async () => worker.queue({ messages: [message] }, envFor("active")));
+
+  assert.equal(githubCalls.some(({ path, method }) => path.endsWith("/issues/comments/51") && method === "DELETE"), false);
+  assert.equal(githubCalls.some(({ path, method }) => path.endsWith("/issues/comments/51") && method === "PATCH"), false);
 });
 
 test("disabled Cron does not query Linear or enqueue either safety sweep", async () => {
