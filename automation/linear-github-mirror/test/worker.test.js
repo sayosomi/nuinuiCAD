@@ -92,10 +92,10 @@ test("active webhook preserves signature validation and dispatches eligible payl
   assert.equal(Number.isFinite(sent[0].payload.webhookTimestamp), true);
 });
 
-test("Wrangler explicitly configures active mode", async () => {
+test("Wrangler explicitly configures disabled mode", async () => {
   const configText = await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   const config = JSON.parse(configText);
-  assert.equal(config.vars?.MIRROR_MODE, "active");
+  assert.equal(config.vars?.MIRROR_MODE, "disabled");
 });
 
 test("disabled webhook still rejects invalid signatures and stale timestamps", async () => {
