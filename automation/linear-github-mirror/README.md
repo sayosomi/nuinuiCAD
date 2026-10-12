@@ -2,7 +2,9 @@
 
 Cloudflare Worker for the nuinuiCAD one-way public mirror.
 
-Until the separate GitHub-authority cutover, Linear remains authoritative and GitHub holds the existing public mirror. In active mode, the Worker validates Linear webhooks, enqueues them through Cloudflare Queues, refetches canonical Linear data, and reconciles GitHub through the REST API. The checked-in production mode is currently `disabled`.
+nuinuiCAD GitHub Issues became the current Work and contract authority through the completed C1 cutover on 2026-10-12. GitHub Issue bodies and comments are the current Work, contract, and evidence records. Linear is historical and retained for provenance and minimal checkpoints on compatible SAY work admitted before cutover.
+
+The Linear mirror is a historical integration; checked-in `wrangler.jsonc` sets `MIRROR_MODE` to `disabled`. In historical `active` mode, the Worker validates Linear webhooks, enqueues them through Cloudflare Queues, refetches canonical Linear data, and reconciles GitHub through the REST API.
 
 ## Scope
 
@@ -115,7 +117,7 @@ Expected:
 
 ## Production shutdown cutover
 
-The checked-in configuration now sets `MIRROR_MODE: "disabled"` after reviewed [PR #1370](https://github.com/sayosomi/nuinuiCAD/pull/1370). The separately authorized 2026-10-12 production deploy reported version `41736512-dc33-440b-b292-e470e2541519` at 100% and `/health` reported `mirrorMode: "disabled"`. This is a deployment-time record, not a guarantee about future production state. Do not reactivate the Worker during test/documentation maintenance; GitHub Issues authority transfer remains a separate Phase C decision.
+The checked-in configuration sets `MIRROR_MODE: "disabled"` after reviewed [PR #1370](https://github.com/sayosomi/nuinuiCAD/pull/1370). The separately authorized 2026-10-12 production deploy reported version `41736512-dc33-440b-b292-e470e2541519` at 100% and `/health` reported `mirrorMode: "disabled"`. These are deployment-time results; current live Cloudflare state was not independently checked for this README update. Do not reactivate the Worker during test/documentation maintenance.
 
 The approved shutdown procedure was (do not reactivate a disabled Worker just to repeat active-mode reconciliation steps):
 
