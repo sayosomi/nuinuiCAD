@@ -4,10 +4,18 @@ const GITHUB_API_VERSION = "2026-03-10";
 
 export const DOCUMENT_LABEL = "Linear Document";
 export const DOCUMENT_MARKER_PREFIX = "linear-document-id:";
+export const ISSUE_MARKER_PREFIX = "linear-issue-id:";
 export const COMMENT_MARKER_PREFIX = "linear-comment-id:";
 export const COMMENT_PARENT_MARKER_PREFIX = "linear-comment-parent-id:";
 export const COMMENT_UPDATED_MARKER_PREFIX = "linear-comment-updated-at:";
 export const GITHUB_ISSUE_URL_RE = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/;
+
+const HISTORICAL_LINEAR_ISSUE = {
+  id: "8bc80133-54b9-48f9-ac73-456d0823855e",
+  identifier: "SAY-385",
+  canonicalGithubIssueNumber: 1108,
+  duplicateGithubIssueNumber: 1107,
+};
 
 export async function linearGraphql(query, variables, env) {
   const response = await fetch(LINEAR_GRAPHQL_URL, {
@@ -65,6 +73,82 @@ export async function findGithubIssueByMarker(marker, env, gh = githubFetch) {
   if (matches.length === 0) return null;
   if (matches.length > 1) throw new Error(`Multiple GitHub issues contain mirror marker ${marker}`);
   return matches[0];
+}
+
+export async function resolveGithubIssueAttachment(issue, env, gh = githubFetch) {
+  const isHistoricalCandidate = issue?.identifier === HISTORICAL_LINEAR_ISSUE.identifier ||
+    issue?.id === HISTORICAL_LINEAR_ISSUE.id;
+  if (isHistoricalCandidate) return resolveHistoricalGithubIssueAttachment(issue, env, gh);
+
+  const attachments = issue?.attachments?.nodes ?? [];
+  if (!Array.isArray(attachments)) throw new Error("Linear issue attachments are malformed");
+
+  return githubIssueNumberFromAttachments(attachments, env, issue?.identifier ?? issue?.id ?? "issue");
+}
+
+export function githubIssueNumberFromAttachments(attachments, env, issueLabel = "issue") {
+  const issueNumbers = new Set();
+  for (const attachment of attachments) {
+    const match = typeof attachment?.url === "string" ? attachment.url.match(GITHUB_ISSUE_URL_RE) : null;
+    if (!match || match[1] !== env.GITHUB_OWNER || match[2] !== env.GITHUB_REPO) continue;
+    const number = Number(match[3]);
+    if (Number.isSafeInteger(number) && number > 0) issueNumbers.add(number);
+  }
+
+  if (issueNumbers.size > 1) throw new Error(`Ambiguous GitHub issue attachments for Linear ${issueLabel}`);
+  return issueNumbers.values().next().value ?? null;
+}
+
+async function resolveHistoricalGithubIssueAttachment(issue, env, gh) {
+  if (issue?.id !== HISTORICAL_LINEAR_ISSUE.id || issue?.identifier !== HISTORICAL_LINEAR_ISSUE.identifier) {
+    throw new Error("Historical SAY-385 GitHub attachment recovery requires the exact Linear issue UUID and identifier");
+  }
+
+  const attachments = issue?.attachments?.nodes;
+  if (!Array.isArray(attachments)) throw new Error("Historical SAY-385 Linear attachments are incomplete");
+
+  const issueNumbers = new Set();
+  for (const attachment of attachments) {
+    const url = attachment?.url;
+    const match = typeof url === "string" ? url.match(GITHUB_ISSUE_URL_RE) : null;
+    if (!match) throw new Error("Historical SAY-385 has an invalid GitHub issue attachment");
+    if (match[1] !== env.GITHUB_OWNER || match[2] !== env.GITHUB_REPO) {
+      throw new Error("Historical SAY-385 GitHub attachment points to a different repository");
+    }
+    const number = Number(match[3]);
+    if (!Number.isSafeInteger(number) || number <= 0) {
+      throw new Error("Historical SAY-385 has an invalid GitHub issue number");
+    }
+    issueNumbers.add(number);
+  }
+
+  const canonical = HISTORICAL_LINEAR_ISSUE.canonicalGithubIssueNumber;
+  const duplicate = HISTORICAL_LINEAR_ISSUE.duplicateGithubIssueNumber;
+  const acceptedSet = (issueNumbers.size === 1 && issueNumbers.has(canonical)) ||
+    (issueNumbers.size === 2 && issueNumbers.has(canonical) && issueNumbers.has(duplicate));
+  if (!acceptedSet) throw new Error("Historical SAY-385 GitHub attachments do not match the approved {1108} or {1107, 1108} set");
+
+  await verifyHistoricalGithubIssue(canonical, env, gh);
+  if (issueNumbers.has(duplicate)) await verifyHistoricalGithubIssue(duplicate, env, gh);
+  return canonical;
+}
+
+async function verifyHistoricalGithubIssue(issueNumber, env, gh) {
+  const githubIssue = await gh(`/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues/${issueNumber}`, {}, env);
+  if (!isRecord(githubIssue) || githubIssue.number !== issueNumber || typeof githubIssue.body !== "string") {
+    throw new Error(`Historical SAY-385 GitHub issue #${issueNumber} response is incomplete or mismatched`);
+  }
+  if (githubIssue.pull_request) throw new Error(`Historical SAY-385 GitHub #${issueNumber} is a pull request`);
+
+  const expectedMarker = `<!-- ${ISSUE_MARKER_PREFIX}${HISTORICAL_LINEAR_ISSUE.id} -->`;
+  const markerValues = [...githubIssue.body.matchAll(/<!--\s*linear-issue-id:([^\s>]+)\s*-->/g)].map((match) => match[1]);
+  if (!githubIssue.body.includes(expectedMarker) || markerValues.length !== 1 || markerValues[0] !== HISTORICAL_LINEAR_ISSUE.id) {
+    throw new Error(`Historical SAY-385 GitHub #${issueNumber} has a mismatched Linear issue marker`);
+  }
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export async function ensureGithubLabel(name, env, gh = githubFetch) {

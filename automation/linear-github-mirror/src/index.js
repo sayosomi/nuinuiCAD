@@ -1,10 +1,10 @@
-import { findGithubIssueByMarker } from "./mirrorApi.js";
+import { ISSUE_MARKER_PREFIX, findGithubIssueByMarker, resolveGithubIssueAttachment } from "./mirrorApi.js";
+
+export { githubIssueNumberFromAttachments } from "./mirrorApi.js";
 
 const LINEAR_GRAPHQL_URL = "https://api.linear.app/graphql";
 const GITHUB_API_URL = "https://api.github.com";
 const GITHUB_API_VERSION = "2026-03-10";
-const MIRROR_MARKER_PREFIX = "linear-issue-id:";
-const GITHUB_ISSUE_URL_RE = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/;
 const PRIORITY_NAMES = ["No priority", "Urgent", "High", "Medium", "Low"];
 const IGNORED_IDENTIFIERS = new Set(["SAY-39", "SAY-75", "SAY-84", "SAY-85"]);
 
@@ -203,7 +203,7 @@ export async function fetchLinearIssue(issueId, env) {
 }
 
 async function resolveGithubIssueNumber(issue, env) {
-  const attached = githubIssueNumberFromAttachments(issue.attachments?.nodes ?? [], env);
+  const attached = await resolveGithubIssueAttachment(issue, env);
   if (attached != null) return attached;
 
   const legacy = legacyGithubIssueNumber(issue.identifier);
@@ -222,17 +222,6 @@ async function resolveGithubIssueNumber(issue, env) {
   const created = await createGithubIssue(issue, env);
   await attachGithubIssue(issue, created, env);
   return created;
-}
-
-export function githubIssueNumberFromAttachments(attachments, env) {
-  for (const attachment of attachments) {
-    if (!attachment || typeof attachment.url !== "string") continue;
-    const match = attachment.url.match(GITHUB_ISSUE_URL_RE);
-    if (!match) continue;
-    if (match[1] !== env.GITHUB_OWNER || match[2] !== env.GITHUB_REPO) continue;
-    return Number(match[3]);
-  }
-  return null;
 }
 
 export function legacyGithubIssueNumber(identifier) {
@@ -255,7 +244,7 @@ async function createGithubIssue(issue, env) {
 }
 
 async function findGithubIssueByLinearId(linearIssueId, env) {
-  return findGithubIssueByMarker(`${MIRROR_MARKER_PREFIX}${linearIssueId}`, env, githubFetch);
+  return findGithubIssueByMarker(`${ISSUE_MARKER_PREFIX}${linearIssueId}`, env, githubFetch);
 }
 
 async function assertGithubIssueExists(issueNumber, env) {
@@ -349,7 +338,7 @@ export function renderGithubBody(issue) {
     description ? "\n---" : "---",
     ...metadata,
     "",
-    `<!-- ${MIRROR_MARKER_PREFIX}${issue.id} -->`,
+    `<!-- ${ISSUE_MARKER_PREFIX}${issue.id} -->`,
     `<!-- linear-mirror-updated-at:${issue.updatedAt ?? new Date().toISOString()} -->`,
   ].join("\n");
 }
