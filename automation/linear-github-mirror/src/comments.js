@@ -9,6 +9,8 @@ import {
 } from "./mirrorApi.js";
 
 const IGNORED_IDENTIFIERS = new Set(["SAY-39", "SAY-75", "SAY-84", "SAY-85"]);
+const LINEAR_COMMENT_PAGE_SIZE = 50;
+const GITHUB_COMMENT_PAGE_SIZE = 100;
 
 const ISSUE_COMMENT_PARENT_QUERY = `
   query MirrorIssueCommentParent($id: String!) {
@@ -24,7 +26,8 @@ const ISSUE_COMMENT_PARENT_QUERY = `
 const ISSUE_COMMENTS_QUERY = `
   query MirrorIssueComments($id: String!, $after: String) {
     issue(id: $id) {
-      comments(first: 50, after: $after, includeArchived: true) {
+      id
+      comments(first: ${LINEAR_COMMENT_PAGE_SIZE}, after: $after, includeArchived: true) {
         nodes { id body archivedAt createdAt editedAt updatedAt parentId }
         pageInfo { hasNextPage endCursor }
       }
@@ -35,7 +38,8 @@ const ISSUE_COMMENTS_QUERY = `
 const DOCUMENT_COMMENTS_QUERY = `
   query MirrorDocumentComments($id: String!, $after: String) {
     document(id: $id) {
-      comments(first: 50, after: $after, includeArchived: true) {
+      id
+      comments(first: ${LINEAR_COMMENT_PAGE_SIZE}, after: $after, includeArchived: true) {
         nodes { id body archivedAt createdAt editedAt updatedAt parentId }
         pageInfo { hasNextPage endCursor }
       }
@@ -66,30 +70,43 @@ export async function handleCommentPayload(payload, env, options = {}) {
 
   const queryLinear = options.linearGraphql ?? linearGraphql;
   const data = await queryLinear(COMMENT_QUERY, { id: commentId }, env);
+  if (!isRecord(data)) throw new Error("Linear comment query returned malformed data");
   const comment = data.comment;
-  if (!comment || comment.archivedAt) {
+  if (!isRecord(comment) || comment.id !== commentId ||
+      !Object.prototype.hasOwnProperty.call(comment, "archivedAt") ||
+      (comment.archivedAt !== null && !isDateTimeString(comment.archivedAt))) {
+    throw new Error("Linear comment is missing or malformed");
+  }
+  if (comment.archivedAt) {
     await deleteGithubCommentByLinearId(commentId, env, { githubFetch: gh });
     return;
   }
 
   const issueId = comment.issueId ?? comment.issue?.id ?? payload?.data?.issueId;
-  if (typeof issueId === "string") {
+  if (isNonEmptyString(issueId)) {
     await reconcileIssueComments(issueId, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
     return;
   }
 
   const documentId = comment.documentContent?.document?.id;
-  if (typeof documentId === "string" && typeof options.reconcileDocument === "function") {
+  if (isNonEmptyString(documentId) && typeof options.reconcileDocument === "function") {
     await options.reconcileDocument(documentId, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
+    return;
   }
+  throw new Error("Active Linear comment has no usable parent or reconciliation handler");
 }
 
 export async function reconcileIssueComments(issueId, env, options = {}) {
   const queryLinear = options.linearGraphql ?? linearGraphql;
   const gh = options.githubFetch ?? githubFetch;
   const data = await queryLinear(ISSUE_COMMENT_PARENT_QUERY, { id: issueId }, env);
+  if (!isRecord(data)) throw new Error("Linear issue comment parent query returned malformed data");
   const issue = data.issue;
-  if (!issue || issue.team?.id !== env.LINEAR_TEAM_ID || !shouldMirrorIssueIdentifier(issue.identifier)) return false;
+  if (!isRecord(issue) || issue.id !== issueId) throw new Error("Linear issue comment parent is missing, malformed, or mismatched");
+  if (!isRecord(issue.team) || !isNonEmptyString(issue.team.id) || !isNonEmptyString(issue.identifier)) {
+    throw new Error("Linear issue comment parent has malformed scope data");
+  }
+  if (issue.team.id !== env.LINEAR_TEAM_ID || !shouldMirrorIssueIdentifier(issue.identifier)) return false;
 
   const issueNumber = await resolveExistingGithubIssueNumber(issue, env, gh);
   if (issueNumber == null) {
@@ -113,19 +130,68 @@ async function fetchAllLinearComments(parentType, parentId, env, queryLinear) {
   const query = parentType === "issue" ? ISSUE_COMMENTS_QUERY : DOCUMENT_COMMENTS_QUERY;
   let after = null;
   const result = [];
+  const commentIds = new Set();
+  const cursors = new Set();
   while (true) {
     const data = await queryLinear(query, { id: parentId, after }, env);
-    const connection = parentType === "issue" ? data.issue?.comments : data.document?.comments;
-    if (!connection) break;
-    for (const comment of connection.nodes ?? []) {
-      if (!comment?.id || comment.archivedAt) continue;
-      result.push(comment);
+    if (!isRecord(data)) throw new Error(`Linear ${parentType} comment query returned malformed data`);
+    const parent = data[parentType];
+    if (!isRecord(parent) || parent.id !== parentId) throw new Error(`Linear ${parentType} comment parent is missing, malformed, or mismatched`);
+    const connection = parent.comments;
+    if (!isRecord(connection)) throw new Error(`Linear ${parentType} comments connection is missing or malformed`);
+    if (!Array.isArray(connection.nodes)) throw new Error(`Linear ${parentType} comments connection has malformed nodes`);
+
+    for (const [index, comment] of connection.nodes.entries()) {
+      validateLinearComment(comment, parentType, index);
+      if (commentIds.has(comment.id)) throw new Error(`Linear ${parentType} comments contain duplicate comment ID ${comment.id}`);
+      commentIds.add(comment.id);
+      if (!comment.archivedAt) result.push(comment);
     }
-    if (!connection.pageInfo?.hasNextPage) break;
-    after = connection.pageInfo?.endCursor ?? null;
-    if (!after) throw new Error(`Linear ${parentType} comment pagination reported a next page without an end cursor`);
+
+    const pageInfo = connection.pageInfo;
+    if (!isRecord(pageInfo) || typeof pageInfo.hasNextPage !== "boolean" ||
+        !Object.prototype.hasOwnProperty.call(pageInfo, "endCursor") ||
+        (pageInfo.endCursor !== null && (typeof pageInfo.endCursor !== "string" || pageInfo.endCursor.trim().length === 0))) {
+      throw new Error(`Linear ${parentType} comments connection has malformed pagination information`);
+    }
+    if (!pageInfo.hasNextPage) break;
+
+    const nextCursor = pageInfo.endCursor;
+    if (typeof nextCursor !== "string" || nextCursor === after || cursors.has(nextCursor) || connection.nodes.length === 0) {
+      throw new Error(`Linear ${parentType} comment pagination is incomplete or did not advance`);
+    }
+    cursors.add(nextCursor);
+    after = nextCursor;
   }
   return result;
+}
+
+function validateLinearComment(comment, parentType, index) {
+  const invalid = () => { throw new Error(`Linear ${parentType} comments contain a malformed node at index ${index}`); };
+  if (!isRecord(comment) || typeof comment.id !== "string" || comment.id.trim() === "") invalid();
+  if (!Object.prototype.hasOwnProperty.call(comment, "archivedAt") ||
+      (comment.archivedAt !== null && !isDateTimeString(comment.archivedAt))) invalid();
+  // Archived comments only need their identity and archive marker to remain
+  // excluded from desired GitHub state, preserving the existing removal flow.
+  if (comment.archivedAt) return;
+  if (typeof comment.body !== "string" || !isDateTimeString(comment.createdAt) ||
+      !Object.prototype.hasOwnProperty.call(comment, "editedAt") ||
+      (comment.editedAt !== null && !isDateTimeString(comment.editedAt)) ||
+      !isDateTimeString(comment.updatedAt) ||
+      !Object.prototype.hasOwnProperty.call(comment, "parentId") ||
+      (comment.parentId !== null && !isNonEmptyString(comment.parentId))) invalid();
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isDateTimeString(value) {
+  return isNonEmptyString(value) && Number.isFinite(Date.parse(value));
 }
 
 function shouldMirrorIssueIdentifier(identifier) {
@@ -216,9 +282,14 @@ async function listGithubIssueComments(issueNumber, env, gh) {
   const result = [];
   for (let page = 1; ; page += 1) {
     const rows = await gh(`/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues/${issueNumber}/comments?per_page=100&page=${page}`, {}, env);
-    if (!Array.isArray(rows)) break;
+    if (!Array.isArray(rows)) throw new Error(`GitHub issue comment list page ${page} returned a malformed response`);
+    for (const [index, comment] of rows.entries()) {
+      if (!isRecord(comment) || !Number.isSafeInteger(comment.id) || comment.id <= 0 || typeof comment.body !== "string") {
+        throw new Error(`GitHub issue comment list page ${page} contains a malformed comment at index ${index}`);
+      }
+    }
     result.push(...rows);
-    if (rows.length < 100) break;
+    if (rows.length < GITHUB_COMMENT_PAGE_SIZE) break;
   }
   return result;
 }
@@ -226,10 +297,15 @@ async function listGithubIssueComments(issueNumber, env, gh) {
 async function listAllGithubIssueComments(env, gh) {
   const result = [];
   for (let page = 1; ; page += 1) {
-    const rows = await gh(`/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues/comments?per_page=100&page=${page}`, {}, env);
-    if (!Array.isArray(rows)) break;
+    const rows = await gh(`/repos/${env.GITHUB_OWNER}/${env.GITHUB_REPO}/issues/comments?per_page=${GITHUB_COMMENT_PAGE_SIZE}&page=${page}`, {}, env);
+    if (!Array.isArray(rows)) throw new Error(`GitHub issue comment list page ${page} returned a malformed response`);
+    for (const [index, comment] of rows.entries()) {
+      if (!isRecord(comment) || !Number.isSafeInteger(comment.id) || comment.id <= 0 || typeof comment.body !== "string") {
+        throw new Error(`GitHub issue comment list page ${page} contains a malformed comment at index ${index}`);
+      }
+    }
     result.push(...rows);
-    if (rows.length < 100) break;
+    if (rows.length < GITHUB_COMMENT_PAGE_SIZE) break;
   }
   return result;
 }

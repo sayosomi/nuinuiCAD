@@ -166,7 +166,7 @@ test("active Queue routes Issue, Comment, Document, and finalizer messages throu
         return jsonResponse({ data: { issue: { ...issue, attachments: { nodes: issue.attachments.nodes } } } });
       }
       if (query.includes("query MirrorIssueComments(")) {
-        return jsonResponse({ data: { issue: { comments: { nodes: [], pageInfo: { hasNextPage: false } } } } });
+        return jsonResponse({ data: { issue: { id: issue.id, comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } });
       }
       assert.fail(`unexpected Linear query: ${query}`);
     }
@@ -229,6 +229,7 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
   const linearComment = {
     id: "comment-say-452",
     body: "Keep this comment on the existing mirror.",
+    archivedAt: null,
     createdAt: "2026-10-09T00:00:00.000Z",
     editedAt: null,
     updatedAt: "2026-10-09T00:00:00.000Z",
@@ -250,7 +251,7 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
       }
       if (query.includes("query MirrorIssueComments(")) {
         return jsonResponse({
-          data: { issue: { comments: { nodes: [linearComment], pageInfo: { hasNextPage: false } } } },
+          data: { issue: { id: issue.id, comments: { nodes: [linearComment], pageInfo: { hasNextPage: false, endCursor: null } } } },
         });
       }
       assert.fail(`unexpected Linear query: ${query}`);
@@ -326,6 +327,189 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
   const firstCommentCreate = calls.findIndex((call) => call.path === "/repos/sayosomi/nuinuiCAD/issues/1224/comments" && call.method === "POST");
   assert.ok(firstIssuePatch < firstCommentFetch);
   assert.ok(firstCommentFetch < firstCommentCreate);
+});
+
+test("active Queue propagates incomplete comment reconciliation without acknowledging the message", async () => {
+  const linearCalls = [];
+  const githubCalls = [];
+  let acknowledgements = 0;
+  const message = {
+    body: { payload: { type: "Comment", action: "create", data: { id: "comment-a" } } },
+    ack: () => { acknowledgements += 1; },
+  };
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      linearCalls.push(query);
+      if (query.includes("query MirrorComment(")) {
+        return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: null, issueId: "issue-a" } } });
+      }
+      if (query.includes("query MirrorIssueCommentParent(")) {
+        return jsonResponse({
+          data: {
+            issue: {
+              id: "issue-a",
+              identifier: "SAY-86",
+              team: { id: "team-a" },
+              attachments: { nodes: [{ url: "https://github.com/sayosomi/nuinuiCAD/issues/401" }] },
+            },
+          },
+        });
+      }
+      if (query.includes("query MirrorIssueComments(")) return jsonResponse({ data: { issue: { id: "issue-a" } } });
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    if (url.hostname === "api.github.com") {
+      githubCalls.push({ path: url.pathname, method });
+      assert.fail(`incomplete Linear comments must not call GitHub: ${method} ${url.pathname}`);
+    }
+    assert.fail(`unexpected network host: ${url.hostname}`);
+  };
+
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await withFetchMock(mockFetch, async () => assert.rejects(
+      worker.queue({ messages: [message] }, envFor("active")),
+      /Linear issue comments connection is missing or malformed/,
+    ));
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(linearCalls.length, 3);
+  assert.deepEqual(githubCalls, []);
+  assert.equal(acknowledgements, 0);
+});
+
+test("active Queue propagates a missing Issue comment parent without acknowledging the message", async () => {
+  let acknowledgements = 0;
+  const message = {
+    body: { payload: { type: "Comment", action: "create", data: { id: "comment-a" } } },
+    ack: () => { acknowledgements += 1; },
+  };
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    assert.equal(url.hostname, "api.linear.app");
+    const { query } = JSON.parse(init.body);
+    if (query.includes("query MirrorComment(")) {
+      return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: null, issueId: "issue-a" } } });
+    }
+    if (query.includes("query MirrorIssueCommentParent(")) return jsonResponse({ data: {} });
+    assert.fail(`unexpected Linear query: ${query}`);
+  };
+
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    await withFetchMock(mockFetch, async () => assert.rejects(
+      worker.queue({ messages: [message] }, envFor("active")),
+      /Linear issue comment parent is missing, malformed, or mismatched/,
+    ));
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(acknowledgements, 0);
+});
+
+test("active Queue propagates missing or malformed Linear Comment records without GitHub mutation or acknowledgement", async (t) => {
+  for (const [name, response] of [
+    ["missing comment", { data: {} }],
+    ["mismatched comment ID", { data: { comment: { id: "other-comment", archivedAt: null } } }],
+    ["missing archive marker", { data: { comment: { id: "comment-a" } } }],
+  ]) {
+    await t.test(name, async () => {
+      let acknowledgements = 0;
+      let githubCalls = 0;
+      const message = {
+        body: { payload: { type: "Comment", action: "update", data: { id: "comment-a" } } },
+        ack: () => { acknowledgements += 1; },
+      };
+      const mockFetch = async (input) => {
+        const url = new URL(input);
+        if (url.hostname === "api.linear.app") return jsonResponse(response);
+        if (url.hostname === "api.github.com") githubCalls += 1;
+        assert.fail(`incomplete Linear comment data must not call GitHub: ${url.hostname}`);
+      };
+
+      const originalConsoleError = console.error;
+      console.error = () => {};
+      try {
+        await withFetchMock(mockFetch, async () => assert.rejects(
+          worker.queue({ messages: [message] }, envFor("active")),
+          /Linear comment is missing or malformed/,
+        ));
+      } finally {
+        console.error = originalConsoleError;
+      }
+
+      assert.equal(githubCalls, 0);
+      assert.equal(acknowledgements, 0);
+    });
+  }
+});
+
+test("active Queue propagates malformed GitHub comment-list data for removal without acknowledgement", async (t) => {
+  for (const [name, response, expectedError] of [
+    ["non-array page", { message: "temporarily unavailable" }, /GitHub issue comment list page 1 returned a malformed response/],
+    ["malformed row", [{ id: 51 }], /GitHub issue comment list page 1 contains a malformed comment at index 0/],
+  ]) {
+    await t.test(name, async () => {
+      let acknowledgements = 0;
+      const githubCalls = [];
+      const message = {
+        body: { payload: { type: "Comment", action: "remove", data: { id: "comment-a" } } },
+        ack: () => { acknowledgements += 1; },
+      };
+      const mockFetch = async (input, init = {}) => {
+        const url = new URL(input);
+        githubCalls.push({ path: url.pathname, method: init.method ?? "GET" });
+        return jsonResponse(response);
+      };
+
+      const originalConsoleError = console.error;
+      console.error = () => {};
+      try {
+        await withFetchMock(mockFetch, async () => assert.rejects(
+          worker.queue({ messages: [message] }, envFor("active")),
+          expectedError,
+        ));
+      } finally {
+        console.error = originalConsoleError;
+      }
+
+      assert.equal(githubCalls.length, 1);
+      assert.equal(githubCalls[0].method, "GET");
+      assert.equal(acknowledgements, 0);
+    });
+  }
+});
+
+test("active Queue still deletes genuinely archived Linear comments", async () => {
+  const githubCalls = [];
+  const message = {
+    body: { payload: { type: "Comment", action: "update", data: { id: "comment-a" } } },
+  };
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      return jsonResponse({ data: { comment: { id: "comment-a", archivedAt: "2026-10-11T00:00:00.000Z" } } });
+    }
+    githubCalls.push({ path: url.pathname, method });
+    if (url.pathname.endsWith("/issues/comments") && method === "GET") {
+      return jsonResponse([{ id: 51, body: "Archived\n\n<!-- linear-comment-id:comment-a -->" }]);
+    }
+    if (url.pathname.endsWith("/issues/comments/51") && method === "DELETE") return new Response(null, { status: 204 });
+    assert.fail(`unexpected GitHub request: ${method} ${url.pathname}`);
+  };
+
+  await withFetchMock(mockFetch, async () => worker.queue({ messages: [message] }, envFor("active")));
+
+  assert.ok(githubCalls.some(({ path, method }) => path.endsWith("/issues/comments/51") && method === "DELETE"));
 });
 
 test("disabled Cron does not query Linear or enqueue either safety sweep", async () => {
