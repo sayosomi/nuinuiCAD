@@ -12,6 +12,7 @@ import {
 const IGNORED_IDENTIFIERS = new Set(["SAY-39", "SAY-75", "SAY-84", "SAY-85"]);
 const LINEAR_COMMENT_PAGE_SIZE = 50;
 const GITHUB_COMMENT_PAGE_SIZE = 100;
+const LINEAR_DATE_TIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):(\d{2}))$/;
 
 const ISSUE_COMMENT_PARENT_QUERY = `
   query MirrorIssueCommentParent($id: String!) {
@@ -28,6 +29,7 @@ const ISSUE_COMMENTS_QUERY = `
   query MirrorIssueComments($id: String!, $after: String) {
     issue(id: $id) {
       id
+      archivedAt
       comments(first: ${LINEAR_COMMENT_PAGE_SIZE}, after: $after, includeArchived: true) {
         nodes { id body archivedAt createdAt editedAt updatedAt parentId }
         pageInfo { hasNextPage endCursor }
@@ -40,6 +42,7 @@ const DOCUMENT_COMMENTS_QUERY = `
   query MirrorDocumentComments($id: String!, $after: String) {
     document(id: $id) {
       id
+      archivedAt
       comments(first: ${LINEAR_COMMENT_PAGE_SIZE}, after: $after, includeArchived: true) {
         nodes { id body archivedAt createdAt editedAt updatedAt parentId }
         pageInfo { hasNextPage endCursor }
@@ -54,8 +57,8 @@ const COMMENT_QUERY = `
       id
       archivedAt
       issueId
-      issue { id }
-      documentContent { document { id } }
+      issue { id archivedAt }
+      documentContent { document { id archivedAt } }
     }
   }
 `;
@@ -64,11 +67,6 @@ export async function handleCommentPayload(payload, env, options = {}) {
   const commentId = payload?.data?.id;
   if (typeof commentId !== "string") return;
   const gh = options.githubFetch ?? githubFetch;
-  if (payload.action === "remove") {
-    await deleteGithubCommentByLinearId(commentId, env, { githubFetch: gh });
-    return;
-  }
-
   const queryLinear = options.linearGraphql ?? linearGraphql;
   const data = await queryLinear(COMMENT_QUERY, { id: commentId }, env);
   if (!isRecord(data)) throw new Error("Linear comment query returned malformed data");
@@ -78,23 +76,27 @@ export async function handleCommentPayload(payload, env, options = {}) {
       (comment.archivedAt !== null && !isDateTimeString(comment.archivedAt))) {
     throw new Error("Linear comment is missing or malformed");
   }
-  if (comment.archivedAt) {
+
+  const parent = getCommentParentArchiveMetadata(comment);
+  if (payload.action === "remove") {
+    if (comment.archivedAt === null) {
+      throw new Error("Linear Comment removal is ambiguous because the comment is not archived");
+    }
+    if (parent.archivedAt !== null && comment.archivedAt === parent.archivedAt) return;
     await deleteGithubCommentByLinearId(commentId, env, { githubFetch: gh });
     return;
   }
 
-  const issueId = comment.issueId ?? comment.issue?.id ?? payload?.data?.issueId;
-  if (isNonEmptyString(issueId)) {
-    await reconcileIssueComments(issueId, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
+  if (parent.type === "issue") {
+    await reconcileIssueComments(parent.id, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
     return;
   }
 
-  const documentId = comment.documentContent?.document?.id;
-  if (isNonEmptyString(documentId) && typeof options.reconcileDocument === "function") {
-    await options.reconcileDocument(documentId, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
+  if (typeof options.reconcileDocument === "function") {
+    await options.reconcileDocument(parent.id, env, { ...options, linearGraphql: queryLinear, githubFetch: gh });
     return;
   }
-  throw new Error("Active Linear comment has no usable parent or reconciliation handler");
+  throw new Error("Linear Document comment has no reconciliation handler");
 }
 
 export async function reconcileIssueComments(issueId, env, options = {}) {
@@ -133,20 +135,29 @@ async function fetchAllLinearComments(parentType, parentId, env, queryLinear) {
   const result = [];
   const commentIds = new Set();
   const cursors = new Set();
+  let parentArchivedAt;
   while (true) {
     const data = await queryLinear(query, { id: parentId, after }, env);
     if (!isRecord(data)) throw new Error(`Linear ${parentType} comment query returned malformed data`);
     const parent = data[parentType];
     if (!isRecord(parent) || parent.id !== parentId) throw new Error(`Linear ${parentType} comment parent is missing, malformed, or mismatched`);
+    if (!Object.prototype.hasOwnProperty.call(parent, "archivedAt") ||
+        (parent.archivedAt !== null && !isDateTimeString(parent.archivedAt))) {
+      throw new Error(`Linear ${parentType} comment parent archive metadata is missing or malformed`);
+    }
+    if (parentArchivedAt === undefined) parentArchivedAt = parent.archivedAt;
+    else if (parentArchivedAt !== parent.archivedAt) {
+      throw new Error(`Linear ${parentType} comment parent archive metadata changed during pagination`);
+    }
     const connection = parent.comments;
     if (!isRecord(connection)) throw new Error(`Linear ${parentType} comments connection is missing or malformed`);
     if (!Array.isArray(connection.nodes)) throw new Error(`Linear ${parentType} comments connection has malformed nodes`);
 
     for (const [index, comment] of connection.nodes.entries()) {
-      validateLinearComment(comment, parentType, index);
+      validateLinearComment(comment, parentType, index, parentArchivedAt);
       if (commentIds.has(comment.id)) throw new Error(`Linear ${parentType} comments contain duplicate comment ID ${comment.id}`);
       commentIds.add(comment.id);
-      if (!comment.archivedAt) result.push(comment);
+      if (isRetainedLinearComment(comment, parentArchivedAt)) result.push(comment);
     }
 
     const pageInfo = connection.pageInfo;
@@ -167,20 +178,73 @@ async function fetchAllLinearComments(parentType, parentId, env, queryLinear) {
   return result;
 }
 
-function validateLinearComment(comment, parentType, index) {
+function validateLinearComment(comment, parentType, index, parentArchivedAt) {
   const invalid = () => { throw new Error(`Linear ${parentType} comments contain a malformed node at index ${index}`); };
   if (!isRecord(comment) || typeof comment.id !== "string" || comment.id.trim() === "") invalid();
   if (!Object.prototype.hasOwnProperty.call(comment, "archivedAt") ||
       (comment.archivedAt !== null && !isDateTimeString(comment.archivedAt))) invalid();
-  // Archived comments only need their identity and archive marker to remain
-  // excluded from desired GitHub state, preserving the existing removal flow.
-  if (comment.archivedAt) return;
+  if (!isRetainedLinearComment(comment, parentArchivedAt)) return;
   if (typeof comment.body !== "string" || !isDateTimeString(comment.createdAt) ||
       !Object.prototype.hasOwnProperty.call(comment, "editedAt") ||
       (comment.editedAt !== null && !isDateTimeString(comment.editedAt)) ||
       !isDateTimeString(comment.updatedAt) ||
       !Object.prototype.hasOwnProperty.call(comment, "parentId") ||
       (comment.parentId !== null && !isNonEmptyString(comment.parentId))) invalid();
+}
+
+function isRetainedLinearComment(comment, parentArchivedAt) {
+  return comment.archivedAt === null ||
+    (parentArchivedAt !== null && comment.archivedAt === parentArchivedAt);
+}
+
+function getCommentParentArchiveMetadata(comment) {
+  if (!Object.prototype.hasOwnProperty.call(comment, "issueId") ||
+      !Object.prototype.hasOwnProperty.call(comment, "issue") ||
+      !Object.prototype.hasOwnProperty.call(comment, "documentContent")) {
+    throw new Error("Linear comment parent archive metadata is missing or malformed");
+  }
+
+  const issueId = comment.issueId;
+  const issue = comment.issue;
+  const documentContent = comment.documentContent;
+  const document = documentContent === null ? null : documentContent?.document;
+  if (issueId !== null && !isNonEmptyString(issueId)) {
+    throw new Error("Linear comment issue identity is malformed");
+  }
+
+  const hasIssueIdentity = issueId !== null || issue !== null;
+  const hasDocumentIdentity = document !== null && document !== undefined;
+  if (hasIssueIdentity === hasDocumentIdentity) {
+    throw new Error("Linear comment parent archive metadata is missing, malformed, or ambiguous");
+  }
+
+  if (hasIssueIdentity) {
+    if (!isRecord(issue) || !isNonEmptyString(issue.id) || issue.id !== issueId) {
+      throw new Error("Linear comment Issue parent is missing, malformed, or mismatched");
+    }
+    return {
+      type: "issue",
+      id: issue.id,
+      archivedAt: validateParentArchivedAt(issue, "Issue"),
+    };
+  }
+
+  if (!isRecord(document) || !isNonEmptyString(document.id)) {
+    throw new Error("Linear comment Document parent is missing or malformed");
+  }
+  return {
+    type: "document",
+    id: document.id,
+    archivedAt: validateParentArchivedAt(document, "Document"),
+  };
+}
+
+function validateParentArchivedAt(parent, parentType) {
+  if (!Object.prototype.hasOwnProperty.call(parent, "archivedAt") ||
+      (parent.archivedAt !== null && !isDateTimeString(parent.archivedAt))) {
+    throw new Error(`Linear comment ${parentType} parent archive metadata is missing or malformed`);
+  }
+  return parent.archivedAt;
 }
 
 function isRecord(value) {
@@ -192,7 +256,14 @@ function isNonEmptyString(value) {
 }
 
 function isDateTimeString(value) {
-  return isNonEmptyString(value) && Number.isFinite(Date.parse(value));
+  if (!isNonEmptyString(value)) return false;
+  const match = value.match(LINEAR_DATE_TIME_RE);
+  if (!match || !Number.isFinite(Date.parse(value))) return false;
+  const [, , , , hour, minute, second, , offsetHour, offsetMinute] = match;
+  if (Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59 ||
+      (offsetHour !== undefined && (Number(offsetHour) > 23 || Number(offsetMinute) > 59))) return false;
+  const date = value.slice(0, 10);
+  return new Date(`${date}T00:00:00.000Z`).toISOString().slice(0, 10) === date;
 }
 
 function shouldMirrorIssueIdentifier(identifier) {

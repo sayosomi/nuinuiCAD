@@ -5,6 +5,7 @@ import {
   deleteGithubCommentByLinearId,
   extractLinearCommentId,
   fetchDocumentComments,
+  handleCommentPayload,
   reconcileIssueComments,
   reconcileCommentsToGithubIssue,
   renderGithubComment,
@@ -40,13 +41,14 @@ function linearComment(id, overrides = {}) {
   };
 }
 
-function linearCommentsPage(parentType, nodes = [], pageInfo = { hasNextPage: false, endCursor: null }, id) {
+function linearCommentsPage(parentType, nodes = [], pageInfo = { hasNextPage: false, endCursor: null }, id, archivedAt = null) {
   id ??= parentType === "issue" ? "issue-a" : "doc-a";
-  return { [parentType]: { id, comments: { nodes, pageInfo } } };
+  return { [parentType]: { id, archivedAt, comments: { nodes, pageInfo } } };
 }
 
 const issueCommentParent = {
   id: "issue-a",
+  archivedAt: null,
   identifier: "SAY-86",
   team: { id: "team-a" },
   attachments: { nodes: [{ url: "https://github.com/sayosomi/nuinuiCAD/issues/401" }] },
@@ -201,7 +203,7 @@ test("a missing Issue comment parent fails closed", async () => {
 
 test("a missing Document comments connection fails closed", async () => {
   await assert.rejects(
-    fetchDocumentComments("doc-a", commentEnv, async () => ({ document: { id: "doc-a" } })),
+    fetchDocumentComments("doc-a", commentEnv, async () => ({ document: { id: "doc-a", archivedAt: null } })),
     /Linear document comments connection is missing or malformed/,
   );
 });
@@ -210,12 +212,12 @@ test("malformed Linear comment nodes and pagination fail closed", async (t) => {
   const cases = [
     ["parent is missing", {}],
     ["parent ID does not match", { document: { id: "other-doc", comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } }],
-    ["nodes are missing", { document: { id: "doc-a", comments: { pageInfo: { hasNextPage: false, endCursor: null } } } }],
+    ["nodes are missing", { document: { id: "doc-a", archivedAt: null, comments: { pageInfo: { hasNextPage: false, endCursor: null } } } }],
     ["a node has no usable ID", linearCommentsPage("document", [{ ...linearComment(""), id: " " }])],
     ["an active node has no body", linearCommentsPage("document", [{ ...linearComment("bad"), body: null }])],
-    ["pageInfo is missing", { document: { id: "doc-a", comments: { nodes: [] } } }],
+    ["pageInfo is missing", { document: { id: "doc-a", archivedAt: null, comments: { nodes: [] } } }],
     ["hasNextPage is not a boolean", linearCommentsPage("document", [], { hasNextPage: "false", endCursor: null })],
-    ["endCursor is missing", { document: { id: "doc-a", comments: { nodes: [], pageInfo: { hasNextPage: false } } } }],
+    ["endCursor is missing", { document: { id: "doc-a", archivedAt: null, comments: { nodes: [], pageInfo: { hasNextPage: false } } } }],
     ["a next page has no cursor", linearCommentsPage("document", [linearComment("page-a")], { hasNextPage: true, endCursor: null })],
   ];
 
@@ -225,6 +227,71 @@ test("malformed Linear comment nodes and pagination fail closed", async (t) => {
         fetchDocumentComments("doc-a", commentEnv, async () => response),
         /parent is missing|malformed nodes|malformed node|malformed pagination|incomplete or did not advance/,
       );
+    });
+  }
+});
+
+test("Issue and Document parent archive metadata must be present, valid, and stable across pages", async (t) => {
+  const cases = [
+    ["Issue parent archive metadata is missing", "issue", [
+      { issue: { id: "issue-a", comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } },
+    ], /archive metadata is missing or malformed/],
+    ["Issue parent archive metadata is malformed", "issue", [
+      linearCommentsPage("issue", [], undefined, "issue-a", "yesterday"),
+    ], /archive metadata is missing or malformed/],
+    ["Issue parent archive metadata is not a complete date-time", "issue", [
+      linearCommentsPage("issue", [], undefined, "issue-a", "2026"),
+    ], /archive metadata is missing or malformed/],
+    ["Issue parent archive metadata has an invalid calendar date", "issue", [
+      linearCommentsPage("issue", [], undefined, "issue-a", "2026-02-30T00:00:00.000Z"),
+    ], /archive metadata is missing or malformed/],
+    ["Issue parent archive metadata has an invalid time", "issue", [
+      linearCommentsPage("issue", [], undefined, "issue-a", "2026-10-11T24:00:00.000Z"),
+    ], /archive metadata is missing or malformed/],
+    ["Issue parent archive metadata changes between pages", "issue", [
+      linearCommentsPage("issue", [linearComment("first")], { hasNextPage: true, endCursor: "next" }, "issue-a", null),
+      linearCommentsPage("issue", [linearComment("second")], undefined, "issue-a", "2026-10-11T09:26:36.464Z"),
+    ], /changed during pagination/],
+    ["Document parent archive metadata changes between pages", "document", [
+      linearCommentsPage("document", [linearComment("first")], { hasNextPage: true, endCursor: "next" }, "doc-a", null),
+      linearCommentsPage("document", [linearComment("second")], undefined, "doc-a", "2026-09-21T06:08:50.742Z"),
+    ], /changed during pagination/],
+  ];
+
+  for (const [name, parentType, pages, expectedError] of cases) {
+    await t.test(name, async () => {
+      const githubCalls = [];
+      const queryLinear = async (query, { after }) => {
+        if (query.includes("MirrorIssueCommentParent")) return { issue: issueCommentParent };
+        return pages[after === null ? 0 : 1];
+      };
+      if (parentType === "issue") {
+        await assert.rejects(reconcileIssueComments("issue-a", commentEnv, {
+          linearGraphql: queryLinear,
+          githubFetch: async (...args) => { githubCalls.push(args); return []; },
+        }), expectedError);
+      } else {
+        await assert.rejects(fetchDocumentComments("doc-a", commentEnv, async (_query, { after }) => pages[after === null ? 0 : 1]), expectedError);
+      }
+      assert.deepEqual(githubCalls, []);
+    });
+  }
+});
+
+test("retained parent-archived comments still require complete body and date validation", async (t) => {
+  const parentArchivedAt = "2026-09-21T06:08:50.742Z";
+  const malformedComments = [
+    ["missing body", { ...linearComment("missing-body", { archivedAt: parentArchivedAt }), body: null }],
+    ["missing creation date", { ...linearComment("missing-created", { archivedAt: parentArchivedAt }), createdAt: null }],
+    ["missing update date", { ...linearComment("missing-updated", { archivedAt: parentArchivedAt }), updatedAt: null }],
+    ["missing parent identity", { ...linearComment("missing-parent", { archivedAt: parentArchivedAt }), parentId: undefined }],
+  ];
+
+  for (const [name, comment] of malformedComments) {
+    await t.test(name, async () => {
+      await assert.rejects(fetchDocumentComments("doc-a", commentEnv, async () =>
+        linearCommentsPage("document", [comment], undefined, "doc-a", parentArchivedAt)),
+      /Linear document comments contain a malformed node/);
     });
   }
 });
@@ -383,7 +450,85 @@ test("SAY-385 GitHub parent lookup failures propagate before comment reads or wr
   }]);
 });
 
-test("archived Linear comments remain eligible for managed GitHub deletion", async () => {
+test("archived Print Layout Document reconciles all 55 inherited comments across two pages", async () => {
+  const documentId = "print-layout-document";
+  const archivedAt = "2026-09-21T06:08:50.742Z";
+  const document = {
+    id: documentId,
+    title: "Print Layout",
+    content: "Historical print layout notes",
+    archivedAt,
+    trashed: false,
+    updatedAt: archivedAt,
+    url: "https://linear.app/sayosomi/document/print-layout",
+    initiative: { id: "initiative-a" },
+  };
+  const comments = Array.from({ length: 55 }, (_, index) => linearComment(`print-comment-${index + 1}`, {
+    archivedAt,
+    createdAt: `2026-09-${String(1 + (index % 20)).padStart(2, "0")}T06:08:50.742Z`,
+    updatedAt: archivedAt,
+    parentId: documentId,
+  }));
+  const githubComments = [];
+  const calls = [];
+  let nextGithubCommentId = 2000;
+  const githubIssue = {
+    number: 308,
+    body: `Print Layout\n\n<!-- linear-document-id:${documentId} -->`,
+  };
+  const queryLinear = async (query, { after } = {}) => {
+    if (query.includes("query MirrorDocument(")) return { document };
+    if (query.includes("query MirrorDocumentComments(")) {
+      assert.match(query, /archivedAt/);
+      calls.push({ type: "linear-comments", after });
+      const page = after === "document-comments-page-2" ? comments.slice(50) : comments.slice(0, 50);
+      const hasNextPage = after === null;
+      return linearCommentsPage("document", page, {
+        hasNextPage,
+        endCursor: hasNextPage ? "document-comments-page-2" : null,
+      }, documentId, archivedAt);
+    }
+    assert.fail(`unexpected Linear query: ${query}`);
+  };
+  const githubFetch = async (path, init = {}) => {
+    const method = init.method ?? "GET";
+    const call = { type: "github", path, method };
+    if (init.body) call.body = JSON.parse(init.body);
+    calls.push(call);
+    if (path.includes("/issues?state=all")) return [githubIssue];
+    if (path.endsWith("/labels/Linear%20Document")) return { name: "Linear Document" };
+    if (path === "/repos/sayosomi/nuinuiCAD/issues/308/comments?per_page=100&page=1") return githubComments;
+    if (path === "/repos/sayosomi/nuinuiCAD/issues/308/comments" && method === "POST") {
+      const created = { id: nextGithubCommentId++, body: call.body.body };
+      githubComments.push(created);
+      return created;
+    }
+    return {};
+  };
+
+  await reconcileDocumentById(documentId, {
+    ...commentEnv,
+    LINEAR_INITIATIVE_ID: "initiative-a",
+  }, { linearGraphql: queryLinear, githubFetch });
+  await reconcileDocumentById(documentId, {
+    ...commentEnv,
+    LINEAR_INITIATIVE_ID: "initiative-a",
+  }, { linearGraphql: queryLinear, githubFetch });
+
+  assert.deepEqual(calls.filter(({ type }) => type === "linear-comments").map(({ after }) => after), [
+    null,
+    "document-comments-page-2",
+    null,
+    "document-comments-page-2",
+  ]);
+  const managedComments = githubComments.filter(({ body }) => extractLinearCommentId(body) !== null);
+  assert.equal(managedComments.length, 55);
+  assert.equal(calls.filter(({ method, path }) => method === "POST" && path.endsWith("/issues/308/comments")).length, 55);
+  assert.equal(calls.some(({ method, path }) => method === "DELETE" && path.includes("/issues/comments/")), false);
+  assert.equal(calls.some(({ method, path }) => method === "PATCH" && path.includes("/issues/comments/")), false);
+});
+
+test("individually archived Linear comments stay excluded from desired managed comments", async () => {
   const calls = [];
   const archived = linearComment("archived", { archivedAt: "2026-10-11T01:00:00.000Z" });
   await reconcileIssueCommentPages(new Map([[null, linearCommentsPage("issue", [archived])]]), async (path, init = {}) => {
@@ -394,6 +539,116 @@ test("archived Linear comments remain eligible for managed GitHub deletion", asy
     return {};
   });
   assert.ok(calls.some(({ path, init }) => path.endsWith("/issues/comments/51") && init.method === "DELETE"));
+});
+
+test("parent-cascade archived comments remain in the reconciled history", async () => {
+  const calls = [];
+  const archivedAt = "2026-10-11T09:26:36.464Z";
+  const inherited = linearComment("inherited", { archivedAt });
+  await reconcileIssueComments("issue-a", commentEnv, {
+    linearGraphql: async (query) => {
+      if (query.includes("MirrorIssueCommentParent")) return { issue: issueCommentParent };
+      return linearCommentsPage("issue", [inherited], undefined, "issue-a", archivedAt);
+    },
+    githubFetch: async (path, init = {}) => {
+      calls.push({ path, init });
+      if (path.includes("/issues/401/comments?")) {
+        return [{ id: 52, body: "Old inherited mirror\n\n<!-- linear-comment-id:inherited -->" }];
+      }
+      return {};
+    },
+  });
+
+  assert.ok(calls.some(({ path, init }) => path.endsWith("/issues/comments/52") && init.method === "PATCH"));
+  assert.equal(calls.some(({ path, init }) => path.endsWith("/issues/comments/52") && init.method === "DELETE"), false);
+});
+
+test("explicit Comment removal deletes only a verified individual archive", async (t) => {
+  const commentArchivedAt = "2026-10-11T01:00:00.000Z";
+  const cases = [
+    ["active parent", null, true],
+    ["parent archived at a different instant", "2026-10-11T09:26:36.464Z", true],
+    ["parent-cascade timestamp", commentArchivedAt, false],
+  ];
+
+  for (const [name, parentArchivedAt, shouldDelete] of cases) {
+    await t.test(name, async () => {
+      const calls = [];
+      await handleCommentPayload({ type: "Comment", action: "remove", data: { id: "removed" } }, commentEnv, {
+        linearGraphql: async (query) => {
+          assert.match(query, /issue \{ id archivedAt \}/);
+          return { comment: {
+            id: "removed",
+            archivedAt: commentArchivedAt,
+            issueId: "issue-a",
+            issue: { id: "issue-a", archivedAt: parentArchivedAt },
+            documentContent: null,
+          } };
+        },
+        githubFetch: async (path, init = {}) => {
+          calls.push({ path, init });
+          if (path.includes("/issues/comments?")) {
+            return [{ id: 70, body: "Managed\n\n<!-- linear-comment-id:removed -->" }];
+          }
+          return null;
+        },
+      });
+
+      assert.equal(calls.some(({ path, init }) => path.endsWith("/issues/comments/70") && init.method === "DELETE"), shouldDelete);
+      assert.equal(calls.some(({ init }) => init.method === "DELETE"), shouldDelete);
+    });
+  }
+});
+
+test("ambiguous explicit Comment removal fails closed before GitHub access", async (t) => {
+  for (const [name, comment] of [
+    ["missing parent archive timestamp", {
+      id: "removed", archivedAt: "2026-10-11T01:00:00.000Z", issueId: "issue-a",
+      issue: { id: "issue-a" }, documentContent: null,
+    }],
+    ["comment is not archived", {
+      id: "removed", archivedAt: null, issueId: "issue-a",
+      issue: { id: "issue-a", archivedAt: null }, documentContent: null,
+    }],
+    ["issue identity mismatch", {
+      id: "removed", archivedAt: "2026-10-11T01:00:00.000Z", issueId: "issue-a",
+      issue: { id: "issue-other", archivedAt: null }, documentContent: null,
+    }],
+  ]) {
+    await t.test(name, async () => {
+      let githubCalls = 0;
+      await assert.rejects(handleCommentPayload({ type: "Comment", action: "remove", data: { id: "removed" } }, commentEnv, {
+        linearGraphql: async () => ({ comment }),
+        githubFetch: async () => { githubCalls += 1; return []; },
+      }));
+      assert.equal(githubCalls, 0);
+    });
+  }
+});
+
+test("explicit Document Comment removal uses the Document archive timestamp", async () => {
+  const calls = [];
+  await handleCommentPayload({ type: "Comment", action: "remove", data: { id: "document-comment" } }, commentEnv, {
+    linearGraphql: async (query) => {
+      assert.match(query, /documentContent \{ document \{ id archivedAt \} \}/);
+      return { comment: {
+        id: "document-comment",
+        archivedAt: "2026-09-20T00:00:00.000Z",
+        issueId: null,
+        issue: null,
+        documentContent: { document: { id: "doc-a", archivedAt: null } },
+      } };
+    },
+    githubFetch: async (path, init = {}) => {
+      calls.push({ path, init });
+      if (path.includes("/issues/comments?")) {
+        return [{ id: 71, body: "Managed\n\n<!-- linear-comment-id:document-comment -->" }];
+      }
+      return null;
+    },
+  });
+
+  assert.ok(calls.some(({ path, init }) => path.endsWith("/issues/comments/71") && init.method === "DELETE"));
 });
 
 test("comment removal finds managed comment repository-wide", async () => {
