@@ -2,10 +2,11 @@ import {
   COMMENT_MARKER_PREFIX,
   COMMENT_PARENT_MARKER_PREFIX,
   COMMENT_UPDATED_MARKER_PREFIX,
-  GITHUB_ISSUE_URL_RE,
+  ISSUE_MARKER_PREFIX,
   findGithubIssueByMarker,
   githubFetch,
   linearGraphql,
+  resolveGithubIssueAttachment,
 } from "./mirrorApi.js";
 
 const IGNORED_IDENTIFIERS = new Set(["SAY-39", "SAY-75", "SAY-84", "SAY-85"]);
@@ -199,13 +200,11 @@ function shouldMirrorIssueIdentifier(identifier) {
 }
 
 async function resolveExistingGithubIssueNumber(issue, env, gh) {
-  for (const attachment of issue.attachments?.nodes ?? []) {
-    const match = typeof attachment?.url === "string" ? attachment.url.match(GITHUB_ISSUE_URL_RE) : null;
-    if (match && match[1] === env.GITHUB_OWNER && match[2] === env.GITHUB_REPO) return Number(match[3]);
-  }
+  const attached = await resolveGithubIssueAttachment(issue, env, gh);
+  if (attached != null) return attached;
   const legacy = legacyGithubIssueNumber(issue.identifier);
   if (legacy != null) return legacy;
-  return findGithubIssueByMarker(`linear-issue-id:${issue.id}`, env, gh);
+  return findGithubIssueByMarker(`${ISSUE_MARKER_PREFIX}${issue.id}`, env, gh);
 }
 
 function legacyGithubIssueNumber(identifier) {

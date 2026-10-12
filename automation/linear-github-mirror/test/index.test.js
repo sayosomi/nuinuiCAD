@@ -5,7 +5,6 @@ import test from "node:test";
 import worker, {
   enqueueSafetySweep,
   extractIssueId,
-  githubIssueNumberFromAttachments,
   githubStateFromLinearState,
   isFreshWebhook,
   legacyGithubIssueNumber,
@@ -18,6 +17,7 @@ import worker, {
   summarizeRelations,
   verifyLinearSignature,
 } from "../src/index.js";
+import { ISSUE_MARKER_PREFIX, resolveGithubIssueAttachment } from "../src/mirrorApi.js";
 
 const mirrorEnv = {
   LINEAR_API_KEY: "linear-test-key",
@@ -51,6 +51,31 @@ function linearIssue(overrides = {}) {
 
 function githubMarkerMatch(issue, number) {
   return { number, body: `Mirror body\n\n<!-- linear-issue-id:${issue.id} -->` };
+}
+
+const SAY_385_ID = "8bc80133-54b9-48f9-ac73-456d0823855e";
+
+function say385Issue(issueNumbers = [1108, 1107], overrides = {}) {
+  return linearIssue({
+    id: SAY_385_ID,
+    identifier: "SAY-385",
+    title: "Historical duplicate mirror",
+    state: { id: "state-done", name: "Done", type: "completed" },
+    attachments: {
+      nodes: issueNumbers.map((number) => ({
+        url: `https://github.com/sayosomi/nuinuiCAD/issues/${number}`,
+      })),
+    },
+    ...overrides,
+  });
+}
+
+function say385GithubIssue(number, overrides = {}) {
+  return {
+    number,
+    body: `Historical mirror\n\n<!-- ${ISSUE_MARKER_PREFIX}${SAY_385_ID} -->`,
+    ...overrides,
+  };
 }
 
 function jsonResponse(value, status = 200) {
@@ -88,15 +113,145 @@ test("migration test and accidental shadow issues are excluded", () => {
   assert.equal(shouldMirrorIssue({ identifier: "SAY-86" }), true);
 });
 
-test("GitHub issue attachment lookup is repository-specific", () => {
+test("shared GitHub issue attachment resolution is repository-specific and preserves a single target", async () => {
   const env = { GITHUB_OWNER: "sayosomi", GITHUB_REPO: "nuinuiCAD" };
-  assert.equal(
-    githubIssueNumberFromAttachments([
+  const githubCalls = [];
+  assert.equal(await resolveGithubIssueAttachment({
+    id: "linear-issue-a",
+    identifier: "SAY-86",
+    attachments: { nodes: [
       { url: "https://github.com/sayosomi/other/issues/4" },
       { url: "https://github.com/sayosomi/nuinuiCAD/issues/260" },
-    ], env),
-    260,
-  );
+    ] },
+  }, env, async (...args) => githubCalls.push(args)), 260);
+  assert.deepEqual(githubCalls, []);
+});
+
+test("ordinary issue attachment ambiguity fails closed before any GitHub request", async () => {
+  const githubCalls = [];
+  await assert.rejects(resolveGithubIssueAttachment({
+    id: "linear-issue-a",
+    identifier: "SAY-86",
+    attachments: { nodes: [
+      { url: "https://github.com/sayosomi/nuinuiCAD/issues/401" },
+      { url: "https://github.com/sayosomi/nuinuiCAD/issues/402" },
+    ] },
+  }, mirrorEnv, async (...args) => githubCalls.push(args)), /Ambiguous GitHub issue attachments/);
+  assert.deepEqual(githubCalls, []);
+});
+
+test("SAY-385 attachment sets resolve to #1108 regardless of order", async (t) => {
+  for (const attachmentOrder of [[1108, 1107], [1107, 1108]]) {
+    await t.test(attachmentOrder.join(","), async () => {
+      const githubPaths = [];
+      const resolved = await resolveGithubIssueAttachment(say385Issue(attachmentOrder), mirrorEnv, async (path) => {
+        githubPaths.push(path);
+        return say385GithubIssue(Number(path.split("/").at(-1)));
+      });
+
+      assert.equal(resolved, 1108);
+      assert.deepEqual(githubPaths, [
+        "/repos/sayosomi/nuinuiCAD/issues/1108",
+        "/repos/sayosomi/nuinuiCAD/issues/1107",
+      ]);
+    });
+  }
+});
+
+test("SAY-385 sole #1108 attachment is accepted only after marker verification", async () => {
+  const githubPaths = [];
+  const resolved = await resolveGithubIssueAttachment(say385Issue([1108]), mirrorEnv, async (path) => {
+    githubPaths.push(path);
+    return say385GithubIssue(1108);
+  });
+  assert.equal(resolved, 1108);
+  assert.deepEqual(githubPaths, ["/repos/sayosomi/nuinuiCAD/issues/1108"]);
+});
+
+test("SAY-385 rejects every attachment set except the approved canonical sets", async (t) => {
+  for (const [name, attachmentUrls] of [
+    ["no attachments", []],
+    ["sole duplicate", ["https://github.com/sayosomi/nuinuiCAD/issues/1107"]],
+    ["unexpected third issue", [1108, 1107, 1109].map((number) => `https://github.com/sayosomi/nuinuiCAD/issues/${number}`)],
+    ["unexpected issue", [1108, 1109].map((number) => `https://github.com/sayosomi/nuinuiCAD/issues/${number}`)],
+    ["mismatched repository", [
+      "https://github.com/sayosomi/nuinuiCAD/issues/1108",
+      "https://github.com/sayosomi/other/issues/1107",
+    ]],
+    ["pull request", ["https://github.com/sayosomi/nuinuiCAD/pull/1108"]],
+  ]) {
+    await t.test(name, async () => {
+      const githubCalls = [];
+      const issue = say385Issue([], {
+        attachments: { nodes: attachmentUrls.map((url) => ({ url })) },
+      });
+      await assert.rejects(resolveGithubIssueAttachment(issue, mirrorEnv, async (...args) => githubCalls.push(args)));
+      assert.deepEqual(githubCalls, []);
+    });
+  }
+});
+
+test("SAY-385 recovery requires the exact Linear UUID and identifier", async (t) => {
+  for (const [name, overrides] of [
+    ["wrong UUID", { id: "different-linear-uuid" }],
+    ["wrong identifier", { identifier: "SAY-386" }],
+  ]) {
+    await t.test(name, async () => {
+      const githubCalls = [];
+      await assert.rejects(
+        resolveGithubIssueAttachment(say385Issue([1108], overrides), mirrorEnv, async (...args) => githubCalls.push(args)),
+        /exact Linear issue UUID and identifier/,
+      );
+      assert.deepEqual(githubCalls, []);
+    });
+  }
+});
+
+test("SAY-385 GitHub verification rejects missing, malformed, pull-request, or mismarked issues", async (t) => {
+  const cases = [
+    ["missing marker", { number: 1108, body: "Historical mirror" }, /mismatched Linear issue marker/],
+    ["wrong marker", { number: 1108, body: "<!-- linear-issue-id:different-id -->" }, /mismatched Linear issue marker/],
+    ["multiple markers", { ...say385GithubIssue(1108), body: `<!-- linear-issue-id:${SAY_385_ID} --><!-- linear-issue-id:different-id -->` }, /mismatched Linear issue marker/],
+    ["pull request", say385GithubIssue(1108, { pull_request: { url: "https://api.github.com/repos/sayosomi/nuinuiCAD/pulls/1108" } }), /is a pull request/],
+    ["incomplete response", { number: 1108 }, /response is incomplete or mismatched/],
+    ["wrong issue number", say385GithubIssue(1107), /response is incomplete or mismatched/],
+  ];
+  for (const [name, response, expectedError] of cases) {
+    await t.test(name, async () => {
+      await assert.rejects(
+        resolveGithubIssueAttachment(say385Issue([1108]), mirrorEnv, async () => response),
+        expectedError,
+      );
+    });
+  }
+
+  await t.test("missing GitHub issue", async () => {
+    await assert.rejects(
+      resolveGithubIssueAttachment(say385Issue([1108]), mirrorEnv, async () => {
+        throw new Error("GitHub API 404: Not Found");
+      }),
+      /GitHub API 404/,
+    );
+  });
+
+  await t.test("GitHub API error", async () => {
+    await assert.rejects(
+      resolveGithubIssueAttachment(say385Issue([1108]), mirrorEnv, async () => {
+        throw new Error("GitHub API 503: unavailable");
+      }),
+      /GitHub API 503/,
+    );
+  });
+
+  await t.test("mismarked duplicate", async () => {
+    await assert.rejects(
+      resolveGithubIssueAttachment(say385Issue([1108, 1107]), mirrorEnv, async (path) => {
+        const number = Number(path.split("/").at(-1));
+        return number === 1108 ? say385GithubIssue(number) : { number, body: "<!-- linear-issue-id:wrong-id -->" };
+      }),
+      /Historical SAY-385 GitHub #1107 has a mismatched Linear issue marker/,
+    );
+  });
 });
 
 test("Linear states map to GitHub state and close reason", () => {
@@ -278,6 +433,86 @@ test("non-archived marker recovery still attaches the existing GitHub issue", as
   });
   assert.equal(githubWrites.length, 1);
   assert.equal(githubWrites[0].body.state, "open");
+});
+
+test("Issue reconciliation selects verified SAY-385 #1108 and never mutates #1107", async () => {
+  const issue = say385Issue([1108, 1107]);
+  const githubCalls = [];
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      assert.fail(`unexpected Linear mutation or query: ${query}`);
+    }
+
+    githubCalls.push({ path: url.pathname, method });
+    if (["/repos/sayosomi/nuinuiCAD/issues/1108", "/repos/sayosomi/nuinuiCAD/issues/1107"].includes(url.pathname) && method === "GET") {
+      const number = Number(url.pathname.split("/").at(-1));
+      return jsonResponse(say385GithubIssue(number));
+    }
+    if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/1108" && method === "PATCH") return jsonResponse({ number: 1108 });
+    assert.fail(`unexpected GitHub request: ${method} ${url.pathname}`);
+  };
+
+  await withFetchMock(mockFetch, () => mirrorPayload({ type: "Issue", data: { id: issue.id } }, mirrorEnv));
+
+  assert.deepEqual(githubCalls.filter(({ method }) => method === "PATCH").map(({ path }) => path), [
+    "/repos/sayosomi/nuinuiCAD/issues/1108",
+  ]);
+  assert.deepEqual(githubCalls.filter(({ method }) => method === "GET").map(({ path }) => path), [
+    "/repos/sayosomi/nuinuiCAD/issues/1108",
+    "/repos/sayosomi/nuinuiCAD/issues/1107",
+  ]);
+});
+
+test("ordinary multi-attachment Issue fails before any GitHub request or mutation", async () => {
+  const issue = linearIssue({
+    attachments: { nodes: [
+      { url: "https://github.com/sayosomi/nuinuiCAD/issues/401" },
+      { url: "https://github.com/sayosomi/nuinuiCAD/issues/402" },
+    ] },
+  });
+  const calls = [];
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    calls.push({ host: url.hostname, method: init.method ?? "GET" });
+    if (url.hostname === "api.linear.app") return jsonResponse({ data: { issue } });
+    assert.fail(`GitHub must not be called for ambiguous attachments: ${url.pathname}`);
+  };
+
+  await withFetchMock(mockFetch, () => assert.rejects(
+    mirrorPayload({ type: "Issue", data: { id: issue.id } }, mirrorEnv),
+    /Ambiguous GitHub issue attachments/,
+  ));
+  assert.deepEqual(calls, [{ host: "api.linear.app", method: "POST" }]);
+});
+
+test("legacy Issue mapping still attaches and updates its historical GitHub target", async () => {
+  const issue = linearIssue({ identifier: "SAY-9" });
+  const calls = [];
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      calls.push({ host: url.hostname, query });
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      if (query.includes("mutation AttachGithubIssue(")) return jsonResponse({ data: { attachmentCreate: { success: true } } });
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+    calls.push({ host: url.hostname, path: url.pathname, method });
+    if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/186" && method === "GET") return jsonResponse({ number: 186 });
+    if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/186" && method === "PATCH") return jsonResponse({ number: 186 });
+    assert.fail(`unexpected GitHub request: ${method} ${url.pathname}`);
+  };
+
+  await withFetchMock(mockFetch, () => mirrorPayload({ type: "Issue", data: { id: issue.id } }, mirrorEnv));
+  assert.equal(calls.some((call) => call.query?.includes("mutation AttachGithubIssue(")), true);
+  assert.deepEqual(calls.filter((call) => call.method === "PATCH").map((call) => call.path), [
+    "/repos/sayosomi/nuinuiCAD/issues/186",
+  ]);
 });
 
 test("duplicate marker matches fail closed before any GitHub write", async () => {

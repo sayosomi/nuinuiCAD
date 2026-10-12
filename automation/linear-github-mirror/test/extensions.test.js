@@ -52,6 +52,28 @@ const issueCommentParent = {
   attachments: { nodes: [{ url: "https://github.com/sayosomi/nuinuiCAD/issues/401" }] },
 };
 
+const SAY_385_ID = "8bc80133-54b9-48f9-ac73-456d0823855e";
+
+function say385IssueCommentParent(issueNumbers = [1108, 1107]) {
+  return {
+    id: SAY_385_ID,
+    identifier: "SAY-385",
+    team: { id: "team-a" },
+    attachments: {
+      nodes: issueNumbers.map((number) => ({
+        url: `https://github.com/sayosomi/nuinuiCAD/issues/${number}`,
+      })),
+    },
+  };
+}
+
+function say385GithubIssue(number) {
+  return {
+    number,
+    body: `Historical mirror\n\n<!-- linear-issue-id:${SAY_385_ID} -->`,
+  };
+}
+
 async function reconcileIssueCommentPages(pages, githubFetch = async () => []) {
   return reconcileIssueComments("issue-a", commentEnv, {
     linearGraphql: async (query, { after }) => {
@@ -291,6 +313,74 @@ test("completed Linear comment pagination reconciles all pages and preserves Git
   assert.equal(githubCalls.filter(({ init }) => init.method === "POST").length, 2);
   assert.ok(githubCalls.some(({ path, init }) => path.endsWith("/issues/comments/41") && init.method === "DELETE"));
   assert.equal(githubCalls.some(({ path, init }) => path.endsWith("/issues/comments/42")), false);
+});
+
+test("SAY-385 managed comment reads and writes use only #1108 and stay idempotent", async () => {
+  const calls = [];
+  const githubComments = [];
+  let nextGithubCommentId = 100;
+  const historicalComment = linearComment("say385-comment", { parentId: SAY_385_ID });
+  const options = {
+    linearGraphql: async (query) => {
+      if (query.includes("MirrorIssueCommentParent")) return { issue: say385IssueCommentParent() };
+      if (query.includes("MirrorIssueComments")) return linearCommentsPage("issue", [historicalComment], undefined, SAY_385_ID);
+      assert.fail(`unexpected Linear query: ${query}`);
+    },
+    githubFetch: async (path, init = {}) => {
+      const method = init.method ?? "GET";
+      calls.push({ path, method, body: init.body ? JSON.parse(init.body) : undefined });
+      if (path === "/repos/sayosomi/nuinuiCAD/issues/1108" && method === "GET") return say385GithubIssue(1108);
+      if (path === "/repos/sayosomi/nuinuiCAD/issues/1107" && method === "GET") return say385GithubIssue(1107);
+      if (path === "/repos/sayosomi/nuinuiCAD/issues/1108/comments?per_page=100&page=1" && method === "GET") return githubComments;
+      if (path === "/repos/sayosomi/nuinuiCAD/issues/1108/comments" && method === "POST") {
+        const created = { id: nextGithubCommentId++, body: JSON.parse(init.body).body };
+        githubComments.push(created);
+        return created;
+      }
+      assert.fail(`unexpected GitHub request: ${method} ${path}`);
+    },
+  };
+
+  assert.equal(await reconcileIssueComments(SAY_385_ID, commentEnv, options), true);
+  assert.equal(await reconcileIssueComments(SAY_385_ID, commentEnv, options), true);
+
+  assert.deepEqual(calls.filter(({ method, path }) => method === "GET" && /\/issues\/(1107|1108)$/.test(path)).map(({ path }) => path), [
+    "/repos/sayosomi/nuinuiCAD/issues/1108",
+    "/repos/sayosomi/nuinuiCAD/issues/1107",
+    "/repos/sayosomi/nuinuiCAD/issues/1108",
+    "/repos/sayosomi/nuinuiCAD/issues/1107",
+  ]);
+  const commentReads = calls.filter(({ path }) => path.includes("/issues/") && path.includes("/comments?"));
+  const commentWrites = calls.filter(({ path, method }) => path.includes("/issues/") && path.endsWith("/comments") && method === "POST");
+  assert.deepEqual(commentReads.map(({ path }) => path), [
+    "/repos/sayosomi/nuinuiCAD/issues/1108/comments?per_page=100&page=1",
+    "/repos/sayosomi/nuinuiCAD/issues/1108/comments?per_page=100&page=1",
+  ]);
+  assert.deepEqual(commentWrites.map(({ path }) => path), ["/repos/sayosomi/nuinuiCAD/issues/1108/comments"]);
+  assert.equal(githubComments.length, 1);
+  assert.match(githubComments[0].body, /linear-comment-id:say385-comment/);
+});
+
+test("SAY-385 GitHub parent lookup failures propagate before comment reads or writes", async () => {
+  const calls = [];
+  await assert.rejects(reconcileIssueComments(SAY_385_ID, commentEnv, {
+    linearGraphql: async (query) => {
+      calls.push({ type: "linear", query });
+      if (query.includes("MirrorIssueCommentParent")) return { issue: say385IssueCommentParent([1108]) };
+      assert.fail(`comment pages must not be read after parent verification fails: ${query}`);
+    },
+    githubFetch: async (path, init = {}) => {
+      calls.push({ type: "github", path, method: init.method ?? "GET" });
+      throw new Error("GitHub API 503: temporarily unavailable");
+    },
+  }), /GitHub API 503/);
+
+  assert.equal(calls.filter((call) => call.type === "linear").length, 1);
+  assert.deepEqual(calls.filter((call) => call.type === "github"), [{
+    type: "github",
+    path: "/repos/sayosomi/nuinuiCAD/issues/1108",
+    method: "GET",
+  }]);
 });
 
 test("archived Linear comments remain eligible for managed GitHub deletion", async () => {

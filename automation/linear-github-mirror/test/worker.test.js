@@ -329,6 +329,107 @@ test("active Queue recovers an archived marker match, updates it, and reconciles
   assert.ok(firstCommentFetch < firstCommentCreate);
 });
 
+test("active Queue reconciles historical SAY-385 only to #1108 and creates comments once", async () => {
+  const calls = [];
+  const linearIssueId = "8bc80133-54b9-48f9-ac73-456d0823855e";
+  const issue = {
+    id: linearIssueId,
+    identifier: "SAY-385",
+    title: "Historical duplicate mirror",
+    description: "Canonical Linear body",
+    priority: 2,
+    updatedAt: "2026-10-11T00:00:00.000Z",
+    archivedAt: "2026-10-03T00:00:00.000Z",
+    url: "https://linear.app/sayosomi/issue/SAY-385/historical-duplicate-mirror",
+    team: { id: "team-a", name: "SAY", key: "SAY" },
+    state: { id: "state-done", name: "Done", type: "completed" },
+    labels: { nodes: [] },
+    attachments: { nodes: [
+      { id: "attachment-1107", title: "GitHub #1107", url: "https://github.com/sayosomi/nuinuiCAD/issues/1107" },
+      { id: "attachment-1108", title: "GitHub #1108", url: "https://github.com/sayosomi/nuinuiCAD/issues/1108" },
+    ] },
+    relations: { nodes: [] },
+    inverseRelations: { nodes: [] },
+    project: null,
+    parent: null,
+  };
+  const linearComment = {
+    id: "comment-say-385",
+    body: "Preserve this historical comment on the canonical mirror.",
+    archivedAt: null,
+    createdAt: "2026-10-02T00:00:00.000Z",
+    editedAt: null,
+    updatedAt: "2026-10-02T00:00:00.000Z",
+    parentId: linearIssueId,
+  };
+  const githubComments = [];
+  let nextCommentId = 11000;
+  const mockFetch = async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method ?? "GET";
+    const call = { host: url.hostname, path: url.pathname, search: url.search, method };
+    if (init.body) call.body = JSON.parse(init.body);
+    calls.push(call);
+
+    if (url.hostname === "api.linear.app") {
+      const { query } = JSON.parse(init.body);
+      call.query = query;
+      if (query.includes("query MirrorIssue(")) return jsonResponse({ data: { issue } });
+      if (query.includes("query MirrorIssueCommentParent(")) return jsonResponse({ data: { issue } });
+      if (query.includes("query MirrorIssueComments(")) {
+        return jsonResponse({ data: { issue: { id: linearIssueId, comments: {
+          nodes: [linearComment],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        } } } });
+      }
+      assert.fail(`unexpected Linear query: ${query}`);
+    }
+
+    if (url.hostname !== "api.github.com") assert.fail(`unexpected host: ${url.hostname}`);
+    if ([1107, 1108].some((number) => url.pathname === `/repos/sayosomi/nuinuiCAD/issues/${number}`) && method === "GET") {
+      const number = Number(url.pathname.split("/").at(-1));
+      return jsonResponse({ number, body: `Historical mirror\n\n<!-- linear-issue-id:${linearIssueId} -->` });
+    }
+    if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/1108" && method === "PATCH") {
+      return jsonResponse({ number: 1108 });
+    }
+    if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/1108/comments" && url.search === "?per_page=100&page=1" && method === "GET") {
+      return jsonResponse(githubComments);
+    }
+    if (url.pathname === "/repos/sayosomi/nuinuiCAD/issues/1108/comments" && !url.search && method === "POST") {
+      const created = { id: nextCommentId++, body: call.body.body };
+      githubComments.push(created);
+      return jsonResponse(created, 201);
+    }
+    assert.fail(`unexpected GitHub request: ${method} ${url.pathname}${url.search}`);
+  };
+
+  const message = {
+    body: { payload: { type: "Issue", action: "reconcile", data: { id: linearIssueId } } },
+  };
+  await withFetchMock(mockFetch, async () => {
+    await worker.queue({ messages: [message, message] }, envFor("active"));
+  });
+
+  const patches = calls.filter(({ path, method }) => path.startsWith("/repos/sayosomi/nuinuiCAD/issues/") && method === "PATCH");
+  assert.deepEqual(patches.map(({ path }) => path), [
+    "/repos/sayosomi/nuinuiCAD/issues/1108",
+    "/repos/sayosomi/nuinuiCAD/issues/1108",
+  ]);
+  assert.equal(calls.some(({ path, method }) => path.endsWith("/issues/1107") && method === "PATCH"), false);
+  assert.equal(calls.filter(({ query }) => query?.includes("mutation AttachGithubIssue(")).length, 0);
+
+  const verificationGets = calls.filter(({ path, method, search }) => method === "GET" && !search && /\/issues\/(1107|1108)$/.test(path));
+  assert.deepEqual(verificationGets.map(({ path }) => path.split("/").at(-1)), ["1108", "1107", "1108", "1107", "1108", "1107", "1108", "1107"]);
+  const commentReads = calls.filter(({ path, search }) => path.endsWith("/comments") && search === "?per_page=100&page=1");
+  assert.equal(commentReads.length, 2);
+  assert.ok(commentReads.every(({ path }) => path === "/repos/sayosomi/nuinuiCAD/issues/1108/comments"));
+  const commentCreates = calls.filter(({ path, method }) => method === "POST" && path.endsWith("/comments"));
+  assert.deepEqual(commentCreates.map(({ path }) => path), ["/repos/sayosomi/nuinuiCAD/issues/1108/comments"]);
+  assert.equal(githubComments.length, 1);
+  assert.match(githubComments[0].body, /linear-comment-id:comment-say-385/);
+});
+
 test("active Queue propagates incomplete comment reconciliation without acknowledging the message", async () => {
   const linearCalls = [];
   const githubCalls = [];
