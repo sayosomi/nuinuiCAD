@@ -4729,6 +4729,29 @@ export const compileModuleScalarRuntime = ({
       });
       if (members.length === value.value.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
     }
+    const rootRecordAnalysis = sourceNamespace?.recordSemanticAnalysis;
+    const rootCollectionAnalysis = sourceNamespace?.geometryArraySemanticAnalysis;
+    if (rootRecordAnalysis && rootCollectionAnalysis) {
+      for (const recordValue of moduleSemanticAnalysis.rootRecordValuesByStatementId.values()) {
+        const target = recordValue.target;
+        const typeIdentity = recordValue.value.typeIdentity;
+        const definition = typeIdentity
+          ? rootRecordAnalysis.definitionsByStatementId.get(typeIdentity)
+          : undefined;
+        if (!definition || target?.kind !== "recordValue") continue;
+        for (const { path: fieldPath, valueType } of recordFieldPathsFor(definition, rootRecordAnalysis)) {
+          const requiredType = dslRequiredValueTypeOf(valueType) ?? valueType;
+          if (!isDslArrayValueType(requiredType)) continue;
+          appendCanonicalRecordFieldContentsForTarget(
+            target,
+            fieldPath,
+            null,
+            rootCollectionAnalysis,
+            recordValue.value.statementIndex
+          );
+        }
+      }
+    }
     for (const recordValue of moduleSemanticAnalysis.rootRecordValuesByStatementId.values()) {
       for (const field of recordValue.fieldExpressions) {
         appendRecordFieldProjection(field.expression, null);

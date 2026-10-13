@@ -17,10 +17,12 @@ import {
   moduleRecordParameterScalarBindingIdForPath,
   moduleScalarBindingIdFor,
   recordFieldCollectionValueIdFor,
+  recordValueCollectionIdFor,
   recordFieldContentsCollectionValueIdFor,
   resolveTypedDependencyGraphRuntime,
   typedDependencyBindingHasActiveGeometryPrerequisite
 } from "@nuinuicad/nui-language";
+import type { ScalarProgramCollection } from "@nuinuicad/nui-language";
 import { pickCandidates } from "../model/pickCandidates";
 import type { LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import type { GeometryInputTarget } from "../types/geometry";
@@ -135,6 +137,56 @@ const elementNamed = (compiled: ReturnType<typeof compileWithIds>, name: string)
   const element = compiled.document?.elements.find((candidate) => candidate.name === name);
   if (!element) throw new Error(`missing element ${name}`);
   return element;
+};
+
+const rootRecordFieldContentsIdFor = (
+  compiled: ReturnType<typeof compileWithIds>,
+  recordName: string,
+  fieldName: string
+) => {
+  const recordValue = [...compiled.moduleSemanticAnalysis!.rootRecordValuesByStatementId.values()].find(
+    (candidate) => candidate.value.name === recordName
+  );
+  if (!recordValue) throw new Error(`missing root record value ${recordName}`);
+  if (!recordValue.value.typeIdentity) throw new Error(`missing record type identity for ${recordName}`);
+  const recordAnalysis = compiled.sourceLexicalNamespace?.recordSemanticAnalysis;
+  const definition = recordAnalysis?.definitionsByStatementId.get(recordValue.value.typeIdentity);
+  if (!definition) throw new Error(`missing record definition for ${recordName}`);
+  const field = definition.fields.find((candidate) => candidate.name === fieldName);
+  if (!field) throw new Error(`missing ${recordName}.${fieldName} field`);
+  return recordFieldContentsCollectionValueIdFor(
+    recordValueCollectionIdFor([], recordValue.value.statementId),
+    [field.identity]
+  );
+};
+
+const collectionAliasTerminalIdFor = (
+  collections: readonly ScalarProgramCollection[],
+  startValueId: string
+): string | null => {
+  const byId = new Map(collections.map((collection) => [collection.valueId, collection]));
+  const visited = new Set<string>();
+  let valueId = startValueId;
+  while (!visited.has(valueId)) {
+    visited.add(valueId);
+    const collection = byId.get(valueId);
+    if (!collection) return null;
+    if (collection.kind !== "alias") return valueId;
+    valueId = collection.targetValueId;
+  }
+  return null;
+};
+
+const scalarBindingResultFor = (
+  compiled: ReturnType<typeof compileWithIds>,
+  result: ReturnType<typeof evaluateCompiled>,
+  name: string
+) => {
+  const binding = compiled.bindingAnalysis!.catalog.bindings.find(
+    (candidate) => candidate.kind === "typed" && candidate.name === name
+  );
+  if (!binding) throw new Error(`missing typed binding ${name}`);
+  return result.computedScalarBindings?.get(binding.id);
 };
 
 const moduleLocalScalarBindingIdFor = (
@@ -1569,6 +1621,216 @@ describe("module scalar runtime integration", () => {
       expect(initializer.collectionValueId).toMatch(/^record-field-contents:/);
       expect(compiled.scalarProgram?.collectionValues?.some((collection) => collection.valueId === initializer.collectionValueId)).toBe(true);
       expect(evaluated.computedScalarBindings?.get(binding!.id)).toMatchObject({ status: "ok", value: { kind: "number", value: expected } });
+    }
+  });
+
+  it("emits the canonical root record collection-field producer for a Module-forwarded record", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Packet(xs: number[], tag: number)",
+      "const Input: Packet = Packet(xs: [7, 19], tag: 101)",
+      "module Forward(packet: Packet) {",
+      "  export const out: Packet = @packet",
+      "}",
+      "instance Use = Forward(packet: @Input)",
+      "const Length: number = @Use::out.xs.length",
+      "const First: number = @Use::out.xs[0]",
+      "const Tag: number = @Use::out.tag"
+    ].join("\n"), "issue1376-root-record-forward");
+    expectValid(compiled);
+
+    const rootFieldContentsId = rootRecordFieldContentsIdFor(compiled, "Input", "xs");
+    const collections = compiled.scalarProgram?.collectionValues ?? [];
+    const rootProducers = collections.filter((collection) => collection.valueId === rootFieldContentsId);
+    expect(rootProducers).toHaveLength(1);
+    expect(rootProducers[0]).toMatchObject({
+      kind: "literal",
+      members: [
+        { kind: "literal", type: { kind: "number" }, value: { kind: "number", value: 7 } },
+        { kind: "literal", type: { kind: "number" }, value: { kind: "number", value: 19 } }
+      ]
+    });
+
+    const fieldContentsAliases = collections.filter((collection) =>
+      collection.kind === "alias" && collection.valueId.startsWith("record-field-contents:")
+    );
+    const parameterAlias = fieldContentsAliases.find((collection) =>
+      collection.kind === "alias" &&
+      collection.valueId.includes("module-record-parameter:") &&
+      collection.targetValueId === rootFieldContentsId
+    );
+    expect(parameterAlias).toBeDefined();
+    const aliasesResolvingToRoot = fieldContentsAliases.filter((collection) =>
+      collectionAliasTerminalIdFor(collections, collection.valueId) === rootFieldContentsId
+    );
+    expect(aliasesResolvingToRoot.length).toBeGreaterThanOrEqual(2);
+    expect(aliasesResolvingToRoot.some((collection) =>
+      !collection.valueId.includes("module-record-parameter:") && collection.valueId.includes("record-value:")
+    )).toBe(true);
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    expect(scalarBindingResultFor(compiled, result, "Length")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 2 }
+    });
+    expect(scalarBindingResultFor(compiled, result, "First")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 7 }
+    });
+    expect(scalarBindingResultFor(compiled, result, "Tag")).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 101 }
+    });
+  });
+
+  it("keeps root record collection contents isolated across instances and whole-record aliases", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Packet(xs: number[], tag: number)",
+      "const Short: Packet = Packet(xs: [2], tag: 101)",
+      "const Long: Packet = Packet(xs: [5, 7, 11], tag: 202)",
+      "module Forward(packet: Packet) {",
+      "  export const out: Packet = @packet",
+      "}",
+      "module LocalForward(packet: Packet) {",
+      "  const local: Packet = @packet",
+      "  export const out: Packet = @local",
+      "}",
+      "module Factory() {",
+      "  const local: Packet = Packet(xs: [23, 29], tag: 404)",
+      "  const alias: Packet = @local",
+      "  export const out: Packet = @alias",
+      "}",
+      "instance ShortUse = Forward(packet: @Short)",
+      "instance LongUse = Forward(packet: @Long)",
+      "instance LocalUse = LocalForward(packet: @Short)",
+      "instance InlineUse = Forward(packet: Packet(xs: [13, 17], tag: 303))",
+      "instance FactoryUse = Factory()",
+      "const shortLength: number = @ShortUse::out.xs.length",
+      "const shortFirst: number = @ShortUse::out.xs[0]",
+      "const shortTag: number = @ShortUse::out.tag",
+      "const longLength: number = @LongUse::out.xs.length",
+      "const longFirst: number = @LongUse::out.xs[0]",
+      "const longSecond: number = @LongUse::out.xs[1]",
+      "const longTag: number = @LongUse::out.tag",
+      "const localLength: number = @LocalUse::out.xs.length",
+      "const localFirst: number = @LocalUse::out.xs[0]",
+      "const localTag: number = @LocalUse::out.tag",
+      "const inlineLength: number = @InlineUse::out.xs.length",
+      "const inlineFirst: number = @InlineUse::out.xs[0]",
+      "const inlineTag: number = @InlineUse::out.tag",
+      "const factoryLength: number = @FactoryUse::out.xs.length",
+      "const factoryFirst: number = @FactoryUse::out.xs[0]",
+      "const factoryTag: number = @FactoryUse::out.tag",
+      "record TagOnly(tag: number)",
+      "const Scalar: TagOnly = TagOnly(tag: 505)",
+      "const ScalarAlias: TagOnly = @Scalar",
+      "module ScalarForward(input: TagOnly) {",
+      "  export const out: TagOnly = @input",
+      "}",
+      "instance ScalarUse = ScalarForward(input: @ScalarAlias)",
+      "const scalarOnlyTag: number = @ScalarUse::out.tag",
+      "const standalone: number[] = [4, 4, 8]",
+      "const standaloneAlias: number[] = @standalone",
+      "const standaloneLength: number = @standaloneAlias.length",
+      "const standaloneDuplicate: number = @standaloneAlias[1]"
+    ].join("\n"), "issue1376-record-instance-isolation");
+    expectValid(compiled);
+
+    const collections = compiled.scalarProgram?.collectionValues ?? [];
+    const shortFieldContentsId = rootRecordFieldContentsIdFor(compiled, "Short", "xs");
+    const longFieldContentsId = rootRecordFieldContentsIdFor(compiled, "Long", "xs");
+    expect(shortFieldContentsId).not.toBe(longFieldContentsId);
+    const parameterAliases = collections.flatMap((collection) =>
+      collection.kind === "alias" &&
+      collection.valueId.startsWith("record-field-contents:") &&
+      collection.valueId.includes("module-record-parameter:")
+        ? [collection]
+        : []
+    );
+    expect(new Set(parameterAliases.map((collection) => collection.targetValueId))).toEqual(
+      new Set([shortFieldContentsId, longFieldContentsId])
+    );
+
+    for (const [name, value] of [["Short", [2]], ["Long", [5, 7, 11]]] as const) {
+      const valueId = rootRecordFieldContentsIdFor(compiled, name, "xs");
+      const producers = collections.filter((collection) => collection.valueId === valueId);
+      expect(producers).toHaveLength(1);
+      expect(producers[0]).toMatchObject({
+        kind: "literal",
+        members: value.map((member) => ({
+          kind: "literal",
+          type: { kind: "number" },
+          value: { kind: "number", value: member }
+        }))
+      });
+    }
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    for (const [name, value] of [
+      ["shortLength", 1], ["shortFirst", 2], ["shortTag", 101],
+      ["longLength", 3], ["longFirst", 5], ["longSecond", 7], ["longTag", 202],
+      ["localLength", 1], ["localFirst", 2], ["localTag", 101],
+      ["inlineLength", 2], ["inlineFirst", 13], ["inlineTag", 303],
+      ["factoryLength", 2], ["factoryFirst", 23], ["factoryTag", 404],
+      ["scalarOnlyTag", 505], ["standaloneLength", 3], ["standaloneDuplicate", 4]
+    ] as const) {
+      expect(scalarBindingResultFor(compiled, result, name), name).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value }
+      });
+    }
+  });
+
+  it("preserves empty and duplicate root record collection members when forwarded", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "record Packet(xs: number[], tag: number)",
+      "const Empty: Packet = Packet(xs: [], tag: 61)",
+      "const Repeated: Packet = Packet(xs: [3, 3, 5, 3], tag: 72)",
+      "module Forward(packet: Packet) {",
+      "  export const out: Packet = @packet",
+      "}",
+      "instance EmptyUse = Forward(packet: @Empty)",
+      "instance RepeatedUse = Forward(packet: @Repeated)",
+      "const emptyLength: number = @EmptyUse::out.xs.length",
+      "const emptyTag: number = @EmptyUse::out.tag",
+      "const repeatedLength: number = @RepeatedUse::out.xs.length",
+      "const repeatedFirst: number = @RepeatedUse::out.xs[0]",
+      "const repeatedThird: number = @RepeatedUse::out.xs[2]",
+      "const repeatedLast: number = @RepeatedUse::out.xs[3]",
+      "const repeatedTag: number = @RepeatedUse::out.tag"
+    ].join("\n"), "issue1376-root-record-collection-edge-cases");
+    expectValid(compiled);
+
+    const collections = compiled.scalarProgram?.collectionValues ?? [];
+    for (const [name, value] of [["Empty", []], ["Repeated", [3, 3, 5, 3]]] as const) {
+      const valueId = rootRecordFieldContentsIdFor(compiled, name, "xs");
+      const producers = collections.filter((collection) => collection.valueId === valueId);
+      expect(producers).toHaveLength(1);
+      expect(producers[0]).toMatchObject({
+        kind: "literal",
+        members: value.map((member) => ({
+          kind: "literal",
+          type: { kind: "number" },
+          value: { kind: "number", value: member }
+        }))
+      });
+    }
+
+    const result = evaluateCompiled(compiled);
+    expect(result.errors).toEqual([]);
+    for (const [name, value] of [
+      ["emptyLength", 0], ["emptyTag", 61],
+      ["repeatedLength", 4], ["repeatedFirst", 3], ["repeatedThird", 5],
+      ["repeatedLast", 3], ["repeatedTag", 72]
+    ] as const) {
+      expect(scalarBindingResultFor(compiled, result, name), name).toMatchObject({
+        status: "ok",
+        value: { kind: "number", value }
+      });
     }
   });
 
