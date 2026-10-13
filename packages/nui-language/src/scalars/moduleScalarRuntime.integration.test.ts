@@ -1,16 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { emptyDocument } from "@nuinuicad/nui-language";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { compileDslDocument, type CompiledDslDocument } from "../dsl/dslDocument";
+import { createModuleRuntimeContext } from "../dsl/moduleRuntimeContext";
+import {
+  analyzeMultiDocumentModuleSemantics,
+  moduleDeclarationContributor
+} from "../document/multiDocumentModuleSemantics";
+import {
+  buildMultiDocumentImportGraph,
+  type MultiDocumentSavedSourceLoader
+} from "../document/multiDocumentImportGraph";
+import {
+  documentIdFromHost,
+  savedSourceFingerprintFromHost
+} from "../document/multiDocumentPrimitives";
 import { compileModuleScalarRuntime } from "./moduleScalarRuntime";
 
-const compileWithUnsupportedGeometryBuiltinTargets = (compiledText: ReturnType<typeof compileCanonicalText>) => {
-  const compiled = compiledText.currentCompiled;
+const compileWithUnsupportedGeometryBuiltinTargets = (compiled: CompiledDslDocument) => {
   const moduleSemanticAnalysis = compiled.moduleSemanticAnalysis;
   const moduleMaterialization = compiled.moduleMaterialization;
   const moduleGeometryRuntime = compiled.moduleGeometryRuntime;
   const statementMap = compiled.statementMap;
   const stableStatementIdByIndex = statementMap?.statementIdByStatementIndex;
-  if (!moduleSemanticAnalysis || !moduleMaterialization || !moduleGeometryRuntime || !statementMap || !stableStatementIdByIndex) {
+  if (!compiled.document || !moduleSemanticAnalysis || !moduleMaterialization || !moduleGeometryRuntime || !statementMap || !stableStatementIdByIndex) {
     throw new Error("compiled Module runtime inputs are required for unsupported-target diagnostics");
   }
   return compileModuleScalarRuntime({
@@ -22,9 +35,9 @@ const compileWithUnsupportedGeometryBuiltinTargets = (compiledText: ReturnType<t
     documentScalarProgram: compiled.scalarProgram,
     reconciledContainers: {
       elementIdByStatementIndex: statementMap.elementIdByStatementIndex,
-      elements: compiledText.doc.document.elements
+      elements: compiled.document.elements
     },
-    elements: compiledText.doc.document.elements,
+    elements: compiled.document.elements,
     sourceScopeIndex: compiled.sourceLexicalNamespace?.scopeIndex,
     sourceNamespace: compiled.sourceLexicalNamespace,
     moduleGeometryRuntime: {
@@ -34,7 +47,7 @@ const compileWithUnsupportedGeometryBuiltinTargets = (compiledText: ReturnType<t
       resolveBuiltinTarget: () => undefined
     },
     moduleRuntimeContext: compiled.moduleRuntimeContext,
-    drawingModifiers: compiled.document?.modifiers,
+    drawingModifiers: compiled.document.modifiers,
     transformationRecipes: compiled.runtimeTransformationRecipes
   });
 };
@@ -119,7 +132,7 @@ describe("Module geometry carry source order lowering", () => {
       return statementIndex;
     });
 
-    const diagnostics = compileWithUnsupportedGeometryBuiltinTargets(compiledText).diagnostics.filter(
+    const diagnostics = compileWithUnsupportedGeometryBuiltinTargets(compiled).diagnostics.filter(
       (diagnostic) => diagnostic.code === "builtin-geometry-target-unavailable"
     );
     expect(diagnostics).toHaveLength(8);
@@ -136,5 +149,69 @@ describe("Module geometry carry source order lowering", () => {
         .map((diagnostic) => diagnostic.logicalSpan)
     );
     expect(rootCallSpansByStatement[0]).toEqual(rootCallSpansByStatement[1]);
+  });
+
+  it("keeps imported Module endpoint diagnostics out of root statement ownership", async () => {
+    const importedDocumentId = documentIdFromHost("foreign-module-document");
+    const rootDocumentId = documentIdFromHost("root-module-document");
+    const importedSource = [
+      "nui 1",
+      "export module Measure() {",
+      "  line source = segment(start: (0, 0), end: (0, 1))",
+      "  line axis = segment(start: (0, 0), end: (1, 0))",
+      "  const angle: number = lineAngle(@source.start, @axis.start)",
+      "}"
+    ].join("\n");
+    const rootText = [
+      "nui 1",
+      "import \"./measure.nui\" as foreign",
+      "instance use = foreign::Measure()"
+    ].join("\n");
+    const root = {
+      kind: "root-current" as const,
+      documentId: rootDocumentId,
+      normalizedSource: rootText,
+      sourceRevision: 1
+    };
+    const imported = {
+      kind: "dependency-saved" as const,
+      documentId: importedDocumentId,
+      savedSourceFingerprint: savedSourceFingerprintFromHost("sha256:foreign-module-document"),
+      normalizedSource: importedSource
+    };
+    const loader: MultiDocumentSavedSourceLoader = {
+      async loadSavedDependency(importerDocumentId, relativePath) {
+        return importerDocumentId === rootDocumentId && relativePath === "./measure.nui"
+          ? { status: "loaded", snapshot: imported }
+          : { status: "failed", reason: "missing" };
+      }
+    };
+    const graph = await buildMultiDocumentImportGraph({
+      root,
+      loader,
+      declarationContributors: [moduleDeclarationContributor]
+    });
+    const semantics = analyzeMultiDocumentModuleSemantics(graph);
+    const moduleRuntimeContext = createModuleRuntimeContext(graph, semantics);
+    const rootNode = graph.nodes.get(rootDocumentId)!;
+    const compiled = compileDslDocument(rootText, {
+      preparsed: rootNode.artifact.parsed,
+      sourceRevision: root.sourceRevision,
+      assignedStatementIds: rootNode.artifact.statementIdByStatementIndex,
+      moduleRuntimeContext
+    });
+
+    expect(graph.valid).toBe(true);
+    expect(semantics.valid).toBe(true);
+    expect(moduleRuntimeContext.valid).toBe(true);
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+
+    const diagnostics = compileWithUnsupportedGeometryBuiltinTargets(compiled).diagnostics.filter(
+      (diagnostic) => diagnostic.code === "builtin-geometry-target-unavailable"
+    );
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics.map((diagnostic) => diagnostic.line)).toEqual([5, 5]);
+    expect(diagnostics.every((diagnostic) => diagnostic.statementIndex === undefined)).toBe(true);
+    expect(diagnostics.every((diagnostic) => diagnostic.logicalSpan === undefined)).toBe(true);
   });
 });

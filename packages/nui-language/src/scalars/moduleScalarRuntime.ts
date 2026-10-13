@@ -2201,7 +2201,6 @@ export const compileModuleScalarRuntime = ({
   const geometryEndpointOccurrenceIds = new WeakMap<ModuleGeometryBuiltinArgumentSemantic, number>();
   let nextGeometryEndpointOccurrenceId = 0;
   const rootDocumentId = moduleRuntimeContext?.rootDocumentId ?? moduleSemanticAnalysis.documentId;
-  const rootDocumentIsCurrent = !moduleRuntimeContext || rootDocumentId === moduleRuntimeContext.rootDocumentId;
   const rootStatementIndexByIdentity = new Map(
     [...stableStatementIdByIndex].map(([statementIndex, statementId]) => [statementId, statementIndex] as const)
   );
@@ -2236,7 +2235,7 @@ export const compileModuleScalarRuntime = ({
       ...(rootDocumentId ? { documentId: rootDocumentId } : {}),
       statementId,
       ...(statementIndex !== undefined ? { documentStatementIndex: statementIndex } : {}),
-      ...(rootDocumentIsCurrent && statementIndex !== undefined ? { rootStatementIndex: statementIndex } : {}),
+      ...(statementIndex !== undefined ? { rootStatementIndex: statementIndex } : {}),
       ...(statementIndex !== undefined ? { line: statements[statementIndex]?.line } : {})
     });
     for (const [statementId, site] of moduleSemanticAnalysis.rootScalarExpressionsByStatementId) {
@@ -2299,14 +2298,18 @@ export const compileModuleScalarRuntime = ({
     ];
     const sourceOwner = expressionOwners.find((candidate) => expressionHasGeometryEndpoint(candidate.expression, occurrence));
     if (!sourceOwner) return undefined;
-    const documentId = context.definitionDocumentId ?? context.definition.documentId ?? rootDocumentId;
+    const documentId = context.definitionDocumentId ?? context.definition.documentId ??
+      (moduleRuntimeContext ? undefined : rootDocumentId);
     const sourceStatements = moduleRuntimeContext?.documentFor(documentId)?.statements ??
       (documentId === rootDocumentId ? statements : undefined);
+    const sourceIsRootDocument = moduleRuntimeContext
+      ? documentId !== undefined && documentId === moduleRuntimeContext.rootDocumentId
+      : documentId === rootDocumentId;
     return {
       ...(documentId ? { documentId } : {}),
       statementId: sourceOwner.statementId,
       documentStatementIndex: sourceOwner.statementIndex,
-      ...(rootDocumentIsCurrent || documentId === moduleRuntimeContext?.rootDocumentId
+      ...(sourceIsRootDocument
         ? { rootStatementIndex: sourceOwner.statementIndex }
         : {}),
       ...(sourceStatements?.[sourceOwner.statementIndex]
