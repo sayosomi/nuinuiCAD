@@ -386,6 +386,11 @@ export const resolveDocumentGeometryTarget = (
   sourceOrder: number,
   resolveOccurrenceIndex?: OccurrenceIndexResolver
 ): GeometryBuiltinTargetLookupResult | undefined => {
+  if (target.kind === "geometryCarry") {
+    const carried = geometry.geometryCarryValues?.get(target.bindingId);
+    if (target.pointKey === undefined || !carried || carried.kind === "unavailable") return carried;
+    return resolveDerivedPoint(carried, target.pointKey, new Map(geometry.elementsById)) ?? undefined;
+  }
   if (target.kind === "geometryValue") {
     const entry = geometry.computedGeometryValues?.get(geometryValueOccurrenceKey(target.occurrence));
     if (!entry) return undefined;

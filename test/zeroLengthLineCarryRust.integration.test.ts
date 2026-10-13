@@ -691,18 +691,11 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
     expectRootScalar(fixture, rustPayload, "result", {
       status: "ok", value: { kind: "number", value: 25 }
     });
-    // Issue #1381 owns the independent TypeScript carry lookup defect. Keep
-    // its current failure visible instead of treating this as Rust/TS parity.
-    const tsResult = evaluationPayloadToResult(tsPayload).computedScalarBindings?.get(rootBindingFor(fixture, "result").id);
-    expect(tsResult).toMatchObject({ status: "error", issueCode: "evaluation-geometry-builtin-unavailable" });
-    expect(runtimeDiagnosticsFor(fixture, tsPayload)).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        origin: "runtime",
-        severity: "error",
-        code: "evaluation-geometry-builtin-unavailable",
-        bindingId: rootBindingFor(fixture, "result").id
-      })
-    ]));
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+    expectRootScalar(fixture, tsPayload, "result", {
+      status: "ok", value: { kind: "number", value: 25 }
+    });
+    expect(runtimeDiagnosticsFor(fixture, tsPayload)).toEqual([]);
   }, 120_000);
 
   it("keeps exported carry identities independent across distinct Module instances", async () => {
