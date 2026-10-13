@@ -2187,59 +2187,132 @@ export const compileModuleScalarRuntime = ({
     : undefined;
 
   const contextsByKey = new Map<string, InstanceContext>();
+  type GeometryEndpointDiagnosticOwner = {
+    documentId?: DocumentId;
+    statementId?: StatementIdentity;
+    documentStatementIndex?: number;
+    rootStatementIndex?: number;
+    line?: number;
+  };
   const unresolvedGeometryEndpointArguments = new Map<string, {
     occurrence: ModuleGeometryBuiltinArgumentSemantic;
-    statementIndex?: number;
-    line?: number;
+    owner?: GeometryEndpointDiagnosticOwner;
   }>();
+  const geometryEndpointOccurrenceIds = new WeakMap<ModuleGeometryBuiltinArgumentSemantic, number>();
+  let nextGeometryEndpointOccurrenceId = 0;
+  const rootDocumentId = moduleRuntimeContext?.rootDocumentId ?? moduleSemanticAnalysis.documentId;
+  const rootDocumentIsCurrent = !moduleRuntimeContext || rootDocumentId === moduleRuntimeContext.rootDocumentId;
+  const rootStatementIndexByIdentity = new Map(
+    [...stableStatementIdByIndex].map(([statementIndex, statementId]) => [statementId, statementIndex] as const)
+  );
+  const expressionHasGeometryEndpoint = (
+    expression: ModuleScalarExpressionSemantic | null | undefined,
+    occurrence: ModuleGeometryBuiltinArgumentSemantic
+  ) => expression?.geometryBuiltinArguments.some((candidate) => candidate === occurrence) ?? false;
   const recordUnresolvedGeometryEndpoint = (
     occurrence: ModuleGeometryBuiltinArgumentSemantic,
-    statementIndex?: number,
-    line?: number
+    owner?: GeometryEndpointDiagnosticOwner
   ) => {
     if (!occurrence.endpointKey || !occurrence.reference.target ||
         (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return;
+    let occurrenceId = geometryEndpointOccurrenceIds.get(occurrence);
+    if (occurrenceId === undefined) {
+      occurrenceId = nextGeometryEndpointOccurrenceId;
+      nextGeometryEndpointOccurrenceId += 1;
+      geometryEndpointOccurrenceIds.set(occurrence, occurrenceId);
+    }
     unresolvedGeometryEndpointArguments.set(
-      `${occurrence.builtinName}:${occurrence.span.start}:${occurrence.span.end}`,
+      JSON.stringify([owner?.documentId ?? null, owner?.statementId ?? null, occurrenceId]),
       {
         occurrence,
-        ...(statementIndex !== undefined ? { statementIndex } : {}),
-        ...(line !== undefined ? { line } : {})
+        ...(owner ? { owner } : {})
       }
     );
   };
-  const rootStatementIndexForGeometryEndpoint = (occurrence: ModuleGeometryBuiltinArgumentSemantic) => {
-    const statementId = [...moduleSemanticAnalysis.rootScalarExpressionsByStatementId].find(([, site]) =>
-      site.expression.geometryBuiltinArguments.some((candidate) =>
-        candidate.span.start === occurrence.span.start && candidate.span.end === occurrence.span.end
-      )
-    )?.[0];
-    return statementId === undefined
-      ? undefined
-      : [...stableStatementIdByIndex].find(([, candidate]) => candidate === statementId)?.[0];
+  const rootGeometryEndpointOwnerFor = (
+    occurrence: ModuleGeometryBuiltinArgumentSemantic
+  ): GeometryEndpointDiagnosticOwner | undefined => {
+    const ownerFor = (statementId: StatementIdentity, statementIndex: number | undefined): GeometryEndpointDiagnosticOwner => ({
+      ...(rootDocumentId ? { documentId: rootDocumentId } : {}),
+      statementId,
+      ...(statementIndex !== undefined ? { documentStatementIndex: statementIndex } : {}),
+      ...(rootDocumentIsCurrent && statementIndex !== undefined ? { rootStatementIndex: statementIndex } : {}),
+      ...(statementIndex !== undefined ? { line: statements[statementIndex]?.line } : {})
+    });
+    for (const [statementId, site] of moduleSemanticAnalysis.rootScalarExpressionsByStatementId) {
+      if (!expressionHasGeometryEndpoint(site.expression, occurrence)) continue;
+      return ownerFor(statementId, rootStatementIndexByIdentity.get(statementId));
+    }
+    for (const [statementId, sites] of moduleSemanticAnalysis.rootElementScalarExpressionsByStatementId) {
+      if (!sites.some((site) => expressionHasGeometryEndpoint(site.expression, occurrence))) continue;
+      return ownerFor(statementId, rootStatementIndexByIdentity.get(statementId));
+    }
+    for (const [statementId, recordValue] of moduleSemanticAnalysis.rootRecordValuesByStatementId) {
+      if (!recordValue.fieldExpressions.some((field) => expressionHasGeometryEndpoint(field.expression, occurrence))) continue;
+      return ownerFor(statementId, recordValue.value.statementIndex);
+    }
+    for (const mapped of moduleSemanticAnalysis.mappedRecordCollectionBodies) {
+      if (!mapped.fields.some((field) => expressionHasGeometryEndpoint(field.body, occurrence))) continue;
+      return ownerFor(mapped.statementId, mapped.statementIndex);
+    }
+    return undefined;
   };
-  const moduleStatementIndexForGeometryEndpoint = (
-    occurrence: ModuleGeometryBuiltinArgumentSemantic,
-    context: InstanceContext
-  ) => context.definition.bodyStatements.find((body) =>
-    body.scalarExpressions.some((site) => site.expression.geometryBuiltinArguments.some((candidate) =>
-      candidate.span.start === occurrence.span.start && candidate.span.end === occurrence.span.end
-    ))
-  )?.statementIndex;
-  const moduleSourceLocationForGeometryEndpoint = (
+  const moduleGeometryEndpointOwnerFor = (
     occurrence: ModuleGeometryBuiltinArgumentSemantic,
     context: InstanceContext
   ) => {
-    const sourceStatements = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements ?? statements;
-    const statementIndex = moduleStatementIndexForGeometryEndpoint(occurrence, context);
+    const expressionOwners: Array<{ statementId: StatementIdentity; statementIndex: number; expression: ModuleScalarExpressionSemantic | null | undefined }> = [
+      ...context.definition.bodyStatements.flatMap((body) => body.scalarExpressions.map((site) => ({
+        statementId: body.statementId,
+        statementIndex: body.statementIndex,
+        expression: site.expression
+      }))),
+      ...context.definition.localScalars.map((scalar) => ({
+        statementId: scalar.statementId,
+        statementIndex: scalar.statementIndex,
+        expression: scalar.initializer
+      })),
+      ...(context.definition.mappedScalarCollectionBodies ?? []).map((mapped) => ({
+        statementId: mapped.statementId,
+        statementIndex: mapped.statementIndex,
+        expression: mapped.body
+      })),
+      ...(context.definition.mappedRecordCollectionBodies ?? []).flatMap((mapped) => mapped.fields.map((field) => ({
+        statementId: mapped.statementId,
+        statementIndex: mapped.statementIndex,
+        expression: field.body
+      }))),
+      ...context.definition.recordValues.flatMap((recordValue) => recordValue.fieldExpressions.flatMap((field) =>
+        field.expression ? [{
+          statementId: recordValue.value.statementId,
+          statementIndex: recordValue.value.statementIndex,
+          expression: field.expression
+        }] : []
+      )),
+      ...(context.definition.immutableCarries ?? []).flatMap((carry) => [carry.initializer, carry.next].flatMap((expression) =>
+        expression ? [{
+          statementId: carry.statementId,
+          statementIndex: carry.statementIndex,
+          expression
+        }] : []
+      ))
+    ];
+    const sourceOwner = expressionOwners.find((candidate) => expressionHasGeometryEndpoint(candidate.expression, occurrence));
+    if (!sourceOwner) return undefined;
+    const documentId = context.definitionDocumentId ?? context.definition.documentId ?? rootDocumentId;
+    const sourceStatements = moduleRuntimeContext?.documentFor(documentId)?.statements ??
+      (documentId === rootDocumentId ? statements : undefined);
     return {
-      ...(context.definitionDocumentId === moduleRuntimeContext?.rootDocumentId && statementIndex !== undefined
-        ? { statementIndex }
+      ...(documentId ? { documentId } : {}),
+      statementId: sourceOwner.statementId,
+      documentStatementIndex: sourceOwner.statementIndex,
+      ...(rootDocumentIsCurrent || documentId === moduleRuntimeContext?.rootDocumentId
+        ? { rootStatementIndex: sourceOwner.statementIndex }
         : {}),
-      ...(statementIndex !== undefined && sourceStatements[statementIndex]
-        ? { line: sourceStatements[statementIndex]!.line }
+      ...(sourceStatements?.[sourceOwner.statementIndex]
+        ? { line: sourceStatements[sourceOwner.statementIndex]!.line }
         : {})
-    };
+    } satisfies GeometryEndpointDiagnosticOwner;
   };
   const allBindingInfos: BindingInfo[] = [];
   const foreignSourceScalars = new Map<import("../document/multiDocumentPrimitives").DocumentId, ForeignSourceScalars>();
@@ -5542,8 +5615,7 @@ export const compileModuleScalarRuntime = ({
     if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
       const lowered = resolvedGeometryCollectionEndpointFor(sourceTarget, context.path, resolvedGeometryType);
       if (!lowered) {
-        const location = moduleSourceLocationForGeometryEndpoint(occurrence, context);
-        recordUnresolvedGeometryEndpoint(occurrence, location.statementIndex, location.line);
+        recordUnresolvedGeometryEndpoint(occurrence, moduleGeometryEndpointOwnerFor(occurrence, context));
       }
       return lowered;
     }
@@ -5553,12 +5625,7 @@ export const compileModuleScalarRuntime = ({
       resolvedGeometryType
     );
     if (!lowered) {
-      const location = moduleSourceLocationForGeometryEndpoint(occurrence, context);
-      recordUnresolvedGeometryEndpoint(
-        occurrence,
-        location.statementIndex,
-        location.line
-      );
+      recordUnresolvedGeometryEndpoint(occurrence, moduleGeometryEndpointOwnerFor(occurrence, context));
       return undefined;
     }
     const resolvedStagePath = stagePath ?? lowered.stagePath;
@@ -5635,8 +5702,7 @@ export const compileModuleScalarRuntime = ({
     if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
       const lowered = resolvedGeometryCollectionEndpointFor(sourceTarget, [], resolvedGeometryType);
       if (!lowered) {
-        const statementIndex = rootStatementIndexForGeometryEndpoint(occurrence);
-        recordUnresolvedGeometryEndpoint(occurrence, statementIndex, statementIndex === undefined ? undefined : statements[statementIndex]?.line);
+        recordUnresolvedGeometryEndpoint(occurrence, rootGeometryEndpointOwnerFor(occurrence));
       }
       return lowered;
     }
@@ -5646,8 +5712,7 @@ export const compileModuleScalarRuntime = ({
       resolvedGeometryType
     );
     if (!lowered) {
-      const statementIndex = rootStatementIndexForGeometryEndpoint(occurrence);
-      recordUnresolvedGeometryEndpoint(occurrence, statementIndex, statementIndex === undefined ? undefined : statements[statementIndex]?.line);
+      recordUnresolvedGeometryEndpoint(occurrence, rootGeometryEndpointOwnerFor(occurrence));
       return undefined;
     }
     if (lowered.kind === "geometryValue") {
@@ -8094,16 +8159,21 @@ export const compileModuleScalarRuntime = ({
     scalarExecutionPositionByRuntimeElementId.set(entry.runtimeElementId, lastScalarExecutionPosition);
   }
 
-  const diagnostics: DslDiagnostic[] = [...unresolvedGeometryEndpointArguments.values()].map(({ occurrence, statementIndex, line }) => {
-    const statement = statementIndex === undefined ? undefined : statements[statementIndex];
+  const diagnostics: DslDiagnostic[] = [...unresolvedGeometryEndpointArguments.values()].map(({ occurrence, owner }) => {
+    const statement = owner?.documentStatementIndex === undefined
+      ? undefined
+      : moduleRuntimeContext?.documentFor(owner.documentId)?.statements[owner.documentStatementIndex] ??
+        (owner.documentId === rootDocumentId ? statements[owner.documentStatementIndex] : undefined);
     const reference = occurrence.reference.source || "geometry endpoint";
     return {
       severity: "error",
-      line: line ?? statement?.line ?? 1,
+      line: owner?.line ?? statement?.line ?? 1,
       column: 1,
       code: "builtin-geometry-target-unavailable",
       message: `組み込み関数「${occurrence.builtinName}」のgeometry endpoint「${reference}」を実行可能なtargetへ解決できません。直接参照できる対応済みのpath endpoint、または対応済みのModule exportを指定してください。`,
-      ...(statementIndex !== undefined ? { logicalSpan: occurrence.span, statementIndex } : {})
+      ...(owner?.rootStatementIndex !== undefined
+        ? { logicalSpan: occurrence.span, statementIndex: owner.rootStatementIndex }
+        : {})
     };
   });
 
