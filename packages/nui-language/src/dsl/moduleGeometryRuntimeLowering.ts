@@ -658,6 +658,78 @@ export const sourceAliasForTarget = (
   return alias ? lowerAliasWithPointKey(lowerAliasWithStagePath(alias, target.stagePath), target.pointKey) : undefined;
 };
 
+export type GeometryCarrySource = Extract<ModuleGeometrySourceTarget, { kind: "geometryCarry" }> & {
+  instancePath: readonly string[];
+};
+
+/** Resolve only compiler-owned forwarding chains that terminate at a carry.
+ * Carry aliases are intentionally not GeometryAlias values: they have no
+ * drawable identity, but geometry builtins can still consume their binding
+ * identity directly. */
+export const geometryCarrySourceForTarget = (
+  target: ModuleGeometrySourceTarget,
+  currentPath: readonly string[],
+  contextsByPath: ReadonlyMap<string, InstanceContext>
+): GeometryCarrySource | undefined => {
+  const visit = (
+    current: ModuleGeometrySourceTarget,
+    path: readonly string[],
+    inherited: { pointKey?: string; stagePath?: readonly string[] },
+    seen: ReadonlySet<string>
+  ): GeometryCarrySource | undefined => {
+    if (current.kind === "geometryCarry") {
+      const pointKey = inherited.pointKey ?? current.pointKey;
+      const stagePath = inherited.stagePath ?? current.stagePath;
+      return {
+        ...current,
+        ...(pointKey ? { pointKey } : {}),
+        ...(stagePath ? { stagePath } : {}),
+        instancePath: path
+      };
+    }
+
+    const pointKey = inherited.pointKey ?? ("pointKey" in current ? current.pointKey : undefined);
+    const stagePath = inherited.stagePath ?? ("stagePath" in current ? current.stagePath : undefined);
+    const nextInherited = { ...(pointKey ? { pointKey } : {}), ...(stagePath ? { stagePath } : {}) };
+
+    if (current.kind === "geometryValue" && current.backingTarget) {
+      return visit(current.backingTarget, path, nextInherited, seen);
+    }
+    if (current.kind === "constructionInput" && current.sourceTarget) {
+      return visit(current.sourceTarget, path, nextInherited, seen);
+    }
+    if (current.kind !== "deferredModuleExport") return undefined;
+
+    const identityKey = encodeIdentityTuple([
+      "module-export",
+      current.instanceIdentity?.documentId ?? "",
+      current.instanceStatementId,
+      current.exportedIdentity?.documentId ?? "",
+      current.exportedIdentity?.localIdentity ?? current.exportName
+    ]);
+    if (seen.has(identityKey)) return undefined;
+    const child = [...contextsByPath.values()].find((context) =>
+      context.path.length === path.length + 1 &&
+      path.every((part, index) => context.path[index] === part) &&
+      context.instanceStatementId === current.instanceStatementId &&
+      (current.instanceIdentity === undefined || context.instanceDocumentId === current.instanceIdentity.documentId)
+    );
+    if (!child) return undefined;
+    const exported = child.definition.exports.find((candidate): candidate is Extract<ResolvedModuleExport, { kind: "geometry" }> =>
+      candidate.kind === "geometry" &&
+      candidate.name === current.exportName &&
+      (current.exportedIdentity === undefined || (
+        candidate.exportedIdentity?.documentId === current.exportedIdentity.documentId &&
+        candidate.exportedIdentity.localIdentity === current.exportedIdentity.localIdentity
+      ))
+    );
+    if (!exported?.backingTarget) return undefined;
+    return visit(exported.backingTarget, child.path, nextInherited, new Set([...seen, identityKey]));
+  };
+
+  return visit(target, currentPath, {}, new Set());
+};
+
 export const lowerReference = (
   reference: ModuleGeometryReferenceSemantic,
   currentPath: readonly string[],
