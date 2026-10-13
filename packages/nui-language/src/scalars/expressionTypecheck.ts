@@ -839,7 +839,7 @@ const checkNode = (
           const endpoint = state.geometryEndpointArguments?.get(sourceArgument.span.start);
           if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
             checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
-          } else if (!endpoint) {
+          } else if (!endpoint?.target) {
             checkNode(sourceArgument, null, state);
           }
           return {
@@ -1008,7 +1008,7 @@ const checkNode = (
             const occurrenceIndex = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
             if (!checkOperandType(state, occurrenceIndex, NUMBER_TYPE)) argumentsAreValid = false;
             if (target?.kind === "forGroupOccurrence") target = { ...target, index: occurrenceIndex };
-          } else if (!endpoint) {
+          } else if (!endpoint?.target) {
             checkNode(sourceArgument, null, state);
           }
           const endpointKey = endpoint?.endpointKey ?? "start";

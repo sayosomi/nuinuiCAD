@@ -16,6 +16,7 @@ import type {
   ModuleRecordValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
+  ModuleGeometrySourceTarget,
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
 import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
@@ -1073,6 +1074,21 @@ const typecheckGeometryTargetFor = (
   const target = unwrapped.target;
   const pointKey = unwrapped.pointKey;
   const geometryType = occurrence.endpointKey ? "path" : occurrence.expectedGeometryType;
+  if (
+    occurrence.endpointKey &&
+    target.kind === "collectionIndex" &&
+    target.index.ast.kind === "numberLiteral" &&
+    Number.isInteger(target.index.ast.value) &&
+    target.index.ast.value >= 0 &&
+    target.collectionLength !== null &&
+    target.index.ast.value < target.collectionLength
+  ) {
+    return {
+      statementId: target.collectionValueId,
+      statementIndex: target.targetSourceOrder,
+      geometryType
+    };
+  }
   if (target.kind === "geometryCarry") {
     return {
       kind: "geometryCarry",
@@ -5429,6 +5445,34 @@ export const compileModuleScalarRuntime = ({
     if (reference.valueType?.kind === "line" || reference.valueType?.kind === "path") return reference.valueType.kind;
     return reference.expectedGeometryKind;
   };
+  const resolvedGeometryCollectionEndpointFor = (
+    target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>,
+    currentPath: readonly string[],
+    geometryType: ModuleGeometryInterfaceType
+  ): ScalarExpressionResolvedGeometryTarget | undefined => {
+    if (
+      !moduleGeometryRuntime ||
+      target.index.ast.kind !== "numberLiteral" ||
+      !Number.isInteger(target.index.ast.value) ||
+      target.index.ast.value < 0 ||
+      target.collectionLength === null ||
+      target.index.ast.value >= target.collectionLength
+    ) return undefined;
+    const alias = moduleGeometryRuntime.resolveGeometryArrayAliasesForValueId?.(
+      target.collectionValueId,
+      currentPath
+    )?.[target.index.ast.value];
+    if (alias?.kind !== "line") return undefined;
+    const statementIndex = elementOrderById.get(alias.elementId);
+    return statementIndex === undefined
+      ? undefined
+      : {
+          statementId: alias.elementId,
+          statementIndex,
+          geometryType,
+          ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
+        };
+  };
   const resolvedGeometryBuiltinForContext = (
     occurrence: ModuleGeometryBuiltinArgumentSemantic,
     context: InstanceContext,
@@ -5438,9 +5482,13 @@ export const compileModuleScalarRuntime = ({
     const resolvedGeometryType = occurrence.endpointKey
       ? "path"
       : expectedGeometryType ?? geometryInterfaceTypeForReference(occurrence.reference, context) ?? occurrence.expectedGeometryType;
-    const stagePath = "stagePath" in occurrence.reference.target ? occurrence.reference.target.stagePath : undefined;
+    const sourceTarget = occurrence.reference.target;
+    const stagePath = "stagePath" in sourceTarget ? sourceTarget.stagePath : undefined;
+    if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
+      return resolvedGeometryCollectionEndpointFor(sourceTarget, context.path, resolvedGeometryType);
+    }
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
-      occurrence.reference.target,
+      sourceTarget,
       context.path,
       resolvedGeometryType
     );
@@ -5511,12 +5559,16 @@ export const compileModuleScalarRuntime = ({
     occurrence: ModuleGeometryBuiltinArgumentSemantic
   ): ScalarExpressionResolvedGeometryTarget | undefined => {
     if (!moduleGeometryRuntime || !occurrence.reference.target) return undefined;
+    const sourceTarget = occurrence.reference.target;
     const resolvedGeometryType = occurrence.endpointKey
       ? "path"
       : geometryInterfaceTypeForReference(occurrence.reference) ?? occurrence.expectedGeometryType;
-    const stagePath = "stagePath" in occurrence.reference.target ? occurrence.reference.target.stagePath : undefined;
+    const stagePath = "stagePath" in sourceTarget ? sourceTarget.stagePath : undefined;
+    if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
+      return resolvedGeometryCollectionEndpointFor(sourceTarget, [], resolvedGeometryType);
+    }
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
-      occurrence.reference.target,
+      sourceTarget,
       [],
       resolvedGeometryType
     );
@@ -5573,7 +5625,13 @@ export const compileModuleScalarRuntime = ({
       };
     }
     const statementIndex = elementOrderById.get(lowered.elementId);
-    return statementIndex === undefined ? undefined : { statementId: lowered.elementId, statementIndex, geometryType: lowered.geometryType, ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}) };
+    return statementIndex === undefined ? undefined : {
+      statementId: lowered.elementId,
+      statementIndex,
+      geometryType: lowered.geometryType,
+      ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
+      ...(stagePath ? { stagePath } : {})
+    };
   };
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
   const moduleCarryNextExpressions = new Map<BindingId, TypedScalarExpression>();

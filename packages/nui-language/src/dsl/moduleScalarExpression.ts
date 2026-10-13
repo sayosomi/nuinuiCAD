@@ -510,7 +510,7 @@ const resolveAndTypecheck = ({
               if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
                 resolvedTypes.push({
                   kind: "resolvedGeometry",
-                  target: typecheckGeometryTarget(reference, expectedGeometryType)
+                  target: typecheckGeometryTarget(reference, expectedGeometryType, isEndpointParameter)
                 });
               }
               return argument;
@@ -657,7 +657,7 @@ const resolveAndTypecheck = ({
     target: ScalarExpressionResolvedGeometryTarget | null;
   }>();
   for (const occurrence of geometryBuiltinArguments) {
-    const target = typecheckGeometryTarget(occurrence.reference, occurrence.expectedGeometryType);
+    const target = typecheckGeometryTarget(occurrence.reference, occurrence.expectedGeometryType, Boolean(occurrence.endpointKey));
     geometryBuiltinArgumentTargets.set(occurrence.span.start, target);
     if (occurrence.endpointKey) geometryEndpointArgumentTargets.set(occurrence.span.start, {
       endpointKey: occurrence.endpointKey,
@@ -706,12 +706,28 @@ const resolveAndTypecheck = ({
 
 const typecheckGeometryTarget = (
   reference: ModuleGeometryReferenceSemantic,
-  expectedGeometryType: ModuleGeometryInterfaceType
+  expectedGeometryType: ModuleGeometryInterfaceType,
+  allowLiteralCollectionIndex = false
 ): ScalarExpressionResolvedGeometryTarget | null => {
   if (!reference.target || (reference.resolution !== "resolved" && reference.resolution !== "deferred")) return null;
   const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
   const target = unwrapped.target;
   const pointKey = unwrapped.pointKey;
+  if (
+    allowLiteralCollectionIndex &&
+    target.kind === "collectionIndex" &&
+    target.index.ast.kind === "numberLiteral" &&
+    Number.isInteger(target.index.ast.value) &&
+    target.index.ast.value >= 0 &&
+    target.collectionLength !== null &&
+    target.index.ast.value < target.collectionLength
+  ) {
+    return {
+      statementId: target.collectionValueId,
+      statementIndex: target.targetSourceOrder,
+      geometryType: expectedGeometryType
+    };
+  }
   if (target.kind === "geometryCarry") {
     return {
       kind: "geometryCarry",

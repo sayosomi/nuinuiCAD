@@ -2025,6 +2025,51 @@ export const compileDslDocument = (
         occurrenceIndex: number | null;
         expectedGeometryType: import("./moduleGeometryInterfaces").ModuleGeometryInterfaceType;
       }) => {
+        if (node.kind === "geometryProperty" && node.occurrenceIndex?.kind === "numberLiteral") {
+          const lookup = resolveSourceLexicalPath(
+            sourceLexicalNamespace,
+            statementIndex,
+            parseDslReferenceToken(node.elementName)
+          );
+          const collection = lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration"
+            ? sourceLexicalNamespace.geometryArraySemanticAnalysis
+              ? collectionValueSemanticForStatement(sourceLexicalNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
+              : null
+            : undefined;
+          let value = collection?.value ?? null;
+          const seen = new Set<string>();
+          while (value?.kind === "alias" && !seen.has(value.targetValueId)) {
+            seen.add(value.targetValueId);
+            value = geometryArraySemanticForValueId(value.targetValueId)?.value ?? null;
+          }
+          const index = node.occurrenceIndex.value;
+          if (value?.kind === "literal" && Number.isInteger(index) && index >= 0) {
+            const member = value.members[index];
+            const target = member?.target;
+            if (target?.kind === "geometry") {
+              const statementId = target.statementId;
+              if (isModuleGeometryInterfaceAssignable(target.interfaceType, expectedGeometryType)) {
+                return {
+                  statementId,
+                  statementIndex: target.statementIndex,
+                  geometryType: target.interfaceType,
+                  stagePath: ["final"]
+                };
+              }
+            }
+            if (target?.kind === "geometryValue" && isModuleGeometryInterfaceAssignable(target.interfaceType, expectedGeometryType)) {
+              return {
+                kind: "geometryValue" as const,
+                occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+                statementId: target.statementId,
+                statementIndex: target.statementIndex,
+                geometryType: target.interfaceType,
+                stagePath: ["final"]
+              };
+            }
+          }
+          return undefined;
+        }
         if (node.kind === "reference") {
           const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, parseDslReferenceToken(node.name));
           if (lookup.kind === "resolved" && lookup.declaration.kind === "carry") {
@@ -4253,7 +4298,11 @@ export const compileDslDocument = (
             candidate.span.start === node.span.start && candidate.expectedGeometryType === expectedGeometryType
           );
           const target = occurrence?.reference.target;
-          if (!occurrence || !target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return undefined;
+          if (!occurrence || !target || (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) {
+            return node.kind === "geometryProperty" && node.occurrenceIndex
+              ? rootGeometryBuiltinResolver?.({ statementIndex, node, occurrenceIndex: null, expectedGeometryType })
+              : undefined;
+          }
           const unwrapped = unwrapModuleGeometrySourceTarget(target);
           const pointKey = unwrapped.pointKey;
           if (unwrapped.target.kind === "geometryCarry") {
@@ -4308,7 +4357,14 @@ export const compileDslDocument = (
             };
           }
           if (unwrapped.target.kind === "geometryValueForBinder") return undefined;
-          if (unwrapped.target.kind === "collectionIndex") return undefined;
+          if (unwrapped.target.kind === "collectionIndex") {
+            return rootGeometryBuiltinResolver?.({
+              statementIndex,
+              node,
+              occurrenceIndex: null,
+              expectedGeometryType
+            });
+          }
           if (unwrapped.target.kind === "recordFieldValue") {
             const record = unwrapped.target.record;
             return {
