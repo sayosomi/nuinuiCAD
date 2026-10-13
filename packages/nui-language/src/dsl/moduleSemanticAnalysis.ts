@@ -2245,7 +2245,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     ownerIndex: number | null,
     rawValue: string,
     span: DslSpan,
-    expected: "point" | "line",
+    expected: ModuleGeometryInterfaceType,
     options: {
       expectedInterfaceType?: ModuleGeometryInterfaceType;
       allowCoordinate?: boolean;
@@ -2276,7 +2276,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       coordinate: ModuleGeometryReferenceSemantic["coordinate"] = null,
       referenceRole: ModuleGeometryReferenceRole = role,
       valueType?: DslValueType
-    ) => geometryReference(rawValue, semanticSpan, expected, target, resolution, coordinate, referenceRole, referenceNameSpan, valueType);
+    ) => geometryReference(rawValue, semanticSpan, expected === "point" ? "point" : "line", target, resolution, coordinate, referenceRole, referenceNameSpan, valueType);
     if (!trimmed) return semantic(null, "undefined");
     if (trimmed === "none") {
       const expectedRequiredValueType = dslRequiredValueTypeOf(options.expectedValueType);
@@ -2437,7 +2437,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           statementIndex: sourceTarget.statementIndex,
           category: sourceTarget.category,
           geometryKind: sourceTarget.geometryKind,
-          expectedGeometryKind: expected,
+          expectedGeometryKind: expected === "point" ? "point" : "line",
           expectedInterfaceType,
           index: indexSemantic,
           source: logicalSource?.slice(semanticSpan.start, semanticSpan.end) ?? trimmed,
@@ -2475,7 +2475,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         // declaration index is not comparable with evaluator execution order.
         targetSourceOrder: parameter || carrySource ? -1 : collection?.kind === "collection" ? deferredQualified!.instance.statementIndex : value!.statementIndex,
         elementInterfaceType: elementType,
-        expectedGeometryKind: expected,
+        expectedGeometryKind: expected === "point" ? "point" : "line",
         expectedInterfaceType,
         index: indexSemantic,
         source: `@${base}`,
@@ -2660,7 +2660,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return semantic(
           deferredModuleExportTarget(
             qualified,
-            expected,
+            expected === "point" ? "point" : "line",
             expectedInterfaceType,
             semanticSpan,
             null,
@@ -2674,7 +2674,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return semantic(
         deferredModuleExportTarget(
           qualified,
-          expected,
+          expected === "point" ? "point" : "line",
           options.expectedInterfaceType ?? (expected === "point" ? "point" : "path"),
           semanticSpan,
           pointKey
@@ -3111,7 +3111,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         statementIndex: sourceTarget.statementIndex,
         category: sourceTarget.category,
         geometryKind: sourceTarget.geometryKind,
-        expectedGeometryKind: expected,
+        expectedGeometryKind: expected === "point" ? "point" : "line",
         expectedInterfaceType: options.expectedInterfaceType ?? (expected === "point" ? "point" : "path"),
         index: indexSemantic,
         source: logicalSource?.slice(semanticSpan.start, semanticSpan.end) ?? trimmed,

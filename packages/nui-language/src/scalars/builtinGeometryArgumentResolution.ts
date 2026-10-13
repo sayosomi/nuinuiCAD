@@ -57,7 +57,7 @@ export type ResolveBuiltinGeometryArgumentsInput = {
   readonly additionalGeometryResolver?: (input: {
       readonly node: Extract<ScalarExpressionAst, { kind: "reference" | "collectionIndex" | "geometryProperty" }>;
     readonly occurrenceIndex: number | null;
-    readonly expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+      readonly expectedGeometryType: ModuleGeometryInterfaceType;
   }) => ScalarExpressionResolvedGeometryTarget | undefined;
 };
 
@@ -65,6 +65,10 @@ export type ResolveBuiltinGeometryArgumentsResult = {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   readonly claimedReferenceOccurrenceIndexes: ReadonlySet<number>;
   readonly geometryPropertyTargets: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
+  readonly geometryEndpointTargets: ReadonlyMap<number, {
+    readonly endpointKey: "start" | "end";
+    readonly target: ScalarExpressionResolvedGeometryTarget | null;
+  }>;
   readonly issues: readonly BuiltinGeometryArgumentResolutionIssue[];
 };
 
@@ -127,6 +131,7 @@ export const resolveBuiltinGeometryArguments = ({
   const references: (BindingResolution | ScalarExpressionResolvedReference)[] = [...scalarReferenceResolutions];
   const claimedReferenceOccurrenceIndexes = new Set<number>();
   const geometryPropertyTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>();
+  const geometryEndpointTargets = new Map<number, { endpointKey: "start" | "end"; target: ScalarExpressionResolvedGeometryTarget | null }>();
   const issues: BuiltinGeometryArgumentResolutionIssue[] = [];
   let referenceCursor = 0;
 
@@ -141,7 +146,7 @@ export const resolveBuiltinGeometryArguments = ({
 
   const resolveDirectGeometryReference = (
     node: Extract<ScalarExpressionAst, { kind: "reference" }>,
-    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+    expectedGeometryType: ModuleGeometryInterfaceType
   ): void => {
     const { occurrenceIndex, resolution } = nextReference(node.name, node.span);
     claimedReferenceOccurrenceIndexes.add(occurrenceIndex);
@@ -200,7 +205,7 @@ export const resolveBuiltinGeometryArguments = ({
 
   const resolveDirectGeometryCollectionIndex = (
     node: Extract<ScalarExpressionAst, { kind: "collectionIndex" }>,
-    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+    expectedGeometryType: ModuleGeometryInterfaceType
   ): void => {
     const { occurrenceIndex, resolution } = nextReference(node.name, node.span);
     claimedReferenceOccurrenceIndexes.add(occurrenceIndex);
@@ -238,7 +243,7 @@ export const resolveBuiltinGeometryArguments = ({
 
   const resolveGeometryPropertyArgument = (
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>,
-    expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+    expectedGeometryType: ModuleGeometryInterfaceType
   ): void => {
     const issue = (message: string, presentation: DslDiagnosticPresentation): void => {
       geometryPropertyTargets.set(node.span.start, null);
@@ -336,6 +341,97 @@ export const resolveBuiltinGeometryArguments = ({
     });
   };
 
+  const resolveGeometryEndpointArgument = (
+    node: ScalarExpressionAst,
+    builtinName: string
+  ): void => {
+    const invalidEndpoint = (span: ScalarSpan, reference: string): void => {
+      geometryEndpointTargets.set(node.span.start, { endpointKey: "start", target: null });
+      issues.push({
+        code: "builtin-geometry-argument-invalid",
+        span,
+        message: `組み込み関数「${builtinName}」の引数は、geometryの .start または .end endpointである必要があります。`,
+        occurrenceIndex: null,
+        presentation: {
+          key: "diagnostic.builtin-geometry-argument-invalid-endpoint",
+          parameters: { function: builtinName, reference }
+        }
+      });
+    };
+    if (node.kind !== "reference" && node.kind !== "collectionIndex" && node.kind !== "geometryProperty") {
+      visit(node);
+      invalidEndpoint(node.span, "argument");
+      return;
+    }
+    if (node.kind !== "geometryProperty") {
+      visit(node);
+      invalidEndpoint(node.span, node.kind === "reference" ? `@${node.name}` : `@${node.name}[…]`);
+      return;
+    }
+
+    const members = node.property.split(".");
+    const endpointKey = members.at(-1);
+    const isEndpoint = endpointKey === "start" || endpointKey === "end";
+    if (!isEndpoint) {
+      if (node.occurrenceIndex) visit(node.occurrenceIndex);
+      invalidEndpoint(node.span, `@${node.elementName}.${node.property}`);
+      return;
+    }
+
+    const stageMembers = members.slice(0, -1);
+    let target: ScalarExpressionResolvedGeometryTarget | null = null;
+    const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType: "path" });
+    if (additionalTarget !== undefined) {
+      if (isModuleGeometryInterfaceAssignable(additionalTarget.geometryType, "path") && !additionalTarget.pointKey) {
+        target = additionalTarget;
+      }
+    } else {
+      const lookup = resolveSourceGeometryPath?.(node.elementName);
+      if (lookup?.kind === "resolved") {
+        const declaration = lookup.declaration;
+        const geometryType = declaration.kind === "geometry"
+          ? moduleGeometryInterfaceTypeOfElement(declaration.statement)
+          : null;
+        if (geometryType && isModuleGeometryInterfaceAssignable(geometryType, "path")) {
+          const selectedStage = resolveGeometryStageSelection?.({
+            statementId: declaration.statementId,
+            members: stageMembers
+          }) ?? { stagePath: ["final"], propertyPath: stageMembers };
+          if (selectedStage.propertyPath.length === 0) {
+            target = {
+              statementId: declaration.statementId,
+              statementIndex: declaration.statementIndex,
+              geometryType,
+              stagePath: selectedStage.stagePath
+            };
+          }
+        }
+      }
+    }
+    if (target === null) {
+      geometryEndpointTargets.set(node.span.start, { endpointKey, target: null });
+      const lookup = resolveSourceGeometryPath?.(node.elementName);
+      issues.push({
+        code: "builtin-geometry-argument-invalid",
+        span: node.span,
+        message: lookup && lookup.kind !== "resolved"
+          ? sourceLookupMessage(node.elementName, lookup)
+          : `geometry endpoint「@${node.elementName}.${node.property}」を一意に解決できません。`,
+        occurrenceIndex: null,
+        presentation: lookup && lookup.kind !== "resolved"
+          ? invalidReferencePresentation(node.elementName)
+          : { key: "diagnostic.builtin-geometry-argument-invalid-endpoint", parameters: { function: builtinName, reference: `@${node.elementName}.${node.property}` } }
+      });
+      return;
+    }
+    // Endpoint selectors can follow an explicit transformation checkpoint.
+    // Module resolvers already attach that checkpoint to the target identity.
+    if (node.occurrenceIndex) {
+      visit(node.occurrenceIndex);
+    }
+    geometryEndpointTargets.set(node.span.start, { endpointKey, target: { ...target, geometryType: "path" } });
+  };
+
   const visit = (node: ScalarExpressionAst, boundNames: ReadonlySet<string> = new Set()): void => {
     switch (node.kind) {
       case "reference":
@@ -395,8 +491,12 @@ export const resolveBuiltinGeometryArguments = ({
             const parameterType = recoverySignature?.parameters[index]?.type;
             if (
               argument.kind === "positional" &&
-              (parameterType === "point" || parameterType === "line")
+              (parameterType === "point" || parameterType === "line" || (parameterType !== undefined && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint"))
             ) {
+              if (parameterType !== undefined && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
+                resolveGeometryEndpointArgument(nodeArgument, node.name);
+                return;
+              }
               if (nodeArgument.kind === "reference") {
                 resolveDirectGeometryReference(nodeArgument, parameterType);
               } else if (nodeArgument.kind === "collectionIndex") {
@@ -423,6 +523,10 @@ export const resolveBuiltinGeometryArguments = ({
         node.args.forEach((argument, index) => {
           const nodeArgument = argument.expression;
           const parameterType = signature.parameters[index]?.type;
+          if (parameterType && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
+            resolveGeometryEndpointArgument(nodeArgument, node.name);
+            return;
+          }
           if (parameterType === "point" || parameterType === "line") {
             if (nodeArgument.kind === "reference") {
               resolveDirectGeometryReference(nodeArgument, parameterType);
@@ -456,5 +560,5 @@ export const resolveBuiltinGeometryArguments = ({
       `builtinGeometryArgumentResolution: ${scalarReferenceResolutions.length - referenceCursor} unconsumed reference resolution(s)`
     );
   }
-  return { references, claimedReferenceOccurrenceIndexes, geometryPropertyTargets, issues };
+  return { references, claimedReferenceOccurrenceIndexes, geometryPropertyTargets, geometryEndpointTargets, issues };
 };

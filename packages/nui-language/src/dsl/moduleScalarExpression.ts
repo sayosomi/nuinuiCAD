@@ -100,7 +100,8 @@ export type ModuleGeometryBuiltinReferenceInput = {
   argumentIndex: number;
   name: string;
   span: DslSpan;
-  expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+  expectedGeometryType: ModuleGeometryInterfaceType;
+  endpointKey?: "start" | "end";
 };
 
 export type ModuleGeometryBuiltinReferenceResolver = (
@@ -190,7 +191,9 @@ const geometryPropertyMetadataFor = (
 
 const isBuiltinGeometryParameterType = (
   type: unknown
-): type is Extract<ModuleGeometryInterfaceType, "point" | "line"> => type === "point" || type === "line";
+): type is ModuleGeometryInterfaceType | { readonly kind: "geometryEndpoint" } =>
+  type === "point" || type === "line" || type === "path" ||
+  (typeof type === "object" && type !== null && "kind" in type && type.kind === "geometryEndpoint");
 
 const resolveAndTypecheck = ({
   ast,
@@ -460,20 +463,46 @@ const resolveAndTypecheck = ({
               (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex" || sourceArgument.kind === "geometryProperty") &&
               resolveGeometryBuiltin
             ) {
+              const isEndpointParameter = typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint";
+              const expectedGeometryType: ModuleGeometryInterfaceType = isEndpointParameter
+                ? "path"
+                : parameterType as ModuleGeometryInterfaceType;
+              const endpointKey = isEndpointParameter && sourceArgument.kind === "geometryProperty"
+                ? sourceArgument.property.split(".").at(-1)
+                : undefined;
+              const hasEndpointKey = endpointKey === "start" || endpointKey === "end";
+              if (isEndpointParameter && !hasEndpointKey) {
+                diagnostics.push(localIssue(
+                  "builtin-geometry-argument-invalid",
+                  sourceArgument.span,
+                  `組み込み関数「${definition.name}」の引数は、geometryの .start または .end endpointである必要があります。`,
+                  {
+                    presentation: {
+                      key: "diagnostic.builtin-geometry-argument-invalid-endpoint",
+                      parameters: { function: definition.name, reference: sourceText?.slice(sourceArgument.span.start, sourceArgument.span.end) ?? "geometry endpoint" }
+                    }
+                  }
+                ));
+              }
+              const endpointBaseName = isEndpointParameter && sourceArgument.kind === "geometryProperty"
+                ? `${sourceArgument.elementName}${sourceArgument.property.split(".").slice(0, hasEndpointKey ? -1 : undefined).filter(Boolean).map((part) => `.${part}`).join("")}${sourceArgument.occurrenceIndex ? `[${sourceText?.slice(sourceArgument.occurrenceIndex.span.start, sourceArgument.occurrenceIndex.span.end) ?? ""}]` : ""}`
+                : null;
               const reference = resolveGeometryBuiltin({
                 builtinName: definition.name,
                 argumentIndex,
                 name: sourceArgument.kind === "reference"
                   ? sourceArgument.name
-                  : sourceText?.slice(sourceArgument.span.start, sourceArgument.span.end) ?? (sourceArgument.kind === "collectionIndex" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`),
+                  : endpointBaseName ?? sourceText?.slice(sourceArgument.span.start, sourceArgument.span.end) ?? (sourceArgument.kind === "collectionIndex" ? sourceArgument.name : `${sourceArgument.elementName}.${sourceArgument.property}`),
                 span: sourceArgument.span,
-                expectedGeometryType: parameterType
+                expectedGeometryType,
+                ...(hasEndpointKey ? { endpointKey: endpointKey as "start" | "end" } : {})
               });
               geometryBuiltinArguments.push({
                 builtinName: definition.name,
                 argumentIndex,
                 span: sourceArgument.span,
-                expectedGeometryType: parameterType,
+                expectedGeometryType,
+                ...(hasEndpointKey ? { endpointKey: endpointKey as "start" | "end" } : {}),
                 reference
               });
               if (sourceArgument.kind === "collectionIndex") resolve(sourceArgument.index, boundNames, collectionMatchBinders);
@@ -481,7 +510,7 @@ const resolveAndTypecheck = ({
               if (sourceArgument.kind === "reference" || sourceArgument.kind === "collectionIndex") {
                 resolvedTypes.push({
                   kind: "resolvedGeometry",
-                  target: typecheckGeometryTarget(reference, parameterType)
+                  target: typecheckGeometryTarget(reference, expectedGeometryType, isEndpointParameter)
                 });
               }
               return argument;
@@ -623,16 +652,23 @@ const resolveAndTypecheck = ({
 
   const resolvedAst = resolve(ast);
   const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>();
+  const geometryEndpointArgumentTargets = new Map<number, {
+    endpointKey: "start" | "end";
+    target: ScalarExpressionResolvedGeometryTarget | null;
+  }>();
   for (const occurrence of geometryBuiltinArguments) {
-    geometryBuiltinArgumentTargets.set(
-      occurrence.span.start,
-      typecheckGeometryTarget(occurrence.reference, occurrence.expectedGeometryType)
-    );
+    const target = typecheckGeometryTarget(occurrence.reference, occurrence.expectedGeometryType, Boolean(occurrence.endpointKey));
+    geometryBuiltinArgumentTargets.set(occurrence.span.start, target);
+    if (occurrence.endpointKey) geometryEndpointArgumentTargets.set(occurrence.span.start, {
+      endpointKey: occurrence.endpointKey,
+      target
+    });
   }
   const checked = typecheckScalarExpression(resolvedAst, {
     expectedType,
     references: resolvedTypes,
     geometryBuiltinArguments: geometryBuiltinArgumentTargets,
+    geometryEndpointArguments: geometryEndpointArgumentTargets,
     geometryPropertyReferences,
     optionalMemberReferences,
     resolveChoiceLiteral: (_raw, _expected, span) => resolvedChoiceTypes.get(span.start)
@@ -670,12 +706,28 @@ const resolveAndTypecheck = ({
 
 const typecheckGeometryTarget = (
   reference: ModuleGeometryReferenceSemantic,
-  expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">
+  expectedGeometryType: ModuleGeometryInterfaceType,
+  allowLiteralCollectionIndex = false
 ): ScalarExpressionResolvedGeometryTarget | null => {
   if (!reference.target || (reference.resolution !== "resolved" && reference.resolution !== "deferred")) return null;
   const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
   const target = unwrapped.target;
   const pointKey = unwrapped.pointKey;
+  if (
+    allowLiteralCollectionIndex &&
+    target.kind === "collectionIndex" &&
+    target.index.ast.kind === "numberLiteral" &&
+    Number.isInteger(target.index.ast.value) &&
+    target.index.ast.value >= 0 &&
+    target.collectionLength !== null &&
+    target.index.ast.value < target.collectionLength
+  ) {
+    return {
+      statementId: target.collectionValueId,
+      statementIndex: target.targetSourceOrder,
+      geometryType: expectedGeometryType
+    };
+  }
   if (target.kind === "geometryCarry") {
     return {
       kind: "geometryCarry",

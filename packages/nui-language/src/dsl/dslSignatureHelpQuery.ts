@@ -90,7 +90,9 @@ const builtinTypeName = (type: BuiltinParameterType): string =>
     ? type
     : type.kind === "anyChoice"
       ? "choice(...)"
-      : scalarTypeName(type);
+      : type.kind === "geometryEndpoint"
+        ? "endpoint"
+        : scalarTypeName(type);
 
 const moduleTypeName = (type: DslModuleParameterType | null): string | undefined => {
   if (!type) return undefined;
@@ -241,14 +243,14 @@ const builtinParameter = (
   parameter: BuiltinFunctionSignature["parameters"][number]
 ): DslSignatureHelpParameter => {
   const named = "name" in parameter ? parameter.name : `arg${parameterIndex + 1}`;
-  const scalarType = typeof parameter.type === "string" || parameter.type.kind === "anyChoice"
+  const scalarType = typeof parameter.type === "string" || parameter.type.kind === "anyChoice" || parameter.type.kind === "geometryEndpoint"
     ? null
-    : parameter.type;
+    : parameter.type as ScalarType;
   const documentationKey = "name" in parameter
     ? `signatureHelp.builtin.${callableName}.${named}`
     : typeof parameter.type === "string"
       ? `signatureHelp.parameter.${parameter.type}`
-      : `signatureHelp.parameter.${parameter.type.kind === "anyChoice" ? "choice" : parameter.type.kind}`;
+      : `signatureHelp.parameter.${parameter.type.kind === "anyChoice" ? "choice" : parameter.type.kind === "geometryEndpoint" ? "endpoint" : parameter.type.kind}`;
   return {
     identity: `builtin:${callableName}:${signatureIndex}:${parameterIndex}`,
     name: named,

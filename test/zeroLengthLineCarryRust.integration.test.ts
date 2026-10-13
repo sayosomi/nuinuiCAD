@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { moduleScalarBindingIdFor } from "@nuinuicad/nui-language";
+import { emptyDocument, moduleScalarBindingIdFor } from "@nuinuicad/nui-language";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
 import {
@@ -24,15 +25,39 @@ const rootBindingFor = (fixture: Fixture, name: string) => {
   return binding;
 };
 
-const moduleOutputBindingIdFor = (fixture: Fixture, instanceName: string, outputName: string) => {
+const moduleDefinitionFor = (fixture: Fixture, instanceName: string) => {
   const semantic = fixture.compiled?.doc.moduleSemanticAnalysis;
   const instance = semantic?.instances.find((candidate) => candidate.name === instanceName);
   if (!instance?.callee) throw new Error(`Module instance "${instanceName}" not found`);
   const definition = semantic?.definitionsByStatementId.get(instance.callee.definitionStatementId);
+  if (!definition) throw new Error(`Module definition for "${instanceName}" not found`);
+  return definition;
+};
+
+const moduleOutputBindingIdFor = (fixture: Fixture, instanceName: string, outputName: string) => {
+  const instance = fixture.compiled?.doc.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === instanceName);
+  if (!instance) throw new Error(`Module instance "${instanceName}" not found`);
+  const definition = moduleDefinitionFor(fixture, instanceName);
   const scalar = definition?.localScalars.find((candidate) => candidate.name === outputName);
   if (!definition || !scalar) throw new Error(`Module output "${instanceName}::${outputName}" not found`);
   return moduleScalarBindingIdFor([instance.statementId], definition.statementId, scalar.statementId);
 };
+
+const lineAngleCallForBindingId = (fixture: Fixture, bindingId: string) => {
+  const initializer = fixture.compiled?.doc.scalarProgram?.statements.find(
+    (statement) => statement.bindingId === bindingId
+  )?.declaration.initializer;
+  if (initializer?.kind !== "call" || initializer.name !== "lineAngle") {
+    throw new Error(`lineAngle initializer for binding "${bindingId}" not found`);
+  }
+  return initializer;
+};
+
+const rootLineAngleCallFor = (fixture: Fixture, name: string) =>
+  lineAngleCallForBindingId(fixture, rootBindingFor(fixture, name).id);
+
+const moduleLineAngleCallFor = (fixture: Fixture, instanceName: string, outputName: string) =>
+  lineAngleCallForBindingId(fixture, moduleOutputBindingIdFor(fixture, instanceName, outputName));
 
 const geometryCarriesFor = (fixture: Fixture) =>
   [...(fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
@@ -360,21 +385,251 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "point probe = coordinate(x: 2, y: 3)",
       "const pureDistance: number = lineDistance(@probe, @pureZero)",
       "const drawableDistance: number = lineDistance(@probe, @drawableZero)",
-      "const pureAngle: number = lineAngle(@pureZero, @valid)",
-      "const drawableAngle: number = lineAngle(@valid, @drawableZero)"
+      "const pureAngle: number = lineAngle(@pureZero.start, @valid.end)",
+      "const drawableAngle: number = lineAngle(@valid.start, @drawableZero.end)"
     ].join("\n"), "strict zero-length geometry builtins");
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
-      for (const name of ["pureDistance", "drawableDistance", "pureAngle", "drawableAngle"]) {
+      for (const name of ["pureDistance", "drawableDistance"]) {
         expectRootScalar(evaluated.fixture, payload, name, {
           status: "error", issueCode: "evaluation-zero-length-line"
         });
       }
-      expect(runtimeDiagnosticsFor(evaluated.fixture, payload).filter(
+      for (const name of ["pureAngle", "drawableAngle"]) {
+        expectRootScalar(evaluated.fixture, payload, name, {
+          status: "error", issueCode: "evaluation-geometry-endpoint-tangent-unavailable"
+        });
+      }
+      const zeroLengthDiagnostics = runtimeDiagnosticsFor(evaluated.fixture, payload).filter(
         (diagnostic) => diagnostic.code === "evaluation-zero-length-line"
-      )).toHaveLength(4);
+      );
+      expect(zeroLengthDiagnostics).toHaveLength(2);
+      expect(zeroLengthDiagnostics.every((diagnostic) =>
+        diagnostic.message.includes("lineDistance") && !diagnostic.message.includes("lineAngle")
+      )).toBe(true);
+      expect(runtimeDiagnosticsFor(evaluated.fixture, payload).filter(
+        (diagnostic) => diagnostic.code === "evaluation-geometry-endpoint-tangent-unavailable"
+      )).toHaveLength(2);
     }
   }, 120_000);
+
+  it("measures endpoint tangents for arcs, Beziers, offsets, mirrors, and geometry values", async () => {
+    const evaluated = await evaluateBoth([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
+      "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
+      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
+      "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
+      "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
+      "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",
+      "const offsetArc: number = lineAngle(@Offset.end, @Arc.start)",
+      "const reversedArc: number = lineAngle(@Reversed.start, @Arc.end)"
+    ].join("\n"), "endpoint tangent path families and geometry values");
+
+    for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
+      for (const [name, value] of [
+        ["lineArc", 90],
+        ["arcEnds", 90],
+        ["zeroHandleBezier", 0],
+        ["offsetArc", 90],
+        ["reversedArc", 0]
+      ] as const) {
+        expectRootScalar(evaluated.fixture, payload, name, {
+          status: "ok", value: { kind: "number", value }
+        });
+      }
+    }
+  }, 120_000);
+
+  it("keeps endpoint identity through split, reversal, stages, occurrences, collections, and Module parameters", async () => {
+    const evaluated = await evaluateBoth([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "line Diagonal = segment(start: (0, 0), end: (10, 10))",
+      "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "reverse Quarter ()",
+      "const baseStartAngle: number = lineAngle(@Quarter.base.start, @Horizontal.start)",
+      "const reversedStartAngle: number = lineAngle(@Quarter.final.start, @Horizontal.start)",
+      "const reversedStartMatchesBaseEnd: number = lineAngle(@Quarter.final.start, @Quarter.base.end)",
+      "point SplitTop = coordinate(x: 5, y: 22.5)",
+      "curve SplitCurve = bezier(start: (0, 0), end: (10, 0), startAngle: 90, startLength: 30, endAngle: 270, endLength: 30)",
+      "line Split = split(source: @SplitCurve, at: @SplitTop)",
+      "const splitEndpointAngle: number = lineAngle(@Split.start, @Split.end)",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Occurrence = segment(start: (0, 0), end: (10, @i * 10))",
+      "}",
+      "const occurrenceZeroAngle: number = lineAngle(@Occurrence[0].start, @Horizontal.start)",
+      "const occurrenceOneAngle: number = lineAngle(@Occurrence[1].start, @Horizontal.start)",
+      "const Paths: path[] = [@Horizontal, @Diagonal]",
+      "const collectionAngle: number = lineAngle(@Paths[1].start, @Horizontal.start)",
+      "module Measure(source: line) {",
+      "  line Axis = segment(start: (0, 0), end: (10, 0))",
+      "  export const parameterAngle: number = lineAngle(@source.start, @Axis.start)",
+      "}",
+      "instance MeasureDiagonal = Measure(source: @Diagonal)",
+      "instance MeasureOccurrence = Measure(source: @Occurrence[1])",
+      "const moduleParameterAngle: number = @MeasureDiagonal::parameterAngle",
+      "const occurrenceModuleParameterAngle: number = @MeasureOccurrence::parameterAngle"
+    ].join("\n"), "endpoint identity across selected geometry boundaries");
+
+    const horizontal = evaluated.fixture.elements.find((element) => element.name === "Horizontal");
+    const diagonal = evaluated.fixture.elements.find((element) => element.name === "Diagonal");
+    const quarter = evaluated.fixture.elements.find((element) => element.name === "Quarter");
+    const split = evaluated.fixture.elements.find((element) => element.name === "Split");
+    const occurrence = evaluated.fixture.elements.find((element) => element.name === "Occurrence");
+    expect(horizontal).toBeDefined();
+    expect(diagonal).toBeDefined();
+    expect(quarter).toBeDefined();
+    expect(split).toBeDefined();
+    expect(occurrence).toBeDefined();
+
+    const baseCall = rootLineAngleCallFor(evaluated.fixture, "baseStartAngle");
+    expect(baseCall.args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: { statementId: quarter?.id, stagePath: ["base"] }
+    });
+    const finalCall = rootLineAngleCallFor(evaluated.fixture, "reversedStartAngle");
+    expect(finalCall.args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: { statementId: quarter?.id, stagePath: ["final"] }
+    });
+    const splitCall = rootLineAngleCallFor(evaluated.fixture, "splitEndpointAngle");
+    expect(splitCall.args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: { statementId: split?.id }
+    });
+    const occurrenceCall = rootLineAngleCallFor(evaluated.fixture, "occurrenceOneAngle");
+    expect(occurrenceCall.args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: {
+        kind: "forGroupOccurrence",
+        templateElementId: occurrence?.id,
+        index: { kind: "numberLiteral", value: 1 }
+      }
+    });
+    const collectionCall = rootLineAngleCallFor(evaluated.fixture, "collectionAngle");
+    expect(collectionCall.args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: { statementId: diagonal?.id }
+    });
+
+    const parameterCall = moduleLineAngleCallFor(evaluated.fixture, "MeasureDiagonal", "parameterAngle");
+    expect(parameterCall.args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: { statementId: diagonal?.id, geometryType: "path" }
+    });
+
+    for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
+      for (const [name, value] of [
+        ["baseStartAngle", 90],
+        ["reversedStartAngle", 0],
+        ["reversedStartMatchesBaseEnd", 0],
+        ["occurrenceZeroAngle", 0],
+        ["occurrenceOneAngle", 45],
+        ["collectionAngle", 45],
+        ["moduleParameterAngle", 45],
+        ["occurrenceModuleParameterAngle", 45]
+      ] as const) {
+        expectRootScalar(evaluated.fixture, payload, name, {
+          status: "ok", value: { kind: "number", value }
+        });
+      }
+      const splitResult = evaluationPayloadToResult(payload).computedScalarBindings?.get(
+        rootBindingFor(evaluated.fixture, "splitEndpointAngle").id
+      );
+      expect(splitResult?.status).toBe("ok");
+      if (splitResult?.status === "ok" && splitResult.value.kind === "number") {
+        expect(splitResult.value.value).toBeCloseTo(90, 8);
+      } else {
+        throw new Error("split endpoint angle was not a number");
+      }
+      for (const [instanceName, outputName, value] of [
+        ["MeasureDiagonal", "parameterAngle", 45],
+        ["MeasureOccurrence", "parameterAngle", 45]
+      ] as const) {
+        expect(evaluationPayloadToResult(payload).computedScalarBindings?.get(
+          moduleOutputBindingIdFor(evaluated.fixture, instanceName, outputName)
+        )).toMatchObject({ status: "ok", value: { kind: "number", value } });
+      }
+    }
+  }, 120_000);
+
+  it("preserves Module geometry carry identity for endpoint targets", () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Diagonal = segment(start: (0, 0), end: (10, 10))",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Occurrence = segment(start: (0, 0), end: (10, @i * 10))",
+      "}",
+      "module Measure(source: line) {",
+      "  line Axis = segment(start: (0, 0), end: (10, 0))",
+      "  const one: number[] = [1]",
+      "  for i in @one carry edge: line = @source {",
+      "    next edge = @source",
+      "  }",
+      "  export const parameterAngle: number = lineAngle(@source.start, @Axis.start)",
+      "  export const carriedAngle: number = lineAngle(@edge.start, @Axis.start)",
+      "}",
+      "instance MeasureDiagonal = Measure(source: @Diagonal)",
+      "instance MeasureOccurrence = Measure(source: @Occurrence[1])"
+    ].join("\n"));
+    expectAccepted(fixture, "Module geometry carry endpoint identity");
+
+    const carries = geometryCarriesFor(fixture);
+    expect(carries).toHaveLength(2);
+    const carryIds = carries.map((carry) => carry.bindingId);
+    expect(new Set(carryIds).size).toBe(2);
+
+    for (const instanceName of ["MeasureDiagonal", "MeasureOccurrence"] as const) {
+      const sourceElement = fixture.elements.find((element) =>
+        element.name === (instanceName === "MeasureDiagonal" ? "Diagonal" : "Occurrence")
+      );
+      const parameterCall = moduleLineAngleCallFor(fixture, instanceName, "parameterAngle");
+      expect(parameterCall.args[0]).toMatchObject({
+        kind: "geometryEndpoint",
+        endpointKey: "start",
+        target: { statementId: sourceElement?.id, geometryType: "path" }
+      });
+      const carriedCall = moduleLineAngleCallFor(fixture, instanceName, "carriedAngle");
+      expect(carriedCall.args[0]).toMatchObject({
+        kind: "geometryEndpoint",
+        endpointKey: "start",
+        target: { kind: "geometryCarry", bindingId: expect.any(String) }
+      });
+      const target = carriedCall.args[0];
+      if (target.kind !== "geometryEndpoint" || target.target?.kind !== "geometryCarry") {
+        throw new Error(`Module geometry carry target for "${instanceName}" was not retained`);
+      }
+      expect(carryIds).toContain(target.target.bindingId);
+    }
+    expect(new Set(["MeasureDiagonal", "MeasureOccurrence"].map((instanceName) => {
+      const target = moduleLineAngleCallFor(fixture, instanceName, "carriedAngle").args[0];
+      return target.kind === "geometryEndpoint" && target.target?.kind === "geometryCarry" ? target.target.bindingId : null;
+    })).size).toBe(2);
+  });
+
+  it("reports the removed lineAngle(line, line) form through canonical compilation", () => {
+    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
+      "nui 1",
+      "line First = segment(start: (0, 0), end: (10, 0))",
+      "line Second = segment(start: (0, 0), end: (0, 10))",
+      "const oldForm: number = lineAngle(@First, @Second)"
+    ].join("\n"));
+    expect(compiled.status).toBe("fatal");
+    const errors = compiled.status === "fatal"
+      ? compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")
+      : compiled.doc.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+    const endpointErrors = errors.filter((diagnostic) => diagnostic.code === "builtin-geometry-argument-invalid");
+    expect(endpointErrors).toHaveLength(2);
+  });
 });
 
 const fixtureCarryBindingIdFor = (fixture: Fixture, name: string) => {

@@ -613,7 +613,7 @@ The current builtin catalog is:
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
-| `lineAngle` | `lineAngle(line, line) -> number` |
+| `lineAngle` | `lineAngle(endpoint, endpoint) -> number` |
 
 The second argument of `round`, `floor`, and `ceil` is the decimal digit
 position and must be an integer. `round` uses an away-from-zero midpoint rule
@@ -666,13 +666,22 @@ line segment. For example, the line `(0, 0) -> (1, 0)` and point `(10, 3)`
 produce `3`. A zero-length or effectively zero-length line is an error; the
 runtime threshold is `length <= 1e-9`.
 
-`lineAngle` requires the strict `line` interface for both arguments. It returns
-the directionless smaller angle between the two line direction vectors in
-degrees, in the inclusive range `0..90`. The lines do not need to intersect.
-Reversing either line, or swapping the arguments, does not change the result;
-therefore a directed difference of `135°` returns `45°`. A zero-length or
-effectively zero-length line is an evaluation error; the runtime threshold is
-`length <= 1e-9`. This is distinct from `angle(point, point)`, which returns a
+`lineAngle` accepts only explicit `.start` or `.end` geometry endpoints. Each
+endpoint retains its compiler-resolved geometry target, endpoint key, selected
+transformation stage, occurrence, and applicable Module, carry, or collection
+identity. Evaluation reads the tangent from the selected final geometry; it
+does not substitute a chord for an arc or Bezier, or the source tangent for an
+evaluated offset. Lines, arcs, cubic Beziers, and evaluated offset, split, or
+reversed paths are supported when the selected endpoint has a unique finite
+tangent. Endpoint directions follow the existing `startAngleDeg` and
+`endAngleDeg` semantics; direction reversal does not affect their axes. The
+endpoints need not coincide. The result is the directionless smaller angle
+between the tangent axes in degrees, in the inclusive range `0..90`; parallel
+and antiparallel tangents return `0`, perpendicular tangents return `90`, and a
+directed difference of `135°` returns `45°`. Invalid or unresolved endpoint
+operands produce compiler diagnostics. A value-dependent missing, ambiguous,
+unsupported, zero, or non-finite endpoint tangent is an evaluation error, not a
+fallback value. This is distinct from `angle(point, point)`, which returns a
 directed point-to-point direction normalized to `0..360` degrees.
 
 Scalar-only builtins are available anywhere the shared typed-expression
@@ -688,7 +697,7 @@ Task 4 does not add a new evaluator or resolver surface. To use a geometry
 measurement result in a construction numeric parameter, scalar property,
 text-template hole, or layout/output numeric parameter, first assign it to a
 typed scalar binding and reference that binding instead, for example
-`const measuredAngle: number = lineAngle(@LineA, @LineB)` followed by
+`const measuredAngle: number = lineAngle(@LineA.start, @LineB.end)` followed by
 `@measuredAngle`.
 
 This is a typed expression surface for CAD construction, not a general-purpose

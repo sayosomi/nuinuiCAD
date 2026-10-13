@@ -2567,7 +2567,7 @@ describe("module scalar runtime integration", () => {
       "const distanceValue: number = distance(@Origin, @DistancePoint)",
       "const angleValue: number = angle(@Origin, @Up)",
       "const lineDistanceValue: number = lineDistance(@MeasurePoint, @Horizontal)",
-      "const lineAngleValue: number = lineAngle(@Horizontal, @Vertical)"
+      "const lineAngleValue: number = lineAngle(@Horizontal.start, @Vertical.end)"
     ];
     const sources = [
       rootSource.join("\n"),
@@ -2629,7 +2629,7 @@ describe("module scalar runtime integration", () => {
       "line Baseline = segment(start: (0, 0), end: (10, 0))",
       "module Example(baseline: line) {",
       "  line Local = segment(start: (0, 0), end: (0, 2))",
-      "  const angleValue: number = lineAngle(@baseline, @Local)",
+      "  const angleValue: number = lineAngle(@baseline.start, @Local.end)",
       "  const parameterStart: number = distance(@baseline.start, @Local.end)",
       "  const parameterEnd: number = angle(@baseline.end, @Local.start)",
       "  const localEndDistance: number = lineDistance(@Local.end, @baseline)",
@@ -3738,7 +3738,7 @@ describe("module scalar runtime integration", () => {
       "  const localDistance: number = distance(@Origin, @P)",
       "  const childDistance: number = distance(@Kid::P, @Origin)",
       "  const childLineDistance: number = lineDistance(@P, @Kid::L)",
-      "  const childLineAngle: number = lineAngle(@LocalLine, @Kid::L)",
+      "  const childLineAngle: number = lineAngle(@LocalLine.start, @Kid::L.end)",
       "}",
       "instance Use = Parent()"
     ].join("\n"));

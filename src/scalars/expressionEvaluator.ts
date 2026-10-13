@@ -18,12 +18,13 @@ import type {
 } from "@nuinuicad/nui-language";
 import type { ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedOptionalMemberTarget, TypedBuiltinArgument } from "@nuinuicad/nui-language";
 import { evaluateBuiltinFunction } from "@nuinuicad/nui-language";
-import { atan2Degrees360, radiansToDegrees } from "@nuinuicad/nui-language";
+import { atan2Degrees360 } from "@nuinuicad/nui-language";
 import { scalarTypesEqual, scalarValueMatchesType, type ScalarEvaluation, type ScalarExpressionType, type ScalarType, type ScalarValue } from "@nuinuicad/nui-language";
 import { isScalarExpressionTypeAssignable, scalarExpressionTypesEqual } from "@nuinuicad/nui-language";
 import { isDslOptionalValueType } from "@nuinuicad/nui-language";
 import type { ComputedGeometry } from "../types/geometry";
 import type { ComputedGeometryValue } from "../geometry/evaluationTypes";
+import { computedReferencePathValue } from "../geometry/numericExpressionsRuntime";
 
 export type GeometryBuiltinTargetLookupResult =
   | ComputedGeometry
@@ -420,11 +421,42 @@ const evaluateGeometryBuiltin = (
 ): ScalarEvaluation => {
   const type = node.type;
   if (type === null || isDslOptionalValueType(type)) return staticTypeNullError();
+  if (name === "lineAngle") {
+    const tangentAngles: number[] = [];
+    for (const argument of node.args) {
+      if (argument.kind !== "geometryEndpoint" || argument.target === null || argument.target.geometryType !== "path") {
+        return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+      }
+      const geometry = environment.lookupGeometryTarget?.(argument.target);
+      if (geometry?.kind === "unavailable") {
+        return {
+          status: "error",
+          type,
+          issueCode: "evaluation-geometry-builtin-disabled",
+          context: {
+            kind: "geometryBuiltinTarget",
+            targetElementId: argument.target.kind === "forGroupOccurrence" ? argument.target.templateElementId : argument.target.statementId
+          }
+        };
+      }
+      if (!geometry) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+      const angle = computedReferencePathValue(
+        geometry,
+        argument.endpointKey === "start" ? "startAngleDeg" : "endAngleDeg"
+      );
+      if (typeof angle !== "number" || !Number.isFinite(angle)) {
+        return { status: "error", type, issueCode: "evaluation-geometry-endpoint-tangent-unavailable" };
+      }
+      tangentAngles.push(angle);
+    }
+    if (tangentAngles.length !== 2) return { status: "error", type, issueCode: "evaluation-invalid-builtin-argument" };
+    const axisDelta = Math.abs(tangentAngles[0]! - tangentAngles[1]!) % 180;
+    return finiteNumberResult(type, Math.min(axisDelta, 180 - axisDelta));
+  }
+
   const expectedTypes: readonly ("point" | "line")[] = name === "lineDistance"
     ? ["point", "line"]
-    : name === "lineAngle"
-      ? ["line", "line"]
-      : ["point", "point"];
+    : ["point", "point"];
   const argumentsByPosition: (ComputedGeometry | ComputedGeometryValue)[] = [];
   for (const [index, argument] of node.args.entries()) {
     const geometry = geometryArgument(argument, expectedTypes[index]!, environment);
@@ -457,24 +489,6 @@ const evaluateGeometryBuiltin = (
       return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
     }
     return finiteNumberResult(type, name === "distance" ? distanceBetweenPoints(first, second) : angleBetweenPoints(first, second));
-  }
-
-  if (name === "lineAngle") {
-    if (first.kind !== "line" || second.kind !== "line") {
-      return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
-    }
-    const firstDx = first.end.x - first.start.x;
-    const firstDy = first.end.y - first.start.y;
-    const secondDx = second.end.x - second.start.x;
-    const secondDy = second.end.y - second.start.y;
-    const firstLength = Math.hypot(firstDx, firstDy);
-    const secondLength = Math.hypot(secondDx, secondDy);
-    if (firstLength <= 1e-9 || secondLength <= 1e-9) {
-      return { status: "error", type, issueCode: "evaluation-zero-length-line" };
-    }
-    const ratio = Math.abs(firstDx * secondDx + firstDy * secondDy) / (firstLength * secondLength);
-    const angleRad = Math.acos(Math.min(1, Math.max(0, ratio)));
-    return finiteNumberResult(type, radiansToDegrees(angleRad));
   }
 
   if (first.kind !== "point" || second.kind !== "line") {
@@ -525,7 +539,7 @@ const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEv
 
   const args: number[] = [];
   for (const argumentNode of node.args) {
-    if (argumentNode.kind === "geometryReference") {
+    if (argumentNode.kind === "geometryReference" || argumentNode.kind === "geometryEndpoint") {
       return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
     }
     const argument = evaluateTypedExpression(argumentNode.expression, environment);

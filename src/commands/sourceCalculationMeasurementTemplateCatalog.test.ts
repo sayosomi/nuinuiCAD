@@ -13,14 +13,14 @@ describe("Calculation / Measurement template catalog", () => {
       "Distance between points",
       "Angle between points",
       "Point-to-line distance",
-      "Angle between lines",
+      "Angle between endpoint tangents",
       "Spread angle"
     ]);
     expect(plans.map(({ builtinName, label }) => [builtinName, label])).toEqual([
       ["distance", "Distance between points"],
       ["angle", "Angle between points"],
       ["lineDistance", "Point-to-line distance"],
-      ["lineAngle", "Angle between lines"],
+      ["lineAngle", "Angle between endpoint tangents"],
       ["spreadAngle", "Spread angle"]
     ]);
   });

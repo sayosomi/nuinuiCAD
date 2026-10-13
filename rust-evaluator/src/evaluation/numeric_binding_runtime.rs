@@ -217,6 +217,10 @@ fn validate_typed_expression_runtime_targets(
                     } else if let TypedBuiltinArgument::GeometryReference {
                         target: Some(target),
                         ..
+                    }
+                    | TypedBuiltinArgument::GeometryEndpoint {
+                        target: Some(target),
+                        ..
                     } = argument
                     {
                         let target_element_id = target
@@ -462,7 +466,8 @@ fn scalar_issue_message(
         "evaluation-invalid-builtin-argument" => "組み込み関数の引数が不正です。",
         "evaluation-geometry-builtin-unavailable" => "組み込み関数のgeometry引数を評価できません。参照先のgeometryが有効で、正常に評価済みか確認してください。",
         "evaluation-geometry-builtin-disabled" => "組み込み関数のgeometry引数がdisabledのため利用できません。",
-        "evaluation-zero-length-line" => "lineDistance/lineAngleでは長さ0のlineを利用できません。",
+        "evaluation-zero-length-line" => "lineDistanceでは長さ0のlineを利用できません。",
+        "evaluation-geometry-endpoint-tangent-unavailable" => "lineAngleのendpoint tangentを有限な角度として評価できません。",
         "evaluation-sqrt-negative-input" => "sqrtの引数は0以上である必要があります。",
         "evaluation-round-to-non-positive-step" => "roundToのstepは0より大きい必要があります。",
         "evaluation-is-close-negative-tolerance" => "isCloseのtoleranceは0以上である必要があります。",

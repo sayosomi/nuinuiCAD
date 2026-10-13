@@ -666,7 +666,7 @@ export const analyzeTypedDeclarations = ({
     readonly statementIndex: number;
     readonly node: Extract<import("./expressionAst").ScalarExpressionAst, { kind: "reference" | "collectionIndex" | "geometryProperty" }>;
     readonly occurrenceIndex: number | null;
-    readonly expectedGeometryType: Extract<import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType, "point" | "line">;
+    readonly expectedGeometryType: import("../dsl/moduleGeometryInterfaces").ModuleGeometryInterfaceType;
   }) => import("./typedExpressionAst").ScalarExpressionResolvedGeometryTarget | undefined;
   additionalCollectionIndexResolver?: CollectionIndexResolver;
   additionalRecordFieldCollectionIndexResolver?: RecordFieldCollectionIndexResolver;
@@ -1088,6 +1088,11 @@ export const analyzeTypedDeclarations = ({
     const parsed = parsedByBindingId.get(binding.id);
     if (!parsed) throw new Error(`typedDeclarationAnalysis: no parsed initializer for ${binding.id}`);
     const prepared = preparedByBindingId.get(binding.id);
+    const geometryResolution = geometryResolutionByBindingId.get(binding.id);
+    const builtinGeometryPropertySpanStarts = new Set([
+      ...(geometryResolution?.geometryPropertyTargets.keys() ?? []),
+      ...(geometryResolution?.geometryEndpointTargets.keys() ?? [])
+    ]);
     const ownerContainerId = adapter.containerIndex.ownerContainerIdByStatementIndex.get(binding.statementIndex);
     const geometryPropertyResolution = resolveGeometryPropertyMetadata(
       prepared?.ast ?? parsed.ast,
@@ -1118,8 +1123,8 @@ export const analyzeTypedDeclarations = ({
           ? ({ node }) => Boolean(additionalRecordPropertyResolver({ statementIndex: binding.statementIndex, node }))
           : undefined,
         resolveStageSelection: resolveGeometryStageSelection,
-        skipPropertySpanStarts: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets
-          ? new Set(geometryResolutionByBindingId.get(binding.id)!.geometryPropertyTargets.keys())
+        skipPropertySpanStarts: builtinGeometryPropertySpanStarts.size > 0
+          ? builtinGeometryPropertySpanStarts
           : undefined
       }
     );
@@ -1130,10 +1135,11 @@ export const analyzeTypedDeclarations = ({
       references: prepared?.references ?? referenceResolutionsForAst(
         parsed.ast,
         collectionIndexResolutionByBindingId.get(binding.id) ?? new Map(),
-        geometryResolutionByBindingId.get(binding.id)?.references ?? resolvedByBindingId.get(binding.id) ?? [],
+        geometryResolution?.references ?? resolvedByBindingId.get(binding.id) ?? [],
         optionalCollectionMatchResolutionByBindingId.get(binding.id) ?? new Map()
       ),
-      geometryBuiltinArguments: geometryResolutionByBindingId.get(binding.id)?.geometryPropertyTargets,
+      geometryBuiltinArguments: geometryResolution?.geometryPropertyTargets,
+      geometryEndpointArguments: geometryResolution?.geometryEndpointTargets,
       geometryPropertyReferences: geometryPropertyResolution.geometryPropertyReferences
     });
     const statement = statements[binding.statementIndex];

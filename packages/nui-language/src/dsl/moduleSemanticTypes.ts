@@ -563,7 +563,8 @@ export type ModuleGeometryBuiltinArgumentSemantic = {
   builtinName: string;
   argumentIndex: number;
   span: DslSpan;
-  expectedGeometryType: Extract<ModuleGeometryInterfaceType, "point" | "line">;
+  expectedGeometryType: ModuleGeometryInterfaceType;
+  endpointKey?: "start" | "end";
   reference: ModuleGeometryReferenceSemantic;
 };
 

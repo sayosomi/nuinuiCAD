@@ -76,6 +76,10 @@ export const optionalCollectionMatchPresenceProjection = (
 interface TraversalState {
   readonly references: readonly (BindingResolution | ScalarExpressionResolvedReference)[];
   readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
+  readonly geometryEndpointArguments?: ReadonlyMap<number, {
+    readonly endpointKey: "start" | "end";
+    readonly target: ScalarExpressionResolvedGeometryTarget | null;
+  }>;
   readonly geometryPropertyReferences?: ReadonlyMap<number, ScalarExpressionResolvedGeometryProperty | null>;
   readonly optionalMemberReferences?: ReadonlyMap<number, ScalarExpressionResolvedOptionalMember | null>;
   cursor: number;
@@ -831,6 +835,19 @@ const checkNode = (
       const recoverInvalidCallArguments = (): TypedBuiltinArgument[] => node.args.map((arg, argumentIndex) => {
         const parameterType = positionalRecoverySignature?.parameters[argumentIndex]?.type;
         const sourceArgument = arg.expression;
+        if (parameterType && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
+          const endpoint = state.geometryEndpointArguments?.get(sourceArgument.span.start);
+          if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
+            checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
+          } else if (!endpoint?.target) {
+            checkNode(sourceArgument, null, state);
+          }
+          return {
+            kind: "geometryEndpoint",
+            endpointKey: endpoint?.endpointKey ?? "start",
+            target: endpoint?.target ?? null
+          };
+        }
         if (
           arg.kind === "positional" &&
           (parameterType === "point" || parameterType === "line")
@@ -983,6 +1000,22 @@ const checkNode = (
           args.push({ kind: "scalar", expression: checkNode(nodeArgument.expression, null, state) });
           continue;
         }
+        if (typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
+          const sourceArgument = nodeArgument.expression;
+          const endpoint = state.geometryEndpointArguments?.get(sourceArgument.span.start);
+          let target = endpoint?.target ?? null;
+          if (sourceArgument.kind === "geometryProperty" && sourceArgument.occurrenceIndex) {
+            const occurrenceIndex = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
+            if (!checkOperandType(state, occurrenceIndex, NUMBER_TYPE)) argumentsAreValid = false;
+            if (target?.kind === "forGroupOccurrence") target = { ...target, index: occurrenceIndex };
+          } else if (!endpoint?.target) {
+            checkNode(sourceArgument, null, state);
+          }
+          const endpointKey = endpoint?.endpointKey ?? "start";
+          if (!endpoint || !target || target.geometryType !== "path") argumentsAreValid = false;
+          args.push({ kind: "geometryEndpoint", endpointKey, target });
+          continue;
+        }
         if (isScalarBuiltinParameterType(parameterType)) {
           const argument = checkNode(nodeArgument.expression, null, state);
           args.push({ kind: "scalar", expression: argument });
@@ -1040,6 +1073,7 @@ export const typecheckScalarExpression = (
   const state: TraversalState = {
     references: context.references,
     geometryBuiltinArguments: context.geometryBuiltinArguments,
+    geometryEndpointArguments: context.geometryEndpointArguments,
     geometryPropertyReferences: context.geometryPropertyReferences,
     optionalMemberReferences: context.optionalMemberReferences,
     cursor: 0,

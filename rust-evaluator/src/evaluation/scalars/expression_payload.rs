@@ -429,7 +429,8 @@ fn visit_node<'a>(
                 .rev()
                 .filter_map(|argument| match argument {
                     CallArgumentShape::Scalar { expression } => Some(*expression),
-                    CallArgumentShape::GeometryReference { .. } => None,
+                    CallArgumentShape::GeometryReference { .. }
+                    | CallArgumentShape::GeometryEndpoint { .. } => None,
                 })
                 .collect();
             work.push(WorkItem::BuildCall {
@@ -627,6 +628,13 @@ pub(crate) fn validate_typed_expression_payload(
                             target,
                         } => args.push(TypedBuiltinArgument::GeometryReference {
                             expected_geometry_type,
+                            target,
+                        }),
+                        CallArgumentShape::GeometryEndpoint {
+                            endpoint_key,
+                            target,
+                        } => args.push(TypedBuiltinArgument::GeometryEndpoint {
+                            endpoint_key,
                             target,
                         }),
                     }

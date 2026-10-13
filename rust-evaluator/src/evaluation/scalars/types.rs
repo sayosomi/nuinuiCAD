@@ -298,8 +298,8 @@ impl BuiltinFunctionName {
                 BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
             ]],
             Self::LineAngle => &[&[
-                BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
-                BuiltinArgumentType::Geometry(GeometryInterfaceType::Line),
+                BuiltinArgumentType::GeometryEndpoint,
+                BuiltinArgumentType::GeometryEndpoint,
             ]],
         }
     }
@@ -316,6 +316,30 @@ impl BuiltinFunctionName {
 pub(crate) enum BuiltinArgumentType {
     Scalar,
     Geometry(GeometryInterfaceType),
+    GeometryEndpoint,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GeometryEndpointKey {
+    Start,
+    End,
+}
+
+impl GeometryEndpointKey {
+    pub(crate) fn from_wire_name(name: &str) -> Option<Self> {
+        match name {
+            "start" => Some(Self::Start),
+            "end" => Some(Self::End),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn property_name(self) -> &'static str {
+        match self {
+            Self::Start => "startAngleDeg",
+            Self::End => "endAngleDeg",
+        }
+    }
 }
 
 /// A call target is resolved before it crosses into Rust. Keeping this as a
@@ -472,6 +496,10 @@ pub(crate) enum TypedBuiltinArgument {
         expected_geometry_type: GeometryInterfaceType,
         target: Option<ScalarExpressionResolvedGeometryTarget>,
     },
+    GeometryEndpoint {
+        endpoint_key: GeometryEndpointKey,
+        target: Option<ScalarExpressionResolvedGeometryTarget>,
+    },
 }
 
 /// Decoding a `TypedScalarExpression` from JSON is iterative (see
@@ -556,7 +584,8 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
             .into_iter()
             .filter_map(|argument| match argument {
                 TypedBuiltinArgument::Scalar { expression } => Some(*expression),
-                TypedBuiltinArgument::GeometryReference { .. } => None,
+                TypedBuiltinArgument::GeometryReference { .. }
+                | TypedBuiltinArgument::GeometryEndpoint { .. } => None,
             })
             .collect(),
         TypedScalarExpression::NumberLiteral { .. }

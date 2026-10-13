@@ -369,45 +369,68 @@ where
 
     let mut runtime_targets = Vec::with_capacity(arguments.len());
     for (expected, argument) in signature.iter().zip(arguments) {
-        let BuiltinArgumentType::Geometry(expected_geometry_type) = expected else {
-            return Err(GeometryBuiltinRuntimeError::InvalidArgument);
-        };
-        let TypedBuiltinArgument::GeometryReference {
-            expected_geometry_type: argument_expected_geometry_type,
-            target: Some(target),
-        } = argument
-        else {
-            return Err(GeometryBuiltinRuntimeError::InvalidArgument);
-        };
-        if argument_expected_geometry_type != expected_geometry_type
-            || target.geometry_type != *expected_geometry_type
-        {
-            return Err(GeometryBuiltinRuntimeError::Unavailable);
-        }
-        let runtime_target = lookup(target)?;
-        match (expected_geometry_type, &runtime_target) {
+        let runtime_target = match (expected, argument) {
             (
-                GeometryInterfaceType::Point,
-                GeometryBuiltinRuntimeTarget::Point(_)
-                | GeometryBuiltinRuntimeTarget::GeometryValuePoint { .. },
-            ) => {}
-            (GeometryInterfaceType::Line, GeometryBuiltinRuntimeTarget::Line { start, end }) => {
-                let dx = end.x - start.x;
-                let dy = end.y - start.y;
-                if dx.hypot(dy) <= 1e-9 {
-                    return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
-                }
-            }
-            (
-                GeometryInterfaceType::Line,
-                GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end },
+                BuiltinArgumentType::Geometry(expected_geometry_type),
+                TypedBuiltinArgument::GeometryReference {
+                    expected_geometry_type: argument_expected_geometry_type,
+                    target: Some(target),
+                },
             ) => {
-                if (end.0 - start.0).hypot(end.1 - start.1) <= 1e-9 {
-                    return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
+                if argument_expected_geometry_type != expected_geometry_type
+                    || target.geometry_type != *expected_geometry_type
+                {
+                    return Err(GeometryBuiltinRuntimeError::Unavailable);
+                }
+                let runtime_target = lookup(target)?;
+                match (expected_geometry_type, &runtime_target) {
+                    (
+                        GeometryInterfaceType::Point,
+                        GeometryBuiltinRuntimeTarget::Point(_)
+                        | GeometryBuiltinRuntimeTarget::GeometryValuePoint { .. },
+                    ) => {}
+                    (
+                        GeometryInterfaceType::Line,
+                        GeometryBuiltinRuntimeTarget::Line { start, end },
+                    ) => {
+                        let dx = end.x - start.x;
+                        let dy = end.y - start.y;
+                        if dx.hypot(dy) <= 1e-9 {
+                            return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
+                        }
+                    }
+                    (
+                        GeometryInterfaceType::Line,
+                        GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end },
+                    ) => {
+                        if (end.0 - start.0).hypot(end.1 - start.1) <= 1e-9 {
+                            return Err(GeometryBuiltinRuntimeError::ZeroLengthLine);
+                        }
+                    }
+                    _ => return Err(GeometryBuiltinRuntimeError::Unavailable),
+                }
+                runtime_target
+            }
+            (
+                BuiltinArgumentType::GeometryEndpoint,
+                TypedBuiltinArgument::GeometryEndpoint {
+                    target: Some(target),
+                    ..
+                },
+            ) => {
+                if target.geometry_type != GeometryInterfaceType::Path || target.point_key.is_some()
+                {
+                    return Err(GeometryBuiltinRuntimeError::Unavailable);
+                }
+                match lookup(target)? {
+                    GeometryBuiltinRuntimeTarget::GeometryValuePath { value } => {
+                        GeometryBuiltinRuntimeTarget::GeometryValuePath { value }
+                    }
+                    _ => return Err(GeometryBuiltinRuntimeError::Unavailable),
                 }
             }
-            _ => return Err(GeometryBuiltinRuntimeError::Unavailable),
-        }
+            _ => return Err(GeometryBuiltinRuntimeError::InvalidArgument),
+        };
         runtime_targets.push(runtime_target);
     }
     Ok(runtime_targets)

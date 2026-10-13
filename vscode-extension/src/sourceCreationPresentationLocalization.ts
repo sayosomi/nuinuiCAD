@@ -45,7 +45,7 @@ export const sourceCreationPresentationTranslationCatalog = {
   "sourceCreation.calculationMeasurement.distance": { en: "Distance between points", ja: "2点間の距離" },
   "sourceCreation.calculationMeasurement.angle": { en: "Angle between points", ja: "2点間の角度" },
   "sourceCreation.calculationMeasurement.lineDistance": { en: "Point-to-line distance", ja: "点から線までの距離" },
-  "sourceCreation.calculationMeasurement.lineAngle": { en: "Angle between lines", ja: "2本の線の間の角度" },
+  "sourceCreation.calculationMeasurement.lineAngle": { en: "Angle between endpoint tangents", ja: "端点の接線間の角度" },
   "sourceCreation.calculationMeasurement.spreadAngle": { en: "Spread angle", ja: "角度の広がり" },
 
   "sourceCreation.controlFlow.group": { en: "Group", ja: "Group（グループ）" },

@@ -365,6 +365,14 @@ fn geometry_argument(expected_geometry_type: &str, target: Option<Value>) -> Val
     })
 }
 
+fn geometry_endpoint_argument(endpoint_key: &str, target: Option<Value>) -> Value {
+    json!({
+        "kind": "geometryEndpoint",
+        "endpointKey": endpoint_key,
+        "target": target
+    })
+}
+
 fn geometry_call_with_type(name: &str, args: Vec<Value>, r#type: Value) -> Value {
     json!({
         "kind": "call", "span": {"start": 0, "end": 1}, "nameSpan": {"start": 0, "end": 1},
@@ -648,12 +656,12 @@ fn decodes_line_distance_point_line_geometry_wrappers() {
 }
 
 #[test]
-fn decodes_line_angle_line_line_geometry_wrappers_without_argument_names() {
+fn decodes_line_angle_endpoint_wrappers_and_rejects_old_line_arguments() {
     let decoded = validate_typed_expression_payload(&geometry_call(
         "lineAngle",
         vec![
-            geometry_argument("line", Some(geometry_target("line-a", 1, "line"))),
-            geometry_argument("line", Some(geometry_target("line-b", 2, "line"))),
+            geometry_endpoint_argument("start", Some(geometry_target("line-a", 1, "path"))),
+            geometry_endpoint_argument("end", Some(geometry_target("line-b", 2, "path"))),
         ],
     ))
     .unwrap();
@@ -667,17 +675,26 @@ fn decodes_line_angle_line_line_geometry_wrappers_without_argument_names() {
     assert!(matches!(
         &args[..],
         [
-            TypedBuiltinArgument::GeometryReference {
-                expected_geometry_type: GeometryInterfaceType::Line,
+            TypedBuiltinArgument::GeometryEndpoint {
+                endpoint_key: super::types::GeometryEndpointKey::Start,
                 target: Some(first),
             },
-            TypedBuiltinArgument::GeometryReference {
-                expected_geometry_type: GeometryInterfaceType::Line,
+            TypedBuiltinArgument::GeometryEndpoint {
+                endpoint_key: super::types::GeometryEndpointKey::End,
                 target: Some(second),
             }
-        ] if first.geometry_type == GeometryInterfaceType::Line
-            && second.geometry_type == GeometryInterfaceType::Line
+        ] if first.geometry_type == GeometryInterfaceType::Path
+            && second.geometry_type == GeometryInterfaceType::Path
     ));
+
+    assert!(validate_typed_expression_payload(&geometry_call(
+        "lineAngle",
+        vec![
+            geometry_argument("line", Some(geometry_target("line-a", 1, "line"))),
+            geometry_argument("line", Some(geometry_target("line-b", 2, "line"))),
+        ],
+    ))
+    .is_err());
 }
 
 #[test]

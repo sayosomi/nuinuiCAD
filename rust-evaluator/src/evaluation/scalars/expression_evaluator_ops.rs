@@ -9,7 +9,8 @@
 //! Mirrors `src/scalars/expressionEvaluator.ts` field-for-field, including
 //! its exact `evaluation-*` issue-code vocabulary.
 
-use super::angle_math::{atan2_degrees_360, radians_to_degrees};
+use super::super::numeric_expression::computed_reference_value;
+use super::angle_math::atan2_degrees_360;
 use super::builtin_function_semantics::{
     evaluate_builtin_function, BuiltinFunctionError, BuiltinFunctionValue,
 };
@@ -255,6 +256,58 @@ pub(crate) fn evaluate_geometry_builtin_call(
         environment.lookup_geometry_builtin_target(target)
     }) {
         Ok(runtime_targets) => {
+            if name == BuiltinFunctionName::LineAngle {
+                let [TypedBuiltinArgument::GeometryEndpoint {
+                    endpoint_key: first_key,
+                    ..
+                }, TypedBuiltinArgument::GeometryEndpoint {
+                    endpoint_key: second_key,
+                    ..
+                }] = arguments
+                else {
+                    return ScalarEvaluation::Error {
+                        r#type,
+                        issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                };
+                let [GeometryBuiltinRuntimeTarget::GeometryValuePath {
+                    value: first_geometry,
+                }, GeometryBuiltinRuntimeTarget::GeometryValuePath {
+                    value: second_geometry,
+                }] = runtime_targets.as_slice()
+                else {
+                    return ScalarEvaluation::Error {
+                        r#type,
+                        issue_code: "evaluation-geometry-builtin-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                };
+                let first_angle =
+                    computed_reference_value(first_geometry, first_key.property_name());
+                let second_angle =
+                    computed_reference_value(second_geometry, second_key.property_name());
+                let (Some(first_angle), Some(second_angle)) = (first_angle, second_angle) else {
+                    return ScalarEvaluation::Error {
+                        r#type,
+                        issue_code: "evaluation-geometry-endpoint-tangent-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                };
+                if !first_angle.is_finite() || !second_angle.is_finite() {
+                    return ScalarEvaluation::Error {
+                        r#type,
+                        issue_code: "evaluation-geometry-endpoint-tangent-unavailable".to_owned(),
+                        binding_id: None,
+                        context: None,
+                    };
+                }
+                let delta = (first_angle - second_angle).abs().rem_euclid(180.0);
+                return finite_number_result(r#type, delta.min(180.0 - delta));
+            }
             let result = match (name, runtime_targets.as_slice()) {
                 (BuiltinFunctionName::Distance, [first, second]) => point_xy(first)
                     .zip(point_xy(second))
@@ -273,22 +326,6 @@ pub(crate) fn evaluate_geometry_builtin_call(
                             let dy = end_y - start_y;
                             (dx * (start_y - point_y) - (start_x - point_x) * dy).abs()
                                 / dx.hypot(dy)
-                        },
-                    )
-                }
-                (BuiltinFunctionName::LineAngle, [first, second]) => {
-                    line_xy(first).zip(line_xy(second)).map(
-                        |(
-                            ((first_start_x, first_start_y), (first_end_x, first_end_y)),
-                            ((second_start_x, second_start_y), (second_end_x, second_end_y)),
-                        )| {
-                            let first_dx = first_end_x - first_start_x;
-                            let first_dy = first_end_y - first_start_y;
-                            let second_dx = second_end_x - second_start_x;
-                            let second_dy = second_end_y - second_start_y;
-                            let ratio = (first_dx * second_dx + first_dy * second_dy).abs()
-                                / (first_dx.hypot(first_dy) * second_dx.hypot(second_dy));
-                            radians_to_degrees(ratio.clamp(0.0, 1.0).acos())
                         },
                     )
                 }

@@ -7,8 +7,8 @@ use super::geometry_builtin_runtime::{
     validate_geometry_builtin_arguments, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
 };
 use super::types::{
-    BuiltinFunctionName, GeometryInterfaceType, ScalarExpressionResolvedGeometryTarget,
-    TypedBuiltinArgument,
+    BuiltinFunctionName, GeometryEndpointKey, GeometryInterfaceType,
+    ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument,
 };
 use crate::evaluation::types::{EvaluationState, GeometryValueOccurrence, Point};
 
@@ -18,6 +18,23 @@ fn point_value(x: f64, y: f64) -> serde_json::Value {
 
 fn line_value(start: serde_json::Value, end: serde_json::Value) -> serde_json::Value {
     json!({"kind": "line", "start": start, "end": end})
+}
+
+fn endpoint_argument(
+    endpoint_key: GeometryEndpointKey,
+    id: &str,
+    index: usize,
+) -> TypedBuiltinArgument {
+    TypedBuiltinArgument::GeometryEndpoint {
+        endpoint_key,
+        target: Some(target(id, index, GeometryInterfaceType::Path)),
+    }
+}
+
+fn path_runtime(length: f64) -> GeometryBuiltinRuntimeTarget {
+    GeometryBuiltinRuntimeTarget::GeometryValuePath {
+        value: line_value(point_value(0.0, 0.0), point_value(length, 0.0)),
+    }
 }
 
 fn state_with_geometry(
@@ -533,27 +550,21 @@ fn point_point_and_point_line_signatures_validate_without_calculating() {
         Ok(vec![point, line])
     );
 
-    let first_line = TypedBuiltinArgument::GeometryReference {
-        expected_geometry_type: GeometryInterfaceType::Line,
-        target: Some(target("first-line", 1, GeometryInterfaceType::Line)),
-    };
-    let second_line = TypedBuiltinArgument::GeometryReference {
-        expected_geometry_type: GeometryInterfaceType::Line,
-        target: Some(target("second-line", 2, GeometryInterfaceType::Line)),
-    };
+    let first_line = endpoint_argument(GeometryEndpointKey::Start, "first-line", 1);
+    let second_line = endpoint_argument(GeometryEndpointKey::End, "second-line", 2);
     assert_eq!(
         validate_geometry_builtin_arguments(
             BuiltinFunctionName::LineAngle,
             &[first_line, second_line],
             |target| {
                 if target.statement_id == "first-line" {
-                    Ok(line_runtime(1.0))
+                    Ok(path_runtime(1.0))
                 } else {
-                    Ok(line_runtime(2.0))
+                    Ok(path_runtime(2.0))
                 }
             },
         ),
-        Ok(vec![line_runtime(1.0), line_runtime(2.0)])
+        Ok(vec![path_runtime(1.0), path_runtime(2.0)])
     );
 }
 

@@ -8129,11 +8129,11 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
       expectScalarNumberClose(scalarBindingFor(fixture, payload, "setValue"), 90);
       expect(scalarBindingFor(fixture, payload, "zeroFirst")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-zero-length-line"
+        issueCode: "evaluation-geometry-endpoint-tangent-unavailable"
       });
       expect(scalarBindingFor(fixture, payload, "zeroSecond")).toMatchObject({
         status: "error",
-        issueCode: "evaluation-zero-length-line"
+        issueCode: "evaluation-geometry-endpoint-tangent-unavailable"
       });
     }
 
