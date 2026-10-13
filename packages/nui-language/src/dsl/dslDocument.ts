@@ -4630,6 +4630,7 @@ export const compileDslDocument = (
     ...(sourceLexicalNamespace?.diagnostics ?? []),
     ...(immutableCarryCompilation?.diagnostics ?? []),
     ...scalarAnalysisCompilation.diagnostics,
+    ...(moduleScalarCompilation?.diagnostics ?? []),
     ...(moduleSemanticCompilation?.diagnostics ?? [])
   ].map(withDiagnosticPresentation);
   // Task 48: see CompiledDslDocument.bindingIssueDiagnostics for why this is

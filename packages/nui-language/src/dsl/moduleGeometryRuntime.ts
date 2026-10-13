@@ -23,6 +23,7 @@ import { buildModuleGeometryArrayRuntime } from "./moduleGeometryArrayRuntime";
 import {
   diagnosticForExport,
   diagnosticForExportNamespace,
+  geometryCarrySourceForTarget,
   geometryKindOfCategory,
   lowerReference,
   moduleCarryBindingIdFor,
@@ -564,14 +565,15 @@ export const buildModuleGeometryRuntime = ({
     instancePath: readonly string[],
     expectedGeometryType: ModuleGeometryInterfaceType
   ): ModuleGeometryBuiltinRuntimeTarget | undefined => {
-    if (target.kind === "geometryCarry") {
-      if (!isModuleGeometryInterfaceAssignable(target.geometryKind, expectedGeometryType)) return undefined;
+    const carry = geometryCarrySourceForTarget(target, instancePath, contextsByPath);
+    if (carry) {
+      if (!isModuleGeometryInterfaceAssignable(carry.geometryKind, expectedGeometryType)) return undefined;
       return {
         kind: "geometryCarry",
-        bindingId: moduleCarryBindingIdFor(instancePath, target.bindingId),
+        bindingId: moduleCarryBindingIdFor(carry.instancePath, carry.bindingId),
         geometryType: expectedGeometryType,
-        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
-        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+        ...(carry.pointKey ? { pointKey: carry.pointKey } : {}),
+        ...(carry.stagePath ? { stagePath: carry.stagePath } : {})
       };
     }
     const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);

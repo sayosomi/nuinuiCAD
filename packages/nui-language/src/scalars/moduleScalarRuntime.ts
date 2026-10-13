@@ -1,7 +1,7 @@
 import { encodeIdentityTuple } from "../document/identityTuple";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
-import type { DslStatement } from "../dsl/dslTypes";
+import type { DslDiagnostic, DslStatement } from "../dsl/dslTypes";
 import type { DocumentId, DocumentQualifiedSemanticIdentity } from "../document/multiDocumentPrimitives";
 import type { StatementIdentity } from "../document/statementIdentity";
 import type {
@@ -160,6 +160,7 @@ export type MaterializedForGroupCollectionSource = {
 };
 
 export type ModuleScalarRuntimeCompilation = {
+  diagnostics: readonly DslDiagnostic[];
   bindingAnalysis: BindingAnalysis;
   scalarProgram: ScalarProgram;
   controlByScopeId: ReadonlyMap<string, BindingControlMetadata>;
@@ -2186,6 +2187,60 @@ export const compileModuleScalarRuntime = ({
     : undefined;
 
   const contextsByKey = new Map<string, InstanceContext>();
+  const unresolvedGeometryEndpointArguments = new Map<string, {
+    occurrence: ModuleGeometryBuiltinArgumentSemantic;
+    statementIndex?: number;
+    line?: number;
+  }>();
+  const recordUnresolvedGeometryEndpoint = (
+    occurrence: ModuleGeometryBuiltinArgumentSemantic,
+    statementIndex?: number,
+    line?: number
+  ) => {
+    if (!occurrence.endpointKey || !occurrence.reference.target ||
+        (occurrence.reference.resolution !== "resolved" && occurrence.reference.resolution !== "deferred")) return;
+    unresolvedGeometryEndpointArguments.set(
+      `${occurrence.builtinName}:${occurrence.span.start}:${occurrence.span.end}`,
+      {
+        occurrence,
+        ...(statementIndex !== undefined ? { statementIndex } : {}),
+        ...(line !== undefined ? { line } : {})
+      }
+    );
+  };
+  const rootStatementIndexForGeometryEndpoint = (occurrence: ModuleGeometryBuiltinArgumentSemantic) => {
+    const statementId = [...moduleSemanticAnalysis.rootScalarExpressionsByStatementId].find(([, site]) =>
+      site.expression.geometryBuiltinArguments.some((candidate) =>
+        candidate.span.start === occurrence.span.start && candidate.span.end === occurrence.span.end
+      )
+    )?.[0];
+    return statementId === undefined
+      ? undefined
+      : [...stableStatementIdByIndex].find(([, candidate]) => candidate === statementId)?.[0];
+  };
+  const moduleStatementIndexForGeometryEndpoint = (
+    occurrence: ModuleGeometryBuiltinArgumentSemantic,
+    context: InstanceContext
+  ) => context.definition.bodyStatements.find((body) =>
+    body.scalarExpressions.some((site) => site.expression.geometryBuiltinArguments.some((candidate) =>
+      candidate.span.start === occurrence.span.start && candidate.span.end === occurrence.span.end
+    ))
+  )?.statementIndex;
+  const moduleSourceLocationForGeometryEndpoint = (
+    occurrence: ModuleGeometryBuiltinArgumentSemantic,
+    context: InstanceContext
+  ) => {
+    const sourceStatements = moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements ?? statements;
+    const statementIndex = moduleStatementIndexForGeometryEndpoint(occurrence, context);
+    return {
+      ...(context.definitionDocumentId === moduleRuntimeContext?.rootDocumentId && statementIndex !== undefined
+        ? { statementIndex }
+        : {}),
+      ...(statementIndex !== undefined && sourceStatements[statementIndex]
+        ? { line: sourceStatements[statementIndex]!.line }
+        : {})
+    };
+  };
   const allBindingInfos: BindingInfo[] = [];
   const foreignSourceScalars = new Map<import("../document/multiDocumentPrimitives").DocumentId, ForeignSourceScalars>();
   if (moduleRuntimeContext) {
@@ -5485,14 +5540,27 @@ export const compileModuleScalarRuntime = ({
     const sourceTarget = occurrence.reference.target;
     const stagePath = "stagePath" in sourceTarget ? sourceTarget.stagePath : undefined;
     if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
-      return resolvedGeometryCollectionEndpointFor(sourceTarget, context.path, resolvedGeometryType);
+      const lowered = resolvedGeometryCollectionEndpointFor(sourceTarget, context.path, resolvedGeometryType);
+      if (!lowered) {
+        const location = moduleSourceLocationForGeometryEndpoint(occurrence, context);
+        recordUnresolvedGeometryEndpoint(occurrence, location.statementIndex, location.line);
+      }
+      return lowered;
     }
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
       sourceTarget,
       context.path,
       resolvedGeometryType
     );
-    if (!lowered) return undefined;
+    if (!lowered) {
+      const location = moduleSourceLocationForGeometryEndpoint(occurrence, context);
+      recordUnresolvedGeometryEndpoint(
+        occurrence,
+        location.statementIndex,
+        location.line
+      );
+      return undefined;
+    }
     const resolvedStagePath = stagePath ?? lowered.stagePath;
     if (lowered.kind === "geometryValue") {
       return {
@@ -5565,14 +5633,23 @@ export const compileModuleScalarRuntime = ({
       : geometryInterfaceTypeForReference(occurrence.reference) ?? occurrence.expectedGeometryType;
     const stagePath = "stagePath" in sourceTarget ? sourceTarget.stagePath : undefined;
     if (occurrence.endpointKey && sourceTarget.kind === "collectionIndex") {
-      return resolvedGeometryCollectionEndpointFor(sourceTarget, [], resolvedGeometryType);
+      const lowered = resolvedGeometryCollectionEndpointFor(sourceTarget, [], resolvedGeometryType);
+      if (!lowered) {
+        const statementIndex = rootStatementIndexForGeometryEndpoint(occurrence);
+        recordUnresolvedGeometryEndpoint(occurrence, statementIndex, statementIndex === undefined ? undefined : statements[statementIndex]?.line);
+      }
+      return lowered;
     }
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
       sourceTarget,
       [],
       resolvedGeometryType
     );
-    if (!lowered) return undefined;
+    if (!lowered) {
+      const statementIndex = rootStatementIndexForGeometryEndpoint(occurrence);
+      recordUnresolvedGeometryEndpoint(occurrence, statementIndex, statementIndex === undefined ? undefined : statements[statementIndex]?.line);
+      return undefined;
+    }
     if (lowered.kind === "geometryValue") {
       return {
         kind: "geometryValue",
@@ -8017,7 +8094,21 @@ export const compileModuleScalarRuntime = ({
     scalarExecutionPositionByRuntimeElementId.set(entry.runtimeElementId, lastScalarExecutionPosition);
   }
 
+  const diagnostics: DslDiagnostic[] = [...unresolvedGeometryEndpointArguments.values()].map(({ occurrence, statementIndex, line }) => {
+    const statement = statementIndex === undefined ? undefined : statements[statementIndex];
+    const reference = occurrence.reference.source || "geometry endpoint";
+    return {
+      severity: "error",
+      line: line ?? statement?.line ?? 1,
+      column: 1,
+      code: "builtin-geometry-target-unavailable",
+      message: `組み込み関数「${occurrence.builtinName}」のgeometry endpoint「${reference}」を実行可能なtargetへ解決できません。直接参照できる対応済みのpath endpoint、または対応済みのModule exportを指定してください。`,
+      ...(statementIndex !== undefined ? { logicalSpan: occurrence.span, statementIndex } : {})
+    };
+  });
+
   return {
+    diagnostics,
     bindingAnalysis: combinedAnalysis,
     scalarProgram,
     controlByScopeId,

@@ -1,8 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { emptyDocument, moduleScalarBindingIdFor } from "@nuinuicad/nui-language";
+import {
+  emptyDocument,
+  moduleCarryBindingIdFor,
+  moduleScalarBindingIdFor,
+  unwrapModuleGeometrySourceTarget
+} from "@nuinuicad/nui-language";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
+import { buildRustEvaluationInput } from "../src/geometry/rustEvaluationInput";
 import {
   createRustStdioParityClient,
   fixtureFromSource,
@@ -63,6 +69,16 @@ const geometryCarriesFor = (fixture: Fixture) =>
   [...(fixture.compiled?.doc.bindingVersions?.immutableForGroups?.values() ?? [])]
     .flatMap((plan) => plan.geometryCarries ?? []);
 
+const exportedGeometryCarryFor = (fixture: Fixture, instanceName: string, exportName: string) => {
+  const exported = moduleDefinitionFor(fixture, instanceName).exports.find(
+    (candidate) => candidate.kind === "geometry" && candidate.name === exportName
+  );
+  if (!exported?.backingTarget) throw new Error(`Module export "${instanceName}::${exportName}" has no source target`);
+  const source = unwrapModuleGeometrySourceTarget(exported.backingTarget).target;
+  if (source.kind !== "geometryCarry") throw new Error(`Module export "${instanceName}::${exportName}" is not backed by a geometry carry`);
+  return source;
+};
+
 const expectAccepted = (fixture: Fixture, label: string) => {
   expect(
     fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error"),
@@ -80,6 +96,16 @@ const expectRootScalar = (
   const binding = rootBindingFor(fixture, name);
   expect(evaluationPayloadToResult(payload).computedScalarBindings?.get(binding.id), `scalar ${name}`)
     .toMatchObject(expected);
+};
+
+const geometryEndpointArgumentsIn = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value.flatMap(geometryEndpointArgumentsIn);
+  if (!value || typeof value !== "object") return [];
+  const record = value as Record<string, unknown>;
+  return [
+    ...(record.kind === "geometryEndpoint" ? [record] : []),
+    ...Object.values(record).flatMap(geometryEndpointArgumentsIn)
+  ];
 };
 
 const expectNoZeroLengthDiagnostic = (fixture: Fixture, payload: EvaluationPayload) => {
@@ -615,6 +641,149 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       return target.kind === "geometryEndpoint" && target.target?.kind === "geometryCarry" ? target.target.bindingId : null;
     })).size).toBe(2);
   });
+
+  it("lowers the exact exported path carry endpoint through the production payload", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Axis = segment(start: (30, 30), end: (40, 30))",
+      "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
+      "module Forward(source: path) {",
+      "  const ticks: number[] = [1]",
+      "  for i in @ticks carry edge: path = @source {",
+      "    next edge = @source",
+      "  }",
+      "  export const out: path = @edge",
+      "}",
+      "instance Use = Forward(source: @Curve)",
+      "const result: number = lineAngle(@Use::out.start, @Axis.start)"
+    ].join("\n"));
+    expectAccepted(fixture, "Issue #1380 minimal source");
+    expect(isRustEligibleFixture(fixture), "Issue #1380 production-host Rust eligibility").toBe(true);
+
+    const instance = fixture.compiled?.doc.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === "Use");
+    const instanceElement = fixture.elements.find((element) => element.name === "Use");
+    const carry = exportedGeometryCarryFor(fixture, "Use", "out");
+    const materializedPath = fixture.compiled?.doc.moduleMaterialization?.instanceBaseGeometrySnapshots.find(
+      (snapshot) => snapshot.instanceId === instanceElement?.id
+    )?.instancePath;
+    if (!instance || !instanceElement || !carry || !materializedPath) {
+      throw new Error("Issue #1380 materialized Module carry identity was not available");
+    }
+    const expectedBindingId = moduleCarryBindingIdFor(materializedPath, carry.bindingId);
+    const call = rootLineAngleCallFor(fixture, "result");
+    expect(call.args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: {
+        kind: "geometryCarry",
+        bindingId: expectedBindingId,
+        statementId: expectedBindingId,
+        geometryType: "path"
+      }
+    });
+
+    const options = optionsFor(fixture);
+    const rustInput = buildRustEvaluationInput(fixture.elements, options);
+    expect(geometryEndpointArgumentsIn(rustInput)).toContainEqual(call.args[0]);
+
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expectRootScalar(fixture, rustPayload, "result", {
+      status: "ok", value: { kind: "number", value: 25 }
+    });
+    // Issue #1381 owns the independent TypeScript carry lookup defect. Keep
+    // its current failure visible instead of treating this as Rust/TS parity.
+    const tsResult = evaluationPayloadToResult(tsPayload).computedScalarBindings?.get(rootBindingFor(fixture, "result").id);
+    expect(tsResult).toMatchObject({ status: "error", issueCode: "evaluation-geometry-builtin-unavailable" });
+    expect(runtimeDiagnosticsFor(fixture, tsPayload)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        origin: "runtime",
+        severity: "error",
+        code: "evaluation-geometry-builtin-unavailable",
+        bindingId: rootBindingFor(fixture, "result").id
+      })
+    ]));
+  }, 120_000);
+
+  it("keeps exported carry identities independent across distinct Module instances", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Axis = segment(start: (30, 30), end: (40, 30))",
+      "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
+      "module Forward(source: path) {",
+      "  const ticks: number[] = [1]",
+      "  for i in @ticks carry edge: path = @source {",
+      "    next edge = @source",
+      "  }",
+      "  export const out: path = @edge",
+      "}",
+      "instance First = Forward(source: @Curve)",
+      "instance Second = Forward(source: @Curve)",
+      "const firstAngle: number = lineAngle(@First::out.start, @Axis.start)",
+      "const secondAngle: number = lineAngle(@Second::out.end, @Axis.start)"
+    ].join("\n"));
+    expectAccepted(fixture, "distinct exported carry instances");
+    expect(isRustEligibleFixture(fixture), "distinct exported carry production eligibility").toBe(true);
+
+    const carries = geometryCarriesFor(fixture);
+    expect(carries).toHaveLength(2);
+    const sourceCarry = exportedGeometryCarryFor(fixture, "First", "out");
+    const expectedBindings = new Map<string, string>();
+    for (const name of ["First", "Second"] as const) {
+      const instance = fixture.compiled?.doc.moduleSemanticAnalysis?.instances.find((candidate) => candidate.name === name);
+      const instanceElement = fixture.elements.find((element) => element.name === name);
+      const materializedPath = fixture.compiled?.doc.moduleMaterialization?.instanceBaseGeometrySnapshots.find(
+        (snapshot) => snapshot.instanceId === instanceElement?.id
+      )?.instancePath;
+      if (!instance || !instanceElement || !materializedPath) throw new Error(`missing materialized path for ${name}`);
+      const expectedBindingId = moduleCarryBindingIdFor(materializedPath, sourceCarry.bindingId);
+      expectedBindings.set(name, expectedBindingId);
+    }
+    expect(new Set(expectedBindings.values()).size).toBe(2);
+    expect(new Set(expectedBindings.values())).toEqual(new Set(carries.map((carry) => carry.bindingId)));
+    for (const [resultName, instanceName, endpointKey] of [
+      ["firstAngle", "First", "start"],
+      ["secondAngle", "Second", "end"]
+    ] as const) {
+      const argument = rootLineAngleCallFor(fixture, resultName).args[0];
+      expect(argument).toMatchObject({
+        kind: "geometryEndpoint",
+        endpointKey,
+        target: { kind: "geometryCarry", bindingId: expectedBindings.get(instanceName), geometryType: "path" }
+      });
+    }
+
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, optionsFor(fixture));
+    for (const [name, value] of [["firstAngle", 25], ["secondAngle", 35]] as const) {
+      expectRootScalar(fixture, rustPayload, name, {
+        status: "ok", value: { kind: "number", value }
+      });
+    }
+  }, 120_000);
+
+  it("keeps qualified non-carry Module export forwarding as a drawable target", async () => {
+    const evaluated = await evaluateBoth([
+      "nui 1",
+      "line Axis = segment(start: (30, 30), end: (40, 30))",
+      "curve Curve = bezier(start: (0, 0), end: (20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
+      "module Forward(source: path) {",
+      "  export const out: path = @source",
+      "}",
+      "instance Use = Forward(source: @Curve)",
+      "const result: number = lineAngle(@Use::out.start, @Axis.start)"
+    ].join("\n"), "qualified non-carry Module export forwarding");
+    const curve = evaluated.fixture.elements.find((element) => element.name === "Curve");
+    expect(rootLineAngleCallFor(evaluated.fixture, "result").args[0]).toMatchObject({
+      kind: "geometryEndpoint",
+      endpointKey: "start",
+      target: { statementId: curve?.id, geometryType: "path" }
+    });
+    for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
+      expectRootScalar(evaluated.fixture, payload, "result", {
+        status: "ok", value: { kind: "number", value: 25 }
+      });
+    }
+  }, 120_000);
 
   it("reports the removed lineAngle(line, line) form through canonical compilation", () => {
     const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), [
