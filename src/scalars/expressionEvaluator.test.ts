@@ -63,6 +63,11 @@ const geometryReference = (
   target: ScalarExpressionResolvedGeometryTarget | null
 ): TypedBuiltinArgument => ({ kind: "geometryReference", expectedGeometryType, target });
 
+const geometryEndpoint = (
+  endpointKey: "start" | "end",
+  target: ScalarExpressionResolvedGeometryTarget | null
+): TypedBuiltinArgument => ({ kind: "geometryEndpoint", endpointKey, target });
+
 const geometryBuiltinCall = (
   targetName: Extract<BuiltinFunctionName, "distance" | "angle" | "lineDistance" | "lineAngle">,
   args: readonly TypedBuiltinArgument[]
@@ -735,10 +740,15 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
       [reverseDiagonalLine.elementId, reverseDiagonalLine]
     ]);
 
-    const evaluateLineAngle = (firstId: string, secondId: string) => evaluateTypedExpression(
+    const evaluateLineAngle = (
+      firstId: string,
+      secondId: string,
+      firstKey: "start" | "end" = "start",
+      secondKey: "start" | "end" = "start"
+    ) => evaluateTypedExpression(
       geometryBuiltinCall("lineAngle", [
-        geometryReference("line", geometryTarget(firstId, 1, "line")),
-        geometryReference("line", geometryTarget(secondId, 2, "line"))
+        geometryEndpoint(firstKey, geometryTarget(firstId, 1, "path")),
+        geometryEndpoint(secondKey, geometryTarget(secondId, 2, "path"))
       ]),
       {
         lookupBinding: () => { throw new Error("geometry references must not use scalar lookup"); },
@@ -792,7 +802,7 @@ describe("evaluateTypedExpression / geometry measurement builtins", () => {
       const result = position === "first"
         ? evaluateLineAngle(targetId, original.elementId)
         : evaluateLineAngle(original.elementId, targetId);
-      expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-zero-length-line" });
+      expect(result).toEqual({ status: "error", type: { kind: "number" }, issueCode: "evaluation-geometry-endpoint-tangent-unavailable" });
     });
   });
 

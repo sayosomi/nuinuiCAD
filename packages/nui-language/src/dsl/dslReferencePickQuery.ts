@@ -473,6 +473,9 @@ const builtinExpectation = (
       ? { expectedGeometryInterface: geometryTypes[0]!, role: "geometry", multiplicity: "single" }
       : null;
   }
+  if (types.every((type) => typeof type !== "string" && type.kind === "geometryEndpoint")) {
+    return { expectedGeometryInterface: "path", role: "geometry", multiplicity: "single" };
+  }
   return types.every((type) => typeof type !== "string" && type.kind === "number") ? "number" : null;
 };
 

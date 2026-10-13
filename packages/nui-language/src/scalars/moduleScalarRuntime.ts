@@ -1072,13 +1072,14 @@ const typecheckGeometryTargetFor = (
   const unwrapped = unwrapModuleGeometrySourceTarget(occurrence.reference.target);
   const target = unwrapped.target;
   const pointKey = unwrapped.pointKey;
+  const geometryType = occurrence.endpointKey ? "path" : occurrence.expectedGeometryType;
   if (target.kind === "geometryCarry") {
     return {
       kind: "geometryCarry",
       bindingId: target.bindingId,
       statementId: target.statementId,
       statementIndex: target.statementIndex,
-      geometryType: occurrence.expectedGeometryType,
+      geometryType,
       ...(pointKey ? { pointKey } : {})
     };
   }
@@ -1086,7 +1087,7 @@ const typecheckGeometryTargetFor = (
     return {
       statementId: target.definitionStatementId,
       statementIndex: -1,
-      geometryType: occurrence.expectedGeometryType,
+      geometryType,
       ...(pointKey ? { pointKey } : {})
     };
   }
@@ -1094,7 +1095,7 @@ const typecheckGeometryTargetFor = (
     return {
       statementId: target.statementId,
       statementIndex: target.statementIndex,
-      geometryType: occurrence.expectedGeometryType,
+      geometryType,
       ...(pointKey ? { pointKey } : {})
     };
   }
@@ -1104,7 +1105,7 @@ const typecheckGeometryTargetFor = (
       occurrence: { sourceStatementId: target.statementId, instancePath: [] },
       statementId: target.statementId,
       statementIndex: target.statementIndex,
-      geometryType: occurrence.expectedGeometryType,
+      geometryType,
       ...(pointKey ? { pointKey } : {})
     };
   }
@@ -1114,7 +1115,7 @@ const typecheckGeometryTargetFor = (
       binderId: target.binderId,
       statementId: target.statementId,
       statementIndex: -1,
-      geometryType: target.sourceElementType,
+      geometryType: occurrence.endpointKey ? "path" : target.sourceElementType,
       ...(pointKey ? { pointKey } : {})
     };
   }
@@ -1126,7 +1127,7 @@ const typecheckGeometryTargetFor = (
       statementIndex: target.statementIndex,
       targetSourceOrder: target.statementIndex,
       index: null,
-      geometryType: occurrence.expectedGeometryType,
+      geometryType,
       ...(pointKey ? { pointKey } : {})
     };
   }
@@ -1135,9 +1136,11 @@ const typecheckGeometryTargetFor = (
       return {
         statementId: target.record.statementId,
         statementIndex: target.record.statementIndex,
-        geometryType: isDslGeometryValueType(target.valueType)
+        geometryType: occurrence.endpointKey
+          ? "path"
+          : isDslGeometryValueType(target.valueType)
           ? target.valueType.kind
-          : occurrence.expectedGeometryType,
+          : geometryType,
         ...(pointKey ? { pointKey } : {})
       };
     }
@@ -1145,9 +1148,11 @@ const typecheckGeometryTargetFor = (
       return {
         statementId: target.record.definitionStatementId,
         statementIndex: -1,
-        geometryType: isDslGeometryValueType(target.valueType)
+        geometryType: occurrence.endpointKey
+          ? "path"
+          : isDslGeometryValueType(target.valueType)
           ? target.valueType.kind
-          : occurrence.expectedGeometryType,
+          : geometryType,
         ...(pointKey ? { pointKey } : {})
       };
     }
@@ -1155,9 +1160,11 @@ const typecheckGeometryTargetFor = (
       return {
         statementId: target.record.collectionValueId,
         statementIndex: target.record.targetSourceOrder,
-        geometryType: isDslGeometryValueType(target.valueType)
+        geometryType: occurrence.endpointKey
+          ? "path"
+          : isDslGeometryValueType(target.valueType)
           ? target.valueType.kind
-          : occurrence.expectedGeometryType,
+          : geometryType,
         ...(pointKey ? { pointKey } : {})
       };
     }
@@ -1165,18 +1172,22 @@ const typecheckGeometryTargetFor = (
       return {
         statementId: target.record.statementId,
         statementIndex: target.record.statementIndex,
-        geometryType: isDslGeometryValueType(target.valueType)
+        geometryType: occurrence.endpointKey
+          ? "path"
+          : isDslGeometryValueType(target.valueType)
           ? target.valueType.kind
-          : occurrence.expectedGeometryType,
+          : geometryType,
         ...(pointKey ? { pointKey } : {})
       };
     }
     return {
       statementId: target.record.instanceStatementId,
       statementIndex: target.record.instanceStatementIndex,
-      geometryType: isDslGeometryValueType(target.valueType)
+      geometryType: occurrence.endpointKey
+        ? "path"
+        : isDslGeometryValueType(target.valueType)
         ? target.valueType.kind
-        : occurrence.expectedGeometryType,
+        : geometryType,
       ...(pointKey ? { pointKey } : {})
     };
   }
@@ -1185,14 +1196,14 @@ const typecheckGeometryTargetFor = (
     return {
       statementId: target.ownerStatementId,
       statementIndex: target.ownerStatementIndex,
-      geometryType: target.interfaceType,
+      geometryType: occurrence.endpointKey ? "path" : target.interfaceType,
       ...(pointKey ? { pointKey } : {})
     };
   }
   return {
     statementId: target.instanceStatementId,
     statementIndex: target.instanceStatementIndex,
-    geometryType: occurrence.expectedGeometryType,
+    geometryType,
     ...(pointKey ? { pointKey } : {})
   };
 };
@@ -1221,6 +1232,15 @@ export const lowerExpression = (
   const geometryBuiltinArgumentTargets = new Map<number, ScalarExpressionResolvedGeometryTarget | null>(
     semantic.geometryBuiltinArguments.map((occurrence) => [occurrence.span.start, typecheckGeometryTargetFor(occurrence)])
   );
+  const geometryEndpointArgumentTargets = new Map<number, {
+    endpointKey: "start" | "end";
+    target: ScalarExpressionResolvedGeometryTarget | null;
+  }>(semantic.geometryBuiltinArguments.flatMap((occurrence) => occurrence.endpointKey
+    ? [[occurrence.span.start, {
+        endpointKey: occurrence.endpointKey,
+        target: typecheckGeometryTargetFor(occurrence)
+      }] as const]
+    : []));
   const geometryPropertyReferences = new Map<number, ScalarExpressionResolvedGeometryProperty | null>();
   const recordCollectionTargetFor = (target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget) => {
     const fieldPath = target.fieldPath ?? [target.field];
@@ -1854,6 +1874,7 @@ export const lowerExpression = (
     expectedType: semantic.type,
     references: typecheckResolutions,
     geometryBuiltinArguments: geometryBuiltinArgumentTargets,
+    geometryEndpointArguments: geometryEndpointArgumentTargets,
     geometryPropertyReferences,
     optionalMemberReferences
   });
@@ -1948,7 +1969,7 @@ export const lowerExpression = (
     }
     if (node.kind === "call") {
       const args = node.args.map((argument, argumentIndex) => {
-        if (argument.kind === "geometryReference") {
+        if (argument.kind === "geometryReference" || argument.kind === "geometryEndpoint") {
           const occurrence = geometryBuiltinForCallArgument(node, argumentIndex);
           const loweredTarget = occurrence ? geometryBuiltinForTarget?.(occurrence) : undefined;
           return {
@@ -5414,9 +5435,9 @@ export const compileModuleScalarRuntime = ({
     expectedGeometryType?: ModuleGeometryInterfaceType
   ): ScalarExpressionResolvedGeometryTarget | undefined => {
     if (!moduleGeometryRuntime || !occurrence.reference.target) return undefined;
-    const resolvedGeometryType = expectedGeometryType ??
-      geometryInterfaceTypeForReference(occurrence.reference, context) ??
-      occurrence.expectedGeometryType;
+    const resolvedGeometryType = occurrence.endpointKey
+      ? "path"
+      : expectedGeometryType ?? geometryInterfaceTypeForReference(occurrence.reference, context) ?? occurrence.expectedGeometryType;
     const stagePath = "stagePath" in occurrence.reference.target ? occurrence.reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
       occurrence.reference.target,
@@ -5490,7 +5511,9 @@ export const compileModuleScalarRuntime = ({
     occurrence: ModuleGeometryBuiltinArgumentSemantic
   ): ScalarExpressionResolvedGeometryTarget | undefined => {
     if (!moduleGeometryRuntime || !occurrence.reference.target) return undefined;
-    const resolvedGeometryType = geometryInterfaceTypeForReference(occurrence.reference) ?? occurrence.expectedGeometryType;
+    const resolvedGeometryType = occurrence.endpointKey
+      ? "path"
+      : geometryInterfaceTypeForReference(occurrence.reference) ?? occurrence.expectedGeometryType;
     const stagePath = "stagePath" in occurrence.reference.target ? occurrence.reference.target.stagePath : undefined;
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(
       occurrence.reference.target,

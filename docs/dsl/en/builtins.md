@@ -54,7 +54,7 @@ positional.
 <!-- dsl-ref:builtin:lineDistance -->
 | `lineDistance` | lineDistance(point, line) -> number | `dsl-ref:builtin:lineDistance` |
 <!-- dsl-ref:builtin:lineAngle -->
-| `lineAngle` | lineAngle(line, line) -> number | `dsl-ref:builtin:lineAngle` |
+| `lineAngle` | lineAngle(endpoint, endpoint) -> number | `dsl-ref:builtin:lineAngle` |
 
 ### Scalar constants
 
@@ -139,10 +139,12 @@ The measurement builtins use the geometry interfaces described in
 - `lineDistance(point, line)` returns the perpendicular distance to the
   infinite extension of a strict line, not the finite segment. A line whose
   length is at most `1e-9` mm is invalid.
-- `lineAngle(first, second)` returns the directionless smaller angle between
-  two strict lines, in the inclusive range `0..90` degrees. The lines need not
-  intersect; reversing or swapping them does not change the result. A line
-  whose length is at most `1e-9` mm is invalid.
+- `lineAngle(first, second)` requires two explicit geometry endpoints such as
+  `lineAngle(@CurveA.end, @CurveB.start)`. It returns the directionless
+  smaller angle between their endpoint tangents, in the inclusive range
+  `0..90` degrees. Line and path geometry are supported. Reversing either
+  tangent or swapping the arguments does not change the result. An endpoint
+  without a finite, nonzero tangent is invalid.
 
 ## Where calls are valid
 

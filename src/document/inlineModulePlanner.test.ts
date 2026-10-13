@@ -68,7 +68,7 @@ const geometryTargetIds = (expression: TypedScalarExpression): string[] => {
     case "binary":
       return [...geometryTargetIds(expression.left), ...geometryTargetIds(expression.right)];
     case "call":
-      return expression.args.flatMap((argument) => argument.kind === "geometryReference"
+      return expression.args.flatMap((argument) => argument.kind === "geometryReference" || argument.kind === "geometryEndpoint"
         ? argument.target ? [argument.target.statementId] : []
         : geometryTargetIds(argument.expression));
     default:

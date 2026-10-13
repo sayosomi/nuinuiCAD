@@ -14,7 +14,7 @@ describe("nui1 builtin function catalog", () => {
     ["distance", ["point", "point"]],
     ["angle", ["point", "point"]],
     ["lineDistance", ["point", "line"]],
-    ["lineAngle", ["line", "line"]]
+    ["lineAngle", [{ kind: "geometryEndpoint" }, { kind: "geometryEndpoint" }]]
   ] as const)("defines %s with the geometry parameter contract", (name, argumentTypes) => {
     const definition = definitionOf(name);
 

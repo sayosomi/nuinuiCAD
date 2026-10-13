@@ -40,6 +40,7 @@ import type {
   ModuleRecordReferenceSemantic,
   ResolvedModuleParameterBinding
 } from "../dsl/moduleSemanticTypes";
+import type { ModuleGeometryInterfaceType } from "../dsl/moduleGeometryInterfaces";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
 import type { ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { DSL_INDENT, formatDslName } from "../dsl/dslTokens";
@@ -2485,7 +2486,7 @@ const copyOwnerMappingFor = (
 
 const geometryTargetForReference = (
   reference: ModuleGeometryReferenceSemantic,
-  expectedGeometryType: "point" | "line"
+  expectedGeometryType: ModuleGeometryInterfaceType
 ): ScalarExpressionResolvedGeometryTarget | null => {
   const target = reference.target;
   if (target?.kind === "sourceGeometry") {
@@ -2545,7 +2546,7 @@ const geometryTargetsInTypedExpression = (
     case "call": {
       const targets: ScalarExpressionResolvedGeometryTarget[] = [];
       for (const argument of expression.args) {
-        if (argument.kind === "geometryReference") {
+        if (argument.kind === "geometryReference" || argument.kind === "geometryEndpoint") {
           if (argument.target) targets.push(argument.target);
         } else {
           targets.push(...geometryTargetsInTypedExpression(argument.expression));

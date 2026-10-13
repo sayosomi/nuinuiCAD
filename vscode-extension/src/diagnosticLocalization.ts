@@ -194,6 +194,7 @@ export const diagnosticTranslationCatalog = {
   "diagnostic.builtin-geometry-argument-invalid": { en: "The geometry argument is invalid.", ja: "geometry引数が不正です。" },
   "diagnostic.builtin-geometry-argument-invalid-reference": { en: "Geometry reference '{reference}' is invalid.", ja: "geometry参照「{reference}」が不正です。" },
   "diagnostic.builtin-geometry-argument-invalid-direct": { en: "Geometry argument to '{function}' must be a direct {expected} reference.", ja: "「{function}」のgeometry引数は{expected}の直接参照である必要があります。" },
+  "diagnostic.builtin-geometry-argument-invalid-endpoint": { en: "Argument to '{function}' must be an explicit geometry endpoint such as '{reference}'.", ja: "「{function}」の引数には「{reference}」のようなgeometry endpointを明示してください。" },
   "diagnostic.builtin-geometry-argument-invalid-property": { en: "Geometry property '{reference}' cannot be used as a {expected} argument.", ja: "geometry property「{reference}」は{expected}引数として使用できません。" },
   "diagnostic.builtin-geometry-type-mismatch": { en: "The geometry argument has the wrong type (expected {expected}, got {actual}).", ja: "geometry引数の型が一致しません（期待: {expected}、実際: {actual}）。" },
   "diagnostic.evaluation-failed": { en: "Evaluation failed.", ja: "評価に失敗しました。" },

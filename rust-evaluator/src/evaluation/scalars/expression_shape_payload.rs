@@ -337,6 +337,10 @@ pub(crate) enum CallArgumentShape<'a> {
         expected_geometry_type: GeometryInterfaceType,
         target: Option<ScalarExpressionResolvedGeometryTarget>,
     },
+    GeometryEndpoint {
+        endpoint_key: super::types::GeometryEndpointKey,
+        target: Option<ScalarExpressionResolvedGeometryTarget>,
+    },
 }
 
 fn decode_geometry_interface_type(
@@ -1132,6 +1136,32 @@ pub(crate) fn decode_call_argument_shape(
                 target,
             })
         }
+        "geometryEndpoint" => {
+            reject_unexpected_fields(
+                object,
+                &["kind", "endpointKey", "target"],
+                "geometry endpoint call argument",
+            )?;
+            let endpoint_key =
+                require_field(object, "endpointKey", "geometry endpoint call argument")?
+                    .as_str()
+                    .and_then(super::types::GeometryEndpointKey::from_wire_name)
+                    .ok_or_else(|| {
+                        issue(
+                            Code::InvalidFieldType,
+                            "geometry endpoint call argument endpointKey must be start or end",
+                        )
+                    })?;
+            let target = decode_geometry_target_payload(require_field(
+                object,
+                "target",
+                "geometry endpoint call argument",
+            )?)?;
+            Ok(CallArgumentShape::GeometryEndpoint {
+                endpoint_key,
+                target,
+            })
+        }
         other => Err(issue(
             Code::UnknownKind,
             format!("unknown builtin call argument kind \"{other}\""),
@@ -1172,6 +1202,14 @@ pub(crate) fn validate_call_argument_shapes(
                 && target.geometry_type == *expected_geometry_type
                 && (target.point_key.is_none()
                     || target.geometry_type == GeometryInterfaceType::Point) => {}
+            (
+                BuiltinArgumentType::GeometryEndpoint,
+                CallArgumentShape::GeometryEndpoint {
+                    target: Some(target),
+                    ..
+                },
+            ) if target.geometry_type == GeometryInterfaceType::Path
+                && target.point_key.is_none() => {}
             _ => {
                 return Err(issue(
                     Code::InvalidBuiltinArgument,

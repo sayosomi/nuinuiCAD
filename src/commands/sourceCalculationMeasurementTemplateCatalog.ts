@@ -13,7 +13,7 @@ export const SOURCE_CALCULATION_MEASUREMENT_TEMPLATE_DEFINITIONS = [
   { builtinName: "distance", label: "Distance between points" },
   { builtinName: "angle", label: "Angle between points" },
   { builtinName: "lineDistance", label: "Point-to-line distance" },
-  { builtinName: "lineAngle", label: "Angle between lines" },
+  { builtinName: "lineAngle", label: "Angle between endpoint tangents" },
   { builtinName: "spreadAngle", label: "Spread angle" }
 ] as const satisfies readonly { builtinName: BuiltinFunctionName; label: string }[];
 

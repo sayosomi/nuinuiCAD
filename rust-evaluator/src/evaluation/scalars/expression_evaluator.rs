@@ -906,7 +906,11 @@ fn eval_node<'a>(
                         environment,
                     ));
                 } else if args.iter().any(|argument| {
-                    matches!(argument, TypedBuiltinArgument::GeometryReference { .. })
+                    matches!(
+                        argument,
+                        TypedBuiltinArgument::GeometryReference { .. }
+                            | TypedBuiltinArgument::GeometryEndpoint { .. }
+                    )
                 }) {
                     output.push(ScalarEvaluation::Error {
                         r#type: concrete_type.clone(),

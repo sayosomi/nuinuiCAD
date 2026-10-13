@@ -19,10 +19,10 @@ use super::expression_payload::{
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::decode_scalar_evaluation;
 use super::types::{
-    BindingId, BuiltinFunctionName, GeometryInterfaceType, ScalarBinaryOperator, ScalarEvaluation,
-    ScalarEvaluationErrorContext, ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType,
-    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
-    TypedScalarExpression,
+    BindingId, BuiltinFunctionName, GeometryEndpointKey, GeometryInterfaceType,
+    ScalarBinaryOperator, ScalarEvaluation, ScalarEvaluationErrorContext,
+    ScalarExpressionResolvedGeometryTarget, ScalarSpan, ScalarType, ScalarUnaryOperator,
+    ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
 };
 
 // --- shared-vector parity loop --------------------------------------------
@@ -268,6 +268,28 @@ fn geometry_argument(
             statement_id: statement_id.to_owned(),
             statement_index: statement_index as f64,
             geometry_type: target_geometry_type,
+            point_key: None,
+            stage_path: None,
+            geometry_value_occurrence: None,
+            geometry_value_binder_id: None,
+            for_group_template_element_id: None,
+            for_group_target_source_order: None,
+            for_group_index: None,
+        }),
+    }
+}
+
+fn geometry_endpoint_argument(
+    endpoint_key: GeometryEndpointKey,
+    statement_id: &str,
+    statement_index: usize,
+) -> TypedBuiltinArgument {
+    TypedBuiltinArgument::GeometryEndpoint {
+        endpoint_key,
+        target: Some(ScalarExpressionResolvedGeometryTarget {
+            statement_id: statement_id.to_owned(),
+            statement_index: statement_index as f64,
+            geometry_type: GeometryInterfaceType::Path,
             point_key: None,
             stage_path: None,
             geometry_value_occurrence: None,
@@ -552,6 +574,19 @@ fn runtime_line(id: &str, start: (f64, f64), end: (f64, f64)) -> GeometryBuiltin
             x: end.0,
             y: end.1,
         },
+    }
+}
+
+fn runtime_path_line(id: &str, start: (f64, f64), end: (f64, f64)) -> GeometryBuiltinRuntimeTarget {
+    GeometryBuiltinRuntimeTarget::GeometryValuePath {
+        value: json!({
+            "kind": "line",
+            "elementId": id,
+            "name": id,
+            "start": { "x": start.0, "y": start.1 },
+            "end": { "x": end.0, "y": end.1 },
+            "length": (end.0 - start.0).hypot(end.1 - start.1)
+        }),
     }
 }
 
@@ -1169,18 +1204,8 @@ fn evaluates_line_angle_as_the_directionless_smaller_angle() {
         let node = geometry_call(
             BuiltinFunctionName::LineAngle,
             vec![
-                geometry_argument(
-                    GeometryInterfaceType::Line,
-                    first_id,
-                    1,
-                    GeometryInterfaceType::Line,
-                ),
-                geometry_argument(
-                    GeometryInterfaceType::Line,
-                    second_id,
-                    2,
-                    GeometryInterfaceType::Line,
-                ),
+                geometry_endpoint_argument(GeometryEndpointKey::Start, first_id, 1),
+                geometry_endpoint_argument(GeometryEndpointKey::End, second_id, 2),
             ],
             ScalarType::Number,
         );
@@ -1188,11 +1213,11 @@ fn evaluates_line_angle_as_the_directionless_smaller_angle() {
             targets: HashMap::from([
                 (
                     first_id.to_owned(),
-                    Ok(runtime_line(first_id, first_start, first_end)),
+                    Ok(runtime_path_line(first_id, first_start, first_end)),
                 ),
                 (
                     second_id.to_owned(),
-                    Ok(runtime_line(second_id, second_start, second_end)),
+                    Ok(runtime_path_line(second_id, second_start, second_end)),
                 ),
             ]),
             looked_up: RefCell::new(Vec::new()),
@@ -1213,7 +1238,7 @@ fn evaluates_line_angle_as_the_directionless_smaller_angle() {
 }
 
 #[test]
-fn zero_length_first_or_second_line_has_a_distinct_runtime_failure_for_line_angle() {
+fn zero_length_endpoint_tangent_has_a_distinct_runtime_failure_for_line_angle() {
     for (first_start, first_end, second_start, second_end) in [
         ((0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (1.0, 0.0)),
         ((0.0, 0.0), (1.0, 0.0), (0.0, 0.0), (0.0, 0.0)),
@@ -1221,18 +1246,8 @@ fn zero_length_first_or_second_line_has_a_distinct_runtime_failure_for_line_angl
         let node = geometry_call(
             BuiltinFunctionName::LineAngle,
             vec![
-                geometry_argument(
-                    GeometryInterfaceType::Line,
-                    "first",
-                    1,
-                    GeometryInterfaceType::Line,
-                ),
-                geometry_argument(
-                    GeometryInterfaceType::Line,
-                    "second",
-                    2,
-                    GeometryInterfaceType::Line,
-                ),
+                geometry_endpoint_argument(GeometryEndpointKey::Start, "first", 1),
+                geometry_endpoint_argument(GeometryEndpointKey::End, "second", 2),
             ],
             ScalarType::Number,
         );
@@ -1240,11 +1255,11 @@ fn zero_length_first_or_second_line_has_a_distinct_runtime_failure_for_line_angl
             targets: HashMap::from([
                 (
                     "first".to_owned(),
-                    Ok(runtime_line("first", first_start, first_end)),
+                    Ok(runtime_path_line("first", first_start, first_end)),
                 ),
                 (
                     "second".to_owned(),
-                    Ok(runtime_line("second", second_start, second_end)),
+                    Ok(runtime_path_line("second", second_start, second_end)),
                 ),
             ]),
             looked_up: RefCell::new(Vec::new()),
@@ -1254,7 +1269,7 @@ fn zero_length_first_or_second_line_has_a_distinct_runtime_failure_for_line_angl
             evaluate_typed_expression(&node, &environment),
             ScalarEvaluation::Error {
                 r#type: ScalarType::Number,
-                issue_code: "evaluation-zero-length-line".to_owned(),
+                issue_code: "evaluation-geometry-endpoint-tangent-unavailable".to_owned(),
                 binding_id: None,
                 context: None,
             }

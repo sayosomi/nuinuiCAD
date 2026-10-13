@@ -334,6 +334,11 @@ export type TypedBuiltinArgument =
       readonly kind: "geometryReference";
       readonly expectedGeometryType: ModuleGeometryInterfaceType;
       readonly target: ScalarExpressionResolvedGeometryTarget | null;
+    }
+  | {
+      readonly kind: "geometryEndpoint";
+      readonly endpointKey: "start" | "end";
+      readonly target: ScalarExpressionResolvedGeometryTarget | null;
     };
 
 export interface TypedScalarCallExpressionNode {
@@ -450,6 +455,11 @@ export interface ScalarExpressionTypecheckContext {
    * operands. It is keyed by the parser-owned node span and never enters the
    * scalar reference occurrence sequence. */
   readonly geometryBuiltinArguments?: ReadonlyMap<number, ScalarExpressionResolvedGeometryTarget | null>;
+  /** A compiler-resolved endpoint keeps the target identity separate from its start/end selector. */
+  readonly geometryEndpointArguments?: ReadonlyMap<number, {
+    readonly endpointKey: "start" | "end";
+    readonly target: ScalarExpressionResolvedGeometryTarget | null;
+  }>;
   /** Closed-frontend-resolved geometry-property metadata, keyed by the
    * parser-owned node span. A null entry is an explicit failed resolution and
    * must remain type-null rather than falling back to number. */

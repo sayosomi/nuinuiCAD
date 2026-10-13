@@ -360,19 +360,57 @@ describe("SAY-508 zero-length immutable geometry carries through persistent Rust
       "point probe = coordinate(x: 2, y: 3)",
       "const pureDistance: number = lineDistance(@probe, @pureZero)",
       "const drawableDistance: number = lineDistance(@probe, @drawableZero)",
-      "const pureAngle: number = lineAngle(@pureZero, @valid)",
-      "const drawableAngle: number = lineAngle(@valid, @drawableZero)"
+      "const pureAngle: number = lineAngle(@pureZero.start, @valid.end)",
+      "const drawableAngle: number = lineAngle(@valid.start, @drawableZero.end)"
     ].join("\n"), "strict zero-length geometry builtins");
 
     for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
-      for (const name of ["pureDistance", "drawableDistance", "pureAngle", "drawableAngle"]) {
+      for (const name of ["pureDistance", "drawableDistance"]) {
         expectRootScalar(evaluated.fixture, payload, name, {
           status: "error", issueCode: "evaluation-zero-length-line"
         });
       }
+      for (const name of ["pureAngle", "drawableAngle"]) {
+        expectRootScalar(evaluated.fixture, payload, name, {
+          status: "error", issueCode: "evaluation-geometry-endpoint-tangent-unavailable"
+        });
+      }
       expect(runtimeDiagnosticsFor(evaluated.fixture, payload).filter(
         (diagnostic) => diagnostic.code === "evaluation-zero-length-line"
-      )).toHaveLength(4);
+      )).toHaveLength(2);
+      expect(runtimeDiagnosticsFor(evaluated.fixture, payload).filter(
+        (diagnostic) => diagnostic.code === "evaluation-geometry-endpoint-tangent-unavailable"
+      )).toHaveLength(2);
+    }
+  }, 120_000);
+
+  it("measures endpoint tangents for arcs, Beziers, offsets, mirrors, and geometry values", async () => {
+    const evaluated = await evaluateBoth([
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+      "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
+      "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
+      "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
+      "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
+      "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
+      "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",
+      "const offsetArc: number = lineAngle(@Offset.end, @Arc.start)",
+      "const reversedArc: number = lineAngle(@Reversed.start, @Arc.end)"
+    ].join("\n"), "endpoint tangent path families and geometry values");
+
+    for (const payload of [evaluated.tsPayload, evaluated.rustPayload]) {
+      for (const [name, value] of [
+        ["lineArc", 90],
+        ["arcEnds", 90],
+        ["zeroHandleBezier", 0],
+        ["offsetArc", 90],
+        ["reversedArc", 0]
+      ] as const) {
+        expectRootScalar(evaluated.fixture, payload, name, {
+          status: "ok", value: { kind: "number", value }
+        });
+      }
     }
   }, 120_000);
 });

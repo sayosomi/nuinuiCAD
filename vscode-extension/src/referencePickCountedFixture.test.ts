@@ -39,7 +39,7 @@ const source = [
   "const DistancePoints: number = distance(@A, @B)",
   "const AnglePoints: number = angle(@A, @B)",
   "const DistancePointLine: number = lineDistance(@A, @Base)",
-  "const AngleLines: number = lineAngle(@Base, @Other)",
+  "const AngleLines: number = lineAngle(@Base.start, @Other.end)",
   "const NumericLiteral: number = 20",
   "const NumericProperty: number = @Base.length",
   ""
@@ -155,8 +155,8 @@ describe("SAY-99 counted-run Reference Pick fixture", () => {
       atEndOf("@A", angleLine),
       atEndOf("@A", lineDistanceLine),
       atEndOf("@Base", lineDistanceLine),
-      atEndOf("@Base", lineAngleLine),
-      atEndOf("@Other", lineAngleLine),
+      atEndOf("@Base.start", lineAngleLine),
+      atEndOf("@Other.end", lineAngleLine),
       atEndOf("20", numericLine),
       atEndOf("@Base", propertyLine)
     ];

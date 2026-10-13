@@ -213,7 +213,7 @@ describe("queryDslReferencePickTarget", () => {
       "line Base = segment(start: @A, end: @B)",
       "const d1: number = distance(@A, @B)",
       "const d2: number = lineDistance(@A, @Base)",
-      "const a: number = lineAngle(@Base, @Base)"
+      "const a: number = lineAngle(@Base.start, @Base.end)"
     ].join("\n");
     const compiled = compileWithIds(source);
 
@@ -224,7 +224,7 @@ describe("queryDslReferencePickTarget", () => {
     expect(queryAt(source, compiled, lineDistanceBase + 3)).toMatchObject({ expectedGeometryInterface: "line" });
 
     const lineAngleBase = source.indexOf("@Base", source.indexOf("lineAngle("));
-    expect(queryAt(source, compiled, lineAngleBase + 3)).toMatchObject({ expectedGeometryInterface: "line" });
+    expect(queryAt(source, compiled, lineAngleBase + 3)).toMatchObject({ expectedGeometryInterface: "path" });
   });
 
   it("replaces a numeric operand with a broad geometry base", () => {

@@ -9,7 +9,7 @@ line Vertical = segment(start: (0, 0), end: (0, 10))
 const distanceValue: number = distance(@Origin, @DistancePoint)
 const angleValue: number = angle(@Origin, @Up)
 const lineDistanceValue: number = lineDistance(@MeasurePoint, @Horizontal)
-const lineAngleValue: number = lineAngle(@Horizontal, @Vertical)
+const lineAngleValue: number = lineAngle(@Horizontal.start, @Vertical.end)
 
 module Unrelated(baseline: line) {
   line Local = segment(start: (0, 0), end: (0, 10))

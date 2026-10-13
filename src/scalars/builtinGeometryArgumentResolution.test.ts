@@ -100,35 +100,30 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect(targetOf(result, 0)).toEqual({ statementId: "stable-1", statementIndex: 1, geometryType: "point" });
   });
 
-  it("resolves lineAngle positional line arguments to stable strict-line targets", () => {
-    const result = resolve("lineAngle(@AB, @OtherLine)", [
-      sourceGeometryResolution("AB", sourceNamespace),
-      sourceGeometryResolution("OtherLine", sourceNamespace)
-    ]);
+  it("resolves explicit lineAngle endpoints to stable path targets", () => {
+    const result = resolve("lineAngle(@AB.start, @OtherLine.end)", []);
 
     expect(result.issues).toEqual([]);
-    expect([targetOf(result, 0), targetOf(result, 1)]).toEqual([
-      { statementId: "stable-3", statementIndex: 3, geometryType: "line" },
-      { statementId: "stable-10", statementIndex: 10, geometryType: "line" }
+    expect([...result.geometryEndpointTargets.values()]).toEqual([
+      { endpointKey: "start", target: { statementId: "stable-3", statementIndex: 3, geometryType: "path", stagePath: ["final"] } },
+      { endpointKey: "end", target: { statementId: "stable-10", statementIndex: 10, geometryType: "path", stagePath: ["final"] } }
     ]);
   });
 
-  it("accepts a polar strict line through the same lineAngle resolution path", () => {
-    const result = resolve("lineAngle(@AB, @PolarLine)", [
-      sourceGeometryResolution("AB", sourceNamespace),
-      sourceGeometryResolution("PolarLine", sourceNamespace)
-    ]);
+  it("accepts line and curved path endpoints through the same path resolution", () => {
+    const result = resolve("lineAngle(@AB.start, @CurveA.end)", []);
 
     expect(result.issues).toEqual([]);
-    expect(targetOf(result, 1)).toEqual({ statementId: "stable-11", statementIndex: 11, geometryType: "line" });
+    expect([...result.geometryEndpointTargets.values()][1]).toMatchObject({
+      endpointKey: "end",
+      target: { statementId: "stable-5", statementIndex: 5, geometryType: "path" }
+    });
   });
 
   it.each([
     ["distance(@AB, @A)", ["AB", "A"], "point", "line"],
     ["lineDistance(@A, @ArcA)", ["A", "ArcA"], "line", "path"],
-    ["lineDistance(@A, @CurveA)", ["A", "CurveA"], "line", "path"],
-    ["lineAngle(@AB, @ArcA)", ["AB", "ArcA"], "line", "path"],
-    ["lineAngle(@AB, @CurveA)", ["AB", "CurveA"], "line", "path"]
+    ["lineDistance(@A, @CurveA)", ["A", "CurveA"], "line", "path"]
   ])("retains the actual target and reports %s interface mismatch", (source, names, expected, actual) => {
     const result = resolve(source, names.map((name) => sourceGeometryResolution(name, sourceNamespace)));
 
@@ -145,6 +140,20 @@ describe("resolveBuiltinGeometryArguments", () => {
     ]);
     expect(result.references.every((reference) => reference.kind === "resolvedGeometry")).toBe(true);
     expect(result.issues[0]?.occurrenceIndex).toBe(source.startsWith("distance") ? 0 : 1);
+  });
+
+  it.each([
+    ["lineAngle(@AB, @OtherLine)", 2],
+    ["lineAngle(@AB.length, @OtherLine.end)", 1],
+    ["lineAngle(@C.start, @OtherLine.end)", 1]
+  ])("rejects non-endpoint lineAngle arguments: %s", (source, expectedIssueCount) => {
+    const references = source.includes("@AB, @OtherLine")
+      ? [sourceGeometryResolution("AB", sourceNamespace), sourceGeometryResolution("OtherLine", sourceNamespace)]
+      : [];
+    const result = resolve(source, references);
+
+    expect(result.issues).toHaveLength(expectedIssueCount);
+    expect(result.issues.every((issue) => issue.code === "builtin-geometry-argument-invalid")).toBe(true);
   });
 
   it("reports undefined and forward references as invalid geometry arguments", () => {

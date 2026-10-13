@@ -175,7 +175,8 @@ fn children_for_node(
                     expression,
                     Some(argument_index),
                 ),
-                TypedBuiltinArgument::GeometryReference { .. } => None,
+                TypedBuiltinArgument::GeometryReference { .. }
+                | TypedBuiltinArgument::GeometryEndpoint { .. } => None,
             })
             .collect(),
         _ => Vec::new(),

@@ -613,7 +613,7 @@ The current builtin catalog is:
 | `distance` | `distance(point, point) -> number` |
 | `angle` | `angle(point, point) -> number` |
 | `lineDistance` | `lineDistance(point, line) -> number` |
-| `lineAngle` | `lineAngle(line, line) -> number` |
+| `lineAngle` | `lineAngle(endpoint, endpoint) -> number` |
 
 The second argument of `round`, `floor`, and `ceil` is the decimal digit
 position and must be an integer. `round` uses an away-from-zero midpoint rule
@@ -688,8 +688,17 @@ Task 4 does not add a new evaluator or resolver surface. To use a geometry
 measurement result in a construction numeric parameter, scalar property,
 text-template hole, or layout/output numeric parameter, first assign it to a
 typed scalar binding and reference that binding instead, for example
-`const measuredAngle: number = lineAngle(@LineA, @LineB)` followed by
+`const measuredAngle: number = lineAngle(@LineA.start, @LineB.end)` followed by
 `@measuredAngle`.
+
+`lineAngle` accepts only explicit `.start` or `.end` geometry endpoints. Each
+endpoint resolves to its compiler-selected geometry target, including any
+stage, occurrence, Module, carry, or collection identity, and then reads the
+selected final geometry's endpoint tangent. Lines and paths are supported. The
+result is the directionless smaller angle between the tangents in the inclusive
+range `0..90` degrees. A missing, ambiguous, unsupported, zero, or non-finite
+endpoint tangent is an evaluation diagnostic; the evaluator does not substitute
+zero.
 
 This is a typed expression surface for CAD construction, not a general-purpose
 programming language.

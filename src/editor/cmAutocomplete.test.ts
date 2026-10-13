@@ -1161,7 +1161,7 @@ describe("typed value completion (Task 39)", () => {
         expect.objectContaining({
           label: "lineAngle",
           apply: "lineAngle(",
-          detail: "lineAngle(line, line) -> number",
+          detail: "lineAngle(endpoint, endpoint) -> number",
           type: "function"
         })
       ]));

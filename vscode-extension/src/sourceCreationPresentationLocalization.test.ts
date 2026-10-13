@@ -65,7 +65,7 @@ describe("Source creation presentation localization", () => {
       .toEqual(japaneseCalculations.map(({ id, plan }) => [id, plan.builtinName]));
     expect(englishCalculations.map(({ label }) => label)).toEqual(sourceCalculationMeasurementTemplatePlans().map(({ label }) => label));
     expect(japaneseCalculations.map(({ label }) => label)).toEqual([
-      "2点間の距離", "2点間の角度", "点から線までの距離", "2本の線の間の角度", "角度の広がり"
+      "2点間の距離", "2点間の角度", "点から線までの距離", "端点の接線間の角度", "角度の広がり"
     ]);
 
     const englishControl = sourceControlFlowPickerItemsFor("en");
