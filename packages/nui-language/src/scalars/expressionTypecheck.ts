@@ -1008,6 +1008,7 @@ const checkNode = (
             const occurrenceIndex = checkNode(sourceArgument.occurrenceIndex, NUMBER_TYPE, state);
             if (!checkOperandType(state, occurrenceIndex, NUMBER_TYPE)) argumentsAreValid = false;
             if (target?.kind === "forGroupOccurrence") target = { ...target, index: occurrenceIndex };
+            if (target?.kind === "geometryCollectionIndex") target = { ...target, index: occurrenceIndex };
           } else if (!endpoint?.target) {
             checkNode(sourceArgument, null, state);
           }

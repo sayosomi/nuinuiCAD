@@ -30,7 +30,12 @@
 // respective compilation/runtime paths rather than this declaration evaluator.
 
 import type { BindingId } from "@nuinuicad/nui-language";
-import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult, type ScalarEvaluationEnvironment } from "./expressionEvaluator";
+import {
+  evaluateTypedExpression,
+  type GeometryBuiltinTargetLookupResult,
+  type GeometryCollectionEndpointLookupResult,
+  type ScalarEvaluationEnvironment
+} from "./expressionEvaluator";
 import type { ScalarProgram, ScalarProgramStatement } from "@nuinuicad/nui-language";
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import { scalarValueMatchesType, type ScalarExpressionType, type ScalarType } from "@nuinuicad/nui-language";
@@ -40,6 +45,12 @@ import type {
   ScalarExpressionResolvedOptionalMemberTarget,
   TypedScalarGeometryPropertyReferenceNode
 } from "@nuinuicad/nui-language";
+
+type GeometryCollectionEndpointResolver = (
+  target: Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>,
+  index: number,
+  sourceOrder: number
+) => GeometryCollectionEndpointLookupResult;
 
 export type ScalarProgramEvaluation = {
   /** One entry per evaluated `declare` statement, keyed by its bindingId. */
@@ -58,7 +69,7 @@ export type LazyScalarProgramEvaluator = {
 };
 
 export type ScalarProgramCollectionResolver = {
-  environmentFor: (sourceOrder: number, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>, collectionCarrySnapshots?: ReadonlyMap<string, ScalarProgramCollectionSnapshot>) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation" | "lookupOptionalMember">;
+  environmentFor: (sourceOrder: number, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>, collectionCarrySnapshots?: ReadonlyMap<string, ScalarProgramCollectionSnapshot>) => Pick<ScalarEvaluationEnvironment, "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation" | "lookupOptionalMember" | "lookupGeometryCollectionEndpoint">;
   selectMatchCollectionValue: (collectionValueId: string, localBindings?: ReadonlyMap<BindingId, ScalarEvaluation>, collectionCarrySnapshots?: ReadonlyMap<string, ScalarProgramCollectionSnapshot>) => CollectionMatchSelection | undefined;
   recordFieldFor: (
     collectionValueId: string,
@@ -114,7 +125,8 @@ export const createScalarProgramCollectionResolver = (
     collectionValueId: string,
     sourceOrder: number,
     collectionCarrySnapshots?: ReadonlyMap<string, ScalarProgramCollectionSnapshot>
-  ) => ScalarProgramCollectionSnapshot | undefined
+  ) => ScalarProgramCollectionSnapshot | undefined,
+  resolveGeometryCollectionEndpoint?: GeometryCollectionEndpointResolver
 ): ScalarProgramCollectionResolver | undefined => {
   if (!program.collectionValues?.length && !resolveGeometryProperty && !resolveGeometryTarget) return undefined;
   const valuesById = new Map((program.collectionValues ?? []).map((value) => [value.valueId, value] as const));
@@ -562,6 +574,9 @@ export const createScalarProgramCollectionResolver = (
       lookupBinding: (bindingId) => localBindings.get(bindingId) ?? resolveBinding(bindingId),
       ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, sourceOrder) } : {}),
       ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, sourceOrder) } : {}),
+      ...(resolveGeometryCollectionEndpoint
+        ? { lookupGeometryCollectionEndpoint: (target, index) => resolveGeometryCollectionEndpoint(target, index, sourceOrder) }
+        : {}),
       lookupCollectionLength: (collectionValueId) => {
         const result = lengthFor(collectionValueId, sourceOrder, new Set(), localBindings, collectionCarrySnapshots);
         return typeof result === "number" ? result : undefined;
@@ -597,7 +612,8 @@ export const createLazyScalarProgramEvaluator = (
   program: ScalarProgram,
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
-  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
+  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
+  resolveGeometryCollectionEndpoint?: GeometryCollectionEndpointResolver
 ): LazyScalarProgramEvaluator => {
   const statementByBindingId = new Map<BindingId, ScalarProgramStatement>();
   for (const statement of program.statements) {
@@ -635,6 +651,9 @@ export const createLazyScalarProgramEvaluator = (
         lookupBinding: resolve,
         ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {}),
+        ...(resolveGeometryCollectionEndpoint
+          ? { lookupGeometryCollectionEndpoint: (target, index) => resolveGeometryCollectionEndpoint(target, index, statement.sourceOrder) }
+          : {}),
         ...(collectionResolver ? collectionResolver.environmentFor(statement.sourceOrder) : {}),
         ...(resolveCollectionLength ? {
           lookupCollectionLength: (collectionValueId: string) =>
@@ -661,7 +680,9 @@ export const createLazyScalarProgramEvaluator = (
     resolve,
     resolveGeometryProperty,
     resolveGeometryTarget,
-    resolveCollectionLength
+    resolveCollectionLength,
+    undefined,
+    resolveGeometryCollectionEndpoint
   );
 
   return { resolve, ...(collectionResolver ? { collectionResolver } : {}) };

@@ -9,7 +9,8 @@ use super::super::scalar_expression_runtime::{
     lookup_for_group_geometry_property, lookup_geometry_collection_length,
     lookup_geometry_collection_presence, lookup_geometry_property,
     lookup_geometry_property_at_stage, lookup_geometry_value_property,
-    resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
+    resolve_for_group_geometry_builtin_target, resolve_geometry_collection_endpoint_target,
+    ForGroupGeometryPropertyRequest,
 };
 use super::expression_evaluator::{
     evaluate_typed_expression, static_expression_type, ScalarEvaluationEnvironment,
@@ -1668,6 +1669,23 @@ impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
             self.resolver,
             self.source_order,
             target,
+        )
+    }
+
+    fn lookup_geometry_collection_endpoint_target(
+        &self,
+        endpoint: &super::types::TypedBuiltinArgument,
+        index: f64,
+    ) -> Result<
+        super::types::ScalarExpressionResolvedGeometryTarget,
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
+    > {
+        resolve_geometry_collection_endpoint_target(
+            self.state,
+            self.resolver,
+            endpoint,
+            index,
+            Some(self.source_order),
         )
     }
 }

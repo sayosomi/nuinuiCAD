@@ -31,6 +31,10 @@ export type GeometryBuiltinTargetLookupResult =
   | ComputedGeometryValue
   | { kind: "unavailable"; reason: "disabled" };
 
+export type GeometryCollectionEndpointLookupResult =
+  | { kind: "resolved"; target: ScalarExpressionResolvedGeometryTarget }
+  | { kind: "error"; issueCode: "evaluation-collection-index-invalid" | "evaluation-collection-index-unavailable" };
+
 export interface ScalarEvaluationEnvironment {
   /**
    * Resolves a runtime value for an already-resolved binding ID. Called at
@@ -47,6 +51,12 @@ export interface ScalarEvaluationEnvironment {
 
   /** Resolves an already-resolved geometry builtin target to runtime geometry. */
   lookupGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget) => GeometryBuiltinTargetLookupResult | undefined;
+
+  /** Selects a runtime member of a compiler-resolved geometry collection. */
+  lookupGeometryCollectionEndpoint?: (
+    target: Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>,
+    index: number
+  ) => GeometryCollectionEndpointLookupResult;
 
   /** Resolves one already-typed collection member after its numeric index. */
   lookupCollectionIndex?: (
@@ -427,7 +437,26 @@ const evaluateGeometryBuiltin = (
       if (argument.kind !== "geometryEndpoint" || argument.target === null || argument.target.geometryType !== "path") {
         return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
       }
-      const geometry = environment.lookupGeometryTarget?.(argument.target);
+      let target = argument.target;
+      if (target.kind === "geometryCollectionIndex") {
+        if (!target.index) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
+        const indexResult = evaluateTypedExpression(target.index, environment);
+        if (indexResult.status === "error") return propagateError(type, indexResult);
+        if (indexResult.value.kind !== "number") {
+          return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
+        }
+        const index = indexResult.value.value;
+        if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0) {
+          return { status: "error", type, issueCode: "evaluation-collection-index-invalid" };
+        }
+        const selected = environment.lookupGeometryCollectionEndpoint?.(target, index) ?? {
+          kind: "error" as const,
+          issueCode: "evaluation-collection-index-unavailable" as const
+        };
+        if (selected.kind === "error") return { status: "error", type, issueCode: selected.issueCode };
+        target = selected.target;
+      }
+      const geometry = environment.lookupGeometryTarget?.(target);
       if (geometry?.kind === "unavailable") {
         return {
           status: "error",
@@ -435,7 +464,7 @@ const evaluateGeometryBuiltin = (
           issueCode: "evaluation-geometry-builtin-disabled",
           context: {
             kind: "geometryBuiltinTarget",
-            targetElementId: argument.target.kind === "forGroupOccurrence" ? argument.target.templateElementId : argument.target.statementId
+            targetElementId: target.kind === "forGroupOccurrence" ? target.templateElementId : target.statementId
           }
         };
       }

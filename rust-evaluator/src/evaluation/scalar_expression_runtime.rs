@@ -8,13 +8,15 @@ use super::numeric_expression::parameter_value;
 use super::scalars::{
     evaluate_typed_expression, ScalarDocumentBindingResolver, ScalarEvaluation,
     ScalarEvaluationEnvironment, ScalarExpressionOptionalMemberReceiver,
-    ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedOptionalMemberTarget,
-    ScalarType, ScalarValue, TypedScalarExpression,
+    ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget,
+    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarValue, TypedBuiltinArgument,
+    TypedScalarExpression,
 };
 use super::scalars::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::types::{
     EvaluationState, GeometryInputCollectionNode, GeometryInputTarget, GeometryValueOccurrence,
 };
+use crate::evaluation::line_geometry_input::resolve_geometry_collection_endpoint_member;
 use crate::evaluation::scalars::geometry_builtin_runtime;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -351,6 +353,95 @@ pub(crate) fn lookup_geometry_collection_node_length(
             None
         }
     }
+}
+
+pub(crate) fn resolve_geometry_collection_endpoint_target(
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    endpoint: &TypedBuiltinArgument,
+    index: f64,
+    current_source_order: Option<f64>,
+) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+    let TypedBuiltinArgument::GeometryCollectionEndpoint {
+        collection_value_id,
+        target_source_order,
+        stage_path,
+        ..
+    } = endpoint
+    else {
+        return Err(GeometryBuiltinRuntimeError::InvalidArgument);
+    };
+    if !index.is_finite() || index.fract() != 0.0 || index < 0.0 {
+        return Err(GeometryBuiltinRuntimeError::CollectionIndexInvalid);
+    }
+    let node = state
+        .geometry_collection_nodes
+        .get(collection_value_id)
+        .cloned()
+        .ok_or(GeometryBuiltinRuntimeError::CollectionIndexUnavailable)?;
+    let length = lookup_geometry_collection_node_length(node.as_ref(), resolver, state)
+        .ok_or(GeometryBuiltinRuntimeError::CollectionIndexUnavailable)?;
+    if index >= length {
+        return Err(GeometryBuiltinRuntimeError::CollectionIndexInvalid);
+    }
+    let member = resolve_geometry_collection_endpoint_member(
+        state,
+        resolver,
+        collection_value_id,
+        index as usize,
+        current_source_order,
+    )
+    .map_err(|issue_code| match issue_code.as_str() {
+        "evaluation-collection-index-invalid" => {
+            GeometryBuiltinRuntimeError::CollectionIndexInvalid
+        }
+        "evaluation-collection-index-unavailable" => {
+            GeometryBuiltinRuntimeError::CollectionIndexUnavailable
+        }
+        _ => GeometryBuiltinRuntimeError::EvaluationIssue(issue_code),
+    })?;
+    let (statement_id, point_key, member_stage_path, geometry_value_occurrence) = match member {
+        GeometryInputTarget::Drawable {
+            element_id,
+            point_key,
+            stage_path,
+            ..
+        } => (element_id, point_key, stage_path, None),
+        GeometryInputTarget::GeometryValue {
+            occurrence,
+            point_key,
+            stage_path,
+            ..
+        } => (
+            occurrence.source_statement_id.clone(),
+            point_key,
+            stage_path,
+            Some(occurrence),
+        ),
+        GeometryInputTarget::GeometryValueMap {
+            occurrence,
+            point_key,
+            ..
+        } => (
+            occurrence.source_statement_id.clone(),
+            point_key,
+            None,
+            Some(occurrence),
+        ),
+        _ => return Err(GeometryBuiltinRuntimeError::CollectionIndexUnavailable),
+    };
+    Ok(ScalarExpressionResolvedGeometryTarget {
+        statement_id,
+        statement_index: *target_source_order,
+        geometry_type: super::scalars::GeometryInterfaceType::Path,
+        point_key,
+        stage_path: stage_path.clone().or(member_stage_path),
+        geometry_value_occurrence,
+        geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
+    })
 }
 
 pub(crate) fn lookup_geometry_collection_presence(
@@ -973,6 +1064,20 @@ impl ScalarEvaluationEnvironment for ResolverEnvironment<'_> {
             return Err(GeometryBuiltinRuntimeError::Unavailable);
         };
         resolve_for_group_geometry_builtin_target(self.state, self.resolver, source_order, target)
+    }
+
+    fn lookup_geometry_collection_endpoint_target(
+        &self,
+        endpoint: &TypedBuiltinArgument,
+        index: f64,
+    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+        resolve_geometry_collection_endpoint_target(
+            self.state,
+            self.resolver,
+            endpoint,
+            index,
+            self.current_source_order,
+        )
     }
 }
 

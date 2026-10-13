@@ -157,6 +157,19 @@ export type ScalarExpressionResolvedGeometryTarget = {
   readonly geometryType: ModuleGeometryInterfaceType;
   readonly pointKey?: string;
   readonly stagePath?: readonly string[];
+} | {
+  /** Runtime-selected member of a compiler-resolved geometry collection. */
+  readonly kind: "geometryCollectionIndex";
+  readonly statementId: string;
+  readonly statementIndex: number;
+  readonly geometryType: ModuleGeometryInterfaceType;
+  readonly collectionValueId: string;
+  readonly collectionLength: number | null;
+  readonly targetSourceOrder: number;
+  /** Null only in the temporary closed-frontend typecheck sidecar. */
+  readonly index: TypedScalarExpression | null;
+  readonly pointKey?: string;
+  readonly stagePath?: readonly string[];
 };
 
 export type ScalarExpressionResolvedReference =

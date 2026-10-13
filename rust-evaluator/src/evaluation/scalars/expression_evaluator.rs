@@ -36,9 +36,10 @@ use super::expression_evaluator_ops::{
 use super::geometry_builtin_runtime::{GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget};
 use super::scalar_payload::scalar_value_matches_type;
 use super::types::{
-    ScalarBinaryOperator, ScalarEvaluation, ScalarExpressionResolvedGeometryTarget,
-    ScalarExpressionResolvedOptionalMemberTarget, ScalarType, ScalarUnaryOperator, ScalarValue,
-    TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
+    BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation,
+    ScalarExpressionResolvedGeometryTarget, ScalarExpressionResolvedOptionalMemberTarget,
+    ScalarType, ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
+    TypedScalarExpression,
 };
 use crate::evaluation::types::GeometryValueOccurrence;
 
@@ -132,6 +133,14 @@ pub(crate) trait ScalarEvaluationEnvironment {
         _target: &ScalarExpressionResolvedGeometryTarget,
     ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         Err(GeometryBuiltinRuntimeError::Unavailable)
+    }
+
+    fn lookup_geometry_collection_endpoint_target(
+        &self,
+        _endpoint: &TypedBuiltinArgument,
+        _index: f64,
+    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+        Err(GeometryBuiltinRuntimeError::CollectionIndexUnavailable)
     }
 
     fn lookup_collection_index(
@@ -259,6 +268,14 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
     ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError> {
         self.base.lookup_geometry_builtin_target(target)
     }
+    fn lookup_geometry_collection_endpoint_target(
+        &self,
+        endpoint: &TypedBuiltinArgument,
+        index: f64,
+    ) -> Result<ScalarExpressionResolvedGeometryTarget, GeometryBuiltinRuntimeError> {
+        self.base
+            .lookup_geometry_collection_endpoint_target(endpoint, index)
+    }
     fn lookup_collection_index(
         &self,
         collection_value_id: &str,
@@ -362,6 +379,13 @@ pub(super) enum EvalWork<'a> {
         args: &'a [TypedBuiltinArgument],
         next_index: usize,
         values: Vec<f64>,
+    },
+    ContinueGeometryBuiltin {
+        name: BuiltinFunctionName,
+        r#type: ScalarType,
+        args: &'a [TypedBuiltinArgument],
+        pending_argument_index: usize,
+        dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
     },
 }
 
@@ -552,6 +576,22 @@ where
                 args,
                 next_index,
                 values,
+                &mut work,
+                &mut output,
+            ),
+            EvalWork::ContinueGeometryBuiltin {
+                name,
+                r#type,
+                args,
+                pending_argument_index,
+                dynamic_endpoint_targets,
+            } => continue_geometry_builtin(
+                name,
+                r#type,
+                args,
+                pending_argument_index,
+                dynamic_endpoint_targets,
+                environment,
                 &mut work,
                 &mut output,
             ),
@@ -899,12 +939,35 @@ fn eval_node<'a>(
             Some(concrete_type) => {
                 let TypedScalarCallTarget::Builtin(name) = *target;
                 if name.is_geometry() {
-                    output.push(evaluate_geometry_builtin_call(
-                        name,
-                        concrete_type.clone(),
-                        args,
-                        environment,
-                    ));
+                    let dynamic_argument = args.iter().position(|argument| {
+                        matches!(
+                            argument,
+                            TypedBuiltinArgument::GeometryCollectionEndpoint { .. }
+                        )
+                    });
+                    if let Some(pending_argument_index) = dynamic_argument {
+                        let TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } =
+                            &args[pending_argument_index]
+                        else {
+                            unreachable!("dynamic endpoint position must be a collection endpoint")
+                        };
+                        work.push(EvalWork::ContinueGeometryBuiltin {
+                            name,
+                            r#type: concrete_type.clone(),
+                            args,
+                            pending_argument_index,
+                            dynamic_endpoint_targets: vec![None; args.len()],
+                        });
+                        work.push(EvalWork::Eval(index));
+                    } else {
+                        output.push(evaluate_geometry_builtin_call(
+                            name,
+                            concrete_type.clone(),
+                            args,
+                            &[],
+                            environment,
+                        ));
+                    }
                 } else if args.iter().any(|argument| {
                     matches!(
                         argument,
@@ -932,6 +995,138 @@ fn eval_node<'a>(
                 }
             }
         },
+    }
+}
+
+fn continue_geometry_builtin<'a>(
+    name: BuiltinFunctionName,
+    r#type: ScalarType,
+    args: &'a [TypedBuiltinArgument],
+    pending_argument_index: usize,
+    mut dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
+    environment: &dyn ScalarEvaluationEnvironment,
+    work: &mut Vec<EvalWork<'a>>,
+    output: &mut Vec<ScalarEvaluation>,
+) {
+    let Some(index_evaluation) = output.pop() else {
+        output.push(ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+            binding_id: None,
+            context: None,
+        });
+        return;
+    };
+    let index = match index_evaluation {
+        ScalarEvaluation::Ok {
+            value: ScalarValue::Number(index),
+            ..
+        } if index.is_finite() && index.fract() == 0.0 && index >= 0.0 => index,
+        ScalarEvaluation::Ok {
+            value: ScalarValue::Number(_),
+            ..
+        } => {
+            output.push(ScalarEvaluation::Error {
+                r#type,
+                issue_code: "evaluation-collection-index-invalid".to_owned(),
+                binding_id: None,
+                context: None,
+            });
+            return;
+        }
+        ScalarEvaluation::Ok { .. } => {
+            output.push(ScalarEvaluation::Error {
+                r#type,
+                issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+                binding_id: None,
+                context: None,
+            });
+            return;
+        }
+        ScalarEvaluation::Error {
+            issue_code,
+            binding_id,
+            context,
+            ..
+        } => {
+            output.push(ScalarEvaluation::Error {
+                r#type,
+                issue_code,
+                binding_id,
+                context,
+            });
+            return;
+        }
+    };
+    let Some(endpoint) = args.get(pending_argument_index) else {
+        output.push(ScalarEvaluation::Error {
+            r#type,
+            issue_code: "evaluation-invalid-builtin-argument".to_owned(),
+            binding_id: None,
+            context: None,
+        });
+        return;
+    };
+    let selected_target =
+        match environment.lookup_geometry_collection_endpoint_target(endpoint, index) {
+            Ok(target) => target,
+            Err(error) => {
+                let issue_code = match error {
+                    GeometryBuiltinRuntimeError::CollectionIndexInvalid => {
+                        "evaluation-collection-index-invalid".to_owned()
+                    }
+                    GeometryBuiltinRuntimeError::CollectionIndexUnavailable
+                    | GeometryBuiltinRuntimeError::Unavailable => {
+                        "evaluation-collection-index-unavailable".to_owned()
+                    }
+                    GeometryBuiltinRuntimeError::EvaluationIssue(issue_code) => issue_code,
+                    GeometryBuiltinRuntimeError::Disabled(_) => {
+                        "evaluation-geometry-builtin-disabled".to_owned()
+                    }
+                    GeometryBuiltinRuntimeError::InvalidArgument
+                    | GeometryBuiltinRuntimeError::ZeroLengthLine => {
+                        "evaluation-invalid-builtin-argument".to_owned()
+                    }
+                };
+                output.push(ScalarEvaluation::Error {
+                    r#type,
+                    issue_code,
+                    binding_id: None,
+                    context: None,
+                });
+                return;
+            }
+        };
+    dynamic_endpoint_targets[pending_argument_index] = Some(selected_target);
+
+    let next_argument_index = ((pending_argument_index + 1)..args.len()).find(|index| {
+        matches!(
+            args[*index],
+            TypedBuiltinArgument::GeometryCollectionEndpoint { .. }
+        )
+    });
+    if let Some(next_argument_index) = next_argument_index {
+        let TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } =
+            &args[next_argument_index]
+        else {
+            unreachable!("dynamic endpoint position must be a collection endpoint")
+        };
+        work.push(EvalWork::ContinueGeometryBuiltin {
+            name,
+            r#type,
+            args,
+            pending_argument_index: next_argument_index,
+            dynamic_endpoint_targets,
+        });
+        work.push(EvalWork::Eval(index));
+    } else {
+        output.push(evaluate_geometry_builtin_call(
+            name,
+            r#type,
+            args,
+            &dynamic_endpoint_targets,
+            environment,
+        ));
     }
 }
 

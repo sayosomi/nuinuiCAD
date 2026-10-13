@@ -14,7 +14,7 @@ import type {
 } from "../scalars/typedExpressionAst";
 import type { ScalarExpressionType, ScalarType } from "../scalars/types";
 import type { DslDiagnosticPresentation } from "./dslTypes";
-import type { ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
+import { isModuleGeometryInterfaceAssignable, type ModuleGeometryInterfaceType } from "./moduleGeometryInterfaces";
 import type {
   ModuleGeometryBuiltinArgumentSemantic,
   ModuleGeometryPropertyReference,
@@ -713,20 +713,23 @@ const typecheckGeometryTarget = (
   const unwrapped = unwrapModuleGeometrySourceTarget(reference.target);
   const target = unwrapped.target;
   const pointKey = unwrapped.pointKey;
-  if (
-    allowLiteralCollectionIndex &&
-    target.kind === "collectionIndex" &&
-    target.index.ast.kind === "numberLiteral" &&
-    Number.isInteger(target.index.ast.value) &&
-    target.index.ast.value >= 0 &&
-    target.collectionLength !== null &&
-    target.index.ast.value < target.collectionLength
-  ) {
-    return {
-      statementId: target.collectionValueId,
-      statementIndex: target.targetSourceOrder,
-      geometryType: expectedGeometryType
-    };
+  if (allowLiteralCollectionIndex && target.kind === "collectionIndex") {
+    const isValidLiteral = target.index.ast.kind === "numberLiteral" &&
+      Number.isInteger(target.index.ast.value) &&
+      target.index.ast.value >= 0 &&
+      target.collectionLength !== null &&
+      target.index.ast.value < target.collectionLength;
+    const isTypedDynamicIndex = target.index.ast.kind !== "numberLiteral" && target.index.type?.kind === "number";
+    if (
+      (isValidLiteral || isTypedDynamicIndex) &&
+      isModuleGeometryInterfaceAssignable(target.elementInterfaceType, expectedGeometryType)
+    ) {
+      return {
+        statementId: target.collectionValueId,
+        statementIndex: target.targetSourceOrder,
+        geometryType: expectedGeometryType
+      };
+    }
   }
   if (target.kind === "geometryCarry") {
     return {

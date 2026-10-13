@@ -1203,7 +1203,13 @@ export const prepareRecordScalarExpression = ({
               : { kind: "numberLiteral", span: indexSpan, value: staticCollectionIndex ?? 0 }
           };
         }
-        if (!resolution || resolution.kind !== "resolvedType") return node;
+        if (!resolution || resolution.kind !== "resolvedType") {
+          const occurrenceIndex = node.occurrenceIndex
+            ? rewrite(node.occurrenceIndex, boundNames)
+            : undefined;
+          return occurrenceIndex ? { ...node, occurrenceIndex } : node;
+        }
+        if (node.occurrenceIndex) rewrite(node.occurrenceIndex, boundNames);
         references.push(resolution);
         return {
           kind: "reference",

@@ -347,9 +347,24 @@ pub(crate) fn resolve_geometry_builtin_target_with_mode(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn validate_geometry_builtin_arguments<F>(
     name: BuiltinFunctionName,
     arguments: &[TypedBuiltinArgument],
+    lookup: F,
+) -> Result<Vec<GeometryBuiltinRuntimeTarget>, GeometryBuiltinRuntimeError>
+where
+    F: Fn(
+        &ScalarExpressionResolvedGeometryTarget,
+    ) -> Result<GeometryBuiltinRuntimeTarget, GeometryBuiltinRuntimeError>,
+{
+    validate_geometry_builtin_arguments_with_dynamic_targets(name, arguments, &[], lookup)
+}
+
+pub(crate) fn validate_geometry_builtin_arguments_with_dynamic_targets<F>(
+    name: BuiltinFunctionName,
+    arguments: &[TypedBuiltinArgument],
+    dynamic_endpoint_targets: &[Option<ScalarExpressionResolvedGeometryTarget>],
     lookup: F,
 ) -> Result<Vec<GeometryBuiltinRuntimeTarget>, GeometryBuiltinRuntimeError>
 where
@@ -368,7 +383,7 @@ where
         .ok_or(GeometryBuiltinRuntimeError::InvalidArgument)?;
 
     let mut runtime_targets = Vec::with_capacity(arguments.len());
-    for (expected, argument) in signature.iter().zip(arguments) {
+    for (argument_index, (expected, argument)) in signature.iter().zip(arguments).enumerate() {
         let runtime_target = match (expected, argument) {
             (
                 BuiltinArgumentType::Geometry(expected_geometry_type),
@@ -418,6 +433,25 @@ where
                     ..
                 },
             ) => {
+                if target.geometry_type != GeometryInterfaceType::Path || target.point_key.is_some()
+                {
+                    return Err(GeometryBuiltinRuntimeError::Unavailable);
+                }
+                match lookup(target)? {
+                    GeometryBuiltinRuntimeTarget::GeometryValuePath { value } => {
+                        GeometryBuiltinRuntimeTarget::GeometryValuePath { value }
+                    }
+                    _ => return Err(GeometryBuiltinRuntimeError::Unavailable),
+                }
+            }
+            (
+                BuiltinArgumentType::GeometryEndpoint,
+                TypedBuiltinArgument::GeometryCollectionEndpoint { .. },
+            ) => {
+                let target = dynamic_endpoint_targets
+                    .get(argument_index)
+                    .and_then(Option::as_ref)
+                    .ok_or(GeometryBuiltinRuntimeError::CollectionIndexUnavailable)?;
                 if target.geometry_type != GeometryInterfaceType::Path || target.point_key.is_some()
                 {
                     return Err(GeometryBuiltinRuntimeError::Unavailable);

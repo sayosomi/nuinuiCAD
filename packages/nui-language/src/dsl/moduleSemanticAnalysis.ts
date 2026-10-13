@@ -2361,7 +2361,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const valueType = collection?.kind === "collection"
         ? collection.valueType
         : parameter
-          ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
+          ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ??
+            dslRequiredValueTypeOf(parameter.parameter.valueType)
           : carrySource
             ? carrySource.valueType
             : collectionAnalysis ? collectionValueTypeFor(value) : null;
