@@ -1198,6 +1198,11 @@ struct RuntimeTransformationTarget {
     endpoint_key: Option<String>,
 }
 
+struct ElementCompletionFacts<'a> {
+    completed: &'a HashSet<ElementId>,
+    failed: &'a HashSet<ElementId>,
+}
+
 fn transformation_stage_key(runtime_owner_id: &str, stage_path: &[String]) -> String {
     format!("{}\u{0}*\u{0}{}", runtime_owner_id, stage_path.join("."))
 }
@@ -1253,6 +1258,60 @@ fn has_for_group_ancestor(owner_id: &str, state: &EvaluationState) -> bool {
         parent_id = types::parent_group_id(parent);
     }
     false
+}
+
+fn generated_owner_groups_resolved(
+    owner_id: &str,
+    state: &EvaluationState,
+    completion: &ElementCompletionFacts<'_>,
+) -> bool {
+    let mut parent_id = state
+        .elements_by_id
+        .get(owner_id)
+        .and_then(|index| state.elements.get(*index))
+        .and_then(types::parent_group_id);
+    let mut visited = HashSet::new();
+    let mut outermost_group_id = None;
+    while let Some(current_id) = parent_id {
+        if !visited.insert(current_id.to_owned()) {
+            return false;
+        }
+        let Some(parent) = state
+            .elements_by_id
+            .get(&current_id)
+            .and_then(|index| state.elements.get(*index))
+        else {
+            return false;
+        };
+        if element_type(parent) == Some("forGroup") {
+            outermost_group_id = Some(current_id.to_owned());
+        }
+        parent_id = types::parent_group_id(parent);
+    }
+    let Some(outermost_group_id) = outermost_group_id else {
+        return false;
+    };
+    has_for_group_ancestor(&outermost_group_id, state)
+        || (completion.completed.contains(&outermost_group_id)
+            && !completion.failed.contains(&outermost_group_id))
+}
+
+fn transformation_stage_available(
+    runtime_owner_id: &str,
+    stage_path: &[String],
+    state: &EvaluationState,
+) -> bool {
+    if stage_path.is_empty() || stage_path == ["final".to_owned()] {
+        state.computed_geometry.contains_key(runtime_owner_id)
+    } else if stage_path == ["base".to_owned()] {
+        state
+            .base_transformation_geometry
+            .contains_key(runtime_owner_id)
+    } else {
+        state
+            .transformation_stage_geometry
+            .contains_key(&transformation_stage_key(runtime_owner_id, stage_path))
+    }
 }
 
 fn runtime_transformation_targets(
@@ -1322,7 +1381,11 @@ fn runtime_transformation_targets(
     vec![target]
 }
 
-fn transformation_plan_dependency_available(dependency: &Value, state: &EvaluationState) -> bool {
+fn transformation_plan_dependency_available(
+    dependency: &Value,
+    state: &EvaluationState,
+    completion: &ElementCompletionFacts<'_>,
+) -> bool {
     let Some(owner_id) = dependency.get("ownerId").and_then(Value::as_str) else {
         return false;
     };
@@ -1331,26 +1394,6 @@ fn transformation_plan_dependency_available(dependency: &Value, state: &Evaluati
         .iter()
         .filter(|row| row.template_element_id == owner_id)
         .collect::<Vec<_>>();
-    let runtime_ids =
-        if let Some(index_text) = dependency.get("occurrenceIndex").and_then(Value::as_str) {
-            index_text
-                .parse::<usize>()
-                .ok()
-                .and_then(|index| {
-                    rows.get(index)
-                        .map(|row| vec![row.generated_element_id.clone()])
-                })
-                .unwrap_or_default()
-        } else if has_for_group_ancestor(owner_id, state) {
-            rows.into_iter()
-                .map(|row| row.generated_element_id.clone())
-                .collect::<Vec<_>>()
-        } else {
-            vec![owner_id.to_owned()]
-        };
-    if runtime_ids.is_empty() {
-        return false;
-    }
     let stage_path = dependency
         .get("stagePath")
         .and_then(Value::as_array)
@@ -1361,23 +1404,49 @@ fn transformation_plan_dependency_available(dependency: &Value, state: &Evaluati
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
-    runtime_ids.iter().all(|runtime_id| {
-        if stage_path == ["base".to_owned()] {
-            state.base_transformation_geometry.contains_key(runtime_id)
-        } else if stage_path == ["final".to_owned()] || stage_path.is_empty() {
-            state.computed_geometry.contains_key(runtime_id)
-        } else {
-            state
-                .transformation_stage_geometry
-                .contains_key(&transformation_stage_key(runtime_id, &stage_path))
+    if has_for_group_ancestor(owner_id, state) {
+        let Some(expected_count) = state
+            .for_group_expected_occurrence_count_by_template_id
+            .get(owner_id)
+            .copied()
+        else {
+            return false;
+        };
+        if let Some(index_text) = dependency.get("occurrenceIndex").and_then(Value::as_str) {
+            let selected = index_text
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| rows.get(index));
+            let Some(row) = selected else {
+                return generated_owner_groups_resolved(owner_id, state, completion);
+            };
+            return transformation_stage_available(&row.generated_element_id, &stage_path, state);
         }
-    })
+        if rows.len() != expected_count {
+            return false;
+        }
+        if expected_count == 0 {
+            return generated_owner_groups_resolved(owner_id, state, completion);
+        }
+        return rows.iter().all(|row| {
+            state
+                .computed_geometry
+                .contains_key(&row.generated_element_id)
+                && !state
+                    .errors
+                    .iter()
+                    .any(|error| error.element_id == row.generated_element_id)
+                && transformation_stage_available(&row.generated_element_id, &stage_path, state)
+        });
+    }
+    transformation_stage_available(owner_id, &stage_path, state)
 }
 
 fn transformation_recipe_plan_ready(
     recipe_index: usize,
     scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
     state: &EvaluationState,
+    completion: &ElementCompletionFacts<'_>,
 ) -> bool {
     let Some(plan) = state
         .transformation_dependency_plans
@@ -1436,7 +1505,7 @@ fn transformation_recipe_plan_ready(
                 .and_then(Value::as_array)
                 .map(|dependencies| {
                     dependencies.iter().all(|dependency| {
-                        transformation_plan_dependency_available(dependency, state)
+                        transformation_plan_dependency_available(dependency, state, completion)
                     })
                 })
                 .unwrap_or(true)
@@ -1763,6 +1832,7 @@ fn execute_transformation_recipes_through(
     _source_order: f64,
     numeric_entries_by_element_id: &HashMap<ElementId, Vec<ValidatedNumericBinding>>,
     scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    completion: &ElementCompletionFacts<'_>,
     state: &mut EvaluationState,
 ) {
     for (recipe_index, recipe) in recipes.iter().enumerate() {
@@ -1772,14 +1842,26 @@ fn execute_transformation_recipes_through(
         {
             continue;
         }
-        if !transformation_recipe_plan_ready(recipe_index, scalar_binding_resolver, state) {
+        if !transformation_recipe_plan_ready(
+            recipe_index,
+            scalar_binding_resolver,
+            state,
+            completion,
+        ) {
             continue;
         }
-        let targets = recipe
+        let source_targets = recipe
             .get("targets")
             .and_then(Value::as_array)
             .cloned()
-            .unwrap_or_default()
+            .unwrap_or_default();
+        if source_targets
+            .iter()
+            .any(|target| !transformation_plan_dependency_available(target, state, completion))
+        {
+            continue;
+        }
+        let targets = source_targets
             .iter()
             .map(|target| runtime_transformation_targets(recipe, target, state))
             .collect::<Vec<_>>();
@@ -1805,7 +1887,14 @@ fn execute_transformation_recipes_through(
         }) {
             continue;
         }
-        if !targets.is_empty() && !targets.iter().any(Vec::is_empty) {
+        if !targets.is_empty() && targets.iter().any(Vec::is_empty) {
+            // Empty bulk selections are resolved no-ops. A missing indexed
+            // occurrence has already emitted its diagnostic and must not be
+            // retried at every scheduler boundary.
+            state
+                .completed_transformation_recipe_indices
+                .insert(recipe_index);
+        } else if !targets.is_empty() {
             if recipe.get("construction").and_then(Value::as_str) == Some("edge")
                 && targets.iter().any(|targets| targets.len() > 1)
             {
@@ -1829,6 +1918,16 @@ fn execute_transformation_recipes_through(
                             state,
                         );
                     }
+                }
+            } else if recipe.get("construction").and_then(Value::as_str) == Some("reverse") {
+                for target in targets.iter().flatten() {
+                    execute_transformation_invocation(
+                        recipe,
+                        std::slice::from_ref(target),
+                        numeric_entries_by_element_id,
+                        scalar_binding_resolver,
+                        state,
+                    );
                 }
             } else {
                 execute_transformation_invocation(
@@ -3031,6 +3130,10 @@ fn evaluate_document_input_with_scalar_program(
                                 .as_ref()
                                 .map(|resolver| resolver as &dyn ScalarDocumentBindingResolver)
                         }),
+                    &ElementCompletionFacts {
+                        completed: &completed_element_ids,
+                        failed: &failed_element_ids,
+                    },
                     &mut state,
                 )
             };
@@ -3432,6 +3535,10 @@ fn evaluate_document_input_with_scalar_program(
         f64::INFINITY,
         &numeric_entries_by_element_id,
         final_scalar_binding_resolver,
+        &ElementCompletionFacts {
+            completed: &completed_element_ids,
+            failed: &failed_element_ids,
+        },
         &mut state,
     );
     while evaluated_geometry_value_entries

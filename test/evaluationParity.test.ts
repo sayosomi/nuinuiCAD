@@ -293,6 +293,88 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
     rustStdio?.dispose();
   });
 
+  it("reverses both exact c21 generated Bezier occurrences through persistent Rust stdio", async () => {
+    const source = [
+      "nui 1",
+      "line Axis = segment(start: (100, 40), end: (110, 40))",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  curve C = bezier(start: (@i * 30, 0), end: (@i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
+      "  reverse C ()",
+      "}",
+      "const firstStart: number = lineAngle(@C[0].start, @Axis.start)",
+      "const secondStart: number = lineAngle(@C[1].start, @Axis.start)",
+      "const secondEnd: number = lineAngle(@C[1].end, @Axis.end)"
+    ].join("\n");
+    const fixture = fixtureFromSource(source);
+    const options = optionsFor(fixture);
+    expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+
+    const template = fixture.elements.find((element) => element.name === "C")!;
+    const expected = [
+      {
+        input: {
+          start: { x: 0, y: 0 }, end: { x: 20, y: 5 },
+          control1: { x: 10.875693444439799, y: 5.071419140888393 },
+          control2: { x: 26.55321635431193, y: 0.41138850919162806 }
+        },
+        output: {
+          start: { x: 20, y: 5 }, end: { x: 0, y: 0 },
+          control1: { x: 26.55321635431193, y: 0.41138850919162806 },
+          control2: { x: 10.875693444439799, y: 5.071419140888393 }
+        }
+      },
+      {
+        input: {
+          start: { x: 30, y: 0 }, end: { x: 50, y: 5 },
+          control1: { x: 40.8756934444398, y: 5.071419140888393 },
+          control2: { x: 56.55321635431193, y: 0.41138850919162806 }
+        },
+        output: {
+          start: { x: 50, y: 5 }, end: { x: 30, y: 0 },
+          control1: { x: 56.55321635431193, y: 0.41138850919162806 },
+          control2: { x: 40.8756934444398, y: 5.071419140888393 }
+        }
+      }
+    ];
+    for (const payload of [tsPayload, rustPayload]) {
+      const result = evaluationPayloadToResult(payload);
+      const rows = result.forGroupGeneratedRows?.filter((row) => row.templateElementId === template.id) ?? [];
+      expect(result.errors).toEqual([]);
+      expect(rows.map((row) => row.iterationIndex)).toEqual([0, 1]);
+      expect(new Set(rows.map((row) => row.generatedElementId)).size).toBe(2);
+      for (const [index, row] of rows.entries()) {
+        const inputGeometry = result.preMutationGeometry?.get(row.generatedElementId);
+        const outputGeometry = result.computedGeometry.get(row.generatedElementId);
+        if (inputGeometry?.kind !== "bezierCurve" || outputGeometry?.kind !== "bezierCurve") {
+          throw new Error("expected generated Bezier geometry before and after reverse");
+        }
+        expect(inputGeometry.elementId).toBe(row.generatedElementId);
+        expect(outputGeometry.elementId).toBe(row.generatedElementId);
+        const input = inputGeometry.segments[0]!;
+        const output = outputGeometry.segments[0]!;
+        expect(output.startPointId).toBe(`${row.generatedElementId}:end`);
+        expect(output.endPointId).toBe(`${row.generatedElementId}:start`);
+        for (const [segment, points] of [[input, expected[index]!.input], [output, expected[index]!.output]] as const) {
+          expect(segment.start.x).toBeCloseTo(points.start.x, 10);
+          expect(segment.start.y).toBeCloseTo(points.start.y, 10);
+          expect(segment.end.x).toBeCloseTo(points.end.x, 10);
+          expect(segment.end.y).toBeCloseTo(points.end.y, 10);
+          expect(segment.control1.x).toBeCloseTo(points.control1.x, 10);
+          expect(segment.control1.y).toBeCloseTo(points.control1.y, 10);
+          expect(segment.control2.x).toBeCloseTo(points.control2.x, 10);
+          expect(segment.control2.y).toBeCloseTo(points.control2.y, 10);
+        }
+      }
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "firstStart"), 35);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "secondStart"), 35);
+      expectScalarNumberClose(scalarBindingFor(fixture, payload, "secondEnd"), 25);
+    }
+  }, 30000);
+
   it("splits compiler-selected drawable snapshots in root and per-instance Module evaluation", async () => {
     const fixture = fixtureFromSource([
       "nui 1",

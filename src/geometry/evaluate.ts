@@ -3225,6 +3225,12 @@ export const evaluateElements = (
   const executeTransformationRecipe = (recipe: TransformationRecipe) => {
     const expandedTargets = recipe.targets.map((target) => runtimeTargetsFor(recipe, target));
     if (expandedTargets.some((targets) => targets.length === 0)) return;
+    if (recipe.operation.kind === "reverse") {
+      for (const targets of expandedTargets) {
+        for (const target of targets) executeTransformationInvocation(recipe, [target]);
+      }
+      return;
+    }
     if (recipe.construction === "edge" && expandedTargets.some((targets) => targets.length > 1)) {
       const count = Math.max(...expandedTargets.map((targets) => targets.length));
       for (let index = 0; index < count; index += 1) {
@@ -3249,15 +3255,66 @@ export const evaluateElements = (
     if (generatedOwnerIds.has(dependency.ownerId)) return rows.map((row) => row.generatedElementId);
     return [dependency.ownerId];
   };
+  const generatedOwnerGroupsResolved = (templateElementId: ElementId): boolean => {
+    const template = elementsById.get(templateElementId);
+    if (!template) return false;
+    let parentGroupId = template.parentGroupId;
+    const visited = new Set<ElementId>();
+    let outermostGroupId: ElementId | undefined;
+    while (parentGroupId && !visited.has(parentGroupId)) {
+      visited.add(parentGroupId);
+      const parent = elementsById.get(parentGroupId);
+      if (!parent) return false;
+      if (isForGroupElement(parent)) {
+        outermostGroupId = parent.id;
+      }
+      parentGroupId = parent.parentGroupId;
+    }
+    if (!outermostGroupId) return false;
+    // Expected occurrence counts for nested groups describe their generated
+    // descendants, not the number of generated instances of the group itself.
+    // Wait for the outermost authored group when it has a stable runtime ID;
+    // generated roots are evaluated atomically at the enclosing scheduler
+    // boundary, after their generated rows have been materialized.
+    return generatedOwnerIds.has(outermostGroupId) ||
+      (completedElementIds.has(outermostGroupId) && !failedElementIds.has(outermostGroupId));
+  };
   const transformationDependencyAvailable = (dependency: { ownerId: ElementId; stagePath: readonly string[]; occurrenceIndex?: string }): boolean => {
+    if (generatedOwnerIds.has(dependency.ownerId)) {
+      const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === dependency.ownerId);
+      const expectedCount = forGroupExpectedOccurrenceCountByTemplateId.get(dependency.ownerId);
+      if (expectedCount === undefined) return false;
+      if (dependency.occurrenceIndex !== undefined) {
+        const runtimeIds = transformationDependencyRuntimeIds(dependency);
+        if (runtimeIds.length === 0) return generatedOwnerGroupsResolved(dependency.ownerId);
+        return runtimeIds.every((runtimeId) => {
+          if (dependency.stagePath.length === 0 ||
+            (dependency.stagePath.length === 1 && dependency.stagePath[0] === "final")) {
+            return computedGeometry.has(runtimeId);
+          }
+          if (dependency.stagePath.length === 1 && dependency.stagePath[0] === "base") {
+            return baseTransformationGeometry.has(runtimeId);
+          }
+          return transformationStageGeometry.has(
+            transformationStageKey(runtimeId, undefined, dependency.stagePath)
+          );
+        });
+      }
+      if (rows.length !== expectedCount) return false;
+      if (expectedCount === 0) return generatedOwnerGroupsResolved(dependency.ownerId);
+      if (rows.some((row) =>
+        !completedElementIds.has(row.generatedElementId) || failedElementIds.has(row.generatedElementId)
+      )) return false;
+    }
     const runtimeIds = transformationDependencyRuntimeIds(dependency);
     if (runtimeIds.length === 0) return false;
     return runtimeIds.every((runtimeId) => {
+      if (dependency.stagePath.length === 0 ||
+        (dependency.stagePath.length === 1 && dependency.stagePath[0] === "final")) {
+        return computedGeometry.has(runtimeId);
+      }
       if (dependency.stagePath.length === 1 && dependency.stagePath[0] === "base") {
         return baseTransformationGeometry.has(runtimeId);
-      }
-      if (dependency.stagePath.length === 1 && dependency.stagePath[0] === "final") {
-        return computedGeometry.has(runtimeId);
       }
       return transformationStageGeometry.has(
         transformationStageKey(runtimeId, undefined, dependency.stagePath)
@@ -3273,23 +3330,7 @@ export const evaluateElements = (
       if (plan.scalarPrerequisites.some((bindingId) => !endpointIsReady(`binding:${bindingId}`))) return false;
     }
     for (const target of recipe.targets) {
-      const runtimeIds = generatedOwnerIds.has(target.ownerId)
-        ? forGroupGeneratedRows
-            .filter((row) => row.templateElementId === target.ownerId)
-            .filter((_, index) => target.occurrenceIndex === undefined || String(index) === target.occurrenceIndex)
-            .map((row) => row.generatedElementId)
-        : [target.ownerId];
-      if (runtimeIds.length === 0) return false;
-      for (const runtimeId of runtimeIds) {
-        if (target.stagePath.length === 0 || (target.stagePath.length === 1 && target.stagePath[0] === "final")) {
-          if (!computedGeometry.has(runtimeId)) return false;
-        } else if (target.stagePath[0] === "base" && target.stagePath.length === 1) {
-          if (!baseTransformationGeometry.has(runtimeId)) return false;
-        } else {
-          const stageKey = transformationStageKey(runtimeId, undefined, target.stagePath);
-          if (!transformationStageGeometry.has(stageKey)) return false;
-        }
-      }
+      if (!transformationDependencyAvailable(target)) return false;
     }
     return true;
   };
