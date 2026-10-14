@@ -2172,8 +2172,8 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             collection_value_id,
             self.collection_carry_snapshots,
         );
-        // Keep the source-order fence unless this resolved value has a carry
-        // snapshot proving that the statement-for value already escaped.
+        // Keep the source-order fence unless a statement-for carry snapshot
+        // proves that this value has already escaped its owner.
         if target_source_order >= self.source_order && !has_carry_snapshot {
             return ScalarEvaluation::Error {
                 r#type: element_type.clone(),
@@ -2194,6 +2194,44 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             self.collection_carry_snapshots,
             &mut seen,
         )
+    }
+
+    fn lookup_geometry_endpoint_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        _target_source_order: f64,
+    ) -> ScalarEvaluation {
+        // The compiler has already authorized this numeric expression as the
+        // selector for a dynamic geometry endpoint. Resolve it through the
+        // canonical immutable collection graph; only an actually unresolved
+        // binding is reported as an unavailable collection index.
+        let empty_bindings = HashMap::new();
+        let mut seen = self.collection_traversal_seen.cloned().unwrap_or_default();
+        let resolved = self.resolver.resolve_collection_index_with_seen(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            self.state,
+            self.local_bindings.unwrap_or(&empty_bindings),
+            self.collection_carry_snapshots,
+            &mut seen,
+        );
+        if matches!(
+            &resolved,
+            ScalarEvaluation::Error { issue_code, .. } if issue_code == BINDING_UNAVAILABLE
+        ) {
+            return ScalarEvaluation::Error {
+                r#type: element_type.clone(),
+                issue_code: "evaluation-collection-index-unavailable".to_owned(),
+                binding_id: None,
+                context: None,
+            };
+        }
+        resolved
     }
 
     fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
