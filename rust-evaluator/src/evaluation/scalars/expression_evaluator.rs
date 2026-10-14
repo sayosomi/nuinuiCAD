@@ -159,6 +159,23 @@ pub(crate) trait ScalarEvaluationEnvironment {
         }
     }
 
+    fn lookup_geometry_endpoint_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    ) -> ScalarEvaluation {
+        self.lookup_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+        )
+    }
+
     fn lookup_collection_length(&self, _collection_value_id: &str) -> Option<f64> {
         None
     }
@@ -292,6 +309,22 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
             target_source_order,
         )
     }
+    fn lookup_geometry_endpoint_collection_index(
+        &self,
+        collection_value_id: &str,
+        index: f64,
+        element_type: &ScalarType,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+    ) -> ScalarEvaluation {
+        self.base.lookup_geometry_endpoint_collection_index(
+            collection_value_id,
+            index,
+            element_type,
+            collection_length,
+            target_source_order,
+        )
+    }
     fn lookup_collection_length(&self, collection_value_id: &str) -> Option<f64> {
         self.base.lookup_collection_length(collection_value_id)
     }
@@ -319,6 +352,12 @@ impl<E: ScalarEvaluationEnvironment + ?Sized> ScalarEvaluationEnvironment
 /// `scalars/`) because `expression_evaluator_ops.rs`'s `continue_logical`
 /// needs to push further work items (`FinishLogicalRight`/`Eval(right)`)
 /// once it decides the short-circuit doesn't apply.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CollectionIndexLookupContext {
+    SourceOrdered,
+    GeometryEndpoint,
+}
+
 pub(super) enum EvalWork<'a> {
     Eval(&'a TypedScalarExpression),
     Record(&'a TypedScalarExpression),
@@ -332,6 +371,7 @@ pub(super) enum EvalWork<'a> {
         target_source_order: f64,
         r#type: ScalarType,
     },
+    SetCollectionIndexLookupContext(CollectionIndexLookupContext),
     /// Left has not been evaluated yet when this is pushed; it is evaluated
     /// first (pushed after this marker, so it pops first), and *this* item
     /// is what decides - once popped, with the left result on `output` -
@@ -386,6 +426,7 @@ pub(super) enum EvalWork<'a> {
         args: &'a [TypedBuiltinArgument],
         pending_argument_index: usize,
         dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
+        restore_collection_index_context: CollectionIndexLookupContext,
     },
 }
 
@@ -447,6 +488,7 @@ where
 {
     let mut work: Vec<EvalWork> = vec![EvalWork::Eval(node)];
     let mut output: Vec<ScalarEvaluation> = Vec::new();
+    let mut collection_index_lookup_context = CollectionIndexLookupContext::SourceOrdered;
 
     while let Some(item) = work.pop() {
         match item {
@@ -454,7 +496,13 @@ where
                 if observer.is_some() {
                     work.push(EvalWork::Record(node));
                 }
-                eval_node(node, environment, &mut work, &mut output);
+                eval_node(
+                    node,
+                    environment,
+                    collection_index_lookup_context,
+                    &mut work,
+                    &mut output,
+                );
             }
             EvalWork::Record(node) => {
                 if let Some(observer) = observer.as_deref_mut() {
@@ -466,6 +514,9 @@ where
             }
             EvalWork::FinishUnary { operator, r#type } => {
                 finish_unary(operator, r#type, &mut output)
+            }
+            EvalWork::SetCollectionIndexLookupContext(context) => {
+                collection_index_lookup_context = context;
             }
             EvalWork::FinishCollectionIndex {
                 collection_value_id,
@@ -496,13 +547,24 @@ where
                         && index >= 0.0
                         && collection_length.map_or(true, |length| index < length) =>
                     {
-                        environment.lookup_collection_index(
-                            &collection_value_id,
-                            index,
-                            &r#type,
-                            collection_length,
-                            target_source_order,
-                        )
+                        match collection_index_lookup_context {
+                            CollectionIndexLookupContext::SourceOrdered => environment
+                                .lookup_collection_index(
+                                    &collection_value_id,
+                                    index,
+                                    &r#type,
+                                    collection_length,
+                                    target_source_order,
+                                ),
+                            CollectionIndexLookupContext::GeometryEndpoint => environment
+                                .lookup_geometry_endpoint_collection_index(
+                                    &collection_value_id,
+                                    index,
+                                    &r#type,
+                                    collection_length,
+                                    target_source_order,
+                                ),
+                        }
                     }
                     _ => ScalarEvaluation::Error {
                         r#type: r#type.clone(),
@@ -585,12 +647,14 @@ where
                 args,
                 pending_argument_index,
                 dynamic_endpoint_targets,
+                restore_collection_index_context,
             } => continue_geometry_builtin(
                 name,
                 r#type,
                 args,
                 pending_argument_index,
                 dynamic_endpoint_targets,
+                restore_collection_index_context,
                 environment,
                 &mut work,
                 &mut output,
@@ -616,6 +680,7 @@ where
 fn eval_node<'a>(
     node: &'a TypedScalarExpression,
     environment: &dyn ScalarEvaluationEnvironment,
+    collection_index_lookup_context: CollectionIndexLookupContext,
     work: &mut Vec<EvalWork<'a>>,
     output: &mut Vec<ScalarEvaluation>,
 ) {
@@ -957,8 +1022,15 @@ fn eval_node<'a>(
                             args,
                             pending_argument_index,
                             dynamic_endpoint_targets: vec![None; args.len()],
+                            restore_collection_index_context: collection_index_lookup_context,
                         });
+                        work.push(EvalWork::SetCollectionIndexLookupContext(
+                            collection_index_lookup_context,
+                        ));
                         work.push(EvalWork::Eval(index));
+                        work.push(EvalWork::SetCollectionIndexLookupContext(
+                            CollectionIndexLookupContext::GeometryEndpoint,
+                        ));
                     } else {
                         output.push(evaluate_geometry_builtin_call(
                             name,
@@ -1006,6 +1078,7 @@ fn continue_geometry_builtin<'a>(
     args: &'a [TypedBuiltinArgument],
     pending_argument_index: usize,
     mut dynamic_endpoint_targets: Vec<Option<ScalarExpressionResolvedGeometryTarget>>,
+    restore_collection_index_context: CollectionIndexLookupContext,
     environment: &dyn ScalarEvaluationEnvironment,
     work: &mut Vec<EvalWork<'a>>,
     output: &mut Vec<ScalarEvaluation>,
@@ -1119,8 +1192,15 @@ fn continue_geometry_builtin<'a>(
             args,
             pending_argument_index: next_argument_index,
             dynamic_endpoint_targets,
+            restore_collection_index_context,
         });
+        work.push(EvalWork::SetCollectionIndexLookupContext(
+            restore_collection_index_context,
+        ));
         work.push(EvalWork::Eval(index));
+        work.push(EvalWork::SetCollectionIndexLookupContext(
+            CollectionIndexLookupContext::GeometryEndpoint,
+        ));
     } else {
         output.push(evaluate_geometry_builtin_call(
             name,
