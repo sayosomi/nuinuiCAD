@@ -11,6 +11,7 @@ import type {
   GeometryArrayValueSemantic
 } from "./geometryArraySemanticAnalysis";
 import type { GeometryArraySemanticValue } from "./geometryArraySemantics";
+import type { RuntimeGeometryCollectionNode, RuntimeGeometryInputTarget } from "./moduleGeometryRuntimeLowering";
 
 const valueForId = (
   analysis: GeometryArraySemanticAnalysis,
@@ -98,14 +99,20 @@ const lowerPointValue = (
       anchors.push({
         mode: "geometryValue",
         occurrence: geometryValue.occurrence,
-        ...(member.target.pointKey ? { pointKey: member.target.pointKey } : {})
+        ...(member.target.pointKey ? { pointKey: member.target.pointKey } : {}),
+        ...(member.target.stagePath ? { stagePath: member.target.stagePath } : {})
       });
       continue;
     }
     if (member.target.kind !== "geometry") return null;
     const id = elementIdByStatementIndex.get(member.target.statementIndex);
     if (!id) return null;
-    anchors.push(member.target.pointKey ? derivedAnchor(id, member.target.pointKey) : referenceAnchor(id));
+    anchors.push(member.target.pointKey
+      ? {
+          ...derivedAnchor(id, member.target.pointKey),
+          ...(member.target.stagePath ? { stagePath: member.target.stagePath } : {})
+        }
+      : referenceAnchor(id));
   }
   return anchors;
 };
@@ -121,7 +128,7 @@ export const lowerSourceGeometryArrayLineReferenceList = (
   token: string,
   index: NameIndex,
   currentElement?: CadElement
-): readonly ElementId[] | null => {
+): readonly ElementId[] | RuntimeGeometryInputTarget | null => {
   const sourceResolution = index.sourceLexicalResolution;
   const analysis = sourceResolution?.sourceNamespace.geometryArraySemanticAnalysis;
   if (!sourceResolution || !analysis || !currentElement) return null;
@@ -135,6 +142,56 @@ export const lowerSourceGeometryArrayLineReferenceList = (
   if (lookup.kind !== "resolved" || lookup.declaration.kind !== "typedDeclaration") return null;
   const semantic = analysis.valuesByStatementIndex.get(lookup.declaration.statementIndex);
   if (!semantic?.value || semantic.type.elementType === "point") return null;
+  const selectedStageLiteral = (value: GeometryArraySemanticValue<GeometryArraySourceTarget>, seen: ReadonlySet<string>): Extract<GeometryArraySemanticValue<GeometryArraySourceTarget>, { kind: "literal" }> | null => {
+    if (value.kind === "literal") return value;
+    if (value.kind !== "alias" || seen.has(value.targetValueId)) return null;
+    const target = valueForId(analysis, value.targetValueId);
+    return target?.value
+      ? selectedStageLiteral(target.value, new Set([...seen, value.targetValueId]))
+      : null;
+  };
+  const literal = selectedStageLiteral(semantic.value, new Set([semantic.statementId]));
+  if (literal) {
+    const aliases: Extract<RuntimeGeometryCollectionNode, { kind: "leaf" }>["aliases"][number][] = [];
+    let hasSelectedStage = false;
+    for (const member of literal.members) {
+      const target = member.target;
+      if (target.kind === "geometry") {
+        const elementId = sourceResolution.elementIdByStatementIndex.get(target.statementIndex);
+        if (!elementId || target.interfaceType === "point") return null;
+        hasSelectedStage ||= Boolean(target.stagePath?.length);
+        aliases.push({
+          kind: "line",
+          elementId,
+          interfaceType: target.interfaceType,
+          ...(target.stagePath ? { stagePath: target.stagePath } : {}),
+        });
+      } else if (target.kind === "geometryValue") {
+        if (target.interfaceType === "point") return null;
+        hasSelectedStage ||= Boolean(target.stagePath?.length);
+        aliases.push({
+          kind: "value",
+          occurrence: { sourceStatementId: target.statementId, instancePath: [] },
+          geometryType: "line",
+          interfaceType: target.interfaceType,
+          ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+          ...(target.stagePath ? { stagePath: target.stagePath } : {})
+        });
+      } else {
+        return null;
+      }
+    }
+    if (hasSelectedStage) {
+      const value: RuntimeGeometryCollectionNode = { kind: "leaf", aliases };
+      return {
+        kind: "collectionValue",
+        collectionValueId: semantic.statementId,
+        targetSourceOrder: semantic.statementIndex,
+        value,
+        currentPath: []
+      };
+    }
+  }
   return lowerValue(
     analysis,
     semantic.value,
@@ -183,7 +240,7 @@ export const lowerSourceGeometryArrayLineReferenceAt = (
 ): ElementId | null => {
   if (!Number.isInteger(memberIndex) || memberIndex < 0) return null;
   const members = lowerSourceGeometryArrayLineReferenceList(token, index, currentElement);
-  return members?.[memberIndex] ?? null;
+  return Array.isArray(members) ? members[memberIndex] ?? null : null;
 };
 
 export const lowerSourceGeometryArrayPointReferenceAt = (

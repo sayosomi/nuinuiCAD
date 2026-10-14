@@ -1326,9 +1326,35 @@ export const compileDslDocument = (
     parsed.statements.every(
       (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
     );
-  const baseSourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
+  const initialBaseSourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
+  const moduleTransformationStageDeclarationsByOwnerId = initialBaseSourceLexicalNamespace && stableStatementIdByIndex
+    ? collectModuleTransformationStageDeclarationsForSource({
+        statements: parsed.statements,
+        stableStatementIdByIndex,
+        sourceNamespace: initialBaseSourceLexicalNamespace
+      })
+    : new Map<ElementId, readonly import("./transformationRecipes").TransformationStageDeclaration[]>();
+  const resolveGeometryArrayStageSelection = initialBaseSourceLexicalNamespace
+    ? ({ statementIndex, statementId, members }: { statementIndex: number; statementId: string; members: readonly string[] }) => {
+        const moduleStageDeclarations = moduleTransformationStageDeclarationsByOwnerId.get(statementId);
+        const ownerId = moduleStageDeclarations?.length
+          ? statementId
+          : compiled.elementIdsByStatementIndex?.get(statementIndex) ?? statementId;
+        return resolveTransformationStageSelection({
+          ownerId,
+          members,
+          recipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes ?? [],
+          stageDeclarations: moduleStageDeclarations
+        });
+      }
+    : undefined;
+  const baseSourceLexicalNamespace = initialBaseSourceLexicalNamespace && resolveGeometryArrayStageSelection
+    ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!, {
+        resolveGeometryStageSelection: resolveGeometryArrayStageSelection
+      })
+    : initialBaseSourceLexicalNamespace;
   const collectionSourceDiagnostics: DslDiagnostic[] = [];
   const sourceLexicalNamespace = baseSourceLexicalNamespace
     ? (() => {
@@ -1605,7 +1631,13 @@ export const compileDslDocument = (
     if (target.kind === "geometry") {
       const elementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
       return elementId
-        ? { kind: "drawable", elementId, geometryType: target.interfaceType, ...(target.pointKey ? { pointKey: target.pointKey } : {}) }
+        ? {
+            kind: "drawable",
+            elementId,
+            geometryType: target.interfaceType,
+            ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+            ...(target.stagePath ? { stagePath: target.stagePath } : {})
+          }
         : null;
     }
     if (target.kind === "geometryValue") {
@@ -1613,29 +1645,24 @@ export const compileDslDocument = (
         kind: "geometryValue",
         occurrence: { sourceStatementId: target.statementId, instancePath: [] },
         geometryType: target.interfaceType,
-        ...(target.pointKey ? { pointKey: target.pointKey } : {})
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
       };
     }
     return null;
   };
   const geometryCollectionNodeForValueId = (valueId: string, seen = new Set<string>()): GeometryInputCollectionNode | null => {
     const existing = geometryCollectionNodesByValueId.get(valueId);
-    if (existing) return existing;
     const compiledRuntimeNode = moduleScalarCompilation?.geometryCollectionNodesByValueId.get(valueId);
-    if (compiledRuntimeNode) {
-      geometryCollectionNodesByValueId.set(valueId, compiledRuntimeNode);
-      return compiledRuntimeNode;
-    }
-    if (seen.has(valueId)) return null;
+    if (seen.has(valueId)) return existing ?? compiledRuntimeNode ?? null;
     const semantic = geometryArraySemanticForValueId(valueId);
     const value = semantic?.value;
-    if (!value) return null;
     const nextSeen = new Set([...seen, valueId]);
     let node: GeometryInputCollectionNode | null = null;
-    if (value.kind === "none") node = { kind: "none" };
-    else if (value.kind === "alias") {
+    if (value?.kind === "none") node = { kind: "none" };
+    else if (value?.kind === "alias") {
       node = geometryCollectionNodeForValueId(value.targetValueId, nextSeen);
-    } else if (value.kind === "literal") {
+    } else if (value?.kind === "literal") {
       const targets = value.members.map((member) => geometryTargetForArrayMember(member.target)).filter(
         (target): target is NonNullable<typeof target> => target !== null
       );
@@ -1643,8 +1670,16 @@ export const compileDslDocument = (
         ? { kind: "leaf", targets }
         : null;
     }
-    if (node) geometryCollectionNodesByValueId.set(valueId, node);
-    return node;
+    if (node) {
+      geometryCollectionNodesByValueId.set(valueId, node);
+      return node;
+    }
+    if (existing) return existing;
+    if (compiledRuntimeNode) {
+      geometryCollectionNodesByValueId.set(valueId, compiledRuntimeNode);
+      return compiledRuntimeNode;
+    }
+    return null;
   };
   type GeometryCollectionCarrySourceResolution = {
     source: import("../scalars/bindingVersions").ImmutableGeometryCollectionSource;
@@ -2053,7 +2088,7 @@ export const compileDslDocument = (
                   statementId,
                   statementIndex: target.statementIndex,
                   geometryType: target.interfaceType,
-                  stagePath: ["final"]
+                  stagePath: target.stagePath ?? ["final"]
                 };
               }
             }
@@ -2064,7 +2099,7 @@ export const compileDslDocument = (
                 statementId: target.statementId,
                 statementIndex: target.statementIndex,
                 geometryType: target.interfaceType,
-                stagePath: ["final"]
+                stagePath: target.stagePath ?? ["final"]
               };
             }
           }
@@ -3435,13 +3470,6 @@ export const compileDslDocument = (
         : {})
     };
   };
-  const moduleTransformationStageDeclarationsByOwnerId = sourceLexicalNamespace && stableStatementIdByIndex
-    ? collectModuleTransformationStageDeclarationsForSource({
-        statements: parsed.statements,
-        stableStatementIdByIndex,
-        sourceNamespace: sourceLexicalNamespace
-      })
-    : new Map<ElementId, readonly import("./transformationRecipes").TransformationStageDeclaration[]>();
   const locallyAnalyzedSourceSemanticCompilation = sourceLexicalNamespace && stableStatementIdByIndex
     ? analyzeModuleSemantics({
         statements: parsed.statements,

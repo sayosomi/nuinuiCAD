@@ -79,4 +79,46 @@ describe("polyline DSL integration", () => {
       length: 5
     });
   });
+
+  it("preserves selected-stage anchors from direct, aliased, and geometry-value point arrays", () => {
+    const result = compile([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "move L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const Base: path = @L.base",
+      "const Tilted: path = @L.tilted",
+      "const Final: path = @L.final",
+      "const selected: point[] = [@L.base.start, @L.tilted.end, @L.final.start]",
+      "const aliased: point[] = @selected",
+      "const valuePoints: point[] = [@Base.start, @Tilted.end, @Final.start]",
+      "line Direct = polyline(points: @selected, closed: false)",
+      "line Alias = polyline(points: @aliased, closed: false)",
+      "line GeometryValues = polyline(points: @valuePoints, closed: false)"
+    ].join("\n"));
+
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const elements = result.document!.elements;
+    const line = elements.find((element) => element.name === "L")!;
+    const expectedDerived = [
+      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: ["base"] },
+      { mode: "derived", elementId: line.id, pointKey: "end", stagePath: ["tilted"] },
+      { mode: "derived", elementId: line.id, pointKey: "start", stagePath: ["final"] }
+    ];
+    const expectedValue = [
+      { mode: "geometryValue", pointKey: "start", stagePath: ["final"] },
+      { mode: "geometryValue", pointKey: "end", stagePath: ["final"] },
+      { mode: "geometryValue", pointKey: "start", stagePath: ["final"] }
+    ];
+    const direct = elements.find((element) => element.name === "Direct")!;
+    const alias = elements.find((element) => element.name === "Alias")!;
+    const geometryValues = elements.find((element) => element.name === "GeometryValues")!;
+    expect([direct.type, alias.type, geometryValues.type]).toEqual(["polyline", "polyline", "polyline"]);
+    if (direct.type !== "polyline" || alias.type !== "polyline" || geometryValues.type !== "polyline") {
+      throw new Error("expected the selected point arrays to lower into polylines");
+    }
+    expect(direct.points).toMatchObject(expectedDerived);
+    expect(alias.points).toMatchObject(expectedDerived);
+    expect(geometryValues.points).toMatchObject(expectedValue);
+  });
 });

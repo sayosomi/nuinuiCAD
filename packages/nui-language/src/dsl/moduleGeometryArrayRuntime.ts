@@ -1,5 +1,5 @@
 import type { ElementId, PointAnchor } from "../types/geometry";
-import { derivedAnchor, isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
+import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
@@ -31,6 +31,8 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
   pathKey,
   sourceAliasForTarget,
+  lowerAliasWithPointKey as lowerStagePreservingAliasWithPointKey,
+  pointAnchorForAlias as pointAnchorForGeometryAlias,
   geometryInputTargetForAlias,
   type GeometryInputTargetSource,
   type RuntimeGeometryInputTarget,
@@ -113,13 +115,7 @@ type RuntimeResult = {
 
 const pointAnchorForAlias = (alias: GeometryAlias | null | undefined): PointAnchor | undefined => {
   if (!alias) return undefined;
-  if (alias.kind === "point") return alias.anchor;
-  if (alias.kind === "value") return {
-    mode: "geometryValue",
-    occurrence: alias.occurrence,
-    ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
-  };
-  return undefined;
+  return pointAnchorForGeometryAlias(alias) ?? undefined;
 };
 
 const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
@@ -166,8 +162,7 @@ const isLineEndpointPointKey = (value: string) => value === "start" || value ===
 
 const aliasWithPointKey = (alias: GeometryAlias | undefined, pointKey: string | null): GeometryAlias | null => {
   if (!alias) return null;
-  if (!pointKey) return alias;
-  return alias.kind === "line" ? { kind: "point", anchor: derivedAnchor(alias.elementId, pointKey) } : null;
+  return lowerStagePreservingAliasWithPointKey(alias, pointKey ?? undefined) ?? null;
 };
 
 const physicalSpanFor = (statement: DslStatement, span: DslSpan) => {
@@ -345,7 +340,9 @@ export const buildModuleGeometryArrayRuntime = ({
         kind: "parameter" as const,
         definitionStatementId: target.definitionStatementId,
         parameterIndex: target.parameterIndex,
-        geometryKind: target.interfaceType === "point" ? "point" as const : "line" as const
+        geometryKind: target.interfaceType === "point" ? "point" as const : "line" as const,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
       };
     }
     if (target.kind === "geometryValue") {
@@ -355,7 +352,8 @@ export const buildModuleGeometryArrayRuntime = ({
         statementIndex: target.statementIndex,
         declaredInterfaceType: target.interfaceType,
         backingTarget: null,
-        ...(target.pointKey ? { pointKey: target.pointKey } : {})
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
       };
     }
     if (target.kind !== "geometry") return null;
@@ -366,7 +364,10 @@ export const buildModuleGeometryArrayRuntime = ({
       statementId: target.statementId,
       statementIndex: target.statementIndex,
       category: statement.category,
-      geometryKind: target.interfaceType === "point" ? "point" as const : "line" as const
+      geometryKind: target.interfaceType === "point" ? "point" as const : "line" as const,
+      interfaceType: target.interfaceType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+      ...(target.stagePath ? { stagePath: target.stagePath } : {})
     };
   };
 
@@ -495,17 +496,20 @@ export const buildModuleGeometryArrayRuntime = ({
           addDiagnostic(runtimeDiagnostic(statement, span, "geometry-array-invalid-member", "geometry array member の参照が不正です。"));
           continue;
         }
-        const pointKey = sourceReference.property;
-        if (pointKey && parameter.type.elementType !== "point") {
-          addDiagnostic(runtimeDiagnostic(
-            statement,
-            span,
-            "geometry-array-member-type-mismatch",
-            "derived point reference は point[] の member としてのみ使用できます。",
-            { member: member.text, expected: "point[]", actual: parameter.type.elementType }
-          ));
-          continue;
-        }
+        const propertyMembers = sourceReference.property?.split(".") ?? [];
+        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) =>
+          propertyMembers.length > 0
+            ? instanceSource.analysis?.resolveGeometryStageSelection?.({
+                statementIndex: targetStatementIndex,
+                statementId: targetStatementId,
+                members: propertyMembers
+              }) ?? null
+            : null;
+        const propertyPathFor = (selection: ReturnType<NonNullable<GeometryArraySemanticAnalysis["resolveGeometryStageSelection"]>> | null) =>
+          selection?.propertyPath ?? propertyMembers;
+        const pointKeyFor = (propertyPath: readonly string[]) =>
+          propertyPath.length === 1 && isLineEndpointPointKey(propertyPath[0]!) ? propertyPath[0] : null;
+        const invalidPropertyFor = (propertyPath: readonly string[]) => propertyPath.length > 0 && pointKeyFor(propertyPath) === null;
 
         const ownerIndex = moduleOwnerIndexOf(instanceSource.statements, instance.statementIndex);
         if (path.segments.length === 1 && !path.absolute && ownerIndex !== null) {
@@ -522,7 +526,20 @@ export const buildModuleGeometryArrayRuntime = ({
               const interfaceType = moduleGeometryInterfaceTypeOf(ownerParameter.type);
               const ownerDefinitionId = instanceSource.stableStatementIdByIndex.get(ownerIndex);
               if (interfaceType && ownerDefinitionId) {
-                if (pointKey && ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey))) {
+                const stageSelection = stageSelectionFor(ownerIndex, ownerDefinitionId);
+                const propertyPath = propertyPathFor(stageSelection);
+                const pointKey = pointKeyFor(propertyPath);
+                if (invalidPropertyFor(propertyPath)) {
+                  addDiagnostic(runtimeDiagnostic(
+                    statement,
+                    span,
+                    "geometry-array-member-type-mismatch",
+                    `geometry parameter「${path.segments[0]}」の property「${propertyPath.join(".")}」を解決できません。`,
+                    { member: member.text, expected: "point[] または geometry stage", actual: `${interfaceType}.${propertyPath.join(".")}` }
+                  ));
+                  continue;
+                }
+                if (pointKey && interfaceType === "point") {
                   addDiagnostic(runtimeDiagnostic(
                     statement,
                     span,
@@ -548,7 +565,8 @@ export const buildModuleGeometryArrayRuntime = ({
                   kind: "parameter",
                   definitionStatementId: ownerDefinitionId,
                   parameterIndex: parameterIndexInOwner,
-                  geometryKind: interfaceType === "point" ? "point" : "line"
+                  geometryKind: interfaceType === "point" ? "point" : "line",
+                  ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
                 }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
                 const alias = aliasWithPointKey(baseAlias, pointKey);
                 members.push({
@@ -577,6 +595,19 @@ export const buildModuleGeometryArrayRuntime = ({
           }
           const sourceStatement = lookup.declaration.statement;
           if (sourceStatement.kind !== "element" || !isGeometryDeclarationCategory(sourceStatement.category)) continue;
+          const stageSelection = stageSelectionFor(lookup.declaration.statementIndex, lookup.declaration.statementId);
+          const propertyPath = propertyPathFor(stageSelection);
+          const pointKey = pointKeyFor(propertyPath);
+          if (invalidPropertyFor(propertyPath)) {
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "geometry-array-member-type-mismatch",
+              `geometry array member property「${propertyPath.join(".")}」を解決できません。`,
+              { member: member.text, expected: "point[] または geometry stage", actual: propertyPath.join(".") }
+            ));
+            continue;
+          }
           if (pointKey && !isDerivedPointKeyForGeometryCategory(sourceStatement.category, pointKey)) {
             addDiagnostic(runtimeDiagnostic(
               statement,
@@ -604,7 +635,9 @@ export const buildModuleGeometryArrayRuntime = ({
             statementId: lookup.declaration.statementId,
             statementIndex: lookup.declaration.statementIndex,
             category: sourceStatement.category,
-            geometryKind: interfaceType === "point" ? "point" : "line"
+            geometryKind: interfaceType === "point" ? "point" : "line",
+            interfaceType,
+            ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
           }, callerPath, contextsByPath, moduleMaterialization, exportsByPath);
           const alias = aliasWithPointKey(baseAlias, pointKey);
           members.push({
@@ -630,6 +663,22 @@ export const buildModuleGeometryArrayRuntime = ({
           const exportedStatement = sourceForPath(callerPath).statements[exportEntry.exported.exportedStatementIndex];
           const interfaceType = moduleGeometryInterfaceTypeOfElement(exportedStatement);
           if (!interfaceType) continue;
+          const stageSelection = stageSelectionFor(
+            exportEntry.exported.exportedStatementIndex,
+            exportEntry.exported.exportedStatementId
+          );
+          const propertyPath = propertyPathFor(stageSelection);
+          const pointKey = pointKeyFor(propertyPath);
+          if (invalidPropertyFor(propertyPath)) {
+            addDiagnostic(runtimeDiagnostic(
+              statement,
+              span,
+              "geometry-array-member-type-mismatch",
+              `module export「${path.segments[1]}」の property「${propertyPath.join(".")}」を解決できません。`,
+              { member: member.text, expected: "point[] または geometry stage", actual: `${interfaceType}.${propertyPath.join(".")}` }
+            ));
+            continue;
+          }
           if (pointKey && (exportedStatement?.kind !== "element" || !isGeometryDeclarationCategory(exportedStatement.category) || !isDerivedPointKeyForGeometryCategory(exportedStatement.category, pointKey))) {
             addDiagnostic(runtimeDiagnostic(
               statement,
@@ -652,7 +701,10 @@ export const buildModuleGeometryArrayRuntime = ({
             ));
             continue;
           }
-          const alias = aliasWithPointKey(exportEntry.alias, pointKey);
+          const exportAlias = stageSelection
+            ? { ...exportEntry.alias, stagePath: stageSelection.stagePath }
+            : exportEntry.alias;
+          const alias = aliasWithPointKey(exportAlias, pointKey);
           members.push({
             interfaceType: memberInterfaceType,
             alias,
@@ -704,10 +756,7 @@ export const buildModuleGeometryArrayRuntime = ({
         }
         const target = singularTargetFor(member.target, currentPath);
         const alias = target
-          ? aliasWithPointKey(
-            sourceAliasForTarget(target, currentPath, contextsByPath, moduleMaterialization, exportsByPath),
-            member.target.pointKey ?? null
-          )
+          ? sourceAliasForTarget(target, currentPath, contextsByPath, moduleMaterialization, exportsByPath)
           : undefined;
         return {
           interfaceType: member.interfaceType,
@@ -1023,6 +1072,16 @@ export const buildModuleGeometryArrayRuntime = ({
     if (!resolved.value || resolved.value.type.elementType === "point") return null;
     const deferred = collectionValueTargetFor(resolved, token, statementIndex, currentPath);
     if (deferred) return deferred;
+    const aliases = aliasesFor(resolved.value);
+    if (aliases?.some((alias) => alias.kind === "line" && Boolean(alias.stagePath?.length))) {
+      return {
+        kind: "collectionValue",
+        collectionValueId: resolved.valueId ?? token.trim(),
+        targetSourceOrder: resolved.sourceOrder ?? statementIndex,
+        value: { kind: "leaf", aliases },
+        currentPath
+      } satisfies GeometryCollectionInputTargetSource;
+    }
     const ids: ElementId[] = [];
     for (const member of resolved.value.members) {
       if (!isModuleGeometryInterfaceAssignable(member.interfaceType, "path") || member.alias?.kind !== "line") return null;
@@ -1092,7 +1151,8 @@ export const buildModuleGeometryArrayRuntime = ({
                 statementId: lookup.declaration.statementId,
                 statementIndex: lookup.declaration.statementIndex,
                 category: sourceStatement.category,
-                geometryKind: interfaceType === "point" ? "point" : "line"
+                geometryKind: interfaceType === "point" ? "point" : "line",
+                interfaceType
               }, currentPath, contextsByPath, moduleMaterialization, exportsByPath);
               alias = aliasWithPointKey(baseAlias, pointKey);
             }
@@ -1200,7 +1260,12 @@ export const buildModuleGeometryArrayRuntime = ({
     const member = resolved.value?.members[indexed.index];
     if (!member || !isModuleGeometryInterfaceAssignable(member.interfaceType, "path") || !member.alias) return null;
     if (member.alias.kind === "line") {
-      return { kind: "drawable" as const, elementId: member.alias.elementId, geometryType: "line" as const };
+      return {
+        kind: "drawable" as const,
+        elementId: member.alias.elementId,
+        geometryType: member.alias.interfaceType ?? "line" as const,
+        ...(member.alias.stagePath ? { stagePath: member.alias.stagePath } : {})
+      };
     }
     if (member.alias.kind === "value" && member.alias.geometryType === "line") {
       return {

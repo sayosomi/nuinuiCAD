@@ -81,24 +81,33 @@ export const evaluateWithRustOptions = (
 };
 
 /** Issue regressions that must cross the production persistent Node→Rust stdio boundary. */
-export const createRustStdioParityClient = (repoRoot: string) => {
+export const createRustStdioParityClient = (
+  repoRoot: string,
+  options: { targetDirectory?: string } = {}
+) => {
   const cargoManifest = join(repoRoot, "rust-evaluator", "Cargo.toml");
+  const cargoEnvironment = options.targetDirectory
+    ? { ...process.env, CARGO_TARGET_DIR: options.targetDirectory }
+    : process.env;
   execFileSync(
     "cargo",
     ["build", "--quiet", "--manifest-path", cargoManifest, "--bin", "evaluation_stdio"],
-    { cwd: repoRoot, stdio: "inherit" }
+    { cwd: repoRoot, stdio: "inherit", env: cargoEnvironment }
   );
-  const process = new RustEvaluationProcess(resolveRustEvaluationBinaryPath(repoRoot));
+  const binaryPath = options.targetDirectory
+    ? join(options.targetDirectory, "debug", "evaluation_stdio")
+    : resolveRustEvaluationBinaryPath(repoRoot);
+  const rustProcess = new RustEvaluationProcess(binaryPath);
   return {
     evaluate: async (elements: CadElement[], options: EvaluateElementsOptions): Promise<EvaluationPayload> => {
-      const payload = await process.request(buildRustEvaluationInput(elements, options));
+      const payload = await rustProcess.request(buildRustEvaluationInput(elements, options));
       return payload as EvaluationPayload;
     },
     evaluateInput: async (input: EvaluateDocumentInput): Promise<EvaluationPayload> => {
-      const payload = await process.request(input);
+      const payload = await rustProcess.request(input);
       return payload as EvaluationPayload;
     },
-    dispose: () => process.dispose()
+    dispose: () => rustProcess.dispose()
   };
 };
 

@@ -1646,6 +1646,13 @@ qualified/derived/coordinate point forms; `line[]` remains assignable to
 ordinary lexical/private and export rules; references always retain
 their `@` marker.
 
+Geometry members in `line[]` and `path[]` may select a whole immutable stage,
+such as `@L.base`, `@L.final`, or a valid named or nested stage. The member keeps
+the source geometry's `line` or `path` interface and selected stage identity.
+Endpoint references such as `@L.start` and `@L.base.end` are derived points and
+are valid only in `point[]`. Other geometry properties and invalid stage paths
+are rejected as geometry-array members.
+
 Geometry-array assignability is intentionally narrow: `point[] -> point[]`,
 `line[] -> line[]`, `path[] -> path[]`, and `line[] -> path[]` are valid. The
 reverse `path[] -> line[]`, point/non-point conversions, and implicit untyped

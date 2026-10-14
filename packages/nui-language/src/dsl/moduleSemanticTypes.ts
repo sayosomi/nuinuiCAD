@@ -193,7 +193,7 @@ export type ModuleGeometrySourceTarget =
       pointKey?: string;
       stagePath?: readonly string[];
     }
-  | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string })
+  | (ModuleParameterSlot & { kind: "parameter"; geometryKind: "point" | "line"; pointKey?: string; stagePath?: readonly string[] })
   | {
       /** Immutable geometry binder owned by a geometry collection map. It is
        * resolved once by the Module semantic pass and never re-looked up by
@@ -261,6 +261,7 @@ export type ModuleGeometrySourceTarget =
       statementIndex: number;
       category: DslGeometryDeclarationCategory;
       geometryKind: "point" | "line";
+      interfaceType?: ModuleGeometryInterfaceType;
       pointKey?: string;
       stagePath?: readonly string[];
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
