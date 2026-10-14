@@ -38,6 +38,11 @@ module Forward(paths: path[]) {
 instance Use = Forward(paths: @Paths)
 const result: number = lineAngle(@Use::out[1].start, @Axis.end)`;
 
+const retainedC39WithReversedEndpointDeclarations = retainedC39.replace(
+  "line Axis = segment(start: (30, 30), end: (40, 30))\nline Diagonal = segment(start: (0, 0), end: (10, 10))",
+  "line Diagonal = segment(start: (0, 0), end: (10, 10))\nline Axis = segment(start: (30, 30), end: (40, 30))"
+);
+
 const rootBindingFor = (fixture: Fixture, name: string) => {
   const binding = fixture.compiled?.doc.bindingAnalysis?.catalog.bindings.find(
     (candidate) => candidate.kind === "typed" && candidate.name === name
@@ -88,7 +93,8 @@ describe("Issue #1388 qualified Module literal endpoint indexes through persiste
 
   it.each([
     ["c39 early declaration", retainedC39],
-    ["c40 late declaration", retainedC40]
+    ["c40 late declaration", retainedC40],
+    ["c39 with reversed endpoint declarations", retainedC39WithReversedEndpointDeclarations]
   ])("types and evaluates the retained %s program", async (_label, source) => {
     const fixture = fixtureFromSource(source);
     expectAccepted(fixture, `Issue #1388 ${_label} compiler diagnostics`);

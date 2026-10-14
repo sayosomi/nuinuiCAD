@@ -19,6 +19,7 @@ import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { CompiledNumericBinding, CompiledTransformationNumericBinding } from "./numericBindingCompiler";
 import type { TextTemplateAst } from "./textTemplate";
 import type {
+  ScalarExpressionResolvedGeometryTarget,
   TypedBuiltinArgument,
   TypedScalarExpression
 } from "./typedExpressionAst";
@@ -714,8 +715,8 @@ const geometryInputTargetsInCollectionNode = (
   return dependencies;
 };
 
-const geometryEndpointArgumentsIn = (expression: TypedScalarExpression): Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[] => {
-  const result: Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[] = [];
+const geometryEndpointArgumentGroupsIn = (expression: TypedScalarExpression): Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[][] => {
+  const result: Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[][] = [];
   const visit = (node: TypedScalarExpression): void => {
     if (node.kind === "unary") visit(node.operand);
     else if (node.kind === "binary") {
@@ -723,14 +724,19 @@ const geometryEndpointArgumentsIn = (expression: TypedScalarExpression): Extract
       visit(node.right);
     } else if (node.kind === "group") visit(node.expression);
     else if (node.kind === "collectionIndex") visit(node.index);
-    else if (node.kind === "call") node.args.forEach((argument) => {
-      if (argument.kind === "scalar") visit(argument.expression);
-      else if (argument.kind === "geometryEndpoint") {
-        result.push(argument);
-        const target = argument.target;
-        if ((target?.kind === "geometryCollectionIndex" || target?.kind === "forGroupOccurrence") && target.index) visit(target.index);
-      }
-    });
+    else if (node.kind === "call") {
+      const endpoints = node.args.filter((argument): argument is Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }> =>
+        argument.kind === "geometryEndpoint"
+      );
+      if (endpoints.length > 0) result.push(endpoints);
+      node.args.forEach((argument) => {
+        if (argument.kind === "scalar") visit(argument.expression);
+        else if (argument.kind === "geometryEndpoint") {
+          const target = argument.target;
+          if ((target?.kind === "geometryCollectionIndex" || target?.kind === "forGroupOccurrence") && target.index) visit(target.index);
+        }
+      });
+    }
     else if (node.kind === "valueIf") {
       visit(node.condition);
       visit(node.thenBranch);
@@ -1667,22 +1673,62 @@ export const buildTypedDependencyGraph = ({
   };
   const addResolvedGeometryTargetDependency = (
     from: TypedDependencyEndpoint,
-    target: Extract<NonNullable<Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>["target"]>, { kind: "geometryCollectionIndex" }>,
+    target: ScalarExpressionResolvedGeometryTarget,
     guards: readonly TypedDependencyActivationGuard[],
     occurrenceNamespace?: string
   ): void => {
-    if (target.index) addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
-    const collectionNode = geometryCollectionNodesByValueId?.get(target.collectionValueId);
-    if (collectionNode) {
-      const selectedIndex = target.index?.kind === "numberLiteral" ? target.index.value : undefined;
-      addGeometryCollectionNodeDependencies(from, collectionNode, selectedIndex, guards, occurrenceNamespace);
+    if (target.kind === "geometryCollectionIndex") {
+      if (target.index) addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
+      const collectionNode = geometryCollectionNodesByValueId?.get(target.collectionValueId);
+      if (collectionNode) {
+        const selectedIndex = target.index?.kind === "numberLiteral" ? target.index.value : undefined;
+        addGeometryCollectionNodeDependencies(from, collectionNode, selectedIndex, guards, occurrenceNamespace);
+      }
+    } else if (target.kind === "geometryValue") {
+      addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
+    } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
+      const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
+      if (bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+        kind: "geometry",
+        from,
+        to: bindingEndpoint(bindingAnalysis, bindingId),
+        span: null,
+        requiredness: guards.length ? "conditional" : "required",
+        ...(guards.length ? { activation: { guards } } : {})
+      }, occurrenceNamespace);
+    } else if (target.kind === "forGroupOccurrence") {
+      deferredStageEdges.push({
+        kind: "geometry",
+        from,
+        ownerId: target.templateElementId,
+        stagePath: target.stagePath ?? ["final"],
+        span: null,
+        requiredness: guards.length ? "conditional" : "required",
+        ...(guards.length ? { activation: { guards } } : {}),
+        occurrenceNamespace
+      });
+      if (target.index) addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
+    } else {
+      deferredStageEdges.push({
+        kind: "geometry",
+        from,
+        ownerId: target.statementId,
+        stagePath: target.stagePath ?? ["final"],
+        span: null,
+        requiredness: guards.length ? "conditional" : "required",
+        ...(guards.length ? { activation: { guards } } : {}),
+        occurrenceNamespace
+      });
     }
   };
   if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
     const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
-    for (const argument of geometryEndpointArgumentsIn(statement.declaration.initializer)) {
-      if (argument.target?.kind === "geometryCollectionIndex" && argument.target.collectionLength === null) {
-        addResolvedGeometryTargetDependency(from, argument.target, [], `${statement.bindingId}:${argument.endpointKey}`);
+    for (const argumentsForCall of geometryEndpointArgumentGroupsIn(statement.declaration.initializer)) {
+      if (!argumentsForCall.some((argument) =>
+        argument.target?.kind === "geometryCollectionIndex" && argument.target.collectionLength === null
+      )) continue;
+      for (const argument of argumentsForCall) {
+        if (argument.target) addResolvedGeometryTargetDependency(from, argument.target, [], `${statement.bindingId}:${argument.endpointKey}`);
       }
     }
   }
