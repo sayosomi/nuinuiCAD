@@ -5778,6 +5778,7 @@ export const compileModuleScalarRuntime = ({
       recordUnresolvedGeometryEndpoint(occurrence, rootGeometryEndpointOwnerFor(occurrence));
       return undefined;
     }
+    const resolvedStagePath = occurrence.endpointKey ? stagePath ?? lowered.stagePath : stagePath;
     if (lowered.kind === "geometryValue") {
       return {
         kind: "geometryValue",
@@ -5788,7 +5789,7 @@ export const compileModuleScalarRuntime = ({
           : occurrence.span.start,
         geometryType: lowered.geometryType,
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-        ...(stagePath ? { stagePath } : {})
+        ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
       };
     }
     if (lowered.kind === "forGroupOccurrence") {
@@ -5815,7 +5816,7 @@ export const compileModuleScalarRuntime = ({
         index,
         geometryType: lowered.geometryType,
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-        ...(stagePath ? { stagePath } : {})
+        ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
       };
     }
     if (lowered.kind === "geometryCarry") {
@@ -5826,7 +5827,7 @@ export const compileModuleScalarRuntime = ({
         statementIndex: occurrence.span.start,
         geometryType: lowered.geometryType,
         ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-        ...(stagePath ? { stagePath } : {})
+        ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
       };
     }
     const statementIndex = elementOrderById.get(lowered.elementId);
@@ -5835,7 +5836,7 @@ export const compileModuleScalarRuntime = ({
       statementIndex,
       geometryType: lowered.geometryType,
       ...(lowered.pointKey ? { pointKey: lowered.pointKey } : {}),
-      ...(stagePath ? { stagePath } : {})
+      ...(resolvedStagePath ? { stagePath: resolvedStagePath } : {})
     };
   };
   const moduleInitializers = new Map<BindingId, TypedScalarExpression>();
