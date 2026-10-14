@@ -3,7 +3,7 @@ import { compileDslDocument, compileDslToElements, parseDslSnapshot } from "@nui
 import { emptyDocument } from "@nuinuicad/nui-language";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { transformationStageKey } from "@nuinuicad/nui-language";
-import type { ComputedGeometry, ComputedLine } from "../types/geometry";
+import type { ComputedBezierCurve, ComputedGeometry, ComputedLine } from "../types/geometry";
 import { evaluateElements } from "./evaluate";
 import { buildEvaluationOptions } from "./productionEvaluationContext";
 
@@ -24,6 +24,16 @@ const compileAndEvaluate = (source: string) => {
 const lineOf = (geometry: ComputedGeometry | undefined): ComputedLine => {
   if (!geometry || !("start" in geometry) || !("end" in geometry)) throw new Error("expected line-like geometry");
   return geometry as ComputedLine;
+};
+
+const bezierOf = (geometry: ComputedGeometry | undefined): ComputedBezierCurve => {
+  if (!geometry || geometry.kind !== "bezierCurve") throw new Error("expected Bezier geometry");
+  return geometry;
+};
+
+const expectPointClose = (actual: { x: number; y: number }, expected: { x: number; y: number }) => {
+  expect(actual.x).toBeCloseTo(expected.x, 10);
+  expect(actual.y).toBeCloseTo(expected.y, 10);
 };
 
 const compileCanonicalAndEvaluate = (source: string) => {
@@ -263,6 +273,261 @@ describe("transformation recipe evaluation", () => {
     expect(geometries.slice(0, 2).every((geometry) => lineOf(geometry).start.x === 1 && lineOf(geometry).end.x === 11)).toBe(true);
     expect(lineOf(geometries[2]).start.x).toBe(11);
     expect(lineOf(geometries[2]).end.x).toBe(1);
+  });
+
+  it("reverses each exact c21 asymmetric generated Bezier occurrence once", () => {
+    const source = [
+      "nui 1",
+      "line Axis = segment(start: (100, 40), end: (110, 40))",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  curve C = bezier(start: (@i * 30, 0), end: (@i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
+      "  reverse C ()",
+      "}",
+      "const firstStart: number = lineAngle(@C[0].start, @Axis.start)",
+      "const secondStart: number = lineAngle(@C[1].start, @Axis.start)",
+      "const secondEnd: number = lineAngle(@C[1].end, @Axis.end)"
+    ].join("\n");
+    const { compiled, evaluation } = compileCanonicalAndEvaluate(source);
+    const template = compiled.document.elements.find((element) => element.name === "C")!;
+    const rows = evaluation.forGroupGeneratedRows!.filter((row) => row.templateElementId === template.id);
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(rows.map((row) => row.iterationIndex)).toEqual([0, 1]);
+    expect(new Set(rows.map((row) => row.generatedElementId)).size).toBe(2);
+
+    const expected = [
+      {
+        input: {
+          start: { x: 0, y: 0 }, end: { x: 20, y: 5 },
+          control1: { x: 10.875693444439799, y: 5.071419140888393 },
+          control2: { x: 26.55321635431193, y: 0.41138850919162806 }
+        },
+        output: {
+          start: { x: 20, y: 5 }, end: { x: 0, y: 0 },
+          control1: { x: 26.55321635431193, y: 0.41138850919162806 },
+          control2: { x: 10.875693444439799, y: 5.071419140888393 }
+        }
+      },
+      {
+        input: {
+          start: { x: 30, y: 0 }, end: { x: 50, y: 5 },
+          control1: { x: 40.8756934444398, y: 5.071419140888393 },
+          control2: { x: 56.55321635431193, y: 0.41138850919162806 }
+        },
+        output: {
+          start: { x: 50, y: 5 }, end: { x: 30, y: 0 },
+          control1: { x: 56.55321635431193, y: 0.41138850919162806 },
+          control2: { x: 40.8756934444398, y: 5.071419140888393 }
+        }
+      }
+    ];
+
+    for (const [index, row] of rows.entries()) {
+      const input = bezierOf(evaluation.preMutationGeometry!.get(row.generatedElementId)).segments[0]!;
+      const outputCurve = bezierOf(evaluation.computedGeometry.get(row.generatedElementId));
+      const output = outputCurve.segments[0]!;
+      expect(outputCurve.elementId).toBe(row.generatedElementId);
+      expect(input.start.elementId).toBe(`${row.generatedElementId}:start`);
+      expect(input.end.elementId).toBe(`${row.generatedElementId}:end`);
+      for (const [segment, points] of [[input, expected[index]!.input], [output, expected[index]!.output]] as const) {
+        expectPointClose(segment.start, points.start);
+        expectPointClose(segment.end, points.end);
+        expectPointClose(segment.control1, points.control1);
+        expectPointClose(segment.control2, points.control2);
+      }
+    }
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "firstStart"))).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 35 }
+    });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "secondStart"))).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 35 }
+    });
+    expect(evaluation.computedScalarBindings?.get(scalarByName(compiled, "secondEnd"))).toMatchObject({
+      status: "ok",
+      value: { kind: "number", value: 25 }
+    });
+  });
+
+  it("feeds a reversed indexed generated endpoint into a downstream geometry consumer", () => {
+    const { compiled, evaluation } = compileCanonicalAndEvaluate([
+      "nui 1",
+      "line Axis = segment(start: (100, 40), end: (110, 40))",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  curve C = bezier(start: (@i * 30, 0), end: (@i * 30 + 20, 5), startAngle: 25, startLength: 12, endAngle: 145, endLength: 8)",
+      "  reverse C ()",
+      "}",
+      "line Consumer = segment(start: @C[1].start, end: @C[1].end)"
+    ].join("\n"));
+    const consumer = compiled.document.elements.find((element) => element.name === "Consumer")!;
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+    expect(lineOf(evaluation.computedGeometry.get(consumer.id))).toMatchObject({
+      start: { x: 50, y: 5 },
+      end: { x: 30, y: 0 }
+    });
+  });
+
+  it.each([
+    { loopHeader: "const items: number[] = []\nfor i in @items {", expectedCount: 0 },
+    { loopHeader: "for i in range(min: 0, max: 0, step: 1) {", expectedCount: 1 },
+    { loopHeader: "for i in range(min: 0, max: 1, step: 1) {", expectedCount: 2 }
+  ])("waits for a resolved generated owner with $expectedCount occurrence(s)", ({ loopHeader, expectedCount }) => {
+    const source = [
+      "nui 1",
+      loopHeader,
+      "  line Mark = segment(start: (@i * 10, 0), end: (@i * 10 + 5, 3))",
+      "  reverse Mark as flipped ()",
+      "}"
+    ].join("\n");
+    const { compiled, evaluation } = expectedCount === 0
+      ? compileCanonicalAndEvaluate(source)
+      : compileAndEvaluate(source);
+    const sourceElements = "document" in compiled ? compiled.document.elements : compiled.elements;
+    const template = sourceElements.find((element) => element.name === "Mark")!;
+    const rows = evaluation.forGroupGeneratedRows!.filter((row) => row.templateElementId === template.id);
+
+    if ("diagnostics" in compiled) {
+      expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    }
+    expect(evaluation.errors).toEqual([]);
+    expect(rows).toHaveLength(expectedCount);
+    expect(evaluation.computedGeometry.has(template.id)).toBe(false);
+    if (expectedCount === 0) {
+      expect([...evaluation.computedGeometry.keys()].some((id) => id.includes(`@${template.id}:`))).toBe(false);
+      return;
+    }
+    for (const row of rows) {
+      const flipped = evaluation.transformationStageGeometry!.get(
+        transformationStageKey(row.generatedElementId, undefined, ["flipped"])
+      );
+      expect(lineOf(flipped)).toMatchObject({
+        start: { x: row.iterationIndex * 10 + 5, y: 3 },
+        end: { x: row.iterationIndex * 10, y: 0 }
+      });
+    }
+  });
+
+  it("preserves independent nested owner rows and applies indexed, direct, and disabled named-stage reversals", () => {
+    const { compiled, evaluation } = compileAndEvaluate([
+      "nui 1",
+      "line Direct = segment(start: (-20, 0), end: (-10, 5))",
+      "reverse Direct ()",
+      "for outer in range(min: 0, max: 1, step: 1) {",
+      "  for inner in range(min: 0, max: 1, step: 1) {",
+      "    line Nested = segment(start: (@outer * 100 + @inner * 20, 0), end: (@outer * 100 + @inner * 20 + 10, 5))",
+      "    reverse Nested ()",
+      "  }",
+      "}",
+      "for i in range(min: 0, max: 1, step: 1) {",
+      "  line Bulk = segment(start: (@i * 30, 10), end: (@i * 30 + 10, 15))",
+      "  reverse Bulk as flipped ()",
+      "  move Bulk.flipped as carried (from: (0, 0), to: (50, 0), enabled: false)",
+      "  line Indexed = segment(start: (100 + @i * 30, 20), end: (110 + @i * 30, 25))",
+      "  reverse Indexed[1] as flipped ()",
+      "  reverse Indexed[1].flipped as kept (enabled: false)",
+      "}",
+      "for j in range(min: 0, max: 1, step: 1) {",
+      "  line Independent = segment(start: (@j * 40, 40), end: (@j * 40 + 15, 45))",
+      "  reverse Independent ()",
+      "}"
+    ].join("\n"));
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toEqual([]);
+
+    const rowsFor = (name: string) => {
+      const template = compiled.elements.find((element) => element.name === name)!;
+      return evaluation.forGroupGeneratedRows!.filter((row) => row.templateElementId === template.id);
+    };
+    const nestedRows = rowsFor("Nested");
+    const bulkRows = rowsFor("Bulk");
+    const indexedRows = rowsFor("Indexed");
+    const independentRows = rowsFor("Independent");
+    expect(nestedRows).toHaveLength(4);
+    expect(nestedRows.every((row) => row.occurrencePath.length === 2)).toBe(true);
+    expect(bulkRows).toHaveLength(2);
+    expect(indexedRows).toHaveLength(2);
+    expect(independentRows).toHaveLength(2);
+    expect(new Set([...nestedRows, ...bulkRows, ...indexedRows, ...independentRows].map((row) => row.generatedElementId)).size).toBe(10);
+
+    for (const row of nestedRows) {
+      const [outer, inner] = row.occurrencePath.map((step) => step.iterationIndex);
+      expect(lineOf(evaluation.computedGeometry.get(row.generatedElementId))).toMatchObject({
+        start: { x: outer! * 100 + inner! * 20 + 10, y: 5 },
+        end: { x: outer! * 100 + inner! * 20, y: 0 }
+      });
+    }
+    for (const row of bulkRows) {
+      const flipped = evaluation.transformationStageGeometry!.get(
+        transformationStageKey(row.generatedElementId, undefined, ["flipped"])
+      );
+      const carried = evaluation.transformationStageGeometry!.get(
+        transformationStageKey(row.generatedElementId, undefined, ["flipped", "carried"])
+      );
+      expect(lineOf(evaluation.computedGeometry.get(row.generatedElementId))).toMatchObject({
+        start: { x: row.iterationIndex * 30 + 10, y: 15 },
+        end: { x: row.iterationIndex * 30, y: 10 }
+      });
+      expect(lineOf(flipped)).toMatchObject({
+        start: { x: row.iterationIndex * 30 + 10, y: 15 },
+        end: { x: row.iterationIndex * 30, y: 10 }
+      });
+      expect(flipped).toEqual(carried);
+    }
+    for (const row of indexedRows) {
+      const flipped = evaluation.transformationStageGeometry!.get(
+        transformationStageKey(row.generatedElementId, undefined, ["flipped"])
+      );
+      const kept = evaluation.transformationStageGeometry!.get(
+        transformationStageKey(row.generatedElementId, undefined, ["flipped", "kept"])
+      );
+      if (row.iterationIndex === 1) {
+        expect(lineOf(flipped)).toMatchObject({
+          start: { x: 140, y: 25 },
+          end: { x: 130, y: 20 }
+        });
+        expect(kept).toEqual(flipped);
+      } else {
+        expect(flipped).toBeUndefined();
+        expect(kept).toBeUndefined();
+      }
+      expect(lineOf(evaluation.computedGeometry.get(row.generatedElementId))).toMatchObject(
+        row.iterationIndex === 1
+          ? { start: { x: 140, y: 25 }, end: { x: 130, y: 20 } }
+          : { start: { x: 100, y: 20 }, end: { x: 110, y: 25 } }
+      );
+    }
+    const direct = compiled.elements.find((element) => element.name === "Direct")!;
+    expect(lineOf(evaluation.computedGeometry.get(direct.id))).toMatchObject({
+      start: { x: -10, y: 5 },
+      end: { x: -20, y: 0 }
+    });
+    for (const row of independentRows) {
+      expect(lineOf(evaluation.computedGeometry.get(row.generatedElementId))).toMatchObject({
+        start: { x: row.iterationIndex * 40 + 15, y: 45 },
+        end: { x: row.iterationIndex * 40, y: 40 }
+      });
+    }
+  });
+
+  it("reports a missing indexed generated occurrence after its owner resolves", () => {
+    const { compiled, evaluation } = compileAndEvaluate([
+      "nui 1",
+      "for i in range(min: 0, max: 0, step: 1) {",
+      "  line Mark = segment(start: (0, 0), end: (10, 0))",
+      "  reverse Mark[1] ()",
+      "}"
+    ].join("\n"));
+    const template = compiled.elements.find((element) => element.name === "Mark")!;
+
+    expect(compiled.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(evaluation.errors).toHaveLength(1);
+    expect(evaluation.errors[0]?.message).toContain("generated occurrence");
+    expect(evaluation.errors[0]?.message).toContain("Mark[1]");
+    expect(evaluation.computedGeometry.has(template.id)).toBe(false);
   });
 
   it("keeps empty stage finals and evaluates base branches plus coupled edge targets", () => {
