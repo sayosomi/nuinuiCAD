@@ -160,6 +160,39 @@ describe("module geometry array runtime", () => {
     expect(compiled.document).not.toBeNull();
   });
 
+  it("preserves selected-stage point anchors through inline and aliased Module point[] inputs", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "move L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const selected: point[] = [@L.base.start, @L.tilted.end, @L.final.start]",
+      "const aliased: point[] = @selected",
+      "module M(points: point[]) {",
+      "  line P = polyline(points: @points, closed: false)",
+      "}",
+      "instance Direct = M(points: [@L.base.start, @L.tilted.end, @L.final.start])",
+      "instance Alias = M(points: @aliased)"
+    ].join("\n"), "module-selected-point-array-stages");
+
+    expect(errorsOf(compiled)).toEqual([]);
+    const lineId = named(compiled, "L").id;
+    const expectedDerived = [
+      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["base"] },
+      { mode: "derived", elementId: lineId, pointKey: "end", stagePath: ["tilted"] },
+      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["final"] }
+    ];
+    const direct = namedUnder(compiled, "P", "Direct");
+    const alias = namedUnder(compiled, "P", "Alias");
+    expect(direct.type).toBe("polyline");
+    expect(alias.type).toBe("polyline");
+    if (direct.type !== "polyline" || alias.type !== "polyline") {
+      throw new Error("expected selected point arrays to produce Module polylines");
+    }
+    expect(direct.points).toMatchObject(expectedDerived);
+    expect(alias.points).toMatchObject(expectedDerived);
+  });
+
   it("passes named point[] values into polyline construction in module instances", () => {
     const compiled = compileWithIds([
       "nui 1",

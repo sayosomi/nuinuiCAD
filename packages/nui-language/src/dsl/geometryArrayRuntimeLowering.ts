@@ -99,14 +99,20 @@ const lowerPointValue = (
       anchors.push({
         mode: "geometryValue",
         occurrence: geometryValue.occurrence,
-        ...(member.target.pointKey ? { pointKey: member.target.pointKey } : {})
+        ...(member.target.pointKey ? { pointKey: member.target.pointKey } : {}),
+        ...(member.target.stagePath ? { stagePath: member.target.stagePath } : {})
       });
       continue;
     }
     if (member.target.kind !== "geometry") return null;
     const id = elementIdByStatementIndex.get(member.target.statementIndex);
     if (!id) return null;
-    anchors.push(member.target.pointKey ? derivedAnchor(id, member.target.pointKey) : referenceAnchor(id));
+    anchors.push(member.target.pointKey
+      ? {
+          ...derivedAnchor(id, member.target.pointKey),
+          ...(member.target.stagePath ? { stagePath: member.target.stagePath } : {})
+        }
+      : referenceAnchor(id));
   }
   return anchors;
 };

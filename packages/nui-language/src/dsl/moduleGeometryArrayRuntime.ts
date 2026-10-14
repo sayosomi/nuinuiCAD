@@ -1,5 +1,5 @@
 import type { ElementId, PointAnchor } from "../types/geometry";
-import { derivedAnchor, isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
+import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
@@ -31,6 +31,8 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
   pathKey,
   sourceAliasForTarget,
+  lowerAliasWithPointKey as lowerStagePreservingAliasWithPointKey,
+  pointAnchorForAlias as pointAnchorForGeometryAlias,
   geometryInputTargetForAlias,
   type GeometryInputTargetSource,
   type RuntimeGeometryInputTarget,
@@ -113,13 +115,7 @@ type RuntimeResult = {
 
 const pointAnchorForAlias = (alias: GeometryAlias | null | undefined): PointAnchor | undefined => {
   if (!alias) return undefined;
-  if (alias.kind === "point") return alias.anchor;
-  if (alias.kind === "value") return {
-    mode: "geometryValue",
-    occurrence: alias.occurrence,
-    ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
-  };
-  return undefined;
+  return pointAnchorForGeometryAlias(alias) ?? undefined;
 };
 
 const moduleOwnerIndexOf = (statements: readonly DslStatement[], statementIndex: number): number | null => {
@@ -166,8 +162,7 @@ const isLineEndpointPointKey = (value: string) => value === "start" || value ===
 
 const aliasWithPointKey = (alias: GeometryAlias | undefined, pointKey: string | null): GeometryAlias | null => {
   if (!alias) return null;
-  if (!pointKey) return alias;
-  return alias.kind === "line" ? { kind: "point", anchor: derivedAnchor(alias.elementId, pointKey) } : null;
+  return lowerStagePreservingAliasWithPointKey(alias, pointKey ?? undefined) ?? null;
 };
 
 const physicalSpanFor = (statement: DslStatement, span: DslSpan) => {

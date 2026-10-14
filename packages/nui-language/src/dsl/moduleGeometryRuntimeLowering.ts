@@ -266,7 +266,7 @@ export const diagnosticForExportNamespace = (
   return null;
 };
 
-const lowerAliasWithPointKey = (alias: GeometryAlias, pointKey: string | undefined): GeometryAlias | undefined => {
+export const lowerAliasWithPointKey = (alias: GeometryAlias, pointKey: string | undefined): GeometryAlias | undefined => {
   if (alias.kind === "collectionIndex") {
     return pointKey ? undefined : alias;
   }

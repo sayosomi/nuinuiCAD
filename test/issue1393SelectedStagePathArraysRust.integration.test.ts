@@ -63,6 +63,16 @@ const expectNumber = (payload: EvaluationPayload, bindingId: string, expected: n
   expect(result.value.value, bindingId).toBeCloseTo(expected, 7);
 };
 
+const polylineVertices = (payload: EvaluationPayload, elementId: string) => {
+  const geometry = evaluationPayloadToResult(payload).computedGeometry.get(elementId);
+  expect(geometry?.kind).toBe("polyline");
+  if (geometry?.kind !== "polyline") throw new Error(`missing polyline geometry ${elementId}`);
+  const vertices = geometry.segments.length === 0
+    ? []
+    : [geometry.segments[0]!.start, ...geometry.segments.map((segment) => segment.end)];
+  return vertices.map(({ x, y }) => ({ x, y }));
+};
+
 describe("Issue #1393 selected stages in geometry path arrays", () => {
   let rustStdio: ReturnType<typeof createRustStdioParityClient> | undefined;
 
@@ -72,7 +82,7 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
 
   afterAll(() => rustStdio?.dispose());
 
-  const evaluateBoth = async (source: string) => {
+  const evaluateBoth = async (source: string, compareNormalizedPayload = true) => {
     const fixture = fixtureFromSource(source);
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
     expect(isRustEligibleFixture(fixture)).toBe(true);
@@ -80,7 +90,9 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
     const rustInput = buildRustEvaluationInput(fixture.elements, options);
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
     const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
-    expect(normalizeParityPayload(rustPayload), "production persistent-Rust parity").toEqual(normalizeParityPayload(tsPayload));
+    if (compareNormalizedPayload) {
+      expect(normalizeParityPayload(rustPayload), "production persistent-Rust parity").toEqual(normalizeParityPayload(tsPayload));
+    }
     for (const payload of [tsPayload, rustPayload]) expect(evaluationPayloadToResult(payload).errors).toEqual([]);
     return { fixture, rustInput, options, payloads: [tsPayload, rustPayload] };
   };
@@ -250,6 +262,115 @@ describe("Issue #1393 selected stages in geometry path arrays", () => {
         ["UseBase", "angle", 20], ["UseBase", "namedAngle", 45], ["UseBase", "finalAngle", 55],
         ["UseQualified", "angle", 20], ["UseQualified", "namedAngle", 45], ["UseQualified", "finalAngle", 55]
       ] as const) expectNumber(payload, moduleBindingId(fixture, instanceName, outputName), expected);
+    }
+  }, 120_000);
+
+  it("keeps selected endpoint stages on point[] anchors and evaluated root/Module polylines", async () => {
+    const { fixture, payloads } = await evaluateBoth([
+      "nui 1",
+      "line L = segment(start: (0, 0), end: (10, 0))",
+      "move L as tilted (from: (0, 0), to: (4, 6), angleDeg: 0)",
+      "move L as turned (from: (4, 6), to: (9, 9), angleDeg: 0)",
+      "const Base: path = @L.base",
+      "const Tilted: path = @L.tilted",
+      "const Final: path = @L.final",
+      "const DirectPoints: point[] = [@L.base.start, @L.tilted.end, @L.final.start]",
+      "const AliasPoints: point[] = @DirectPoints",
+      "const ValuePoints: point[] = [@Base.start, @Tilted.end, @Final.start]",
+      "line DirectPolyline = polyline(points: @DirectPoints, closed: false)",
+      "line AliasPolyline = polyline(points: @AliasPoints, closed: false)",
+      "line ValuePolyline = polyline(points: @ValuePoints, closed: false)",
+      "module PolylineFromPoints(points: point[]) {",
+      "  export line Out = polyline(points: @points, closed: false)",
+      "}",
+      "instance UseInline = PolylineFromPoints(points: [@L.base.start, @L.tilted.end, @L.final.start])",
+      "instance UseAlias = PolylineFromPoints(points: @AliasPoints)"
+    ].join("\n") + "\n", false);
+
+    const semantic = fixture.compiled!.doc.sourceLexicalNamespace!.geometryArraySemanticAnalysis!;
+    const directPoints = semantic.values.find((value) => value.name === "DirectPoints")!;
+    const aliasPoints = semantic.values.find((value) => value.name === "AliasPoints")!;
+    const valuePoints = semantic.values.find((value) => value.name === "ValuePoints")!;
+    const lineId = fixture.elements.find((element) => element.name === "L")?.id;
+    if (!lineId) throw new Error("missing source line L");
+    const expectedGeometryMembers = [
+      { interfaceType: "point", target: { kind: "geometry", statementId: lineId, interfaceType: "line", pointKey: "start", stagePath: ["base"] } },
+      { interfaceType: "point", target: { kind: "geometry", statementId: lineId, interfaceType: "line", pointKey: "end", stagePath: ["tilted"] } },
+      { interfaceType: "point", target: { kind: "geometry", statementId: lineId, interfaceType: "line", pointKey: "start", stagePath: ["final"] } }
+    ];
+    expect(directPoints.value).toMatchObject({
+      kind: "literal",
+      type: { elementType: "point" },
+      members: expectedGeometryMembers
+    });
+    expect(aliasPoints.value).toMatchObject({ kind: "alias", targetValueId: directPoints.statementId });
+    expect(valuePoints.value).toMatchObject({
+      kind: "literal",
+      type: { elementType: "point" },
+      members: [
+        { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: ["final"] } },
+        { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "end", stagePath: ["final"] } },
+        { interfaceType: "point", target: { kind: "geometryValue", interfaceType: "path", pointKey: "start", stagePath: ["final"] } }
+      ]
+    });
+
+    const byName = (name: string, parentName?: string) => {
+      const parent = parentName ? fixture.elements.find((element) => element.name === parentName) : undefined;
+      const element = fixture.elements.find((candidate) => candidate.name === name &&
+        (parentName ? candidate.parentGroupId === parent?.id : !candidate.parentGroupId));
+      if (!element) throw new Error(`missing ${parentName ? `${parentName}::` : ""}${name}`);
+      return element;
+    };
+    const expectedDerivedAnchors = [
+      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["base"] },
+      { mode: "derived", elementId: lineId, pointKey: "end", stagePath: ["tilted"] },
+      { mode: "derived", elementId: lineId, pointKey: "start", stagePath: ["final"] }
+    ];
+    const expectedGeometryValueAnchors = [
+      { mode: "geometryValue", pointKey: "start", stagePath: ["final"] },
+      { mode: "geometryValue", pointKey: "end", stagePath: ["final"] },
+      { mode: "geometryValue", pointKey: "start", stagePath: ["final"] }
+    ];
+    const polylines = [
+      byName("DirectPolyline"), byName("AliasPolyline"), byName("ValuePolyline"),
+      byName("Out", "UseInline"), byName("Out", "UseAlias")
+    ];
+    const asPolyline = (element: (typeof polylines)[number]) => {
+      expect(element.type).toBe("polyline");
+      if (element.type !== "polyline") throw new Error("expected a polyline result");
+      return element;
+    };
+    const [direct, alias, values, moduleInline, moduleAlias] = polylines.map(asPolyline);
+    if (!direct || !alias || !values || !moduleInline || !moduleAlias) {
+      throw new Error("expected root and Module point arrays to lower into polylines");
+    }
+    expect(direct.points).toMatchObject(expectedDerivedAnchors);
+    expect(alias.points).toMatchObject(expectedDerivedAnchors);
+    expect(values.points).toMatchObject(expectedGeometryValueAnchors);
+    expect(moduleInline.points).toMatchObject(expectedDerivedAnchors);
+    expect(moduleAlias.points).toMatchObject(expectedDerivedAnchors);
+
+    const expectedGeometry = {
+      kind: "polyline",
+      segments: [
+        { start: { x: 0, y: 0 }, end: { x: 14, y: 6 } },
+        { start: { x: 14, y: 6 }, end: { x: 9, y: 9 } }
+      ]
+    };
+    for (const payload of payloads) {
+      const result = evaluationPayloadToResult(payload);
+      expect(result.errors).toEqual([]);
+      for (const polyline of polylines) {
+        expect(result.computedGeometry.get(polyline.id), polyline.name).toMatchObject(expectedGeometry);
+      }
+    }
+    for (const polyline of polylines) {
+      const tsVertices = polylineVertices(payloads[0]!, polyline.id);
+      const rustVertices = polylineVertices(payloads[1]!, polyline.id);
+      expect(rustVertices, `${polyline.name} TypeScript/Rust coordinates`).toEqual(tsVertices);
+      expect(rustVertices, `${polyline.name} selected-stage coordinates`).toEqual([
+        { x: 0, y: 0 }, { x: 14, y: 6 }, { x: 9, y: 9 }
+      ]);
     }
   }, 120_000);
 
