@@ -293,6 +293,10 @@ const collectionIndexResolutionsFor = (
       visit(node.index, boundNames);
       return;
     }
+    if (node.kind === "geometryProperty") {
+      if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames);
+      return;
+    }
     if (node.kind === "optionalMember") return;
     if (node.kind === "unary") return visit(node.operand);
     if (node.kind === "binary") { visit(node.left); visit(node.right); return; }
@@ -316,6 +320,10 @@ const collectionIndexBaseStartsFor = (ast: ScalarExpressionAst): ReadonlySet<num
     if (node.kind === "recordFieldCollectionIndex") {
       if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);
       visit(node.index, boundNames);
+      return;
+    }
+    if (node.kind === "geometryProperty") {
+      if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames);
       return;
     }
     if (node.kind === "optionalMember") return;

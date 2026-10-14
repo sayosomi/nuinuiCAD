@@ -5245,6 +5245,14 @@ export const compileDslDocument = (
         index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
       };
     }
+    if (target.kind === "geometryCollectionIndex") {
+      return {
+        ...target,
+        statementIndex: sourceOrderFor(target.statementIndex),
+        targetSourceOrder: sourceOrderFor(target.targetSourceOrder),
+        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
+      };
+    }
     return { ...target, statementIndex: sourceOrderFor(target.statementIndex) };
   };
   const rootExecutionOrderTypedExpression = (expression: TypedScalarExpression): TypedScalarExpression =>

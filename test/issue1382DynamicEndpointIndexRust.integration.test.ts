@@ -1,7 +1,12 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { emptyDocument, moduleScalarBindingIdFor } from "@nuinuicad/nui-language";
+import {
+  buildRootScalarExecutionOrder,
+  emptyDocument,
+  moduleScalarBindingIdFor,
+  remapTypedExpressionSourceOrders
+} from "@nuinuicad/nui-language";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../src/geometry/evaluationPayload";
@@ -202,6 +207,65 @@ describe("Issue #1382 dynamic geometry endpoint indexes through persistent Rust 
       expectScalar(fixture, payload, "moduleZeroResult", { status: "ok", value: { kind: "number", value: 0 } });
       expectScalar(fixture, payload, "qualifiedResult", { status: "ok", value: { kind: "number", value: 45 } });
       expectScalar(fixture, payload, "qualifiedZeroResult", { status: "ok", value: { kind: "number", value: 0 } });
+    }
+  }, 120_000);
+
+  it("remaps nested numeric collection indexes inside dynamic geometry endpoint targets", async () => {
+    const fixture = fixtureFromSource([
+      "nui 1",
+      "line Axis = segment(start: (30, 30), end: (40, 30))",
+      "line Diagonal = segment(start: (0, 0), end: (10, 10))",
+      "const prefix: number = 0",
+      "const selectors: number[] = [1]",
+      "const Paths: path[] = [@Axis, @Diagonal]",
+      "for i in range(min: 0, max: 0, step: 1) carry count: number = 0 {",
+      "  next count = @count",
+      "}",
+      "const result: number = lineAngle(@Paths[@selectors[0]].start, @Axis.end)"
+    ].join("\n"));
+    expectAccepted(fixture, "Issue #1382 nested numeric collection index source");
+    expect(isRustEligibleFixture(fixture), "Issue #1382 nested-index Rust host eligibility").toBe(true);
+
+    const resultCall = rootLineAngleCallFor(fixture, "result");
+    const endpoint = resultCall.args[0];
+    if (endpoint.kind !== "geometryEndpoint" || endpoint.target?.kind !== "geometryCollectionIndex") {
+      throw new Error("nested numeric collection endpoint target missing");
+    }
+    if (endpoint.target.index?.kind !== "collectionIndex") {
+      throw new Error("nested numeric collection index was not preserved in the lowered target");
+    }
+
+    const compiled = fixture.compiled;
+    const catalog = compiled?.doc.bindingAnalysis?.catalog;
+    if (!compiled || !catalog) throw new Error("Issue #1382 scalar binding catalog missing");
+    const executionOrder = buildRootScalarExecutionOrder(catalog, compiled.doc.statements.length);
+    const selectorsBinding = rootBindingFor(fixture, "selectors");
+    const pathsBinding = rootBindingFor(fixture, "Paths");
+    const selectorsSourceOrder = executionOrder.sourceOrderByStatementIndex.get(selectorsBinding.statementIndex);
+    const pathsSourceOrder = executionOrder.sourceOrderByStatementIndex.get(pathsBinding.statementIndex);
+    if (selectorsSourceOrder === undefined || pathsSourceOrder === undefined) {
+      throw new Error("Issue #1382 remapped source-order metadata missing");
+    }
+
+    expect(selectorsSourceOrder).not.toBe(selectorsBinding.statementIndex);
+    expect(pathsSourceOrder).not.toBe(pathsBinding.statementIndex);
+    expect(endpoint.target.statementIndex).toBe(pathsSourceOrder);
+    expect(endpoint.target.targetSourceOrder).toBe(pathsSourceOrder);
+    expect(endpoint.target.index.targetSourceOrder).toBe(selectorsSourceOrder);
+    expect(remapTypedExpressionSourceOrders(
+      resultCall,
+      (sourceOrder) => sourceOrder + 100,
+      { generatedOccurrencePropertiesOnly: true }
+    )).toEqual(resultCall);
+
+    const options = optionsFor(fixture);
+    const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+    const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+    expect(normalizeParityPayload(rustPayload), "persistent production Rust stdio parity").toEqual(normalizeParityPayload(tsPayload));
+    for (const payload of [tsPayload, rustPayload]) {
+      expect(evaluationPayloadToResult(payload).errors).toEqual([]);
+      expect(runtimeDiagnosticsFor(fixture, payload)).toEqual([]);
+      expectScalar(fixture, payload, "result", { status: "ok", value: { kind: "number", value: 45 } });
     }
   }, 120_000);
 

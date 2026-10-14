@@ -998,6 +998,8 @@ fn eval_node<'a>(
     }
 }
 
+// The iterative work-stack continuation carries the complete suspended call state.
+#[allow(clippy::too_many_arguments)]
 fn continue_geometry_builtin<'a>(
     name: BuiltinFunctionName,
     r#type: ScalarType,

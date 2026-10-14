@@ -136,7 +136,7 @@ fn resolve_geometry_collection_endpoint_node_member(
     index: usize,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
-    current_source_order: Option<f64>,
+    _current_source_order: Option<f64>,
     seen_value_ids: &mut HashSet<String>,
 ) -> Result<GeometryInputTarget, String> {
     match node {
@@ -215,7 +215,7 @@ fn resolve_geometry_collection_endpoint_node_member(
                         index,
                         resolver,
                         state,
-                        current_source_order,
+                        _current_source_order,
                         seen_value_ids,
                     );
                     seen_value_ids.remove(value_id);
@@ -227,7 +227,7 @@ fn resolve_geometry_collection_endpoint_node_member(
                         index,
                         resolver,
                         state,
-                        current_source_order,
+                        _current_source_order,
                         seen_value_ids,
                     )?
                 }
@@ -267,7 +267,7 @@ fn resolve_geometry_collection_endpoint_node_member(
                 index,
                 resolver,
                 state,
-                current_source_order,
+                _current_source_order,
                 seen_value_ids,
             ),
             ScalarEvaluation::Ok {
@@ -278,7 +278,7 @@ fn resolve_geometry_collection_endpoint_node_member(
                 index,
                 resolver,
                 state,
-                current_source_order,
+                _current_source_order,
                 seen_value_ids,
             ),
             ScalarEvaluation::Error { issue_code, .. } => Err(issue_code),
@@ -304,7 +304,7 @@ fn resolve_geometry_collection_endpoint_node_member(
                 index,
                 resolver,
                 state,
-                current_source_order,
+                _current_source_order,
                 seen_value_ids,
             )
         }
@@ -316,7 +316,7 @@ fn resolve_geometry_collection_endpoint_node_member(
             index,
             resolver,
             state,
-            current_source_order,
+            _current_source_order,
             seen_value_ids,
         )
         .or_else(|_| {
@@ -325,7 +325,7 @@ fn resolve_geometry_collection_endpoint_node_member(
                 index,
                 resolver,
                 state,
-                current_source_order,
+                _current_source_order,
                 seen_value_ids,
             )
         }),

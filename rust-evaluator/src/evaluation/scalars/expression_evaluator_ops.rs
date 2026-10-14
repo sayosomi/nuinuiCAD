@@ -271,7 +271,7 @@ pub(crate) fn evaluate_geometry_builtin_call(
                     _ => None,
                 };
                 let [Some(first_key), Some(second_key)] = arguments
-                    .get(0)
+                    .first()
                     .and_then(endpoint_key)
                     .zip(arguments.get(1).and_then(endpoint_key))
                     .map(|(first, second)| [Some(first), Some(second)])
