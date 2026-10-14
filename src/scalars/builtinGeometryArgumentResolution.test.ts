@@ -177,6 +177,15 @@ describe("resolveBuiltinGeometryArguments", () => {
     expect([...undefinedResult.claimedReferenceOccurrenceIndexes]).toEqual([0, 1]);
   });
 
+  it("consumes a dynamic endpoint index before reporting an unresolved geometry target", () => {
+    const result = resolve("lineAngle(@Missing[@selected].start, @OtherLine.end)", [
+      { kind: "undefined", name: "selected", scopeId: "root", statementIndex: 100 }
+    ]);
+
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0]).toMatchObject({ code: "builtin-geometry-argument-invalid" });
+  });
+
   it("reports an ambiguous source namespace geometry reference as an invalid claimed operand", () => {
     const result = resolve("distance(@Ambiguous, @A)", [
       {

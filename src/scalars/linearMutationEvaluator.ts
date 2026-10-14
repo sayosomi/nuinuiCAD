@@ -10,7 +10,11 @@ import type {
   BindingVersionId,
   ImmutableForGroupPlan
 } from "@nuinuicad/nui-language";
-import { evaluateTypedExpression, type GeometryBuiltinTargetLookupResult } from "./expressionEvaluator";
+import {
+  evaluateTypedExpression,
+  type GeometryBuiltinTargetLookupResult,
+  type GeometryCollectionEndpointLookupResult
+} from "./expressionEvaluator";
 import {
   createScalarProgramCollectionResolver,
   type ScalarProgramCollectionSnapshot
@@ -128,6 +132,11 @@ export const isRustLinearMutationEligible = (graph: BindingVersionGraph): boolea
   ));
 
 type ScopeFrame = { scopeId: string; exitSourceOrder: number; localBindingIds: Set<BindingId> };
+type GeometryCollectionEndpointResolver = (
+  target: Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>,
+  index: number,
+  sourceOrder: number
+) => GeometryCollectionEndpointLookupResult;
 
 const conditionalOwners = (graph: BindingVersionGraph): ReadonlyMap<string, readonly Extract<BindingControlOwner, { kind: "conditionalBranch" }>[]> => {
   const byId = new Map<string, Extract<BindingControlOwner, { kind: "conditionalBranch" }>[]>() ;
@@ -150,7 +159,8 @@ export const createIncrementalLinearMutationEvaluator = (
   resolveGeometryProperty?: (reference: TypedScalarGeometryPropertyReferenceNode, sourceOrder: number) => ScalarEvaluation,
   resolveGeometryTarget?: (target: ScalarExpressionResolvedGeometryTarget, sourceOrder: number) => GeometryBuiltinTargetLookupResult | undefined,
   collectionValues?: readonly ScalarProgramCollection[],
-  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined
+  resolveCollectionLength?: (collectionValueId: string, sourceOrder: number) => number | undefined,
+  resolveGeometryCollectionEndpoint?: GeometryCollectionEndpointResolver
 ): IncrementalLinearMutationEvaluator => {
   const currentByBindingId = new Map<BindingId, ScalarEvaluation>();
   const historyByVersionId = new Map<BindingVersionId, BindingVersionRuntimeHistory>();
@@ -205,7 +215,8 @@ export const createIncrementalLinearMutationEvaluator = (
       const snapshots = capturedSnapshots ?? activeCollectionCarrySnapshots;
       const result = collectionSnapshotFor(collectionValueId, sourceOrder, snapshots, new Map(), capturedSnapshots);
       return result;
-    }
+    },
+    resolveGeometryCollectionEndpoint
   );
 
   const collectionSnapshotFor = (

@@ -18,13 +18,15 @@ use super::expression_evaluator::{
     evaluate_typed_expression_with_local_binding, EvalWork, ScalarEvaluationEnvironment,
 };
 use super::geometry_builtin_runtime::{
-    validate_geometry_builtin_arguments, GeometryBuiltinRuntimeError, GeometryBuiltinRuntimeTarget,
+    validate_geometry_builtin_arguments_with_dynamic_targets, GeometryBuiltinRuntimeError,
+    GeometryBuiltinRuntimeTarget,
 };
 use super::scalar_payload::{scalar_type_assignable, scalar_value_matches_type};
 use super::types::{
     BindingId, BuiltinFunctionName, ScalarBinaryOperator, ScalarEvaluation,
-    ScalarEvaluationErrorContext, ScalarType, ScalarUnaryOperator, ScalarValue,
-    TypedBuiltinArgument, TypedScalarCallTarget, TypedScalarExpression,
+    ScalarEvaluationErrorContext, ScalarExpressionResolvedGeometryTarget, ScalarType,
+    ScalarUnaryOperator, ScalarValue, TypedBuiltinArgument, TypedScalarCallTarget,
+    TypedScalarExpression,
 };
 
 /// Documented placeholder used only when a node's static `type` is `None`.
@@ -250,20 +252,30 @@ pub(crate) fn evaluate_geometry_builtin_call(
     name: BuiltinFunctionName,
     r#type: ScalarType,
     arguments: &[TypedBuiltinArgument],
+    dynamic_endpoint_targets: &[Option<ScalarExpressionResolvedGeometryTarget>],
     environment: &(impl ScalarEvaluationEnvironment + ?Sized),
 ) -> ScalarEvaluation {
-    match validate_geometry_builtin_arguments(name, arguments, |target| {
-        environment.lookup_geometry_builtin_target(target)
-    }) {
+    match validate_geometry_builtin_arguments_with_dynamic_targets(
+        name,
+        arguments,
+        dynamic_endpoint_targets,
+        |target| environment.lookup_geometry_builtin_target(target),
+    ) {
         Ok(runtime_targets) => {
             if name == BuiltinFunctionName::LineAngle {
-                let [TypedBuiltinArgument::GeometryEndpoint {
-                    endpoint_key: first_key,
-                    ..
-                }, TypedBuiltinArgument::GeometryEndpoint {
-                    endpoint_key: second_key,
-                    ..
-                }] = arguments
+                let endpoint_key = |argument: &TypedBuiltinArgument| match argument {
+                    TypedBuiltinArgument::GeometryEndpoint { endpoint_key, .. }
+                    | TypedBuiltinArgument::GeometryCollectionEndpoint { endpoint_key, .. } => {
+                        Some(*endpoint_key)
+                    }
+                    _ => None,
+                };
+                let [Some(first_key), Some(second_key)] = arguments
+                    .first()
+                    .and_then(endpoint_key)
+                    .zip(arguments.get(1).and_then(endpoint_key))
+                    .map(|(first, second)| [Some(first), Some(second)])
+                    .unwrap_or([None, None])
                 else {
                     return ScalarEvaluation::Error {
                         r#type,

@@ -2070,6 +2070,44 @@ export const compileDslDocument = (
           }
           return undefined;
         }
+        if (node.kind === "geometryProperty" && node.occurrenceIndex) {
+          const lookup = resolveSourceLexicalPath(
+            sourceLexicalNamespace,
+            statementIndex,
+            parseDslReferenceToken(node.elementName)
+          );
+          const analysis = sourceLexicalNamespace.geometryArraySemanticAnalysis;
+          const sourceStatement = lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration"
+            ? lookup.declaration.statement as Extract<DslStatement, { kind: "typedDeclaration" }>
+            : null;
+          const valueType = lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration"
+            ? dslRequiredValueTypeOf(sourceStatement?.valueType)
+            : null;
+          const collection = lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration" && analysis
+            ? collectionValueSemanticForStatement(analysis, lookup.declaration.statementIndex)
+            : null;
+          if (
+            lookup.kind === "resolved" &&
+            lookup.declaration.kind === "typedDeclaration" &&
+            analysis && collection && valueType &&
+            isDslArrayValueType(valueType) &&
+            isDslGeometryValueType(valueType.elementType) &&
+            isModuleGeometryInterfaceAssignable(valueType.elementType.kind, expectedGeometryType)
+          ) {
+            geometryCollectionNodeForValueId(collection.statementId);
+            return {
+              kind: "geometryCollectionIndex" as const,
+              statementId: collection.statementId,
+              statementIndex: collection.statementIndex,
+              geometryType: expectedGeometryType,
+              collectionValueId: collection.statementId,
+              collectionLength: collectionLengthForValueId(analysis, collection.statementId),
+              targetSourceOrder: lookup.declaration.statementIndex,
+              index: null
+            };
+          }
+          return undefined;
+        }
         if (node.kind === "reference") {
           const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, parseDslReferenceToken(node.name));
           if (lookup.kind === "resolved" && lookup.declaration.kind === "carry") {
@@ -4358,12 +4396,39 @@ export const compileDslDocument = (
           }
           if (unwrapped.target.kind === "geometryValueForBinder") return undefined;
           if (unwrapped.target.kind === "collectionIndex") {
-            return rootGeometryBuiltinResolver?.({
-              statementIndex,
-              node,
-              occurrenceIndex: null,
-              expectedGeometryType
-            });
+            const index = unwrapped.target.index;
+            const staticallyValidIndex = index.ast.kind === "numberLiteral" &&
+              Number.isInteger(index.ast.value) && index.ast.value >= 0 &&
+              unwrapped.target.collectionLength !== null &&
+              index.ast.value < unwrapped.target.collectionLength;
+            if (staticallyValidIndex && node.kind === "geometryProperty") {
+              const staticTarget = rootGeometryBuiltinResolver?.({
+                statementIndex,
+                node,
+                occurrenceIndex: null,
+                expectedGeometryType
+              });
+              if (staticTarget) return staticTarget;
+            }
+            if (
+              expectedGeometryType === "path" &&
+              isModuleGeometryInterfaceAssignable(unwrapped.target.elementInterfaceType, "path") &&
+              (staticallyValidIndex || index.type?.kind === "number")
+            ) {
+              geometryCollectionNodeForValueId(unwrapped.target.collectionValueId);
+              return {
+                kind: "geometryCollectionIndex" as const,
+                statementId: unwrapped.target.collectionValueId,
+                statementIndex: unwrapped.target.targetSourceOrder,
+                geometryType: expectedGeometryType,
+                collectionValueId: unwrapped.target.collectionValueId,
+                collectionLength: unwrapped.target.collectionLength,
+                targetSourceOrder: unwrapped.target.targetSourceOrder,
+                index: null,
+                ...(unwrapped.target.stagePath ? { stagePath: unwrapped.target.stagePath } : {})
+              };
+            }
+            return undefined;
           }
           if (unwrapped.target.kind === "recordFieldValue") {
             const record = unwrapped.target.record;
@@ -4601,6 +4666,9 @@ export const compileDslDocument = (
     } else {
       scalarAnalysis = undefined;
       scalarProgram = undefined;
+    }
+    for (const [valueId, node] of moduleScalarCompilation.geometryCollectionNodesByValueId) {
+      geometryCollectionNodesByValueId.set(valueId, node);
     }
     compiled = {
       ...compiled,
@@ -5170,6 +5238,14 @@ export const compileDslDocument = (
     const sourceOrderFor = (sourceOrder: number) =>
       rootScalarExecutionOrder.sourceOrderByStatementIndex.get(sourceOrder) ?? sourceOrder;
     if (target.kind === "forGroupOccurrence") {
+      return {
+        ...target,
+        statementIndex: sourceOrderFor(target.statementIndex),
+        targetSourceOrder: sourceOrderFor(target.targetSourceOrder),
+        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
+      };
+    }
+    if (target.kind === "geometryCollectionIndex") {
       return {
         ...target,
         statementIndex: sourceOrderFor(target.statementIndex),

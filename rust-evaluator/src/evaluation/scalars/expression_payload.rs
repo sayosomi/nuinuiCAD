@@ -424,11 +424,12 @@ fn visit_node<'a>(
                 .map(decode_call_argument_shape)
                 .collect::<Result<Vec<_>, _>>()?;
             validate_call_argument_shapes(shape.target, &arguments, shape.r#type.as_ref())?;
-            let scalar_arguments: Vec<&Value> = arguments
+            let child_expressions: Vec<&Value> = arguments
                 .iter()
                 .rev()
                 .filter_map(|argument| match argument {
                     CallArgumentShape::Scalar { expression } => Some(*expression),
+                    CallArgumentShape::GeometryCollectionEndpoint { index, .. } => Some(*index),
                     CallArgumentShape::GeometryReference { .. }
                     | CallArgumentShape::GeometryEndpoint { .. } => None,
                 })
@@ -441,7 +442,7 @@ fn visit_node<'a>(
                 arguments,
                 r#type: shape.r#type,
             });
-            for expression in scalar_arguments {
+            for expression in child_expressions {
                 work.push(WorkItem::Visit {
                     json: expression,
                     expression_depth: expression_depth + 1,
@@ -636,6 +637,23 @@ pub(crate) fn validate_typed_expression_payload(
                         } => args.push(TypedBuiltinArgument::GeometryEndpoint {
                             endpoint_key,
                             target,
+                        }),
+                        CallArgumentShape::GeometryCollectionEndpoint {
+                            endpoint_key,
+                            collection_value_id,
+                            collection_length,
+                            target_source_order,
+                            stage_path,
+                            ..
+                        } => args.push(TypedBuiltinArgument::GeometryCollectionEndpoint {
+                            endpoint_key,
+                            collection_value_id,
+                            collection_length,
+                            target_source_order,
+                            stage_path,
+                            index: Box::new(output.pop().expect(
+                                "geometry collection endpoint index must already be decoded (post-order build invariant)",
+                            )),
                         }),
                     }
                 }

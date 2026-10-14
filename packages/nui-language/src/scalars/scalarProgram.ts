@@ -178,6 +178,14 @@ export const remapTypedExpressionSourceOrders = (
         index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor, options) : null
       };
     }
+    if (target.kind === "geometryCollectionIndex") {
+      return {
+        ...target,
+        statementIndex: target.statementIndex >= 0 ? sourceOrderFor(target.statementIndex) : target.statementIndex,
+        targetSourceOrder: target.targetSourceOrder >= 0 ? sourceOrderFor(target.targetSourceOrder) : target.targetSourceOrder,
+        index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor, options) : null
+      };
+    }
     return { ...target, statementIndex: target.statementIndex >= 0 ? sourceOrderFor(target.statementIndex) : target.statementIndex };
   };
   switch (expression.kind) {

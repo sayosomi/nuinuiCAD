@@ -245,6 +245,7 @@ export const resolveBuiltinGeometryArguments = ({
     node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>,
     expectedGeometryType: ModuleGeometryInterfaceType
   ): void => {
+    if (node.occurrenceIndex) visit(node.occurrenceIndex);
     const issue = (message: string, presentation: DslDiagnosticPresentation): void => {
       geometryPropertyTargets.set(node.span.start, null);
       issues.push({
@@ -378,6 +379,12 @@ export const resolveBuiltinGeometryArguments = ({
       return;
     }
 
+    // The endpoint's collection occurrence is a scalar reference in source
+    // order even when the selected geometry target cannot be resolved. Keep
+    // consuming it before any target-resolution failure path so it does not
+    // shift later reference bindings or trip the final consumption invariant.
+    if (node.occurrenceIndex) visit(node.occurrenceIndex);
+
     const stageMembers = members.slice(0, -1);
     let target: ScalarExpressionResolvedGeometryTarget | null = null;
     const additionalTarget = additionalGeometryResolver?.({ node, occurrenceIndex: null, expectedGeometryType: "path" });
@@ -426,9 +433,6 @@ export const resolveBuiltinGeometryArguments = ({
     }
     // Endpoint selectors can follow an explicit transformation checkpoint.
     // Module resolvers already attach that checkpoint to the target identity.
-    if (node.occurrenceIndex) {
-      visit(node.occurrenceIndex);
-    }
     geometryEndpointTargets.set(node.span.start, { endpointKey, target: { ...target, geometryType: "path" } });
   };
 
@@ -446,6 +450,7 @@ export const resolveBuiltinGeometryArguments = ({
         visit(node.index, boundNames);
         return;
       case "geometryProperty":
+        if (node.occurrenceIndex) visit(node.occurrenceIndex, boundNames);
         return;
       case "recordFieldCollectionIndex":
         if (node.receiver.occurrenceIndex) visit(node.receiver.occurrenceIndex, boundNames);

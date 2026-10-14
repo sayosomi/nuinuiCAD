@@ -6,7 +6,8 @@ use super::super::scalar_expression_runtime::{
     lookup_geometry_collection_presence, lookup_geometry_property,
     lookup_geometry_property_at_stage, lookup_geometry_value_binder_property,
     lookup_geometry_value_property, lookup_optional_geometry_property,
-    resolve_for_group_geometry_builtin_target, ForGroupGeometryPropertyRequest,
+    resolve_for_group_geometry_builtin_target, resolve_geometry_collection_endpoint_target,
+    ForGroupGeometryPropertyRequest,
 };
 use super::bindings::ScalarDocumentBindingResolver;
 use super::bindings::{
@@ -2139,6 +2140,23 @@ impl ScalarEvaluationEnvironment for MutationEnvironment<'_, '_, '_> {
             self.resolver,
             self.source_order,
             target,
+        )
+    }
+
+    fn lookup_geometry_collection_endpoint_target(
+        &self,
+        endpoint: &super::types::TypedBuiltinArgument,
+        index: f64,
+    ) -> Result<
+        super::types::ScalarExpressionResolvedGeometryTarget,
+        super::geometry_builtin_runtime::GeometryBuiltinRuntimeError,
+    > {
+        resolve_geometry_collection_endpoint_target(
+            self.state,
+            self.resolver,
+            endpoint,
+            index,
+            Some(self.source_order),
         )
     }
 

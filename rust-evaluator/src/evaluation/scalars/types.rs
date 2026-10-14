@@ -500,6 +500,14 @@ pub(crate) enum TypedBuiltinArgument {
         endpoint_key: GeometryEndpointKey,
         target: Option<ScalarExpressionResolvedGeometryTarget>,
     },
+    GeometryCollectionEndpoint {
+        endpoint_key: GeometryEndpointKey,
+        collection_value_id: String,
+        collection_length: Option<f64>,
+        target_source_order: f64,
+        stage_path: Option<Vec<String>>,
+        index: Box<TypedScalarExpression>,
+    },
 }
 
 /// Decoding a `TypedScalarExpression` from JSON is iterative (see
@@ -584,6 +592,7 @@ fn detach_children(node: &mut TypedScalarExpression) -> Vec<TypedScalarExpressio
             .into_iter()
             .filter_map(|argument| match argument {
                 TypedBuiltinArgument::Scalar { expression } => Some(*expression),
+                TypedBuiltinArgument::GeometryCollectionEndpoint { index, .. } => Some(*index),
                 TypedBuiltinArgument::GeometryReference { .. }
                 | TypedBuiltinArgument::GeometryEndpoint { .. } => None,
             })
