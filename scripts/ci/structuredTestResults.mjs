@@ -27,7 +27,8 @@ const lifecycleReport = Object.freeze({
 export const STRUCTURED_REPORT_MAPPING = Object.freeze({
   "Classify changes": Object.freeze({
     "Test change classifier": fixedReport("classification-change-classifier.xml", "node"),
-    "Test Discord PR notification helper": fixedReport("classification-discord-notification.xml", "node")
+    "Test Discord PR notification helper": fixedReport("classification-discord-notification.xml", "node"),
+    "Test Discord bot auto-merge reconciliation": fixedReport("classification-discord-bot-automerge.xml", "node")
   }),
   Node: Object.freeze({
     "Changed Node tests": fixedReport("node-changed.xml", "vitest"),
