@@ -82,7 +82,7 @@ jobs:
             # GitHub can finish required CI, emit workflow_run, and only then
             # carry out the reserved merge. Wait here, not in the Human chat.
             # Ordinary non-bot PRs exit immediately; schedule remains fallback.
-            for attempt in {1..18}; do
+            for attempt in {1..60}; do
               live="$(gh api "repos/$REPO/pulls/$pr_number")"
               jq -e --arg repo "$REPO" --arg head "$REVIEWED_SHA" '
                 .head.sha == $head and
@@ -105,7 +105,7 @@ jobs:
                 echo "RECONCILE: PR #$pr_number has no active GitHub-bot auto-merge; skip wait" >&2
                 break
               fi
-              if [[ "$attempt" -eq 18 ]]; then
+              if [[ "$attempt" -eq 60 ]]; then
                 echo "RECONCILE: bot auto-merge still pending after bounded wait; scheduled scan remains fallback" >&2
                 break
               fi

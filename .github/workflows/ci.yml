@@ -54,6 +54,15 @@ jobs:
           --test-reporter-destination=${{ runner.temp }}/classification-discord-notification.xml
           scripts/ci/discordPrNotification.node-test.mjs
 
+      - name: Test Discord bot auto-merge reconciliation
+        run: >-
+          node --test
+          --test-reporter=spec
+          --test-reporter=junit
+          --test-reporter-destination=stdout
+          --test-reporter-destination=${{ runner.temp }}/classification-discord-bot-automerge.xml
+          scripts/ci/discordBotAutomergeReconcile.node-test.mjs
+
       - name: Resolve diff base
         id: base
         env:
@@ -116,6 +125,7 @@ jobs:
           path: |
             ${{ runner.temp }}/classification-change-classifier.xml
             ${{ runner.temp }}/classification-discord-notification.xml
+            ${{ runner.temp }}/classification-discord-bot-automerge.xml
           if-no-files-found: ignore
           retention-days: 1
 
