@@ -3069,10 +3069,16 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       }
       const sourceTarget = target;
       const actualInterfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
-      const pointTarget = pointKey && expected === "point" && sourceTarget && isDerivedPointKeyForGeometryCategory(sourceTarget.category, pointKey)
-        ? pointKey
-        : pointKey ? null : undefined;
-      const compatible = pointKey
+      const selectedMembers = pointKey?.split(".") ?? [];
+      const stageSelection = input.resolveGeometryStageSelection?.({
+        statementId: sourceTarget?.statementId ?? lookup.declaration.statementId,
+        members: selectedMembers
+      }) ?? { stagePath: ["final"], propertyPath: selectedMembers };
+      const selectedProperty = stageSelection.propertyPath.join(".");
+      const pointTarget = selectedProperty && expected === "point" && sourceTarget && isDerivedPointKeyForGeometryCategory(sourceTarget.category, selectedProperty)
+        ? selectedProperty
+        : selectedProperty ? null : undefined;
+      const compatible = selectedProperty
         ? pointTarget !== null
         : Boolean(actualInterfaceType && isModuleGeometryInterfaceAssignable(actualInterfaceType, options.expectedInterfaceType ?? (expected === "point" ? "point" : "path")));
       const indexSpan = reference.occurrenceIndexRange
@@ -3125,7 +3131,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             end: semanticSpan.start + reference.occurrenceRange.end
           }
         } : {}),
-        ...(pointKey ? { pointKey } : {}),
+        ...(pointTarget ? { pointKey: pointTarget } : {}),
+        ...(stageSelection.propertyPath.length < selectedMembers.length ? { stagePath: stageSelection.stagePath } : {}),
         ...(input.documentId ? { identity: qualifySemanticIdentity(input.documentId, sourceTarget.statementId) } : {})
       };
       return semantic(occurrenceTarget, "resolved", null, derivedRole);

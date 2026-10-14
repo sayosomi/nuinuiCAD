@@ -8,6 +8,7 @@ import { parseScalarExpression } from "@nuinuicad/nui-language";
 import { parseDslReferenceToken } from "@nuinuicad/nui-language";
 import {
   resolveBuiltinGeometryArguments,
+  type ResolveBuiltinGeometryArgumentsInput,
   type ResolveBuiltinGeometryArgumentsResult
 } from "@nuinuicad/nui-language";
 
@@ -56,12 +57,14 @@ const sourceGeometryResolution = (name: string, namespace: SourceLexicalNamespac
 
 const resolve = (
   source: string,
-  scalarReferenceResolutions: readonly BindingResolution[]
+  scalarReferenceResolutions: readonly BindingResolution[],
+  additionalGeometryResolver?: ResolveBuiltinGeometryArgumentsInput["additionalGeometryResolver"]
 ): ResolveBuiltinGeometryArgumentsResult => resolveBuiltinGeometryArguments({
   ast: astFor(source),
   statementIndex: 100,
   scalarReferenceResolutions,
   sourceDeclarationsByStatementId,
+  additionalGeometryResolver,
   resolveSourceGeometryPath: (elementName) => resolveSourceLexicalPath(sourceNamespace, 9, parseDslReferenceToken(elementName))
 });
 
@@ -108,6 +111,41 @@ describe("resolveBuiltinGeometryArguments", () => {
       { endpointKey: "start", target: { statementId: "stable-3", statementIndex: 3, geometryType: "path", stagePath: ["final"] } },
       { endpointKey: "end", target: { statementId: "stable-10", statementIndex: 10, geometryType: "path", stagePath: ["final"] } }
     ]);
+  });
+
+  it.each([
+    ["lineAngle(@L[1].base.start, @OtherLine.end)", "numberLiteral", 1],
+    ["lineAngle(@L[@selected].base.start, @OtherLine.end)", "reference", "selected"]
+  ] as const)("preserves the occurrence-first selected-stage endpoint identity in %s", (source, indexKind, indexValue) => {
+    const generatedTarget = {
+      kind: "forGroupOccurrence" as const,
+      templateElementId: "generated-L",
+      statementId: "generated-L",
+      statementIndex: 12,
+      targetSourceOrder: 12,
+      index: null,
+      geometryType: "path" as const,
+      stagePath: ["base"]
+    };
+    let observed: unknown;
+    const resolutions = indexKind === "reference"
+      ? [{ kind: "undefined" as const, name: "selected", scopeId: "root", statementIndex: 100 }]
+      : [];
+    const result = resolve(source, resolutions, ({ node }) => {
+      if (node.kind !== "geometryProperty" || node.elementName !== "L") return undefined;
+      observed = node;
+      return generatedTarget;
+    });
+
+    expect(result.issues).toEqual([]);
+    expect(observed).toMatchObject({
+      elementName: "L",
+      property: "base.start",
+      occurrenceIndex: indexKind === "numberLiteral"
+        ? { kind: "numberLiteral", value: indexValue }
+        : { kind: "reference", name: indexValue }
+    });
+    expect([...result.geometryEndpointTargets.values()][0]).toEqual({ endpointKey: "start", target: generatedTarget });
   });
 
   it("accepts line and curved path endpoints through the same path resolution", () => {

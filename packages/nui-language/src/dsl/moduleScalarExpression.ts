@@ -485,7 +485,7 @@ const resolveAndTypecheck = ({
                 ));
               }
               const endpointBaseName = isEndpointParameter && sourceArgument.kind === "geometryProperty"
-                ? `${sourceArgument.elementName}${sourceArgument.property.split(".").slice(0, hasEndpointKey ? -1 : undefined).filter(Boolean).map((part) => `.${part}`).join("")}${sourceArgument.occurrenceIndex ? `[${sourceText?.slice(sourceArgument.occurrenceIndex.span.start, sourceArgument.occurrenceIndex.span.end) ?? ""}]` : ""}`
+                ? `${sourceArgument.elementName}${sourceArgument.occurrenceIndex ? `[${sourceText?.slice(sourceArgument.occurrenceIndex.span.start, sourceArgument.occurrenceIndex.span.end) ?? ""}]` : ""}${sourceArgument.property.split(".").slice(0, hasEndpointKey ? -1 : undefined).filter(Boolean).map((part) => `.${part}`).join("")}`
                 : null;
               const reference = resolveGeometryBuiltin({
                 builtinName: definition.name,
