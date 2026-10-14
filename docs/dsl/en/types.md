@@ -173,6 +173,12 @@ references retain their resolved source identity. Scalar, choice, geometry, and
 nominal-record members use the existing element assignability rules. Scalar and
 record collections are source-semantic values in this slice.
 
+Geometry members in `line[]` and `path[]` may select a whole immutable stage,
+such as `@L.base`, `@L.final`, or a valid named or nested stage. A selected
+member keeps its source `line` or `path` interface and stage identity. Endpoint
+references such as `@L.start` and `@L.base.end` remain derived points and are
+valid only in `point[]`; other properties and invalid stage paths are rejected.
+
 ```text
 const vertices: point[] = [@A, @B]
 const edges: line[] = [@AB]

@@ -572,6 +572,11 @@ export const applyArgs = (
             break;
           }
           const sourceLowered = moduleLowered ?? lowerSourceGeometryArrayLineReferenceList(value, resolvers.index, next);
+          if (sourceLowered && isDeferredGeometryInputTarget(sourceLowered)) {
+            resolvers.recordGeometryInputTarget?.(next.id, parameterKey, sourceLowered);
+            next = setParameterValue(next, parameterKey, []);
+            break;
+          }
           const targets: RuntimeGeometryInputTarget[] = [];
           const refs = sourceLowered ?? referenceListItems(value).map((item) => {
             const itemSpan = { start: scanned.valueSpan.start + item.offset, end: scanned.valueSpan.start + item.offset + item.text.length };

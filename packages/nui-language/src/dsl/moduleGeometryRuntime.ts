@@ -164,7 +164,7 @@ export const buildModuleGeometryRuntime = ({
     if (!entry || !kind) return undefined;
     return kind === "point"
       ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId) }
-      : { kind: "line", elementId: entry.runtimeElementId };
+      : { kind: "line", elementId: entry.runtimeElementId, interfaceType: exported.interfaceType === "line" ? "line" : "path" };
   };
 
   const register = (instance: import("./moduleSemanticTypes").ModuleInstanceSemantic, parentPath: readonly string[]): InstanceContext | undefined => {
@@ -273,7 +273,12 @@ export const buildModuleGeometryRuntime = ({
             const resolved = geometryArrayRuntime.resolveLineReferenceTargetAt(reference.source, instance.statementIndex, context.path.slice(0, -1), reference.target);
             if (!resolved) return undefined;
             if ("target" in resolved) return { kind: "collectionIndex" as const, target: resolved.target, members: resolved.members, ...(resolved.value ? { value: resolved.value } : {}) } satisfies GeometryAlias;
-            if (resolved.kind === "drawable") return { kind: "line" as const, elementId: resolved.elementId };
+            if (resolved.kind === "drawable") return {
+              kind: "line" as const,
+              elementId: resolved.elementId,
+              interfaceType: resolved.geometryType === "line" ? "line" as const : "path" as const,
+              ...(resolved.stagePath ? { stagePath: resolved.stagePath } : {})
+            };
             if (resolved.kind === "geometryValueMapPending") {
               return {
                 kind: "mappedValue" as const,

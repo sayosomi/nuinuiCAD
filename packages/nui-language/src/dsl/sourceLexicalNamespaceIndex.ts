@@ -4,7 +4,7 @@ import type { DslReferencePath } from "./dslReferenceTokens";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
 import { analyzeRecordSemantics, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
-import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis } from "./geometryArraySemanticAnalysis";
+import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis, type GeometryArraySemanticAnalysisInput } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
 
@@ -99,6 +99,7 @@ export type SourceLexicalPathResolution = {
 export type BuildSourceLexicalNamespaceOptions = {
   includeStatement?: IncludeStatement;
   scopeIndex?: LexicalScopeIndex;
+  resolveGeometryStageSelection?: GeometryArraySemanticAnalysisInput["resolveGeometryStageSelection"];
 };
 
 export type ResolveSourceLexicalPathOptions = {
@@ -341,6 +342,7 @@ export const buildSourceLexicalNamespaceIndex = (
     statements,
     stableStatementIdByIndex,
     resolvePath: (statementIndex, path) => resolveSourceLexicalPath(baseIndex, statementIndex, path),
+    resolveGeometryStageSelection: options.resolveGeometryStageSelection,
     recordSemanticAnalysis
   });
 

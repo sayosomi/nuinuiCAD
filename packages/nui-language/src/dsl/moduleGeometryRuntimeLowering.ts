@@ -27,7 +27,7 @@ import type { RecordFieldIdentity } from "./recordSemanticAnalysis";
 import { isDslGeometryValueType } from "./dslValueTypes";
 
 export type GeometryAlias =
-  | { kind: "line"; elementId: ElementId; stagePath?: readonly string[] }
+  | { kind: "line"; elementId: ElementId; interfaceType?: "line" | "path"; stagePath?: readonly string[] }
   | { kind: "point"; anchor: PointAnchor; coordinate?: ModulePointCoordinateSemantic; stagePath?: readonly string[] }
   | { kind: "value"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[] }
   | { kind: "mappedValue"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; source: Exclude<GeometryAlias, { kind: "collectionIndex" }>; mapValueId: string; binderId: string; executionPosition: number; pointKey?: string; stagePath?: readonly string[] }
@@ -276,7 +276,7 @@ const lowerAliasWithPointKey = (alias: GeometryAlias, pointKey: string | undefin
   return { kind: "point", anchor: { ...derivedAnchor(alias.elementId, pointKey), ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) }, stagePath: alias.stagePath };
 };
 
-const lowerAliasWithStagePath = (alias: GeometryAlias, stagePath: readonly string[] | undefined): GeometryAlias => {
+export const lowerAliasWithStagePath = (alias: GeometryAlias, stagePath: readonly string[] | undefined): GeometryAlias => {
   if (!stagePath) return alias;
   if (alias.kind === "point") {
     return {
@@ -292,7 +292,7 @@ const lowerAliasWithStagePath = (alias: GeometryAlias, stagePath: readonly strin
 export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" } | { kind: "forGroupOccurrence" }> | GeometryValueMapPendingTarget | null => {
   if (alias.kind === "collectionIndex") return null;
   if (alias.kind === "line") {
-    return { kind: "drawable", elementId: alias.elementId, geometryType: "line", ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) };
+    return { kind: "drawable", elementId: alias.elementId, geometryType: alias.interfaceType ?? "line", ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) };
   }
   if (alias.kind === "value") {
     return {
@@ -475,7 +475,7 @@ export const sourceAliasForTarget = (
       if (context?.definitionStatementId === target.definitionStatementId &&
           (!target.definitionIdentity || context.definitionDocumentId === target.definitionIdentity.documentId)) {
         const alias = context.aliases.get(target.parameterIndex);
-        return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
+        return alias ? lowerAliasWithPointKey(lowerAliasWithStagePath(alias, target.stagePath), target.pointKey) : undefined;
       }
     }
     return undefined;
@@ -529,9 +529,11 @@ export const sourceAliasForTarget = (
         ? { runtimeElementId: materialization.elementIdBySourceStatementIndex.get(target.statementIndex)! } as MaterializedExecutionStatement
         : undefined;
     if (!entry) return undefined;
+    if (target.geometryKind !== "point" && target.interfaceType === "point") return undefined;
+    const interfaceType = target.interfaceType === "point" ? undefined : target.interfaceType;
     const alias = target.geometryKind === "point"
       ? { kind: "point", anchor: referenceAnchor(entry.runtimeElementId), ...(target.stagePath ? { stagePath: target.stagePath } : {}) } as const
-      : { kind: "line", elementId: entry.runtimeElementId, ...(target.stagePath ? { stagePath: target.stagePath } : {}) } as const;
+      : { kind: "line", elementId: entry.runtimeElementId, ...(interfaceType ? { interfaceType } : {}), ...(target.stagePath ? { stagePath: target.stagePath } : {}) } as const;
     return lowerAliasWithPointKey(alias, target.pointKey);
   }
   if (target.kind === "forGroupOccurrence") {

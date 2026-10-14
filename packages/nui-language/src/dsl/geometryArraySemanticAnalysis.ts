@@ -37,11 +37,12 @@ import { scanScalarLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
 import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
+import type { TransformationStageSelection } from "./transformationRecipes";
 
 export type GeometryArraySourceTarget =
-  | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
-  | { kind: "geometryValue"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
-  | { kind: "moduleParameter"; definitionStatementId: string; parameterIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
+  | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
+  | { kind: "geometryValue"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
+  | { kind: "moduleParameter"; definitionStatementId: string; parameterIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
   | { kind: "coordinate"; source: string };
 
 export type GenericArraySourceTarget =
@@ -115,6 +116,7 @@ export type GeometryArraySemanticAnalysis = {
     expressionOffset?: number;
   }) => ResolveDslArrayExpressionResult<GenericArraySourceTarget>;
   moduleArgumentCollectionLiteralsByStatementIndex: ReadonlyMap<number, ReadonlyMap<number, DslArrayLiteralValue<GenericArraySourceTarget>>>;
+  resolveGeometryStageSelection?: GeometryArraySemanticAnalysisInput["resolveGeometryStageSelection"];
   diagnostics: readonly DslDiagnostic[];
 };
 
@@ -155,6 +157,14 @@ export type GeometryArraySemanticAnalysisInput = {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
   resolvePath: (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => SourceLexicalLookupWithExternal;
+  /** Uses the compiler's canonical transformation-stage resolver for source
+   * geometry references. The property suffix remains unresolved until this
+   * owner decides whether it is a stage, endpoint, or invalid property. */
+  resolveGeometryStageSelection?: (input: {
+    statementIndex: number;
+    statementId: string;
+    members: readonly string[];
+  }) => TransformationStageSelection;
   recordSemanticAnalysis?: RecordSemanticAnalysis;
 };
 
@@ -280,7 +290,7 @@ export const moduleParameterByName = (
   stableStatementIdByIndex: ReadonlyMap<number, string>,
   statementIndex: number,
   name: string
-): { definitionStatementId: string; parameterIndex: number; parameter: Extract<DslStatement, { kind: "moduleDefinition" }>["parameters"][number] } | null => {
+): { definitionStatementId: string; definitionStatementIndex: number; parameterIndex: number; parameter: Extract<DslStatement, { kind: "moduleDefinition" }>["parameters"][number] } | null => {
   const ownerIndex = geometryArrayModuleOwnerIndexOf(statements, statementIndex);
   if (ownerIndex === null) return null;
   const owner = statements[ownerIndex];
@@ -289,6 +299,7 @@ export const moduleParameterByName = (
   if (parameterIndex < 0) return null;
   return {
     definitionStatementId: statementIdAt(stableStatementIdByIndex, ownerIndex, "module definition"),
+    definitionStatementIndex: ownerIndex,
     parameterIndex,
     parameter: owner.parameters[parameterIndex]!
   };
@@ -559,21 +570,20 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             diagnostic: { code: "geometry-array-invalid-member", message: "geometry array member の参照が不正です。", span: member.span }
           };
         }
-        const pointKey = sourceReference.property;
-        if (pointKey && type.elementType !== "point") {
-          return {
-            kind: "invalid",
-            diagnostic: {
-              code: "geometry-array-member-type-mismatch",
-              message: "derived point reference は point[] の member としてのみ使用できます。",
-              presentation: {
-                key: "diagnostic.geometry-array-member-type-mismatch",
-                parameters: { member: member.text, expected: geometryArrayTypeName(type), actual: "point[]" }
-              },
-              span: member.span
-            }
-          };
-        }
+        const propertyMembers = sourceReference.property?.split(".") ?? [];
+        const stageSelectionFor = (targetStatementIndex: number, targetStatementId: string) =>
+          propertyMembers.length > 0
+            ? input.resolveGeometryStageSelection?.({
+                statementIndex: targetStatementIndex,
+                statementId: targetStatementId,
+                members: propertyMembers
+              }) ?? null
+            : null;
+        const propertyPathFor = (selection: ReturnType<NonNullable<typeof input.resolveGeometryStageSelection>> | null) =>
+          selection?.propertyPath ?? propertyMembers;
+        const pointKeyFor = (propertyPath: readonly string[]) =>
+          propertyPath.length === 1 && isLineEndpointPointKey(propertyPath[0]!) ? propertyPath[0] : undefined;
+        const invalidPropertyFor = (propertyPath: readonly string[]) => propertyPath.length > 0 && !pointKeyFor(propertyPath);
 
         if (path.segments.length === 1 && !path.absolute) {
           const moduleParameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
@@ -587,21 +597,39 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             }
             const interfaceType = moduleGeometryInterfaceTypeOf(moduleParameter.parameter.type);
             if (interfaceType) {
+              const stageSelection = stageSelectionFor(moduleParameter.definitionStatementIndex, moduleParameter.definitionStatementId);
+              const propertyPath = propertyPathFor(stageSelection);
+              const pointKey = pointKeyFor(propertyPath);
+              if (invalidPropertyFor(propertyPath)) {
+                const suffix = propertyPath.join(".");
+                return {
+                  kind: "invalid",
+                  diagnostic: {
+                    code: "geometry-array-member-type-mismatch",
+                    message: `geometry parameter「${path.segments[0]}」の property「${suffix}」を解決できません。`,
+                    presentation: {
+                      key: "diagnostic.geometry-array-member-type-mismatch",
+                      parameters: { member: member.text, expected: "point[] または geometry stage", actual: `${interfaceType}.${suffix}` }
+                    },
+                    span: member.span
+                  }
+                };
+              }
+              if (pointKey && interfaceType === "point") {
+                return {
+                  kind: "invalid",
+                  diagnostic: {
+                    code: "geometry-array-member-type-mismatch",
+                    message: `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`,
+                    presentation: {
+                      key: "diagnostic.geometry-array-member-type-mismatch",
+                      parameters: { member: path.segments[0]!, expected: "point[]", actual: `${interfaceType}.${pointKey}` }
+                    },
+                    span: member.span
+                  }
+                };
+              }
               if (pointKey) {
-                if ((interfaceType !== "line" && interfaceType !== "path") || !isLineEndpointPointKey(pointKey)) {
-                  return {
-                    kind: "invalid",
-                    diagnostic: {
-                      code: "geometry-array-member-type-mismatch",
-                      message: `geometry parameter「${path.segments[0]}」の derived point「${pointKey}」を point[] member として解決できません。`,
-                      presentation: {
-                        key: "diagnostic.geometry-array-member-type-mismatch",
-                        parameters: { member: path.segments[0]!, expected: "point[]", actual: `${interfaceType}.${pointKey}` }
-                      },
-                      span: member.span
-                    }
-                  };
-                }
                 return {
                   kind: "resolved",
                   value: {
@@ -611,7 +639,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
                       definitionStatementId: moduleParameter.definitionStatementId,
                       parameterIndex: moduleParameter.parameterIndex,
                       interfaceType,
-                      pointKey
+                      pointKey,
+                      ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
                     }
                   }
                 };
@@ -624,7 +653,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
                     kind: "moduleParameter",
                     definitionStatementId: moduleParameter.definitionStatementId,
                     parameterIndex: moduleParameter.parameterIndex,
-                    interfaceType
+                    interfaceType,
+                    ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
                   }
                 }
               };
@@ -652,9 +682,27 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             }
           };
         }
+        const stageSelection = stageSelectionFor(lookup.declaration.statementIndex, lookup.declaration.statementId);
+        const propertyPath = propertyPathFor(stageSelection);
+        const pointKey = pointKeyFor(propertyPath);
+        if (invalidPropertyFor(propertyPath)) {
+          const suffix = propertyPath.join(".");
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: "geometry-array-member-type-mismatch",
+              message: `geometry array member property「${suffix}」を解決できません。`,
+              presentation: {
+                key: "diagnostic.geometry-array-member-type-mismatch",
+                parameters: { member: member.text, expected: "point[] または geometry stage", actual: suffix }
+              },
+              span: member.span
+            }
+          };
+        }
         if (lookup.declaration.statement.kind === "typedDeclaration" && isDslGeometryValueType(lookup.declaration.statement.valueType)) {
           const declaredInterfaceType = lookup.declaration.statement.valueType.kind;
-          if (pointKey && (declaredInterfaceType === "point" || !isLineEndpointPointKey(pointKey))) {
+          if (pointKey && declaredInterfaceType === "point") {
             return {
               kind: "invalid",
               diagnostic: {
@@ -674,7 +722,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
                 statementId: lookup.declaration.statementId,
                 statementIndex: lookup.declaration.statementIndex,
                 interfaceType: declaredInterfaceType,
-                ...(pointKey ? { pointKey } : {})
+                ...(pointKey ? { pointKey } : {}),
+                ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
               }
             }
           };
@@ -720,7 +769,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
                 statementId: lookup.declaration.statementId,
                 statementIndex: lookup.declaration.statementIndex,
                 interfaceType: baseInterfaceType,
-                pointKey
+                pointKey,
+                ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
               }
             }
           };
@@ -733,7 +783,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
               kind: "geometry",
               statementId: lookup.declaration.statementId,
               statementIndex: lookup.declaration.statementIndex,
-              interfaceType: baseInterfaceType
+              interfaceType: baseInterfaceType,
+              ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
             }
           }
         };
@@ -1439,6 +1490,9 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     genericModuleParametersBySlot,
     resolveGenericArrayExpressionAt,
     moduleArgumentCollectionLiteralsByStatementIndex,
+    ...(input.resolveGeometryStageSelection
+      ? { resolveGeometryStageSelection: input.resolveGeometryStageSelection }
+      : {}),
     diagnostics
   };
 };
