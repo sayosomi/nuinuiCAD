@@ -3755,6 +3755,48 @@ describe("module scalar runtime integration", () => {
     expect(valueFor("childLineAngle")).toEqual([expect.objectContaining({ status: "ok", value: { kind: "number", value: 90 } })]);
   });
 
+  it("types an early Module-qualified literal collection endpoint as a numeric lineAngle", () => {
+    const compiled = compileWithIds([
+      "nui 1",
+      "const result: number = lineAngle(@Use::out[1].start, @Axis.end)",
+      "line Axis = segment(start: (30, 30), end: (40, 30))",
+      "line Diagonal = segment(start: (0, 0), end: (10, 10))",
+      "const Paths: path[] = [@Axis, @Diagonal]",
+      "const selected: number = 1",
+      "module Forward(paths: path[]) {",
+      "  export const out: path[] = @paths",
+      "}",
+      "instance Use = Forward(paths: @Paths)"
+    ].join("\n"));
+    expectValid(compiled);
+
+    const resultBinding = compiled.bindingAnalysis!.catalog.bindings.find(
+      (binding) => binding.kind === "typed" && binding.name === "result"
+    );
+    const instance = compiled.moduleSemanticAnalysis!.instances.find((candidate) => candidate.name === "Use");
+    if (!resultBinding || resultBinding.kind !== "typed" || !instance) throw new Error("missing compiled result or Module instance");
+    const initializer = compiled.scalarProgram!.statements.find((statement) => statement.bindingId === resultBinding.id)?.declaration.initializer;
+    expect(initializer).toMatchObject({
+      kind: "call",
+      name: "lineAngle",
+      type: { kind: "number" },
+      args: [
+        {
+          kind: "geometryEndpoint",
+          endpointKey: "start",
+          target: {
+            kind: "geometryCollectionIndex",
+            statementId: JSON.stringify(["module-array-export", instance.statementId, "out"]),
+            collectionValueId: JSON.stringify(["module-array-export", instance.statementId, "out"]),
+            collectionLength: null,
+            index: { kind: "numberLiteral", value: 1, type: { kind: "number" } }
+          }
+        },
+        { kind: "geometryEndpoint", endpointKey: "end" }
+      ]
+    });
+  });
+
   it("publishes one instance-local scalar export binding for each module call", () => {
     const compiled = compileWithIds([
       "nui 1",

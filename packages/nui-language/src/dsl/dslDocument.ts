@@ -5686,6 +5686,7 @@ export const compileDslDocument = (
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
     conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,
     scalarProgram,
+    geometryCollectionNodesByValueId,
     geometryInputTargets: geometryInputTargetsForGraph,
     constructionInputConsumerElementIds,
     transformationRecipes: compiled.runtimeTransformationRecipes ?? compiled.transformationRecipes,

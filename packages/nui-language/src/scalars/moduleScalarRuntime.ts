@@ -1082,8 +1082,7 @@ const typecheckGeometryTargetFor = (
     (target.index.ast.kind === "numberLiteral"
       ? Number.isInteger(target.index.ast.value) &&
         target.index.ast.value >= 0 &&
-        target.collectionLength !== null &&
-        target.index.ast.value < target.collectionLength
+        (target.collectionLength === null || target.index.ast.value < target.collectionLength)
       : target.index.type?.kind === "number")
   ) {
     return {

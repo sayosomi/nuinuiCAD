@@ -18,7 +18,10 @@ import type { BindingVersionGraph, ImmutableGeometryCarryTargetPlan, ImmutableFo
 import type { ScalarValueSource } from "./propertyBindingCompiler";
 import type { CompiledNumericBinding, CompiledTransformationNumericBinding } from "./numericBindingCompiler";
 import type { TextTemplateAst } from "./textTemplate";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type {
+  TypedBuiltinArgument,
+  TypedScalarExpression
+} from "./typedExpressionAst";
 import type { ScalarProgram } from "./scalarProgram";
 import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "../dsl/transformationRecipes";
 import { moduleOwnerIdFor } from "../dsl/moduleMaterialization";
@@ -148,6 +151,8 @@ export type TypedDependencyGraphInput = {
   transformationNumericBindings?: readonly CompiledTransformationNumericBinding[];
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   scalarProgram?: ScalarProgram;
+  /** Compiler-resolved Module collection members used by scalar geometry endpoints. */
+  geometryCollectionNodesByValueId?: ReadonlyMap<string, GeometryInputCollectionNode>;
   conditionalGroupConditions?: ReadonlyMap<string, TypedScalarExpression>;
   geometryInputTargets?: ReadonlyMap<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>;
   /** Construction-input aliases may legitimately lower to a consumer's own
@@ -636,6 +641,109 @@ const geometryValueOccurrencesInInput = (
   return dependencies;
 };
 
+type GeometryInputTargetDependency = {
+  target: GeometryInputTarget;
+  guards: readonly TypedDependencyActivationGuard[];
+};
+
+const geometryInputTargetsInCollectionNode = (
+  node: GeometryInputCollectionNode,
+  selectedIndex?: number,
+  nodesByValueId: ReadonlyMap<string, GeometryInputCollectionNode> = new Map()
+): readonly GeometryInputTargetDependency[] => {
+  const dependencies: GeometryInputTargetDependency[] = [];
+  const activeValues = new Set<string>();
+  const visit = (
+    current: GeometryInputCollectionNode,
+    guards: readonly TypedDependencyActivationGuard[],
+    index?: number
+  ): void => {
+    if (current.kind === "none") return;
+    if (current.kind === "leaf") {
+      const targets = index === undefined ? current.targets : [current.targets[index]].filter((target) => target !== undefined);
+      targets.forEach((target) => dependencies.push({ target, guards }));
+      return;
+    }
+    if (current.kind === "geometryValueMap") {
+      if (current.source.kind === "node") visit(current.source.node, guards, index);
+      else if (!activeValues.has(current.source.valueId)) {
+        const sourceNode = nodesByValueId.get(current.source.valueId);
+        if (sourceNode) {
+          activeValues.add(current.source.valueId);
+          visit(sourceNode, guards, index);
+          activeValues.delete(current.source.valueId);
+        }
+      }
+      return;
+    }
+    if (current.kind === "if") {
+      const selection = current.condition.kind === "booleanLiteral" ? current.condition.value : undefined;
+      const controllerId = `geometry-input:if:${current.condition.span.start}`;
+      visit(current.thenBranch, [...guards, {
+        controllerId,
+        branch: "then",
+        ...(selection === undefined
+          ? { controllerExpression: current.condition }
+          : { staticSelection: selection ? "selected" as const : "unselected" as const })
+      }], index);
+      visit(current.elseBranch, [...guards, {
+        controllerId,
+        branch: "else",
+        ...(selection === undefined
+          ? { controllerExpression: current.condition }
+          : { staticSelection: selection ? "unselected" as const : "selected" as const })
+      }], index);
+      return;
+    }
+    if (current.kind === "match") {
+      const selected = current.scrutinee.kind === "choiceLiteral" ? current.scrutinee.value : undefined;
+      const controllerId = `geometry-input:match:${current.scrutinee.span.start}`;
+      current.arms.forEach((arm) => visit(arm.value, [...guards, {
+        controllerId,
+        branch: `match:${arm.label}`,
+        ...(selected === undefined
+          ? { controllerExpression: current.scrutinee }
+          : { staticSelection: arm.label === selected ? "selected" as const : "unselected" as const })
+      }], index));
+      return;
+    }
+    visit(current.leftBranch, guards, index);
+    visit(current.rightBranch, guards, index);
+  };
+  visit(node, [], selectedIndex);
+  return dependencies;
+};
+
+const geometryEndpointArgumentsIn = (expression: TypedScalarExpression): Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[] => {
+  const result: Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>[] = [];
+  const visit = (node: TypedScalarExpression): void => {
+    if (node.kind === "unary") visit(node.operand);
+    else if (node.kind === "binary") {
+      visit(node.left);
+      visit(node.right);
+    } else if (node.kind === "group") visit(node.expression);
+    else if (node.kind === "collectionIndex") visit(node.index);
+    else if (node.kind === "call") node.args.forEach((argument) => {
+      if (argument.kind === "scalar") visit(argument.expression);
+      else if (argument.kind === "geometryEndpoint") {
+        result.push(argument);
+        const target = argument.target;
+        if ((target?.kind === "geometryCollectionIndex" || target?.kind === "forGroupOccurrence") && target.index) visit(target.index);
+      }
+    });
+    else if (node.kind === "valueIf") {
+      visit(node.condition);
+      visit(node.thenBranch);
+      visit(node.elseBranch);
+    } else if (node.kind === "valueMatch") {
+      visit(node.scrutinee);
+      node.arms.forEach((arm) => visit(arm.expression));
+    }
+  };
+  visit(expression);
+  return result;
+};
+
 const collectStructuredGeometryDependencies = (
   value: unknown,
   result: StructuredGeometryDependency[],
@@ -859,6 +967,7 @@ export const buildTypedDependencyGraph = ({
   transformationNumericBindings,
   textTemplates,
   scalarProgram,
+  geometryCollectionNodesByValueId,
   geometryInputTargets,
   constructionInputConsumerElementIds,
   transformationRecipes,
@@ -1488,6 +1597,95 @@ export const buildTypedDependencyGraph = ({
       });
     }
   };
+  const addGeometryInputTargetDependency = (
+    from: TypedDependencyEndpoint,
+    target: GeometryInputTarget,
+    guards: readonly TypedDependencyActivationGuard[],
+    occurrenceNamespace?: string
+  ): void => {
+    if (target.kind === "drawable") {
+      deferredStageEdges.push({
+        kind: "geometry",
+        from,
+        ownerId: target.elementId,
+        stagePath: target.stagePath ?? ["final"],
+        span: null,
+        requiredness: guards.length ? "conditional" : "required",
+        ...(guards.length ? { activation: { guards } } : {}),
+        occurrenceNamespace
+      });
+    } else if (target.kind === "geometryCarry") {
+      if (bindingAnalysis?.catalog.bindingsById.has(target.bindingId)) add({
+        kind: "geometry",
+        from,
+        to: bindingEndpoint(bindingAnalysis, target.bindingId),
+        span: null,
+        requiredness: guards.length ? "conditional" : "required",
+        ...(guards.length ? { activation: { guards } } : {})
+      }, occurrenceNamespace);
+    } else if (target.kind === "forGroupOccurrence") {
+      deferredStageEdges.push({
+        kind: "geometry",
+        from,
+        ownerId: target.templateElementId,
+        stagePath: target.stagePath ?? ["final"],
+        span: null,
+        requiredness: guards.length ? "conditional" : "required",
+        ...(guards.length ? { activation: { guards } } : {}),
+        occurrenceNamespace
+      });
+      if (target.index) addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
+    } else if (target.kind === "geometryValue") {
+      addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
+    } else if (target.kind === "geometryValueMap") {
+      addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
+      addGeometryInputTargetDependency(from, target.source, guards, occurrenceNamespace);
+    } else if (target.kind === "collectionValue") {
+      addGeometryCollectionNodeDependencies(from, target.value, undefined, guards, occurrenceNamespace);
+    } else if (target.kind === "collectionIndex") {
+      addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
+      const index = target.index.kind === "numberLiteral" ? target.index.value : undefined;
+      const members = index === undefined ? target.members : [target.members[index]].filter((member) => member !== undefined);
+      members.forEach((member) => addGeometryInputTargetDependency(from, member, guards, occurrenceNamespace));
+      if (target.value) addGeometryCollectionNodeDependencies(from, target.value, index, guards, occurrenceNamespace);
+    }
+  };
+  const addGeometryCollectionNodeDependencies = (
+    from: TypedDependencyEndpoint,
+    node: GeometryInputCollectionNode,
+    selectedIndex: number | undefined,
+    guards: readonly TypedDependencyActivationGuard[],
+    occurrenceNamespace?: string
+  ): void => {
+    for (const dependency of geometryInputTargetsInCollectionNode(node, selectedIndex, geometryCollectionNodesByValueId)) {
+      const mergedGuards = [...guards, ...dependency.guards];
+      for (const guard of mergedGuards) {
+        if (guard.controllerExpression) addScalarProgramDependencies(from, guard.controllerExpression, guards, occurrenceNamespace);
+      }
+      addGeometryInputTargetDependency(from, dependency.target, mergedGuards, occurrenceNamespace);
+    }
+  };
+  const addResolvedGeometryTargetDependency = (
+    from: TypedDependencyEndpoint,
+    target: Extract<NonNullable<Extract<TypedBuiltinArgument, { kind: "geometryEndpoint" }>["target"]>, { kind: "geometryCollectionIndex" }>,
+    guards: readonly TypedDependencyActivationGuard[],
+    occurrenceNamespace?: string
+  ): void => {
+    if (target.index) addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
+    const collectionNode = geometryCollectionNodesByValueId?.get(target.collectionValueId);
+    if (collectionNode) {
+      const selectedIndex = target.index?.kind === "numberLiteral" ? target.index.value : undefined;
+      addGeometryCollectionNodeDependencies(from, collectionNode, selectedIndex, guards, occurrenceNamespace);
+    }
+  };
+  if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
+    const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
+    for (const argument of geometryEndpointArgumentsIn(statement.declaration.initializer)) {
+      if (argument.target?.kind === "geometryCollectionIndex" && argument.target.collectionLength === null) {
+        addResolvedGeometryTargetDependency(from, argument.target, [], `${statement.bindingId}:${argument.endpointKey}`);
+      }
+    }
+  }
   const addImmutableGeometryCarryPlanDependencies = (
     plan: ImmutableForGroupPlan,
     ownerElementId: ElementId,
