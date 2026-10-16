@@ -49,6 +49,8 @@ export type ExpressionReferenceTokenMatch =
       readonly elementFrom: number;
       readonly elementTo: number;
       readonly query: string;
+      /** Optional indexed geometry collection occurrence. */
+      readonly occurrenceIndex?: string;
       /** True when the property follows the nui1 optional member operator. */
       readonly optional?: true;
     };
@@ -106,10 +108,10 @@ export const expressionReferenceTokenEndingAt = (
         query: ""
       };
     }
-    const parsed = parseDslSourceReferenceAt(text, sigilAt, pos);
+    const parsed = parseDslSourceReferenceAt(text, sigilAt, pos, { allowIncompleteProperty: true });
     if (parsed.kind === "valid" && parsed.end === pos) {
       const reference = parsed.reference;
-      if (reference.property && reference.propertyRange) {
+      if (reference.propertyRange) {
         return {
           kind: "elementProperty",
           tokenStart: sigilAt,
@@ -120,7 +122,8 @@ export const expressionReferenceTokenEndingAt = (
           elementToken: reference.pathText,
           elementFrom: reference.pathRange.start,
           elementTo: reference.pathRange.end,
-          query: reference.property
+          query: reference.property ?? "",
+          ...(reference.occurrenceIndex !== null ? { occurrenceIndex: reference.occurrenceIndex } : {})
         };
       }
       return {
