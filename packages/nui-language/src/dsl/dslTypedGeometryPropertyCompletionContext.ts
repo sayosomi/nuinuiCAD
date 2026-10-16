@@ -31,12 +31,16 @@ export const typedGeometryPropertyCompletionContextAt = (
   const prefix = scalarExpressionCompletionContextAt(text, reference.tokenStart, expressionSpan, expectedType);
   if (!prefix || prefix.kind !== "operand") return null;
 
-  const endpointStageMembers = prefix.expectedGeometryEndpoint && reference.query.endsWith(".") && reference.query.length > 1
-    ? reference.query.slice(0, -1).split(".")
+  const endpointStageSeparator = prefix.expectedGeometryEndpoint ? reference.query.lastIndexOf(".") : -1;
+  const endpointStageMembers = endpointStageSeparator >= 0
+    ? reference.query.slice(0, endpointStageSeparator).split(".")
     : undefined;
+  const endpointMemberFrom = endpointStageSeparator >= 0
+    ? reference.from + endpointStageSeparator + 1
+    : reference.from;
 
   return {
-    from: endpointStageMembers ? pos : reference.from,
+    from: endpointStageMembers ? endpointMemberFrom : reference.from,
     to: endpointStageMembers ? pos : reference.to,
     tokenStart: reference.tokenStart,
     elementToken: reference.elementToken,

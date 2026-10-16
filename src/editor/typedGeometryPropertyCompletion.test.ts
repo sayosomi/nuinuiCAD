@@ -193,6 +193,22 @@ describe("typed geometry-property completion", () => {
     expect(result?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["start", "end"]));
   });
 
+  it("replaces only a partial endpoint member after a selected reverse stage", async () => {
+    const validSource = [
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "reverse Horizontal as reversed()",
+      "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.reversed.end)"
+    ].join("\n");
+    const source = validSource.replace("@Horizontal.reversed.start", "@Horizontal.reversed.st");
+    const fixture = compiledFixture(validSource);
+    const pos = source.indexOf("@Horizontal.reversed.st") + "@Horizontal.reversed.st".length;
+    const result = await completionAt({ fixture, source, pos });
+
+    expect(result).toMatchObject({ from: pos - 2, to: pos });
+    expect(source.slice(0, result!.from) + "start" + source.slice(result!.to)).toContain("@Horizontal.reversed.start");
+  });
+
   it("preserves a typed path array occurrence while completing endpoints", async () => {
     const source = [
       "nui 1",

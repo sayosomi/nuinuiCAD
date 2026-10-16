@@ -1369,25 +1369,27 @@ const queryCandidates = (
   if (context.kind === "elementParameter") {
     if (!compiled || !exact) return [];
     if (context.expectedGeometryEndpoint) {
-      const qualifiedCandidates = moduleQualifiedGeometryEndpointCandidates(
-        compiled,
-        statementIndex,
-        context.elementToken,
-        context.occurrenceIndex,
-        undefined,
-        statementIndex
-      );
-      if (qualifiedCandidates.length > 0) return qualifiedCandidates.map(moduleCandidate);
-      if (isInsideModuleSemanticStatement(compiled, position)) {
-        const moduleCandidates = moduleGeometryEndpointCandidates(compiled, statementIndex, context.elementToken, context.occurrenceIndex, {
+      if (!context.expectedGeometryEndpointStageMembers) {
+        const qualifiedCandidates = moduleQualifiedGeometryEndpointCandidates(
           compiled,
-          cursorPosition: position,
-          kind: "qualifiedMember",
-          sourceOrderIndex: statementIndex,
-          liveStatementText: input.lineText,
-          logicalCursorPosition: input.localPosition
-        });
-        if (moduleCandidates.length > 0) return moduleCandidates.map(moduleCandidate);
+          statementIndex,
+          context.elementToken,
+          context.occurrenceIndex,
+          undefined,
+          statementIndex
+        );
+        if (qualifiedCandidates.length > 0) return qualifiedCandidates.map(moduleCandidate);
+        if (isInsideModuleSemanticStatement(compiled, position)) {
+          const moduleCandidates = moduleGeometryEndpointCandidates(compiled, statementIndex, context.elementToken, context.occurrenceIndex, {
+            compiled,
+            cursorPosition: position,
+            kind: "qualifiedMember",
+            sourceOrderIndex: statementIndex,
+            liveStatementText: input.lineText,
+            logicalCursorPosition: input.localPosition
+          });
+          if (moduleCandidates.length > 0) return moduleCandidates.map(moduleCandidate);
+        }
       }
       return sourceGeometryEndpointCandidates(
         compiled,
