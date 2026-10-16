@@ -204,6 +204,146 @@ afterEach(() => {
 });
 
 describe("VS Code native nui completion provider", () => {
+  it("offers and inserts lineAngle endpoints in either argument after a geometry member dot", () => {
+    const validSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Horizontal = segment(start: @A, end: @B)",
+      "const value: number = lineAngle(@Horizontal.start, @Horizontal.end)"
+    ].join("\n");
+    for (const reference of ["@Horizontal.start", "@Horizontal.end"]) {
+      const source = validSource.replace(reference, "@Horizontal.");
+      const session = createLanguageAnalysisSession(validSource);
+      session.replaceSource(source);
+      const provider = createNuiCompletionProvider(() => session);
+      const document = documentFor(source);
+      const line = source.split("\n")[4]!;
+      const position = line.indexOf("@Horizontal.") + "@Horizontal.".length;
+      const absolutePosition = source.indexOf(line) + position;
+      const items = provider.provideCompletionItems(
+        document as vscode.TextDocument,
+        new vscode.Position(4, position),
+        undefined as never,
+        undefined as never
+      ) as vscode.CompletionItem[];
+      const start = items.find((item) => item.label === "start");
+
+      expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
+      expect(start?.range).toMatchObject({
+        start: { line: 4, character: position },
+        end: { line: 4, character: position }
+      });
+      expect(start?.insertText).toBe("start");
+      const applied = source.slice(0, absolutePosition) + start?.insertText + source.slice(absolutePosition);
+      expect(applied).toContain("@Horizontal.start");
+    }
+  });
+
+  it("does not offer endpoints for unresolved or point references", () => {
+    const validSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Horizontal = segment(start: @A, end: @B)",
+      "const value: number = lineAngle(@Horizontal.start, @Horizontal.end)"
+    ].join("\n");
+    for (const target of ["Missing", "A"]) {
+      const source = validSource.replace("@Horizontal.start", `@${target}.`);
+      const session = createLanguageAnalysisSession(validSource);
+      session.replaceSource(source);
+      const provider = createNuiCompletionProvider(() => session);
+      const line = source.split("\n")[4]!;
+      const position = line.indexOf(`@${target}.`) + `@${target}.`.length;
+      const items = provider.provideCompletionItems(
+        documentFor(source) as vscode.TextDocument,
+        new vscode.Position(4, position),
+        undefined as never,
+        undefined as never
+      ) as vscode.CompletionItem[];
+
+      expect(items.map((item) => item.label)).not.toEqual(expect.arrayContaining(["start", "end"]));
+    }
+  });
+
+  it("preserves Module path parameter endpoint completion", () => {
+    const validSource = [
+      "nui 1",
+      "module Consumer(target: path) {",
+      "  const value: number = lineAngle(@target.start, @target.end)",
+      "}"
+    ].join("\n");
+    const source = validSource.replace("@target.start", "@target.");
+    const session = createLanguageAnalysisSession(validSource);
+    session.replaceSource(source);
+    const provider = createNuiCompletionProvider(() => session);
+    const line = source.split("\n")[2]!;
+    const position = line.indexOf("@target.") + "@target.".length;
+    const items = provider.provideCompletionItems(
+      documentFor(source) as vscode.TextDocument,
+      new vscode.Position(2, position),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+
+    expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
+  });
+
+  it("preserves indexed Module collection identity in endpoint completion", () => {
+    const validSource = [
+      "nui 1",
+      "line Axis = segment(start: (30, 30), end: (40, 30))",
+      "line Diagonal = segment(start: (0, 0), end: (10, 10))",
+      "const Paths: path[] = [@Axis, @Diagonal]",
+      "const selected: number = 1",
+      "module Forward(paths: path[]) {",
+      "  export const out: path[] = @paths",
+      "}",
+      "instance Use = Forward(paths: @Paths)",
+      "const result: number = lineAngle(@Use::out[1].start, @Axis.end)"
+    ].join("\n");
+    const source = validSource;
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiCompletionProvider(() => session);
+    const line = source.split("\n")[9]!;
+    const position = line.indexOf("@Use::out[1].") + "@Use::out[1].".length;
+    const items = provider.provideCompletionItems(
+      documentFor(source) as vscode.TextDocument,
+      new vscode.Position(9, position),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+
+    expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
+    expect(items.find((item) => item.label === "start")?.range).toMatchObject({
+      start: { line: 9, character: position },
+      end: { line: 9, character: position }
+    });
+  });
+
+  it("completes endpoints on a qualified Module geometry export", () => {
+    const source = [
+      "nui 1",
+      "module Maker() {",
+      "  export line Output = segment(start: (0, 0), end: (10, 0))",
+      "}",
+      "instance use = Maker()",
+      "const value: number = lineAngle(@use::Output.start, @use::Output.end)"
+    ].join("\n");
+    const session = createLanguageAnalysisSession(source);
+    const provider = createNuiCompletionProvider(() => session);
+    const line = source.split("\n")[5]!;
+    const position = line.indexOf("@use::Output.") + "@use::Output.".length;
+    const items = provider.provideCompletionItems(
+      documentFor(source) as vscode.TextDocument,
+      new vscode.Position(5, position),
+      undefined as never,
+      undefined as never
+    ) as vscode.CompletionItem[];
+
+    expect(items.map((item) => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
+  });
+
   it("routes exact imported Module candidates through the native provider", async () => {
     const source = [
       "nui 1",

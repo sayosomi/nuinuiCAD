@@ -85,6 +85,8 @@ const completionAt = async ({
     typedDeclarationRanges: () => fixture.typedRanges,
     scopeBodyRanges: () => fixture.scopeRanges,
     statementInfoByElementId: () => fixture.compiled.statementMap!.byElementId,
+    moduleSemanticMetadata: () => fixture.compiled,
+    semanticSourceRevision: () => fixture.compiled.spans.sourceMap.sourceRevision,
     evaluationIsCurrent: () => evaluationIsCurrent
   });
   return completion({ state, pos, explicit: true } as never);
@@ -120,6 +122,90 @@ describe("typed geometry-property completion", () => {
     const result = await completionAt({ fixture, source });
     expect(result).toMatchObject({ from: source.length, to: source.length });
     expect(result?.options.map((option) => option.label)).toContain("length");
+  });
+
+  it("offers endpoint members in an explicit lineAngle argument", async () => {
+    const validSource = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Horizontal = segment(start: @A, end: @B)",
+      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "const value: number = lineAngle(@Horizontal.start, @Arc.start)"
+    ].join("\n");
+    const fixture = compiledFixture(validSource);
+    const pos = validSource.indexOf("@Horizontal.") + "@Horizontal.".length;
+    const result = await completionAt({ fixture, source: validSource, pos });
+
+    expect(result).toMatchObject({ from: pos, to: pos });
+    expect(result?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["start", "end"]));
+  });
+
+  it("offers endpoints for path-like geometry and typed path values in both lineAngle positions", async () => {
+    const source = [
+      "nui 1",
+      "point A = coordinate(x: 0, y: 0)",
+      "point B = coordinate(x: 10, y: 0)",
+      "line Horizontal = segment(start: @A, end: @B)",
+      "arc Arc = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: clockwise)",
+      "curve Bezier = bezier(start: @A, end: @B, startAngle: 0, startLength: 5, endAngle: 180, endLength: 5)",
+      "line Offset = offset(sources: [@Horizontal], distance: 2, side: left, closed: false, suppressTrimWarnings: false)",
+      "const TypedPath: path = @Bezier",
+      "reverse Horizontal as reversed()",
+      "const Reversed: path = @Horizontal.reversed",
+      "const value: number = lineAngle(@Horizontal.start, @Arc.start)"
+    ].join("\n");
+    const fixture = compiledFixture(source);
+    for (const target of ["Horizontal", "Arc", "Bezier", "Offset", "TypedPath", "Reversed"]) {
+      for (const argument of [1, 2]) {
+        const sourceForTarget = source.replace(
+          "const value: number = lineAngle(@Horizontal.start, @Arc.start)",
+          argument === 1
+            ? `const value: number = lineAngle(@${target}.start, @Arc.start)`
+            : `const value: number = lineAngle(@Horizontal.start, @${target}.start)`
+        );
+        const reference = `@${target}.`;
+        const pos = sourceForTarget.indexOf(reference, sourceForTarget.indexOf("lineAngle(")) + reference.length;
+        const result = await completionAt({
+          fixture: sourceForTarget === source ? fixture : compiledFixture(sourceForTarget),
+          source: sourceForTarget,
+          pos
+        });
+        expect(result?.options.map((option) => option.label), `${target} argument ${argument}`).toEqual(
+          expect.arrayContaining(["start", "end"])
+        );
+      }
+    }
+  });
+
+  it("preserves a named reverse stage when completing its endpoint", async () => {
+    const source = [
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "reverse Horizontal as reversed()",
+      "const value: number = lineAngle(@Horizontal.reversed.start, @Horizontal.final.end)"
+    ].join("\n");
+    const fixture = compiledFixture(source);
+    const pos = source.indexOf("@Horizontal.reversed.") + "@Horizontal.reversed.".length;
+    const result = await completionAt({ fixture, source, pos });
+
+    expect(result).toMatchObject({ from: pos, to: pos });
+    expect(result?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["start", "end"]));
+  });
+
+  it("preserves a typed path array occurrence while completing endpoints", async () => {
+    const source = [
+      "nui 1",
+      "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+      "const Paths: path[] = [@Horizontal]",
+      "const value: number = lineAngle(@Paths[0].start, @Horizontal.end)"
+    ].join("\n");
+    const fixture = compiledFixture(source);
+    const pos = source.indexOf("@Paths[0].") + "@Paths[0].".length;
+    const result = await completionAt({ fixture, source, pos });
+
+    expect(result).toMatchObject({ from: pos, to: pos });
+    expect(result?.options.map((option) => option.label)).toEqual(expect.arrayContaining(["start", "end"]));
   });
 
   it("uses the static target surface even when a supported runtime value is undefined", async () => {

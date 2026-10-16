@@ -36,8 +36,8 @@ import {
 import { isGeometryArrayTypeAssignable, type GeometryArrayType } from "./geometryArrayTypes";
 import { numericGeometryPropertiesForStaticTarget } from "../geometry/numericGeometryProperties";
 import type { DocumentQualifiedSemanticIdentity } from "../document/multiDocumentPrimitives";
-import { isDslArrayValueType, isDslOptionalValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
-import { collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
+import { isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
+import { collectionLengthForValueId, collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
 
 export type ModuleCompletionSite = {
   statementIndex: number;
@@ -269,6 +269,86 @@ export const moduleGeometryPropertyCandidates = (
     kind: "property" as const,
     label,
     identity: `module-parameter:${lookup.parameter.value.definitionStatementId}:${lookup.parameter.value.parameterIndex}:${label}`
+  }));
+};
+
+/** Completes the endpoint member names accepted by lineAngle for a Module
+ * geometry parameter. The parameter signature supplies the static geometry
+ * interface, and the identity stays rooted at the existing parameter slot. */
+export const moduleGeometryEndpointCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  baseName: string,
+  occurrenceIndex?: string,
+  request?: ModuleCompletionRequest
+): ModuleCompletionCandidate[] => {
+  const resolved = visibleLookup(
+    compiled,
+    statementIndex,
+    baseName.replace(/^@/, ""),
+    request?.scopeId,
+    request?.sourceOrderIndex
+  );
+  const lookup = resolved?.lookup;
+  if (lookup?.kind !== "parameter") return [];
+  if (lookup.parameter.value.optional) return [];
+  const interfaceType = occurrenceIndex
+    ? isDslArrayValueType(lookup.parameter.value.valueType) && isDslGeometryValueType(lookup.parameter.value.valueType.elementType)
+      ? lookup.parameter.value.valueType.elementType.kind
+      : null
+    : moduleGeometryInterfaceTypeOf(lookup.parameter.value.type);
+  if (!isModuleGeometryInterfaceAssignable(interfaceType, "path")) return [];
+  if (occurrenceIndex && /^-\d+$/.test(occurrenceIndex)) return [];
+  const identity = `module-parameter:${lookup.parameter.value.definitionStatementId}:${lookup.parameter.value.parameterIndex}`;
+  return (["start", "end"] as const).map((label) => ({
+    kind: "property" as const,
+    label,
+    identity: `${identity}${occurrenceIndex ? `:occurrence:${occurrenceIndex}` : ""}:${label}`
+  }));
+};
+
+/** Completes endpoints on a qualified geometry export through the established
+ * Module instance/export resolver, preserving imported semantic identity. */
+export const moduleQualifiedGeometryEndpointCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  qualifiedName: string,
+  occurrenceIndex?: string,
+  scopeId?: ScopeId,
+  sourceOrderIndex?: number
+): ModuleCompletionCandidate[] => {
+  const separator = qualifiedName.indexOf("::");
+  if (separator < 1) return [];
+  const instanceName = qualifiedName.slice(0, separator).replace(/^@/, "");
+  const exportName = qualifiedName.slice(separator + 2);
+  const resolved = visibleLookup(compiled, statementIndex, instanceName, scopeId, sourceOrderIndex);
+  if (resolved?.lookup.kind !== "resolved" || resolved.lookup.declaration.kind !== "moduleInstance") return [];
+  const instance = compiled.moduleSemanticAnalysis?.instancesByStatementId.get(resolved.lookup.declaration.statementId);
+  const definition = definitionForInstance(compiled, instance ?? null);
+  const exported = definition?.exports.find((entry) => entry.name === exportName);
+  if (!definition || !exported) return [];
+  const interfaceType = occurrenceIndex
+    ? exported.kind === "collection" && isDslArrayValueType(exported.valueType) && isDslGeometryValueType(exported.valueType.elementType)
+      ? exported.valueType.elementType.kind
+      : null
+    : exported.kind === "geometry"
+      ? exported.interfaceType
+      : null;
+  if (!isModuleGeometryInterfaceAssignable(interfaceType, "path")) return [];
+  if (occurrenceIndex) {
+    const analysis = definitionDocumentGeometryArrayAnalysis(compiled, definition);
+    const value = analysis?.valuesByStatementId.get(exported.exportedStatementId) ??
+      analysis?.genericValuesByStatementId.get(exported.exportedStatementId);
+    if (!analysis || !value?.value) return [];
+    const length = collectionLengthForValueId(analysis, value.statementId);
+    const numericIndex = /^-?\d+$/.test(occurrenceIndex) ? Number(occurrenceIndex) : null;
+    if (numericIndex !== null && (numericIndex < 0 || (length !== null && numericIndex >= length))) return [];
+  }
+  const identity = exportIdentityForCandidate(compiled, definition, exported);
+  return (["start", "end"] as const).map((label) => ({
+    kind: "property" as const,
+    label,
+    identity: `${identity}${occurrenceIndex ? `:occurrence:${occurrenceIndex}` : ""}:${label}`
   }));
 };
 

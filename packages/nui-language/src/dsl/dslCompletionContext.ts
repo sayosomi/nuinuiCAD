@@ -44,7 +44,18 @@ export type DslCompletionContext =
   | { kind: "construction"; from: number; to: number; category: DslConstructionCategory }
   | { kind: "argument"; from: number; to: number; spec: DslConstructionSpec; usedArgumentNames: ReadonlySet<string> }
   | { kind: "parameter"; from: number; to: number; parameter: DslCompletionParameter }
-  | { kind: "elementParameter"; from: number; to: number; elementToken: string; tokenStart: number; sigil: boolean; expectedScalarType: ScalarType }
+  | {
+      kind: "elementParameter";
+      from: number;
+      to: number;
+      elementToken: string;
+      tokenStart: number;
+      sigil: boolean;
+      expectedScalarType: ScalarType;
+      occurrenceIndex?: string;
+      expectedGeometryEndpoint?: true;
+      expectedGeometryEndpointStageMembers?: readonly string[];
+    }
   | { kind: "declaredType"; from: number; to: number; bindingKind: "const" }
   | { kind: "typedInitializer"; from: number; to: number; declaredType: ScalarType; positionContext: ScalarExpressionCompletionContext }
   | { kind: "geometryValueInitializer"; from: number; to: number; declaredType: "point" | "line" | "path" }
@@ -496,7 +507,16 @@ export const dslCompletionContextAt = (
         elementToken: typedDeclarationContext.geometryProperty.elementToken,
         tokenStart: typedDeclarationContext.geometryProperty.tokenStart,
         sigil: true,
-        expectedScalarType: typedDeclarationContext.declaredType
+        expectedScalarType: typedDeclarationContext.declaredType,
+        ...(typedDeclarationContext.geometryProperty.occurrenceIndex !== undefined
+          ? { occurrenceIndex: typedDeclarationContext.geometryProperty.occurrenceIndex }
+          : {}),
+        ...(typedDeclarationContext.geometryProperty.expectedGeometryEndpoint
+          ? { expectedGeometryEndpoint: true as const }
+          : {}),
+        ...(typedDeclarationContext.geometryProperty.expectedGeometryEndpointStageMembers
+          ? { expectedGeometryEndpointStageMembers: typedDeclarationContext.geometryProperty.expectedGeometryEndpointStageMembers }
+          : {})
       };
     }
     return {

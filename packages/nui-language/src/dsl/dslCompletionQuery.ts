@@ -6,7 +6,7 @@ import {
   type DslCompletionContext,
   type DslGeometryReferenceKind
 } from "./dslCompletionContext";
-import { isDslOptionalValueType } from "./dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType, isDslOptionalValueType } from "./dslValueTypes";
 import { dslStatementElementType } from "./dslCompletionMetadata";
 import {
   dslCallAuthoringContextAt,
@@ -30,9 +30,11 @@ import {
 } from "./sourceLexicalNamespaceIndex";
 import {
   moduleCompletionCandidates,
+  moduleGeometryEndpointCandidates,
   moduleGeometryPropertyCandidates,
   moduleCollectionLengthCandidates,
   moduleQualifiedCollectionLengthCandidates,
+  moduleQualifiedGeometryEndpointCandidates,
   moduleRecordFieldCompletions,
   moduleQualifiedRecordFieldCompletions,
   modulePreviewParameterValueCompletionCandidates,
@@ -86,9 +88,9 @@ import { dslModifierCompletionContextAt } from "./dslModifierCompletionContext";
 import { modifierPropertyMetadata } from "./dslModifierAuthoring";
 import { formatDslName } from "./dslTokens";
 import { createModifierAuthoringIndex } from "./dslModifierAuthoringIndex";
-import { collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
+import { collectionLengthForValueId, collectionValueSemanticForStatement } from "./geometryArraySemanticAnalysis";
 import { exactPhysicalSpan } from "./dslDiagnosticSpan";
-import type { TransformationRecipe } from "./transformationRecipes";
+import { resolveTransformationStageSelection, type TransformationRecipe } from "./transformationRecipes";
 
 export type DslCompletionCandidateKind =
   | "keyword"
@@ -768,6 +770,73 @@ const sourceGeometryPropertyCandidates = (
     }));
 };
 
+const sourceGeometryEndpointCandidates = (
+  compiled: CompiledDslDocument,
+  statementIndex: number,
+  elementToken: string,
+  occurrenceIndex?: string,
+  stageMembers?: readonly string[]
+): DslCompletionCandidate[] => {
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace || statementIndex < 0) return [];
+  const lookup = resolveSourceLexicalPath(namespace, statementIndex, parseDslReferenceToken(elementToken));
+  if (lookup.kind !== "resolved") return [];
+  if (lookup.declaration.kind === "geometry" && lookup.declaration.statement.kind === "element") {
+    if (occurrenceIndex && !isMaterializedForGroupTemplate(compiled.statements, lookup.declaration.statementIndex)) return [];
+    if (occurrenceIndex && /^-\d+$/.test(occurrenceIndex)) return [];
+    const interfaceType = moduleGeometryInterfaceTypeOfElement(lookup.declaration.statement);
+    if (!isModuleGeometryInterfaceAssignable(interfaceType, "path")) return [];
+    const ownerElement = compiled.sourceElementsByStatementIndex.get(lookup.declaration.statementIndex);
+    if (stageMembers && !ownerElement) return [];
+    const stagePath = stageMembers && ownerElement
+      ? resolveTransformationStageSelection({
+          ownerId: ownerElement.id,
+          members: stageMembers,
+          recipes: transformationRecipesFor(compiled)
+        })
+      : null;
+    if (stageMembers && (!stagePath || stagePath.propertyPath.length > 0)) return [];
+    const identityPrefix = stagePath
+      ? `${lookup.declaration.statementId}:stage:${stagePath.stagePath.join(".")}`
+      : `${lookup.declaration.statementId}${occurrenceIndex ? `:occurrence:${occurrenceIndex}` : ""}`;
+    return (["start", "end"] as const).map((label) => ({
+      kind: "property" as const,
+      label,
+      identity: `${identityPrefix}:${label}`
+    }));
+  }
+  if (lookup.declaration.kind === "typedDeclaration" && lookup.declaration.statement.kind === "typedDeclaration") {
+    if (stageMembers) return [];
+    const valueType = lookup.declaration.statement.valueType;
+    if (occurrenceIndex) {
+      if (!isDslArrayValueType(valueType) || !isDslGeometryValueType(valueType.elementType) ||
+          !isModuleGeometryInterfaceAssignable(valueType.elementType.kind, "path")) return [];
+      const analysis = namespace.geometryArraySemanticAnalysis;
+      const collection = analysis ? collectionValueSemanticForStatement(analysis, lookup.declaration.statementIndex) : null;
+      if (!analysis || !collection?.value) return [];
+      const length = collectionLengthForValueId(analysis, collection.statementId);
+      const numericIndex = /^-?\d+$/.test(occurrenceIndex) ? Number(occurrenceIndex) : null;
+      if (numericIndex !== null && (numericIndex < 0 || (length !== null && numericIndex >= length))) return [];
+      return (["start", "end"] as const).map((label) => ({
+        kind: "property" as const,
+        label,
+        identity: `${lookup.declaration.statementId}:occurrence:${occurrenceIndex}:${label}`
+      }));
+    }
+    if (!isDslGeometryValueType(valueType) || !isModuleGeometryInterfaceAssignable(valueType.kind, "path")) return [];
+    const semanticValue = compiled.moduleSemanticAnalysis?.geometryValues.find(
+      (value) => value.statementId === lookup.declaration.statementId
+    );
+    if (!semanticValue || (!semanticValue.backingTarget && !semanticValue.construction && !semanticValue.valueExpression)) return [];
+    return (["start", "end"] as const).map((label) => ({
+      kind: "property" as const,
+      label,
+      identity: `${lookup.declaration.statementId}:${label}`
+    }));
+  }
+  return [];
+};
+
 const sourceCollectionLengthCandidates = (
   compiled: CompiledDslDocument,
   statementIndex: number,
@@ -1299,6 +1368,35 @@ const queryCandidates = (
   }
   if (context.kind === "elementParameter") {
     if (!compiled || !exact) return [];
+    if (context.expectedGeometryEndpoint) {
+      const qualifiedCandidates = moduleQualifiedGeometryEndpointCandidates(
+        compiled,
+        statementIndex,
+        context.elementToken,
+        context.occurrenceIndex,
+        undefined,
+        statementIndex
+      );
+      if (qualifiedCandidates.length > 0) return qualifiedCandidates.map(moduleCandidate);
+      if (isInsideModuleSemanticStatement(compiled, position)) {
+        const moduleCandidates = moduleGeometryEndpointCandidates(compiled, statementIndex, context.elementToken, context.occurrenceIndex, {
+          compiled,
+          cursorPosition: position,
+          kind: "qualifiedMember",
+          sourceOrderIndex: statementIndex,
+          liveStatementText: input.lineText,
+          logicalCursorPosition: input.localPosition
+        });
+        if (moduleCandidates.length > 0) return moduleCandidates.map(moduleCandidate);
+      }
+      return sourceGeometryEndpointCandidates(
+        compiled,
+        statementIndex,
+        context.elementToken,
+        context.occurrenceIndex,
+        context.expectedGeometryEndpointStageMembers
+      );
+    }
     const recordCandidates = sourceRecordPropertyCandidates(compiled, statementIndex, context.elementToken);
     if (recordCandidates.length > 0) return recordCandidates;
     const qualifiedCollectionCandidates = moduleQualifiedCollectionLengthCandidates(compiled, statementIndex, context.elementToken, undefined, statementIndex);

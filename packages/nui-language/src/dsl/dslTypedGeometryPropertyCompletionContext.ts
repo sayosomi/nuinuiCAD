@@ -12,6 +12,9 @@ export type TypedGeometryPropertyCompletionContext = {
   to: number;
   tokenStart: number;
   elementToken: string;
+  occurrenceIndex?: string;
+  expectedGeometryEndpoint?: true;
+  expectedGeometryEndpointStageMembers?: readonly string[];
 };
 
 export const typedGeometryPropertyCompletionContextAt = (
@@ -28,10 +31,17 @@ export const typedGeometryPropertyCompletionContextAt = (
   const prefix = scalarExpressionCompletionContextAt(text, reference.tokenStart, expressionSpan, expectedType);
   if (!prefix || prefix.kind !== "operand") return null;
 
+  const endpointStageMembers = prefix.expectedGeometryEndpoint && reference.query.endsWith(".") && reference.query.length > 1
+    ? reference.query.slice(0, -1).split(".")
+    : undefined;
+
   return {
-    from: reference.from,
-    to: reference.to,
+    from: endpointStageMembers ? pos : reference.from,
+    to: endpointStageMembers ? pos : reference.to,
     tokenStart: reference.tokenStart,
-    elementToken: reference.elementToken
+    elementToken: reference.elementToken,
+    ...(reference.occurrenceIndex !== undefined ? { occurrenceIndex: reference.occurrenceIndex } : {}),
+    ...(prefix.expectedGeometryEndpoint ? { expectedGeometryEndpoint: true as const } : {}),
+    ...(endpointStageMembers ? { expectedGeometryEndpointStageMembers: endpointStageMembers } : {})
   };
 };
