@@ -43,6 +43,7 @@ export type GeometryArraySourceTarget =
   | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
   | { kind: "geometryValue"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
   | { kind: "moduleParameter"; definitionStatementId: string; parameterIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
+  | { kind: "deferredModuleExport"; instanceStatementId: string; instanceStatementIndex: number; instanceName: string; exportName: string; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[]; referenceSpan: DslSpan; instanceSpan: DslSpan; memberSpan: DslSpan }
   | { kind: "coordinate"; source: string };
 
 export type GenericArraySourceTarget =
@@ -663,6 +664,58 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         }
 
         const lookup = input.resolvePath(statementIndex, path);
+        if (
+          lookup.kind === "invalidTraversal" &&
+          lookup.declaration.kind === "moduleInstance" &&
+          lookup.declaration.statement.kind === "moduleInstance" &&
+          path.segments.length === 2 && lookup.segmentIndex === 1
+        ) {
+          const definitionLookup = input.resolvePath(
+            lookup.declaration.statementIndex,
+            parseDslReferenceToken(lookup.declaration.statement.moduleName)
+          );
+          const definitionIndex = definitionLookup.kind === "resolved" && definitionLookup.declaration.statement.kind === "moduleDefinition"
+            ? definitionLookup.declaration.statementIndex : null;
+          const exportName = path.segments[1]!;
+          const exportedIndex = definitionIndex === null ? -1 : statements.findIndex((candidate) =>
+            candidate.name === exportName && candidate.enclosing?.statementIndex === definitionIndex &&
+            ((candidate.kind === "typedDeclaration" && candidate.exported && isDslGeometryValueType(candidate.valueType)) ||
+              (candidate.kind === "element" && candidate.exported && isGeometryDeclarationCategory(candidate.category)))
+          );
+          if (exportedIndex >= 0) {
+            const exported = statements[exportedIndex]!;
+            const interfaceType = exported.kind === "typedDeclaration"
+              ? exported.valueType?.kind as ModuleGeometryInterfaceType
+              : moduleGeometryInterfaceTypeOfElement(exported);
+            if (interfaceType) {
+              const exportedId = statementIdAt(stableStatementIdByIndex, exportedIndex, "module geometry export");
+              const stageSelection = stageSelectionFor(exportedIndex, exportedId);
+              const propertyPath = propertyPathFor(stageSelection);
+              const pointKey = pointKeyFor(propertyPath);
+              if (!invalidPropertyFor(propertyPath) && !(pointKey && interfaceType === "point")) {
+                return {
+                  kind: "resolved",
+                  value: {
+                    interfaceType: pointKey ? "point" : interfaceType,
+                    target: {
+                      kind: "deferredModuleExport",
+                      instanceStatementId: lookup.declaration.statementId,
+                      instanceStatementIndex: lookup.declaration.statementIndex,
+                      instanceName: lookup.declaration.name,
+                      exportName,
+                      interfaceType,
+                      ...(pointKey ? { pointKey } : {}),
+                      ...(stageSelection ? { stagePath: stageSelection.stagePath } : {}),
+                      referenceSpan: member.span,
+                      instanceSpan: member.span,
+                      memberSpan: member.span
+                    }
+                  }
+                };
+              }
+            }
+          }
+        }
         if (lookup.kind !== "resolved") {
           const message = lookup.kind === "forward"
             ? `geometry array member「${member.text}」はこの位置より後で宣言されています。`

@@ -990,6 +990,10 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
           );
           continue;
         }
+        if (member.target.kind === "deferredModuleExport") {
+          addDeferredExportReference(statementIndex, member.sourceSpan, member.target.instanceStatementId, member.target.exportName);
+          continue;
+        }
         const elementId = elementIdForStatementIndex(compiled, member.target.statementIndex);
         const identity = elementIdentity(compiled, elementId) ?? geometryArrayValueIdentity(compiled, member.target.statementId);
         addReference(statementIndex, member.sourceSpan, identity);
@@ -1061,6 +1065,10 @@ const addGeometryArrayOccurrences = (compiled: CompiledDslDocument, add: AddOccu
             geometryArrayParameterIdentity(member.target.definitionStatementId, member.target.parameterIndex),
             true
           );
+          continue;
+        }
+        if (member.target.kind === "deferredModuleExport") {
+          addDeferredExportReference(value.statementIndex, member.sourceSpan, member.target.instanceStatementId, member.target.exportName);
           continue;
         }
         const elementId = elementIdForStatementIndex(compiled, member.target.statementIndex);
