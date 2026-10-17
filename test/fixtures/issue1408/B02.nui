@@ -1,0 +1,16 @@
+nui 1
+line Axis = polar(start: (430, -70), angle: 7, length: 33)
+for i in range(min: 0, max: 1, step: 1) {
+  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)
+  reverse Generated as flipped ()
+  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 9)
+}
+module Forward(source: path) {
+  for tick in range(min: 0, max: 1, step: 1) carry edge: path = @source {
+    next edge = @source
+  }
+  export const out: path = @edge
+}
+instance Decoy = Forward(source: @Generated[0].base)
+instance Chosen = Forward(source: @Generated[1].flipped)
+const result: number = lineAngle(@Chosen::out.end, @Axis.start)

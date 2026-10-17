@@ -1,0 +1,15 @@
+nui 1
+const result: number = lineAngle(@RenamedPaths[@pick].end, @Axis.start)
+module Provider(turn: number, x: number) {
+  export curve Edge = bezier(start: (@x, 7), end: (@x + 75, 43), startAngle: 34 + 0, startLength: 23, endAngle: 137 + 0, endLength: 27)
+  point Cut = coordinate(x: @x + 36.7143112493148, y: 19.03996040889875)
+  export line Result = split(source: @Edge.base, at: @Cut)
+  reverse Result as backwards ()
+  move Result as tilted (from: (0, 0), to: (0, 0), angleDeg: @turn + 23)
+  move Result as later (from: (0, 0), to: (0, 0), angleDeg: 31)
+}
+instance One = Provider(turn: 0, x: 0)
+instance RenamedUse = Provider(turn: 17, x: 170)
+line Axis = polar(start: (430, -70), angle: 7, length: 33)
+const RenamedPaths: path[] = [@One::Result.tilted, @RenamedUse::Result.tilted, @RenamedUse::Edge.base]
+const pick: number = 1
