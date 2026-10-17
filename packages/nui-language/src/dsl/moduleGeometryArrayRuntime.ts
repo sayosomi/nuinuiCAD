@@ -335,6 +335,22 @@ export const buildModuleGeometryArrayRuntime = ({
   };
 
   const singularTargetFor = (target: GeometryArraySourceTarget, currentPath: readonly string[]) => {
+    if (target.kind === "deferredModuleExport") {
+      return {
+        kind: "deferredModuleExport" as const,
+        instanceStatementId: target.instanceStatementId,
+        instanceStatementIndex: target.instanceStatementIndex,
+        instanceName: target.instanceName,
+        exportName: target.exportName,
+        expectedGeometryKind: target.interfaceType === "point" ? "point" as const : "line" as const,
+        expectedInterfaceType: target.interfaceType,
+        referenceSpan: target.referenceSpan,
+        instanceSpan: target.instanceSpan,
+        memberSpan: target.memberSpan,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+      };
+    }
     if (target.kind === "moduleParameter") {
       return {
         kind: "parameter" as const,

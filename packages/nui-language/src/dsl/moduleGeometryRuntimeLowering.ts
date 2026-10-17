@@ -214,12 +214,16 @@ export const diagnosticForExport = (
   exportEntry: ExportEntry | undefined
 ): DslDiagnostic | null => {
   const namespaceDiagnostic = diagnosticForExportNamespace(statement, target, definition, statements, exportEntry);
-  if (namespaceDiagnostic || !definition || !exportEntry) return namespaceDiagnostic;
-  const actualInterfaceType = exportEntry.exported.interfaceType ?? moduleGeometryInterfaceTypeOfElement(statements[exportEntry.exported.exportedStatementIndex]);
+  if (namespaceDiagnostic || !definition) return namespaceDiagnostic;
+  const exported = exportEntry?.exported ?? definition.exports.find((candidate): candidate is Extract<ResolvedModuleExport, { kind: "geometry" }> =>
+    candidate.kind === "geometry" && candidate.name === target.exportName
+  );
+  if (!exported) return null;
+  const actualInterfaceType = exported.interfaceType ?? moduleGeometryInterfaceTypeOfElement(statements[exported.exportedStatementIndex]);
   const validDerivedPoint = target.pointKey !== undefined &&
     target.expectedGeometryKind === "point" &&
-    (exportEntry.exported.category
-      ? isDerivedPointKeyForGeometryCategory(exportEntry.exported.category, target.pointKey)
+    (exported.category
+      ? isDerivedPointKeyForGeometryCategory(exported.category, target.pointKey)
       : actualInterfaceType !== "point" && isLineEndpointPointKey(target.pointKey));
   const typeCompatible = target.pointKey === undefined
     ? isModuleGeometryInterfaceAssignable(actualInterfaceType, target.expectedInterfaceType ?? target.expectedGeometryKind)
@@ -246,6 +250,7 @@ export const diagnosticForExportNamespace = (
 ): DslDiagnostic | null => {
   if (!definition) return null;
   if (!exportEntry) {
+    if (definition.exports.some((candidate) => candidate.kind === "geometry" && candidate.name === target.exportName)) return null;
     const privateMember = definition.bodyStatements.some((body) =>
       statements[body.statementIndex]?.name === target.exportName
     );
