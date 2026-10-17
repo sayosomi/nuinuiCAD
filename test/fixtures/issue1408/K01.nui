@@ -1,0 +1,13 @@
+nui 1
+module Provider(turn: number, x: number) {
+  export arc Edge = arc(center: (@x, 7), radius: 26, start: 287 + @turn, end: 38 + @turn, direction: counterclockwise)
+  move Edge as selected (from: (0, 0), to: (0, 0), angleDeg: 17)
+  move Edge as later (from: (0, 0), to: (0, 0), angleDeg: 29)
+}
+instance One = Provider(turn: 0, x: 0)
+instance Two = Provider(turn: 21, x: 170)
+line Axis = polar(start: (430, -70), angle: 7, length: 33)
+const Alias: path = @Two::Edge.selected
+const Paths: path[] = [@One::Edge.base, @Alias, @Two::Edge.final]
+const pick: number = 1
+const result: number = lineAngle(@Two::Edge.selected.start, @Axis.start)

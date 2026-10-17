@@ -428,16 +428,15 @@ impl ScalarMutationResolver<'_> {
                 };
                 let resolved = match selected_target.as_ref() {
                     Some(target) => {
-                        let template_element_id = target
-                            .for_group_template_element_id
-                            .as_deref()
-                            .or_else(|| {
-                                state
-                                    .for_group_generated_rows
-                                    .iter()
-                                    .any(|row| row.template_element_id == target.statement_id)
-                                    .then_some(target.statement_id.as_str())
-                            });
+                        // A body-local drawable denotes the current iteration's row.
+                        // Explicit occurrence targets must retain their index and use
+                        // the canonical indexed resolver below instead.
+                        let template_element_id = (target.for_group_template_element_id.is_none()
+                            && state
+                                .for_group_generated_rows
+                                .iter()
+                                .any(|row| row.template_element_id == target.statement_id))
+                        .then_some(target.statement_id.as_str());
                         let resolved = if let Some(template_element_id) = template_element_id {
                             let row = state
                                 .for_group_generated_rows
