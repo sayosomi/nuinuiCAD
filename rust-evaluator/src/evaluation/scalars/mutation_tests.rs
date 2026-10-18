@@ -35,6 +35,7 @@ fn evaluation_state() -> EvaluationState {
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),

@@ -1472,6 +1472,7 @@ export const compileDslDocument = (
     `geometry-carry-next:${encodeURIComponent(bindingId)}:${branchPath.length ? branchPath.map(encodeURIComponent).join("/") : "root"}`;
   const geometryCarryNextConstructionRequests: NonNullable<Parameters<typeof analyzeModuleSemantics>[0]["geometryCarryNextConstructions"]>[number][] = [];
   for (const declaration of immutableCarryCompilation?.declarations ?? []) {
+    if (!includeStatement(parsed.statements[declaration.ownerStatementIndex]!, declaration.ownerStatementIndex)) continue;
     const valueType = dslRequiredValueTypeOf(declaration.valueType);
     if (!valueType || !isDslGeometryValueType(valueType)) continue;
     const next = immutableCarryCompilation?.nexts.find((candidate) =>
@@ -1492,7 +1493,10 @@ export const compileDslDocument = (
         }
       } else if (node.kind === "valueMatch") {
         for (const arm of node.arms) collect(arm.expression, [...branchPath, `match:${arm.label}`]);
-      } else if (node.kind === "call") {
+      } else if (node.kind === "call" || node.kind === "collectionIndex" || node.kind === "geometryProperty" || node.kind === "reference") {
+        // Flattened record carry fields already use the canonical record/carry
+        // projection below; the Module geometry resolver sees the record owner.
+        if (declaration.fieldPath && node.kind !== "call" && node.kind !== "collectionIndex") return;
         geometryCarryNextConstructionRequests.push({
           statementId: geometryCarryNextConstructionId(declaration.bindingId, branchPath),
           statementIndex: next.statementIndex,
@@ -1628,6 +1632,10 @@ export const compileDslDocument = (
     sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(valueId) ??
     sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.get(valueId);
   const geometryTargetForArrayMember = (target: GenericArraySourceTarget): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }> | null => {
+    if (target.kind === "geometryCarry") return {
+      kind: "geometryCarry", bindingId: target.bindingId, geometryType: target.interfaceType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
     if (target.kind === "geometry") {
       const elementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
       return elementId
@@ -3606,7 +3614,11 @@ export const compileDslDocument = (
   const loweredOccurrenceIndexFor = (index: ModuleScalarExpressionSemantic | null): TypedScalarExpression | null => {
     if (!index) return null;
     try {
-      return lowerExpression(index, () => undefined, new Map()).expression;
+      const bindings = documentScalarAnalysis?.bindingAnalysis.catalog.bindingsById ?? new Map<BindingId, Binding>();
+      return lowerExpression(index, target => target.kind === "documentBinding"
+        ? bindings.get(target.bindingId)
+        : target.kind === "iteration" ? bindings.get(`binding:iteration:${target.statementId}`) : undefined,
+      bindings).expression;
     } catch {
       return null;
     }
@@ -5335,7 +5347,7 @@ export const compileDslDocument = (
         arms: arms as { label: string; target: ImmutableGeometryCarryTargetPlan }[]
       };
     }
-    if (node.kind === "call") {
+    if (node.kind === "call" || node.kind === "collectionIndex" || node.kind === "geometryProperty" || node.kind === "reference") {
       const declaredGeometryType = dslRequiredValueTypeOf(declaration.valueType);
       if (!declaredGeometryType || !isDslGeometryValueType(declaredGeometryType)) return null;
       const sourceStatementId = geometryCarryNextConstructionId(declaration.bindingId, branchPath);
@@ -5344,7 +5356,25 @@ export const compileDslDocument = (
           values: locallyAnalyzedSourceSemanticCompilation?.geometryCarryNextValues ?? [],
           elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
         }).find((entry) => entry.sourceStatementId === sourceStatementId)?.construction;
-      if (!construction) return null;
+      if (!construction) return rootExecutionOrderGeometryTarget(geometryTargetForCarryExpression(
+        controllerRawFor(next.expression, next.expressionSpan, node.span), next.statementIndex, declaration.bindingId
+      ));
+      // Reference leaves already have a canonical target from the shared
+      // Module/occurrence lowering. Keep it rather than re-resolving its name
+      // through the non-indexed carry compatibility projection below.
+      if (construction.kind === "reference" && construction.target.kind !== "geometryInputTarget") {
+        if (construction.target.kind === "forGroupOccurrence" && construction.target.index === null) {
+          const target = construction.target;
+          const local = geometryTargetForCarryExpression(
+            controllerRawFor(next.expression, next.expressionSpan, node.span), next.statementIndex, declaration.bindingId
+          );
+          const owner = compiled.elementIdsByStatementIndex?.get(declaration.ownerStatementIndex);
+          if (local && compiled.elements.find(element => element.id === target.templateElementId)?.parentGroupId === owner) {
+            return rootExecutionOrderGeometryTarget(local);
+          }
+        }
+        return rootExecutionOrderGeometryTarget(construction.target);
+      }
       return {
         kind: "geometryValueConstruction",
         sourceStatementId,

@@ -335,6 +335,11 @@ export const buildModuleGeometryArrayRuntime = ({
   };
 
   const singularTargetFor = (target: GeometryArraySourceTarget, currentPath: readonly string[]) => {
+    if (target.kind === "geometryCarry") return {
+      kind: "geometryCarry" as const, bindingId: target.bindingId, statementId: target.statementId,
+      statementIndex: target.statementIndex, geometryKind: target.interfaceType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
     if (target.kind === "deferredModuleExport") {
       return {
         kind: "deferredModuleExport" as const,

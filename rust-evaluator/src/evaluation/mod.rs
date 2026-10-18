@@ -1318,6 +1318,7 @@ fn runtime_transformation_targets(
     recipe: &Value,
     source_target: &Value,
     state: &mut EvaluationState,
+    scope: Option<&HashMap<ElementId, ElementId>>,
 ) -> Vec<RuntimeTransformationTarget> {
     let Some(owner_id) = source_target.get("ownerId").and_then(Value::as_str) else {
         return Vec::new();
@@ -1353,6 +1354,9 @@ fn runtime_transformation_targets(
     if let Some(index_text) = source_target.get("occurrenceIndex").and_then(Value::as_str) {
         let index = index_text.parse::<usize>().ok();
         let Some(row) = index.and_then(|index| rows.get(index)) else {
+            if scope.is_some() {
+                return Vec::new();
+            }
             transformation_recipe_error(
                 recipe,
                 Some(&target),
@@ -1364,6 +1368,9 @@ fn runtime_transformation_targets(
             );
             return Vec::new();
         };
+        if scope.is_some_and(|scope| scope.get(owner_id) != Some(&row.generated_element_id)) {
+            return Vec::new();
+        }
         return vec![RuntimeTransformationTarget {
             runtime_owner_id: row.generated_element_id.clone(),
             ..target
@@ -1372,6 +1379,11 @@ fn runtime_transformation_targets(
     if has_for_group_ancestor(&target.owner_id, state) {
         return rows
             .into_iter()
+            .filter(|row| {
+                scope.map_or(true, |scope| {
+                    scope.get(owner_id) == Some(&row.generated_element_id)
+                })
+            })
             .map(|row| RuntimeTransformationTarget {
                 runtime_owner_id: row.generated_element_id.clone(),
                 ..target.clone()
@@ -1385,6 +1397,7 @@ fn transformation_plan_dependency_available(
     dependency: &Value,
     state: &EvaluationState,
     completion: &ElementCompletionFacts<'_>,
+    scope: Option<&HashMap<ElementId, ElementId>>,
 ) -> bool {
     let Some(owner_id) = dependency.get("ownerId").and_then(Value::as_str) else {
         return false;
@@ -1404,6 +1417,11 @@ fn transformation_plan_dependency_available(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    if dependency.get("occurrenceIndex").is_none() {
+        if let Some(runtime_id) = scope.and_then(|scope| scope.get(owner_id)) {
+            return transformation_stage_available(runtime_id, &stage_path, state);
+        }
+    }
     if has_for_group_ancestor(owner_id, state) {
         let Some(expected_count) = state
             .for_group_expected_occurrence_count_by_template_id
@@ -1447,6 +1465,7 @@ fn transformation_recipe_plan_ready(
     scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
     state: &EvaluationState,
     completion: &ElementCompletionFacts<'_>,
+    scope: Option<&HashMap<ElementId, ElementId>>,
 ) -> bool {
     let Some(plan) = state
         .transformation_dependency_plans
@@ -1471,6 +1490,33 @@ fn transformation_recipe_plan_ready(
                     state
                         .completed_transformation_recipe_indices
                         .contains(&(index as usize))
+                        || scope.is_some_and(|scope| {
+                            state
+                                .transformation_dependency_plans
+                                .as_ref()
+                                .and_then(Value::as_array)
+                                .and_then(|plans| {
+                                    plans.iter().find(|prior| {
+                                        prior.get("recipeIndex").and_then(Value::as_u64)
+                                            == Some(index)
+                                    })
+                                })
+                                .and_then(|prior| prior.get("ownerIds"))
+                                .and_then(Value::as_array)
+                                .is_some_and(|owners| {
+                                    owners.iter().all(|owner| {
+                                        owner
+                                            .as_str()
+                                            .and_then(|owner| scope.get(owner))
+                                            .is_some_and(|runtime_id| {
+                                                state
+                                                    .completed_transformation_targets
+                                                    .get(&(index as usize))
+                                                    .is_some_and(|done| done.contains(runtime_id))
+                                            })
+                                    })
+                                })
+                        })
                 })
             })
         })
@@ -1505,7 +1551,9 @@ fn transformation_recipe_plan_ready(
                 .and_then(Value::as_array)
                 .map(|dependencies| {
                     dependencies.iter().all(|dependency| {
-                        transformation_plan_dependency_available(dependency, state, completion)
+                        transformation_plan_dependency_available(
+                            dependency, state, completion, scope,
+                        )
                     })
                 })
                 .unwrap_or(true)
@@ -1828,12 +1876,11 @@ fn execute_transformation_invocation(
 
 fn execute_transformation_recipes_through(
     recipes: &[Value],
-    _next_recipe_index: &mut usize,
-    _source_order: f64,
     numeric_entries_by_element_id: &HashMap<ElementId, Vec<ValidatedNumericBinding>>,
     scalar_binding_resolver: Option<&dyn ScalarDocumentBindingResolver>,
     completion: &ElementCompletionFacts<'_>,
     state: &mut EvaluationState,
+    scope: Option<&HashMap<ElementId, ElementId>>,
 ) {
     for (recipe_index, recipe) in recipes.iter().enumerate() {
         if state
@@ -1842,11 +1889,27 @@ fn execute_transformation_recipes_through(
         {
             continue;
         }
+        let source_targets = recipe
+            .get("targets")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if scope.is_some_and(|scope| {
+            source_targets.iter().any(|target| {
+                target
+                    .get("ownerId")
+                    .and_then(Value::as_str)
+                    .map_or(true, |owner| !scope.contains_key(owner))
+            })
+        }) {
+            continue;
+        }
         if !transformation_recipe_plan_ready(
             recipe_index,
             scalar_binding_resolver,
             state,
             completion,
+            scope,
         ) {
             continue;
         }
@@ -1855,15 +1918,24 @@ fn execute_transformation_recipes_through(
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        if source_targets
-            .iter()
-            .any(|target| !transformation_plan_dependency_available(target, state, completion))
-        {
+        if source_targets.iter().any(|target| {
+            !transformation_plan_dependency_available(target, state, completion, scope)
+        }) {
             continue;
         }
         let targets = source_targets
             .iter()
-            .map(|target| runtime_transformation_targets(recipe, target, state))
+            .map(|target| {
+                runtime_transformation_targets(recipe, target, state, scope)
+                    .into_iter()
+                    .filter(|target| {
+                        !state
+                            .completed_transformation_targets
+                            .get(&recipe_index)
+                            .is_some_and(|done| done.contains(&target.runtime_owner_id))
+                    })
+                    .collect::<Vec<_>>()
+            })
             .collect::<Vec<_>>();
         if targets.iter().flatten().any(|target| {
             if target.stage_path.is_empty()
@@ -1891,10 +1963,17 @@ fn execute_transformation_recipes_through(
             // Empty bulk selections are resolved no-ops. A missing indexed
             // occurrence has already emitted its diagnostic and must not be
             // retried at every scheduler boundary.
-            state
-                .completed_transformation_recipe_indices
-                .insert(recipe_index);
+            if scope.is_none() {
+                state
+                    .completed_transformation_recipe_indices
+                    .insert(recipe_index);
+            }
         } else if !targets.is_empty() {
+            let runtime_ids = targets
+                .iter()
+                .flatten()
+                .map(|target| target.runtime_owner_id.clone())
+                .collect::<Vec<_>>();
             if recipe.get("construction").and_then(Value::as_str) == Some("edge")
                 && targets.iter().any(|targets| targets.len() > 1)
             {
@@ -1939,8 +2018,15 @@ fn execute_transformation_recipes_through(
                 );
             }
             state
-                .completed_transformation_recipe_indices
-                .insert(recipe_index);
+                .completed_transformation_targets
+                .entry(recipe_index)
+                .or_default()
+                .extend(runtime_ids);
+            if scope.is_none() {
+                state
+                    .completed_transformation_recipe_indices
+                    .insert(recipe_index);
+            }
         }
     }
 }
@@ -2136,6 +2222,7 @@ fn evaluate_document_input_with_scalar_program(
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans,
         computed_geometry_values: HashMap::new(),
         geometry_input_targets,
@@ -2445,7 +2532,6 @@ fn evaluate_document_input_with_scalar_program(
         );
 
     let mut evaluated_geometry_value_entries = vec![false; geometry_value_program.len()];
-    let mut next_transformation_recipe_index = 0usize;
     let empty_geometry_value_resolver = geometry_value_runtime::EmptyBindingResolver;
     let geometry_value_index_by_endpoint_id = geometry_value_program
         .iter()
@@ -2455,7 +2541,13 @@ fn evaluate_document_input_with_scalar_program(
     let geometry_value_selector_spans_by_endpoint_id = geometry_value_program
         .iter()
         .filter_map(|entry| {
-            let selector_spans = geometry_value_runtime::geometry_value_selector_spans(entry);
+            let selector_spans = if entry.occurrence.instance_path.is_empty() {
+                geometry_value_runtime::geometry_value_selector_spans(entry)
+            } else {
+                // All scalar inputs of a Module geometry value must retain
+                // their canonical binding prerequisites, not only selectors.
+                vec![(0, usize::MAX)]
+            };
             (!selector_spans.is_empty()).then(|| {
                 (
                     geometry_value_endpoint_id(&entry.occurrence),
@@ -2591,42 +2683,46 @@ fn evaluate_document_input_with_scalar_program(
     );
     let mut binding_prerequisites_by_id =
         project_binding_prerequisites(&conditional_branch_selections, &binding_execution_positions);
-    let ready_binding_ids_for_source_order = |source_order: usize,
-                                              branch_selections: &HashMap<String, String>,
-                                              state: &EvaluationState,
-                                              execution_positions: &HashMap<String, f64>,
-                                              evaluated_geometry_values: &[bool],
-                                              resolver: Option<
-        &dyn ScalarDocumentBindingResolver,
-    >| {
-        let Some(resolver) = resolver else {
-            return HashSet::new();
-        };
-        let candidate_binding_ids = binding_versions
-            .as_ref()
-            .into_iter()
-            .flat_map(|versions| &versions.versions)
-            .filter(|version| {
-                version.source_order < source_order
-                    && execution_positions.contains_key(&version.binding_id)
-            })
-            .map(|version| version.binding_id.clone())
-            .collect::<Vec<_>>();
-        conditional_dependency_graph
-            .as_ref()
-            .map(|graph| {
-                graph.ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
-                    candidate_binding_ids: &candidate_binding_ids,
-                    source_order_by_binding_id: &binding_source_order_by_id,
-                    branch_selections,
-                    resolver,
-                    state,
-                    evaluated_geometry_values,
-                    geometry_value_index_by_endpoint_id: &geometry_value_index_by_endpoint_id,
+    let ready_binding_ids_for_source_order =
+        |source_order: usize,
+         branch_selections: &HashMap<String, String>,
+         state: &EvaluationState,
+         execution_positions: &HashMap<String, f64>,
+         evaluated_geometry_values: &[bool],
+         resolver: Option<&dyn ScalarDocumentBindingResolver>,
+         completed: &HashSet<ElementId>| {
+            let Some(resolver) = resolver else {
+                return HashSet::new();
+            };
+            let candidate_binding_ids = binding_versions
+                .as_ref()
+                .into_iter()
+                .flat_map(|versions| &versions.versions)
+                .filter(|version| {
+                    version.source_order < source_order
+                        && execution_positions.contains_key(&version.binding_id)
                 })
-            })
-            .unwrap_or_default()
-    };
+                .map(|version| version.binding_id.clone())
+                .collect::<Vec<_>>();
+            conditional_dependency_graph
+                .as_ref()
+                .map(|graph| {
+                    graph.ready_dependency_scheduled_binding_ids(
+                        DependencyScheduledBindingReadiness {
+                            candidate_binding_ids: &candidate_binding_ids,
+                            source_order_by_binding_id: &binding_source_order_by_id,
+                            branch_selections,
+                            resolver,
+                            state,
+                            completed_element_ids: Some(completed),
+                            evaluated_geometry_values,
+                            geometry_value_index_by_endpoint_id:
+                                &geometry_value_index_by_endpoint_id,
+                        },
+                    )
+                })
+                .unwrap_or_default()
+        };
     let execution_position_for_source_order =
         |source_order: usize,
          current_position: Option<f64>,
@@ -2710,6 +2806,7 @@ fn evaluate_document_input_with_scalar_program(
                         &geometry_value_endpoint_id(&entry.occurrence),
                         &conditional_branch_selections,
                         &state,
+                        Some(&completed_element_ids),
                     ) {
                         release_allowed[index] = false;
                     }
@@ -2732,6 +2829,7 @@ fn evaluate_document_input_with_scalar_program(
                 &binding_execution_positions,
                 &evaluated_geometry_value_entries,
                 readiness_resolver,
+                &completed_element_ids,
             );
             let dependency_execution_position = execution_position_for_source_order(
                 source_order,
@@ -2824,6 +2922,7 @@ fn evaluate_document_input_with_scalar_program(
                             &binding_execution_positions,
                             &evaluated_geometry_value_entries,
                             readiness_resolver,
+                            &completed_element_ids,
                         );
                         let dependency_execution_position = dependency_rank_by_endpoint_id
                             .get(&candidate.source_endpoint_id)
@@ -2870,6 +2969,7 @@ fn evaluate_document_input_with_scalar_program(
                                 &state,
                                 &evaluated_geometry_value_entries,
                                 &geometry_value_index_by_endpoint_id,
+                                Some(&completed_element_ids),
                             )
                         })
                     {
@@ -3013,6 +3113,7 @@ fn evaluate_document_input_with_scalar_program(
                         &geometry_value_endpoint_id(&entry.occurrence),
                         &conditional_branch_selections,
                         &state,
+                        Some(&completed_element_ids),
                     ) {
                         geometry_value_release_allowed[index] = false;
                     }
@@ -3035,6 +3136,7 @@ fn evaluate_document_input_with_scalar_program(
                 &binding_execution_positions,
                 &evaluated_geometry_value_entries,
                 readiness_resolver,
+                &completed_element_ids,
             );
             let dependency_execution_position = execution_position_for_source_order(
                 source_order,
@@ -3119,8 +3221,6 @@ fn evaluate_document_input_with_scalar_program(
             ($source_order:expr) => {
                 execute_transformation_recipes_through(
                     &transformation_recipes,
-                    &mut next_transformation_recipe_index,
-                    $source_order,
                     &numeric_entries_by_element_id,
                     scalar_mutation_resolver
                         .as_ref()
@@ -3135,6 +3235,7 @@ fn evaluate_document_input_with_scalar_program(
                         failed: &failed_element_ids,
                     },
                     &mut state,
+                    None,
                 )
             };
         }
@@ -3327,6 +3428,7 @@ fn evaluate_document_input_with_scalar_program(
                 let mut environment = resolver.begin_for_group_environment();
                 let mut runtime = ForGroupExecutionRuntime::new(
                     &original_elements,
+                    &transformation_recipes,
                     &base_effective_enabled_ids,
                     &entries_by_element_id,
                     &numeric_entries_by_element_id,
@@ -3375,6 +3477,7 @@ fn evaluate_document_input_with_scalar_program(
 
             let mut generic_runtime = GenericForGroupRuntime::new(
                 &original_elements,
+                &transformation_recipes,
                 &base_effective_enabled_ids,
                 &entries_by_element_id,
                 &numeric_entries_by_element_id,
@@ -3531,8 +3634,6 @@ fn evaluate_document_input_with_scalar_program(
             });
     execute_transformation_recipes_through(
         &transformation_recipes,
-        &mut next_transformation_recipe_index,
-        f64::INFINITY,
         &numeric_entries_by_element_id,
         final_scalar_binding_resolver,
         &ElementCompletionFacts {
@@ -3540,6 +3641,7 @@ fn evaluate_document_input_with_scalar_program(
             failed: &failed_element_ids,
         },
         &mut state,
+        None,
     );
     while evaluated_geometry_value_entries
         .iter()
@@ -3568,6 +3670,7 @@ fn evaluate_document_input_with_scalar_program(
             &binding_execution_positions,
             &evaluated_geometry_value_entries,
             readiness_resolver,
+            &completed_element_ids,
         );
         let made_progress = if let Some(resolver) = scalar_mutation_resolver.as_mut() {
             resolver.advance_before_with_geometry_values(
@@ -3700,6 +3803,7 @@ fn evaluate_document_input_with_scalar_program(
         &binding_execution_positions,
         &evaluated_geometry_value_entries,
         final_readiness_resolver,
+        &completed_element_ids,
     );
     let (mut computed_scalar_bindings, mut computed_scalar_binding_versions) =
         if let Some(resolver) = scalar_mutation_resolver.as_mut() {

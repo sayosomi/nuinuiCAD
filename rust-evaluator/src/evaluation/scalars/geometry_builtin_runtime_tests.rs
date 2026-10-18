@@ -48,6 +48,7 @@ fn state_with_geometry(
     }
     EvaluationState {
         completed_transformation_recipe_indices: std::collections::HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),

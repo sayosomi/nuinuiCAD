@@ -15,6 +15,7 @@ use crate::evaluation::types::element_name;
 
 pub(super) struct GenericForGroupRuntime<'a> {
     original_elements: &'a [Value],
+    transformation_recipes: &'a [Value],
     base_effective_enabled_ids: &'a HashSet<ElementId>,
     entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedPropertyBinding>>,
     numeric_entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedNumericBinding>>,
@@ -35,6 +36,7 @@ impl<'a> GenericForGroupRuntime<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         original_elements: &'a [Value],
+        transformation_recipes: &'a [Value],
         base_effective_enabled_ids: &'a HashSet<ElementId>,
         entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedPropertyBinding>>,
         numeric_entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedNumericBinding>>,
@@ -52,6 +54,7 @@ impl<'a> GenericForGroupRuntime<'a> {
     ) -> Self {
         Self {
             original_elements,
+            transformation_recipes,
             base_effective_enabled_ids,
             entries_by_element_id,
             numeric_entries_by_element_id,
@@ -363,6 +366,17 @@ impl<'a> GenericForGroupRuntime<'a> {
                 state,
             ),
         }
+        execute_transformation_recipes_through(
+            self.transformation_recipes,
+            self.numeric_entries_by_element_id,
+            active_resolver,
+            &ElementCompletionFacts {
+                completed: &HashSet::new(),
+                failed: &HashSet::new(),
+            },
+            state,
+            Some(ancestor_element_id_map),
+        );
     }
 
     fn record_effective_show_generated(

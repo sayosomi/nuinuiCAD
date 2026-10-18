@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -137,7 +137,7 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
 
   afterAll(() => rustStdio?.dispose());
 
-  it("lowers the minimal indexed drawable reproducer and keeps normal host fallback", async () => {
+  it("lowers the minimal indexed drawable reproducer and dispatches production Rust", async () => {
     const fixture = fixtureFromSource([
       "nui 1",
       "for i in range(min: 0, max: 1, step: 1) {",
@@ -172,20 +172,19 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
       });
     }
 
-    // The production host keeps this fixture on its existing reference route;
-    // direct Rust stdio above independently verifies Rust's shared input contract.
-    expect(isRustEligibleFixture(fixture)).toBe(false);
+    // The production host admits the same canonical occurrence input.
+    expect(isRustEligibleFixture(fixture)).toBe(true);
     const hostTransport = vi.fn<RustEvaluationTransport>((input) => rustStdio.evaluateInput(input));
     const { result: host } = renderHook(() => useEvaluationEngine(fixture.elements, options, 1, hostTransport));
-    expect(host.current.rustEligible).toBe(false);
-    expect(host.current.source).toBe("reference");
+    expect(host.current.rustEligible).toBe(true);
+    await waitFor(() => expect(host.current.source).toBe("rust"));
     expect(host.current.evaluation.errors).toEqual([]);
-    expect(host.current.evaluation.computedGeometry.get(elementNamed(fixture, "Use").id)).toMatchObject({
+    await waitFor(() => expect(host.current.evaluation.computedGeometry.get(elementNamed(fixture, "Use").id)).toMatchObject({
       kind: "line",
       start: { x: 1, y: 2 },
       end: { x: 0, y: 0 }
-    });
-    expect(hostTransport).not.toHaveBeenCalled();
+    }));
+    expect(hostTransport).toHaveBeenCalledTimes(1);
   }, 30_000);
 
   it("selects the requested occurrences for two consumers of a numeric-carry loop", async () => {
@@ -427,7 +426,7 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
       "line Use = segment(start: @Observe[1].start, end: (0, 0))"
     ].join("\n"));
     expectCompiledWithoutErrors(fixture);
-    expect(isRustEligibleFixture(fixture)).toBe(false);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
     expect(geometryTargetsFor(fixture, "Observe")).toEqual(
       expect.arrayContaining([expect.objectContaining({ kind: "collectionIndex" })])
     );
@@ -462,14 +461,14 @@ describe("statement-for drawable occurrence targets through persistent Rust stdi
 
     const hostTransport = vi.fn<RustEvaluationTransport>((input) => rustStdio.evaluateInput(input));
     const { result: host } = renderHook(() => useEvaluationEngine(fixture.elements, options, 1, hostTransport));
-    expect(host.current.rustEligible).toBe(false);
-    expect(host.current.source).toBe("reference");
+    expect(host.current.rustEligible).toBe(true);
+    await waitFor(() => expect(host.current.source).toBe("rust"));
     expect(host.current.evaluation.errors).toEqual([]);
-    expect(geometryFor(fixture, host.current.evaluation, "Use")).toMatchObject({
+    await waitFor(() => expect(geometryFor(fixture, host.current.evaluation, "Use")).toMatchObject({
       kind: "line",
       start: { x: 3, y: 2 }
-    });
-    expect(hostTransport).not.toHaveBeenCalled();
+    }));
+    expect(hostTransport).toHaveBeenCalledTimes(1);
   }, 30_000);
 
   it("carries three refreshed mapped geometry snapshots across outer iterations", async () => {

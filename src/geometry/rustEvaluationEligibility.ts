@@ -108,6 +108,9 @@ const referencesRustSupportedLineTargetValue = (
   target: GeometryInputTarget,
   elementsById: ReadonlyMap<ElementId, CadElement>
 ): boolean => {
+  if (target.kind === "forGroupOccurrence") return (
+    (target.geometryType === "line" || target.geometryType === "path") &&
+    referencesRustSupportedLine(target.templateElementId, elementsById));
   if (target.kind === "geometryValue") {
     return target.geometryType === "line" || target.geometryType === "path";
   }
@@ -179,6 +182,10 @@ const referencesRustSupportedPointTargetValue = (
   target: GeometryInputTarget,
   elementsById: ReadonlyMap<ElementId, CadElement>
 ): boolean => {
+  if (target.kind === "forGroupOccurrence") return target.geometryType === "point" &&
+    referencesRustSupportedPointAnchor(target.pointKey
+      ? { mode: "derived", elementId: target.templateElementId, pointKey: target.pointKey }
+      : { mode: "reference", pointId: target.templateElementId }, elementsById);
   if (target.kind === "coordinate") return true;
   if (target.kind === "geometryValue") return target.geometryType === "point";
   if (target.kind === "geometryCarry") return target.geometryType === "point";
@@ -231,7 +238,7 @@ const hasRustSupportedDeferredPointTarget = (
   if (!target) return false;
   const candidates = Array.isArray(target) ? target : [target];
   return candidates.length > 0 && candidates.every((candidate) =>
-    (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry") &&
+    (candidate.kind === "collectionIndex" || candidate.kind === "collectionValue" || candidate.kind === "geometryValue" || candidate.kind === "geometryValueMap" || candidate.kind === "geometryCarry" || candidate.kind === "forGroupOccurrence") &&
     referencesRustSupportedPointTargetValue(candidate, elementsById)
   );
 };
@@ -452,7 +459,7 @@ const canUseRustEvaluationForElement = (
     return element.pathIds.every((pathId) => referencesRustSupportedLine(pathId, elementsById));
   }
   if (element.type === "splitLine") {
-    return referencesRustSupportedLine(element.baseLineId, elementsById);
+    return referencesRustSupportedLineTarget(element.baseLineId, element, "baseLineId", options, elementsById);
   }
   if (element.type === "edge") {
     return (

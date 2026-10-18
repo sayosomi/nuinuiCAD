@@ -655,6 +655,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             drawable_line(30.0, 2.0, 40.0, 2.0),
         )]),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::from([(
@@ -942,6 +943,7 @@ fn geometry_references_project_selected_drawable_stages_and_immutable_aliases() 
             ),
         ]),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),
@@ -1308,6 +1310,7 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values,

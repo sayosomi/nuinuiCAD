@@ -146,6 +146,7 @@ fn split_consumes_selected_stage_and_publishes_near_side_to_drawable_owner() {
         base_transformation_geometry: HashMap::from([(owner.clone(), base_geometry)]),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),

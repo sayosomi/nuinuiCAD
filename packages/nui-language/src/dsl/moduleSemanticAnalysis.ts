@@ -6514,21 +6514,29 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   for (const request of input.geometryCarryNextConstructions ?? []) {
     const source = input.logicalTextByStatementIndex?.get(request.statementIndex) ?? "";
     const raw = source.slice(request.span.start, request.span.end);
-    const construction = parseGeometryValueConstruction(
+    const options = {
+      scalarResolver: (reference: { name: string; span: DslSpan }) => input.resolveGeometryCarryNextScalar?.({
+        statementIndex: request.statementIndex,
+        name: reference.name,
+        span: reference.span
+      }) ?? resolveSourceScalar(request.statementIndex, null, reference.name, null, reference.span)
+    };
+    const initializer = parseDslSourceReference(raw.trim()).kind === "valid"
+      ? resolveGeometry(request.statementIndex, null, raw, request.span,
+          request.expectedInterfaceType === "point" ? "point" : "line", {
+            ...options,
+            expectedInterfaceType: request.expectedInterfaceType
+          })
+      : null;
+    const construction = initializer ? null : parseGeometryValueConstruction(
       request.statementIndex,
       null,
       raw,
       request.span,
       request.expectedInterfaceType,
-      {
-        scalarResolver: (reference) => input.resolveGeometryCarryNextScalar?.({
-          statementIndex: request.statementIndex,
-          name: reference.name,
-          span: reference.span
-        }) ?? resolveSourceScalar(request.statementIndex, null, reference.name, null, reference.span)
-      }
+      options
     );
-    if (!construction) continue;
+    if (!construction && initializer?.resolution !== "resolved" && initializer?.resolution !== "deferred") continue;
     geometryCarryNextValues.push({
       statementId: request.statementId,
       statementIndex: request.statementIndex,
@@ -6538,7 +6546,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ownerModuleDefinitionStatementId: null,
       ownerModuleDefinitionStatementIndex: null,
       exported: false,
-      initializer: null,
+      initializer,
       construction,
       valueExpression: null,
       backingTarget: null
