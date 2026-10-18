@@ -1173,7 +1173,7 @@ export type ModuleSemanticAnalysisInput = {
   spans: import("./dslDiagnosticSpan").DiagnosticSpanContext;
   logicalTextByStatementIndex?: ReadonlyMap<number, string>;
   documentScalarBindings?: ReadonlyMap<number, { bindingId: BindingId; statementId: StatementIdentity }>;
-  /** Geometry-valued carry-next constructor leaves discovered by the root
+  /** Geometry-valued carry-next construction and indexed/qualified reference leaves discovered by the root
    * compiler. They reuse this semantic pass's construction and reference
    * resolution without becoming declarations in the source namespace. */
   geometryCarryNextConstructions?: readonly {

@@ -27,6 +27,7 @@ import type { RecordFieldIdentity } from "./recordSemanticAnalysis";
 import { isDslGeometryValueType } from "./dslValueTypes";
 
 export type GeometryAlias =
+  | Extract<GeometryInputTarget, { kind: "geometryCarry" }>
   | { kind: "line"; elementId: ElementId; interfaceType?: "line" | "path"; stagePath?: readonly string[] }
   | { kind: "point"; anchor: PointAnchor; coordinate?: ModulePointCoordinateSemantic; stagePath?: readonly string[] }
   | { kind: "value"; occurrence: GeometryValueOccurrence; geometryType: "point" | "line"; interfaceType: "point" | "line" | "path"; pointKey?: string; stagePath?: readonly string[] }
@@ -276,6 +277,7 @@ export const lowerAliasWithPointKey = (alias: GeometryAlias, pointKey: string | 
     return pointKey ? undefined : alias;
   }
   if (!pointKey) return alias;
+  if (alias.kind === "geometryCarry") return { ...alias, pointKey };
   if (alias.kind === "value" || alias.kind === "mappedValue") return { ...alias, geometryType: "point", pointKey };
   if (alias.kind !== "line") return undefined;
   return { kind: "point", anchor: { ...derivedAnchor(alias.elementId, pointKey), ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) }, stagePath: alias.stagePath };
@@ -295,6 +297,7 @@ export const lowerAliasWithStagePath = (alias: GeometryAlias, stagePath: readonl
 };
 
 export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" } | { kind: "forGroupOccurrence" }> | GeometryValueMapPendingTarget | null => {
+  if (alias.kind === "geometryCarry") return alias;
   if (alias.kind === "collectionIndex") return null;
   if (alias.kind === "line") {
     return { kind: "drawable", elementId: alias.elementId, geometryType: alias.interfaceType ?? "line", ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) };
@@ -336,6 +339,7 @@ export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<Geome
 };
 
 export const pointAnchorForAlias = (alias: GeometryAlias): PointAnchor | null => {
+  if (alias.kind === "geometryCarry") return null;
   if (alias.kind === "collectionIndex") return null;
   if (alias.kind === "point") return alias.stagePath && alias.anchor.mode !== "coordinate"
     ? { ...alias.anchor, stagePath: alias.stagePath }
@@ -375,6 +379,10 @@ export const propertyForAlias = (
   property: string,
   elementsById: ReadonlyMap<ElementId, CadElement>
 ): ModuleGeometryPropertyRuntimeTarget | undefined => {
+  if (alias.kind === "geometryCarry") return {
+    kind: "carry", bindingId: alias.bindingId, property, targetSourceOrder: -1,
+    ...(alias.pointKey ? { pointKey: alias.pointKey } : {})
+  };
   if (alias.kind === "value") {
     return {
       kind: "value",
@@ -467,6 +475,12 @@ export const sourceAliasForTarget = (
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>,
   rootRecordValuesByStatementId: ReadonlyMap<string, ModuleRecordValueSemantic> = new Map()
 ): GeometryAlias | undefined => {
+  const carry = geometryCarrySourceForTarget(target, currentPath, contextsByPath);
+  if (carry) return {
+    kind: "geometryCarry", bindingId: moduleCarryBindingIdFor(carry.instancePath, carry.bindingId),
+    geometryType: carry.geometryKind, ...(carry.pointKey ? { pointKey: carry.pointKey } : {}),
+    ...(carry.stagePath ? { stagePath: carry.stagePath } : {})
+  };
   const childContextFor = (statementId: string, documentId?: import("../document/multiDocumentPrimitives").DocumentId) =>
     [...contextsByPath.values()].find((context) =>
       context.path.length === currentPath.length + 1 &&
@@ -669,10 +683,8 @@ export type GeometryCarrySource = Extract<ModuleGeometrySourceTarget, { kind: "g
   instancePath: readonly string[];
 };
 
-/** Resolve only compiler-owned forwarding chains that terminate at a carry.
- * Carry aliases are intentionally not GeometryAlias values: they have no
- * drawable identity, but geometry builtins can still consume their binding
- * identity directly. */
+/** Resolve compiler-owned forwarding chains to their exact carry binding and
+ * instance path. Collection aliases transport the same identity as builtins. */
 export const geometryCarrySourceForTarget = (
   target: ModuleGeometrySourceTarget,
   currentPath: readonly string[],
@@ -704,6 +716,15 @@ export const geometryCarrySourceForTarget = (
     }
     if (current.kind === "constructionInput" && current.sourceTarget) {
       return visit(current.sourceTarget, path, nextInherited, seen);
+    }
+    if (current.kind === "parameter") {
+      const context = contextsByPath.get(pathKey(path));
+      const binding = context?.instance.parameterBindings.find(candidate => candidate.parameterIndex === current.parameterIndex);
+      const target = binding?.value?.kind === "geometry" ? binding.value.reference.target : undefined;
+      const key = encodeIdentityTuple(["carry-parameter", ...path, String(current.parameterIndex)]);
+      return target && !seen.has(key)
+        ? visit(target, path.slice(0, -1), nextInherited, new Set([...seen, key]))
+        : undefined;
     }
     if (current.kind !== "deferredModuleExport") return undefined;
 

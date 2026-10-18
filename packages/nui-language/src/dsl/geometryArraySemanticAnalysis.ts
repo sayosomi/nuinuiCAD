@@ -40,6 +40,7 @@ import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdenti
 import type { TransformationStageSelection } from "./transformationRecipes";
 
 export type GeometryArraySourceTarget =
+  | { kind: "geometryCarry"; bindingId: string; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string }
   | { kind: "geometry"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
   | { kind: "geometryValue"; statementId: string; statementIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
   | { kind: "moduleParameter"; definitionStatementId: string; parameterIndex: number; interfaceType: ModuleGeometryInterfaceType; pointKey?: string; stagePath?: readonly string[] }
@@ -778,6 +779,19 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
                 ...(pointKey ? { pointKey } : {}),
                 ...(stageSelection ? { stagePath: stageSelection.stagePath } : {})
               }
+            }
+          };
+        }
+        if (lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+          const carry = lookup.declaration.statement.forCarries?.find(carry => carry.name === lookup.declaration.name);
+          const type = dslRequiredValueTypeOf(carry?.valueType);
+          if (type && isDslGeometryValueType(type)) return {
+            kind: "resolved",
+            value: {
+              interfaceType: pointKey ? "point" : type.kind,
+              target: { kind: "geometryCarry", bindingId: bindingIdForStableStatementId(lookup.declaration.statementId),
+                statementId: lookup.declaration.statementId, statementIndex: lookup.declaration.statementIndex,
+                interfaceType: type.kind, ...(pointKey ? { pointKey } : {}) }
             }
           };
         }

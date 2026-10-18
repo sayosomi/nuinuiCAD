@@ -3184,7 +3184,9 @@ export const compileModuleScalarRuntime = ({
     }))
   );
   const documentIterationBindingForTarget = (target: Extract<ModuleScalarSourceTarget, { kind: "iteration" }>) =>
-    baseCatalog.bindings.find((binding) =>
+    // Statement identity survives dense execution-order remapping; source
+    // positions can already differ when geometry input indices are lowered.
+    bindingsById.get(`binding:iteration:${target.statementId}`) ?? baseCatalog.bindings.find((binding) =>
       binding.kind === "iteration" &&
       binding.statementIndex === target.statementIndex &&
       binding.name === target.name
@@ -5455,7 +5457,7 @@ export const compileModuleScalarRuntime = ({
       if (lowered.kind === "carry") {
         return {
           ...lowered,
-          bindingId: moduleCarryBindingIdFor(context.path, lowered.bindingId),
+          bindingId: lowered.bindingId,
           targetSourceOrder: lowered.targetSourceOrder !== undefined && lowered.targetSourceOrder >= 0
             ? executionPositionForValue(context.path, lowered.targetSourceOrder)
             : lowered.targetSourceOrder
@@ -6517,7 +6519,8 @@ export const compileModuleScalarRuntime = ({
           ? executionPositionForValue(context.path, source.targetSourceOrder)
           : source.targetSourceOrder,
         index: loweredIndex,
-        ...(source.pointKey ? { pointKey: source.pointKey } : {})
+        ...(source.pointKey ? { pointKey: source.pointKey } : {}),
+        ...(source.stagePath ? { stagePath: source.stagePath } : {})
       };
     }
     if (source.kind !== "collectionIndex" || !("target" in source)) return source;

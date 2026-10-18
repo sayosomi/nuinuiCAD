@@ -1422,6 +1422,28 @@ export const buildTypedDependencyGraph = ({
       ...(guards.length ? { activation: { guards } } : {})
     }, occurrenceNamespace);
   };
+  const geometryCarryOwnerByBindingId = new Map<string, TypedDependencyEndpoint>();
+  for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
+    const moduleStatement = moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId);
+    const ownerId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId) ?? moduleStatement?.runtimeElementId;
+    if (!ownerId) continue;
+    const endpoint = elementEndpoint(elementsById, ownerId,
+      moduleStatement?.executionUnitStatementIndex ?? elementStatementIndex.get(ownerId) ?? 0);
+    for (const carry of plan.geometryCarries ?? []) geometryCarryOwnerByBindingId.set(carry.bindingId, endpoint);
+  }
+  const geometryBindingEndpoint = (bindingId: string) => geometryCarryOwnerByBindingId.get(bindingId) ??
+    (bindingAnalysis?.catalog.bindingsById.has(bindingId) ? bindingEndpoint(bindingAnalysis, bindingId) : undefined);
+  if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
+    const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
+    for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
+      const to = reference.geometryCarryBindingId ? geometryBindingEndpoint(reference.geometryCarryBindingId) : undefined;
+      if (to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) add({
+        kind: "geometry-property", from, to, span: reference.span,
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {})
+      });
+    }
+  }
   // An immutable geometry carry is initialized at loop entry. Make its
   // resolved geometry source a prerequisite of the compiled loop execution
   // owner so both evaluators release the same seed first. Module owners join
@@ -1443,10 +1465,11 @@ export const buildTypedDependencyGraph = ({
         addGeometryValueDependency(from, target.occurrence, null, [], namespace);
       } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
         const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-        if (bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+        const to = geometryBindingEndpoint(bindingId);
+        if (to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) add({
           kind: "geometry",
           from,
-          to: bindingEndpoint(bindingAnalysis, bindingId),
+          to,
           span: null,
           requiredness: "required"
         }, namespace);
@@ -1511,11 +1534,12 @@ export const buildTypedDependencyGraph = ({
         addGeometryValueDependency(from, reference.geometryValueOccurrence, reference.span, mergedGuards, occurrenceNamespace);
       } else {
         const bindingId = reference.geometryCarryBindingId ?? reference.geometryValueBinderId;
-        if (bindingId && !ignoredBindingIds.has(bindingId) && bindingAnalysis?.catalog.bindingsById.has(bindingId)) {
+        const to = bindingId ? geometryBindingEndpoint(bindingId) : undefined;
+        if (bindingId && !ignoredBindingIds.has(bindingId) && to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) {
           add({
             kind: "geometry-property",
             from,
-            to: bindingEndpoint(bindingAnalysis, bindingId),
+            to,
             span: reference.span,
             requiredness,
             ...(mergedGuards.length ? { activation: { guards: mergedGuards } } : {})
@@ -1570,10 +1594,11 @@ export const buildTypedDependencyGraph = ({
       addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
     } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
       const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-      if (!ignoredBindingIds.has(bindingId) && bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+      const to = geometryBindingEndpoint(bindingId);
+      if (!ignoredBindingIds.has(bindingId) && to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) add({
         kind: "geometry",
         from,
-        to: bindingEndpoint(bindingAnalysis, bindingId),
+        to,
         span: null,
         requiredness: guards.length ? "conditional" : "required",
         ...(guards.length ? { activation: { guards } } : {})
@@ -1621,10 +1646,10 @@ export const buildTypedDependencyGraph = ({
         occurrenceNamespace
       });
     } else if (target.kind === "geometryCarry") {
-      if (bindingAnalysis?.catalog.bindingsById.has(target.bindingId)) add({
+      if (geometryBindingEndpoint(target.bindingId)) add({
         kind: "geometry",
         from,
-        to: bindingEndpoint(bindingAnalysis, target.bindingId),
+        to: geometryBindingEndpoint(target.bindingId)!,
         span: null,
         requiredness: guards.length ? "conditional" : "required",
         ...(guards.length ? { activation: { guards } } : {})
@@ -1688,10 +1713,10 @@ export const buildTypedDependencyGraph = ({
       addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
     } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
       const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-      if (bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+      if (geometryBindingEndpoint(bindingId)) add({
         kind: "geometry",
         from,
-        to: bindingEndpoint(bindingAnalysis, bindingId),
+        to: geometryBindingEndpoint(bindingId)!,
         span: null,
         requiredness: guards.length ? "conditional" : "required",
         ...(guards.length ? { activation: { guards } } : {})
@@ -1777,6 +1802,18 @@ export const buildTypedDependencyGraph = ({
         return;
       }
       if (target.kind === "forGroupOccurrence") {
+        if (!targetIsOwnedByLoop(target.templateElementId)) {
+          let current = elementsById.get(target.templateElementId);
+          let generationOwner: ElementId | undefined;
+          while (current?.parentGroupId) {
+            current = elementsById.get(current.parentGroupId);
+            if (current?.type === "forGroup") generationOwner = current.id;
+          }
+          if (generationOwner) add({ kind: "geometry", from,
+            to: elementEndpoint(elementsById, generationOwner, elementStatementIndex.get(generationOwner) ?? 0),
+            span: null, requiredness: guards.length ? "conditional" : "required",
+            ...(guards.length ? { activation: { guards } } : {}) }, namespace);
+        }
         if (!targetIsOwnedByLoop(target.templateElementId)) deferredStageEdges.push({
           kind: "geometry",
           from,
@@ -1866,7 +1903,8 @@ export const buildTypedDependencyGraph = ({
     visit(carry.nextTarget, []);
   };
   for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
-    const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId);
+    const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId) ??
+      moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId)?.runtimeElementId;
     if (!ownerElementId) continue;
     for (const carry of plan.geometryCarries ?? []) {
       addImmutableGeometryCarryPlanDependencies(plan, ownerElementId, carry);

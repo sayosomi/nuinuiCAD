@@ -242,7 +242,7 @@ impl ScalarMutationResolver<'_> {
         owner_statement_id: &str,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
         state: &mut EvaluationState,
-        current_source_order: f64,
+        _current_source_order: f64,
     ) -> Result<(), ForGroupExecutionError> {
         for carry in self.immutable_carries_for(owner_statement_id) {
             let initial = self.evaluate_for_group(
@@ -273,7 +273,7 @@ impl ScalarMutationResolver<'_> {
                 if let Ok(value) = resolve_for_group_geometry_carry_target(
                     state,
                     &resolver,
-                    current_source_order,
+                    f64::INFINITY,
                     &carry.initializer,
                 ) {
                     self.install_geometry_carry(state, carry, &value);
@@ -556,7 +556,7 @@ impl ScalarMutationResolver<'_> {
     pub(crate) fn consume_for_group_source_range(
         &mut self,
         owner_statement_id: &str,
-        exit_source_order: usize,
+        _exit_source_order: usize,
     ) {
         while self.next_version_index < self.program.versions.len() {
             let version = &self.program.versions[self.next_version_index];
@@ -571,7 +571,9 @@ impl ScalarMutationResolver<'_> {
                                 == Some(owner_statement_id)
                     })
                 });
-            if version.source_order >= exit_source_order && !belongs_to_owner {
+            // Source ranges can overlap independent Module execution positions.
+            // Only this loop's compiler-owned declarations belong to its cursor.
+            if !belongs_to_owner {
                 break;
             }
             self.next_version_index += 1;

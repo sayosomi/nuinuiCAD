@@ -979,6 +979,7 @@ pub(crate) fn decode_target(
                     "templateElementId",
                     "geometryType",
                     "pointKey",
+                    "stagePath",
                     "targetSourceOrder",
                     "index",
                 ],
@@ -1015,6 +1016,7 @@ pub(crate) fn decode_target(
                     .and_then(Value::as_str)
                     .map(ToOwned::to_owned),
                 target_source_order,
+                stage_path: optional_stage_path(object, context)?,
                 index: index.map(Box::new),
             })
         }
@@ -1750,6 +1752,7 @@ fn materialize_target(
             template_element_id,
             geometry_type,
             point_key,
+            stage_path,
             target_source_order,
             index,
         } => {
@@ -1801,7 +1804,7 @@ fn materialize_target(
                 element_id: row.generated_element_id.clone(),
                 geometry_type: geometry_type.clone(),
                 point_key: point_key.clone(),
-                stage_path: None,
+                stage_path: stage_path.clone(),
             }])
         }
         GeometryInputTarget::CollectionValue {

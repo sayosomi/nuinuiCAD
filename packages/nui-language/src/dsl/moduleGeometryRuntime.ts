@@ -479,7 +479,7 @@ export const buildModuleGeometryRuntime = ({
     if (target.kind === "geometryCarry") {
       return {
         kind: "carry",
-        bindingId: target.bindingId,
+        bindingId: moduleCarryBindingIdFor(instancePath, target.bindingId),
         property: target.property,
         ...(target.pointKey ? { pointKey: target.pointKey } : {}),
         targetSourceOrder: target.statementIndex

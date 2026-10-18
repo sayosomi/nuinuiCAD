@@ -1,0 +1,1060 @@
+[
+  {
+    "id": "S-1-base",
+    "suite": "adjacent",
+    "factors": {
+      "count": 1,
+      "stage": "base"
+    },
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse Local as flipped ()\n next edge = @Local.base\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "expected": 10,
+    "previousExpected": 0,
+    "identity": {
+      "owner": "Local",
+      "carry": "edge",
+      "occurrence": 0,
+      "stage": "base",
+      "endpoint": "start"
+    },
+    "oracle": "CCW arc start=287+i*11, end=38+i*11; tangent radius+90; reversal swaps endpoint axes; incoming previous is iteration-start carry snapshot",
+    "mapsTo": [
+      "A026"
+    ],
+    "adjacentReason": "retained reversal checkpoint (A uses rotation checkpoint), identical immutable carry/occurrence/stage owner"
+  },
+  {
+    "id": "S-1-flipped",
+    "suite": "adjacent",
+    "factors": {
+      "count": 1,
+      "stage": "flipped"
+    },
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse Local as flipped ()\n next edge = @Local.flipped\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "expected": 59,
+    "previousExpected": 0,
+    "identity": {
+      "owner": "Local",
+      "carry": "edge",
+      "occurrence": 0,
+      "stage": "flipped",
+      "endpoint": "start"
+    },
+    "oracle": "CCW arc start=287+i*11, end=38+i*11; tangent radius+90; reversal swaps endpoint axes; incoming previous is iteration-start carry snapshot",
+    "mapsTo": [
+      "A030"
+    ],
+    "adjacentReason": "retained reversal checkpoint (A uses rotation checkpoint), identical immutable carry/occurrence/stage owner"
+  },
+  {
+    "id": "S-2-base",
+    "suite": "adjacent",
+    "factors": {
+      "count": 2,
+      "stage": "base"
+    },
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse Local as flipped ()\n next edge = @Local[@i].base\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "expected": 21,
+    "previousExpected": 10,
+    "identity": {
+      "owner": "Local",
+      "carry": "edge",
+      "occurrence": 1,
+      "stage": "base",
+      "endpoint": "start"
+    },
+    "oracle": "CCW arc start=287+i*11, end=38+i*11; tangent radius+90; reversal swaps endpoint axes; incoming previous is iteration-start carry snapshot",
+    "mapsTo": [
+      "A038"
+    ],
+    "adjacentReason": "retained reversal checkpoint (A uses rotation checkpoint), identical immutable carry/occurrence/stage owner"
+  },
+  {
+    "id": "S-2-flipped",
+    "suite": "adjacent",
+    "factors": {
+      "count": 2,
+      "stage": "flipped"
+    },
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n arc Local = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n reverse Local as flipped ()\n next edge = @Local[@i].flipped\n next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\nconst incoming: number = lineAngle(@previous.start, @Axis.start)\n",
+    "expected": 48,
+    "previousExpected": 59,
+    "identity": {
+      "owner": "Local",
+      "carry": "edge",
+      "occurrence": 1,
+      "stage": "flipped",
+      "endpoint": "start"
+    },
+    "oracle": "CCW arc start=287+i*11, end=38+i*11; tangent radius+90; reversal swaps endpoint axes; incoming previous is iteration-start carry snapshot",
+    "mapsTo": [
+      "A042"
+    ],
+    "adjacentReason": "retained reversal checkpoint (A uses rotation checkpoint), identical immutable carry/occurrence/stage owner"
+  },
+  {
+    "id": "X01-indexed-next",
+    "suite": "adjacent",
+    "source": "nui 1\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  next edge = @G[@i].base\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "factors": {
+      "minimal": "X01-indexed-next"
+    },
+    "identity": {},
+    "oracle": "spec immutable iteration-start snapshot, exact occurrence/stage/Module/collection identity; independent polar axis arithmetic vs 7 degrees",
+    "mapsTo": [
+      "A014"
+    ]
+  },
+  {
+    "id": "X02-stage-next",
+    "suite": "adjacent",
+    "source": "nui 1\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (0, 7), angle: 23, length: 33)\n  move G as chosen (from: (0, 0), to: (0, 0), angleDeg: 13)\n  next edge = @G.chosen\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 29,
+    "factors": {
+      "minimal": "X02-stage-next"
+    },
+    "identity": {},
+    "oracle": "spec immutable iteration-start snapshot, exact occurrence/stage/Module/collection identity; independent polar axis arithmetic vs 7 degrees",
+    "mapsTo": [
+      "A006"
+    ]
+  },
+  {
+    "id": "X03-carry-collection",
+    "suite": "adjacent",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 23, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  next edge = @Seed\n}\nconst Paths: path[] = [@edge]\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@Paths[0].start, @Axis.start)\n",
+    "expected": 16,
+    "factors": {
+      "minimal": "X03-carry-collection"
+    },
+    "identity": {},
+    "oracle": "spec immutable iteration-start snapshot, exact occurrence/stage/Module/collection identity; independent polar axis arithmetic vs 7 degrees",
+    "mapsTo": [
+      "C001"
+    ]
+  },
+  {
+    "id": "X04-module-carry-parameter",
+    "suite": "adjacent",
+    "source": "nui 1\nmodule Forward(source: path) {\n  for tick in range(min: 0, max: 0, step: 1) carry edge: path = @source {\n    next edge = @source\n  }\n  export const out: path = @edge\n}\nline Seed = polar(start: (0, 0), angle: 23, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  next edge = @Seed\n}\ninstance Chosen = Forward(source: @edge)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 16,
+    "factors": {
+      "minimal": "X04-module-carry-parameter"
+    },
+    "identity": {},
+    "oracle": "spec immutable iteration-start snapshot, exact occurrence/stage/Module/collection identity; independent polar axis arithmetic vs 7 degrees",
+    "mapsTo": [
+      "D001"
+    ]
+  },
+  {
+    "id": "X05-occurrence-order",
+    "suite": "adjacent",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  next edge = @G[1].chosen\n}\nfor g in range(min: 0, max: 1, step: 1) {\n  line G = polar(start: (@g * 120, 7), angle: 23 + @g * 11, length: 33)\n  move G as chosen (from: (0, 0), to: (0, 0), angleDeg: 13)\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "minimal": "X05-occurrence-order"
+    },
+    "identity": {},
+    "oracle": "spec immutable iteration-start snapshot, exact occurrence/stage/Module/collection identity; independent polar axis arithmetic vs 7 degrees",
+    "mapsTo": [
+      "D003"
+    ]
+  },
+  {
+    "id": "X06-indexed-recipe",
+    "suite": "adjacent",
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line G = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move G as first (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move G[1] as second (from: (0, 0), to: (0, 0), angleDeg: 17)\n  next edge = @G[@i].final\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 57,
+    "factors": {
+      "minimal": "X06-indexed-recipe"
+    },
+    "identity": {},
+    "oracle": "spec immutable iteration-start snapshot, exact occurrence/stage/Module/collection identity; independent polar axis arithmetic vs 7 degrees",
+    "mapsTo": [
+      "A024"
+    ]
+  },
+  {
+    "id": "K-E001",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E001"
+    ]
+  },
+  {
+    "id": "K-E002",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E002"
+    ]
+  },
+  {
+    "id": "K-E003",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E003"
+    ]
+  },
+  {
+    "id": "K-E004",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E004"
+    ]
+  },
+  {
+    "id": "K-E005",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E005"
+    ]
+  },
+  {
+    "id": "K-E006",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E006"
+    ]
+  },
+  {
+    "id": "K-E007",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E007"
+    ]
+  },
+  {
+    "id": "K-E008",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "index",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "index",
+      "owner": "Generated",
+      "occurrence": 9,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E008"
+    ]
+  },
+  {
+    "id": "K-E009",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E009"
+    ]
+  },
+  {
+    "id": "K-E010",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E010"
+    ]
+  },
+  {
+    "id": "K-E011",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E011"
+    ]
+  },
+  {
+    "id": "K-E012",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E012"
+    ]
+  },
+  {
+    "id": "K-E013",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E013"
+    ]
+  },
+  {
+    "id": "K-E014",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E014"
+    ]
+  },
+  {
+    "id": "K-E015",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E015"
+    ]
+  },
+  {
+    "id": "K-E016",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "stage",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "stage",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E016"
+    ]
+  },
+  {
+    "id": "K-E017",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E017"
+    ]
+  },
+  {
+    "id": "K-E018",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E018"
+    ]
+  },
+  {
+    "id": "K-E019",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E019"
+    ]
+  },
+  {
+    "id": "K-E020",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E020"
+    ]
+  },
+  {
+    "id": "K-E021",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E021"
+    ]
+  },
+  {
+    "id": "K-E022",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E022"
+    ]
+  },
+  {
+    "id": "K-E023",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E023"
+    ]
+  },
+  {
+    "id": "K-E024",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "disabled",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "disabled",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E024"
+    ]
+  },
+  {
+    "id": "K-E025",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E025"
+    ]
+  },
+  {
+    "id": "K-E026",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "start",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E026"
+    ]
+  },
+  {
+    "id": "K-E027",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E027"
+    ]
+  },
+  {
+    "id": "K-E028",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "start",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "start",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E028"
+    ]
+  },
+  {
+    "id": "K-E029",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor g in range(min: 0, max: 1, step: 1) {\n  line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n}\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E029"
+    ]
+  },
+  {
+    "id": "K-E030",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for g in range(min: 0, max: 1, step: 1) {\n    line Generated = polar(start: (0 + @g * 120, 7), angle: 23 + 0 + @g * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  }\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "end",
+      "scheduling": "separate",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E030"
+    ]
+  },
+  {
+    "id": "K-E031",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n  next edge = @Generated[@i].selected\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "root"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "root"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E031"
+    ]
+  },
+  {
+    "id": "K-E032",
+    "suite": "contrast",
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (0 + @i * 120, 7), angle: 23 + 0 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (0, 0), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)\n    next edge = @Generated[@i].selected\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": 40,
+    "factors": {
+      "boundary": "tangent",
+      "endpoint": "end",
+      "scheduling": "same",
+      "context": "module"
+    },
+    "identity": {
+      "boundary": "tangent",
+      "owner": "Generated",
+      "occurrence": 1,
+      "endpoint": "end",
+      "context": "module"
+    },
+    "oracle": "spec.md:669-685,1123-1150,1468-1498,1649-1654; line axis=23; CCW arc radius+90 (17,128); cubic B'(0)=3(P1-P0), B'(1)=3(P3-P2) axes=(34,137); rotations add in authored order; acos(abs(dot(unit axes))) vs 7 degrees; next values commit simultaneously",
+    "mapsTo": [
+      "E032"
+    ]
+  },
+  {
+    "id": "X07-body-index",
+    "suite": "adjacent",
+    "factors": {
+      "boundary": "root geometry input occurrence binding"
+    },
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[@i].base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n  next edge = @G[@i].base\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "identity": {
+      "owner": "Source",
+      "occurrence": 1,
+      "stage": "base",
+      "carry": "edge",
+      "mapsTo": "L-C037"
+    },
+    "oracle": "polar tangent axis 23 + 11*selected occurrence; offset line tangent unchanged; acos(abs(dot(unit axes))) vs 7 degrees"
+  },
+  {
+    "id": "K-X07-literal",
+    "suite": "contrast",
+    "factors": {
+      "boundary": "root geometry input occurrence binding"
+    },
+    "source": "nui 1\nline Seed = polar(start: (0, 0), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[0].base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n  next edge = @G[@i].base\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 16,
+    "identity": {
+      "owner": "Source",
+      "occurrence": 0,
+      "stage": "base",
+      "carry": "edge",
+      "mapsTo": "L-C037"
+    },
+    "oracle": "polar tangent axis 23 + 11*selected occurrence; offset line tangent unchanged; acos(abs(dot(unit axes))) vs 7 degrees"
+  },
+  {
+    "id": "X08-body-index-minimal",
+    "suite": "adjacent",
+    "factors": {
+      "boundary": "geometry input index/stage transport"
+    },
+    "source": "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[@i]], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@G[1].start, @Axis.start)\n",
+    "expected": 27,
+    "identity": {
+      "owner": "Source",
+      "occurrence": 1,
+      "stage": "final",
+      "mapsTo": "L-C037"
+    },
+    "oracle": "line tangent axis=23+11*occurrence, evaluated parallel offset preserves tangent, acos(abs(dot)) vs7; isolates input index and stage transport without carry"
+  },
+  {
+    "id": "K-X08-literal",
+    "suite": "contrast",
+    "factors": {
+      "boundary": "geometry input index/stage transport"
+    },
+    "source": "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[0]], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@G[1].start, @Axis.start)\n",
+    "expected": 16,
+    "identity": {
+      "owner": "Source",
+      "occurrence": 0,
+      "stage": "final",
+      "mapsTo": "L-C037"
+    },
+    "oracle": "line tangent axis=23+11*occurrence, evaluated parallel offset preserves tangent, acos(abs(dot)) vs7; isolates input index and stage transport without carry"
+  },
+  {
+    "id": "X09-stage-wire",
+    "suite": "adjacent",
+    "factors": {
+      "boundary": "geometry input index/stage transport"
+    },
+    "source": "nui 1\nfor i in range(min: 0, max: 1, step: 1) {\n  line Source = polar(start: (0, 0), angle: 23 + @i * 11, length: 33)\n  line G = offset(sources: [@Source[0].base], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n}\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@G[1].start, @Axis.start)\n",
+    "expected": 16,
+    "identity": {
+      "owner": "Source",
+      "occurrence": 0,
+      "stage": "base",
+      "mapsTo": "L-C037"
+    },
+    "oracle": "line tangent axis=23+11*occurrence, evaluated parallel offset preserves tangent, acos(abs(dot)) vs7; isolates input index and stage transport without carry"
+  },
+  {
+    "id": "X10-module-property-carry",
+    "suite": "adjacent",
+    "factors": {
+      "boundary": "Module carry identity through geometry property"
+    },
+    "source": "nui 1\nmodule Forward(source: path) {\n  const direction: number = @source.startAngleDeg\n  export const out: path = polar(start: (0, 0), angle: @direction, length: 33)\n}\nline Seed = polar(start: (0, 0), angle: 23, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  next edge = @Seed\n}\ninstance Chosen = Forward(source: @edge)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 16,
+    "identity": {
+      "owner": "Seed",
+      "carry": "edge",
+      "instance": "Chosen",
+      "mapsTo": "B004"
+    },
+    "oracle": "polar tangent axis23 forwarded through startAngleDeg to identical polar path; directionless difference from axis7 is16 degrees"
+  },
+  {
+    "id": "K-X10-drawable",
+    "suite": "contrast",
+    "factors": {
+      "boundary": "Module carry identity through geometry property"
+    },
+    "source": "nui 1\nmodule Forward(source: path) {\n  const direction: number = @source.startAngleDeg\n  export const out: path = polar(start: (0, 0), angle: @direction, length: 33)\n}\nline Seed = polar(start: (0, 0), angle: 23, length: 33)\nfor i in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n  next edge = @Seed\n}\ninstance Chosen = Forward(source: @Seed)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 16,
+    "identity": {
+      "owner": "Seed",
+      "carry": "edge",
+      "instance": "Chosen",
+      "mapsTo": "B004"
+    },
+    "oracle": "polar tangent axis23 forwarded through startAngleDeg to identical polar path; directionless difference from axis7 is16 degrees"
+  },
+  {
+    "id": "K-X10-no-loop",
+    "suite": "contrast",
+    "factors": {
+      "boundary": "Module carry identity through geometry property"
+    },
+    "source": "nui 1\nmodule Forward(source: path) {\n  const direction: number = @source.startAngleDeg\n  export const out: path = polar(start: (0, 0), angle: @direction, length: 33)\n}\nline Seed = polar(start: (0, 0), angle: 23, length: 33)\ninstance Chosen = Forward(source: @Seed)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 16,
+    "identity": {
+      "owner": "Seed",
+      "carry": "edge",
+      "instance": "Chosen",
+      "mapsTo": "B004"
+    },
+    "oracle": "polar tangent axis23 forwarded through startAngleDeg to identical polar path; directionless difference from axis7 is16 degrees"
+  },
+  {
+    "id": "K-X10-literal",
+    "suite": "contrast",
+    "factors": {
+      "boundary": "Module carry identity through geometry property"
+    },
+    "source": "nui 1\nmodule Forward(source: path) {\n  export const out: path = polar(start: (0, 0), angle: 23, length: 33)\n}\nline Seed = polar(start: (0, 0), angle: 23, length: 33)\ninstance Chosen = Forward(source: @Seed)\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": 16,
+    "identity": {
+      "owner": "Seed",
+      "carry": "edge",
+      "instance": "Chosen",
+      "mapsTo": "B004"
+    },
+    "oracle": "polar tangent axis23 forwarded through startAngleDeg to identical polar path; directionless difference from axis7 is16 degrees"
+  }
+]

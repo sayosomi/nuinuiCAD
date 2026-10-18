@@ -375,8 +375,8 @@ impl<'a> ScalarMutationResolver<'a> {
             }
             // Root selectors retain the established SAY-501 schedule. A
             // Module occurrence can reach this release pass before its local
-            // selector binding has become visible, so defer only that
-            // instance-owned value until the canonical binding is available.
+            // scalar input bindings have become visible, so defer only that
+            // instance-owned value until the canonical bindings are available.
             if geometry_values
                 .selector_binding_ids_by_index
                 .get(index)

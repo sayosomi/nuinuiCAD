@@ -492,7 +492,7 @@ export const evaluateElements = (
       const prerequisites = (options.typedDependencyGraph.directByEndpointId.get(`binding:${version.bindingId}`) ?? [])
         .filter(graphEdgeIsActive);
       activePrerequisitesByVersionId.set(version.id, prerequisites);
-      const hasGeometryPrerequisite = prerequisites.some((edge) => edge.to.kind === "geometry-value" ||
+      const hasGeometryPrerequisite = prerequisites.some((edge) => edge.to.kind === "element" || edge.to.kind === "geometry-value" ||
         edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence");
       const hasForwardBindingPrerequisite = prerequisites.some((edge) => {
         if (edge.to.kind !== "binding") return false;
@@ -543,7 +543,7 @@ export const evaluateElements = (
       if (rank === undefined) continue;
       executionPositions.set(version.id, rank);
       const scheduledPrerequisites = (activePrerequisitesByVersionId.get(version.id) ?? []).flatMap((edge) => {
-        const isGeometryPrerequisite = edge.to.kind === "geometry-value" ||
+        const isGeometryPrerequisite = edge.to.kind === "element" || edge.to.kind === "geometry-value" ||
           edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence";
         if (isGeometryPrerequisite) return [typedDependencyEndpointId(edge.to)];
         if (edge.to.kind !== "binding") return [];
@@ -1074,7 +1074,8 @@ export const evaluateElements = (
           kind: "drawable",
           elementId: row!.generatedElementId,
           geometryType: target.geometryType,
-          ...(target.pointKey ? { pointKey: target.pointKey } : {})
+          ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+          ...(target.stagePath ? { stagePath: target.stagePath } : {})
         };
       }
       if (target.kind !== "collectionIndex") return target;
@@ -2788,6 +2789,7 @@ export const evaluateElements = (
             childAncestorElementIdMap,
             childAncestorOccurrencePath
           );
+          evaluateReadyTransformationRecipes(childAncestorElementIdMap, scalarBindingLookupFor(childAncestorIterationVariables));
           activeStatementForGeometryBinder = previousStatementForGeometryBinder;
           return "completed";
         });
@@ -2837,6 +2839,7 @@ export const evaluateElements = (
             childAncestorElementIdMap,
             occurrencePath
           );
+          evaluateReadyTransformationRecipes(childAncestorElementIdMap, scalarBindingLookupFor(childAncestorIterationVariables));
         }
         commitGeometryCollectionCarries(iterationIndex);
         commitGeometryCarries();
@@ -2970,6 +2973,7 @@ export const evaluateElements = (
   const recipeList = [...(options.transformationRecipes ?? [])];
   const pendingTransformationRecipes = new Set(recipeList.map((_, index) => index));
   const completedTransformationRecipeIndices = new Set<number>();
+  const completedTransformationTargets = new Map<number, Set<ElementId>>();
   const transformationPlanByRecipeIndex = new Map(
     transformationDependencyPlans.map((plan) => [plan.recipeIndex, plan])
   );
@@ -3006,22 +3010,25 @@ export const evaluateElements = (
 
   const runtimeTargetsFor = (
     recipe: TransformationRecipe,
-    target: TransformationTargetSelector
+    target: TransformationTargetSelector,
+    scope?: ReadonlyMap<ElementId, ElementId>
   ): RuntimeRecipeTarget[] => {
     const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === target.ownerId);
     if (target.occurrenceIndex !== undefined) {
       const occurrenceIndex = Number(target.occurrenceIndex);
       const row = Number.isInteger(occurrenceIndex) && occurrenceIndex >= 0 ? rows[occurrenceIndex] : undefined;
       if (!row) {
+        if (scope) return [];
         recipeError(recipe, target, `generated occurrence「${target.source}」はこの評価位置では利用できません。`);
         return [];
       }
-      return [{ ...target, runtimeOwnerId: row.generatedElementId }];
+      return scope && scope.get(target.ownerId) !== row.generatedElementId ? [] : [{ ...target, runtimeOwnerId: row.generatedElementId }];
     }
     if (generatedOwnerIds.has(target.ownerId)) {
       // Bulk selection of a generated owner is deliberately a no-op when the
       // owner produced no rows; it never falls back to the template geometry.
-      return rows.map((row) => ({ ...target, runtimeOwnerId: row.generatedElementId }));
+      return rows.filter(row => !scope || scope.get(target.ownerId) === row.generatedElementId)
+        .map((row) => ({ ...target, runtimeOwnerId: row.generatedElementId }));
     }
     return [{ ...target, runtimeOwnerId: target.ownerId }];
   };
@@ -3073,7 +3080,8 @@ export const evaluateElements = (
 
   const executeTransformationInvocation = (
     recipe: TransformationRecipe,
-    targets: readonly RuntimeRecipeTarget[]
+    targets: readonly RuntimeRecipeTarget[],
+    bindingLookup = scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding())
   ) => {
     if (targets.length === 0) return;
     const inputByRuntimeId = new Map<ElementId, ComputedGeometry>();
@@ -3137,12 +3145,12 @@ export const evaluateElements = (
     const numericMaterialization = materializeNumericBindingElement(
       rawSynthetic,
       recipeEntries,
-      scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding()),
+      bindingLookup,
       (reference) => resolveGeometryPropertyForEvaluation(reference, scalarSourceOrder),
       (target) => resolveGeometryTargetForEvaluation(
         target,
         scalarSourceOrder,
-        scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding())
+        bindingLookup
       ),
       scalarBindingResolver?.resolveOptionalMember
         ? (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, scalarSourceOrder)
@@ -3222,12 +3230,20 @@ export const evaluateElements = (
     }
   };
 
-  const executeTransformationRecipe = (recipe: TransformationRecipe) => {
-    const expandedTargets = recipe.targets.map((target) => runtimeTargetsFor(recipe, target));
+  const executeTransformationRecipe = (recipe: TransformationRecipe, recipeIndex: number,
+    scope?: ReadonlyMap<ElementId, ElementId>, bindingLookup?: (bindingId: BindingId) => ScalarEvaluation) => {
+    const completed = completedTransformationTargets.get(recipeIndex) ?? new Set<ElementId>();
+    const expandedTargets = recipe.targets.map((target) => runtimeTargetsFor(recipe, target, scope)
+      .filter(target => !completed.has(target.runtimeOwnerId)));
     if (expandedTargets.some((targets) => targets.length === 0)) return;
+    const invoke = (targets: readonly RuntimeRecipeTarget[]) => {
+      executeTransformationInvocation(recipe, targets, bindingLookup);
+      for (const target of targets) completed.add(target.runtimeOwnerId);
+      completedTransformationTargets.set(recipeIndex, completed);
+    };
     if (recipe.operation.kind === "reverse") {
       for (const targets of expandedTargets) {
-        for (const target of targets) executeTransformationInvocation(recipe, [target]);
+        for (const target of targets) invoke([target]);
       }
       return;
     }
@@ -3239,11 +3255,11 @@ export const evaluateElements = (
           recipeError(recipe, recipe.targets[0]!, "coupled generated occurrences が対応付けできません。");
           continue;
         }
-        executeTransformationInvocation(recipe, pair as RuntimeRecipeTarget[]);
+        invoke(pair as RuntimeRecipeTarget[]);
       }
       return;
     }
-    executeTransformationInvocation(recipe, expandedTargets.flat());
+    invoke(expandedTargets.flat());
   };
 
   const transformationDependencyRuntimeIds = (dependency: { ownerId: ElementId; occurrenceIndex?: string }): ElementId[] => {
@@ -3279,7 +3295,13 @@ export const evaluateElements = (
     return generatedOwnerIds.has(outermostGroupId) ||
       (completedElementIds.has(outermostGroupId) && !failedElementIds.has(outermostGroupId));
   };
-  const transformationDependencyAvailable = (dependency: { ownerId: ElementId; stagePath: readonly string[]; occurrenceIndex?: string }): boolean => {
+  const transformationDependencyAvailable = (dependency: { ownerId: ElementId; stagePath: readonly string[]; occurrenceIndex?: string }, scope?: ReadonlyMap<ElementId, ElementId>): boolean => {
+    const currentId = scope?.get(dependency.ownerId);
+    if (currentId && dependency.occurrenceIndex === undefined) {
+      if (dependency.stagePath.length === 0 || (dependency.stagePath.length === 1 && dependency.stagePath[0] === "final")) return computedGeometry.has(currentId);
+      if (dependency.stagePath.length === 1 && dependency.stagePath[0] === "base") return baseTransformationGeometry.has(currentId);
+      return transformationStageGeometry.has(transformationStageKey(currentId, undefined, dependency.stagePath));
+    }
     if (generatedOwnerIds.has(dependency.ownerId)) {
       const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === dependency.ownerId);
       const expectedCount = forGroupExpectedOccurrenceCountByTemplateId.get(dependency.ownerId);
@@ -3321,28 +3343,39 @@ export const evaluateElements = (
       );
     });
   };
-  const transformationRecipeReady = (recipeIndex: number, recipe: TransformationRecipe): boolean => {
+  const transformationRecipeReady = (recipeIndex: number, recipe: TransformationRecipe, scope?: ReadonlyMap<ElementId, ElementId>, bindingLookup?: (bindingId: BindingId) => ScalarEvaluation): boolean => {
     const plan = transformationPlanByRecipeIndex.get(recipeIndex);
     if (plan) {
-      if (plan.predecessorRecipeIndices.some((priorIndex) => !completedTransformationRecipeIndices.has(priorIndex))) return false;
-      if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
-      if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
-      if (plan.scalarPrerequisites.some((bindingId) => !endpointIsReady(`binding:${bindingId}`))) return false;
+      if (plan.predecessorRecipeIndices.some((priorIndex) => !completedTransformationRecipeIndices.has(priorIndex) &&
+        (!scope || recipeList[priorIndex]!.targets.some(target => {
+          const runtimeId = scope.get(target.ownerId);
+          return !runtimeId || !completedTransformationTargets.get(priorIndex)?.has(runtimeId);
+        })))) return false;
+      if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
+      if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
+      if (plan.scalarPrerequisites.some((bindingId) => bindingLookup
+        ? bindingLookup(bindingId).status !== "ok" : !endpointIsReady(`binding:${bindingId}`))) return false;
     }
     for (const target of recipe.targets) {
-      if (!transformationDependencyAvailable(target)) return false;
+      if (!transformationDependencyAvailable(target, scope)) return false;
     }
     return true;
   };
-  const evaluateReadyTransformationRecipes = () => {
+  const evaluateReadyTransformationRecipes = (scope?: ReadonlyMap<ElementId, ElementId>, bindingLookup?: (bindingId: BindingId) => ScalarEvaluation) => {
     let progressed = true;
     while (progressed) {
       progressed = false;
       for (const [recipeIndex, recipe] of recipeList.entries()) {
-        if (!pendingTransformationRecipes.has(recipeIndex) || !transformationRecipeReady(recipeIndex, recipe)) continue;
-        executeTransformationRecipe(recipe);
-        pendingTransformationRecipes.delete(recipeIndex);
-        completedTransformationRecipeIndices.add(recipeIndex);
+        if (!pendingTransformationRecipes.has(recipeIndex)) continue;
+        if (scope && (recipe.targets.some(target => !scope.has(target.ownerId)) ||
+          recipe.targets.some(target => runtimeTargetsFor(recipe, target, scope).length === 0) ||
+          recipe.targets.every(target => completedTransformationTargets.get(recipeIndex)?.has(scope.get(target.ownerId)!)))) continue;
+        if (!transformationRecipeReady(recipeIndex, recipe, scope, bindingLookup)) continue;
+        executeTransformationRecipe(recipe, recipeIndex, scope, bindingLookup);
+        if (!scope) {
+          pendingTransformationRecipes.delete(recipeIndex);
+          completedTransformationRecipeIndices.add(recipeIndex);
+        }
         progressed = true;
       }
     }
@@ -3377,7 +3410,8 @@ export const evaluateElements = (
       return evaluatedGeometryValueEntries.has(geometryValueIndexByEndpointId.get(endpointId) ?? -1);
     }
     if (endpoint.kind === "element") {
-      return completedElementIds.has(endpoint.id) && computedGeometry.has(endpoint.id);
+      return completedElementIds.has(endpoint.id) &&
+        (runtimeElementsById.get(endpoint.id)?.type === "forGroup" || computedGeometry.has(endpoint.id));
     }
     if (endpoint.kind === "transformation-recipe") {
       const recipeIndex = recipeList.findIndex((recipe) => `recipe:${recipe.id}` === endpoint.id);

@@ -125,6 +125,7 @@ struct DependencyReadinessContext<'a> {
     branch_selections: &'a HashMap<String, String>,
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
+    completed_element_ids: Option<&'a HashSet<ElementId>>,
     evaluated_geometry_values: &'a [bool],
     geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
 }
@@ -132,6 +133,7 @@ struct DependencyReadinessContext<'a> {
 struct GeometryDependencyReadinessContext<'a> {
     branch_selections: &'a HashMap<String, String>,
     state: &'a EvaluationState,
+    completed_element_ids: Option<&'a HashSet<ElementId>>,
 }
 
 struct GeometryPropertyReadinessContext<'a> {
@@ -139,6 +141,7 @@ struct GeometryPropertyReadinessContext<'a> {
     endpoints: HashMap<String, &'a ConditionalDependencyEndpoint>,
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
+    completed_element_ids: Option<&'a HashSet<ElementId>>,
     evaluated_geometry_values: &'a [bool],
     geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
     source_order_by_binding_id: Option<&'a HashMap<String, usize>>,
@@ -150,6 +153,7 @@ pub(crate) struct DependencyScheduledBindingReadiness<'a> {
     pub(crate) branch_selections: &'a HashMap<String, String>,
     pub(crate) resolver: &'a dyn ScalarDocumentBindingResolver,
     pub(crate) state: &'a EvaluationState,
+    pub(crate) completed_element_ids: Option<&'a HashSet<ElementId>>,
     pub(crate) evaluated_geometry_values: &'a [bool],
     pub(crate) geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
 }
@@ -334,6 +338,22 @@ fn activation_path_is_active(
         })
 }
 
+fn element_geometry_prerequisite_ready(
+    state: &EvaluationState,
+    element_id: &str,
+    completed: Option<&HashSet<ElementId>>,
+) -> bool {
+    state.computed_geometry.contains_key(element_id)
+        || (completed.is_some_and(|ids| ids.contains(element_id))
+            && state
+                .elements_by_id
+                .get(element_id)
+                .and_then(|index| state.elements.get(*index))
+                .and_then(|element| element.get("type"))
+                .and_then(Value::as_str)
+                == Some("forGroup"))
+}
+
 fn geometry_property_prerequisites_are_ready(
     endpoint_id: &str,
     context: &GeometryPropertyReadinessContext<'_>,
@@ -377,7 +397,11 @@ fn geometry_property_prerequisites_are_ready(
                     }
                     None => false,
                 },
-                "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+                "element" => element_geometry_prerequisite_ready(
+                    context.state,
+                    &endpoint.id,
+                    context.completed_element_ids,
+                ),
                 "module-occurrence" => context.state.instance_base_geometry.contains_key(
                     endpoint
                         .id
@@ -428,7 +452,7 @@ impl ConditionalDependencyGraph {
                 continue;
             }
             match edge.to.kind.as_str() {
-                "geometry-value" | "geometry-stage" | "module-occurrence" => {
+                "element" | "geometry-value" | "geometry-stage" | "module-occurrence" => {
                     geometry_dependent_bindings.insert(edge.from.id.clone());
                 }
                 "binding" => binding_dependents
@@ -582,6 +606,7 @@ impl ConditionalDependencyGraph {
             endpoints,
             resolver: readiness.resolver,
             state: readiness.state,
+            completed_element_ids: readiness.completed_element_ids,
             evaluated_geometry_values: readiness.evaluated_geometry_values,
             geometry_value_index_by_endpoint_id: readiness.geometry_value_index_by_endpoint_id,
             source_order_by_binding_id: Some(readiness.source_order_by_binding_id),
@@ -713,6 +738,7 @@ impl ConditionalDependencyGraph {
         candidates.into_values().collect()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn endpoint_is_ready(
         &self,
         endpoint_id: &str,
@@ -721,6 +747,7 @@ impl ConditionalDependencyGraph {
         state: &EvaluationState,
         evaluated_geometry_values: &[bool],
         geometry_value_index_by_endpoint_id: &HashMap<String, usize>,
+        completed_element_ids: Option<&HashSet<ElementId>>,
     ) -> bool {
         self.endpoint_is_ready_inner(
             endpoint_id,
@@ -728,6 +755,7 @@ impl ConditionalDependencyGraph {
                 branch_selections,
                 resolver,
                 state,
+                completed_element_ids,
                 evaluated_geometry_values,
                 geometry_value_index_by_endpoint_id,
             },
@@ -740,10 +768,12 @@ impl ConditionalDependencyGraph {
         endpoint_id: &str,
         branch_selections: &HashMap<String, String>,
         state: &EvaluationState,
+        completed_element_ids: Option<&HashSet<ElementId>>,
     ) -> bool {
         let context = GeometryDependencyReadinessContext {
             branch_selections,
             state,
+            completed_element_ids,
         };
         self.edges
             .iter()
@@ -830,6 +860,7 @@ impl ConditionalDependencyGraph {
             evaluated_geometry_values,
             geometry_value_index_by_endpoint_id,
             source_order_by_binding_id: None,
+            completed_element_ids: None,
         };
         Self::ready_geometry_dependent_binding_ids_from_context(candidate_binding_ids, &context)
     }
@@ -995,7 +1026,11 @@ impl ConditionalDependencyGraph {
                 }
                 None => false,
             },
-            "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+            "element" => element_geometry_prerequisite_ready(
+                context.state,
+                &endpoint.id,
+                context.completed_element_ids,
+            ),
             "module-occurrence" => context.state.instance_base_geometry.contains_key(
                 endpoint
                     .id
@@ -1067,7 +1102,11 @@ impl ConditionalDependencyGraph {
                 }
                 None => false,
             },
-            "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+            "element" => element_geometry_prerequisite_ready(
+                context.state,
+                &endpoint.id,
+                context.completed_element_ids,
+            ),
             "module-occurrence" => context.state.instance_base_geometry.contains_key(
                 endpoint
                     .id
@@ -1304,6 +1343,7 @@ mod tests {
             base_transformation_geometry: HashMap::new(),
             transformation_stage_geometry: HashMap::new(),
             completed_transformation_recipe_indices: HashSet::new(),
+            completed_transformation_targets: HashMap::new(),
             transformation_dependency_plans: None,
             computed_geometry_order: Vec::new(),
             computed_geometry_values: HashMap::new(),
@@ -1537,6 +1577,7 @@ mod tests {
                 branch_selections: &branch_selections,
                 resolver: &unavailable,
                 state: &state,
+                completed_element_ids: None,
                 evaluated_geometry_values: &[],
                 geometry_value_index_by_endpoint_id: &geometry_value_index_by_endpoint_id,
             });
