@@ -1003,6 +1003,7 @@ export type ModuleImmutableCarrySemantic = {
   /** Geometry carries reuse the existing Module geometry reference/runtime path. */
   geometryInitializer?: ModuleGeometryReferenceSemantic;
   geometryNext?: ModuleGeometryReferenceSemantic;
+  geometryNextExpression?: ModuleGeometryValueExpressionSemantic;
   nextStatementIndex: number;
 };
 

@@ -82,6 +82,8 @@ pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) dependency_execution_position: Option<f64>,
     pub(crate) release_allowed: &'a [bool],
     pub(crate) source_position_fence: bool,
+    pub(crate) prerequisites_ready:
+        &'a dyn Fn(&GeometryValueProgramEntry, &EvaluationState, &[bool]) -> bool,
     pub(crate) evaluated: &'a mut [bool],
 }
 
@@ -370,6 +372,7 @@ impl<'a> ScalarMutationResolver<'a> {
                 || release_position > geometry_execution_position
                 || (geometry_values.source_position_fence
                     && entry.source_execution_position > source_order as f64)
+                || !(geometry_values.prerequisites_ready)(entry, state, geometry_values.evaluated)
             {
                 continue;
             }

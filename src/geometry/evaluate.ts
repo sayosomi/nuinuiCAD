@@ -3529,7 +3529,7 @@ export const evaluateElements = (
         endpoint.kind === "element" || endpoint.kind === "geometry-stage" ||
         endpoint.kind === "module-occurrence" || endpoint.kind === "transformation-recipe"
       ) return endpointIsReady(dependencyId);
-      if (endpoint.kind === "geometry-value") return true;
+      if (endpoint.kind === "geometry-value") return endpointIsReady(dependencyId);
       if (endpoint.kind !== "binding") return true;
       const nextVisiting = new Set(visiting).add(dependencyId);
       return (options.typedDependencyGraph?.edges ?? []).filter((edge) =>

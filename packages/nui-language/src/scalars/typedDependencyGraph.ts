@@ -1772,10 +1772,10 @@ export const buildTypedDependencyGraph = ({
       ...plan.carries.map((candidate) => candidate.bindingId),
       ...(plan.geometryCarries ?? []).map((candidate) => candidate.bindingId)
     ]);
-    const targetIsOwnedByLoop = (targetId: string): boolean => {
+    const targetIsOwnedByLoop = (targetId: string, loopId = ownerElementId): boolean => {
       let current = elementsById.get(targetId);
       while (current?.parentGroupId) {
-        if (current.parentGroupId === ownerElementId) return true;
+        if (current.parentGroupId === loopId) return true;
         current = elementsById.get(current.parentGroupId);
       }
       return false;
@@ -1790,11 +1790,17 @@ export const buildTypedDependencyGraph = ({
       }
       if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
         const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-        if (loopCarryBindingIds.has(bindingId) || !bindingAnalysis?.catalog.bindingsById.has(bindingId)) return;
+        if (loopCarryBindingIds.has(bindingId)) return;
+        const to = geometryBindingEndpoint(bindingId);
+        if (!to) return;
+        // Nested body carries are produced inside this loop; enclosing carries
+        // are its incoming immutable views. Neither waits for the whole owner.
+        if (to.kind === "element" && (to.id === ownerElementId ||
+            targetIsOwnedByLoop(to.id) || targetIsOwnedByLoop(ownerElementId, to.id))) return;
         add({
           kind: "geometry",
           from,
-          to: bindingEndpoint(bindingAnalysis, bindingId),
+          to,
           span: null,
           requiredness: guards.length ? "conditional" : "required",
           ...(guards.length ? { activation: { guards } } : {})

@@ -789,6 +789,31 @@ impl ConditionalDependencyGraph {
             })
     }
 
+    /// A rank-sorted release pass can still skip a predecessor at its source
+    /// fence. Read the current pass's completion state before releasing aliases.
+    pub(crate) fn geometry_value_prerequisites_are_ready(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        evaluated: &[bool],
+        index_by_endpoint_id: &HashMap<String, usize>,
+    ) -> bool {
+        self.edges
+            .iter()
+            .filter(|edge| {
+                endpoint_key(&edge.from) == endpoint_id
+                    && edge.to.kind == "geometry-value"
+                    && edge_is_active(edge, branch_selections)
+            })
+            .all(|edge| {
+                index_by_endpoint_id
+                    .get(&endpoint_key(&edge.to))
+                    .and_then(|index| evaluated.get(*index))
+                    .copied()
+                    .unwrap_or(false)
+            })
+    }
+
     /// Whether an active, evaluated drawable depends on this geometry value.
     /// Terminal release uses this to distinguish unavailable values that can
     /// still produce user-facing diagnostics from Module occurrences excluded

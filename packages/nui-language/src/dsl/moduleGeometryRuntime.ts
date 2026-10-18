@@ -148,7 +148,9 @@ export const buildModuleGeometryRuntime = ({
   };
 
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
-    if (exported.backingTarget) {
+    // An indexed value must retain its declaration's lazy program and caller-
+    // bound selector. It cannot be flattened to a static geometry alias.
+    if (exported.backingTarget && exported.backingTarget.kind !== "collectionIndex") {
       return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
     }
     if (!exported.category && (exported.interfaceType === "point" || exported.interfaceType === "line" || exported.interfaceType === "path")) {

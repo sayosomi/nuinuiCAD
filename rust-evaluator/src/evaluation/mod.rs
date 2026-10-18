@@ -2859,6 +2859,16 @@ fn evaluate_document_input_with_scalar_program(
                         dependency_execution_position,
                         release_allowed: &release_allowed,
                         source_position_fence: linear_mutation_ordering_active,
+                        prerequisites_ready: &|entry, _state, evaluated| {
+                            conditional_dependency_graph.as_ref().map_or(true, |graph| {
+                                graph.geometry_value_prerequisites_are_ready(
+                                    &geometry_value_endpoint_id(&entry.occurrence),
+                                    &conditional_branch_selections,
+                                    evaluated,
+                                    &geometry_value_index_by_endpoint_id,
+                                )
+                            })
+                        },
                         evaluated: &mut evaluated_geometry_value_entries,
                     },
                 );
@@ -3165,6 +3175,16 @@ fn evaluate_document_input_with_scalar_program(
                         dependency_execution_position,
                         release_allowed: &geometry_value_release_allowed,
                         source_position_fence: linear_mutation_ordering_active,
+                        prerequisites_ready: &|entry, _state, evaluated| {
+                            conditional_dependency_graph.as_ref().map_or(true, |graph| {
+                                graph.geometry_value_prerequisites_are_ready(
+                                    &geometry_value_endpoint_id(&entry.occurrence),
+                                    &conditional_branch_selections,
+                                    evaluated,
+                                    &geometry_value_index_by_endpoint_id,
+                                )
+                            })
+                        },
                         evaluated: &mut evaluated_geometry_value_entries,
                     },
                 );
@@ -3196,6 +3216,16 @@ fn evaluate_document_input_with_scalar_program(
                     || geometry_value_execution_positions[geometry_value_index]
                         > current_geometry_execution_position
                 {
+                    continue;
+                }
+                if conditional_dependency_graph.as_ref().is_some_and(|graph| {
+                    !graph.geometry_value_prerequisites_are_ready(
+                        &geometry_value_endpoint_id(&entry.occurrence),
+                        &conditional_branch_selections,
+                        &evaluated_geometry_value_entries,
+                        &geometry_value_index_by_endpoint_id,
+                    )
+                }) {
                     continue;
                 }
                 if !entry.lazy {
@@ -3692,6 +3722,16 @@ fn evaluate_document_input_with_scalar_program(
                         .map(|_| f64::INFINITY),
                     release_allowed: &vec![true; geometry_value_program.len()],
                     source_position_fence: linear_mutation_ordering_active,
+                    prerequisites_ready: &|entry, _state, evaluated| {
+                        conditional_dependency_graph.as_ref().map_or(true, |graph| {
+                            graph.geometry_value_prerequisites_are_ready(
+                                &geometry_value_endpoint_id(&entry.occurrence),
+                                &conditional_branch_selections,
+                                evaluated,
+                                &geometry_value_index_by_endpoint_id,
+                            )
+                        })
+                    },
                     evaluated: &mut evaluated_geometry_value_entries,
                 },
             )
@@ -3760,6 +3800,16 @@ fn evaluate_document_input_with_scalar_program(
                             .map(|_| f64::INFINITY),
                         release_allowed: &terminal_release_allowed,
                         source_position_fence: linear_mutation_ordering_active,
+                        prerequisites_ready: &|entry, _state, evaluated| {
+                            conditional_dependency_graph.as_ref().map_or(true, |graph| {
+                                graph.geometry_value_prerequisites_are_ready(
+                                    &geometry_value_endpoint_id(&entry.occurrence),
+                                    &conditional_branch_selections,
+                                    evaluated,
+                                    &geometry_value_index_by_endpoint_id,
+                                )
+                            })
+                        },
                         evaluated: &mut evaluated_geometry_value_entries,
                     },
                 );
