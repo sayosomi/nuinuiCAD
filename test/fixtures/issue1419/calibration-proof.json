@@ -1,0 +1,68 @@
+[
+  {
+    "id": "X02",
+    "historicalSource": "test/fixtures/issue1412/adjacent.json#X02",
+    "sourceSHA256": "4212c51244897293dce835d58262c4de7b3fe22c710ebb6ebcc786749afae639",
+    "expectedDegrees": 16,
+    "analyticOracle": "acos(abs(cos((23 - 7) degrees))) = 16 degrees",
+    "uncorrupted": {
+      "compiler": "accepted",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "firstLossMutation": "deferred child carry reference has no owning runtime plan",
+    "negativeAssertion": "independent value oracle: expected 16 degrees",
+    "negativeValue": {
+      "status": "error",
+      "issueCode": "evaluation-geometry-builtin-unavailable"
+    },
+    "negativeGeometryValueError": "Geometry value reference is unavailable at runtime.",
+    "negativeTypeScript": "detected",
+    "negativeProductionRust": "detected",
+    "productionChanged": false
+  },
+  {
+    "id": "X05",
+    "historicalSource": "test/fixtures/issue1412/adjacent.json#X05",
+    "sourceSHA256": "19dcee08614dc2f19d574f01d7e914b371c253e0f5ac4e645e1506f7c26e256f",
+    "expectedDegrees": 16,
+    "analyticOracle": "acos(abs(cos((23 - 7) degrees))) = 16 degrees",
+    "uncorrupted": {
+      "compiler": "accepted",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "firstLossMutation": "indexed forwarding changed the already-qualified child carry identity",
+    "negativeAssertion": "independent value oracle: expected 16 degrees",
+    "negativeValue": {
+      "status": "error",
+      "issueCode": "evaluation-geometry-builtin-unavailable"
+    },
+    "negativeGeometryValueError": "Geometry value reference is unavailable at runtime.",
+    "negativeTypeScript": "detected",
+    "negativeProductionRust": "detected",
+    "productionChanged": false
+  },
+  {
+    "id": "X07",
+    "historicalSource": "test/fixtures/issue1412/adjacent.json#X07",
+    "sourceSHA256": "2655db86653bff2862ae1c36a44d08938fb648ee77aea93b5cd9d9193f2de4e9",
+    "expectedDegrees": 16,
+    "analyticOracle": "acos(abs(cos((23 - 7) degrees))) = 16 degrees",
+    "uncorrupted": {
+      "compiler": "accepted",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "firstLossMutation": "dependent release no longer waits for its source-fenced predecessor",
+    "negativeAssertion": "independent value oracle: expected 16 degrees",
+    "negativeValue": {
+      "status": "error",
+      "issueCode": "evaluation-geometry-builtin-unavailable"
+    },
+    "negativeGeometryValueError": "Geometry value reference is unavailable at runtime.",
+    "negativeTypeScript": "detected",
+    "negativeProductionRust": "detected",
+    "productionChanged": false
+  }
+]
