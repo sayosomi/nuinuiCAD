@@ -1,0 +1,301 @@
+{
+  "outputTimestampJST": "2026-10-19 00:30:18 JST",
+  "base": "ebb00adfb84cf6a38cba6401a23ad2a0be9daa0e",
+  "branch": "sayosomi/issue-1417-metamorphic-stage2",
+  "preExplorationCheckpoint": "e9130ddaac0553485d5013ad57342076fa773225",
+  "verifiedExecutableCandidate": "f4fd7adbc18e94678b0341d8c63db00f116b28cd",
+  "finalCheckpointChangeScope": "coverage attribution correction and compact report/metrics only",
+  "coverageClassifications": {
+    "PARTIAL": 512
+  },
+  "finalDispositions": {
+    "PASS": 512,
+    "unresolved": 0,
+    "BLOCKED": 0,
+    "CONTRACT-INVALID": 0,
+    "CONTRACT-AMBIGUOUS": 0
+  },
+  "suites": {
+    "C": {
+      "pairs": 128,
+      "PASS": 128
+    },
+    "V": {
+      "pairs": 128,
+      "PASS": 128
+    },
+    "S": {
+      "pairs": 128,
+      "PASS": 128
+    },
+    "X": {
+      "pairs": 128,
+      "PASS": 128
+    }
+  },
+  "uniqueAccepted": 737,
+  "explorationCeiling": 1400,
+  "acceptedBreakdown": {
+    "matrix": 660,
+    "selectedErrorContrasts": 64,
+    "handCalculatedAndLegalGrammarControls": 4,
+    "otherCalibrationConfigurations": 9
+  },
+  "acceptedSortedSetSHA256": "0d9bd559df9f30d42a56c7ec620acf23d7376ce5a0cec4109ae6cb3409a1b454",
+  "requestTotals": {
+    "compiler": 4538,
+    "reference": 4460,
+    "production": 4460
+  },
+  "requestScope": "Stage 2 harness source submissions, controls, shrinking/replay and verification reruns; excludes one fixed empty-document initialization per run and unrelated regression/parity requests. reference=TypeScript; production=actual persistent Rust stdio. No cumulative request quota.",
+  "confirmedProductDefectFamilies": 0,
+  "repairs": [],
+  "knownOrDuplicateProductFamilyHits": 0,
+  "confirmedProductMinimalShrinkSuccesses": 0,
+  "productFamiliesPer100AcceptedSources": 0.0,
+  "generatorRejectedTexts": 8,
+  "independentRejectedReductions": 2,
+  "generatorRendererNativeShrinkSteps": 10,
+  "allCalibrationNativeShrinkSteps": 31,
+  "correctedRendererNativeReplay": "V2-b-03 seed=151903 path=0:0:0:0:0:0 PASS (4 tests)",
+  "aggregateHarnessElapsedMs": 26449,
+  "lastMatrixHarnessElapsedMs": 5696,
+  "verification": {
+    "broaderFocused": {
+      "status": "PASS",
+      "files": 11,
+      "passed": 1007,
+      "existingSkipped": 1,
+      "durationSeconds": 19.06
+    },
+    "requiredFiveFiles": {
+      "status": "PASS",
+      "files": 5,
+      "passed": 546,
+      "durationSeconds": 12.09
+    },
+    "parity": {
+      "status": "PASS",
+      "passed": 203,
+      "durationSeconds": 65.55
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "fullSerialNpmTest": {
+      "status": "PASS",
+      "filesPassed": 662,
+      "filesSkipped": 2,
+      "testsPassed": 10229,
+      "testsSkipped": 157,
+      "durationSeconds": 507.86,
+      "failures": 0,
+      "unhandledErrors": 0
+    },
+    "strictNewTestTypecheck": "PASS",
+    "nativeReplay": "PASS",
+    "dispositionReconstruction": "PASS all 512 native seeds, source A/B hashes, model value and trace digests, accepted-set membership",
+    "diffCheck": "PASS",
+    "rustStdioCargoBuild": "PASS",
+    "rustFmtCheckTestClippy": "Not required; no Rust or production semantic owner changed; not executed",
+    "humanManualE2E": "Not Required",
+    "independentBlockingReview": "Pending exact final pushed HEAD; not self-approved",
+    "protectedCIAndMerge": "Pending subsequent independent review/PR lifecycle"
+  },
+  "runs": [
+    {
+      "run": 1,
+      "phase": "unconditional graph assertion calibration",
+      "counts": {
+        "compiler": 4,
+        "reference": 0,
+        "production": 0
+      },
+      "uniqueAccepted": 2,
+      "pairsAttempted": 1,
+      "passed": 0,
+      "elapsedMs": 91
+    },
+    {
+      "run": 2,
+      "phase": "match guard encoding calibration",
+      "counts": {
+        "compiler": 11,
+        "reference": 5,
+        "production": 5
+      },
+      "uniqueAccepted": 8,
+      "pairsAttempted": 3,
+      "passed": 2,
+      "elapsedMs": 461
+    },
+    {
+      "run": 3,
+      "phase": "map binder catalog-scope calibration",
+      "counts": {
+        "compiler": 15,
+        "reference": 8,
+        "production": 8
+      },
+      "uniqueAccepted": 14,
+      "pairsAttempted": 4,
+      "passed": 3,
+      "elapsedMs": 469
+    },
+    {
+      "run": 4,
+      "phase": "parenthesized collection renderer rejection",
+      "counts": {
+        "compiler": 16,
+        "reference": 10,
+        "production": 10
+      },
+      "uniqueAccepted": 15,
+      "pairsAttempted": 5,
+      "passed": 4,
+      "elapsedMs": 486
+    },
+    {
+      "run": 5,
+      "phase": "signed collection renderer rejection",
+      "counts": {
+        "compiler": 16,
+        "reference": 10,
+        "production": 10
+      },
+      "uniqueAccepted": 15,
+      "pairsAttempted": 5,
+      "passed": 4,
+      "elapsedMs": 539
+    },
+    {
+      "run": 6,
+      "phase": "range carry catalog-mode calibration",
+      "counts": {
+        "compiler": 22,
+        "reference": 14,
+        "production": 14
+      },
+      "uniqueAccepted": 22,
+      "pairsAttempted": 7,
+      "passed": 6,
+      "elapsedMs": 600
+    },
+    {
+      "run": 7,
+      "phase": "native replay of catalog-mode failure",
+      "counts": {
+        "compiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "uniqueAccepted": 22,
+      "pairsAttempted": 1,
+      "passed": 0,
+      "elapsedMs": 99
+    },
+    {
+      "run": 8,
+      "phase": "calibrated subset PASS",
+      "counts": {
+        "compiler": 23,
+        "reference": 23,
+        "production": 23
+      },
+      "uniqueAccepted": 30,
+      "pairsAttempted": 10,
+      "passed": 10,
+      "elapsedMs": 582
+    },
+    {
+      "run": 9,
+      "phase": "first complete matrix PASS",
+      "counts": {
+        "compiler": 1088,
+        "reference": 1088,
+        "production": 1088
+      },
+      "uniqueAccepted": 731,
+      "pairsAttempted": 512,
+      "passed": 512,
+      "elapsedMs": 5406
+    },
+    {
+      "run": 10,
+      "phase": "Vitest asset URL calibration",
+      "counts": {
+        "compiler": 0,
+        "reference": 0,
+        "production": 0
+      },
+      "uniqueAccepted": 731,
+      "pairsAttempted": 0,
+      "passed": 0,
+      "elapsedMs": 56
+    },
+    {
+      "run": 11,
+      "phase": "diagnostic attribution subset PASS",
+      "counts": {
+        "compiler": 18,
+        "reference": 18,
+        "production": 18
+      },
+      "uniqueAccepted": 732,
+      "pairsAttempted": 6,
+      "passed": 6,
+      "elapsedMs": 541
+    },
+    {
+      "run": 12,
+      "phase": "corrected rejected-renderer native replay PASS",
+      "counts": {
+        "compiler": 18,
+        "reference": 8,
+        "production": 8
+      },
+      "uniqueAccepted": 737,
+      "pairsAttempted": 1,
+      "passed": 1,
+      "elapsedMs": 554
+    },
+    {
+      "run": 13,
+      "phase": "broader focused 11-file PASS",
+      "counts": {
+        "compiler": 1102,
+        "reference": 1092,
+        "production": 1092
+      },
+      "uniqueAccepted": 737,
+      "pairsAttempted": 512,
+      "passed": 512,
+      "elapsedMs": 5401
+    },
+    {
+      "run": 14,
+      "phase": "required five-file PASS",
+      "counts": {
+        "compiler": 1102,
+        "reference": 1092,
+        "production": 1092
+      },
+      "uniqueAccepted": 737,
+      "pairsAttempted": 512,
+      "passed": 512,
+      "elapsedMs": 5468
+    },
+    {
+      "run": 15,
+      "phase": "serial full-suite matrix PASS",
+      "counts": {
+        "compiler": 1102,
+        "reference": 1092,
+        "production": 1092
+      },
+      "uniqueAccepted": 737,
+      "pairsAttempted": 512,
+      "passed": 512,
+      "elapsedMs": 5696
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "slot": "V2-b-03",
+  "nativeSeed": 151903,
+  "initialPath": "0:0:0:0:0:0",
+  "correctedRendererPath": "0:0:0:0:0:0",
+  "attempts": [
+    {
+      "sha256": "616dc6696facbc18679bd252f06327ef4b1209d712ba8d0b1bd0efbd83d35f59",
+      "source": "nui 1\nconst p: number = (22)\nconst q: number = (-30)\nconst items: number[] = [(6), (-13), (20), (-27)]\nconst mapped: number[] = for item in @items { ((@item * (5)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "sha256": "6db5c28207aa430daeb240602e70566619fbc98324403bba6ee615358d77472f",
+      "source": "nui 1\nconst p: number = (20)\nconst q: number = (-30)\nconst items: number[] = [(6), (-13), (20), (-27)]\nconst mapped: number[] = for item in @items { ((@item * (5)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "sha256": "acaee904e9d951e7370de0871de36379a6331c2ed02a62daa2d2c3915be70a87",
+      "source": "nui 1\nconst p: number = (20)\nconst q: number = (-26)\nconst items: number[] = [(6), (-13), (20), (-27)]\nconst mapped: number[] = for item in @items { ((@item * (5)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "sha256": "5439d89b9a27f273cb3bfe7df2437c46947966015565f762942d0950e0b80d04",
+      "source": "nui 1\nconst p: number = (20)\nconst q: number = (-26)\nconst items: number[] = [(6), (-13), (20), (-27)]\nconst mapped: number[] = for item in @items { ((@item * (2)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "sha256": "05900847b93a6c65e35ee8fec060178cf367ce07ba0428247a3f8a44c2b9f6ec",
+      "source": "nui 1\nconst p: number = (22)\nconst q: number = (-30)\nconst items: number[] = [6, -13, 20, -27]\nconst mapped: number[] = for item in @items { ((@item * (5)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "sha256": "d43a40620c5c2a043aeec544d26a1f1dc9ac2b5ed0bd189234b77b15c91982c8",
+      "source": "nui 1\nconst p: number = (20)\nconst q: number = (-30)\nconst items: number[] = [6, -13, 20, -27]\nconst mapped: number[] = for item in @items { ((@item * (5)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "sha256": "10ee689a876850b5d490ca03c7a36bae97a81219ee7f64ccba676081f8cf5806",
+      "source": "nui 1\nconst p: number = (20)\nconst q: number = (-26)\nconst items: number[] = [6, -13, 20, -27]\nconst mapped: number[] = for item in @items { ((@item * (5)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "sha256": "9a2cf53eaf4948483a93666516bba460749a296341f9e69444c2a49d95a84416",
+      "source": "nui 1\nconst p: number = (20)\nconst q: number = (-26)\nconst items: number[] = [6, -13, 20, -27]\nconst mapped: number[] = for item in @items { ((@item * (2)) + @p) }\nconst chained: number[] = for other in @mapped { ((@other * (3)) - @q) }\nconst itemsLength: number = @items.length\nconst itemsAt0: number = @items[0]\nconst itemsAt1: number = @items[1]\nconst itemsAt2: number = @items[2]\nconst itemsAt3: number = @items[3]\nconst mappedLength: number = @mapped.length\nconst mappedAt0: number = @mapped[0]\nconst mappedAt1: number = @mapped[1]\nconst mappedAt2: number = @mapped[2]\nconst mappedAt3: number = @mapped[3]\nconst chainedLength: number = @chained.length\nconst chainedAt0: number = @chained[0]\nconst chainedAt1: number = @chained[1]\nconst chainedAt2: number = @chained[2]\nconst chainedAt3: number = @chained[3]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    }
+  ],
+  "reductions": [
+    {
+      "source": "nui 1\nconst items: number[] = [(1)]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "source": "nui 1\nconst items: number[] = [-1]",
+      "codes": [
+        "array-invalid-member"
+      ]
+    }
+  ]
+}
