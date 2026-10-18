@@ -1,7 +1,6 @@
 import { expect } from "vitest";
 import type { TextCompileResult } from "@nuinuicad/nui-language/document";
-import { moduleScalarBindingIdFor } from "../../../packages/nui-language/src/scalars/moduleScalarRuntime";
-import type { TypedScalarExpression } from "../../../packages/nui-language/src/scalars/typedExpressionAst";
+import { moduleScalarBindingIdFor, type TypedScalarExpression } from "@nuinuicad/nui-language";
 import type { EvaluateDocumentInput } from "../../../src/geometry/rustEvaluationInput";
 import { evaluationPayloadToResult, type EvaluationPayload } from "../../../src/geometry/evaluationPayload";
 import { modelNodes, oracle, references, type Expression, type Program } from "./model";
