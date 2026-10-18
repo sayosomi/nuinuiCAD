@@ -20,11 +20,11 @@ export const slotFor = (id: string): Slot => {
 // Positive factors retain nonzero sensitivity to x, so the two Module instances
 // cannot accidentally have equal exports. Native fast-check shrinking preserves
 // legality and this asymmetry; no filter/discard of compiler-rejected sources.
-export const configuration = fc.record({
+export type Configuration = { initial: number; terms: number[] };
+export const configuration: fc.Arbitrary<Configuration> = fc.record({
   initial: fc.integer({ min: -9, max: 9 }),
   terms: fc.array(fc.integer({ min: 1, max: 5 }), { minLength: 5, maxLength: 5 })
 });
-export type Configuration = fc.ArbitraryValue<typeof configuration>;
 export const replaySeed = (slot: Slot) => (slot.suite === "R" ? 141500 : 241500) + slot.shape * 100 + slot.seed;
 const binary = (op: "+" | "-" | "*", left: Expression, right: Expression): Expression => ({ op, left, right });
 const ops = ["+", "-", "*"] as const;
@@ -56,7 +56,9 @@ export function makePair(slot: Slot, config: Configuration): [Program, Program] 
     if (slot.operation === "b") changed = [...nodes, { name: `unused_${suffix}`, expression: binary("*", config.terms[0], 7) }];
     if (slot.operation === "c") changed = nodes.map(n => ({ name: n.name === names[1] ? `renamed_${suffix}` : n.name, expression: rename(n.expression, names[1], `renamed_${suffix}`) }));
     const lines = ["nui 1", ...(slot.operation === "a" ? changed : [...changed].reverse()).map(n => declaration(n))];
-    const source = slot.operation === "d" ? lines.map((line, i) => i ? `\n// trivia ${suffix} ${i}\n  ${line.replaceAll(" = ", " /* ordinary */ =\n    ")}  // end\n` : line).join("\n") : lines.join("\n");
+    // nui1 is line-oriented: newline trivia is legal BETWEEN statements and
+    // INSIDE an already-open expression, not immediately after a bare '='.
+    const source = slot.operation === "d" ? lines.map((line, i) => i ? `\n// trivia ${suffix} ${i}\n  ${line.replace(" = ", " /* ordinary */ = (\n    ")}\n  )  // end\n` : line).join("\n") : lines.join("\n");
     return [base, { ...base, roots: changed, source }];
   }
 
@@ -66,7 +68,7 @@ export function makePair(slot: Slot, config: Configuration): [Program, Program] 
   const locals: Declaration[] = names.map((name, i) => ({ name, expression: binary(ops[(i + slot.seed) % 3], "x", config.terms[i]) }));
   // Each independent local contributes with positive slope, including subtraction.
   locals.push({ name: "value", expression: names.reduce<Expression>((sum, name) => binary("+", sum, name), config.initial) });
-  const observations = instances.map((_, i) => i ? "otherResult" : "result");
+  const observations: string[] = instances.map((_, i) => i ? "otherResult" : "result");
   const outputs: Declaration[] = instances.map((instance, i) => ({ name: observations[i], expression: `${instance.name}::value` }));
   const emit = (roots: Declaration[], body: Declaration[], calls: typeof instances, reordered = false) => [
     "nui 1",
@@ -102,7 +104,9 @@ export function oracle(program: Program): Map<string, number> {
     if (typeof expression === "number") return BigInt(expression);
     if (typeof expression === "string") return value(expression);
     const left = expressionValue(expression.left), right = expressionValue(expression.right);
-    return expression.op === "+" ? left + right : expression.op === "-" ? left - right : left * right;
+    const result = expression.op === "+" ? left + right : expression.op === "-" ? left - right : left * right;
+    if (result < -1_000_000n || result > 1_000_000n) throw new Error("unbounded expression intermediate");
+    return result;
   };
   const value = (name: string): bigint => {
     if (values.has(name)) return values.get(name)!;

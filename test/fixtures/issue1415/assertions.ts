@@ -1,9 +1,9 @@
 import { expect } from "vitest";
 import type { TextCompileResult } from "@nuinuicad/nui-language/document";
-import { moduleScalarBindingIdFor } from "../../../../packages/nui-language/src/scalars/moduleScalarRuntime";
-import type { TypedScalarExpression } from "../../../../packages/nui-language/src/scalars/typedExpressionAst";
-import type { EvaluateDocumentInput } from "../../../../src/geometry/rustEvaluationInput";
-import { evaluationPayloadToResult, type EvaluationPayload } from "../../../../src/geometry/evaluationPayload";
+import { moduleScalarBindingIdFor } from "../../../packages/nui-language/src/scalars/moduleScalarRuntime";
+import type { TypedScalarExpression } from "../../../packages/nui-language/src/scalars/typedExpressionAst";
+import type { EvaluateDocumentInput } from "../../../src/geometry/rustEvaluationInput";
+import { evaluationPayloadToResult, type EvaluationPayload } from "../../../src/geometry/evaluationPayload";
 import { modelNodes, oracle, references, type Expression, type Program } from "./model";
 
 const sorted = (values: Iterable<string>) => [...new Set(values)].sort();
@@ -52,7 +52,9 @@ export function checkCompiler(program: Program, compiled: TextCompileResult, inp
           else expect(target).toMatchObject({ kind: "moduleLocal", statementId: definition.localScalars.find(s => s.name === reference.name)!.statementId });
         }
       }
-      const localBinding = analysis.catalog.bindingsById.get(identities.get(`${instance.name}::value`)!)!;
+      // Export catalog entries are caller-visible aliases; a private local
+      // carries the actual body scope shared with the parameter bindings.
+      const localBinding = analysis.catalog.bindingsById.get(identities.get(`${instance.name}::${module.locals.find(n => n.name !== "value")!.name}`)!)!;
       const parameters = bindings.filter(b => b.name === "x" && b.effectiveScopeId === localBinding.effectiveScopeId);
       expect(parameters).toHaveLength(1);
       identities.set(`${instance.name}::x`, parameters[0].id);
@@ -87,8 +89,10 @@ export function checkCompiler(program: Program, compiled: TextCompileResult, inp
     const id = identities.get(name)!;
     const compiledExpression = doc.scalarProgram!.statements.find(s => s.bindingId === id)!.declaration.initializer;
     expect(project(compiledExpression), `resolved initializer ${name}`).toEqual(expression);
-    const version = input.bindingVersions!.versions.find(v => v.bindingId === id)!;
-    expect(project(version.initializer!), `wire initializer ${name}`).toEqual(expression);
+    const wireExpression = input.bindingVersions?.versions.find(v => v.bindingId === id)?.initializer
+      ?? input.scalarProgram?.statements.find(s => s.bindingId === id)?.declaration.initializer;
+    expect(wireExpression, `wire initializer ${name}`).toBeDefined();
+    expect(project(wireExpression as TypedScalarExpression), `wire initializer ${name}`).toEqual(expression);
     const expected = sorted(references(expression));
     const resolution = analysis.initializerReferences.filter(r => r.fromBindingId === id).map(r => {
       expect(r.resolution.kind).toBe("resolved");
@@ -114,7 +118,11 @@ export function checkValues(program: Program, identities: Map<string, string>, p
   // Check every model binding, including BOTH asymmetric instance exports and
   // their parameters, rather than an aggregate that could conceal a swap.
   for (const [name, value] of expected) {
-    expect(result.computedScalarBindings?.get(identities.get(name)!), name).toEqual({ status: "ok", value: { kind: "number", value } });
+    expect(result.computedScalarBindings?.get(identities.get(name)!), name).toEqual({ status: "ok", type: { kind: "number" }, value: { kind: "number", value } });
   }
-  return program.observations.map(name => expected.get(name)!);
+  return program.observations.map(name => {
+    const binding = result.computedScalarBindings!.get(identities.get(name)!)!;
+    if (binding.status !== "ok" || binding.value.kind !== "number") throw new Error(`missing numeric observation ${name}`);
+    return binding.value.value;
+  });
 }

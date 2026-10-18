@@ -28,8 +28,9 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
   let watchdog: ReturnType<typeof setTimeout>;
   let disposing = false;
   let closeError: Error | undefined;
+  let resourceError: Error | undefined;
   const accepted = new Set<string>();
-  const dispositions: { id: string; status: string; seed: number; path?: string; shrinks?: number }[] = [];
+  const dispositions: { id: string; status: string; seed: number; path?: string | null; shrinks?: number }[] = [];
   const counts = { compiler: 0, reference: 0, production: 0 };
   const started = Date.now();
   // One empty canonical setup; exploratory compile counts below count source
@@ -49,7 +50,7 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
         // Install completion/error listeners BEFORE any request or teardown.
         closed = new Promise(resolve => {
           child!.once("close", (code, signal) => {
-            if (!disposing && (code !== 0 || signal)) closeError = new Error(`unexpected Rust close ${code}/${signal}`);
+            if (!disposing) closeError = new Error(`unexpected Rust close ${code}/${signal}`);
             resolve();
           });
           child!.once("error", error => { closeError = error; });
@@ -61,7 +62,7 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
       }) as typeof spawn
     });
     // A process safety timeout, independent of request counts or exploration capacity.
-    watchdog = setTimeout(() => { closeError = new Error("Stage-1 Rust process lifetime exceeded 10 minutes"); rust.dispose(); }, 600_000);
+    watchdog = setTimeout(() => { resourceError = new Error("Stage-1 Rust process lifetime exceeded 10 minutes"); rust.dispose(); }, 600_000);
   }, 130_000);
   afterAll(async () => {
     clearTimeout(watchdog);
@@ -77,9 +78,10 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
       clearTimeout(timer);
       const report = { counts, uniqueAccepted: accepted.size, elapsedMs: Date.now() - started, dispositions };
       if (evidence) appendFileSync(join(evidence, "runs.ndjson"), JSON.stringify(report) + "\n");
-      console.info(`Stage-1 metrics ${JSON.stringify(report)}`);
+      console.info(`Stage-1 metrics ${JSON.stringify({ counts, uniqueAccepted: accepted.size, elapsedMs: report.elapsedMs, pairs: dispositions.length, passed: dispositions.filter(d => d.status === "PASS").length })}`);
     }
     if (closeError) throw closeError;
+    if (resourceError) throw resourceError;
   }, 10_000);
 
   it("retains the complete pre-execution 256-ID manifest", () => {
@@ -90,6 +92,8 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
   });
 
   const evaluate = async (program: Program) => {
+    // Infrastructure failures stop new exploration, including native shrinking.
+    if (resourceError || closeError) throw resourceError ?? closeError;
     const hash = createHash("sha256").update(program.source).digest("hex");
     if (!accepted.has(hash) && accepted.size >= 640) throw new Error("exploration capacity exhausted; preserve incomplete IDs");
     counts.compiler++;
@@ -99,7 +103,7 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
       accepted.add(hash);
       if (evidence) appendFileSync(join(evidence, "accepted.sha256"), hash + "\n");
     }
-    expect(errors, program.source).toEqual([]);
+    expect(compiled.diagnostics, program.source).toEqual([]);
     expect(compiled.status, program.source).toBe("valid");
     const fixture = { compiled, elements: compiled.doc.document.elements, evaluationLimitIndex: compiled.doc.document.evaluationLimitIndex };
     const options = optionsFor(fixture);
@@ -113,10 +117,23 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const production = await Promise.race([
       rust.request(prepared.input),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => { rust.dispose(); reject(new Error("persistent Rust request timeout")); }, 10_000); })
+      new Promise<never>((_, reject) => { timer = setTimeout(() => { resourceError = new Error("persistent Rust request timeout"); rust.dispose(); reject(resourceError); }, 10_000); })
     ]).finally(() => clearTimeout(timer)) as EvaluationPayload;
     return checkValues(program, identities, production);
   };
+
+  it("limits formatting to legal line-oriented statement boundaries", async () => {
+    // Independently reduced generator counterexample, NOT a product defect:
+    // docs/dsl/en/syntax.md defines a line-oriented language. A bare trailing
+    // '=' opens no expression delimiter. Preserve the rejected candidate and
+    // its adjacent passing controls rather than silently dropping R-d cells.
+    counts.compiler++;
+    const invalid = compileCanonicalText(initial, "nui 1\nconst result: number =\n  (1)");
+    expect(invalid.diagnostics.map(d => d.code)).toContain("empty-declaration-initializer");
+    for (const source of ["nui 1\nconst result: number = (1)", "nui 1\nconst result: number = (\n  (1)\n)"]) {
+      expect(await evaluate({ source, roots: [{ name: "result", expression: 1 }], observations: ["result"] })).toEqual([1]);
+    }
+  });
 
   // One bounded pair per test; one persistent production child for the run.
   for (const id of manifest.filter(id => !selected || selected.includes(id))) it(id, async () => {
@@ -125,6 +142,7 @@ describe("Issue #1415 deterministic scalar metamorphic Stage 1", () => {
       const [original, transformed] = makePair(slot, config);
       expect(original.source).not.toBe(transformed.source);
       expect(original.observations.map(name => oracle(original).get(name))).toEqual(transformed.observations.map(name => oracle(transformed).get(name)));
+      if (slot.suite === "M" && slot.shape === 2) expect(oracle(original).get("result")).not.toBe(oracle(original).get("otherResult"));
       expect(await evaluate(original)).toEqual(await evaluate(transformed));
     }), { seed, numRuns: 1, ...(replayPath ? { path: replayPath } : {}), interruptAfterTimeLimit: 25_000, markInterruptAsFailure: true });
     dispositions.push({ id, status: result.failed ? "unresolved" : "PASS", seed, ...(result.failed ? { path: result.counterexamplePath, shrinks: result.numShrinks } : {}) });
