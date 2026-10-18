@@ -49,6 +49,7 @@ import {
 import { compileTextTemplates, type TextTemplateAst } from "../scalars/textTemplate";
 import { buildTypedDependencyGraph, type TypedDependencyGraph } from "../scalars/typedDependencyGraph";
 import { compileImmutableCarries, type ImmutableCarryCompilation } from "../scalars/immutableCarryCompiler";
+import { captureGeometryCarryProgram, isLoopLocalGeometryValue } from "./geometryCarryProgramCapture";
 import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
 import type { ScalarExpressionResolvedGeometryProperty, ScalarExpressionResolvedGeometryTarget, TypedScalarExpression } from "../scalars/typedExpressionAst";
 import { formatNumericValueForDsl } from "./dslExpressionFormat";
@@ -5304,6 +5305,7 @@ export const compileDslDocument = (
       : expression;
   type ImmutableCarryDeclaration = NonNullable<typeof immutableCarryCompilation>["declarations"][number];
   type ImmutableCarryNext = NonNullable<typeof immutableCarryCompilation>["nexts"][number];
+  const capturedCarryGeometryValues = new Set<string>();
   const geometryCarryTargetPlanForAst = (
     node: ScalarExpressionAst,
     declaration: ImmutableCarryDeclaration,
@@ -5351,14 +5353,18 @@ export const compileDslDocument = (
       const declaredGeometryType = dslRequiredValueTypeOf(declaration.valueType);
       if (!declaredGeometryType || !isDslGeometryValueType(declaredGeometryType)) return null;
       const sourceStatementId = geometryCarryNextConstructionId(declaration.bindingId, branchPath);
-      const construction = moduleScalarCompilation?.geometryCarryNextPrograms.get(sourceStatementId) ??
+      const sourceConstruction = moduleScalarCompilation?.geometryCarryNextPrograms.get(sourceStatementId) ??
         buildRootGeometryValueProgram({
           values: locallyAnalyzedSourceSemanticCompilation?.geometryCarryNextValues ?? [],
           elementIdByStatementIndex: compiled.elementIdsByStatementIndex ?? new Map()
         }).find((entry) => entry.sourceStatementId === sourceStatementId)?.construction;
-      if (!construction) return rootExecutionOrderGeometryTarget(geometryTargetForCarryExpression(
+      if (!sourceConstruction) return rootExecutionOrderGeometryTarget(geometryTargetForCarryExpression(
         controllerRawFor(next.expression, next.expressionSpan, node.span), next.statementIndex, declaration.bindingId
       ));
+      const construction = captureGeometryCarryProgram(
+        sourceConstruction, moduleScalarCompilation?.geometryValueProgram ?? compiled.geometryValueProgram ?? [],
+        declaration.ownerStatementIndex, [], parsed.statements, capturedCarryGeometryValues
+      );
       // Reference leaves already have a canonical target from the shared
       // Module/occurrence lowering. Keep it rather than re-resolving its name
       // through the non-indexed carry compatibility projection below.
@@ -5660,9 +5666,11 @@ export const compileDslDocument = (
   }
   // This is intentionally built before the final diagnostic gate. It is a
   // current-source analysis record, not part of the last-good geometry model.
-  const geometryValueProgramForGraph = moduleScalarCompilation?.geometryValueProgram?.length
+  const geometryValueProgramForGraph = (moduleScalarCompilation?.geometryValueProgram?.length
     ? moduleScalarCompilation.geometryValueProgram
-    : compiled.geometryValueProgram;
+    : compiled.geometryValueProgram)?.map(entry => capturedCarryGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence)) ||
+      (entry.occurrence.instancePath.length === 0 && isLoopLocalGeometryValue(entry, parsed.statements))
+      ? { ...entry, lazy: true } : entry);
   const geometryValueSourceEventOrders = new Map<number, number[]>();
   const addGeometryValueSourceEvent = (statementIndex: number | undefined, sourceOrder: number | undefined) => {
     if (statementIndex === undefined || sourceOrder === undefined) return;

@@ -564,7 +564,38 @@ export const analyzeModuleBody = ({
             geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(statementIndex, reference)
           }
         );
-        const next = resolveGeometry(
+        const nextSource = sourceTextFor(nextStatement.candidateIndex);
+        const nextAst = /^(?:if\s*\(|match\b)/.test(nextStatement.candidate.expression.trim())
+          ? parseScalarExpression(nextSource, nextStatement.candidate.expressionSpan, { allowOpaqueNamedCalls: true })
+          : null;
+        for (const diagnostic of nextAst?.diagnostics ?? []) addLocal(nextStatement.candidateIndex, diagnostic);
+        const geometryNextExpression = nextAst?.ast ? parseGeometryValueExpression({
+          statementIndex: nextStatement.candidateIndex,
+          ownerIndex: definition.statementIndex,
+          source: nextSource,
+          node: nextAst.ast,
+          expectedInterfaceType: requiredValueType.kind,
+          expectedValueType: requiredValueType,
+          analyzeScalar: (raw, span, expectedType) => analyzeExpression(
+            nextStatement.candidateIndex, definition.statementIndex, raw, span, expectedType,
+            reference => resolveBodyScalar(nextStatement.candidateIndex, reference),
+            reference => resolveBodyBareScalar(nextStatement.candidateIndex, reference),
+            reference => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference),
+            reference => resolveBodyGeometryBuiltin(nextStatement.candidateIndex, reference)
+          ),
+          resolveReference: (raw, span) => resolveGeometry(
+            nextStatement.candidateIndex, definition.statementIndex, raw, span, expectedGeometryKind,
+            { expectedInterfaceType: requiredValueType.kind, expectedValueType: requiredValueType }
+          ),
+          parseConstruction: (raw, span, expectedInterfaceType) => resolveGeometryConstruction(
+            nextStatement.candidateIndex, definition.statementIndex, raw, span, expectedInterfaceType,
+            { scalarResolver: reference => resolveBodyScalar(nextStatement.candidateIndex, reference),
+              bareScalarResolver: reference => resolveBodyBareScalar(nextStatement.candidateIndex, reference),
+              geometryPropertyResolver: reference => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference) }
+          ),
+          addDiagnostic: diagnostic => addLocal(nextStatement.candidateIndex, diagnostic)
+        }) : null;
+        const next = nextAst ? null : resolveGeometry(
           nextStatement.candidateIndex,
           definition.statementIndex,
           nextStatement.candidate.expression,
@@ -579,7 +610,10 @@ export const analyzeModuleBody = ({
             geometryPropertyResolver: (reference) => resolveBodyGeometryProperty(nextStatement.candidateIndex, reference)
           }
         );
-        if (initializer.resolution !== "resolved" || next.resolution !== "resolved") continue;
+        // Qualified child exports are intentionally deferred until Module
+        // materialization. Keep their carry plan for that canonical lowering.
+        if ((initializer.resolution !== "resolved" && initializer.resolution !== "deferred") ||
+            (!geometryNextExpression && next?.resolution !== "resolved" && next?.resolution !== "deferred")) continue;
         immutableCarries.push({
           bindingId: `binding:${statementId}:carry:${carryIndex}`,
           statementId,
@@ -589,7 +623,8 @@ export const analyzeModuleBody = ({
           type: null,
           valueType: requiredValueType,
           geometryInitializer: initializer,
-          geometryNext: next,
+          ...(next ? { geometryNext: next } : {}),
+          ...(geometryNextExpression ? { geometryNextExpression } : {}),
           nextStatementIndex: nextStatement.candidateIndex
         });
       }

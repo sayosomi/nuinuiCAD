@@ -511,7 +511,7 @@ export const sourceAliasForTarget = (
     );
   }
   if (target.kind === "geometryValue") {
-    if (target.backingTarget) {
+    if (target.backingTarget && target.backingTarget.kind !== "collectionIndex") {
       const alias = sourceAliasForTarget(target.backingTarget, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
       if (!alias) return undefined;
       return lowerAliasWithPointKey(lowerAliasWithStagePath(alias, target.stagePath), target.pointKey);

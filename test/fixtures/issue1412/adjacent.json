@@ -1,0 +1,2538 @@
+[
+  {
+    "id": "X01",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X01"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nconst paths: path[] = [@A, @B]\nmodule Select(paths: path[], pick: number) {\n  export const out: path = @paths[@pick]\n}\ninstance Use = Select(paths: @paths, pick: 1)\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 45,
+    "checks": {},
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X01",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X01"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nconst paths: path[] = [@A, @B]\nmodule Select(paths: path[], pick: number) {\n  export const pathsOut: path[] = @paths\n}\ninstance Use = Select(paths: @paths, pick: 1)\nconst result: number = lineAngle(@Use::pathsOut[1].start, @Axis.start)\n",
+    "expected": 45,
+    "checks": {},
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "X02",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X02"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Inner() {\n  line A = polar(start: (0, 0), angle: 23, length: 33)\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @A {\n    next edge = @A\n  }\n  export const out: path = @edge\n}\nmodule Outer() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  instance Child = Inner()\n  for j in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n    next edge = @Child::out\n  }\n  export const out: path = @edge\n}\ninstance Use = Outer()\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {},
+    "nearest": [
+      "M001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X02",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X02"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Inner() {\n  line A = polar(start: (0, 0), angle: 23, length: 33)\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @A {\n    next edge = @A\n  }\n  export const out: path = @edge\n}\nmodule Outer() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  instance Child = Inner()\n  for j in range(min: 0, max: 0, step: 1) carry edge: path = @Seed {\n    next edge = @Child::out\n  }\n  export const out: path = @edge\n}\ninstance Use = Inner()\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {},
+    "nearest": [
+      "M001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "X03",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X03"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  next edge = if (true) { @A[@i].base } else { @Seed }\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X03",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X03"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  next edge = @A[@i].base\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "X04",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X04"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  const chosen: path = if (true) { @A[@i].base } else { @Seed }\n  next edge = @chosen\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X04",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X04"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  const chosen: path = if (true) { @Seed } else { @Seed }\n  next edge = @chosen\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 0,
+    "checks": {},
+    "nearest": [
+      "X04"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "X05",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X05"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Inner() {\n  line A = polar(start: (0, 0), angle: 23, length: 33)\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @A {\n    next edge = @A\n  }\n  export const out: path = @edge\n}\nmodule Outer() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  instance Child = Inner()\n  const paths: path[] = [@Seed, @Child::out]\n  export const out: path = @paths[1]\n}\ninstance Use = Outer()\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {},
+    "nearest": [
+      "M001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X05",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X05"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Inner() {\n  line A = polar(start: (0, 0), angle: 23, length: 33)\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @A {\n    next edge = @A\n  }\n  export const out: path = @edge\n}\nmodule Outer() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  instance Child = Inner()\n  const paths: path[] = [@Seed, @Child::out]\n  export const out: path = @Child::out\n}\ninstance Use = Outer()\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {},
+    "nearest": [
+      "M001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "X06",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X06"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  const chosen: path = if (@i == 0) { @previous } else { @A[@i].base }\n  next edge = @chosen\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X06",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X06"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  const chosen: path = if (@i == 0) { @previous } else { @A[@i].base }\n  next edge = @A[@i].base\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "X07",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X07"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Inner() {\n  line A = polar(start: (0, 0), angle: 23, length: 33)\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @A {\n    next edge = @A\n  }\n  export const out: path = @edge\n}\nmodule Outer() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  instance Child = Inner()\n  const paths: path[] = [@Seed, @Child::out]\n  export const out: path = @paths[1]\n}\nmodule Wrap() {\n  instance Middle = Outer()\n  export const out: path = @Middle::out\n}\ninstance Use = Wrap()\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {},
+    "nearest": [
+      "M001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X07",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X07"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nmodule Inner() {\n  line A = polar(start: (0, 0), angle: 23, length: 33)\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @A {\n    next edge = @A\n  }\n  export const out: path = @edge\n}\nmodule Outer() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  instance Child = Inner()\n  const paths: path[] = [@Seed, @Child::out]\n  export const out: path = @paths[1]\n}\ninstance Use = Outer()\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {},
+    "nearest": [
+      "M001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "O-B001",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].base } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27.000000000000007,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B001",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B002",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].base } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 27.000000000000007,
+    "checks": {},
+    "nearest": [
+      "B002"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B002",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B002"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B003",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B003"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B004",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B004"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B005",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].selected } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40.00000000000001,
+    "checks": {},
+    "nearest": [
+      "B005"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B005",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B005"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B006",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].selected } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40.00000000000001,
+    "checks": {},
+    "nearest": [
+      "B006"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B006",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B006"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B007",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B007"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B008",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B008"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B009",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].base } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27.000000000000007,
+    "checks": {},
+    "nearest": [
+      "B009"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B009",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B009"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B010",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].base } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 27.000000000000007,
+    "checks": {},
+    "nearest": [
+      "B010"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B010",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B010"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B011",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B011"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B012",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B012"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B013",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].selected } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 40.00000000000001,
+    "checks": {},
+    "nearest": [
+      "B013"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B013",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B013"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B014",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].selected } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 40.00000000000001,
+    "checks": {},
+    "nearest": [
+      "B014"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B014",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B014"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B015",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B015"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B016",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "line",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    line Generated = polar(start: (@i * 120, 7), angle: 23 + @i * 11, length: 33)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B016"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B017",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].base } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 21,
+    "checks": {},
+    "nearest": [
+      "B017"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B017",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B017"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B018",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].base } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 48,
+    "checks": {},
+    "nearest": [
+      "B018"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B018",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B018"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B019",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B019"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B020",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B020"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B021",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].selected } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 34.000000000000014,
+    "checks": {},
+    "nearest": [
+      "B021"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B021",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B021"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B022",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].selected } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 35.00000000000003,
+    "checks": {},
+    "nearest": [
+      "B022"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B022",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B022"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B023",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B023"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B024",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B024"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B025",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].base } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 21,
+    "checks": {},
+    "nearest": [
+      "B025"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B025",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B025"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B026",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].base } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 48,
+    "checks": {},
+    "nearest": [
+      "B026"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B026",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B026"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B027",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B027"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B028",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B028"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B029",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].selected } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 34.000000000000014,
+    "checks": {},
+    "nearest": [
+      "B029"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B029",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B029"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B030",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].selected } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 35.00000000000003,
+    "checks": {},
+    "nearest": [
+      "B030"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B030",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B030"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B031",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B031"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B032",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "arc",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    arc Generated = arc(center: (@i * 120, 7), radius: 26, start: 287 + @i * 11, end: 38 + @i * 11, direction: counterclockwise)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B032"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B033",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].base } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 38.000000000000014,
+    "checks": {},
+    "nearest": [
+      "B033"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B033",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B033"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B034",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].base } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 39.000000000000014,
+    "checks": {},
+    "nearest": [
+      "B034"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B034",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B034"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B035",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B035"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B036",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B036"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B037",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].selected } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 51.00000000000001,
+    "checks": {},
+    "nearest": [
+      "B037"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B037",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B037"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B038",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = if (true) { if (@i == 0) { @previous } else { @Generated[@i].selected } } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 26.000000000000025,
+    "checks": {},
+    "nearest": [
+      "B038"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B038",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = if (false) { @Valid } else { @Dormant }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B038"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B039",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B039"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B040",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "if",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = right\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = if (false) { @Valid } else { @Dormant }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B040"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B041",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].base } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 38.000000000000014,
+    "checks": {},
+    "nearest": [
+      "B041"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B041",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B041"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B042",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].base } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 39.000000000000014,
+    "checks": {},
+    "nearest": [
+      "B042"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B042",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B042"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B043",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B043"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B044",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "base",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].base }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B044"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B045",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].selected } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 51.00000000000001,
+    "checks": {},
+    "nearest": [
+      "B045"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B045",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B045"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "O-B046",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = right\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  next edge = match @side { left => @Dormant right => if (@i == 0) { @previous } else { @Generated[@i].selected } }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": 26.000000000000025,
+    "checks": {},
+    "nearest": [
+      "B046"
+    ],
+    "missing": "Retained legal original direct conditional counterpart",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "docs/nui1/spec.md:669-701,1123-1150,1438-1500,1615-1775; independent analytic endpoint axes: line=23, CCW arc=(17,128), cubic derivative=(34,137); move adds 13 then 31 degrees; reverse swaps endpoint derivatives; axis angle=acos(abs(dot(unit tangents))). Immutable next snapshots commit simultaneously."
+  },
+  {
+    "id": "I-B046",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "root",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nline Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\nconst side: choice(left, right) = left\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n  move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n  move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n  const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n  next edge = match @side { left => @Dormant right => @Valid }\n  next previous = @edge\n}\nconst result: number = lineAngle(@edge.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B046"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B047",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "start"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.start, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B047"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "I-B048",
+    "suite": "adjacent",
+    "factors": {
+      "shape": "cubic",
+      "branch": "match",
+      "stage": "selected",
+      "forwarding": "module",
+      "endpoint": "end"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nmodule Provider() {\n  line Seed = polar(start: (-80, -40), angle: 7, length: 33)\n  line Dormant = polar(start: (900, 0), angle: 71, length: 20, enabled: false)\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed carry previous: path = @Seed {\n    curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)\n    move Generated as selected (from: (0, 0), to: (17, -9), angleDeg: 13)\n    move Generated as later (from: (0, 0), to: (17, -9), angleDeg: 31)\n    const Valid: path = if (@i == 0) { @previous } else { @Generated[@i].selected }\n    next edge = match @side { left => @Dormant right => @Valid }\n    next previous = @edge\n  }\n  export const out: path = @edge\n}\ninstance Chosen = Provider()\nconst result: number = lineAngle(@Chosen::out.end, @Axis.start)\n",
+    "expected": "diagnostic",
+    "checks": {},
+    "nearest": [
+      "B048"
+    ],
+    "missing": "Same selected branch genuinely disabled: must diagnose",
+    "identity": {
+      "owners": [
+        "Generated",
+        "Dormant"
+      ],
+      "stages": [
+        "selected"
+      ]
+    },
+    "oracle": "spec.md:681-685; selected disabled geometry is unavailable, never an unselected-branch fallback"
+  },
+  {
+    "id": "X08",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X08"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  const Alias: path = @A[@i].base\n  next edge = @Alias\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "C-X08",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X08"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline Seed = polar(start: (-80, -40), angle: 7, length: 33)\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @Seed {\n  line A = polar(start: (@i * 100, 0), angle: 23 + @i * 11, length: 33)\n  next edge = @A[@i].base\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 27,
+    "checks": {},
+    "nearest": [
+      "B001"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A"
+      ],
+      "stages": [
+        "base"
+      ]
+    },
+    "oracle": "Independent polar line axis (52/23/34) against 7 degrees; normative immutable identity propagation."
+  },
+  {
+    "id": "X09",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X09"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nmodule Forward(source: path, other: path) {\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @other carry previous: path = @source {\n    next edge = if (true) { @previous } else { @edge }\n    next previous = @edge\n  }\n  export const out: path = @edge\n  export const prior: path = @previous\n}\ninstance Use = Forward(source: @A, other: @B)\nconst prior: number = lineAngle(@Use::prior.start, @Axis.start)\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {
+      "prior": 45
+    },
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A",
+        "B"
+      ],
+      "stages": [
+        "final"
+      ]
+    },
+    "oracle": "Simultaneous next: edge receives 23-degree source while previous receives incoming 52-degree other; angle against7 is16 and45."
+  },
+  {
+    "id": "C-X09",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X09"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nmodule Forward(source: path, other: path) {\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @other carry previous: path = @source {\n    next edge = @previous\n    next previous = @edge\n  }\n  export const out: path = @edge\n  export const prior: path = @previous\n}\ninstance Use = Forward(source: @A, other: @B)\nconst prior: number = lineAngle(@Use::prior.start, @Axis.start)\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {
+      "prior": 45
+    },
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A",
+        "B"
+      ],
+      "stages": [
+        "final"
+      ]
+    },
+    "oracle": "Simultaneous next: edge receives 23-degree source while previous receives incoming 52-degree other; angle against7 is16 and45."
+  },
+  {
+    "id": "X10",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X10"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nmodule Forward(source: path, other: path) {\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @other carry previous: path = @source {\n    next edge = match @side { left => @previous right => @edge }\n    next previous = @edge\n  }\n  export const out: path = @edge\n  export const prior: path = @previous\n}\ninstance Use = Forward(source: @A, other: @B)\nconst prior: number = lineAngle(@Use::prior.start, @Axis.start)\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {
+      "prior": 45
+    },
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A",
+        "B"
+      ],
+      "stages": [
+        "final"
+      ]
+    },
+    "oracle": "Simultaneous next: edge receives 23-degree source while previous receives incoming 52-degree other; angle against7 is16 and45."
+  },
+  {
+    "id": "C-X10",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X10"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nmodule Forward(source: path, other: path) {\n  const side: choice(left, right) = left\n  for i in range(min: 0, max: 0, step: 1) carry edge: path = @other carry previous: path = @source {\n    next edge = @previous\n    next previous = @edge\n  }\n  export const out: path = @edge\n  export const prior: path = @previous\n}\ninstance Use = Forward(source: @A, other: @B)\nconst prior: number = lineAngle(@Use::prior.start, @Axis.start)\nconst result: number = lineAngle(@Use::out.start, @Axis.start)\n",
+    "expected": 16,
+    "checks": {
+      "prior": 45
+    },
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A",
+        "B"
+      ],
+      "stages": [
+        "final"
+      ]
+    },
+    "oracle": "Simultaneous next: edge receives 23-degree source while previous receives incoming 52-degree other; angle against7 is16 and45."
+  },
+  {
+    "id": "X11",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X11"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nconst paths: path[] = [@A, @B]\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @A {\n  const chosen: path = if (true) { @paths[@i] } else { @A }\n  next edge = @chosen\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 45,
+    "checks": {},
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A",
+        "B"
+      ],
+      "stages": [
+        "final"
+      ]
+    },
+    "oracle": "Collection selected indexes0,1 choose23 and52 degree lines; last angle45."
+  },
+  {
+    "id": "C-X11",
+    "suite": "adjacent",
+    "factors": {
+      "family": "X11"
+    },
+    "source": "nui 1\nline Axis = polar(start: (430, -70), angle: 7, length: 33)\nline A = polar(start: (0, 0), angle: 23, length: 33)\nline B = polar(start: (140, 0), angle: 52, length: 33)\nconst paths: path[] = [@A, @B]\nfor i in range(min: 0, max: 1, step: 1) carry edge: path = @A {\n  const chosen: path = @paths[@i]\n  next edge = @chosen\n}\nconst result: number = lineAngle(@edge.start, @Axis.start)\n",
+    "expected": 45,
+    "checks": {},
+    "nearest": [
+      "D005"
+    ],
+    "missing": "Reduced same-factor counterexample or nearby passing contrast",
+    "identity": {
+      "owners": [
+        "A",
+        "B"
+      ],
+      "stages": [
+        "final"
+      ]
+    },
+    "oracle": "Collection selected indexes0,1 choose23 and52 degree lines; last angle45."
+  }
+]

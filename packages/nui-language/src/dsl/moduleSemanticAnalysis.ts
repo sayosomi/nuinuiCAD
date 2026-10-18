@@ -4046,6 +4046,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const raw = source.slice(node.span.start, node.span.end);
     switch (node.kind) {
       case "reference":
+      case "geometryProperty":
+      case "collectionIndex":
         return {
           kind: "reference",
           span: node.span,

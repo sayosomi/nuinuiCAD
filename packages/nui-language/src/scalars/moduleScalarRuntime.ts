@@ -20,6 +20,7 @@ import type {
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
 import { unwrapModuleGeometrySourceTarget } from "../dsl/moduleSemanticTypes";
+import { captureGeometryCarryProgram, isLoopLocalGeometryValue } from "../dsl/geometryCarryProgramCapture";
 import {
   isModuleGeometryInterfaceAssignable,
   moduleGeometryInterfaceTypeOf,
@@ -48,7 +49,7 @@ import {
   type BindingId,
   type BindingSeed
 } from "./bindingCatalog";
-import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner, type ImmutableCollectionCarry, type ImmutableForGroupPlan, type ImmutableGeometryCollectionCarry } from "./bindingVersions";
+import { buildBindingControlMetadata, type BindingControlMetadata, type BindingControlOwner, type ImmutableCollectionCarry, type ImmutableForGroupPlan, type ImmutableGeometryCollectionCarry, type ImmutableGeometryCarryTargetPlan } from "./bindingVersions";
 import type { LexicalScopeIndex } from "./lexicalScopeIndex";
 import {
   lowerScalarProgram,
@@ -6618,7 +6619,7 @@ export const compileModuleScalarRuntime = ({
     if (lowered.kind === "geometryCarry") {
       return {
         kind: "geometryCarry",
-        bindingId: moduleCarryBindingIdFor(context?.path ?? [], lowered.bindingId),
+        bindingId: lowered.bindingId,
         statementId: lowered.bindingId,
         statementIndex: executionPosition,
         geometryType: lowered.geometryType,
@@ -8010,6 +8011,7 @@ export const compileModuleScalarRuntime = ({
       });
     }
   }
+  const capturedCarryGeometryValues = new Set<string>();
   const moduleGeometryTargetFor = (
     context: InstanceContext,
     reference: import("../dsl/moduleSemanticTypes").ModuleGeometryReferenceSemantic,
@@ -8027,11 +8029,34 @@ export const compileModuleScalarRuntime = ({
   for (const context of contextsByKey.values()) {
     if (!contextIsReachable(context)) continue;
     for (const carry of context.definition.immutableCarries ?? []) {
-      if (carry.type || !carry.geometryInitializer || !carry.geometryNext) continue;
+      if (carry.type || !carry.geometryInitializer || (!carry.geometryNext && !carry.geometryNextExpression)) continue;
       if (!isDslGeometryValueType(carry.valueType)) continue;
       const expectedGeometryType = carry.valueType.kind;
       const initializerTarget = moduleGeometryTargetFor(context, carry.geometryInitializer, expectedGeometryType);
-      const nextTarget = moduleGeometryTargetFor(context, carry.geometryNext, expectedGeometryType);
+      let nextTarget: ImmutableGeometryCarryTargetPlan | undefined = carry.geometryNext
+        ? moduleGeometryTargetFor(context, carry.geometryNext, expectedGeometryType)
+        : undefined;
+      const nextProgramId = `geometry-carry-next:${encodeURIComponent(carry.bindingId)}:root`;
+      const nextProgram = carry.geometryNextExpression
+        ? lowerGeometryValueExpression({
+            statementId: nextProgramId, statementIndex: carry.nextStatementIndex, name: carry.name,
+            declaredInterfaceType: expectedGeometryType, ownerModuleDefinitionStatementId: context.definition.statementId,
+            ownerModuleDefinitionStatementIndex: context.definition.statementIndex, exported: false,
+            initializer: null, construction: null, valueExpression: carry.geometryNextExpression, backingTarget: null
+          }, carry.geometryNextExpression, context, executionPositionForValue(context.path, carry.nextStatementIndex))
+        : nextTarget ? { kind: "reference" as const, target: nextTarget } : undefined;
+      if (nextProgram) {
+        const captured = captureGeometryCarryProgram(nextProgram, geometryValueProgram,
+          carry.statementIndex, context.path,
+          moduleRuntimeContext?.documentFor(context.definitionDocumentId)?.statements ?? statements, capturedCarryGeometryValues);
+        nextTarget = captured.kind === "reference" && captured.target.kind !== "geometryInputTarget"
+          ? captured.target
+          : {
+              kind: "geometryValueConstruction", sourceStatementId: nextProgramId,
+              sourceStatementIndex: carry.nextStatementIndex, occurrence: { sourceStatementId: nextProgramId, instancePath: context.path },
+              geometryType: expectedGeometryType, construction: captured
+            };
+      }
       if (!initializerTarget || !nextTarget) continue;
       const ownerStatementId = moduleOwnerIdFor(context.path, carry.statementId);
       const owner = [...controlByScopeId.values()]
@@ -8272,7 +8297,20 @@ export const compileModuleScalarRuntime = ({
     materializedConditionalGroupConditions,
     conditionalOwnerStatementIdByElementId,
     forGroupMutationOwnerByElementId,
-    geometryValueProgram,
+    geometryValueProgram: geometryValueProgram.map(entry => {
+      let context = contextsByKey.get(pathKey(entry.occurrence.instancePath));
+      const declarationStatements = moduleRuntimeContext?.documentFor(context?.definitionDocumentId)?.statements ?? statements;
+      let frameLocal = isLoopLocalGeometryValue(entry, declarationStatements);
+      // Transparent reference exports inherit the caller's generated frame.
+      // Their resolved leaf is already transported to every consuming target.
+      while (!frameLocal && context && entry.construction.kind === "reference") {
+        frameLocal = isLoopLocalGeometryValue({ ...entry, sourceStatementIndex: context.instance.statementIndex },
+          moduleRuntimeContext?.documentFor(context.instanceDocumentId)?.statements ?? statements);
+        context = context.parentKey ? contextsByKey.get(context.parentKey) : undefined;
+      }
+      return capturedCarryGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence)) || frameLocal
+        ? { ...entry, lazy: true } : entry;
+    }),
     geometryCarryNextPrograms,
     geometryInputTargetsByRuntimeElementId,
     geometryCollectionNodesByValueId,
