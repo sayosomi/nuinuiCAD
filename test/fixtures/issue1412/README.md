@@ -88,11 +88,59 @@ Required regression suites include #1404, #1406, #1408, #1410 and the named
 carry/Module/collection tests, together with affected compiler, scalar and runtime
 coverage. Required gates are build, lint, DSL reference check, TS/Rust parity, full
 npm tests, Rust fmt/check/tests and Clippy with warnings denied. The final exact
-runtime verification revision is recorded in the union and PR; later evidence-only
-commits preserve those runtime source bytes.
+runtime verification revision is
+`62b484ed44b1f1c6e6ce11deca49483d8bb614af`; later evidence-only commits preserve
+those runtime source bytes. The union records SHA-256 hashes of all 19 changed
+verification inputs other than this README and the union itself.
+
+All checks passed on that revision:
+
+| Check | Result |
+| --- | --- |
+| #1412 canonical compiler / analytic oracle / TS / persistent Rust / wire matrix | 923 tests passed (922 cells plus ledger integrity). |
+| #1404/#1406/#1408/#1410 and affected carry/Module/collection regression batch | 13 files, 1,128 tests passed. |
+| Full `npm test -- --maxWorkers=1 --no-file-parallelism` | 660 files and 9,456 tests passed; 2 files and 157 tests skipped. |
+| `npm run test:parity -- --maxWorkers=1 --no-file-parallelism` | 203 tests passed. |
+| `npm run build`, `npm run lint`, `npm run docs:dsl:check` | Passed. |
+| Rust `cargo fmt --check`, `cargo check`, focused `geometry_value_runtime_tests` | Passed using `rust-evaluator/Cargo.toml`. |
+| Full `cargo test` | 612 library tests passed, 9 ignored; 6 stdio and 1 integration tests passed. |
+| `cargo clippy --all-targets -- -D warnings` | Passed. |
+
+Each check ran in a bounded process group with a 1,200-second timeout; no session
+timed out. Per-request and per-case limits remain in the integration suite. The
+final evidence-only update also passes the ledger integrity test and
+`git diff --check`.
 
 Manual E2E is **Not Required for #1412** under the current `MANUAL-E2E.md` rule:
 these acceptance conditions are deterministic compiler/evaluator checks. #1373's
 Human GUI E2E remains separate. Independent exact-pushed-HEAD blocking review,
 required GitHub Actions CI, protected merge and merged-main readback remain external
 gates; implementation verification does not claim those outcomes.
+
+## Changed files
+
+The complete implementation and retained evidence touch these 21 files:
+
+```text
+docs/dsl/en/builtins.md
+packages/nui-language/src/dsl/dslDocument.ts
+packages/nui-language/src/dsl/geometryCarryProgramCapture.ts
+packages/nui-language/src/dsl/moduleBodySemanticCore.ts
+packages/nui-language/src/dsl/moduleGeometryRuntime.ts
+packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts
+packages/nui-language/src/dsl/moduleSemanticAnalysis.ts
+packages/nui-language/src/dsl/moduleSemanticTypes.ts
+packages/nui-language/src/scalars/moduleScalarRuntime.ts
+packages/nui-language/src/scalars/typedDependencyGraph.ts
+rust-evaluator/src/evaluation/conditional_dependency_runtime.rs
+rust-evaluator/src/evaluation/geometry_value_runtime.rs
+rust-evaluator/src/evaluation/mod.rs
+rust-evaluator/src/evaluation/scalars/geometry_builtin_runtime.rs
+rust-evaluator/src/evaluation/scalars/mutation.rs
+src/geometry/evaluate.ts
+test/fixtures/issue1412/README.md
+test/fixtures/issue1412/adjacent.json
+test/fixtures/issue1412/cases.ts
+test/fixtures/issue1412/coverage-union.json
+test/issue1412LineAngleInteractionRust.integration.test.ts
+```
