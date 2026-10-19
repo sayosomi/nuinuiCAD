@@ -1,0 +1,108 @@
+{
+  "primaryPrograms": 48,
+  "controls": 3,
+  "accepted": 51,
+  "rejected": 8,
+  "counts": {
+    "compiler": 306,
+    "reference": 476,
+    "production": 476
+  },
+  "runs": [
+    {
+      "phase": "baseline",
+      "counts": {
+        "compiler": 51,
+        "reference": 119,
+        "production": 119
+      },
+      "cases": 51,
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50"
+    },
+    {
+      "phase": "checked-baseline",
+      "counts": {
+        "compiler": 51,
+        "reference": 119,
+        "production": 119
+      },
+      "cases": 51,
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50"
+    },
+    {
+      "phase": "freeze",
+      "counts": {
+        "compiler": 51,
+        "reference": 0,
+        "production": 0
+      },
+      "cases": 0,
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50"
+    },
+    {
+      "phase": "observe",
+      "counts": {
+        "compiler": 51,
+        "reference": 119,
+        "production": 119
+      },
+      "cases": 51,
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50"
+    },
+    {
+      "phase": "prevalidate",
+      "counts": {
+        "compiler": 51,
+        "reference": 0,
+        "production": 0
+      },
+      "cases": 0,
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50"
+    },
+    {
+      "phase": "verify",
+      "counts": {
+        "compiler": 51,
+        "reference": 119,
+        "production": 119
+      },
+      "cases": 51,
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50"
+    }
+  ],
+  "normalRequestsPerMatrixPerRuntime": 102,
+  "mutationRequestsPerMatrixPerRuntime": 17,
+  "S": {
+    "activeSources": 16,
+    "logicalCountermodels": 32,
+    "killed": 32,
+    "surviving": 0,
+    "emptyControl": "NOT_COVERED"
+  },
+  "O": {
+    "activeSources": 16,
+    "injectedPerRuntime": 16,
+    "outputDetectedPerRuntime": 16,
+    "outputMasked": 0,
+    "zeroControl": "NOT_COVERED; no drawable difference; TS private diagnostic noise retained"
+  },
+  "X": {
+    "activeSources": 16,
+    "controlSources": 1,
+    "limitEvaluationsPerRuntime": 68,
+    "selectedFailurePlacementsPerRuntime": 40,
+    "sensitivity": "NOT_COVERED for injected X faults"
+  },
+  "novelFamilies": 0,
+  "fixedFamilies": 0,
+  "counterfactualSources": 0,
+  "agentCorrections": [
+    "8 rejected negative array literals replaced before freeze by legal unary Module arguments",
+    "one generator syntax typo before freeze",
+    "S carry identity field assertion",
+    "X empty disabled snapshot projection",
+    "X private binding code channel",
+    "X private scalar cache versus public error activation"
+  ],
+  "quota": "UNAVAILABLE: no Human before/after observations supplied; no attributable denominator or method ranking"
+}
