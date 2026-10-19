@@ -4595,8 +4595,14 @@ export const compileDslDocument = (
   }
   let scalarAnalysis = documentScalarAnalysis;
   let scalarProgram = documentScalarProgram;
+  // Failed scalar analysis has diagnostics but no typed program. Keep those
+  // diagnostics instead of rebuilding a Module fallback catalog that admits
+  // bindings without typed initializers to lowering.
+  const documentScalarAnalysisFailed = !documentScalarAnalysis &&
+    scalarAnalysisCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error");
   if (
     moduleSemanticCompilation &&
+    !documentScalarAnalysisFailed &&
     !moduleSemanticCompilation.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
     compiled.moduleMaterialization &&
     stableStatementIdByIndex
