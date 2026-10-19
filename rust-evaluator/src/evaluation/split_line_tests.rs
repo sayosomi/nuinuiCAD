@@ -150,6 +150,7 @@ fn split_consumes_selected_stage_and_publishes_near_side_to_drawable_owner() {
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),
+        lazy_geometry_value_programs: HashMap::new(),
         geometry_input_targets: HashMap::from([(
             "part".to_owned(),
             HashMap::from([(

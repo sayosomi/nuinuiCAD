@@ -1,0 +1,57 @@
+{
+  "scope": "All instrumented Issue #1419 calibration/exploration/reduction/control/replay requests, including its final focused and full-serial verification reruns. Other pre-existing test suites are gates, not included in these request counters. Empty baseline document construction is excluded.",
+  "acceptedDistinctExploratorySources": 198,
+  "ceiling": 400,
+  "distinctRejectedSources": 57,
+  "attempts": 1597,
+  "waveOrder": {
+    "firstSuccessful32RunIndex": 31,
+    "firstLaterWaveRunIndex": 34,
+    "indexBase": 0
+  },
+  "runs": 39,
+  "requests": {
+    "compiler": 1711,
+    "reference": 1722,
+    "production": 1712
+  },
+  "harnessExecutionMilliseconds": 68073,
+  "confirmedBaselineFamilies": 5,
+  "additionalRepairFollowOn": "F06 duplicate history, grouped with F04 frame ownership; no independent baseline defect claim",
+  "yieldFamiliesPerAcceptedSource": 0.025252525252525252,
+  "yieldFamiliesPerHarnessMinute": 4.407033625666564,
+  "outcomes": {
+    "PASS": 58,
+    "repaired-then-PASS": 6
+  },
+  "finalVerification": {
+    "originalBlock": {
+      "exitCode": 1,
+      "elapsedSeconds": 134.9840828750166
+    },
+    "correctedLintAndRemaining": {
+      "exitCode": 0,
+      "elapsedSeconds": 575.2460120829928
+    }
+  },
+  "largeRawEvidenceDirectory": "/tmp/nuinuicad-issue1419",
+  "evidenceFiles": {
+    "attempts.ndjson": {
+      "bytes": 97171483,
+      "sha256": "f0cc61beb8aafdd238587a3dc739e9cf185c0cab75be78b6ab18680d2cf5f863"
+    },
+    "runs.ndjson": {
+      "bytes": 1375299,
+      "sha256": "c3135f885d99b57b8900addf27523920694e16fc7ee600846a66556f21f0cc02"
+    },
+    "final-verification.log": {
+      "bytes": 2775,
+      "sha256": "8f36455e94c323c2bade864799c7f8ab138e8ea40a7019559accb144524f7707"
+    },
+    "final-verification-remaining.log": {
+      "bytes": 71988,
+      "sha256": "b864a78ed12d7e1bf07064ecded21c0a044ea1f536a12eea46de8cce173a26bd"
+    }
+  },
+  "retainedAtJST": "2026-10-19 10:59 JST"
+}

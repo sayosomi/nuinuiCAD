@@ -5666,10 +5666,14 @@ export const compileDslDocument = (
   }
   // This is intentionally built before the final diagnostic gate. It is a
   // current-source analysis record, not part of the last-good geometry model.
+  const loopLocalModuleInstances = new Set(moduleSemanticCompilation?.instances
+    .filter(instance => isLoopLocalGeometryValue({ sourceStatementIndex: instance.statementIndex }, parsed.statements))
+    .map(instance => instance.statementId));
   const geometryValueProgramForGraph = (moduleScalarCompilation?.geometryValueProgram?.length
     ? moduleScalarCompilation.geometryValueProgram
     : compiled.geometryValueProgram)?.map(entry => capturedCarryGeometryValues.has(geometryValueOccurrenceKey(entry.occurrence)) ||
-      (entry.occurrence.instancePath.length === 0 && isLoopLocalGeometryValue(entry, parsed.statements))
+      (entry.occurrence.instancePath.length === 0 && isLoopLocalGeometryValue(entry, parsed.statements)) ||
+      entry.occurrence.instancePath.some(instance => loopLocalModuleInstances.has(instance))
       ? { ...entry, lazy: true } : entry);
   const geometryValueSourceEventOrders = new Map<number, number[]>();
   const addGeometryValueSourceEvent = (statementIndex: number | undefined, sourceOrder: number | undefined) => {

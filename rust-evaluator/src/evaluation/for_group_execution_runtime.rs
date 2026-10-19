@@ -279,6 +279,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
             resolver
                 .source_order_for_element(&template_id)
                 .map(|source_order| source_order as f64),
+            Some(ancestor_element_id_map),
         ) {
             state.errors.push(geometry_error(
                 &generated_element,

@@ -175,6 +175,7 @@ fn state_with_element(id: &str, element: Value) -> EvaluationState {
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
+        lazy_geometry_value_programs: HashMap::new(),
         computed_geometry_order: Vec::new(),
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),

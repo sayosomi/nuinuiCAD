@@ -998,6 +998,15 @@ pub(super) fn resolve_collection_carry_snapshot_with_context(
                 });
             }
             _ => {
+                if let super::super::program_payload::ValidatedScalarProgramCollectionValue::Literal(members) = &value.value {
+                    for member in members {
+                        if let super::super::program_payload::ValidatedScalarProgramCollectionMember::Binding { binding_id, .. } = member {
+                            if let Some(value) = iteration_bindings.get(binding_id) {
+                                local_bindings.entry(binding_id.clone()).or_insert_with(|| value.clone());
+                            }
+                        }
+                    }
+                }
                 let is_lazy = !matches!(
                     value.value,
                     super::super::program_payload::ValidatedScalarProgramCollectionValue::None
@@ -1265,15 +1274,19 @@ struct ForGroupExecutionBindingResolverWithLocals<
 
 impl ForGroupExecutionBindingResolverWithLocals<'_, '_, '_, '_, '_> {
     fn visible_bindings(&self) -> HashMap<String, ScalarEvaluation> {
-        let mut bindings = self
-            .resolver
-            .environment
+        let mut bindings = self.resolver.visible_bindings();
+        bindings.extend(self.local_bindings.clone());
+        bindings
+    }
+}
+
+impl ForGroupExecutionBindingResolver<'_, '_, '_> {
+    fn visible_bindings(&self) -> HashMap<String, ScalarEvaluation> {
+        self.environment
             .visible_bindings()
             .into_iter()
             .map(|(binding_id, value)| (binding_id, scalar_evaluation_for_loop_read(value)))
-            .collect::<HashMap<_, _>>();
-        bindings.extend(self.local_bindings.clone());
-        bindings
+            .collect()
     }
 }
 
@@ -1392,16 +1405,20 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
         index: f64,
         element_type: &ScalarType,
         collection_length: Option<f64>,
-        target_source_order: f64,
+        _target_source_order: f64,
         state: &EvaluationState,
     ) -> ScalarEvaluation {
-        self.resolver.resolve_collection_index(
+        // A nested statement-for reads its source through these accessors.
+        // Preserve the current frame for conditional selectors and members,
+        // just as expression evaluation and carry snapshot capture do.
+        self.resolver.resolve_collection_index_with_bindings(
             collection_value_id,
             index,
             element_type,
             collection_length,
-            target_source_order,
             state,
+            &self.visible_bindings(),
+            None,
         )
     }
 
@@ -1411,8 +1428,9 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
         state: &EvaluationState,
         seen: &mut std::collections::HashSet<String>,
     ) -> Option<f64> {
-        self.resolver
-            .resolve_collection_length(collection_value_id, state, seen)
+        self.resolve_collection_length_evaluation(collection_value_id, state, seen)
+            .ok()
+            .flatten()
     }
 
     fn resolve_collection_length_evaluation(
@@ -1421,12 +1439,7 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
         state: &EvaluationState,
         seen: &mut std::collections::HashSet<String>,
     ) -> Result<Option<f64>, ScalarEvaluation> {
-        let local_bindings = self
-            .environment
-            .visible_bindings()
-            .into_iter()
-            .map(|(binding_id, value)| (binding_id, scalar_evaluation_for_loop_read(value)))
-            .collect::<HashMap<_, _>>();
+        let local_bindings = self.visible_bindings();
         self.resolver.resolve_collection_length_with_bindings(
             collection_value_id,
             state,

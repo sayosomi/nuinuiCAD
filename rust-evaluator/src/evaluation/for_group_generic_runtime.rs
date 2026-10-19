@@ -296,6 +296,7 @@ impl<'a> GenericForGroupRuntime<'a> {
                 &generated_id,
                 Some(resolver),
                 None,
+                Some(ancestor_element_id_map),
             ) {
                 state.errors.push(geometry_error(
                     &generated_element,

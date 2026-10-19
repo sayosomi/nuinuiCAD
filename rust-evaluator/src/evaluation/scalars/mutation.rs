@@ -836,6 +836,14 @@ impl<'a> ScalarMutationResolver<'a> {
             .or_else(|| self.conditional_results.get(owner_id))
     }
     fn execute(&mut self, version: &ValidatedBindingVersion, state: &EvaluationState) {
+        // A frame may have executed this version before the document cursor
+        // reaches its source position. Preserve that execution and do not
+        // append a second, skipped-control record during the later drain.
+        if self.history.iter().any(|entry| {
+            entry.get("versionId").and_then(Value::as_str) == Some(version.version_id.as_str())
+        }) {
+            return;
+        }
         if let Some(status) = self.inactive_control_status(version) {
             self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": status}));
             return;

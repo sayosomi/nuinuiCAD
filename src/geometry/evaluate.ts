@@ -299,6 +299,8 @@ export const evaluateElements = (
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const computedGeometryValues = new Map<import("@nuinuicad/nui-language").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
+  const lazyFrameGeometryValues = new Map(options.geometryValueProgram?.filter(entry => entry.lazy && entry.occurrence.mappedMemberIndex === undefined)
+    .map(entry => [geometryValueOccurrenceKey(entry.occurrence), entry]));
   const geometryCarryValues = new Map<BindingId, GeometryBuiltinTargetLookupResult>();
   const geometryValueErrors: GeometryValueEvaluationError[] = [];
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
@@ -998,6 +1000,23 @@ export const evaluateElements = (
       return false;
     };
     const materialize = (target: GeometryInputTarget, parameterKey?: string): GeometryInputTarget | null => {
+      if (target.kind === "drawable") {
+        return { ...target, elementId: activeForGroupElementIdMap.get(target.elementId) ?? target.elementId };
+      }
+      if (target.kind === "geometryValue" && target.occurrence.mappedMemberIndex === undefined) {
+        const key = geometryValueOccurrenceKey(target.occurrence);
+        const entry = lazyFrameGeometryValues.get(key);
+        if (entry) {
+          // A loop-local value is a frame template. Materialize it at the
+          // consuming statement with that iteration's binding snapshot.
+          computedGeometryValues.delete(key);
+          const previousLookup = activeGeometryValueBindingLookup;
+          activeGeometryValueBindingLookup = lookupBinding;
+          try { evaluateGeometryValueEntry(entry, sourceOrder, true); }
+          finally { activeGeometryValueBindingLookup = previousLookup; }
+        }
+        return target;
+      }
       if (target.kind === "geometryCarry") {
         const resolved = geometryCarryValues.get(target.bindingId);
         if (!resolved || resolved.kind === "unavailable") {
