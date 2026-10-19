@@ -1283,7 +1283,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       : undefined;
     const carryValueType = dslRequiredValueTypeOf(carry?.valueType);
     if (
-      ownerIndex !== null &&
       declaration.kind === "carry" &&
       declaration.statement.kind === "element" &&
       declaration.statement.type === "forGroup" &&
@@ -6641,7 +6640,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const diagnostics = localDiagnosticsByStatement.get(statementIndex);
       if (diagnostics && diagnostics.length > diagnosticsBefore) {
         const added = diagnostics.splice(diagnosticsBefore);
-        const retained = expression?.optionalMembers?.length ? added : [];
+        // Collection typing belongs to this canonical expression pass. Ordinary
+        // unresolved scalar names still receive the numeric compiler's diagnostic.
+        const retained = expression?.optionalMembers?.length ? added
+          : expression?.references.some(reference => reference.collectionValueId !== undefined)
+            ? added.filter(diagnostic => diagnostic.code !== "module-undefined-reference") : [];
         if (retained.length > 0) diagnostics.push(...retained);
         if (diagnostics.length === 0) localDiagnosticsByStatement.delete(statementIndex);
       }

@@ -167,6 +167,7 @@ export type ModuleScalarRuntimeCompilation = {
   controlByScopeId: ReadonlyMap<string, BindingControlMetadata>;
   scalarExecutionPositionByRuntimeElementId: ReadonlyMap<ElementId, number>;
   scalarExecutionPositionByStatementIndex: ReadonlyMap<number, number>;
+  scalarExecutionPositionByBindingId: ReadonlyMap<BindingId, number>;
   materializedPropertyBindings: readonly MaterializedPropertyBindingSource[];
   materializedNumericBindings: readonly MaterializedNumericBindingSource[];
   materializedTransformationNumericBindings: readonly CompiledTransformationNumericBinding[];
@@ -6308,7 +6309,8 @@ export const compileModuleScalarRuntime = ({
     const element = elements.find((candidate) => candidate.id === elementId);
     if (!element) continue;
     for (const site of sites) {
-      if (!site.parameterKey || !site.expression.optionalMembers?.length) continue;
+      if (!site.parameterKey || (!site.expression.optionalMembers?.length &&
+        !site.expression.references.some(reference => reference.collectionValueId !== undefined))) continue;
       const lowered = lowerExpression(
         site.expression,
         (target, _name, targetStatementIndex) => rootBindingForTarget(target, targetStatementIndex),
@@ -8292,6 +8294,7 @@ export const compileModuleScalarRuntime = ({
     controlByScopeId,
     scalarExecutionPositionByRuntimeElementId,
     scalarExecutionPositionByStatementIndex: sourceOrderByStatementIndex,
+    scalarExecutionPositionByBindingId: sourceOrderByBindingId,
     materializedPropertyBindings,
     materializedNumericBindings,
     materializedTransformationNumericBindings,

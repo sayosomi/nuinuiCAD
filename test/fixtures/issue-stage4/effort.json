@@ -1,0 +1,2516 @@
+{
+  "schemaVersion": 1,
+  "originalPreRepairPilotByArmAndStratum": {
+    "E-A": {
+      "sources": 4,
+      "probeMs": 1024,
+      "compiler": 4,
+      "reference": 24,
+      "production": 24,
+      "independentlyConfirmedFamilies": 1,
+      "family": "F1",
+      "familiesPerAcceptedSource": 0.25,
+      "familiesPerMeasuredProbeMinute": 58.59375
+    },
+    "E-B": {
+      "sources": 4,
+      "probeMs": 330,
+      "compiler": 4,
+      "reference": 24,
+      "production": 24,
+      "independentlyConfirmedFamilies": 1,
+      "family": "F2",
+      "familiesPerAcceptedSource": 0.25,
+      "familiesPerMeasuredProbeMinute": 181.8181818181818
+    },
+    "E-C": {
+      "sources": 4,
+      "probeMs": 300,
+      "compiler": 4,
+      "reference": 24,
+      "production": 24,
+      "independentlyConfirmedFamilies": 0,
+      "family": null,
+      "familiesPerAcceptedSource": 0.0,
+      "familiesPerMeasuredProbeMinute": 0.0
+    },
+    "C-A": {
+      "sources": 4,
+      "probeMs": 38,
+      "compiler": 4,
+      "reference": 4,
+      "production": 4,
+      "independentlyConfirmedFamilies": 0,
+      "family": null,
+      "familiesPerAcceptedSource": 0.0,
+      "familiesPerMeasuredProbeMinute": 0.0
+    },
+    "C-B": {
+      "sources": 4,
+      "probeMs": 30,
+      "compiler": 4,
+      "reference": 4,
+      "production": 4,
+      "independentlyConfirmedFamilies": 0,
+      "family": null,
+      "familiesPerAcceptedSource": 0.0,
+      "familiesPerMeasuredProbeMinute": 0.0
+    },
+    "C-C": {
+      "sources": 4,
+      "probeMs": 41,
+      "compiler": 4,
+      "reference": 4,
+      "production": 4,
+      "independentlyConfirmedFamilies": 0,
+      "family": null,
+      "familiesPerAcceptedSource": 0.0,
+      "familiesPerMeasuredProbeMinute": 0.0
+    },
+    "D-A": {
+      "sources": 4,
+      "probeMs": 31,
+      "compiler": 4,
+      "reference": 4,
+      "production": 4,
+      "independentlyConfirmedFamilies": 1,
+      "family": "F3 (correlated across methods)",
+      "familiesPerAcceptedSource": 0.25,
+      "familiesPerMeasuredProbeMinute": 1935.483870967742
+    },
+    "D-B": {
+      "sources": 4,
+      "probeMs": 34,
+      "compiler": 4,
+      "reference": 4,
+      "production": 4,
+      "independentlyConfirmedFamilies": 1,
+      "family": "F3 (correlated across methods)",
+      "familiesPerAcceptedSource": 0.25,
+      "familiesPerMeasuredProbeMinute": 1764.7058823529412
+    },
+    "D-C": {
+      "sources": 4,
+      "probeMs": 30,
+      "compiler": 4,
+      "reference": 4,
+      "production": 4,
+      "independentlyConfirmedFamilies": 1,
+      "family": "F3 (correlated across methods)",
+      "familiesPerAcceptedSource": 0.25,
+      "familiesPerMeasuredProbeMinute": 2000.0
+    }
+  },
+  "currentContinuationMeasuredHarnessBatches": {
+    "final-repairs": {
+      "batchCount": 8,
+      "elapsedMs": 3690,
+      "counts": {
+        "compiler": 31,
+        "reference": 27,
+        "production": 27
+      }
+    },
+    "freeze-adaptive": {
+      "batchCount": 1,
+      "elapsedMs": 130,
+      "counts": {
+        "compiler": 12,
+        "reference": 0,
+        "production": 0
+      }
+    },
+    "adaptive": {
+      "batchCount": 1,
+      "elapsedMs": 987,
+      "counts": {
+        "compiler": 12,
+        "reference": 32,
+        "production": 32
+      }
+    },
+    "verify": {
+      "batchCount": 2,
+      "elapsedMs": 4752,
+      "counts": {
+        "compiler": 131,
+        "reference": 291,
+        "production": 291
+      }
+    }
+  },
+  "adaptiveFirstRunByMethod": {
+    "A": {
+      "probeMs": 0,
+      "sources": 0
+    },
+    "B": {
+      "probeMs": 814,
+      "sources": 8
+    },
+    "C": {
+      "probeMs": 40,
+      "sources": 4
+    }
+  },
+  "generationOracle": {
+    "freezeAdaptiveMs": 130,
+    "compilerRequests": 12,
+    "TS": 0,
+    "Rust": 0,
+    "manualAuthoringMs": null
+  },
+  "knownFaultCalibration": {
+    "compiler": 3,
+    "reference": 6,
+    "production": 6
+  },
+  "holdoutBatch": {
+    "elapsedMs": 668,
+    "counts": {
+      "compiler": 38,
+      "reference": 4,
+      "production": 4
+    }
+  },
+  "phaseObservationWindow": {
+    "firstAdaptiveStartEpochMs": 1792391342724,
+    "firstAllReducedPassEndEpochMs": 1792391825264,
+    "meaning": "elapsed failure-diagnosis/repair observation window, includes waits, editing and test process overhead; not exclusive active repair labor"
+  },
+  "unavailable": {
+    "agentTokens": null,
+    "perMethodDiagnosisMs": null,
+    "exclusiveRepairMs": null,
+    "historicalGenerationOracleMs": null,
+    "historicalActiveWallClockMs": null,
+    "humanOrModelActiveLaborMs": null,
+    "suspendedThreadWallClockMs": null,
+    "fullVerificationInternalCompilerTsRustRequests": null
+  },
+  "limits": [
+    "All null values are unavailable, not zero.",
+    "Shared F3 repair effort is not assigned independently to each arm.",
+    "R1 and seeded faults add zero baseline discoveries.",
+    "Original A/E cold startup and small millisecond differences confound cost comparisons.",
+    "No Stage1/2/3 headline-ratio comparison is causal.",
+    "Replay/verification request totals are costs, never discoveries or new accepted texts.",
+    "All-allocated arm rates are descriptive after unequal adaptive allocation; F3 observations overlap and reductions added two B-associated producer families. They do not rerank the original selection.",
+    "Late validation batches are recorded separately. Uninstrumented mandatory suites and test-development CLI-only runs have no fabricated internal request counts; their known test results/command durations are in verification-history.json."
+  ],
+  "descriptivePilotRates": {
+    "A": {
+      "families": 2,
+      "sources": 12,
+      "probeMs": 1093,
+      "familiesPerAcceptedSource": 0.16666666666666666,
+      "familiesPerMeasuredProbeMinute": 109.78956999085086,
+      "endToEndFamiliesPerTotalEffort": null
+    },
+    "B": {
+      "families": 2,
+      "sources": 12,
+      "probeMs": 394,
+      "familiesPerAcceptedSource": 0.16666666666666666,
+      "familiesPerMeasuredProbeMinute": 304.56852791878174,
+      "endToEndFamiliesPerTotalEffort": null
+    },
+    "C": {
+      "families": 1,
+      "sources": 12,
+      "probeMs": 371,
+      "familiesPerAcceptedSource": 0.08333333333333333,
+      "familiesPerMeasuredProbeMinute": 161.72506738544473,
+      "endToEndFamiliesPerTotalEffort": null
+    }
+  },
+  "totalAcceptedSourcesByMethod": {
+    "A": 27,
+    "B": 41,
+    "C": 20
+  },
+  "globalConfirmedFixedFamilies": {
+    "originalPilot": 3,
+    "finalAdaptivePrimary": 1,
+    "finalReductionDiscoveries": 2,
+    "union": 6,
+    "seeded": 0,
+    "repairFollowOns": 0,
+    "familiesPerAllAcceptedSource": 0.06818181818181818,
+    "endToEndFamiliesPerMeasuredTotalEffort": null
+  },
+  "recordedContinuationCaseCostsByMethodAndPurpose": {
+    "B/first adaptive": {
+      "cases": 8,
+      "compiler": 8,
+      "reference": 28,
+      "production": 28,
+      "elapsedMs": 814
+    },
+    "C/first adaptive": {
+      "cases": 4,
+      "compiler": 4,
+      "reference": 4,
+      "production": 4,
+      "elapsedMs": 40
+    },
+    "B/reduction/control": {
+      "cases": 56,
+      "compiler": 56,
+      "reference": 52,
+      "production": 52,
+      "elapsedMs": 3237
+    },
+    "A/pilot reverification": {
+      "cases": 24,
+      "compiler": 24,
+      "reference": 64,
+      "production": 64,
+      "elapsedMs": 1774
+    },
+    "B/pilot reverification": {
+      "cases": 24,
+      "compiler": 24,
+      "reference": 64,
+      "production": 64,
+      "elapsedMs": 853
+    },
+    "C/pilot reverification": {
+      "cases": 24,
+      "compiler": 24,
+      "reference": 64,
+      "production": 64,
+      "elapsedMs": 798
+    },
+    "B/adaptive reverification": {
+      "cases": 16,
+      "compiler": 16,
+      "reference": 56,
+      "production": 56,
+      "elapsedMs": 742
+    },
+    "C/adaptive reverification": {
+      "cases": 8,
+      "compiler": 8,
+      "reference": 8,
+      "production": 8,
+      "elapsedMs": 73
+    },
+    "A/reduction/control": {
+      "cases": 10,
+      "compiler": 10,
+      "reference": 10,
+      "production": 10,
+      "elapsedMs": 114
+    }
+  },
+  "allAllocatedAcceptedRates": {
+    "A": {
+      "fixedFamilyObservations": 2,
+      "acceptedSources": 27,
+      "familiesPerAcceptedSource": 0.07407407407407407
+    },
+    "B": {
+      "fixedFamilyObservations": 5,
+      "acceptedSources": 41,
+      "familiesPerAcceptedSource": 0.12195121951219512
+    },
+    "C": {
+      "fixedFamilyObservations": 1,
+      "acceptedSources": 20,
+      "familiesPerAcceptedSource": 0.05
+    }
+  },
+  "fullSuiteWall": {
+    "command": "npm test -- --maxWorkers=1 --no-file-parallelism",
+    "started": 1792393621.897742,
+    "ended": 1792394142.7061539,
+    "elapsedSeconds": 520.808413028717,
+    "exitCode": 0
+  },
+  "currentObservedArtifactWindow": {
+    "firstContractArtifactCreatedEpoch": 1792391007.4951966,
+    "reportMeasurementEpoch": 1792394171.984875,
+    "seconds": 3164.4896783828735,
+    "meaning": "observable current-continuation window, excludes earlier interrupted/repair phases and is not total Issue effort"
+  },
+  "negativeValidation": {
+    "proof": "error-control-proof.json",
+    "compilerRequestsPerBatch": 3,
+    "referenceRequests": 0,
+    "productionRequests": 0,
+    "incorrectlyAcceptedTextsAddedToBudget": 2,
+    "newFamilies": 0,
+    "beforeAndAfterBatches": [
+      {
+        "started": 1792392817567,
+        "ended": 1792392818474,
+        "elapsedMs": 907,
+        "counts": {
+          "compiler": 41,
+          "reference": 4,
+          "production": 4
+        },
+        "note": "includes the known F04 control/holdout and pilot exposure checks, in addition to three negative source checks"
+      },
+      {
+        "started": 1792392865907,
+        "ended": 1792392866575,
+        "elapsedMs": 668,
+        "counts": {
+          "compiler": 41,
+          "reference": 4,
+          "production": 4
+        },
+        "note": "includes the known F04 control/holdout and pilot exposure checks, in addition to three negative source checks"
+      },
+      {
+        "started": 1792393046344,
+        "ended": 1792393046926,
+        "elapsedMs": 582,
+        "counts": {
+          "compiler": 41,
+          "reference": 4,
+          "production": 4
+        },
+        "note": "includes the known F04 control/holdout and pilot exposure checks, in addition to three negative source checks"
+      }
+    ]
+  },
+  "graphWiringRuns": [
+    {
+      "mode": "final-repairs",
+      "started": 1792393269869,
+      "ended": 1792393270281,
+      "elapsedMs": 412,
+      "counts": {
+        "compiler": 2,
+        "reference": 2,
+        "production": 2
+      },
+      "uniqueAccepted": 88,
+      "dispositions": [
+        {
+          "id": "F6-ordered-dependencies",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "F6-forward-dependencies",
+          "status": "UNRESOLVED",
+          "failures": [
+            "TS/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }",
+            "Rust/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "final-repairs",
+      "started": 1792393325347,
+      "ended": 1792393325767,
+      "elapsedMs": 420,
+      "counts": {
+        "compiler": 2,
+        "reference": 2,
+        "production": 2
+      },
+      "uniqueAccepted": 88,
+      "dispositions": [
+        {
+          "id": "F6-ordered-dependencies",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "F6-forward-dependencies",
+          "status": "UNRESOLVED",
+          "failures": [
+            "TS/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }",
+            "Rust/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }"
+          ]
+        }
+      ]
+    }
+  ],
+  "outOfScopeInvestigation": {
+    "acceptedTexts": 1,
+    "newFamiliesCredited": 0,
+    "status": "suspect retained; further investigation outside matrix"
+  },
+  "lateHarnessRuns": [
+    {
+      "directory": "/tmp/issue1421-final-error-after",
+      "runs": [
+        {
+          "mode": "verify",
+          "started": 1792392829619,
+          "ended": 1792392831831,
+          "elapsedMs": 2212,
+          "counts": {
+            "compiler": 66,
+            "reference": 146,
+            "production": 146
+          },
+          "uniqueAccepted": 86,
+          "dispositions": [
+            {
+              "id": "E-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 442
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 111
+                }
+              ]
+            },
+            {
+              "id": "E-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 101
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 122
+                }
+              ]
+            },
+            {
+              "id": "E-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 80
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 79
+                }
+              ]
+            },
+            {
+              "id": "E-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 77
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 88
+                }
+              ]
+            },
+            {
+              "id": "E-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 73
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 71
+                }
+              ]
+            },
+            {
+              "id": "E-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 72
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 84
+                }
+              ]
+            },
+            {
+              "id": "C-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 13
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "C-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "C-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                }
+              ]
+            },
+            {
+              "id": "C-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                }
+              ]
+            },
+            {
+              "id": "C-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "C-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                }
+              ]
+            },
+            {
+              "id": "D-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "D-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                }
+              ]
+            },
+            {
+              "id": "D-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "D-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "E-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 77
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 76
+                }
+              ]
+            },
+            {
+              "id": "E-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 76
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 87
+                }
+              ]
+            },
+            {
+              "id": "C-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                }
+              ]
+            },
+            {
+              "id": "C-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                }
+              ]
+            },
+            {
+              "id": "D-C-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-C-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "P1-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-alias-completion",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-map-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-constant-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-one-iteration-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-literal-member-contrast",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-alias-observer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-alias-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-root-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-original-reduction",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-invalid-index-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-Module-counterpart",
+              "status": "PASS",
+              "failures": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "/tmp/issue1421-final-error-after-final",
+      "runs": [
+        {
+          "mode": "verify",
+          "started": 1792392865920,
+          "ended": 1792392868180,
+          "elapsedMs": 2260,
+          "counts": {
+            "compiler": 66,
+            "reference": 146,
+            "production": 146
+          },
+          "uniqueAccepted": 86,
+          "dispositions": [
+            {
+              "id": "E-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 502
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 111
+                }
+              ]
+            },
+            {
+              "id": "E-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 99
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 123
+                }
+              ]
+            },
+            {
+              "id": "E-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 81
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 79
+                }
+              ]
+            },
+            {
+              "id": "E-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 77
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 87
+                }
+              ]
+            },
+            {
+              "id": "E-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 71
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 70
+                }
+              ]
+            },
+            {
+              "id": "E-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 70
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 83
+                }
+              ]
+            },
+            {
+              "id": "C-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 12
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                }
+              ]
+            },
+            {
+              "id": "C-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "C-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                }
+              ]
+            },
+            {
+              "id": "C-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                }
+              ]
+            },
+            {
+              "id": "C-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "C-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                }
+              ]
+            },
+            {
+              "id": "D-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "D-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "D-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "D-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "E-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 76
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 76
+                }
+              ]
+            },
+            {
+              "id": "E-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 75
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 87
+                }
+              ]
+            },
+            {
+              "id": "C-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                }
+              ]
+            },
+            {
+              "id": "C-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "D-C-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "D-C-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "P1-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-alias-completion",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-map-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-constant-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-one-iteration-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-literal-member-contrast",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-alias-observer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-alias-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-root-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-original-reduction",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-invalid-index-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-Module-counterpart",
+              "status": "PASS",
+              "failures": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "/tmp/issue1421-final-error-after-scoped",
+      "runs": [
+        {
+          "mode": "verify",
+          "started": 1792393043361,
+          "ended": 1792393045706,
+          "elapsedMs": 2345,
+          "counts": {
+            "compiler": 66,
+            "reference": 146,
+            "production": 146
+          },
+          "uniqueAccepted": 86,
+          "dispositions": [
+            {
+              "id": "E-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 447
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 112
+                }
+              ]
+            },
+            {
+              "id": "E-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 102
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 132
+                }
+              ]
+            },
+            {
+              "id": "E-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 89
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 87
+                }
+              ]
+            },
+            {
+              "id": "E-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 85
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 96
+                }
+              ]
+            },
+            {
+              "id": "E-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 77
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 79
+                }
+              ]
+            },
+            {
+              "id": "E-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 76
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 92
+                }
+              ]
+            },
+            {
+              "id": "C-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 15
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "C-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 12
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "C-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                }
+              ]
+            },
+            {
+              "id": "C-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "C-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "C-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                }
+              ]
+            },
+            {
+              "id": "D-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 12
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "D-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "D-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "D-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "E-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 84
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 79
+                }
+              ]
+            },
+            {
+              "id": "E-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 78
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 91
+                }
+              ]
+            },
+            {
+              "id": "C-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                }
+              ]
+            },
+            {
+              "id": "C-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-C-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-C-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "P1-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-alias-completion",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-map-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-constant-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-one-iteration-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-literal-member-contrast",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-alias-observer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-alias-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-root-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-original-reduction",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-invalid-index-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-Module-counterpart",
+              "status": "PASS",
+              "failures": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "/tmp/issue1421-final-final-gate",
+      "runs": [
+        {
+          "mode": "verify",
+          "started": 1792393478674,
+          "ended": 1792393481117,
+          "elapsedMs": 2443,
+          "counts": {
+            "compiler": 67,
+            "reference": 147,
+            "production": 147
+          },
+          "uniqueAccepted": 88,
+          "dispositions": [
+            {
+              "id": "E-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 700
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 101
+                }
+              ]
+            },
+            {
+              "id": "E-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 98
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 118
+                }
+              ]
+            },
+            {
+              "id": "E-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 81
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 77
+                }
+              ]
+            },
+            {
+              "id": "E-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 76
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 88
+                }
+              ]
+            },
+            {
+              "id": "E-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 70
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 70
+                }
+              ]
+            },
+            {
+              "id": "E-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 69
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 82
+                }
+              ]
+            },
+            {
+              "id": "C-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 13
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "C-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "C-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 5
+                }
+              ]
+            },
+            {
+              "id": "C-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                }
+              ]
+            },
+            {
+              "id": "C-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "C-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                }
+              ]
+            },
+            {
+              "id": "D-A-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "D-A-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-B-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 11
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-B-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "D-C-00",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                }
+              ]
+            },
+            {
+              "id": "D-C-01",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 10
+                }
+              ]
+            },
+            {
+              "id": "E-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 81
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 75
+                }
+              ]
+            },
+            {
+              "id": "E-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 77
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 86
+                }
+              ]
+            },
+            {
+              "id": "C-B-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                }
+              ]
+            },
+            {
+              "id": "C-B-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 6
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 7
+                }
+              ]
+            },
+            {
+              "id": "D-C-02",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 8
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "D-C-03",
+              "members": [
+                {
+                  "member": "S",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                },
+                {
+                  "member": "T",
+                  "status": "PASS",
+                  "failures": [],
+                  "elapsedMs": 9
+                }
+              ]
+            },
+            {
+              "id": "P1-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P1-alias-completion",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P2-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "P3-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-map-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-constant-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-one-iteration-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-literal-member-contrast",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F4-alias-observer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-reproducer",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-alias-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-root-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-original-reduction",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-invalid-index-control",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F5-Module-counterpart",
+              "status": "PASS",
+              "failures": []
+            },
+            {
+              "id": "F6-ordered-dependencies",
+              "status": "PASS",
+              "failures": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

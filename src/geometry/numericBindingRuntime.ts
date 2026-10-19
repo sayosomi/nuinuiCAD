@@ -182,7 +182,9 @@ export const materializeNumericBindingElement = (
   resolveGeometryProperty?: NumericBindingGeometryResolveFn,
   resolveGeometryTarget?: NumericBindingGeometryTargetResolveFn,
   resolveOptionalMember?: NumericBindingOptionalMemberResolveFn,
-  elements?: readonly CadElement[]
+  elements?: readonly CadElement[],
+  collectionLookup?: Pick<Parameters<typeof evaluateTypedExpression>[1],
+    "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation">
 ): NumericMaterializationResult => {
   if (!entries?.length) return { ok: true, element };
   let materialized = element;
@@ -196,6 +198,7 @@ export const materializeNumericBindingElement = (
     }
     if (entry.typedExpression) {
       const evaluation = evaluateTypedExpression(entry.typedExpression, {
+        ...collectionLookup,
         lookupBinding: resolveBinding,
         ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: resolveGeometryTarget } : {}),

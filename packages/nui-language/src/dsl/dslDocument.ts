@@ -32,7 +32,7 @@ import { resolveReferencesAtSites } from "../scalars/bindingResolution";
 import { bindingIssuesToDiagnostics } from "../scalars/bindingIssueDiagnostics";
 import { optionalCollectionMatchPresenceProjection } from "../scalars/expressionTypecheck";
 import { exactPhysicalSpan, type DiagnosticSpanContext } from "./dslDiagnosticSpan";
-import { compilePropertyBindings, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
+import { compilePropertyBindings, propertyBindingOccurrenceKey, type ScalarValueSource } from "../scalars/propertyBindingCompiler";
 import {
   compileNumericBindings,
   type CompiledNumericBinding,
@@ -4788,7 +4788,8 @@ export const compileDslDocument = (
           rootGeometryValuePropertyResolver?.({ statementIndex, node }) ??
           null,
         resolveGeometryStageSelection,
-        transformationRecipes: compiled.transformationRecipes
+        transformationRecipes: compiled.transformationRecipes,
+        materializedNumericBindings: moduleScalarCompilation?.materializedNumericBindings
       })
     : undefined;
   let transformationNumericBindings = [
@@ -4958,7 +4959,9 @@ export const compileDslDocument = (
         scalarProgram,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         controlByScopeId: bindingControlMetadata,
-        sourceOrderByBindingId: rootScalarExecutionOrder?.sourceOrderByBindingId,
+        // Disabled Module bindings have no executable initializer, but still
+        // own a canonical event position. Catalog rank is a different order.
+        sourceOrderByBindingId: moduleScalarCompilation?.scalarExecutionPositionByBindingId ?? rootScalarExecutionOrder?.sourceOrderByBindingId,
         nonProgramBindingIds: geometryCarryControllerNonProgramBindingIds,
         requiresExecutionOrdering: moduleScalarCompilation !== undefined || rootRequiresExecutionOrdering
       })
@@ -5743,6 +5746,17 @@ export const compileDslDocument = (
     ...(geometryInputTargetsByElementId ?? []),
     ...(moduleScalarCompilation?.geometryInputTargetsByRuntimeElementId ?? [])
   ]);
+  // Root numeric occurrences lowered by the source semantic owner must also
+  // reach the canonical graph, even when the legacy compiler defers to them.
+  const graphNumericBindings = new Map(numericBindingCompilation?.sourcesByOccurrenceKey);
+  const statementIndexByElementId = new Map(
+    [...(compiled.elementIdsByStatementIndex ?? [])].map(([index, id]) => [id, index] as const)
+  );
+  for (const { elementId, binding } of moduleScalarCompilation?.materializedNumericBindings ?? []) {
+    const index = statementIndexByElementId.get(elementId);
+    if (index !== undefined && binding.typedExpression)
+      graphNumericBindings.set(propertyBindingOccurrenceKey(index, binding.parameterKey), binding);
+  }
   const typedDependencyGraph = buildTypedDependencyGraph({
     elements: compiled.elements,
     drawingModifiers: compiled.modifiers,
@@ -5751,7 +5765,7 @@ export const compileDslDocument = (
     bindingAnalysis: scalarAnalysis?.bindingAnalysis,
     bindingVersions,
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
-    numericBindings: numericBindingCompilation?.sourcesByOccurrenceKey,
+    numericBindings: graphNumericBindings,
     transformationNumericBindings,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
     conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,

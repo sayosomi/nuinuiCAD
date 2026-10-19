@@ -1166,6 +1166,22 @@ export const buildTypedDependencyGraph = ({
   }
   for (const element of elements) {
     const from = elementEndpoint(elementsById, element.id, elementStatementIndex.get(element.id) ?? 0);
+    // Lazy-branch activation can change the graph's topological order. A
+    // descendant must still wait for every enclosing statement condition,
+    // including across ordinary groups or Module materialization boundaries.
+    const visitedOwners = new Set<ElementId>();
+    let owner = element.parentGroupId ? elementsById.get(element.parentGroupId) : undefined;
+    while (owner && !visitedOwners.has(owner.id)) {
+      visitedOwners.add(owner.id);
+      if (owner.type === "conditionalGroup") add({
+        kind: "geometry",
+        from,
+        to: elementEndpoint(elementsById, owner.id, elementStatementIndex.get(owner.id) ?? 0),
+        span: null,
+        requiredness: "required"
+      });
+      owner = owner.parentGroupId ? elementsById.get(owner.parentGroupId) : undefined;
+    }
     const typedScalarGeometryDependencyIds = typedScalarGeometryDependencyIdsByElementId.get(element.id) ?? new Set<ElementId>();
     const dependencies = new Map<ElementId, TypedDependencyRequiredness>((getDirectParentIds(element, {
       textTemplatesByElementId: new Map(

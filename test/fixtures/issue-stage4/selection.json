@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "357bd93c26e5a424d5679668bec4f0d75874f498",
+  "productBaseline": "bab8313ae08f5e354a6cfd9d7b2ffb8177a15bc2",
+  "methods": {
+    "E": "B",
+    "C": "B",
+    "D": "C"
+  },
+  "commentUrl": "https://github.com/sayosomi/nuinuiCAD/issues/1421#issuecomment-6261130615",
+  "publishedAt": "2026-10-19T06:28:24Z",
+  "commentBodySha256": "332d23b09b0c2f36df3c49f5ac10cc0adcb03615a474138ac1fe0f1727bd120a",
+  "ranking": "independently confirmed family yield; available measured probe/diagnosis cost; activation/sensitivity; stronger new activation; lexical A B C",
+  "selectedIds": [
+    "E-B-02",
+    "E-B-03",
+    "C-B-02",
+    "C-B-03",
+    "D-C-02",
+    "D-C-03"
+  ],
+  "comparisonEvidence": "pilot-results.json + repair-proof.json; see comparison-report.md",
+  "measurementLimits": [
+    "diagnosis allocation unavailable",
+    "cold/warm startup confound",
+    "D difference 1ms; no statistical optimum claim"
+  ],
+  "seededNewFamilies": 0
+}

@@ -704,18 +704,11 @@ impl<'a> ScalarMutationResolver<'a> {
             None => self.resolve_collection_carry_snapshot(value_id),
         };
         let mut merged = local_bindings.clone();
-        if inherited_snapshots.is_some() {
-            // Entering a captured generation also enters that generation's
-            // scalar closure. Its lexical bindings shadow the enclosing
-            // generation when the stable binding identity is shared.
-            merged.extend(snapshot.local_bindings);
-        } else {
-            // Preserve the established SAY-481 merge order for the current
-            // traversal.
-            for (binding_id, value) in snapshot.local_bindings {
-                merged.entry(binding_id).or_insert(value);
-            }
-        }
+        // A carried value owns its captured scalar closure on the first read
+        // as well as when traversing an inherited collection generation.
+        // Stable body binding IDs may already name the consuming iteration;
+        // they must not overwrite the values captured by the previous one.
+        merged.extend(snapshot.local_bindings);
         CollectionCarrySnapshot {
             value_id: snapshot.value_id,
             local_bindings: merged,
