@@ -1,0 +1,425 @@
+{
+  "started": 1792391229616,
+  "ended": 1792391230284,
+  "elapsedMs": 668,
+  "counts": {
+    "compiler": 38,
+    "reference": 4,
+    "production": 4
+  },
+  "observations": [
+    {
+      "referenceDetected": false,
+      "productionDetected": false,
+      "id": "F04",
+      "kind": "control",
+      "source": "nui 1\nmodule Box(Seed: number) {\nexport point Mark = coordinate(x: @Seed, y: 0)\n}\nconst Items: number[] = []\nfor Tick in @Items {\ninstance Live = Box(Seed: 1)\npoint Observed = from(source: @Live::Mark)\n}\n",
+      "reference": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "actual": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "negativeReference": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "negativeActual": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "status": "PASS control",
+      "newFamilies": 0,
+      "inputSha256": "bd8ff162524e7ae2f2b00a8a991ad9ba0adba26ebbcca041c5925f60cc01e63f",
+      "moduleOwnership": {
+        "instances": [
+          {
+            "instanceId": "module-runtime:14:moduleInstance35:statement:moduleInstance:mvevgk4g:4",
+            "endRuntimeIndex": 2,
+            "descendantIds": [
+              "module-runtime:10:moduleBody35:statement:moduleInstance:mvevgk4g:420:freePoint-mvevgk4g-2"
+            ],
+            "instancePath": [
+              "statement:moduleInstance:mvevgk4g:4"
+            ]
+          }
+        ]
+      },
+      "firstLoss": []
+    },
+    {
+      "referenceDetected": true,
+      "productionDetected": false,
+      "id": "F04",
+      "kind": "holdout",
+      "source": "nui 1\nmodule Box(Seed: number) {\nconst Chosen: point = if (@Seed > 0) { coordinate(x: @Seed, y: 0) } else { coordinate(x: 1, y: 2) }\nexport point Mark = from(source: @Chosen)\n}\nconst Items: number[] = []\nfor Tick in @Items {\ninstance Live = Box(Seed: 1)\npoint Observed = from(source: @Live::Mark)\n}\n",
+      "reference": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "actual": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "negativeReference": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvevgkfp:6",
+              "instancePath": [
+                "statement:moduleInstance:mvevgkfp:8"
+              ]
+            },
+            "message": "Geometry value if condition is unavailable or not boolean."
+          }
+        ]
+      },
+      "negativeActual": {
+        "computedGeometry": [],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "status": "BOUNDARY_DETECTED; output oracle masked by remaining dependency/owner gates",
+      "newFamilies": 0,
+      "inputSha256": "c471612fddfdfa855a98c66e15f5b6cb9fc9fe1307e485a4dd09da578a20ec32",
+      "moduleOwnership": {
+        "instances": [
+          {
+            "instanceId": "module-runtime:14:moduleInstance35:statement:moduleInstance:mvevgkfp:8",
+            "endRuntimeIndex": 2,
+            "descendantIds": [
+              "module-runtime:10:moduleBody35:statement:moduleInstance:mvevgkfp:828:materializedPoint-mvevgkfp-5"
+            ],
+            "instancePath": [
+              "statement:moduleInstance:mvevgkfp:8"
+            ]
+          }
+        ]
+      },
+      "firstLoss": [
+        {
+          "occurrence": {
+            "sourceStatementId": "statement:typedDeclaration:mvevgkfp:6",
+            "instancePath": [
+              "statement:moduleInstance:mvevgkfp:8"
+            ]
+          },
+          "beforeLazy": true,
+          "afterLazy": false
+        }
+      ]
+    },
+    {
+      "pilotExposure": [
+        {
+          "id": "E-A-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-A-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-A-01",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-A-01",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-B-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-B-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-B-01",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-B-01",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-C-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-C-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-C-01",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "E-C-01",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-A-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-A-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-A-01",
+          "member": "S",
+          "F01": "ACTIVATED; nested source uses outer-frame selector/member",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 2
+        },
+        {
+          "id": "C-A-01",
+          "member": "T",
+          "F01": "ACTIVATED; nested source uses outer-frame selector/member",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 2
+        },
+        {
+          "id": "C-B-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-B-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-B-01",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-B-01",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-C-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-C-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "C-C-01",
+          "member": "S",
+          "F01": "ACTIVATED; nested source uses outer-frame selector/member",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 2
+        },
+        {
+          "id": "C-C-01",
+          "member": "T",
+          "F01": "ACTIVATED; nested source uses outer-frame selector/member",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 2
+        },
+        {
+          "id": "D-A-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-A-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-A-01",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-A-01",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-B-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-B-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-B-01",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-B-01",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-C-00",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-C-00",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-C-01",
+          "member": "S",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        },
+        {
+          "id": "D-C-01",
+          "member": "T",
+          "F01": "NOT_COVERED",
+          "F04": "NOT_COVERED; no Module call in a statement-for",
+          "innerRows": 0
+        }
+      ],
+      "note": "F01 semantic fault sensitivity is separately executed in the cfg(test) Rust resolver holdout, not an arm-wide mutation score."
+    }
+  ],
+  "F01": {
+    "mechanism": "cfg(test) nested real ForGroupExecutionEnvironment frames, actual frame/document resolver collection reads",
+    "source": "rust-evaluator/src/evaluation/scalars/mutation_tests.rs::issue1421_f01_document_only_collection_reads_lose_outer_frame",
+    "positive": {
+      "selectedLength": 1,
+      "member": 2
+    },
+    "negative": "same collection/document state with legacy document-only delegation loses outer locals; independent length/member assertions reject it",
+    "control": "literal [2] returns length1/member2 under both contexts",
+    "newFamilies": 0,
+    "limits": "boundary-level sensitivity; no arm-wide mutation detection fraction claimed"
+  },
+  "F04limits": "Ownership boundary oracle detects lazy=false; current runtime output remains correct under remaining gates. All pilot arms NOT_COVERED (no Module-loop call).",
+  "calibration": {
+    "counts": {
+      "compiler": 3,
+      "reference": 6,
+      "production": 6
+    },
+    "uniqueAccepted": 0,
+    "elapsedMs": 753,
+    "dispositions": []
+  },
+  "testDevelopmentAttempts": [
+    {
+      "attempt": 1,
+      "result": "harness dereferenced absent optional program on literal control; corrected empty default"
+    },
+    {
+      "attempt": 2,
+      "result": "output-only negative expectation unfulfilled; investigate observed masking"
+    },
+    {
+      "attempt": 3,
+      "result": "both runtimes output masked; independently establish lexical owner and assert missing lazy flag at first boundary"
+    },
+    {
+      "attempt": 4,
+      "result": "inspection-only run; no discovery or runtime sensitivity credited"
+    },
+    {
+      "attempt": 5,
+      "result": "final boundary-oracle test and controls PASS; output NOT_DETECTED retained"
+    }
+  ]
+}

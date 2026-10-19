@@ -1,0 +1,15 @@
+{
+  "parentCheckpoint": "357bd93c26e5a424d5679668bec4f0d75874f498",
+  "unchangedSha256": {
+    "model.ts": "bdf20336ad203d5d0a2d53507d965ef86843fb0736f97dd37dff051383c979d7",
+    "oracles.ts": "cf6676de58a4460da677099ead43000fecc23d5439ba78f4c16b1e0dc292881d",
+    "pilot.json": "008a55cfd0732f03ce8d891623b1421a80ca8554bff3b58bdc220073611db7b1",
+    "pilot-results.json": "428b2075059ec60441beae7ec808bb22fde074d50f3ef84b1972805fd40c8756",
+    "report.md": "8b53634aad513d6201a5c2d6de1056798669e7d260181b1f51a17885ed8c9055",
+    "repair-report.md": "9d6d86ed42da216e6d4736241daef523dd0202b4ccf10fcccbd7edc76f3bb499",
+    "repair-proof.json": "852414242738d88512ecf6081a22a55a23ada27899a67226cc87d02ba15fa6f3",
+    "repair-exploration.json": "4c3d09a8a5771ae0fccfbd2555b56bec99b35a27348a264ff7202a700717f228",
+    "repair-summary.json": "f496acc772ad459be1747680d22c210063e89302ec83b9a90b6e82699f029b8e",
+    "repairs.ts": "95c8c669272271d7fcbfe249ec725b90d0a214bc87075e73da1b659cf76ea98c"
+  }
+}

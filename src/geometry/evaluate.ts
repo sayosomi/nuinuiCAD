@@ -823,15 +823,7 @@ export const evaluateElements = (
       ? { status: "ok", type: reference.type, value: { kind: "number", value } }
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   };
-  const evaluateOccurrenceIndexForEvaluation = (
-    expression: TypedScalarExpression,
-    sourceOrder: number,
-    lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([])
-  ): ScalarEvaluation =>
-    evaluateTypedExpression(expression, {
-      lookupBinding,
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, lookupBinding),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, lookupBinding),
+  const collectionLookupsForEvaluation = (sourceOrder: number) => ({
       ...(scalarBindingResolver?.resolveCollectionIndex ? {
         lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number) =>
           scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
@@ -843,6 +835,17 @@ export const evaluateElements = (
         lookupCollectionLengthEvaluation: (collectionValueId: string) =>
           scalarBindingResolver.resolveCollectionLengthEvaluation!(collectionValueId, sourceOrder)
       } : {})
+  });
+  const evaluateOccurrenceIndexForEvaluation = (
+    expression: TypedScalarExpression,
+    sourceOrder: number,
+    lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([])
+  ): ScalarEvaluation =>
+    evaluateTypedExpression(expression, {
+      lookupBinding,
+      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, lookupBinding),
+      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, lookupBinding),
+      ...collectionLookupsForEvaluation(sourceOrder)
     });
   const resolveGeometryPropertyForEvaluation = (
     reference: Parameters<typeof resolveDocumentGeometryProperty>[1],
@@ -2274,7 +2277,8 @@ export const evaluateElements = (
         numericSourceOrder === undefined || !scalarBindingResolver?.resolveOptionalMember
           ? undefined
           : (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, numericSourceOrder),
-        runtimeElements
+        runtimeElements,
+        collectionLookupsForEvaluation(numericSourceOrder ?? sourceOrder)
       );
       if (!materialized.ok) {
         errors.push(...materialized.errors);
@@ -3146,7 +3150,8 @@ export const evaluateElements = (
       scalarBindingResolver?.resolveOptionalMember
         ? (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, scalarSourceOrder)
         : undefined,
-      runtimeElements
+      runtimeElements,
+      collectionLookupsForEvaluation(scalarSourceOrder)
     );
     if (!numericMaterialization.ok) {
       errors.push(...numericMaterialization.errors);

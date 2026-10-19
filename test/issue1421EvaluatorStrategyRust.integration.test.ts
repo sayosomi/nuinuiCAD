@@ -14,6 +14,7 @@ import { checkCompiler, checkValues, recordsIn } from "./fixtures/issue1419/asse
 import { json } from "./fixtures/issue1419/model";
 import { matrix, pair, type Candidate } from "./fixtures/issue-stage4/model";
 import { independentOracle } from "./fixtures/issue-stage4/oracles";
+import { finalRepairCandidates } from "./fixtures/issue-stage4/finalRepairs";
 import { repairCandidates } from "./fixtures/issue-stage4/repairs";
 
 const root = "test/fixtures/issue-stage4";
@@ -24,12 +25,15 @@ const initial = regenerateCanonicalFromModel(emptyDocument(), 1);
 const pilotIds = matrix.filter(id => Number(id.split("-")[2]) < 2);
 const allPilot = pilotIds.flatMap(pair);
 const freezeFile = join(root, "pilot.json");
-const frozen = () => allPilot.map(c => ({ ...JSON.parse(json(c)), independentOracle: JSON.parse(json(independentOracle(c))), sha256: hash(c.program.source) }));
+const serializeCandidates = (candidates: Candidate[]) => candidates.map(c => ({ ...JSON.parse(json(c)), independentOracle: JSON.parse(json(independentOracle(c))), sha256: hash(c.program.source) }));
+const frozen = () => serializeCandidates(allPilot);
 const selectionFile = join(root, "selection.json");
 const selected: Record<string, string> = existsSync(selectionFile) ? JSON.parse(readFileSync(selectionFile, "utf8")).methods : {};
 const adaptiveIds = matrix.filter(id => Number(id.split("-")[2]) >= 2 && selected[id[0]] === id[2]);
+const allAdaptive = adaptiveIds.flatMap(pair);
+const adaptiveFile = join(root, "adaptive.json");
 const ids = process.env.ISSUE1421_IDS?.split(",");
-const cases = (mode === "repairs" ? [] : mode === "pilot" ? pilotIds : mode === "adaptive" ? adaptiveIds : [...pilotIds, ...adaptiveIds]).filter(id => !ids || ids.includes(id));
+const cases = (mode === "repairs" || mode === "final-repairs" || mode === "freeze-adaptive" ? [] : mode === "pilot" ? pilotIds : mode === "adaptive" ? adaptiveIds : [...pilotIds, ...adaptiveIds]).filter(id => !ids || ids.includes(id));
 
 describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio boundaries", () => {
   let rust: RustEvaluationProcess;
@@ -51,6 +55,9 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
     }
     if (mode === "freeze") return;
     expect(JSON.parse(readFileSync(freezeFile, "utf8")), "complete pilot must be frozen before evaluation").toEqual(frozen());
+    if (mode === "freeze-adaptive") return;
+    if (allAdaptive.length && (mode === "adaptive" || mode === "verify"))
+      expect(JSON.parse(readFileSync(adaptiveFile, "utf8")), "selected sources/oracles must be frozen before evaluation").toEqual(serializeCandidates(allAdaptive));
     execFileSync("cargo", ["build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], { timeout: 120_000, stdio: "inherit" });
     // Stage 3's production client, bounded requests and close-before-dispose
     // lifecycle, with listeners installed before any transition is triggered.
@@ -131,6 +138,33 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
     } else expect(JSON.parse(readFileSync(freezeFile, "utf8"))).toEqual(frozen());
   });
 
+  it("independently validates the six selected adaptive pairs before execution", () => {
+    if (!allAdaptive.length) return;
+    expect(Object.keys(selected).sort()).toEqual(["C", "D", "E"]);
+    expect(Object.values(selected).every(m => ["A", "B", "C"].includes(m))).toBe(true);
+    const selection = JSON.parse(readFileSync(selectionFile, "utf8"));
+    expect(selection.commentUrl).toMatch(/issues\/1421#issuecomment-/);
+    expect(adaptiveIds).toHaveLength(6);
+    expect(new Set(allAdaptive.map(c => c.program.source)).size).toBe(12);
+    for (const c of allAdaptive) {
+      const view = (p: Candidate["program"]) => ({ scalars: p.scalars, geometry: p.geometry, errors: p.errors, diagnosticBindings: p.diagnosticBindings, absent: p.absent });
+      expect(c.limits ? c.limits.map(l => ({ ...view(l.expected), instances: l.instances })) : view(c.program), `${c.id}/${c.member}: independent closed-form oracle`).toEqual(independentOracle(c));
+    }
+    if (mode === "freeze-adaptive") {
+      const started = Date.now(), rejections: unknown[] = [];
+      for (const c of allAdaptive) {
+        const compiled = compile(c);
+        if (compiled.status !== "valid" || compiled.diagnostics.length)
+          rejections.push({ id: c.id, member: c.member, source: c.program.source, status: compiled.status, diagnostics: compiled.diagnostics });
+        expect(compiled.doc.document.elements.some(e => /[()]/.test(e.name))).toBe(false);
+        if (c.stratum === "E") expect(compiled.doc.document.elements.filter(e => e.type === "moduleInstance")).toHaveLength(3);
+      }
+      if (evidence) writeFileSync(join(evidence, "adaptive-prevalidation.json"), json({ started, ended: Date.now(), counts, rejections }));
+      expect(rejections).toEqual([]);
+      writeFileSync(adaptiveFile, JSON.stringify(serializeCandidates(allAdaptive), null, 2) + "\n");
+    } else expect(JSON.parse(readFileSync(adaptiveFile, "utf8"))).toEqual(serializeCandidates(allAdaptive));
+  });
+
   async function production(input: Parameters<RustEvaluationProcess["request"]>[0]) {
     if (resourceError) throw resourceError;
     counts.production++;
@@ -141,13 +175,17 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
   }
 
   async function evaluate(c: Candidate) {
-    const t = Date.now(), record: Record<string, unknown> = { id: c.id, member: c.member, method: c.method, stratum: c.stratum, purpose: mode === "repairs" ? "minimization/regression" : "pilot", sha256: hash(c.program.source), source: c.program.source, expected: JSON.parse(json(c.limits ?? c.program)), activationClaims: c.activation };
+    const t = Date.now(), record: Record<string, unknown> = { id: c.id, member: c.member, method: c.method, stratum: c.stratum, purpose: c.seed === 0 ? "minimization/regression" : c.variant >= 2 ? "selected adaptive" : "pilot", sha256: hash(c.program.source), source: c.program.source, expected: JSON.parse(json(c.limits ?? c.program)), activationClaims: c.activation };
     const failures: string[] = [];
     let boundary = "compiler";
     const capture = (boundary: string, action: () => void) => { try { action(); } catch (error) { failures.push(`${boundary}: ${String(error)}`); } };
     try {
       const compiled = compile(c);
       record.compilerStatus = compiled.status; record.compilerDiagnostics = compiled.diagnostics;
+      if (mode === "final-repairs") {
+        record.rootElementScalarSites = [...(compiled.currentCompiled.moduleSemanticAnalysis?.rootElementScalarExpressionsByStatementId ?? [])];
+        record.materializedNumericBindings = compiled.currentCompiled.materializedNumericBindings;
+      }
       expect(compiled.status).toBe("valid"); expect(compiled.diagnostics).toEqual([]);
       const fixture = { compiled, elements: compiled.doc.document.elements };
       const p = c.program;
@@ -169,6 +207,12 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
         const options = optionsFor({ ...fixture, evaluationLimitIndex: index });
         boundary = "payload-preparation";
         const prepared = prepareRustEvaluation(fixture.elements, options);
+        if (c.id === "F6-ordered-dependencies") capture("compiler/canonical-index-dependency", () => {
+          const observed = fixture.elements.find(e => e.name === "Observed")!.id;
+          const index = compiled.doc.bindingAnalysis!.catalog.bindings.find(b => b.name === "Index")!.id;
+          expect(prepared.input.scalarExpressionPayload!.conditionalDependencyGraph!.edges.filter(e =>
+            e.kind === "numeric-expression" && e.from.kind === "element" && e.from.id === observed && e.to.kind === "binding" && e.to.id === index)).toHaveLength(1);
+        });
         expect(prepared.rustEligible, "normal host eligibility; no fabricated parity").toBe(true);
         const observation: Record<string, unknown> = { placement: limit.placement, evaluationLimitIndex: index, rustEligible: prepared.rustEligible, input: prepared.input };
         observations.push(observation);
@@ -270,13 +314,13 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
     return record;
   }
 
-  if (mode !== "freeze") for (const id of cases) it(id, async () => {
+  if (mode !== "freeze" && mode !== "freeze-adaptive") for (const id of cases) it(id, async () => {
     const results = [];
     for (const c of pair(id)) results.push(await evaluate(c));
     dispositions.push({ id, members: results.map(r => ({ member: r.member, status: r.status, failures: r.failures, elapsedMs: r.elapsedMs })) });
     expect(results.flatMap(r => r.failures as string[]), id).toEqual([]);
   }, 60_000);
-  if (mode === "repairs" || mode === "verify") for (const c of repairCandidates.filter(c => !ids || ids.includes(c.id))) it(c.id, async () => {
+  if (mode === "repairs" || mode === "final-repairs" || mode === "verify") for (const c of (mode === "final-repairs" ? finalRepairCandidates : mode === "verify" ? [...repairCandidates, ...finalRepairCandidates] : repairCandidates).filter(c => !ids || ids.includes(c.id))) it(c.id, async () => {
     const result = await evaluate(c);
     dispositions.push({ id: c.id, status: result.status, failures: result.failures });
     expect(result.failures, c.id).toEqual([]);

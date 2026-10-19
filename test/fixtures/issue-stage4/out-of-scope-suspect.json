@@ -1,0 +1,1629 @@
+{
+  "status": "UNRESOLVED; OUTSIDE AUTHORIZED MATRIX",
+  "confirmedNewFamilies": 0,
+  "source": "nui 1\npoint Observed = coordinate(x: @Values[@Index], y: 0)\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\n",
+  "sha256": "bc42f7b2175d40a1668140778932c0aa9dbc3d1c03f06f4510795b76ffa4f6dd",
+  "expected": {
+    "source": "nui 1\npoint Observed = coordinate(x: @Values[@Index], y: 0)\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\n",
+    "scalars": {},
+    "geometry": [
+      {
+        "name": "Observed",
+        "value": {
+          "x": 7,
+          "y": 0
+        }
+      }
+    ],
+    "failedGeometry": [],
+    "templates": [],
+    "trace": [],
+    "carries": [],
+    "errors": [],
+    "diagnosticBindings": {},
+    "absent": [],
+    "valueErrors": [],
+    "errorInstances": {},
+    "paths": []
+  },
+  "attempts": [
+    {
+      "id": "F6-forward-dependencies",
+      "member": "S",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "minimization/regression",
+      "sha256": "bc42f7b2175d40a1668140778932c0aa9dbc3d1c03f06f4510795b76ffa4f6dd",
+      "source": "nui 1\npoint Observed = coordinate(x: @Values[@Index], y: 0)\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\n",
+      "expected": {
+        "source": "nui 1\npoint Observed = coordinate(x: @Values[@Index], y: 0)\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\n",
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "Observed",
+            "value": {
+              "x": 7,
+              "y": 0
+            }
+          }
+        ],
+        "failedGeometry": [],
+        "templates": [],
+        "trace": [],
+        "carries": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "valueErrors": [],
+        "errorInstances": {},
+        "paths": []
+      },
+      "activationClaims": [
+        "canonical-dependency-order",
+        "typed-index-and-member-input"
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "rootElementScalarSites": [
+        [
+          "freePoint-mvewoanw-3",
+          [
+            {
+              "parameterKey": "x",
+              "span": {
+                "start": 31,
+                "end": 46
+              },
+              "expression": {
+                "ast": {
+                  "kind": "collectionIndex",
+                  "span": {
+                    "start": 31,
+                    "end": 46
+                  },
+                  "nameSpan": {
+                    "start": 32,
+                    "end": 38
+                  },
+                  "name": "Values",
+                  "index": {
+                    "kind": "reference",
+                    "span": {
+                      "start": 39,
+                      "end": 45
+                    },
+                    "nameSpan": {
+                      "start": 40,
+                      "end": 45
+                    },
+                    "name": "Index"
+                  }
+                },
+                "type": {
+                  "kind": "number"
+                },
+                "references": [
+                  {
+                    "name": "Values",
+                    "span": {
+                      "start": 31,
+                      "end": 39
+                    },
+                    "nameSpan": {
+                      "start": 32,
+                      "end": 38
+                    },
+                    "target": {
+                      "kind": "collectionValue",
+                      "statementId": "statement:typedDeclaration:mvewoanw:5",
+                      "statementIndex": 2,
+                      "valueType": {
+                        "kind": "array",
+                        "elementType": {
+                          "kind": "number"
+                        }
+                      }
+                    },
+                    "resolution": "resolved",
+                    "collectionValueId": "statement:typedDeclaration:mvewoanw:5",
+                    "collectionLength": 1,
+                    "targetSourceOrder": 2,
+                    "collectionElementType": {
+                      "kind": "number"
+                    }
+                  },
+                  {
+                    "name": "Index",
+                    "span": {
+                      "start": 39,
+                      "end": 45
+                    },
+                    "nameSpan": {
+                      "start": 40,
+                      "end": 45
+                    },
+                    "target": {
+                      "kind": "documentBinding",
+                      "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                      "statementId": "statement:typedDeclaration:mvewoanw:6",
+                      "statementIndex": 3
+                    },
+                    "resolution": "resolved"
+                  }
+                ],
+                "geometryProperties": [],
+                "optionalMembers": [],
+                "geometryBuiltinArguments": []
+              }
+            },
+            {
+              "parameterKey": "y",
+              "span": {
+                "start": 51,
+                "end": 52
+              },
+              "expression": {
+                "ast": {
+                  "kind": "numberLiteral",
+                  "span": {
+                    "start": 51,
+                    "end": 52
+                  },
+                  "value": 0
+                },
+                "type": {
+                  "kind": "number"
+                },
+                "references": [],
+                "geometryProperties": [],
+                "optionalMembers": [],
+                "geometryBuiltinArguments": []
+              }
+            }
+          ]
+        ]
+      ],
+      "materializedNumericBindings": [
+        {
+          "elementId": "freePoint-mvewoanw-3",
+          "binding": {
+            "parameterKey": "x",
+            "expression": "@Values[@Index]",
+            "references": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "name": "Index",
+                "span": {
+                  "start": 39,
+                  "end": 45
+                },
+                "nameSpan": {
+                  "start": 40,
+                  "end": 45
+                },
+                "physicalNameSpan": null,
+                "expressionStart": 8,
+                "expressionEnd": 14,
+                "site": {
+                  "scopeId": "module-runtime",
+                  "statementIndex": 39
+                }
+              }
+            ],
+            "typedExpression": {
+              "kind": "collectionIndex",
+              "span": {
+                "start": 31,
+                "end": 46
+              },
+              "nameSpan": {
+                "start": 32,
+                "end": 38
+              },
+              "name": "Values",
+              "collectionValueId": "statement:typedDeclaration:mvewoanw:5",
+              "collectionLength": 1,
+              "targetSourceOrder": 1,
+              "index": {
+                "kind": "reference",
+                "span": {
+                  "start": 39,
+                  "end": 45
+                },
+                "nameSpan": {
+                  "start": 40,
+                  "end": 45
+                },
+                "name": "Index",
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "type": {
+                  "kind": "number"
+                }
+              },
+              "type": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      ],
+      "elements": [
+        {
+          "id": "freePoint-mvewoanw-3",
+          "name": "Observed",
+          "type": "freePoint",
+          "activity": "visible",
+          "x": {
+            "kind": "expression",
+            "expression": "@Values[@Index]"
+          },
+          "y": 0,
+          "enabled": true,
+          "visible": true
+        }
+      ],
+      "bindingCatalog": [
+        {
+          "id": "binding:statement:typedDeclaration:mvewoanw:5",
+          "kind": "typed",
+          "name": "Values",
+          "nameSpan": {
+            "start": 6,
+            "end": 12
+          },
+          "statementIndex": 2,
+          "sourceOrder": 0,
+          "effectiveScopeId": "root",
+          "visibility": {
+            "kind": "typed",
+            "scopeId": "root"
+          },
+          "mutability": "const",
+          "declaredType": {
+            "kind": "array",
+            "elementType": {
+              "kind": "number"
+            }
+          },
+          "resolutionMode": "sourceLookup",
+          "rank": 0
+        },
+        {
+          "id": "binding:statement:typedDeclaration:mvewoanw:6",
+          "kind": "typed",
+          "name": "Index",
+          "nameSpan": {
+            "start": 6,
+            "end": 11
+          },
+          "statementIndex": 3,
+          "sourceOrder": 0,
+          "effectiveScopeId": "root",
+          "visibility": {
+            "kind": "typed",
+            "scopeId": "root"
+          },
+          "mutability": "const",
+          "declaredType": {
+            "kind": "number"
+          },
+          "resolutionMode": "sourceLookup",
+          "rank": 1
+        },
+        {
+          "id": "binding:statement:typedDeclaration:mvewoanw:7",
+          "kind": "typed",
+          "name": "Number",
+          "nameSpan": {
+            "start": 6,
+            "end": 12
+          },
+          "statementIndex": 4,
+          "sourceOrder": 0,
+          "effectiveScopeId": "root",
+          "visibility": {
+            "kind": "typed",
+            "scopeId": "root"
+          },
+          "mutability": "const",
+          "declaredType": {
+            "kind": "number"
+          },
+          "resolutionMode": "sourceLookup",
+          "rank": 2
+        }
+      ],
+      "observations": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "input": {
+            "elements": [
+              {
+                "id": "freePoint-mvewoanw-3",
+                "name": "Observed",
+                "type": "freePoint",
+                "activity": "visible",
+                "x": {
+                  "kind": "expression",
+                  "expression": "@Values[@Index]"
+                },
+                "y": 0,
+                "enabled": true,
+                "visible": true
+              }
+            ],
+            "evaluationOrder": [
+              "freePoint-mvewoanw-3"
+            ],
+            "sourceStatementIndices": [
+              {
+                "elementId": "freePoint-mvewoanw-3",
+                "statementIndex": 1
+              }
+            ],
+            "drawingModifiers": [],
+            "bindingVersions": {
+              "versions": [
+                {
+                  "versionId": "statement:typedDeclaration:mvewoanw:6",
+                  "statementId": "statement:typedDeclaration:mvewoanw:6",
+                  "kind": "declare",
+                  "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                  "bindingKind": "const",
+                  "declaredType": {
+                    "kind": "number"
+                  },
+                  "sourceOrder": 2,
+                  "scopeId": "root",
+                  "scopeExitSourceOrder": 5,
+                  "control": {
+                    "scopeId": "root",
+                    "scopeExitSourceOrder": 5,
+                    "ownerChain": [],
+                    "kind": "linear"
+                  },
+                  "initialState": {
+                    "kind": "uncomputed"
+                  },
+                  "initializer": {
+                    "kind": "numberLiteral",
+                    "span": {
+                      "start": 22,
+                      "end": 23
+                    },
+                    "value": 0,
+                    "type": {
+                      "kind": "number"
+                    }
+                  }
+                },
+                {
+                  "versionId": "statement:typedDeclaration:mvewoanw:7",
+                  "statementId": "statement:typedDeclaration:mvewoanw:7",
+                  "kind": "declare",
+                  "bindingId": "binding:statement:typedDeclaration:mvewoanw:7",
+                  "bindingKind": "const",
+                  "declaredType": {
+                    "kind": "number"
+                  },
+                  "sourceOrder": 3,
+                  "scopeId": "root",
+                  "scopeExitSourceOrder": 5,
+                  "control": {
+                    "scopeId": "root",
+                    "scopeExitSourceOrder": 5,
+                    "ownerChain": [],
+                    "kind": "linear"
+                  },
+                  "initialState": {
+                    "kind": "uncomputed"
+                  },
+                  "initializer": {
+                    "kind": "numberLiteral",
+                    "span": {
+                      "start": 23,
+                      "end": 24
+                    },
+                    "value": 7,
+                    "type": {
+                      "kind": "number"
+                    }
+                  }
+                }
+              ],
+              "conditionalOwners": [],
+              "forGroupOwners": [],
+              "elementSourceOrders": [
+                {
+                  "elementId": "freePoint-mvewoanw-3",
+                  "sourceOrder": 0
+                }
+              ],
+              "elementSourceExecutionUnits": [
+                {
+                  "elementId": "freePoint-mvewoanw-3",
+                  "executionUnit": 1
+                }
+              ],
+              "collectionValues": [
+                {
+                  "valueId": "statement:typedDeclaration:mvewoanw:5",
+                  "kind": "literal",
+                  "members": [
+                    {
+                      "kind": "binding",
+                      "type": {
+                        "kind": "number"
+                      },
+                      "bindingId": "binding:statement:typedDeclaration:mvewoanw:7"
+                    }
+                  ]
+                }
+              ]
+            },
+            "scalarExpressionPayload": {
+              "numericBindings": [
+                {
+                  "elementId": "freePoint-mvewoanw-3",
+                  "parameterKey": "x",
+                  "expression": "@Values[@Index]",
+                  "typedExpression": {
+                    "kind": "collectionIndex",
+                    "span": {
+                      "start": 31,
+                      "end": 46
+                    },
+                    "nameSpan": {
+                      "start": 32,
+                      "end": 38
+                    },
+                    "name": "Values",
+                    "collectionValueId": "statement:typedDeclaration:mvewoanw:5",
+                    "collectionLength": 1,
+                    "targetSourceOrder": 1,
+                    "index": {
+                      "kind": "reference",
+                      "span": {
+                        "start": 39,
+                        "end": 45
+                      },
+                      "nameSpan": {
+                        "start": 40,
+                        "end": 45
+                      },
+                      "name": "Index",
+                      "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                      "type": {
+                        "kind": "number"
+                      }
+                    },
+                    "type": {
+                      "kind": "number"
+                    }
+                  },
+                  "references": [
+                    {
+                      "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                      "name": "Index",
+                      "expressionStart": 8,
+                      "expressionEnd": 14
+                    }
+                  ]
+                }
+              ],
+              "conditionalDependencyGraph": {
+                "edges": [
+                  {
+                    "kind": "geometry",
+                    "from": {
+                      "kind": "geometry-stage",
+                      "id": "freePoint-mvewoanw-3\u0000*\u0000base",
+                      "ownerId": "freePoint-mvewoanw-3",
+                      "name": "Observed.base",
+                      "stagePath": [
+                        "base"
+                      ],
+                      "statementIndex": 1
+                    },
+                    "to": {
+                      "kind": "element",
+                      "id": "freePoint-mvewoanw-3",
+                      "name": "Observed",
+                      "statementIndex": 1
+                    },
+                    "span": null,
+                    "requiredness": "required"
+                  },
+                  {
+                    "kind": "geometry",
+                    "from": {
+                      "kind": "geometry-stage",
+                      "id": "freePoint-mvewoanw-3\u0000*\u0000final",
+                      "ownerId": "freePoint-mvewoanw-3",
+                      "name": "Observed.final",
+                      "stagePath": [
+                        "final"
+                      ],
+                      "statementIndex": 1
+                    },
+                    "to": {
+                      "kind": "geometry-stage",
+                      "id": "freePoint-mvewoanw-3\u0000*\u0000base",
+                      "ownerId": "freePoint-mvewoanw-3",
+                      "name": "Observed.base",
+                      "stagePath": [
+                        "base"
+                      ],
+                      "statementIndex": 1
+                    },
+                    "span": null,
+                    "requiredness": "required"
+                  }
+                ]
+              }
+            }
+          },
+          "reference": {
+            "computedGeometry": [],
+            "errors": [
+              {
+                "elementId": "freePoint-mvewoanw-3",
+                "elementName": "Observed",
+                "missingDependencyId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "message": "Observed \u306e\u6570\u5024\u5f0f\u3092\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u53c2\u7167\u5148\u306ebinding\u3092\u89e3\u6c7a\u3067\u304d\u307e\u305b\u3093\u3002"
+              }
+            ],
+            "warnings": [],
+            "evaluatedElementIds": [
+              "freePoint-mvewoanw-3"
+            ],
+            "evaluationLimitIndex": 1,
+            "effectiveVisibleElementIds": [
+              "freePoint-mvewoanw-3"
+            ],
+            "effectiveEnabledElementIds": [
+              "freePoint-mvewoanw-3"
+            ],
+            "effectiveDrawingModifierResolutions": [
+              {
+                "elementId": "freePoint-mvewoanw-3",
+                "resolution": {
+                  "visible": {
+                    "value": true,
+                    "winner": null
+                  },
+                  "widthPx": {
+                    "value": 1,
+                    "winner": null
+                  },
+                  "lineType": {
+                    "value": "solid",
+                    "winner": null
+                  },
+                  "color": {
+                    "value": {
+                      "kind": "themeRole",
+                      "role": "foreground"
+                    },
+                    "winner": null
+                  },
+                  "fill": {
+                    "value": null,
+                    "winner": null
+                  },
+                  "fillOpacity": {
+                    "value": 1,
+                    "winner": null
+                  }
+                }
+              }
+            ],
+            "conditionInactiveElementIds": [],
+            "forGroupEffectiveShowGeneratedIds": [],
+            "computedScalarBindings": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:7",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                }
+              }
+            ],
+            "computedScalarBindingVersions": [
+              {
+                "versionId": "statement:typedDeclaration:mvewoanw:6",
+                "statementId": "statement:typedDeclaration:mvewoanw:6",
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "status": "executed",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "versionId": "statement:typedDeclaration:mvewoanw:7",
+                "statementId": "statement:typedDeclaration:mvewoanw:7",
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:7",
+                "status": "executed",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                }
+              }
+            ]
+          },
+          "actual": {
+            "computedGeometry": [],
+            "errors": [
+              {
+                "elementId": "freePoint-mvewoanw-3",
+                "elementName": "Observed",
+                "missingDependencyId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "message": "Observed \u306e\u6570\u5024\u5f0f\u3092\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u53c2\u7167\u5148\u306ebinding\u3092\u89e3\u6c7a\u3067\u304d\u307e\u305b\u3093\u3002"
+              }
+            ],
+            "warnings": [],
+            "evaluatedElementIds": [
+              "freePoint-mvewoanw-3"
+            ],
+            "evaluationLimitIndex": 1,
+            "effectiveVisibleElementIds": [
+              "freePoint-mvewoanw-3"
+            ],
+            "effectiveEnabledElementIds": [
+              "freePoint-mvewoanw-3"
+            ],
+            "effectiveDrawingModifierResolutions": [
+              {
+                "elementId": "freePoint-mvewoanw-3",
+                "resolution": {
+                  "color": {
+                    "value": {
+                      "kind": "themeRole",
+                      "role": "foreground"
+                    },
+                    "winner": null
+                  },
+                  "fill": {
+                    "value": null,
+                    "winner": null
+                  },
+                  "fillOpacity": {
+                    "value": 1,
+                    "winner": null
+                  },
+                  "lineType": {
+                    "value": "solid",
+                    "winner": null
+                  },
+                  "visible": {
+                    "value": true,
+                    "winner": null
+                  },
+                  "widthPx": {
+                    "value": 1,
+                    "winner": null
+                  }
+                }
+              }
+            ],
+            "conditionInactiveElementIds": [],
+            "forGroupEffectiveShowGeneratedIds": [],
+            "computedScalarBindings": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:7",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                }
+              }
+            ],
+            "computedScalarBindingVersions": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:6",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                },
+                "statementId": "statement:typedDeclaration:mvewoanw:6",
+                "status": "executed",
+                "versionId": "statement:typedDeclaration:mvewoanw:6"
+              },
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewoanw:7",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                },
+                "statementId": "statement:typedDeclaration:mvewoanw:7",
+                "status": "executed",
+                "versionId": "statement:typedDeclaration:mvewoanw:7"
+              }
+            ]
+          }
+        }
+      ],
+      "failures": [
+        "TS/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }",
+        "Rust/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }"
+      ],
+      "status": "UNRESOLVED",
+      "elapsedMs": 6
+    },
+    {
+      "id": "F6-forward-dependencies",
+      "member": "S",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "minimization/regression",
+      "sha256": "bc42f7b2175d40a1668140778932c0aa9dbc3d1c03f06f4510795b76ffa4f6dd",
+      "source": "nui 1\npoint Observed = coordinate(x: @Values[@Index], y: 0)\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\n",
+      "expected": {
+        "source": "nui 1\npoint Observed = coordinate(x: @Values[@Index], y: 0)\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\n",
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "Observed",
+            "value": {
+              "x": 7,
+              "y": 0
+            }
+          }
+        ],
+        "failedGeometry": [],
+        "templates": [],
+        "trace": [],
+        "carries": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "valueErrors": [],
+        "errorInstances": {},
+        "paths": []
+      },
+      "activationClaims": [
+        "canonical-dependency-order",
+        "typed-index-and-member-input"
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "rootElementScalarSites": [
+        [
+          "freePoint-mvewphh1-3",
+          [
+            {
+              "parameterKey": "x",
+              "span": {
+                "start": 31,
+                "end": 46
+              },
+              "expression": {
+                "ast": {
+                  "kind": "collectionIndex",
+                  "span": {
+                    "start": 31,
+                    "end": 46
+                  },
+                  "nameSpan": {
+                    "start": 32,
+                    "end": 38
+                  },
+                  "name": "Values",
+                  "index": {
+                    "kind": "reference",
+                    "span": {
+                      "start": 39,
+                      "end": 45
+                    },
+                    "nameSpan": {
+                      "start": 40,
+                      "end": 45
+                    },
+                    "name": "Index"
+                  }
+                },
+                "type": {
+                  "kind": "number"
+                },
+                "references": [
+                  {
+                    "name": "Values",
+                    "span": {
+                      "start": 31,
+                      "end": 39
+                    },
+                    "nameSpan": {
+                      "start": 32,
+                      "end": 38
+                    },
+                    "target": {
+                      "kind": "collectionValue",
+                      "statementId": "statement:typedDeclaration:mvewphh1:5",
+                      "statementIndex": 2,
+                      "valueType": {
+                        "kind": "array",
+                        "elementType": {
+                          "kind": "number"
+                        }
+                      }
+                    },
+                    "resolution": "resolved",
+                    "collectionValueId": "statement:typedDeclaration:mvewphh1:5",
+                    "collectionLength": 1,
+                    "targetSourceOrder": 2,
+                    "collectionElementType": {
+                      "kind": "number"
+                    }
+                  },
+                  {
+                    "name": "Index",
+                    "span": {
+                      "start": 39,
+                      "end": 45
+                    },
+                    "nameSpan": {
+                      "start": 40,
+                      "end": 45
+                    },
+                    "target": {
+                      "kind": "documentBinding",
+                      "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                      "statementId": "statement:typedDeclaration:mvewphh1:6",
+                      "statementIndex": 3
+                    },
+                    "resolution": "resolved"
+                  }
+                ],
+                "geometryProperties": [],
+                "optionalMembers": [],
+                "geometryBuiltinArguments": []
+              }
+            },
+            {
+              "parameterKey": "y",
+              "span": {
+                "start": 51,
+                "end": 52
+              },
+              "expression": {
+                "ast": {
+                  "kind": "numberLiteral",
+                  "span": {
+                    "start": 51,
+                    "end": 52
+                  },
+                  "value": 0
+                },
+                "type": {
+                  "kind": "number"
+                },
+                "references": [],
+                "geometryProperties": [],
+                "optionalMembers": [],
+                "geometryBuiltinArguments": []
+              }
+            }
+          ]
+        ]
+      ],
+      "materializedNumericBindings": [
+        {
+          "elementId": "freePoint-mvewphh1-3",
+          "binding": {
+            "parameterKey": "x",
+            "expression": "@Values[@Index]",
+            "references": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "name": "Index",
+                "span": {
+                  "start": 39,
+                  "end": 45
+                },
+                "nameSpan": {
+                  "start": 40,
+                  "end": 45
+                },
+                "physicalNameSpan": null,
+                "expressionStart": 8,
+                "expressionEnd": 14,
+                "site": {
+                  "scopeId": "module-runtime",
+                  "statementIndex": 39
+                }
+              }
+            ],
+            "typedExpression": {
+              "kind": "collectionIndex",
+              "span": {
+                "start": 31,
+                "end": 46
+              },
+              "nameSpan": {
+                "start": 32,
+                "end": 38
+              },
+              "name": "Values",
+              "collectionValueId": "statement:typedDeclaration:mvewphh1:5",
+              "collectionLength": 1,
+              "targetSourceOrder": 1,
+              "index": {
+                "kind": "reference",
+                "span": {
+                  "start": 39,
+                  "end": 45
+                },
+                "nameSpan": {
+                  "start": 40,
+                  "end": 45
+                },
+                "name": "Index",
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "type": {
+                  "kind": "number"
+                }
+              },
+              "type": {
+                "kind": "number"
+              }
+            }
+          }
+        }
+      ],
+      "elements": [
+        {
+          "id": "freePoint-mvewphh1-3",
+          "name": "Observed",
+          "type": "freePoint",
+          "activity": "visible",
+          "x": {
+            "kind": "expression",
+            "expression": "@Values[@Index]"
+          },
+          "y": 0,
+          "enabled": true,
+          "visible": true
+        }
+      ],
+      "bindingCatalog": [
+        {
+          "id": "binding:statement:typedDeclaration:mvewphh1:5",
+          "kind": "typed",
+          "name": "Values",
+          "nameSpan": {
+            "start": 6,
+            "end": 12
+          },
+          "statementIndex": 2,
+          "sourceOrder": 0,
+          "effectiveScopeId": "root",
+          "visibility": {
+            "kind": "typed",
+            "scopeId": "root"
+          },
+          "mutability": "const",
+          "declaredType": {
+            "kind": "array",
+            "elementType": {
+              "kind": "number"
+            }
+          },
+          "resolutionMode": "sourceLookup",
+          "rank": 0
+        },
+        {
+          "id": "binding:statement:typedDeclaration:mvewphh1:6",
+          "kind": "typed",
+          "name": "Index",
+          "nameSpan": {
+            "start": 6,
+            "end": 11
+          },
+          "statementIndex": 3,
+          "sourceOrder": 0,
+          "effectiveScopeId": "root",
+          "visibility": {
+            "kind": "typed",
+            "scopeId": "root"
+          },
+          "mutability": "const",
+          "declaredType": {
+            "kind": "number"
+          },
+          "resolutionMode": "sourceLookup",
+          "rank": 1
+        },
+        {
+          "id": "binding:statement:typedDeclaration:mvewphh1:7",
+          "kind": "typed",
+          "name": "Number",
+          "nameSpan": {
+            "start": 6,
+            "end": 12
+          },
+          "statementIndex": 4,
+          "sourceOrder": 0,
+          "effectiveScopeId": "root",
+          "visibility": {
+            "kind": "typed",
+            "scopeId": "root"
+          },
+          "mutability": "const",
+          "declaredType": {
+            "kind": "number"
+          },
+          "resolutionMode": "sourceLookup",
+          "rank": 2
+        }
+      ],
+      "observations": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "input": {
+            "elements": [
+              {
+                "id": "freePoint-mvewphh1-3",
+                "name": "Observed",
+                "type": "freePoint",
+                "activity": "visible",
+                "x": {
+                  "kind": "expression",
+                  "expression": "@Values[@Index]"
+                },
+                "y": 0,
+                "enabled": true,
+                "visible": true
+              }
+            ],
+            "evaluationOrder": [
+              "freePoint-mvewphh1-3"
+            ],
+            "sourceStatementIndices": [
+              {
+                "elementId": "freePoint-mvewphh1-3",
+                "statementIndex": 1
+              }
+            ],
+            "drawingModifiers": [],
+            "bindingVersions": {
+              "versions": [
+                {
+                  "versionId": "statement:typedDeclaration:mvewphh1:6",
+                  "statementId": "statement:typedDeclaration:mvewphh1:6",
+                  "kind": "declare",
+                  "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                  "bindingKind": "const",
+                  "declaredType": {
+                    "kind": "number"
+                  },
+                  "sourceOrder": 2,
+                  "scopeId": "root",
+                  "scopeExitSourceOrder": 5,
+                  "control": {
+                    "scopeId": "root",
+                    "scopeExitSourceOrder": 5,
+                    "ownerChain": [],
+                    "kind": "linear"
+                  },
+                  "initialState": {
+                    "kind": "uncomputed"
+                  },
+                  "initializer": {
+                    "kind": "numberLiteral",
+                    "span": {
+                      "start": 22,
+                      "end": 23
+                    },
+                    "value": 0,
+                    "type": {
+                      "kind": "number"
+                    }
+                  }
+                },
+                {
+                  "versionId": "statement:typedDeclaration:mvewphh1:7",
+                  "statementId": "statement:typedDeclaration:mvewphh1:7",
+                  "kind": "declare",
+                  "bindingId": "binding:statement:typedDeclaration:mvewphh1:7",
+                  "bindingKind": "const",
+                  "declaredType": {
+                    "kind": "number"
+                  },
+                  "sourceOrder": 3,
+                  "scopeId": "root",
+                  "scopeExitSourceOrder": 5,
+                  "control": {
+                    "scopeId": "root",
+                    "scopeExitSourceOrder": 5,
+                    "ownerChain": [],
+                    "kind": "linear"
+                  },
+                  "initialState": {
+                    "kind": "uncomputed"
+                  },
+                  "initializer": {
+                    "kind": "numberLiteral",
+                    "span": {
+                      "start": 23,
+                      "end": 24
+                    },
+                    "value": 7,
+                    "type": {
+                      "kind": "number"
+                    }
+                  }
+                }
+              ],
+              "conditionalOwners": [],
+              "forGroupOwners": [],
+              "elementSourceOrders": [
+                {
+                  "elementId": "freePoint-mvewphh1-3",
+                  "sourceOrder": 0
+                }
+              ],
+              "elementSourceExecutionUnits": [
+                {
+                  "elementId": "freePoint-mvewphh1-3",
+                  "executionUnit": 1
+                }
+              ],
+              "collectionValues": [
+                {
+                  "valueId": "statement:typedDeclaration:mvewphh1:5",
+                  "kind": "literal",
+                  "members": [
+                    {
+                      "kind": "binding",
+                      "type": {
+                        "kind": "number"
+                      },
+                      "bindingId": "binding:statement:typedDeclaration:mvewphh1:7"
+                    }
+                  ]
+                }
+              ]
+            },
+            "scalarExpressionPayload": {
+              "numericBindings": [
+                {
+                  "elementId": "freePoint-mvewphh1-3",
+                  "parameterKey": "x",
+                  "expression": "@Values[@Index]",
+                  "typedExpression": {
+                    "kind": "collectionIndex",
+                    "span": {
+                      "start": 31,
+                      "end": 46
+                    },
+                    "nameSpan": {
+                      "start": 32,
+                      "end": 38
+                    },
+                    "name": "Values",
+                    "collectionValueId": "statement:typedDeclaration:mvewphh1:5",
+                    "collectionLength": 1,
+                    "targetSourceOrder": 1,
+                    "index": {
+                      "kind": "reference",
+                      "span": {
+                        "start": 39,
+                        "end": 45
+                      },
+                      "nameSpan": {
+                        "start": 40,
+                        "end": 45
+                      },
+                      "name": "Index",
+                      "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                      "type": {
+                        "kind": "number"
+                      }
+                    },
+                    "type": {
+                      "kind": "number"
+                    }
+                  },
+                  "references": [
+                    {
+                      "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                      "name": "Index",
+                      "expressionStart": 8,
+                      "expressionEnd": 14
+                    }
+                  ]
+                }
+              ],
+              "conditionalDependencyGraph": {
+                "edges": [
+                  {
+                    "kind": "numeric-expression",
+                    "from": {
+                      "kind": "element",
+                      "id": "freePoint-mvewphh1-3",
+                      "name": "Observed",
+                      "statementIndex": 1
+                    },
+                    "to": {
+                      "kind": "binding",
+                      "id": "binding:statement:typedDeclaration:mvewphh1:6",
+                      "name": "Index",
+                      "statementIndex": 3,
+                      "span": {
+                        "start": 6,
+                        "end": 11
+                      }
+                    },
+                    "span": {
+                      "start": 39,
+                      "end": 45
+                    },
+                    "requiredness": "required"
+                  },
+                  {
+                    "kind": "geometry",
+                    "from": {
+                      "kind": "geometry-stage",
+                      "id": "freePoint-mvewphh1-3\u0000*\u0000base",
+                      "ownerId": "freePoint-mvewphh1-3",
+                      "name": "Observed.base",
+                      "stagePath": [
+                        "base"
+                      ],
+                      "statementIndex": 1
+                    },
+                    "to": {
+                      "kind": "element",
+                      "id": "freePoint-mvewphh1-3",
+                      "name": "Observed",
+                      "statementIndex": 1
+                    },
+                    "span": null,
+                    "requiredness": "required"
+                  },
+                  {
+                    "kind": "geometry",
+                    "from": {
+                      "kind": "geometry-stage",
+                      "id": "freePoint-mvewphh1-3\u0000*\u0000final",
+                      "ownerId": "freePoint-mvewphh1-3",
+                      "name": "Observed.final",
+                      "stagePath": [
+                        "final"
+                      ],
+                      "statementIndex": 1
+                    },
+                    "to": {
+                      "kind": "geometry-stage",
+                      "id": "freePoint-mvewphh1-3\u0000*\u0000base",
+                      "ownerId": "freePoint-mvewphh1-3",
+                      "name": "Observed.base",
+                      "stagePath": [
+                        "base"
+                      ],
+                      "statementIndex": 1
+                    },
+                    "span": null,
+                    "requiredness": "required"
+                  }
+                ]
+              }
+            }
+          },
+          "reference": {
+            "computedGeometry": [],
+            "errors": [
+              {
+                "elementId": "freePoint-mvewphh1-3",
+                "elementName": "Observed",
+                "missingDependencyId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "message": "Observed \u306e\u6570\u5024\u5f0f\u3092\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u53c2\u7167\u5148\u306ebinding\u3092\u89e3\u6c7a\u3067\u304d\u307e\u305b\u3093\u3002"
+              }
+            ],
+            "warnings": [],
+            "evaluatedElementIds": [
+              "freePoint-mvewphh1-3"
+            ],
+            "evaluationLimitIndex": 1,
+            "effectiveVisibleElementIds": [
+              "freePoint-mvewphh1-3"
+            ],
+            "effectiveEnabledElementIds": [
+              "freePoint-mvewphh1-3"
+            ],
+            "effectiveDrawingModifierResolutions": [
+              {
+                "elementId": "freePoint-mvewphh1-3",
+                "resolution": {
+                  "visible": {
+                    "value": true,
+                    "winner": null
+                  },
+                  "widthPx": {
+                    "value": 1,
+                    "winner": null
+                  },
+                  "lineType": {
+                    "value": "solid",
+                    "winner": null
+                  },
+                  "color": {
+                    "value": {
+                      "kind": "themeRole",
+                      "role": "foreground"
+                    },
+                    "winner": null
+                  },
+                  "fill": {
+                    "value": null,
+                    "winner": null
+                  },
+                  "fillOpacity": {
+                    "value": 1,
+                    "winner": null
+                  }
+                }
+              }
+            ],
+            "conditionInactiveElementIds": [],
+            "forGroupEffectiveShowGeneratedIds": [],
+            "computedScalarBindings": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:7",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                }
+              }
+            ],
+            "computedScalarBindingVersions": [
+              {
+                "versionId": "statement:typedDeclaration:mvewphh1:6",
+                "statementId": "statement:typedDeclaration:mvewphh1:6",
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "status": "executed",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "versionId": "statement:typedDeclaration:mvewphh1:7",
+                "statementId": "statement:typedDeclaration:mvewphh1:7",
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:7",
+                "status": "executed",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                }
+              }
+            ]
+          },
+          "actual": {
+            "computedGeometry": [],
+            "errors": [
+              {
+                "elementId": "freePoint-mvewphh1-3",
+                "elementName": "Observed",
+                "missingDependencyId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "message": "Observed \u306e\u6570\u5024\u5f0f\u3092\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u53c2\u7167\u5148\u306ebinding\u3092\u89e3\u6c7a\u3067\u304d\u307e\u305b\u3093\u3002"
+              }
+            ],
+            "warnings": [],
+            "evaluatedElementIds": [
+              "freePoint-mvewphh1-3"
+            ],
+            "evaluationLimitIndex": 1,
+            "effectiveVisibleElementIds": [
+              "freePoint-mvewphh1-3"
+            ],
+            "effectiveEnabledElementIds": [
+              "freePoint-mvewphh1-3"
+            ],
+            "effectiveDrawingModifierResolutions": [
+              {
+                "elementId": "freePoint-mvewphh1-3",
+                "resolution": {
+                  "color": {
+                    "value": {
+                      "kind": "themeRole",
+                      "role": "foreground"
+                    },
+                    "winner": null
+                  },
+                  "fill": {
+                    "value": null,
+                    "winner": null
+                  },
+                  "fillOpacity": {
+                    "value": 1,
+                    "winner": null
+                  },
+                  "lineType": {
+                    "value": "solid",
+                    "winner": null
+                  },
+                  "visible": {
+                    "value": true,
+                    "winner": null
+                  },
+                  "widthPx": {
+                    "value": 1,
+                    "winner": null
+                  }
+                }
+              }
+            ],
+            "conditionInactiveElementIds": [],
+            "forGroupEffectiveShowGeneratedIds": [],
+            "computedScalarBindings": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:7",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                }
+              }
+            ],
+            "computedScalarBindingVersions": [
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:6",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 0
+                  }
+                },
+                "statementId": "statement:typedDeclaration:mvewphh1:6",
+                "status": "executed",
+                "versionId": "statement:typedDeclaration:mvewphh1:6"
+              },
+              {
+                "bindingId": "binding:statement:typedDeclaration:mvewphh1:7",
+                "evaluation": {
+                  "status": "ok",
+                  "type": {
+                    "kind": "number"
+                  },
+                  "value": {
+                    "kind": "number",
+                    "value": 7
+                  }
+                },
+                "statementId": "statement:typedDeclaration:mvewphh1:7",
+                "status": "executed",
+                "versionId": "statement:typedDeclaration:mvewphh1:7"
+              }
+            ]
+          }
+        }
+      ],
+      "failures": [
+        "TS/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }",
+        "Rust/full: AssertionError: expected undefined to match object { kind: 'point', x: 7, y: +0 }"
+      ],
+      "status": "UNRESOLVED",
+      "elapsedMs": 11
+    }
+  ],
+  "reason": "Moves a consumer ahead of its own prerequisites; Issue D permits reordering unrelated declarations. Broad scheduling changes are outside this frozen E/C/D campaign. No further mutations or exploration for this suspect.",
+  "nextAction": "Separate scope/contract review before reproduction/minimization or scheduler changes"
+}

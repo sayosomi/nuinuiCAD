@@ -6309,7 +6309,8 @@ export const compileModuleScalarRuntime = ({
     const element = elements.find((candidate) => candidate.id === elementId);
     if (!element) continue;
     for (const site of sites) {
-      if (!site.parameterKey || !site.expression.optionalMembers?.length) continue;
+      if (!site.parameterKey || (!site.expression.optionalMembers?.length &&
+        !site.expression.references.some(reference => reference.collectionValueId !== undefined))) continue;
       const lowered = lowerExpression(
         site.expression,
         (target, _name, targetStatementIndex) => rootBindingForTarget(target, targetStatementIndex),

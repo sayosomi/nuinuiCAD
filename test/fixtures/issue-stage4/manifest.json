@@ -110,11 +110,26 @@
     "Import/generation/oracle effort and total agent token usage were not measured."
   ],
   "currentContinuation": {
-    "phase": "product-repair",
-    "startingHead": "612cde2981a8bc99af14c624c96450eabb0876c8",
-    "report": "repair-report.md",
-    "summary": "repair-summary.json",
-    "proof": "repair-proof.json",
-    "globalAcceptedSources": 61
-  }
+    "phase": "final selected exploration and product repair",
+    "startingHead": "357bd93c26e5a424d5679668bec4f0d75874f498",
+    "report": "comparison-report.md",
+    "summary": "final-summary.json",
+    "proof": "final-proof.json",
+    "globalAcceptedSources": 88,
+    "selection": "selection.json",
+    "cellDispositions": "final-results.json",
+    "issueState": "OPEN",
+    "independentExactHeadReview": "pending",
+    "outOfScopeSuspects": 1
+  },
+  "previousContinuations": [
+    {
+      "phase": "product-repair",
+      "startingHead": "612cde2981a8bc99af14c624c96450eabb0876c8",
+      "report": "repair-report.md",
+      "summary": "repair-summary.json",
+      "proof": "repair-proof.json",
+      "globalAcceptedSources": 61
+    }
+  ]
 }

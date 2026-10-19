@@ -178,7 +178,8 @@ export const numericSourceForModuleValue = (
     // the typed path. Its index may be a module for-group iteration binding,
     // which is intentionally not a legacy numeric source-splice reference.
     // Keep the typed expression even when that is the only dependency.
-    if (loweredExpression && site.expression.geometryProperties.length > 0) {
+    if (loweredExpression && (site.expression.geometryProperties.length > 0 ||
+        site.expression.references.some(reference => reference.collectionValueId !== undefined))) {
       return {
         parameterKey,
         expression: value.expression,
