@@ -105,7 +105,7 @@ it("prevalidates the complete model and freezes both waves and G before evaluati
 });
 
 const cases = ["freeze", "prevalidate"].includes(mode) ? [] : all.filter(c => mode === "verify" || c.wave === mode);
-for (const c of cases) it(c.id, async () => {
+for (const c of cases.filter(c => !process.env.ISSUE1423_IDS || process.env.ISSUE1423_IDS.split(",").includes(c.id))) it(c.id, async () => {
   const failures: string[] = [], observations: Record<string, unknown>[] = [];
   const capture = (boundary: string, f: () => void) => { try { f(); } catch (e) { failures.push(`${boundary}: ${String(e)}`); } };
   const compiled = compile(c), p = c.program;
@@ -121,9 +121,36 @@ for (const c of cases) it(c.id, async () => {
     capture("compiler/payload", () => {
       expect(compiled.doc.bindingAnalysis!.issues).toEqual([]); expect(compiled.doc.typedDependencyGraph!.cycles).toEqual([]);
       if (c.stratum === "C") checkCompiler(p, compiled, wire);
+      const binding = (name: string) => compiled.doc.bindingAnalysis!.catalog.bindings.find(b => b.name === name)!.id;
+      const rename = (name: string) => c.member === "T" ? `Twin${name}` : name;
+      for (const graph of [compiled.doc.typedDependencyGraph!, wire.scalarExpressionPayload!.conditionalDependencyGraph!]) {
+        if (c.stratum === "C") for (const [owner, targets] of [["Incoming", ["Total"]], ["Final", ["Final0", "FinalTotal"]]] as const) {
+          const id = elements.find(e => e.name === rename(owner))!.id;
+          expect(graph.edges.filter(e => e.from.kind === "element" && e.from.id === id && e.to.kind === "binding").map(e => e.to.id).sort(), "exact scalar observer dependency edges").toEqual(targets.map(n => binding(rename(n))).sort());
+        }
+        if (c.stratum === "D") {
+          const chosen = binding(rename("Chosen"));
+          const branches = graph.edges.filter(e => e.from.kind === "binding" && e.from.id === chosen);
+          const expected = ["Unit", "Zero", "Unit", "Delta"].map(n => ["binding", binding(rename(n)), "conditional"]);
+          if (c.method === "B") expected.push(["binding", binding(rename("Side")), "required"]);
+          expect(branches.map(e => [e.to.kind, e.to.id, e.requiredness]).sort(), "selected and unselected dependencies retain lazy edges").toEqual(expected.sort());
+        }
+      }
     });
     const check = (payload: EvaluationPayload) => {
-      if (!c.limits) { checkValues(p, compiled, payload); return; }
+      if (!c.limits) {
+        checkValues(p, compiled, payload);
+        if (c.stratum === "G") {
+          const owned = wire.geometryValueProgram?.filter(v => v.occurrence.instancePath.length > 0 && ["if", "match"].includes(v.construction.kind)) ?? [];
+          const values = payload.computedGeometryValues ?? [];
+          expect(values).toHaveLength(c.inputs.n ? owned.length : 0);
+          for (const entry of owned) if (c.inputs.n) {
+            const value = values.find(v => v.occurrence.sourceStatementId === entry.occurrence.sourceStatementId && json(v.occurrence.instancePath) === json(entry.occurrence.instancePath));
+            expect(value?.value, "private value retains exact Module frame and final occurrence").toEqual({ kind: "point", x: c.inputs.u + (c.inputs.n - 1) * c.inputs.d + c.inputs.f, y: c.inputs.d });
+          }
+        }
+        return;
+      }
       const r = evaluationPayloadToResult(payload), snapshots = compiled.doc.moduleMaterialization!.instanceBaseGeometrySnapshots;
       const name = (id: string) => {
         const element = elements.find(e => e.id === id)!;
@@ -133,6 +160,7 @@ for (const c of cases) it(c.id, async () => {
       expect([...r.computedGeometry.keys()].map(name).sort(), "exact exports and consumers").toEqual(limit.expected.geometry.map(g => g.name).sort());
       for (const g of limit.expected.geometry) expect([...r.computedGeometry].find(([id]) => name(id) === g.name)?.[1]).toMatchObject({ kind: "point", ...g.value });
       expect(r.errors.map(e => name(e.elementId)).sort(), "atomic failure owner").toEqual([...limit.expected.errors].sort());
+      for (const error of r.errors) expect(error.missingDependencyId).toBe("1 / 0");
       expect([...(r.instanceBaseGeometry?.keys() ?? [])].map(name).sort(), "atomic instance presence").toEqual([...limit.instances].sort());
       for (const snapshot of payload.instanceBaseGeometry ?? []) expect(snapshot.geometry.map(g => name(g.elementId)).sort()).toEqual(limit.expected.geometry.filter(g => g.name.startsWith(`${name(snapshot.instanceId)}::`)).map(g => g.name).sort());
       expect(payload.geometryValueErrors ?? [], "no leaked private Module failures").toEqual([]);
@@ -143,30 +171,71 @@ for (const c of cases) it(c.id, async () => {
     counts.production++;
     const actual = await Promise.race([rust.request(wire), new Promise<never>((_, reject) => { timer = setTimeout(() => { rust.dispose(); reject(new Error("Rust request exceeded 20 seconds")); }, 20_000); })]).finally(() => clearTimeout(timer)) as EvaluationPayload;
     capture(`Rust/${limit.placement}`, () => check(actual));
-    const observation: Record<string, unknown> = { placement: limit.placement, rustEligible: prepared.rustEligible, inputHash: hash(json(wire)), reference, actual };
+    const proof = (payload: EvaluationPayload) => {
+      const result = evaluationPayloadToResult(payload), snapshots = compiled.doc.moduleMaterialization?.instanceBaseGeometrySnapshots ?? [];
+      const name = (id: string) => {
+        const row = result.forGroupGeneratedRows?.find(r => r.generatedElementId === id), sourceId = row?.templateElementId ?? id;
+        const element = elements.find(e => e.id === sourceId), owner = snapshots.find(s => s.descendantIds.includes(sourceId));
+        return `${owner ? `${elements.find(e => e.id === owner.instanceId)?.name}::` : ""}${element?.name ?? id}${row ? `[${row.occurrencePath.map(s => s.iterationIndex)}]` : ""}`;
+      };
+      return {
+        geometry: payload.computedGeometry.map(g => ({ owner: name(g.elementId), kind: g.kind, ...(g.kind === "point" ? { x: g.x, y: g.y } : {}) })).sort((a, b) => a.owner.localeCompare(b.owner)),
+        errors: payload.errors.map(e => ({ owner: name(e.elementId), dependency: name(e.missingDependencyId) })),
+        scalars: Object.keys(p.scalars).map(n => ({ name: n, result: result.computedScalarBindings?.get(compiled.doc.bindingAnalysis!.catalog.bindings.find(b => b.name === n)!.id) })),
+        privateValues: (payload.computedGeometryValues ?? []).map(v => ({ moduleDepth: v.occurrence.instancePath.length, value: v.value })),
+        privateErrorCount: (payload.geometryValueErrors ?? []).length,
+        instanceSnapshots: (payload.instanceBaseGeometry ?? []).map(s => ({ owner: name(s.instanceId), geometry: s.geometry.map(g => name(g.elementId)) }))
+      };
+    };
+    const observation: Record<string, unknown> = { placement: limit.placement, rustEligible: prepared.rustEligible, inputHash: hash(json(wire)), reference, actual, referenceProof: proof(reference), productionProof: proof(actual) };
     observations.push(observation);
     if (c.stratum === "G") {
-      const owned = (wire.geometryValueProgram ?? []).filter(v => v.occurrence.instancePath.length > 0);
+      const owned = (wire.geometryValueProgram ?? []).filter(v => v.occurrence.instancePath.length > 0 && ["if", "match"].includes(v.construction.kind));
       capture("G/ownership", () => {
         expect(elements.filter(e => e.type === "moduleInstance")).toHaveLength(1);
         const instance = elements.find(e => e.type === "moduleInstance")!;
         expect(elements.find(e => e.id === instance.parentGroupId)?.type).toBe("forGroup");
-        expect(owned.length).toBeGreaterThan(0);
+        expect(owned).toHaveLength(1);
         for (const entry of owned) expect(entry.lazy, "F04 first-loss owner flag").toBe(true);
       });
       const negative = structuredClone(wire);
       for (const entry of negative.geometryValueProgram ?? []) if (owned.some(v => json(v.occurrence) === json(entry.occurrence))) entry.lazy = false;
       counts.reference++; const negativeReference = evaluateElementsReferencePayload(elements, { ...options, geometryValueProgram: negative.geometryValueProgram });
       counts.production++; const negativeActual = await Promise.race([rust.request(negative), new Promise<never>((_, reject) => { timer = setTimeout(() => { rust.dispose(); reject(new Error("Rust mutation request exceeded 20 seconds")); }, 20_000); })]).finally(() => clearTimeout(timer)) as EvaluationPayload;
-      const output = (payload: EvaluationPayload) => json({ geometry: payload.computedGeometry, errors: payload.errors, valueErrors: payload.geometryValueErrors ?? [] });
-      observation.sensitivity = { boundary: c.inputs.n ? "BOUNDARY_DETECTED" : "NOT_COVERED", referenceOutputDetected: output(reference) !== output(negativeReference), productionOutputDetected: output(actual) !== output(negativeActual), iterations: c.inputs.n, ownedOccurrences: owned.map(v => v.occurrence), negativeReference, negativeActual };
-      if (!c.inputs.n) capture("G/zero-control", () => { check(negativeReference); check(negativeActual); });
+      // Score downstream drawable output separately from the private cache's
+      // diagnostic side channel. Losing lazy may eagerly diagnose an unexecuted
+      // TS frame, so a diagnostic-only zero-loop difference is a false positive
+      // for activation, not evidence that a Module occurrence executed.
+      const output = (payload: EvaluationPayload) => json({ geometry: payload.computedGeometry, errors: payload.errors });
+      const referenceDetected = output(reference) !== output(negativeReference), productionDetected = output(actual) !== output(negativeActual);
+      observation.sensitivity = { boundary: c.inputs.n ? "BOUNDARY_DETECTED" : "NOT_COVERED", referenceOutputDetected: referenceDetected, productionOutputDetected: productionDetected, referenceDiagnosticSideChannel: json(reference.geometryValueErrors ?? []) !== json(negativeReference.geometryValueErrors ?? []), iterations: c.inputs.n, ownedProgram: owned, negativeReference, negativeActual, negativeReferenceProof: proof(negativeReference), negativeProductionProof: proof(negativeActual) };
+      capture("G/sensitivity", () => {
+        if (c.inputs.n) {
+          expect(negative.geometryValueProgram?.filter(v => owned.some(o => json(o.occurrence) === json(v.occurrence))).every(v => v.lazy === false)).toBe(true);
+          // These frozen positive controls have real exported/consumer outputs;
+          // regression in either detector is a failure, never a generic PASS.
+          expect(referenceDetected).toBe(true); expect(productionDetected).toBe(true);
+          for (const payload of [negativeReference, negativeActual]) {
+            expect(payload.computedGeometry).toHaveLength(1);
+            expect(payload.computedGeometry[0]).toMatchObject({ kind: "point", x: c.inputs.u + c.inputs.d, y: 0 });
+            expect(payload.errors).toHaveLength(c.inputs.n * 2);
+          }
+        } else {
+          expect(referenceDetected).toBe(false); expect(productionDetected).toBe(false);
+          for (const payload of [negativeReference, negativeActual]) {
+            expect(payload.computedGeometryValues ?? []).toEqual([]);
+            expect(payload.forGroupGeneratedRows ?? []).toEqual([]);
+          }
+        }
+      });
       // Runtime evidence, rather than static lazy flags alone, establishes
       // activation: exact per-iteration Module export and consumer rows above.
       observation.activation = c.inputs.n ? "PASS" : "NOT_COVERED";
     }
   }
-  const record = { id: c.id, sha256: hash(p.source), method: c.method, stratum: c.stratum, status: failures.length ? "UNRESOLVED" : "PASS", failures, observations };
+  const edgeName = (n: { kind: string; id: string }) => `${n.kind}:${n.kind === "binding" ? compiled.doc.bindingAnalysis!.catalog.bindings.find(b => b.id === n.id)?.name ?? n.id : elements.find(e => e.id === n.id)?.name ?? n.id}`;
+  const dependencyEdges = compiled.doc.typedDependencyGraph!.edges.map(e => ({ from: edgeName(e.from), to: edgeName(e.to), requiredness: e.requiredness, kind: e.kind }));
+  const record = { id: c.id, sha256: hash(p.source), method: c.method, stratum: c.stratum, status: failures.length ? "UNRESOLVED" : "PASS", failures, dependencyEdges, observations };
   results.push(record);
   if (evidence) appendFileSync(join(evidence, "attempts.ndjson"), json({ mode, ...record }) + "\n");
   if (mode === "verify") expect(failures, c.id).toEqual([]);

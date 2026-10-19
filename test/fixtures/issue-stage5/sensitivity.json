@@ -1,0 +1,1019 @@
+[
+  {
+    "id": "G-G-A-00-S",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 1,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 32,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 32,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-A-00-T",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 1,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 32,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 32,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-A-01-S",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 2,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 64,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        },
+        {
+          "owner": "Live::Mark[1]",
+          "dependency": "Live::Mark[1]"
+        },
+        {
+          "owner": "Consumer[1]",
+          "dependency": "Consumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 64,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        },
+        {
+          "owner": "Live::Mark[1]",
+          "dependency": "Live::Mark[1]"
+        },
+        {
+          "owner": "Consumer[1]",
+          "dependency": "Consumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-A-01-T",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 2,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 64,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        },
+        {
+          "owner": "TwinLive::TwinMark[1]",
+          "dependency": "TwinLive::TwinMark[1]"
+        },
+        {
+          "owner": "TwinConsumer[1]",
+          "dependency": "TwinConsumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 64,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        },
+        {
+          "owner": "TwinLive::TwinMark[1]",
+          "dependency": "TwinLive::TwinMark[1]"
+        },
+        {
+          "owner": "TwinConsumer[1]",
+          "dependency": "TwinConsumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-A-00-control",
+    "semantic": "PASS",
+    "activation": "NOT_COVERED",
+    "boundary": "NOT_COVERED",
+    "output": "OUTPUT_NOT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 0,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 32,
+          "y": 0
+        }
+      ],
+      "errors": [],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 32,
+          "y": 0
+        }
+      ],
+      "errors": [],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-B-00-S",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 1,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "match"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 51,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 51,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-B-00-T",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 1,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "match"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 51,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 51,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-B-01-S",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 2,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "match"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 37,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        },
+        {
+          "owner": "Live::Mark[1]",
+          "dependency": "Live::Mark[1]"
+        },
+        {
+          "owner": "Consumer[1]",
+          "dependency": "Consumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 37,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        },
+        {
+          "owner": "Live::Mark[1]",
+          "dependency": "Live::Mark[1]"
+        },
+        {
+          "owner": "Consumer[1]",
+          "dependency": "Consumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-B-01-T",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 2,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "match"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 37,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        },
+        {
+          "owner": "TwinLive::TwinMark[1]",
+          "dependency": "TwinLive::TwinMark[1]"
+        },
+        {
+          "owner": "TwinConsumer[1]",
+          "dependency": "TwinConsumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 37,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        },
+        {
+          "owner": "TwinLive::TwinMark[1]",
+          "dependency": "TwinLive::TwinMark[1]"
+        },
+        {
+          "owner": "TwinConsumer[1]",
+          "dependency": "TwinConsumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-B-00-control",
+    "semantic": "PASS",
+    "activation": "NOT_COVERED",
+    "boundary": "NOT_COVERED",
+    "output": "OUTPUT_NOT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 0,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "match"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 51,
+          "y": 0
+        }
+      ],
+      "errors": [],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 51,
+          "y": 0
+        }
+      ],
+      "errors": [],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-C-00-S",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 1,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 143,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 143,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-C-00-T",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 1,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 143,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 143,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-C-01-S",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 2,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 136,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        },
+        {
+          "owner": "Live::Mark[1]",
+          "dependency": "Live::Mark[1]"
+        },
+        {
+          "owner": "Consumer[1]",
+          "dependency": "Consumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 136,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "Live::Mark[0]",
+          "dependency": "Live::Mark[0]"
+        },
+        {
+          "owner": "Consumer[0]",
+          "dependency": "Consumer[0]"
+        },
+        {
+          "owner": "Live::Mark[1]",
+          "dependency": "Live::Mark[1]"
+        },
+        {
+          "owner": "Consumer[1]",
+          "dependency": "Consumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-C-01-T",
+    "semantic": "PASS",
+    "activation": "PASS",
+    "boundary": "BOUNDARY_DETECTED",
+    "output": "OUTPUT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 2,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 136,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        },
+        {
+          "owner": "TwinLive::TwinMark[1]",
+          "dependency": "TwinLive::TwinMark[1]"
+        },
+        {
+          "owner": "TwinConsumer[1]",
+          "dependency": "TwinConsumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "TwinControl",
+          "kind": "point",
+          "x": 136,
+          "y": 0
+        }
+      ],
+      "errors": [
+        {
+          "owner": "TwinLive::TwinMark[0]",
+          "dependency": "TwinLive::TwinMark[0]"
+        },
+        {
+          "owner": "TwinConsumer[0]",
+          "dependency": "TwinConsumer[0]"
+        },
+        {
+          "owner": "TwinLive::TwinMark[1]",
+          "dependency": "TwinLive::TwinMark[1]"
+        },
+        {
+          "owner": "TwinConsumer[1]",
+          "dependency": "TwinConsumer[1]"
+        }
+      ],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  },
+  {
+    "id": "G-G-C-00-control",
+    "semantic": "PASS",
+    "activation": "NOT_COVERED",
+    "boundary": "NOT_COVERED",
+    "output": "OUTPUT_NOT_DETECTED",
+    "seededFamilies": 0,
+    "iterations": 0,
+    "originalLazy": [
+      true
+    ],
+    "injectedLazy": false,
+    "originalConstruction": [
+      "if"
+    ],
+    "referenceDiagnosticSideChannel": true,
+    "negativeReference": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 143,
+          "y": 0
+        }
+      ],
+      "errors": [],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 1,
+      "instanceSnapshots": []
+    },
+    "negativeProduction": {
+      "geometry": [
+        {
+          "owner": "Control",
+          "kind": "point",
+          "x": 143,
+          "y": 0
+        }
+      ],
+      "errors": [],
+      "scalars": [],
+      "privateValues": [],
+      "privateErrorCount": 0,
+      "instanceSnapshots": []
+    }
+  }
+]
