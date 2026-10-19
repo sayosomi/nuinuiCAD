@@ -2208,6 +2208,16 @@ fn evaluate_document_input_with_scalar_program(
     let activities = effective_activity_by_runtime(&source_effective_drawing_modifier_runtime);
     let group_states = group_state_by_element_id(&input.elements, &activities);
     let mut state = EvaluationState {
+        lazy_geometry_value_programs: input
+            .geometry_value_program
+            .as_ref()
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .zip(geometry_value_program.iter())
+            .filter(|(_, entry)| entry.lazy && entry.occurrence.mapped_member_index.is_none())
+            .map(|(source, entry)| (entry.occurrence.clone(), source.clone()))
+            .collect(),
         elements_by_id: input
             .elements
             .iter()

@@ -6733,7 +6733,10 @@ export const compileModuleScalarRuntime = ({
     if (!reference.target || !moduleGeometryRuntime) return undefined;
     const path = context?.path ?? [];
     if (reference.target.kind === "collectionIndex") {
-      const indexed = moduleGeometryRuntime.resolveGeometryCollectionIndexPoint(reference.target, path);
+      const indexed = moduleGeometryRuntime.resolveGeometryCollectionIndexPoint(reference.target, path) ??
+        (reference.target.collectionValueId.startsWith("carry-collection:")
+          ? { kind: "collectionIndex" as const, target: reference.target, members: [], currentPath: path }
+          : null);
       if (!indexed) return undefined;
       if ("mode" in indexed) return lowerGeometryValueAnchor(indexed, executionPosition);
       const target = geometryValueProgramTargetForInput(indexed, context, executionPosition, "point");

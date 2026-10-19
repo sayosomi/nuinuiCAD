@@ -41,7 +41,7 @@ export const captureGeometryCarryProgram = (
 /** A loop-local immutable value is a frame template. Carry consumers capture
  * its program; the template itself cannot run globally without that frame. */
 export const isLoopLocalGeometryValue = (
-  entry: GeometryValueProgram[number], statements: readonly DslStatement[]
+  entry: Pick<GeometryValueProgram[number], "sourceStatementIndex">, statements: readonly DslStatement[]
 ): boolean => {
   let statement = statements[entry.sourceStatementIndex];
   while (statement && "enclosing" in statement && statement.enclosing) {

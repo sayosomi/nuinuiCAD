@@ -133,6 +133,7 @@ fn joined_path_consumes_its_compiler_selected_drawable_stage_snapshot() {
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),
+        lazy_geometry_value_programs: HashMap::new(),
         geometry_input_targets: HashMap::from([(
             "joined".to_owned(),
             HashMap::from([(

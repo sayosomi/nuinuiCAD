@@ -39,6 +39,7 @@ fn evaluation_state() -> EvaluationState {
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),
+        lazy_geometry_value_programs: HashMap::new(),
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),

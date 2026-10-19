@@ -359,6 +359,18 @@ export const createIncrementalLinearMutationEvaluator = (
           collectionCarrySnapshots: inheritedSnapshots ?? snapshot
         };
       }
+      if (value.kind === "literal") {
+        // Literal members can name body-local immutable scalars. Freeze those
+        // values before the iteration frame is discarded, just as map inputs
+        // retain their captured environment.
+        const capturedBindings = new Map(localBindings);
+        for (const member of value.members) {
+          if (member.kind !== "binding" || capturedBindings.has(member.bindingId)) continue;
+          const evaluation = iterationBindings.get(member.bindingId);
+          if (evaluation) capturedBindings.set(member.bindingId, evaluation);
+        }
+        return { valueId: current, localBindings: capturedBindings };
+      }
       return { valueId: current, localBindings };
     }
     return { valueId: current, localBindings };

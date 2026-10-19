@@ -378,6 +378,8 @@ pub(crate) struct EvaluationState {
     pub(crate) transformation_dependency_plans: Option<Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
+    /// Canonical lazy frame entries, indexed for consuming-statement execution.
+    pub(crate) lazy_geometry_value_programs: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:
         HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>,
     pub(crate) geometry_collection_nodes: HashMap<String, Arc<GeometryInputCollectionNode>>,

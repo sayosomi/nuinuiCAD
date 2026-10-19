@@ -1667,6 +1667,25 @@ fn materialize_target(
     allow_equal_source_order: bool,
 ) -> Result<Vec<GeometryInputTarget>, String> {
     match target {
+        GeometryInputTarget::GeometryValue { occurrence, .. }
+            if occurrence.mapped_member_index.is_none() =>
+        {
+            if let (Some(source), Some(resolver)) =
+                (state.lazy_geometry_value_programs.get(occurrence), resolver)
+            {
+                let entries = super::geometry_value_runtime::decode_geometry_value_program(Some(
+                    &Value::Array(vec![source.clone()]),
+                ))
+                .map_err(|_| "evaluation-geometry-value-unavailable".to_owned())?;
+                state.computed_geometry_values.remove(occurrence);
+                super::geometry_value_runtime::evaluate_geometry_value_entry(
+                    &entries[0],
+                    resolver,
+                    state,
+                );
+            }
+            Ok(vec![clone_static_geometry_input_target(target)?])
+        }
         GeometryInputTarget::GeometryValueMap {
             occurrence,
             binder_id,
@@ -1981,6 +2000,7 @@ pub(crate) fn materialize_geometry_input_targets(
         element_id,
         resolver,
         current_source_order,
+        None,
     )
 }
 
@@ -1991,6 +2011,7 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
     runtime_element_id: &str,
     resolver: Option<&dyn ScalarDocumentBindingResolver>,
     current_source_order: Option<f64>,
+    element_id_map: Option<&HashMap<ElementId, ElementId>>,
 ) -> Result<(), String> {
     let Some(parameters) = state.geometry_input_targets.remove(target_element_id) else {
         return Ok(());
@@ -1999,7 +2020,7 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
         let mut materialized_parameters = HashMap::new();
         for (parameter_key, targets) in &parameters {
             let target_count = targets.len();
-            let materialized = targets
+            let mut materialized = targets
                 .iter()
                 .map(|target| {
                     materialize_target(target, resolver, state, current_source_order, false)
@@ -2008,6 +2029,13 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>();
+            for target in &mut materialized {
+                if let GeometryInputTarget::Drawable { element_id, .. } = target {
+                    if let Some(runtime_id) = element_id_map.and_then(|ids| ids.get(element_id)) {
+                        *element_id = runtime_id.clone();
+                    }
+                }
+            }
             if parameter_key == "points" && !materialized.is_empty() {
                 let anchors = materialized
                     .iter()

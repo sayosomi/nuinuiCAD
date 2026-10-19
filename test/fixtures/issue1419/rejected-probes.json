@@ -1,0 +1,458 @@
+[
+  {
+    "sourceSHA256": "ee68f47eb0b49a3095001ad5b946df769eb5809c026240b9e4c809bdbb762722",
+    "label": "R-1-a-00-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "9394a6346eeb169f365317a9a8708b16f29d764fe0c9a9ba58833c618786e401",
+    "label": "R-1-a-00-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "3eeb327fcfd30818fe59e43498c0d8c67478b63a2989fca254444cb1602246c9",
+    "label": "R-1-b-00-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "c4dd4869ef45d1292ab753d1f252f4ee340af913549ae0129bfc9936ed395ef0",
+    "label": "R-1-a-01-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "2d646b3de5f77133fb75efd79c732770cfff375dea7445b2a0b4875d384a895c",
+    "label": "R-1-a-01-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "33b68e217ca8ce079249e9bcd9d98bd581f3922b656dbbc0a28a0d09f87d99db",
+    "label": "R-1-b-01-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "e91bfadf483f0401bbc971abcf1951c02f9f41d179b8aeaa1962edf8bedb2afe",
+    "label": "R-1-b-00-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "6b0df873da49ba95b4c9063a503ad825b51bec04578f74961d2360b855c75366",
+    "label": "R-1-b-01-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "b2238001f35aeaff6f2caddb64f7cbe3cfb62b5e248f46db0e833bd66760cc98",
+    "label": "R-1-b-01-A",
+    "diagnosticCodes": [
+      "numeric-binding-unresolved"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "55b5ae2f1de3457046fa99f75b9f490d4ec6a9ae2f2765b3fc52d333e9988c5d",
+    "label": "R-2-a-00-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "50c4eaeb86f7600d9efa76bf80d8b4da9f8b38424d2c87ef2a224ee7c1c0086a",
+    "label": "R-2-a-00-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "7caa32c2dd5073ce5030fbbe5a81d30ce763b08032a2df5f9783b8439e7021a3",
+    "label": "R-2-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "f1eff44be3b679cebc1150bbcec2352122565e7cbdbcab48c03d1825b3da1152",
+    "label": "R-2-a-01-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "a8517b67d6e33deaa24f905937b8d2aa6c2d05c8daccf73fbb29e9618aa270ac",
+    "label": "R-2-a-01-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "632dd0a1d985c9337f6f70b1d966e94983ab1620547dac6b0524c1374c80c9f2",
+    "label": "R-2-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "a168d6fc5427de7fd160cb739428d5a089904b33653ac795d9833264d2f4ecc1",
+    "label": "R-2-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "6331e5a2e1e10891e95065adb61e2faddeb50667ccd7d528bbde9640eaa0c656",
+    "label": "R-2-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "a3ca69dfed22bde5a4be38887bb676bd8e3fd8133bf4c5c5e9d584b90788e2e2",
+    "label": "R-2-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "9140c4d3786a9deb2a77b294ce0e1c755a1062962bc1d2e1cdf3466594f6e71d",
+    "label": "R-2-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-property-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "6301dbf02a4b92a1de74e88499c022cecec26bdefc9171d37cc47007e2d45482",
+    "label": "N-2-a-00-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "693395bde17d523385dfb2656c1990c2ad696658dba53316ecf8acdd1a98eb93",
+    "label": "N-2-a-00-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "9939786f717a645e38865b8095c3552d01f3172baefd93ed1a2bb978432bacfa",
+    "label": "N-2-b-00-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "15b79c721dac3f93dfabec5669869f3db30f7d9ec5010aa4e262f2605c81ea5b",
+    "label": "N-2-a-01-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "bf2a35e10c7fc4f351f41b45e68723fa3971df21ee86e06ecb5cecfa5ba7049d",
+    "label": "N-2-a-01-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "168459ac38ef676880359869f767875361c4acb4132cfb3f7290aa2d945d06c4",
+    "label": "N-2-b-01-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "88815bdc181ee12435950f12c8469421f099459b09777d4733c944d0df0ecda9",
+    "label": "N-2-b-00-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "63a55322ad328bc9ab5f5b10f272b8ec6a59f8b48b934f387f01334f0e095967",
+    "label": "N-2-b-00-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "399dc0c73e6004fb5b8085dc81fbe0dc6e2e440c178e9c6e131dba4d36a3fb95",
+    "label": "N-2-b-01-A",
+    "diagnosticCodes": [
+      "array-member-undefined"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "757c6cfd69e2753d1e2fbe5fb850931175084f61b4262a06ffdb63ab2a36fef3",
+    "label": "G-1-a-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "bc1498d544bc4fb21f343d5ae5f072d258f5822160c2ff894f8ca4d15726e1ef",
+    "label": "G-1-a-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "1ca78975d25ce799b65b37fa2193a4b1ad8fa860e3700644f3ed829a9f2e2bf8",
+    "label": "G-1-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "1522274136e363c751a984441589341701ed619f053b2f9264ab8c63d9ac0032",
+    "label": "G-1-a-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "1349b5aca3f8c5d238eb029ae9ffeaa8f065e23767cd926ca5e058ecb100fb73",
+    "label": "G-1-a-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "f677adb3cbd7f25f2ce3a8af35138b5fc0a8bbdabdb5ea8ede07dd9748b082be",
+    "label": "G-1-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "d7ec8334b7a44d35fd64e79b93352683c768a087f169089425831e60e578319e",
+    "label": "G-1-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "bc2526bbd538dc3587974099dab46a5fb062b18c6aa4c1d4c827b641aa590a26",
+    "label": "G-1-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "fe13036fab27f259f3e6834021cfec4857638bf0c2f7b8bb86c5c57797b20b11",
+    "label": "G-1-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "7a3f14e94a7b739ff897a02c1353bd474b8b317c1f896658aa047138df58e756",
+    "label": "G-1-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "9d331b36348498d72e91db0f37884bce6aeaee258fe0937890d2e5e6b4b8cd77",
+    "label": "G-2-a-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "426e5dc24210d6a38bb2529408da84e8041bd02477b67a0482d7394928694060",
+    "label": "G-2-a-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "878f76a57fcd6c4e4e59ea3af7e440ba694ee743becd723b2b66de29fc0eb78b",
+    "label": "G-2-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "d8718d90bbf419ed3217d54e17b29bc7e9ed7f7e6f9b22f221f29a6dbcd0c145",
+    "label": "G-2-a-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "3e227715eabf0ff1d0d2d87ad8bceee782f1bd975249bdca12a43439dc3911e7",
+    "label": "G-2-a-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "7d10313496015cab3f194226eae7363fe2923e2ab6d389ac5235fa597b572340",
+    "label": "G-2-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "2db7438aaa425c4d54e90fbb31cab7b2a5b0c714de303249af2c4f783deb8dc0",
+    "label": "G-2-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "ff9a7ad98404088416501a506177ddec2e5b8476a2efaaba7ed7880c3e45f97a",
+    "label": "G-2-b-00-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "fa51441586cd40862c558ca39c3cacf9693fa764d4dcb809d2d94fd93f8d2881",
+    "label": "G-2-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "4d272a848a81e0a4473d1c11900c09399bf39bbcc4b0ca7f523ee590971e1fe3",
+    "label": "G-2-b-01-A",
+    "diagnosticCodes": [
+      "module-geometry-type-mismatch"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "0c2217d9ca9ace397ac7d4fabdb7ecc92e68def381f6d0ca7d5b6a382a857639",
+    "label": "D-2-a-00-A",
+    "diagnosticCodes": [
+      "module-unknown-argument"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "84c9060726c02659db85c07f5ce8c4078c23701d03d8396e78dbde1df752c847",
+    "label": "D-2-b-00-A",
+    "diagnosticCodes": [
+      "module-unknown-argument"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "4c36ce7b1df49e86fa2d5ba98ae1140ebc09fa1d2b0973808a98ed41af38d346",
+    "label": "D-2-a-01-A",
+    "diagnosticCodes": [
+      "module-unknown-argument"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "99ada3dda75e97b296f7c209ecf160f764da3f0005dd6741e555ff742b4435bf",
+    "label": "D-2-b-01-A",
+    "diagnosticCodes": [
+      "module-unknown-argument"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "efd1925dae3094e09cf8b7400cd9348dc272464aa641d80a07c69a21f6ba6d9f",
+    "label": "D-2-b-00-A",
+    "diagnosticCodes": [
+      "module-unknown-argument"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "55a57331b4d923731fc5cd1cbbc5c0e829c3f020f05536603208527da4391fcd",
+    "label": "D-2-b-01-A",
+    "diagnosticCodes": [
+      "module-unknown-argument"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "50f060ac282b7455a0218ac5fd82eab366b89e33930f7df155a0a051175666c4",
+    "label": "R-2-b-00-B",
+    "diagnosticCodes": [
+      "geometry-array-reference-not-array"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "27cb60ffafdb28270a8cfb051cce13fb5ceedd17618888e24370ae7c19628eeb",
+    "label": "R-2-b-00-B",
+    "diagnosticCodes": [
+      "geometry-array-reference-not-array"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  },
+  {
+    "sourceSHA256": "7446e4a8f9d03d6195388925d820064ad1b2580393fb1511f604ea488f49a2f5",
+    "label": "R-2-b-00-B",
+    "diagnosticCodes": [
+      "geometry-array-reference-not-array"
+    ],
+    "disposition": "compiler rejection; excluded from accepted-source capacity, PASS and defect count"
+  }
+]

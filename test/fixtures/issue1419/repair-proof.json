@@ -1,0 +1,842 @@
+[
+  {
+    "id": "F01-conditional-inner-iteration-source",
+    "sourceSHA256": "a23e75f9aac6690f98d766ceba4ed0bfff54ef54967f986de17f53f7274e90f9",
+    "sourceLocation": "regressions.json#F01-conditional-inner-iteration-source",
+    "firstIncorrectBoundary": "Rust collection-source length/index reads delegate to document context and lose visible outer frame bindings.",
+    "expected": {
+      "scalars": {
+        "Result": 3
+      },
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "diagnostics": {},
+      "errors": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": [
+        "reduced-boundary"
+      ]
+    },
+    "before": {
+      "compilerStatus": "valid",
+      "failure": "AssertionError: independent scalar Result: expected { status: 'error', …(3) } to match object { status: 'ok', value: { …(2) } }\n(4 matching properties omitted from actual)",
+      "reference": {
+        "computedGeometry": [],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mve2nzxj:31",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Result"
+          },
+          {
+            "bindingId": "binding:forGroup-mve2nzxj-18:carry:0:Inner",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Inner"
+          },
+          {
+            "bindingId": "binding:forGroup-mve2nzxj-17:carry:0:Outer",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Outer"
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      },
+      "production": {
+        "computedGeometry": [],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mve2nzxj:31",
+            "evaluation": {
+              "bindingId": "binding:forGroup-mve2nzxj-18:carry:0:Inner",
+              "issueCode": "evaluation-binding-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "Result"
+          },
+          {
+            "bindingId": "binding:forGroup-mve2nzxj-17:carry:0:Outer",
+            "evaluation": {
+              "bindingId": "binding:forGroup-mve2nzxj-18:carry:0:Inner",
+              "issueCode": "evaluation-binding-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "Outer"
+          }
+        ],
+        "errors": [
+          {
+            "elementId": "forGroup-mve2nzxj-18@forGroup-mve2nzxj-17:0",
+            "elementName": "[OuterTick=0] ",
+            "missingDependencyId": "statement:typedDeclaration:mve2nzxj:30",
+            "missingDependencyName": "@Items",
+            "message": "[OuterTick=0]  の collection iteration source を評価できません。"
+          }
+        ],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      }
+    },
+    "after": {
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "nearbyControl": {
+      "sourceSHA256": "61aebb42399e7c9b5786c83f634a2f2dd6f33308c14a2a2e027f8b2e03fed90f",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    }
+  },
+  {
+    "id": "F01-local-member-inner-iteration-source",
+    "sourceSHA256": "f488d222b87555136d75e0669d7fe2c025c6224a913eb3abded5055418683b92",
+    "sourceLocation": "regressions.json#F01-local-member-inner-iteration-source",
+    "firstIncorrectBoundary": "Rust collection-source length/index reads delegate to document context and lose visible outer frame bindings.",
+    "expected": {
+      "scalars": {
+        "Result": 3
+      },
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "diagnostics": {},
+      "errors": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": [
+        "reduced-boundary"
+      ]
+    },
+    "before": {
+      "compilerStatus": "valid",
+      "failure": "AssertionError: independent scalar Result: expected { status: 'error', …(3) } to match object { status: 'ok', value: { …(2) } }\n(4 matching properties omitted from actual)",
+      "reference": {
+        "computedGeometry": [],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mve2pb7c:36",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Result"
+          },
+          {
+            "bindingId": "binding:forGroup-mve2pb7c-22:carry:0:Inner",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Inner"
+          },
+          {
+            "bindingId": "binding:forGroup-mve2pb7c-21:carry:0:Outer",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Outer"
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      },
+      "production": {
+        "computedGeometry": [],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mve2pb7c:36",
+            "evaluation": {
+              "bindingId": "binding:statement:typedDeclaration:mve2pb7c:34",
+              "issueCode": "evaluation-binding-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "Result"
+          },
+          {
+            "bindingId": "binding:forGroup-mve2pb7c-22:carry:0:Inner",
+            "evaluation": {
+              "bindingId": "binding:statement:typedDeclaration:mve2pb7c:34",
+              "issueCode": "evaluation-binding-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "Inner"
+          },
+          {
+            "bindingId": "binding:forGroup-mve2pb7c-21:carry:0:Outer",
+            "evaluation": {
+              "bindingId": "binding:statement:typedDeclaration:mve2pb7c:34",
+              "issueCode": "evaluation-binding-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "Outer"
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      }
+    },
+    "after": {
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "nearbyControl": {
+      "sourceSHA256": "61aebb42399e7c9b5786c83f634a2f2dd6f33308c14a2a2e027f8b2e03fed90f",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    }
+  },
+  {
+    "id": "F02-point-collection-frame-value",
+    "sourceSHA256": "56b3ff5ad9b4760065ca9a6c3e5f060b7a647e7ec453be47483b458cb59d2510",
+    "sourceLocation": "regressions.json#F02-point-collection-frame-value",
+    "firstIncorrectBoundary": "Compiler drops the carried point collection index from an immutable conditional point program; after preserving the canonical target, frame-local lazy programs must materialize with the consuming frame.",
+    "expected": {
+      "scalars": {},
+      "geometry": [
+        {
+          "name": "Observed",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 3,
+            "y": 4
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [
+        "Observed"
+      ],
+      "trace": [],
+      "diagnostics": {},
+      "errors": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": [
+        "reduced-boundary"
+      ]
+    },
+    "before": {
+      "compilerStatus": "valid",
+      "failure": "AssertionError: qualified value reference owns a real occurrence: expected false to be true // Object.is equality",
+      "reference": {
+        "computedGeometry": [
+          {
+            "kind": "point",
+            "elementId": "freePoint-mve2spc2-26",
+            "name": "Seed",
+            "x": 3,
+            "y": 4
+          }
+        ],
+        "computedScalarBindings": [],
+        "errors": [
+          {
+            "elementId": "materializedPoint-mve2spc2-28@forGroup-mve2spc2-27:0",
+            "elementName": "[Tick=0] Observed",
+            "missingDependencyId": "materializedPoint-mve2spc2-28@forGroup-mve2spc2-27:0",
+            "missingDependencyName": "[Tick=0] Observed",
+            "message": "[Tick=0] Observed の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      },
+      "production": {
+        "computedGeometry": [
+          {
+            "elementId": "freePoint-mve2spc2-26",
+            "kind": "point",
+            "name": "Seed",
+            "x": 3,
+            "y": 4
+          }
+        ],
+        "computedScalarBindings": [],
+        "errors": [
+          {
+            "elementId": "materializedPoint-mve2spc2-28@forGroup-mve2spc2-27:0",
+            "elementName": "[Tick=0] Observed",
+            "missingDependencyId": "materializedPoint-mve2spc2-28@forGroup-mve2spc2-27:0",
+            "missingDependencyName": "[Tick=0] Observed",
+            "message": "[Tick=0] Observed の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      }
+    },
+    "after": {
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "nearbyControl": {
+      "sourceSHA256": "6950e0597ea368d7d397f6ce3e00b754044ad916e2f46cd6ba95a7d6fac49891",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    }
+  },
+  {
+    "id": "F03-literal-collection-capture",
+    "sourceSHA256": "91320111dd158e2477a3b294dd5ac3a661f47568e64cba74216259166aaa1dba",
+    "sourceLocation": "regressions.json#F03-literal-collection-capture",
+    "firstIncorrectBoundary": "Literal collection snapshot retains member identities but omits body-local binding values when the frame retires.",
+    "expected": {
+      "scalars": {
+        "Result": 5
+      },
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "diagnostics": {},
+      "errors": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": [
+        "reduced-boundary"
+      ]
+    },
+    "before": {
+      "compilerStatus": "valid",
+      "failure": "AssertionError: independent scalar Result: expected { status: 'error', …(3) } to match object { status: 'ok', value: { …(2) } }\n(4 matching properties omitted from actual)",
+      "reference": {
+        "computedGeometry": [],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mve3673h:45",
+            "evaluation": {
+              "status": "error",
+              "type": {
+                "kind": "number"
+              },
+              "issueCode": "evaluation-binding-unavailable",
+              "bindingId": "binding:statement:typedDeclaration:mve3673h:43"
+            },
+            "sourceName": "binding:statement:typedDeclaration:mve3673h:45"
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      },
+      "production": {
+        "computedGeometry": [],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mve3673h:45",
+            "evaluation": {
+              "bindingId": "binding:statement:typedDeclaration:mve3673h:43",
+              "issueCode": "evaluation-binding-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "binding:statement:typedDeclaration:mve3673h:45"
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      }
+    },
+    "after": {
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "nearbyControl": {
+      "sourceSHA256": "a3056ef4f4f6d17040894e2984e5c409be4f33d777beeaa19512ce793e723af3",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    }
+  },
+  {
+    "id": "F04-unexecuted-Module-frame-value",
+    "sourceSHA256": "ac07c1f253d9a84e61e0ac6dc69b41920eba28a0e180943195a76c0ad76a9253",
+    "sourceLocation": "regressions.json#F04-unexecuted-Module-frame-value",
+    "firstIncorrectBoundary": "Module geometry value programs owned by an unexecuted statement-for are scheduled as global eager programs.",
+    "expected": {
+      "scalars": {},
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [
+        "Observed"
+      ],
+      "trace": [],
+      "diagnostics": {},
+      "errors": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": [
+        "reduced-boundary"
+      ]
+    },
+    "before": {
+      "compilerStatus": "valid",
+      "failure": "AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+      "reference": {
+        "computedGeometry": [],
+        "computedScalarBindings": [],
+        "errors": [],
+        "geometryValueErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mve3bdlr:47",
+              "instancePath": [
+                "statement:moduleInstance:mve3bdlr:49"
+              ]
+            },
+            "message": "Geometry value if condition is unavailable or not boolean."
+          }
+        ],
+        "duplicateVersionIDs": []
+      },
+      "production": {
+        "computedGeometry": [],
+        "computedScalarBindings": [],
+        "errors": [],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      }
+    },
+    "after": {
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "nearbyControl": {
+      "sourceSHA256": "fab109005581b95d20ea6d5ede590bbce5ac6046f7d7f9a873edb910f25d514d",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    }
+  },
+  {
+    "id": "F05-Module-loop-export-consumer",
+    "sourceSHA256": "7358895b69337cbee516188ffc47eee6cc594502225642292275972a800b0e1e",
+    "sourceLocation": "regressions.json#F05-Module-loop-export-consumer",
+    "firstIncorrectBoundary": "Generated Module export drawable references retain template IDs instead of the current invocation mapping.",
+    "expected": {
+      "scalars": {},
+      "geometry": [
+        {
+          "name": "Observed",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 1,
+            "y": 17
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [
+        "Observed"
+      ],
+      "trace": [],
+      "diagnostics": {},
+      "errors": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": [
+        "reduced-boundary"
+      ]
+    },
+    "before": {
+      "compilerStatus": "valid",
+      "failure": "AssertionError: expected undefined to match object { kind: 'point', x: 1, y: 17 }",
+      "reference": {
+        "computedGeometry": [
+          {
+            "kind": "point",
+            "elementId": "module-runtime:10:moduleBody36:statement:moduleInstance:mvej486f:5921:freePoint-mvej486f-40@forGroup-mvej486f-41:0",
+            "name": "[Tick=0] Mark",
+            "x": 1,
+            "y": 17
+          }
+        ],
+        "computedScalarBindings": [],
+        "errors": [
+          {
+            "elementId": "materializedPoint-mvej486f-42@forGroup-mvej486f-41:0",
+            "elementName": "[Tick=0] Observed",
+            "missingDependencyId": "materializedPoint-mvej486f-42@forGroup-mvej486f-41:0",
+            "missingDependencyName": "[Tick=0] Observed",
+            "message": "[Tick=0] Observed の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      },
+      "production": {
+        "computedGeometry": [
+          {
+            "elementId": "module-runtime:10:moduleBody36:statement:moduleInstance:mvej486f:5921:freePoint-mvej486f-40@forGroup-mvej486f-41:0",
+            "kind": "point",
+            "name": "[Tick=0] Mark",
+            "x": 1,
+            "y": 17
+          }
+        ],
+        "computedScalarBindings": [],
+        "errors": [
+          {
+            "elementId": "materializedPoint-mvej486f-42@forGroup-mvej486f-41:0",
+            "elementName": "[Tick=0] Observed",
+            "missingDependencyId": "materializedPoint-mvej486f-42@forGroup-mvej486f-41:0",
+            "missingDependencyName": "[Tick=0] Observed",
+            "message": "[Tick=0] Observed の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [],
+        "duplicateVersionIDs": []
+      }
+    },
+    "after": {
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "nearbyControl": {
+      "sourceSHA256": "13e74957e902770be5a58d9ccc1087b1977c20536b255a680ece68a5507dd430",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    }
+  },
+  {
+    "id": "F06-Module-version-completion",
+    "sourceSHA256": "c9dc231ecdd40915d5af42355bd4e5ab19a64d3ab434c323fb159bcbac528d1d",
+    "sourceLocation": "regressions.json#F06-Module-version-completion",
+    "firstIncorrectBoundary": "A version already executed by its frame is later appended again as skipped-control by the document cursor; this is a repair follow-on, not an additional baseline family.",
+    "expected": {
+      "scalars": {
+        "Independent": "evaluation-divide-by-zero",
+        "Surviving": 12
+      },
+      "geometry": [
+        {
+          "name": "Observed",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 4,
+            "y": 17
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [
+        "Observed"
+      ],
+      "trace": [],
+      "diagnostics": {
+        "Independent": "evaluation-divide-by-zero"
+      },
+      "errors": [
+        "Blocked"
+      ],
+      "valueErrors": [
+        {
+          "name": "Forwarded",
+          "message": "Geometry value reference is unavailable at runtime."
+        }
+      ],
+      "errorInstances": {},
+      "paths": [
+        "dependent-consumer-unavailable"
+      ]
+    },
+    "before": {
+      "compilerStatus": "valid",
+      "failure": "ScalarOutputDecodeError: invalid computedScalarBindings payload: computedScalarBindingVersions duplicates versionId module-declaration:9:parameter36:statement:moduleInstance:mvejaq5r:7638:statement:moduleDefinition:mvejaq5r:721:0",
+      "reference": {
+        "computedGeometry": [
+          {
+            "kind": "point",
+            "elementId": "module-runtime:10:moduleBody36:statement:moduleInstance:mvejaq5r:7629:materializedPoint-mvejaq5r-47@forGroup-mvejaq5r-49:0",
+            "name": "[Tick=0] Mark",
+            "x": 4,
+            "y": 17
+          },
+          {
+            "kind": "point",
+            "elementId": "materializedPoint-mvejaq5r-50@forGroup-mvejaq5r-49:0",
+            "name": "[Tick=0] Observed",
+            "x": 4,
+            "y": 17
+          }
+        ],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:69",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Unit"
+          },
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:70",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 0
+              }
+            },
+            "sourceName": "Zero"
+          },
+          {
+            "bindingId": "module-binding:9:parameter36:statement:moduleInstance:mvejaq5r:7438:statement:moduleDefinition:mvejaq5r:721:0",
+            "evaluation": {
+              "status": "error",
+              "type": {
+                "kind": "number"
+              },
+              "issueCode": "poisoned-binding",
+              "bindingId": "module-binding:9:parameter36:statement:moduleInstance:mvejaq5r:7438:statement:moduleDefinition:mvejaq5r:721:0"
+            },
+            "sourceName": "module-binding:9:parameter36:statement:moduleInstance:mvejaq5r:7438:statement:moduleDefinition:mvejaq5r:721:0"
+          },
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:77",
+            "evaluation": {
+              "status": "error",
+              "type": {
+                "kind": "number"
+              },
+              "issueCode": "evaluation-divide-by-zero"
+            },
+            "sourceName": "Independent"
+          },
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:78",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 12
+              }
+            },
+            "sourceName": "Surviving"
+          }
+        ],
+        "errors": [
+          {
+            "elementId": "materializedPoint-mvejaq5r-48",
+            "elementName": "Blocked",
+            "missingDependencyId": "materializedPoint-mvejaq5r-48",
+            "missingDependencyName": "Blocked",
+            "message": "Blocked の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvejaq5r:75",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "duplicateVersionIDs": []
+      },
+      "production": {
+        "computedGeometry": [
+          {
+            "elementId": "module-runtime:10:moduleBody36:statement:moduleInstance:mvejaq5r:7629:materializedPoint-mvejaq5r-47@forGroup-mvejaq5r-49:0",
+            "kind": "point",
+            "name": "[Tick=0] Mark",
+            "x": 4,
+            "y": 17
+          },
+          {
+            "elementId": "materializedPoint-mvejaq5r-50@forGroup-mvejaq5r-49:0",
+            "kind": "point",
+            "name": "[Tick=0] Observed",
+            "x": 4,
+            "y": 17
+          }
+        ],
+        "computedScalarBindings": [
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:69",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 3
+              }
+            },
+            "sourceName": "Unit"
+          },
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:70",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 0
+              }
+            },
+            "sourceName": "Zero"
+          },
+          {
+            "bindingId": "module-binding:9:parameter36:statement:moduleInstance:mvejaq5r:7438:statement:moduleDefinition:mvejaq5r:721:0",
+            "evaluation": {
+              "bindingId": "module-binding:9:parameter36:statement:moduleInstance:mvejaq5r:7438:statement:moduleDefinition:mvejaq5r:721:0",
+              "issueCode": "poisoned-binding",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "module-binding:9:parameter36:statement:moduleInstance:mvejaq5r:7438:statement:moduleDefinition:mvejaq5r:721:0"
+          },
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:77",
+            "evaluation": {
+              "issueCode": "evaluation-divide-by-zero",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "sourceName": "Independent"
+          },
+          {
+            "bindingId": "binding:statement:typedDeclaration:mvejaq5r:78",
+            "evaluation": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 12
+              }
+            },
+            "sourceName": "Surviving"
+          }
+        ],
+        "errors": [
+          {
+            "elementId": "materializedPoint-mvejaq5r-48",
+            "elementName": "Blocked",
+            "missingDependencyId": "materializedPoint-mvejaq5r-48",
+            "missingDependencyName": "Blocked",
+            "message": "Blocked の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvejaq5r:75",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "duplicateVersionIDs": [
+          "module-declaration:9:parameter36:statement:moduleInstance:mvejaq5r:7638:statement:moduleDefinition:mvejaq5r:721:0"
+        ]
+      }
+    },
+    "after": {
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    },
+    "nearbyControl": {
+      "sourceSHA256": "09b68d2ed68a98c528a95eb4f11d4ef38ad147f610e5e9cead4fe8400fa02737",
+      "TypeScript": "PASS",
+      "productionPersistentRust": "PASS"
+    }
+  }
+]
