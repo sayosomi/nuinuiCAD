@@ -1,0 +1,44 @@
+{
+  "before": {
+    "source": "Human text reply in the Stage 5 implementation chat",
+    "raw": "Observation date: 2026-10-19 JST\n\nWeekly quota remaining: 28%\nWeekly reset: in 5 days 13 hours\n\n5-hour quota remaining: 97%\n5-hour reset: in 4 hours 58 minutes",
+    "observationDate": "2026-10-19",
+    "timezone": "Asia/Tokyo",
+    "observationTime": null,
+    "weeklyRemainingPercent": 28,
+    "weeklyResetDisplayed": "in 5 days 13 hours",
+    "fiveHourRemainingPercent": 97,
+    "fiveHourResetDisplayed": "in 4 hours 58 minutes",
+    "displayedPercentPrecision": "integer percentage",
+    "overlappingActivity": "NONE; confirmed by Human after the experiment",
+    "limitation": "Provided during setup; exact observation time and isolated pre-execution timing were not supplied. Relative reset strings preserved without invented absolute times."
+  },
+  "after": {
+    "source": "Human text reply in the Stage 5 implementation chat",
+    "raw": "5hは87％、Weekは27％になった。他のCodex/work利用は重なっていない",
+    "observationDate": "2026-10-19",
+    "timezone": "Asia/Tokyo",
+    "observationTime": null,
+    "weeklyRemainingPercent": 27,
+    "weeklyResetDisplayed": null,
+    "fiveHourRemainingPercent": 87,
+    "fiveHourResetDisplayed": null,
+    "displayedPercentPrecision": "integer percentage",
+    "overlappingActivity": "NONE; explicitly confirmed by Human",
+    "scope": "Experimental interval ending before final mandatory verification; initial setup partly precedes first observation."
+  },
+  "weeklyConsumedPercentagePoints": "UNAVAILABLE as a strictly validated attribution denominator; observed net movement 1 point",
+  "fiveHourConsumedPercentagePoints": "UNAVAILABLE as a strictly validated attribution denominator; observed net movement 10 points",
+  "methodLevelAttribution": "INCONCLUSIVE",
+  "tokens": "UNAVAILABLE",
+  "observedWeeklyNetMovementPercentagePoints": 1,
+  "observedFiveHourNetMovementPercentagePoints": 10,
+  "limitations": [
+    "Exact Human observation times were not supplied.",
+    "After-snapshot reset displays were not supplied; same reset windows cannot be independently verified from the raw snapshots.",
+    "The short same-session interval and before relative reset displays are consistent with unchanged windows; this is inference, not a supplied reset identity.",
+    "Integer rounding means a displayed weekly delta of 1 point has roughly 0–2 points rounding uncertainty, and a displayed five-hour delta of 10 points roughly 9–11.",
+    "Whole-Stage-5 cost is not measured: first setup precedes the first snapshot and final verification follows the second.",
+    "No method-separated quota observations; common setup/oracle/assertion-correction effort is not allocated to A/B/C."
+  ]
+}

@@ -1,0 +1,735 @@
+{
+  "mode": "W1",
+  "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
+  "counts": {
+    "compiler": 36,
+    "reference": 72,
+    "production": 72
+  },
+  "acceptedDistinctSources": 87,
+  "programs": 36,
+  "cells": 18,
+  "dispositions": {
+    "W1-E-A-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "9942a1d5953c60045bf3317b3256280b5de587918b53d4693004728212dfac63",
+          "referenceHash": "acf816376942a797cb7e4f33fa8c5fdd179913d489b5947bae791fbb97fdd077",
+          "productionHash": "acf816376942a797cb7e4f33fa8c5fdd179913d489b5947bae791fbb97fdd077"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "02417df0525eb3ca2301923b3a0698f57ebe42db6d8e849139e91c4d3d1a4193",
+          "referenceHash": "4cf088351f9b6ce1d5187d68f5b7ee7d3046ab3939d07c9879cde29af62c7b90",
+          "productionHash": "4cf088351f9b6ce1d5187d68f5b7ee7d3046ab3939d07c9879cde29af62c7b90"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "ee169e963d45bfa8d31451a3adfeddb89495678b261061bafe5f3436ab307a24",
+          "referenceHash": "b5547b97e3a083aec0fa26987092a556e426743bde932349ab58323bfab06744",
+          "productionHash": "b5547b97e3a083aec0fa26987092a556e426743bde932349ab58323bfab06744"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "1a71ec78730b4161ee4bf0925f4926abe5c823bdfa6115865e3c2c8e63692a41",
+          "referenceHash": "9ed5dfb9a7dd6197e21398e2661700cbc9b96829bfd23ba8dea06decf20608a0",
+          "productionHash": "9ed5dfb9a7dd6197e21398e2661700cbc9b96829bfd23ba8dea06decf20608a0"
+        }
+      ]
+    },
+    "W1-E-A-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "8ba1051e752a8f9d6a585f7f3ee146b01949a7e3d36250811910887e4c61db01",
+          "referenceHash": "b7a08c98cb320de2c82e1859c5da16b64658d0569739fa83d84d134eb9d84a28",
+          "productionHash": "b7a08c98cb320de2c82e1859c5da16b64658d0569739fa83d84d134eb9d84a28"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "4cce72502a61e6e0e5c5d944f295a7c3b2c95db693fda6e70debbae5b1f17d47",
+          "referenceHash": "6d6dcd7c995c83c0c2514363283727650df7ecb1b29cb86badb0a834b236c236",
+          "productionHash": "6d6dcd7c995c83c0c2514363283727650df7ecb1b29cb86badb0a834b236c236"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "4ce47d20a21058002c1af46e5d07c7c3bb917afda217c0a885f54ff8170c98f4",
+          "referenceHash": "08c169a0005daa19b80e8ddca7a698fc9f53bb1376904c375bc07d4b726a6c70",
+          "productionHash": "08c169a0005daa19b80e8ddca7a698fc9f53bb1376904c375bc07d4b726a6c70"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "c2c447f957f35b33eced6a7e975971d851da864d2ce34e51b9818721bd0e24aa",
+          "referenceHash": "21f18bf2824d96e13f21b395844524ef42bd81e828d4ccf3bd7f0f621c168332",
+          "productionHash": "21f18bf2824d96e13f21b395844524ef42bd81e828d4ccf3bd7f0f621c168332"
+        }
+      ]
+    },
+    "W1-E-A-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "73be8290a293dd6830d57e6d7280b67d1462750c35fd12b4f038a0a518c36d5a",
+          "referenceHash": "25853355eeacac6b6afdfcad450e022e1fb9865ec740029f720334b4a852e558",
+          "productionHash": "25853355eeacac6b6afdfcad450e022e1fb9865ec740029f720334b4a852e558"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "51f24a914e25b8ffd49260a1841c381daa21040ee8fc9c3751b92c0d7a66a7fc",
+          "referenceHash": "512e3810a9bd24af0a38554941f1edf360a7ff5ed32736ea2a4e5fbb070ec5d8",
+          "productionHash": "512e3810a9bd24af0a38554941f1edf360a7ff5ed32736ea2a4e5fbb070ec5d8"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "8aac9d77015236ae9f85b493dfe217e8e52861a47768cf14c2a69a9e0c5d2e49",
+          "referenceHash": "c8f968b6275c5ae0bc3b84efd3f7dbb5288e88c02b669069b08e2875409321b1",
+          "productionHash": "c8f968b6275c5ae0bc3b84efd3f7dbb5288e88c02b669069b08e2875409321b1"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "3e2b7fb076f37abccc6ae9c12ba137380e4dd03f3549282a5d0a9144b4980c81",
+          "referenceHash": "00c5676296e64de00b160b61e162ce4ec61b34d38b1c761f4cc4256d9b921dc3",
+          "productionHash": "00c5676296e64de00b160b61e162ce4ec61b34d38b1c761f4cc4256d9b921dc3"
+        }
+      ]
+    },
+    "W1-E-A-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "5967ee6109a4e83c710246c6214974a14ddc17b17cf469978d94defa7f8c12a6",
+          "referenceHash": "767bb9f80fac21001ad0b51871b704d1be352926b68b0f82f66e94bf88694217",
+          "productionHash": "767bb9f80fac21001ad0b51871b704d1be352926b68b0f82f66e94bf88694217"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "c0969afa93004458f4711414ddb99474e9cc479e4a46bad01a60e156ba70562d",
+          "referenceHash": "c1050130b587bb7551a7671d58d6050f254a4e15dbe4844285a53b8315eba25c",
+          "productionHash": "c1050130b587bb7551a7671d58d6050f254a4e15dbe4844285a53b8315eba25c"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "457645a22e65361e8db9870a374d8cc3cd99cafca30400d9b178322223381872",
+          "referenceHash": "60f5e96b94ff57bdf230595e7c78d347dc61acb8c21d84c8c8c353ceb4c79a4a",
+          "productionHash": "60f5e96b94ff57bdf230595e7c78d347dc61acb8c21d84c8c8c353ceb4c79a4a"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "ff201a44b96009542ea4df7f67f0c8d03a5c11537a91d3a7316bce7acb4040ce",
+          "referenceHash": "05aef73a9b1933e2dcb1e025ac98aff02a934b25d9e6d8406674d9c6a2dbc2e0",
+          "productionHash": "05aef73a9b1933e2dcb1e025ac98aff02a934b25d9e6d8406674d9c6a2dbc2e0"
+        }
+      ]
+    },
+    "W1-E-B-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "8cd365a4681f80d6e14fbb261d7f95bf2ab701bf93196e1045275f8f2e045693",
+          "referenceHash": "ddbf63ea1a8ff0f2a10f1d81fede95d890fe5f3d4698c1f6109eaa858f990da5",
+          "productionHash": "ddbf63ea1a8ff0f2a10f1d81fede95d890fe5f3d4698c1f6109eaa858f990da5"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "ee433e91200f91b85e5fcacb5e7182e37bf7d37e717b10a28cb870e9bf97bf32",
+          "referenceHash": "75d5211c34d5520c238a5647bd4075b6800d1d612eee0b9fcd2a31d8380c2308",
+          "productionHash": "75d5211c34d5520c238a5647bd4075b6800d1d612eee0b9fcd2a31d8380c2308"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "d7a2d8024f9aaa2113cb6db50d22172379491746b3dc0066b1372db676a29023",
+          "referenceHash": "c48e38161023208428dae2983b7a14825506432d4086426f033bda988376377b",
+          "productionHash": "c48e38161023208428dae2983b7a14825506432d4086426f033bda988376377b"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "7a9b83e234f688d3408eb1ef7001dd2ee457bf6081cd0ab33c4a859d4faf7609",
+          "referenceHash": "353bfe86480ba7a830f0d47eab9fb48cb688e5039e6c960b0ef8efa031f8c8f8",
+          "productionHash": "353bfe86480ba7a830f0d47eab9fb48cb688e5039e6c960b0ef8efa031f8c8f8"
+        }
+      ]
+    },
+    "W1-E-B-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "2a8afdd3a7db6c43fd6b3928a1782eed3dc9e6320d9a6a3bf18a02b637fee881",
+          "referenceHash": "e61638efcda5ccbc6adc8f42b5c53ee18d0adbe0f55f8ce106bedf2c7d5632e1",
+          "productionHash": "e61638efcda5ccbc6adc8f42b5c53ee18d0adbe0f55f8ce106bedf2c7d5632e1"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "2efddd3cc7bf6258d6d51d0479ef0cfd48c475f64b2ac81d54f7a8d25db8eb93",
+          "referenceHash": "58d1c9b8ae172db64e362873c16869e39acd85efd955be0180eafa9730af59bf",
+          "productionHash": "58d1c9b8ae172db64e362873c16869e39acd85efd955be0180eafa9730af59bf"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "0924e4b6d5174e58aec6e93ecf08201a2ad37a7127135c30b64764cba4ec15d7",
+          "referenceHash": "f6cc1b8218773f44822631b83ead658a693261a49cd42f65cf17e30af3f33359",
+          "productionHash": "f6cc1b8218773f44822631b83ead658a693261a49cd42f65cf17e30af3f33359"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "aa557dd6f3b3edf4a8b270674b2ec6141db30af8a76e50ce362f9931a8ecee0e",
+          "referenceHash": "c77c14d6f9caea314c56a03d90249dc094c1202b99251d0dc986a7df52cd6ad1",
+          "productionHash": "c77c14d6f9caea314c56a03d90249dc094c1202b99251d0dc986a7df52cd6ad1"
+        }
+      ]
+    },
+    "W1-E-B-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "f589cfffbfedaed82ccd6cb823356d10f537743e223dd9b33f1f7b54e72dfd8c",
+          "referenceHash": "7980b26fa569818bf0b088b1aa55ee3bc1c8466af4d4d8566d411b4c4db59a51",
+          "productionHash": "7980b26fa569818bf0b088b1aa55ee3bc1c8466af4d4d8566d411b4c4db59a51"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "0ee3edd09058ab6e386cc4b75ffcfc81a6bf629797c971086ad2b9e36a565c7d",
+          "referenceHash": "dd2641a97b6b37aa13e24daad1290a311e7c0fc985327ad1ac7cabae166ae4fc",
+          "productionHash": "dd2641a97b6b37aa13e24daad1290a311e7c0fc985327ad1ac7cabae166ae4fc"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "4de84d71117f1e541842557e14be8a06e232fc9e2fe6b2a7e870cb676859b211",
+          "referenceHash": "c18aad31421ad880f32cf755a682963454c1806673a28ee83710a40868e03f01",
+          "productionHash": "c18aad31421ad880f32cf755a682963454c1806673a28ee83710a40868e03f01"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "5effe0e6e686c79c1a4130516f97f8cddc1b24f7e85a92610753fffd00c06d26",
+          "referenceHash": "aa18cfaf0419cbb2d9a5346ef12463a3f4887246958fbc21ca581b2ada8cae9f",
+          "productionHash": "aa18cfaf0419cbb2d9a5346ef12463a3f4887246958fbc21ca581b2ada8cae9f"
+        }
+      ]
+    },
+    "W1-E-B-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "f66296d79d6b4bcf833da750223cb3e73ba43d77f5d6a573fe7bfc72438b6d5a",
+          "referenceHash": "8a673167d4d045dcc11c66b52f1cba004de3648f924501dc6d5299fca2b1e7d9",
+          "productionHash": "8a673167d4d045dcc11c66b52f1cba004de3648f924501dc6d5299fca2b1e7d9"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "f2b588b296aafd1bdccbc86544a614204581b0a4467fc66ee14b6c9406565bbb",
+          "referenceHash": "4de4cf81c1176a84a89533653087211d82022dd3ceec68c2478c544edd2c428f",
+          "productionHash": "4de4cf81c1176a84a89533653087211d82022dd3ceec68c2478c544edd2c428f"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "71d6aa80c77b1365ce711aa4aef6497e06431d4634731d30f3bd765dda43c351",
+          "referenceHash": "2a2402f0f04e333d91848794104368e485b39aff83fca95033ed5ecd596c567c",
+          "productionHash": "2a2402f0f04e333d91848794104368e485b39aff83fca95033ed5ecd596c567c"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "22a3fb380db8379b7cedde53a6eb47a1575fdb672e5a21b0bca5a2f90364bd44",
+          "referenceHash": "44535101c4915c40da1e2f0c0ecfca86bc1ce530241702186b05ac2d54e2cefa",
+          "productionHash": "44535101c4915c40da1e2f0c0ecfca86bc1ce530241702186b05ac2d54e2cefa"
+        }
+      ]
+    },
+    "W1-E-C-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "a0ffd423ff8b330911307f54221c4c9b4b3560aeda8df5346145ea38f83d2502",
+          "referenceHash": "f169c7f17bf7040955877b86093c393a64d4b741c5f755127069e3474d104de1",
+          "productionHash": "f169c7f17bf7040955877b86093c393a64d4b741c5f755127069e3474d104de1"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "7dd44472b4a804ecacf1243818993bd1557e93b9afd60fb922af1ec0f48a0dd0",
+          "referenceHash": "7b51d0911954f950a581e486ee86e2bac5b4a9d820e4e432836cedf9a52fbebb",
+          "productionHash": "7b51d0911954f950a581e486ee86e2bac5b4a9d820e4e432836cedf9a52fbebb"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "47c22a762cbaf1613333b064fe778ec192596f4f52eb3fc286f6687c95330b0e",
+          "referenceHash": "4def7016b957897dadac08f7f70734ae577e0fd25ecb051d6858f5f7caa5cc1b",
+          "productionHash": "4def7016b957897dadac08f7f70734ae577e0fd25ecb051d6858f5f7caa5cc1b"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "10d74a8881d42d83bee8d8d144c6837ed5b31976cc926c44f7be2ade9f59ba06",
+          "referenceHash": "196aa299eb0bdde289adccfe70e8722f3ac837ad15ef7dbe451ae0adbf094ac7",
+          "productionHash": "196aa299eb0bdde289adccfe70e8722f3ac837ad15ef7dbe451ae0adbf094ac7"
+        }
+      ]
+    },
+    "W1-E-C-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "a23aafa070256e4990cf41cd8a2de2435f4d26cf89e6d51e8a83ec540323be32",
+          "referenceHash": "5c56a469454ba73524c7fae4a1a87042b153de524eff3999741103a24af02f1b",
+          "productionHash": "5c56a469454ba73524c7fae4a1a87042b153de524eff3999741103a24af02f1b"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "53fa394a68164d921b4fe88e5a5bae83e0615ce63d86e289571946865d1edf09",
+          "referenceHash": "7d158f8f563aef626d9b907c7b9de76df381377dfe88b2920bdbdf3292101b22",
+          "productionHash": "7d158f8f563aef626d9b907c7b9de76df381377dfe88b2920bdbdf3292101b22"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "24c1ef5505cb4d475ee9878f2c9815cc147bf824fe6e31eac155637d271b727d",
+          "referenceHash": "036058627f958ee80c91dbf970a434cc767f8a3ed3e1fd5335522ee02e05e1b8",
+          "productionHash": "036058627f958ee80c91dbf970a434cc767f8a3ed3e1fd5335522ee02e05e1b8"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "9076a272eb0e6d1ac89e6072b284069f745350431915dba9e042e8b4e4e388ac",
+          "referenceHash": "36b02bcd220c4e36364402e26f6cfb95665e25acd6693a248f02905c9fe982a2",
+          "productionHash": "36b02bcd220c4e36364402e26f6cfb95665e25acd6693a248f02905c9fe982a2"
+        }
+      ]
+    },
+    "W1-E-C-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "6b602da293308e16a75978c924970e239ab4d0d427a0b070ea72df98eb03afc0",
+          "referenceHash": "da21f0089960b45fefa090c658caf4fa2e733b320e8f38ddbfdd5f6933fa522e",
+          "productionHash": "da21f0089960b45fefa090c658caf4fa2e733b320e8f38ddbfdd5f6933fa522e"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "95c361fda5cabadac76d8cbcdae32ac1342f2e0ffeb43ada82580b2e857fe76e",
+          "referenceHash": "ca27657f44ecb81a99fef3b496cab5e8952aec91a88ab078ab54419a4256a7a6",
+          "productionHash": "ca27657f44ecb81a99fef3b496cab5e8952aec91a88ab078ab54419a4256a7a6"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "c35e863803c72b69d3ce34e8d7ca1bf16629618b160f519cc78f3292164c96bf",
+          "referenceHash": "496bef7e62899aa3fbe034c78669e8d8588ff941642e9e2c8518fc8b57b4fa41",
+          "productionHash": "496bef7e62899aa3fbe034c78669e8d8588ff941642e9e2c8518fc8b57b4fa41"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "7a4287d8e32e6272a1da7e370b77e7914b22aa5115b1bde8e27c7749c2ad5c23",
+          "referenceHash": "d6b2399f69e99e1f0f9b530b180f5fbcfca3d0e76e52264e2b397a3ff8e18bab",
+          "productionHash": "d6b2399f69e99e1f0f9b530b180f5fbcfca3d0e76e52264e2b397a3ff8e18bab"
+        }
+      ]
+    },
+    "W1-E-C-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "before-first",
+          "rustEligible": true,
+          "inputHash": "568b891cb2ccf2907ad2ac7d7424bf904a8ab981e12a8e7c932b8e153d3f82fc",
+          "referenceHash": "0b08ba4df6d78df1c64b3e789f3532d197030642b98094972fe953d3c2c89095",
+          "productionHash": "0b08ba4df6d78df1c64b3e789f3532d197030642b98094972fe953d3c2c89095"
+        },
+        {
+          "placement": "first-only",
+          "rustEligible": true,
+          "inputHash": "4dfc4138f6b4215775fa4b17761df34e0908283ecc1f342f64050ba9ab2d1daf",
+          "referenceHash": "fe64c2bf7ded540ae304173fd5eed865c7f0ed364da594e0e7d044f1b0de63d7",
+          "productionHash": "fe64c2bf7ded540ae304173fd5eed865c7f0ed364da594e0e7d044f1b0de63d7"
+        },
+        {
+          "placement": "both",
+          "rustEligible": true,
+          "inputHash": "52afb3b9a34115ac914995810e1f54d82b249b2059b54d3c52250b21854d17a3",
+          "referenceHash": "51050c184ecb7f5b3a77a1069158777d5dc4ef9d32bf5128456bde2f69d5a952",
+          "productionHash": "51050c184ecb7f5b3a77a1069158777d5dc4ef9d32bf5128456bde2f69d5a952"
+        },
+        {
+          "placement": "failed-instance-independent-success",
+          "rustEligible": true,
+          "inputHash": "82b7feac459a0488efaadf9389719fc4b4fa65e2f901e8b8e867a117b8da8fac",
+          "referenceHash": "09b1d172d955c321fc011ba11c4e70ea002ae3540f7ebfd7124929649cd3c755",
+          "productionHash": "09b1d172d955c321fc011ba11c4e70ea002ae3540f7ebfd7124929649cd3c755"
+        }
+      ]
+    },
+    "W1-C-A-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "cb56dcb05911b9970173f8c2262ac0e54c58e1f7775fcece59892b21496e919f",
+          "referenceHash": "4381f42d1f7314d4ebfe40cb4f785d05074cbb4dfe676f8f1f9094e754412a7f",
+          "productionHash": "4381f42d1f7314d4ebfe40cb4f785d05074cbb4dfe676f8f1f9094e754412a7f"
+        }
+      ]
+    },
+    "W1-C-A-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "cf0180f5fba6a1c49a7d99662f59eb4b6b4ae51a02c08f0cdb9e441a4073db3a",
+          "referenceHash": "f6c59061028aafdc24d6b867880372a581ed73561ca520351aa9ff075ea2cab0",
+          "productionHash": "77aa067919701af9f5d9b4f16c57a58b0251154eed248954b4b0728e1e3fdc2b"
+        }
+      ]
+    },
+    "W1-C-A-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "2ed5313b944f0bd445047166cebe44a8400eaae4f0fc81be6b8f4883c683ce53",
+          "referenceHash": "f2838654764d9239754e0454c60676f0be51c009527ff6d55f26921ab445beee",
+          "productionHash": "af21e2f3559989e14613c68ab62d9b2dcb3c844e927de0431724fd745a0d5845"
+        }
+      ]
+    },
+    "W1-C-A-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "d0ac6a9b34e4f8d4b66f54fc9743668fb81e544dc0898d24fd42c9ce89ca0a3a",
+          "referenceHash": "e82336287359f19dc7877c19b4f8378c30771000b71f665f0b10ba89b6715825",
+          "productionHash": "12043e5805d34a58877b117cd3d9300014bba5a05d145d963738aa40bda5d8ed"
+        }
+      ]
+    },
+    "W1-C-B-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "0ca986364e5d6899a98164947ba747cf4b7acadefe9640dcd081af337a0ee4e6",
+          "referenceHash": "8a5931f213fa128d0398a26e4791543e1da510d5882b94d6316e98e8ba996beb",
+          "productionHash": "8a5931f213fa128d0398a26e4791543e1da510d5882b94d6316e98e8ba996beb"
+        }
+      ]
+    },
+    "W1-C-B-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "29394a1ff249b7a1938b274bc28e89f044013fdb360106db61ec387cf7a89fb2",
+          "referenceHash": "a4e3e1db846f48fb915bb6328dc2f795a730b83e8aa3610a5a55fa6f49187301",
+          "productionHash": "a4e3e1db846f48fb915bb6328dc2f795a730b83e8aa3610a5a55fa6f49187301"
+        }
+      ]
+    },
+    "W1-C-B-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "236a02dbf1b46befc36879fbaa22e48b62a3636f32ad832bc069fb63dd5ad267",
+          "referenceHash": "41433e9c26bf947048ef1235ed34b577f82349eaed366257d16d9989e1462fd0",
+          "productionHash": "41433e9c26bf947048ef1235ed34b577f82349eaed366257d16d9989e1462fd0"
+        }
+      ]
+    },
+    "W1-C-B-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "2e1503dadf47a0acbc56fe43b5c48a2621ce09bdc9fdd313faf22e0c70d12d79",
+          "referenceHash": "e137ae45ce2dcc4c38bff7b3b383e9974eed3600ba39f5b5b723b0f347670ae7",
+          "productionHash": "e137ae45ce2dcc4c38bff7b3b383e9974eed3600ba39f5b5b723b0f347670ae7"
+        }
+      ]
+    },
+    "W1-C-C-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "1f5881cf6a6628bf37263b0472f7db3a96951dd3247bc68d66632fdbcd91e17b",
+          "referenceHash": "b641b7f1f1e1ac9a51387c0bc9467b7cbbdc5abd1fd2701d3dfa4e03a69d973c",
+          "productionHash": "b641b7f1f1e1ac9a51387c0bc9467b7cbbdc5abd1fd2701d3dfa4e03a69d973c"
+        }
+      ]
+    },
+    "W1-C-C-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "48804d43bc556f56be142c5bb9f62c4fcae2942dd670332adbb32926e7ba00a7",
+          "referenceHash": "7a0ed68ede881da8a94595d3ee6b0625cdfd31235b28f1494f7c6ac78ac3e4a8",
+          "productionHash": "7a0ed68ede881da8a94595d3ee6b0625cdfd31235b28f1494f7c6ac78ac3e4a8"
+        }
+      ]
+    },
+    "W1-C-C-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "c87e1bbe11d1f1c89966efd7f8be1ebe477675b24935661bbf60b4795cb1f320",
+          "referenceHash": "31c6107ac0d2b21b17639fc8b5e4940339666c7da4796c660597659273ee2aa8",
+          "productionHash": "31c6107ac0d2b21b17639fc8b5e4940339666c7da4796c660597659273ee2aa8"
+        }
+      ]
+    },
+    "W1-C-C-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "e8b9c9299759cb0071a7ab878b5c3822586ffe7a2c104605c6f25861fbf1368a",
+          "referenceHash": "10e9196d3cf8b789d8a7e5c8ddc1c5a36305b57707d31ba1d3d4c8fef3c9b7c2",
+          "productionHash": "10e9196d3cf8b789d8a7e5c8ddc1c5a36305b57707d31ba1d3d4c8fef3c9b7c2"
+        }
+      ]
+    },
+    "W1-D-A-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "b9ae98d731dfadbf729dabeea03a1d4a638ead0ff9f763337391533d99bae36e",
+          "referenceHash": "53d4b8922f346209dbb1278aec0b551e4719e1235634c0b0104d63dbae343d10",
+          "productionHash": "53d4b8922f346209dbb1278aec0b551e4719e1235634c0b0104d63dbae343d10"
+        }
+      ]
+    },
+    "W1-D-A-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "8868d9e279fa93d9b850467cf11f4c6062f85dab9a767408e38c228fef791703",
+          "referenceHash": "365b26c041c2d77267742ba7f94d3be03497d6fa66518560282ff2fb8fef5a0c",
+          "productionHash": "365b26c041c2d77267742ba7f94d3be03497d6fa66518560282ff2fb8fef5a0c"
+        }
+      ]
+    },
+    "W1-D-A-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "1891a07d739c169bba517dce4d3d8eaf01191bf193c19d0fdc50cb947c207b43",
+          "referenceHash": "22cf0d12422efc5ab74e5bff793c8bbe5d2ed2f18d99b1dfca580689aefd86cf",
+          "productionHash": "22cf0d12422efc5ab74e5bff793c8bbe5d2ed2f18d99b1dfca580689aefd86cf"
+        }
+      ]
+    },
+    "W1-D-A-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "0caed57aa3fe452f9a7783fd28af8fd2196a274b1b5302dac9c7ec63e2c0e696",
+          "referenceHash": "73756a8186ba6232d131242d372ca6e5fd95ffd0017be373432116580a8aad11",
+          "productionHash": "73756a8186ba6232d131242d372ca6e5fd95ffd0017be373432116580a8aad11"
+        }
+      ]
+    },
+    "W1-D-B-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "6cb70553691f88952a53fd10cd95a3b3ff3e5daf681a2f3a550999e191f523c1",
+          "referenceHash": "c47d16a0d07a71f83c8f440a42bc931aa0518aa135846c6a76efe81c50eb1ea9",
+          "productionHash": "c47d16a0d07a71f83c8f440a42bc931aa0518aa135846c6a76efe81c50eb1ea9"
+        }
+      ]
+    },
+    "W1-D-B-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "944a39e4c35181130cd76c0c018f504e6a5bd0d68502cdb879e5cd43a5a8f83d",
+          "referenceHash": "dfaaa9e4e2f3eade2226ced5eec2bd3b9bc427914b6cd2a0b896661121668349",
+          "productionHash": "dfaaa9e4e2f3eade2226ced5eec2bd3b9bc427914b6cd2a0b896661121668349"
+        }
+      ]
+    },
+    "W1-D-B-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "4e585861b43256d0c7fbd126cb71f02b7b1d81f5d0fe376f8d81ec92c1ac9cbd",
+          "referenceHash": "ac22ef831863bdf543d5dd05d49276b8b7e1019b6add82d709b4cdcbe7b58a1e",
+          "productionHash": "ac22ef831863bdf543d5dd05d49276b8b7e1019b6add82d709b4cdcbe7b58a1e"
+        }
+      ]
+    },
+    "W1-D-B-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "f011f075e0f0af2944319a755853ccd1f635057b1611e912296cf93ce5a1357b",
+          "referenceHash": "0169134c5b2b446d292046fdf399fb13a6487740de780ed2f53a9f25df6efbb0",
+          "productionHash": "0169134c5b2b446d292046fdf399fb13a6487740de780ed2f53a9f25df6efbb0"
+        }
+      ]
+    },
+    "W1-D-C-00-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "a4dcb13d73056913b062d37dc69fb2c21411c6e64ca447d360746c8906256a04",
+          "referenceHash": "9a1f83c6c7735a6401b95030c08c5e8d419dc897dd12a42911b488df76e244fa",
+          "productionHash": "9a1f83c6c7735a6401b95030c08c5e8d419dc897dd12a42911b488df76e244fa"
+        }
+      ]
+    },
+    "W1-D-C-00-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "fa251500ad111570a69744594621d7d4e410fe2fbb96cc50a85f3f456db036c4",
+          "referenceHash": "c0aa6d9274373b06b7f4500ba28ecc52e17579d969ffeef9f1bf4d33c1c72fe3",
+          "productionHash": "c0aa6d9274373b06b7f4500ba28ecc52e17579d969ffeef9f1bf4d33c1c72fe3"
+        }
+      ]
+    },
+    "W1-D-C-01-S": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "67148326c0f46f2e81c10f130e29ac701c49579055b698f0090910de57556552",
+          "referenceHash": "5a3703c3ec59d1ec6c95595924493d2af71e5159e91582bb61d5a5865f085dd3",
+          "productionHash": "5a3703c3ec59d1ec6c95595924493d2af71e5159e91582bb61d5a5865f085dd3"
+        }
+      ]
+    },
+    "W1-D-C-01-T": {
+      "status": "PASS",
+      "failures": [],
+      "placements": [
+        {
+          "placement": "full",
+          "rustEligible": true,
+          "inputHash": "8d54e6bc451b2cf371a3490279d74f8c1e5eb293731c315adbe055ef0884d8fd",
+          "referenceHash": "a5eada3d16f3c6728914614a873a49e16d6b4b8578db886c15667055083ba000",
+          "productionHash": "a5eada3d16f3c6728914614a873a49e16d6b4b8578db886c15667055083ba000"
+        }
+      ]
+    }
+  },
+  "novelConfirmedFixedFamilies": 0
+}

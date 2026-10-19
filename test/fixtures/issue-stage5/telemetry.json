@@ -1,0 +1,442 @@
+{
+  "scope": "recorded experimental batches through focused verification; final mandatory gate is recorded separately",
+  "prevalidationCompilerRequests": 174,
+  "rejectedDistinctCandidates": 33,
+  "rejected": [
+    {
+      "id": "W1-E-B-00-S",
+      "sha256": "b7325c3cd3d7ad2f9c6f036e3571ab900a66857254328ae0c8904256ad34751e",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W1-E-B-00-T",
+      "sha256": "765e7a0046ef8bbfd2e39bcc5299ddb164b7154bbf92ca0d6507116a69cf1ad4",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W1-E-B-01-S",
+      "sha256": "fd7de7c435f6e224e7e0f4378609da06e63aef7464480d915559069f394f3663",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W1-E-B-01-T",
+      "sha256": "8839509a1f04ff79693f5260926328e5970be6a97e3ca36de22705777cba9a75",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W1-D-B-00-S",
+      "sha256": "7196809d8436fbf7be7627db8be1bc58f6fae8367a743718d511f05314850a63",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "W1-D-B-00-T",
+      "sha256": "f41ed3ecf41659b52b6b586fc472081b7297fc1f6f1a94d1325cacc944d76ec1",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "W1-D-B-01-S",
+      "sha256": "cb3ae6dffb6836e431707daaa39f7c779b2bb23b2cd087628cc6e77886d3ab14",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "W1-D-B-01-T",
+      "sha256": "6306ab8ca1d81dcd22435cd0ff5762eebbbf44a94b049c90671e48975f43340c",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "W2-E-B-00-S",
+      "sha256": "dd0a956dcf98788fe82741c2177b7e057c0140158d194469ea35556fa414cb93",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W2-E-B-00-T",
+      "sha256": "fc005001cf2d1ede4db4b503be7003a187e496dd6ae648e7316d2553209fd607",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W2-E-B-01-S",
+      "sha256": "a307bf493ef0bb631e6a85f4bbb906d2926ad34746b3188c5783de57b582e7ba",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W2-E-B-01-T",
+      "sha256": "2865981a332ccb7bd4349bff3811b7f73c2f64ad96738e14cb5878e652c545ba",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ]
+    },
+    {
+      "id": "W2-C-A-00-S",
+      "sha256": "af65f5e0593b0630abc7c57da495fa68da50cb5678ad0f707e38b45ac55defa9",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-A-00-T",
+      "sha256": "713ca7b312c5358f7e144ba0f7641ac469fb44801532b4226aa31b9f8ab4401c",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-A-01-S",
+      "sha256": "78d4553aaf3539140a2c227d715bca265b248383433cb784d30f67c0bd3c9f8c",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-A-01-T",
+      "sha256": "228738155b0ff891cb7bfe18592eef298e5900f65df52e47ca145d46651028b9",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-B-00-S",
+      "sha256": "e479cdf261844dcda161bd9bf6d794d7c1d62f248cd445d66e8162fffb4e45a0",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-B-00-T",
+      "sha256": "60cdf35fb5cfd7e7644e3b1d0937c1fcf7c9d379af0f94e52f79c2dac9856a10",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-B-01-S",
+      "sha256": "9b77bce6af843bc056c0d3ba4da2f2135180f584860a44512b2c046b89acc89d",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-B-01-T",
+      "sha256": "00d39e96edc90bb80cc7e5e040c41e0d22e9aa1f3aeaa3075e4ef405635b509a",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-C-00-S",
+      "sha256": "3cb78edb79643fe4d9918c9b589aa9af2f1fe0ae7efbe2c71361a5a9cc336ca8",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-C-00-T",
+      "sha256": "e28199cb0432f8a411efd0a57c9bf144c4cf5957ae89338d6a5c0052b5acc332",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-C-01-S",
+      "sha256": "35d03a126ec3791d51ff0343e4d1eb019aa584679447e007c594a35512cc27dd",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-C-C-01-T",
+      "sha256": "6ff3d969a7d0d12881fd76e0ca419aa662d991f5cefee4f72ad02f2ef9e2aca4",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token"
+      ]
+    },
+    {
+      "id": "W2-D-B-00-S",
+      "sha256": "9fb3ab18fc6fbedb59d1417ab9fbfbe7ce5157f9d1dd7eea812df1ecb1243385",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "W2-D-B-00-T",
+      "sha256": "e8120ec59063615cf5549d765b716b127b7d1b94b50c448c51d7ab954743727a",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "W2-D-B-01-S",
+      "sha256": "a784ceced4d280669b90870ab2f6fa38198e27e5b30ddd342042ae369fa43cd7",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "W2-D-B-01-T",
+      "sha256": "30eb1b38c5e9391f73943ccdde87ed6372334f807bbb01e8bf098d8cac8bca21",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "value-match-malformed-arm"
+      ]
+    },
+    {
+      "id": "G-G-B-00-S",
+      "sha256": "d14b756d0563218b28338d97fc4b82cee490525bb196f2b26147ea989e460890",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token",
+        "geometry-value-reference-required"
+      ]
+    },
+    {
+      "id": "G-G-B-00-T",
+      "sha256": "560f526f1fc9e627825edc68316459843d8508b2b73253debb72a6a61c90cb26",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token",
+        "geometry-value-reference-required"
+      ]
+    },
+    {
+      "id": "G-G-B-01-S",
+      "sha256": "df86afda90306052490158f4f1a5f9f95357ac763585bb19368b8cc29ad02061",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token",
+        "geometry-value-reference-required"
+      ]
+    },
+    {
+      "id": "G-G-B-01-T",
+      "sha256": "50be05d6552894f914cc7f70aeaa235222b53c5b7341d527252f5e00b9abe7e3",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token",
+        "geometry-value-reference-required"
+      ]
+    },
+    {
+      "id": "G-G-B-00-control",
+      "sha256": "8c769bcc8bb1417097ff7ab0eefb92bba244077227a151b108dd9fd17cf26318",
+      "status": "fatal",
+      "disposition": "CONTRACT-INVALID; pre-freeze generator candidate",
+      "diagnosticCodes": [
+        "trailing-token",
+        "geometry-value-reference-required"
+      ]
+    }
+  ],
+  "historicalAgentOverheadAtOriginalCampaign": [
+    "One compiler-only generator correction: 33 rejected candidates (array expression members and invalid boolean match spelling). No primary evaluator had run.",
+    "One W2 launch stopped before compiler/evaluator requests because prediction read-back compared a preserved trailing newline incorrectly; exact Issue comment was already published. No W2 result was revealed.",
+    "G instrumentation initially applied the clean semantic diagnostic oracle to an intentionally injected zero-loop TS diagnostic; downstream output was unchanged. Retained original dispositions; separated diagnostic side channel from activation.",
+    "G instrumentation initially required a cache entry for a forwarded alias. The original conditional value is the canonical observable; forwarding need not duplicate its cache. Original observations retained.",
+    "Dependency instrumentation initially omitted the authored exhaustive match scrutinee's required Side edge. Corrected the assertion; no source, frozen oracle or product code changed."
+  ],
+  "phases": [
+    {
+      "mode": "W1",
+      "methods": [
+        {
+          "method": "A",
+          "compilerRequests": 12,
+          "referenceRequests": 24,
+          "productionRequests": 24,
+          "distinctAcceptedSources": 12,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "B",
+          "compilerRequests": 12,
+          "referenceRequests": 24,
+          "productionRequests": 24,
+          "distinctAcceptedSources": 12,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "C",
+          "compilerRequests": 12,
+          "referenceRequests": 24,
+          "productionRequests": 24,
+          "distinctAcceptedSources": 12,
+          "confirmedNovelFamilies": 0
+        }
+      ]
+    },
+    {
+      "mode": "W2",
+      "methods": [
+        {
+          "method": "A",
+          "compilerRequests": 12,
+          "referenceRequests": 24,
+          "productionRequests": 24,
+          "distinctAcceptedSources": 12,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "B",
+          "compilerRequests": 12,
+          "referenceRequests": 24,
+          "productionRequests": 24,
+          "distinctAcceptedSources": 12,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "C",
+          "compilerRequests": 12,
+          "referenceRequests": 24,
+          "productionRequests": 24,
+          "distinctAcceptedSources": 12,
+          "confirmedNovelFamilies": 0
+        }
+      ]
+    },
+    {
+      "mode": "G",
+      "methods": [
+        {
+          "method": "A",
+          "compilerRequests": 15,
+          "referenceRequests": 30,
+          "productionRequests": 30,
+          "distinctAcceptedSources": 5,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "B",
+          "compilerRequests": 15,
+          "referenceRequests": 30,
+          "productionRequests": 30,
+          "distinctAcceptedSources": 5,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "C",
+          "compilerRequests": 15,
+          "referenceRequests": 30,
+          "productionRequests": 30,
+          "distinctAcceptedSources": 5,
+          "confirmedNovelFamilies": 0
+        }
+      ]
+    },
+    {
+      "mode": "verify",
+      "methods": [
+        {
+          "method": "A",
+          "compilerRequests": 87,
+          "referenceRequests": 174,
+          "productionRequests": 174,
+          "distinctAcceptedSources": 29,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "B",
+          "compilerRequests": 87,
+          "referenceRequests": 174,
+          "productionRequests": 174,
+          "distinctAcceptedSources": 29,
+          "confirmedNovelFamilies": 0
+        },
+        {
+          "method": "C",
+          "compilerRequests": 87,
+          "referenceRequests": 174,
+          "productionRequests": 174,
+          "distinctAcceptedSources": 29,
+          "confirmedNovelFamilies": 0
+        }
+      ]
+    }
+  ],
+  "historicalFocusedDependencyAudit": {
+    "compiler": 2,
+    "reference": 2,
+    "production": 2,
+    "newSources": 0
+  },
+  "actualTokens": "UNAVAILABLE",
+  "methodQuotaAttribution": "INCONCLUSIVE"
+}
