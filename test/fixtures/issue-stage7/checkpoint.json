@@ -1,0 +1,323 @@
+{
+  "issue": 1428,
+  "status": "BLOCKED",
+  "base": "e08ff62174bc461661693173a27108f71c14de35",
+  "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
+  "initial20": [
+    {
+      "id": "H1-03",
+      "sha256": "dabd65fb3c69cbc18c5449e6383082c57a82aa76bfeac7906ad1cb48319db56c",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected 0 to be greater than 0",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Live::SeedA[]', 'Live::SeedB[]' ] to deeply equal [ 'Live::End0[]', …(24) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Live::SeedA[]', 'Live::SeedB[]' ] to deeply equal [ 'Live::End0[]', …(24) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-07",
+      "sha256": "4dd2125a28c3458e34cabc30d521bbba12a2fe70b0c90a4a469d5dd0ec1ddb51",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "NORMAL_INELIGIBLE: materializedPoint geometryValue source has geometryType=path and pointKey; point eligibility predicate requires geometryType=point",
+      "originalFailures": [
+        "normal Rust eligibility FALSE",
+        "compiler: TypeError: Cannot read properties of undefined (reading 'immutableForGroups')",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [] to deeply equal [ 'Live::End0[]', …(24) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-00",
+      "sha256": "4630d94cd9ad4617ba7fd6b325e32d78e66b0f35b8de4ab0b0e98b3c59679084",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "EXCEPTION: RangeError maximum call stack",
+      "Rust": "SIGABRT: native stack overflow",
+      "originalFailures": [],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-07",
+      "sha256": "b962640c89fdfbdcd0c0159b3d3dfc5b0a7dcf814ba819262df19b5ffdf374bb",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected [ { …(6) }, { …(6) }, { …(6) } ] to have a length of 2 but got 3",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Survivor[]' ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'One::Prefix[]', 'Survivor[]', …(1) ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-00",
+      "sha256": "7c45498370221d2f75b0c526b5a39a554e76d1d60fe95674f7697d434eff98e9",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected 0 to be greater than 0",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(10) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(10) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-01",
+      "sha256": "7b5458fb27a1cd4ac5e57f93b44011b60c256e69c75a4d6af78c7691dac3b696",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected 0 to be greater than 0",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(22) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(22) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-02",
+      "sha256": "9f63022dda18f258d6294adad3b1352bee0fefe4ad8caa47744706e82858abb0",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected 0 to be greater than 0",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Live::SeedA[]', 'Live::SeedB[]' ] to deeply equal [ 'Live::End0[]', …(12) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Live::SeedA[]', 'Live::SeedB[]' ] to deeply equal [ 'Live::End0[]', …(12) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-04",
+      "sha256": "fd208dd3e3b8334ad493e7563df5f034656b14cc5debef144df6e2c522204cb5",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "NORMAL_INELIGIBLE: materializedPoint geometryValue source has geometryType=path and pointKey; point eligibility predicate requires geometryType=point",
+      "originalFailures": [
+        "normal Rust eligibility FALSE",
+        "compiler: TypeError: Cannot read properties of undefined (reading 'immutableForGroups')",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(10) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-05",
+      "sha256": "f3bb9b155d9564d049659228f774c0b3ceb97d7c0a12e5728f4c2bde1a91df78",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "NORMAL_INELIGIBLE: materializedPoint geometryValue source has geometryType=path and pointKey; point eligibility predicate requires geometryType=point",
+      "originalFailures": [
+        "normal Rust eligibility FALSE",
+        "compiler: TypeError: Cannot read properties of undefined (reading 'immutableForGroups')",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(22) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-06",
+      "sha256": "83ebc0ac1ae94303ceeb768d3e6f9234b416c17aa8b62922000bd3ea928a34b3",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "NORMAL_INELIGIBLE: materializedPoint geometryValue source has geometryType=path and pointKey; point eligibility predicate requires geometryType=point",
+      "originalFailures": [
+        "normal Rust eligibility FALSE",
+        "compiler: TypeError: Cannot read properties of undefined (reading 'immutableForGroups')",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [] to deeply equal [ 'Live::End0[]', …(12) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-01",
+      "sha256": "aec41844eb520ff9b1adac21edca18e87eac1b2d3e5356f9ab2d29e7980e2bf0",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "EXCEPTION: RangeError maximum call stack",
+      "Rust": "not dispatched before TS exception; later unavailable process",
+      "originalFailures": [],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-02",
+      "sha256": "777657c8b7dec970636ae476261038828b03e0ec722717b6888b4b2bcb33bc33",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "EXCEPTION: RangeError maximum call stack",
+      "Rust": "not dispatched before TS exception; later unavailable process",
+      "originalFailures": [],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-03",
+      "sha256": "a2d2d84adcc048ae880dab7556ea9875ef5db85f167a41a7f7314b38a0636a9c",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "EXCEPTION: RangeError maximum call stack",
+      "Rust": "not dispatched before TS exception; later unavailable process",
+      "originalFailures": [],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-04",
+      "sha256": "04319fc2c1e2b3c793d5b997511d407a13b669c31283f47ef2a5cf3558a87975",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected [ { …(6) }, { …(6) }, { …(6) } ] to have a length of 2 but got 3",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Survivor[]' ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'One::Prefix[]', 'Survivor[]', …(1) ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-05",
+      "sha256": "8c1e64daf0f276cb6f1610eaeac9e3e23a32bd841e7f695a789d93749c5fa70b",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected [ { …(6) }, { …(6) }, { …(6) } ] to have a length of 2 but got 3",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Survivor[]' ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'One::Prefix[]', 'Survivor[]', …(1) ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-06",
+      "sha256": "dd58866984b4621407b7443bbdd0460868a7b63c5a255be6a9be31e0859324b7",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected [ { …(6) }, { …(6) }, { …(6) } ] to have a length of 2 but got 3",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Survivor[]' ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'One::Prefix[]', 'Survivor[]', …(1) ] to deeply equal [ 'Survivor[]', 'Two::Mark[]', …(2) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-00-control",
+      "sha256": "137531b93236b6acd215b771e56980b45e97b60415a4aa7516476acd2bf1500a",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected 0 to be greater than 0",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(10) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(10) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H1-04-control",
+      "sha256": "f70c759fc5494b2b98e994b2b2e95a7538b24015cb444dc3a23c6f062e8ed6c9",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "NORMAL_INELIGIBLE: materializedPoint geometryValue source has geometryType=path and pointKey; point eligibility predicate requires geometryType=point",
+      "originalFailures": [
+        "normal Rust eligibility FALSE",
+        "compiler: TypeError: Cannot read properties of undefined (reading 'immutableForGroups')",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'SeedA[]', 'SeedB[]' ] to deeply equal [ 'End0[]', 'End1[]', …(10) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-00-control",
+      "sha256": "639745a55ee254f7e62157dcf7868d20ce11f472e1508a0c41ee10cd962a7408",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "EXCEPTION: RangeError maximum call stack",
+      "Rust": "not dispatched before TS exception; later unavailable process",
+      "originalFailures": [],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    },
+    {
+      "id": "H2-04-control",
+      "sha256": "8431d9772ebcf282352ef9bae3bda2ef2354a1d178e9e05984653039d32752a9",
+      "status": "BLOCKED_UNRESOLVED",
+      "compiler": "ACCEPTED",
+      "TS": "semantic output mismatch",
+      "Rust": "semantic output mismatch",
+      "originalFailures": [
+        "compiler: AssertionError: expected [ { …(6) }, { …(6) }, { …(6) } ] to have a length of 2 but got 3",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'Survivor[]' ] to deeply equal [ Array(7) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'One::Prefix[]', 'Survivor[]', …(1) ] to deeply equal [ Array(7) ]"
+      ],
+      "sensitivity": "NOT_COVERED; resource stop before calibration",
+      "finalCorrectedResult": "NOT_RUN"
+    }
+  ],
+  "completedSemanticDispositions": 0,
+  "unresolved": 20,
+  "confirmedNovelFamilies": 0,
+  "fixedNovelFamilies": 0,
+  "candidateFamilies": "UNCLASSIFIED; no independent reduction/control/first-producer proof",
+  "counts": {
+    "acceptedDistinct": 20,
+    "rejectedDistinct": 43,
+    "compiler": 160,
+    "TS": 35,
+    "productionWrapperCalls": 25,
+    "actualNativeRequests": 12,
+    "nativeCompleted": 11,
+    "nativeAborted": 1,
+    "callsRejectedAfterAbort": 13,
+    "checkpointCompilerOnlyCalls": 20
+  },
+  "quota": "UNAVAILABLE",
+  "firstPass": {
+    "resultsRetained": 10,
+    "normalNativeRequests": 10,
+    "unrecordedCaseFailures": 10
+  },
+  "resourceRun": {
+    "retainedResultRows": 6,
+    "actualNativeRequests": 2,
+    "postAbortWrapperCalls": 13
+  },
+  "observerCorrections": [
+    "H2 dormant plan is retained: total three canonical carry plans, not two active plans",
+    "indexed targets may occur inside geometry value programs, not only drawable input targets",
+    "native eligibility false removes wire bindingVersions: do not dereference it as an observer"
+  ],
+  "safetyCorrection": "after native crash Vitest continued attempting requests against disposed process; guarded checkpoint now stops subsequent cells and persists inputs before native request; not runtime-retested after hard stop",
+  "evidenceLimit": "Exact H2-00 native wire was not persisted before the abort by the original harness; exact frozen source, unchanged product fingerprint and native stderr are retained. No independent reproduction completed."
+}
