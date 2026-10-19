@@ -1,0 +1,21 @@
+{
+  "before": {
+    "source": "Human text reply in the Stage 5 implementation chat",
+    "raw": "Observation date: 2026-10-19 JST\n\nWeekly quota remaining: 28%\nWeekly reset: in 5 days 13 hours\n\n5-hour quota remaining: 97%\n5-hour reset: in 4 hours 58 minutes",
+    "observationDate": "2026-10-19",
+    "timezone": "Asia/Tokyo",
+    "observationTime": null,
+    "weeklyRemainingPercent": 28,
+    "weeklyResetDisplayed": "in 5 days 13 hours",
+    "fiveHourRemainingPercent": 97,
+    "fiveHourResetDisplayed": "in 4 hours 58 minutes",
+    "displayedPercentPrecision": "integer percentage",
+    "overlappingActivity": "UNKNOWN",
+    "limitation": "Provided during setup; exact observation time and isolated pre-execution timing were not supplied. Relative reset strings preserved without invented absolute times."
+  },
+  "after": null,
+  "weeklyConsumedPercentagePoints": "UNAVAILABLE",
+  "fiveHourConsumedPercentagePoints": "UNAVAILABLE",
+  "methodLevelAttribution": "INCONCLUSIVE",
+  "tokens": "UNAVAILABLE"
+}
