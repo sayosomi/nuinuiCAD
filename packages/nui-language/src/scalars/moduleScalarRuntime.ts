@@ -6833,7 +6833,10 @@ export const compileModuleScalarRuntime = ({
     if (!target || !moduleGeometryRuntime) return undefined;
     const path = context?.path ?? [];
     if (target.kind === "collectionIndex") {
-      const indexed = moduleGeometryRuntime.resolveGeometryCollectionIndexLine(target, path);
+      const indexed = moduleGeometryRuntime.resolveGeometryCollectionIndexLine(target, path) ??
+        (target.collectionValueId.startsWith("carry-collection:")
+          ? { kind: "collectionIndex" as const, target, members: [], currentPath: path }
+          : null);
       if (!indexed) return undefined;
       const indexedProgramTarget = geometryValueProgramTargetForInput(indexed, context, executionPosition, declaredInterfaceType);
       return indexedProgramTarget ? { kind: "target", target: indexedProgramTarget } : undefined;

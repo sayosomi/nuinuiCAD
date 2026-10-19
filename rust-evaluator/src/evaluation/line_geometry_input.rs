@@ -181,10 +181,12 @@ fn resolve_geometry_collection_endpoint_node_member(
                     point_key: point_key.clone(),
                     stage_path: None,
                 }),
+                GeometryInputTarget::Coordinate { anchor } => Ok(GeometryInputTarget::Coordinate {
+                    anchor: anchor.clone(),
+                }),
                 GeometryInputTarget::CollectionValue { .. }
                 | GeometryInputTarget::CollectionIndex { .. }
-                | GeometryInputTarget::ForGroupOccurrence { .. }
-                | GeometryInputTarget::Coordinate { .. } => {
+                | GeometryInputTarget::ForGroupOccurrence { .. } => {
                     Err("evaluation-collection-index-unavailable".to_owned())
                 }
             }

@@ -1,0 +1,236 @@
+[
+  {
+    "family": "F1",
+    "id": "R-snapshot-module-1",
+    "source": "nui 1\nmodule Box() {\nconst Seed: point[] = [(2,3),(8,11)]\nconst Ticks: number[] = [1]\nfor Tick in @Ticks carry Pts: point[] = @Seed {\nconst A: point = @Pts[0]\nconst B: point = @Pts[1]\nconst Swap: point[] = [@B,@A]\nnext Pts = @Swap\n}\nexport line Out = segment(start: @Pts[0], end: @Pts[1])\n}\ninstance Live = Box()\n",
+    "sha256": "539ce01f996f41769b6753387e1a5efae09774eb0cc0e7540408a29ae453a1df",
+    "before": {
+      "exception": "RangeError: Maximum call stack size exceeded",
+      "rustEligible": true,
+      "TS": {
+        "geometry": [],
+        "errors": []
+      },
+      "Rust": "NOT_REPEATED_OR_NOT_ELIGIBLE"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 8,
+              "y": 11
+            },
+            "end": {
+              "x": 2,
+              "y": 3
+            }
+          }
+        ],
+        "errors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 8,
+              "y": 11
+            },
+            "end": {
+              "x": 2,
+              "y": 3
+            }
+          }
+        ],
+        "errors": []
+      }
+    }
+  },
+  {
+    "family": "F2",
+    "id": "R-indexed-line-module",
+    "source": "nui 1\nmodule Box() {\nconst Seed: line = segment(start: (2,3), end: (8,11))\nconst Seeds: line[] = [@Seed]\nconst Ticks: number[] = []\nfor Tick in @Ticks carry Lines: line[] = @Seeds {\nnext Lines = @Lines\n}\nconst Pick: line = @Lines[0]\nexport line Out = from(source: @Pick)\n}\ninstance Live = Box()\n",
+    "sha256": "f969c97cde8c0f392350f5773fb59a492390973bd6a402dc3c1b25c815445409",
+    "before": {
+      "exception": null,
+      "rustEligible": true,
+      "TS": {
+        "geometry": [],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "module-runtime:10:moduleBody36:statement:moduleInstance:mvffip3m:5928:materializedLine-mvffip3m-54"
+          }
+        ]
+      },
+      "Rust": "NOT_REPEATED_OR_NOT_ELIGIBLE"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 2,
+              "y": 3
+            },
+            "end": {
+              "x": 8,
+              "y": 11
+            }
+          }
+        ],
+        "errors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 2,
+              "y": 3
+            },
+            "end": {
+              "x": 8,
+              "y": 11
+            }
+          }
+        ],
+        "errors": []
+      }
+    }
+  },
+  {
+    "family": "F3",
+    "id": "R-endpoint-path",
+    "source": "nui 1\nconst Seed: path = segment(start: (2,3), end: (8,11))\npoint Out = from(source: @Seed.end)\n",
+    "sha256": "b538ad3a33c1c13351816be955b875e5cb931b2f60e3e4ee22fd03dc5285c21f",
+    "before": {
+      "exception": null,
+      "rustEligible": false,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "point",
+            "x": 8,
+            "y": 11
+          }
+        ],
+        "errors": []
+      },
+      "Rust": "NOT_REPEATED_OR_NOT_ELIGIBLE"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "point",
+            "x": 8,
+            "y": 11
+          }
+        ],
+        "errors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "point",
+            "x": 8,
+            "y": 11
+          }
+        ],
+        "errors": []
+      }
+    }
+  },
+  {
+    "family": "F4",
+    "id": "R-failure-invalid",
+    "source": "nui 1\nmodule Box() {\nexport point Prefix = coordinate(x: 3, y: 4)\nconst Bad: point = coordinate(x: 1 / 0, y: 3)\nexport line Out = segment(start: @Bad, end: (8,11))\n}\ninstance Live = Box()\npoint Survivor = coordinate(x: 17, y: 19)\n",
+    "sha256": "467775e6035ff4e2e8d0da332c5dfbc17223e4626c82ababa9160a7a975ef154",
+    "before": {
+      "exception": null,
+      "rustEligible": null,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "statement:typedDeclaration:mvffirix:3"
+          }
+        ]
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Prefix",
+            "kind": "point",
+            "x": 3,
+            "y": 4
+          },
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": []
+      }
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "statement:typedDeclaration:mvffqsq6:297"
+          }
+        ]
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "statement:typedDeclaration:mvffqsq6:297"
+          }
+        ]
+      }
+    }
+  }
+]

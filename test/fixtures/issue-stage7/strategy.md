@@ -1,163 +1,170 @@
-# Stage 7 checkpoint — BLOCKED, acceptance incomplete
+# Stage 7 — four repaired families, polyline owner blocker
 
-[Issue #1428](https://github.com/sayosomi/nuinuiCAD/issues/1428), base
-`e08ff62174bc461661693173a27108f71c14de35`, branch
-`sayosomi/issue-1428-targeted-stage7`. This is a stopped D1 implementation
-checkpoint, **not a completed campaign or merge candidate**. No product code,
-normative specification, historical fixture, dependency or CI input changed.
-Confirmed novel families: **0**; fixed families: **0**. This does not mean that
-no defects exist: failures remain unclassified and no independent reduction,
-genuine passing adjacent control or first-incorrect-producer proof was completed.
+[Issue #1428](https://github.com/sayosomi/nuinuiCAD/issues/1428) is **BLOCKED,
+not complete or merge-ready**. Base is
+`e08ff62174bc461661693173a27108f71c14de35`; the branch is
+`sayosomi/issue-1428-targeted-stage7`. The reviewed initial checkpoint was
+`0a6b47bef3c5c79395b199ddd74f83fdbe70ab60`. Human explicitly authorized its
+continuation on 2026-10-20. No Human admission was repeated, no other checkout
+was used, and no merge, Issue closure, dependency, CI or architecture change occurred.
 
-## Mandatory resource stop
+Current disposition: **17/20 frozen sources PASS; three BLOCKED**. Five novel
+families are independently confirmed; four are repaired. `families.json` gives
+the first incorrect owners, legal minimum reproductions, genuine passing
+controls and before/after evidence. The extra pure-seed root ordering failure
+is an unresolved, non-equivalent reducer, not a sixth confirmed novel family.
+Residual Issue #1260 remains open.
 
-At 2026-10-19 23:28 JST the normally eligible **H2-00** request terminated the
-real persistent `evaluation_stdio` process with **SIGABRT**, stderr:
-`thread 'main' ... has overflowed its stack; fatal runtime error: stack overflow, aborting`.
-Its TypeScript reference evaluation also threw
-`RangeError: Maximum call stack size exceeded`.
-The Issue requires a safe stop on actual resource failure. No evaluator request,
-product repair, reducer or sensitivity injection was run after recognizing this
-hard stop. All owned processes have ended.
+## Frozen sources and original failures
 
-The first harness pass failed to retain per-cell rows when TS threw or normal
-eligibility was false. Its exact outputs remain external. A second, unchanged
-product-tree attempt caught TS errors and honored normal eligibility; that
-attempt exposed the native abort. Vitest then attempted 13 calls against the
-already unavailable process; these are **not** native executions. The checkpoint
-harness now records inputs before dispatch, preserves exceptions and stops all
-subsequent cells after native failure. This guard was statically checked; it
-was **not** exercised by another native crash after the stop.
+`freeze.json` is unchanged. All 20 original sources were compiler-prevalidated
+before freezing and before any primary evaluation. It retains source hashes,
+seeds, independent geometry expectations, order and initial product fingerprint.
+`checkpoint.json` is the preserved original BLOCKED disposition, not the current
+result; `outcomes.json` owns the current per-source results. Original raw/log
+hashes remain in `evidence-index.json`; the original source hashes/oracles were
+not tuned to the observed results.
 
-## Frozen matrix and oracle
+The first four scheduled texts are H1-03, H1-07, H2-00, H2-07, then the remaining
+16. Seed = `9000 + hypothesisOffset + cellIndex`, offsets H1/H2 = 0/100, indexes
+00..07. H1 bits: 4=path rather than line, 2=Module rather than root, 1=two inner
+iterations rather than zero. Outer length is two. H2 bits: 4=line rather than
+point, 2=exhaustive match rather than if, 1=ancestor gate rather than direct.
+Each hypothesis has two distinct-hash controls sharing the cell-00 numeric model.
 
-`freeze.json` retains all 20 accepted sources, their SHA-256 hashes, stable IDs,
-seeds, independent expectations, order, base, timestamp and initial product-owner
-fingerprint. It was written only after compiler-only acceptance of every source,
-before the first primary evaluator test. There is no final corrected corpus.
+The normative oracle is `docs/nui1/spec.md`: simultaneous immutable next,
+inner-final escape, ordered geometry arrays, immutable stages, lexical/export
+identity, lazy selection, enabled-before-input and Module atomic failure.
+The H1 oracle is independently unrolled: active final member ends are
+`(u+27,22)` and `(u+30,27)`; zero-inner variants preserve their initializer.
+It checks whole geometry, endpoints, lengths, generated occurrences, order and
+qualified exports. The H2 oracle independently applies one swap, includes only
+the successful Module's children and consumer plus the survivor, and requires
+selected errors to suppress the failed Module without activating Dormant.
 
-Seed = `9000 + offset + cell`; H1/H2 offsets = 0/100. Cell indexes 00..07.
-H1 bits: 4=path (otherwise line), 2=Module (otherwise root), 1=two inner
-iterations (otherwise zero). Outer loop always has two iterations.
-H2 bits: 4=line (otherwise point), 2=exhaustive match (otherwise if),
-1=ancestor gate (otherwise direct gate). Each source has distinct One/Two
-inputs, a dormant invalid-input instance, one selected failure, one success,
-an unselected error and an independent survivor. Each hypothesis has two
-adjacent controls using cell-00 numeric inputs, distinct hashes and the two
-element types. Controls are **candidate controls**, not established passing
-controls; their current outputs also fail.
+The original harness lost some per-cell rows on observer exceptions. Its
+unchanged-product retry hit the H2-00 native stack overflow at 23:28 JST on
+2026-10-19. The exact original native wire was not saved; frozen source, product
+fingerprint and stderr survive. No missing original native result is invented.
+The continuation preserved this incomplete original baseline and diagnosed it
+without repeating the native crash, as expressly requested by the Human.
 
-Order starts H1-03, H1-07, H2-00, H2-07, followed by the other 16 sources.
-The first four were scheduled in that order, but initial observer exceptions
-prevented complete execution; do not claim that the ordered baseline finished.
-`checkpoint.json` gives an explicit BLOCKED_UNRESOLVED disposition for every
-source (20 unresolved; zero completed semantic PASS dispositions).
+## Diagnosis and repairs
 
-The normative oracle is `docs/nui1/spec.md`: shared incoming snapshots,
-inner final escape, ordered geometry arrays, immutable stage selection,
-lexical/private/export identity, lazy selection, enabled-before-input and
-atomic Module failure. Oracles consume only authored inputs, never observations.
-For H1, each inner step moves previous member 1 to slot 0 and rebuilds slot 1
-from previous member 0's end and authored tick coordinates. The independently
-unrolled final active pair has ends `(u+27,22)` and `(u+30,27)`; zero-inner
-sources preserve the initial staged pair. Both member endpoints, whole geometry,
-length, generated occurrences and qualified Module export are specified.
-Module path reconstruction uses a constant middle ordinate to stay within
-accepted syntax. Indexed endpoints are observed through legal typed aliases.
-For H2, one swap makes member order [1,0]; expected geometry includes only
-successful Module children/consumer plus the independent survivor. The selected
-collection is Chosen; causal private-value diagnostic ownership and propagation
-still need first-producer analysis. The frozen `diagnostic.owner` names the
-selected collection and must not be mistaken for a proven private error-row ID.
+1. **F1, runtime collection snapshots.** Independent root and Module reducers
+   throw a bounded TS RangeError after one swap; zero-iteration controls pass.
+   TS and Rust capture functions copied local geometry aliases into next
+   unchanged. Those aliases subsequently read the new carry, making a cycle.
+   The repair captures compiler-resolved indexed member identities against the
+   incoming snapshot, using existing collection member selection and canonical
+   generated provenance. It does not eagerly evaluate geometry or unselected
+   branches. The original native failure plus independent TS reduction establish
+   FAIL-before; four normally eligible persistent-Rust/TS reducers establish
+   PASS-after. The native stack overflow was never repeated.
+2. **F2, indexed line/path alias lowering.** `lowerGeometryValuePath` dropped
+   carry-owned indexed aliases because it lacked the existing point path's
+   deferred collectionIndex fallback. The legal minimum Module reducer omits
+   Out before and passes after. The repair reuses the existing canonical target,
+   with root/Module drawable-seed controls and the frozen line matrix passing.
+3. **F3, path endpoint interface metadata.** An alias with an endpoint selector
+   retained interface path, making a valid point consumer normally Rust-ineligible.
+   A path reducer and adjacent line control isolate this from carry execution.
+   Lowering now exposes the selected point interface; both are normally eligible
+   and produce (8,11) in both engines. Whole-path inputs keep their path interface.
+4. **F4, missing immutable point diagnostic.** Rust point-anchor resolution used
+   an early None return for a missing geometry value. The consuming Module
+   drawable had no error, so Prefix leaked and an external consumer failed.
+   The independent invalid/valid Module pair isolates the failure. Emitting the
+   existing dependency diagnostic at the missing input lets the existing atomic
+   Module/suppression logic operate. Both engines now attribute the error to the
+   exact consuming owner and suppress the partial Module.
+5. **F5, confirmed but unrepaired polyline projection.** Inline polyline tuple
+   coordinates containing Module parameters or geometry properties have no
+   canonical numeric bindings. The generic compiler enumerates numeric parameter
+   definitions, but polyline exposes only the points list and closed flag;
+   coordinate access also lacks indexed-list support. `R-polyline-inline` fails
+   while named coordinate points in `R-polyline-named` pass in both engines.
+   Required canonical owners `packages/nui-language/src/parameters/parameterDefinitions.ts`
+   and `parameterAccess.ts` are outside the Issue's approved paths. The contract
+   requires a stop when an expected signal needs excluded owners. No duplicate
+   local accessor, frozen-source rewrite or specification change was used.
 
-Compiler-only rejected prototypes are indexed by hash/code in `rejections.json`.
-They include invalid direct array constructor/member forms, arithmetic without
-reference delimiters, and endpoint/property forms that the compiler rejected.
-Rejection is neither a runtime PASS nor proof of a novel defect. No compiler
-change was made to admit a source. 100 prevalidation compiler calls produced
-20 distinct accepted hashes and 43 distinct rejected hashes; repeated attempts
-are not distinct accepted exploration. All accepted hashes equal the frozen set.
+F5 blocks **H1-05, H1-06, H1-07**. Other current H1 sources and all H2 sources
+pass. The old pure immutable seed/root reducer has a separate release-order
+problem; it is retained as a non-equivalent reduction and is not assigned F2's
+PASS-after or counted as a repaired family. A future separately authorized
+probe could prioritize that specific collection-alias dependency-order hypothesis.
 
-## Observations and limits
+## Ownership, diagnostics and sensitivity
 
-- H1 line sources: both evaluators return only seed drawables and omit expected
-  carry observers/results. The stored input lacks executable indexed-alias
-  geometry value programs. This is an unresolved lowering hypothesis.
-- H1 path sources: TS output mismatches; normal Rust eligibility is false.
-  Stored materialized-point source targets retain geometryType=path with
-  pointKey=start/end, while the eligibility predicate requires geometryType=point.
-  No eligibility override, forced Rust input or fallback parity claim was made.
-- H2 line sources: TS/Rust output mismatches, including successful-instance
-  loss and Rust Prefix leakage. They are potentially downstream symptoms;
-  no independent family count is assigned.
-- H2 point sources: TS recursive stack exceptions; H2-00 additionally aborts the
-  native evaluator. Other point sources have no completed native result.
+Canonical compiler plans and carry collection IDs are checked independently of
+runtime agreement, including inner initializer/outer-next identities and lexical
+Module owners. Original compiler bindings/dependency edges and final wire plans
+are retained externally for inspection. No new resolver, scheduler, evaluator,
+transport or production abstraction was introduced. Rust remains the production
+semantics owner; TS is the reference/parity boundary.
 
-Two observer errors are retained separately: dormant instances retain canonical
-carry plans (three plans, not two active plans), and indexed targets can appear
-inside value programs rather than only drawable input maps. An ineligible
-prepared input can omit bindingVersions. These instrumentation errors are not
-product defects. Raw reprojection should precede any costly identical rerun.
+Selected point-array errors belong to One::Mark and reference Bad's source ID.
+For line arrays, the selected unavailable Final1 alias has exactly One's canonical
+instance path, and One::Mark references that alias's source ID. Two's unselected
+error and Dormant produce no such diagnostics. Poisoned disabled bindings are
+bookkeeping, not evaluation of the invalid argument. Exact emitted/suppressed
+geometry and non-poisoned diagnostic absence are checked. The original frozen
+Chosen label names the selected collection, not a private diagnostic occurrence.
+Observer corrections are distinguished from product families.
 
-H1/H2 first-loss sensitivity: **NOT_COVERED**, resource stop before calibration.
-No mutation was injected, no historical repair was counted as new, no required
-historical regression was rerun. Original failures and final results are not
-conflated: final corrected results are **NOT_RUN**.
+Test-local cloned carry plans provide actual first-loss calibration:
 
-## Replay and verification
+- H1's two passing nonempty line sources substitute inner initialization for
+  outer consumption of inner-final. Both engines detect wrong final Result0.
+- All eight H2 primaries and both H2 controls lose their swap in cloned next
+  plans. Both engines detect wrong Two::Mark geometry (10/10).
+- The five zero-inner/control H1 sources are NOT_COVERED for inner-body loss.
+  Three unresolved H1 sources are also NOT_COVERED. No gate/atomicity fault was
+  injected, and no sensitivity to every hypothetical H2 fault is claimed.
 
-Safe compiler-only replay from the implementation checkout:
+These 12 output detections are not diagnostic-only noise or novel product
+families. No production code was changed to inject a historical fault. Frozen
+Stage 3–6 fixtures and historical #1358/#1359/#1360 controls remain unchanged.
+
+## Replay, verification and telemetry
+
+Compiler-only replay is safe:
 
 ```sh
-ISSUE1428_MODE=prevalidate ISSUE1428_EVIDENCE=/tmp/nuinui-stage7-prevalidation \
+ISSUE1428_MODE=prevalidate ISSUE1428_EVIDENCE=/tmp/nuinui-stage7-prevalidate \
   npx vitest run test/issue1428TargetedStage7Rust.integration.test.ts
 ```
 
-After an independently reviewed recovery contract and fresh same-Task D1
-continuation admission, the existing frozen source can be selected with
-`ISSUE1428_IDS=H2-00`. Runtime replay uses `ISSUE1428_MODE=baseline` with a fresh
-external evidence directory; the default `verify` is strict. **Do not run native
-replays or the full suite under this stopped admission.** `freeze` refuses to
-overwrite the original corpus. Required complete ordered baseline, independent
-reduction/control, repair, affected-cell retest and sensitivity gates remain.
+The default strict verification is the required focused command. It currently
+fails the three blocked frozen cells and the inline-polyline reducer; do not
+turn those into skips or call the Issue complete. `ISSUE1428_IDS` selects exact
+IDs for diagnosis; `inspect` records compiler products and bounded TS reducers
+without starting Rust. `baseline` requires the original product fingerprint and
+will not run against repaired product code or overwrite an existing baseline.
+Normal production eligibility is never overridden. Process safeguards remain:
+Rust build 120 seconds, request 20 seconds, process ten minutes, teardown five
+seconds; close/error listeners precede transitions. Native failure stops later
+cells and persists input before dispatch.
 
-The original external evidence directories are `/tmp/nuinui-stage7-1428` and
-`/tmp/nuinui-stage7-1428-complete`; `evidence-index.json` records hashes of the
-retained raw payloads, logs and reports. Raw traces stay outside the checkout.
-Temporary retention is not an archival guarantee. The frozen inputs are portable.
-The original harness did not persist the exact H2-00 native wire before abort;
-its exact source, product fingerprint and native stderr survive. Do not claim
-that an independently reproduced or minimized crash request was retained.
-Lifecycle safeguards reuse Stage 6: build 120 seconds, request 20 seconds,
-process ten minutes, teardown five seconds, listeners before transitions.
+`verification.json` records the required build/lint/parity/full-suite/DSL and
+conditional Rust checks, plus historical regressions. No repeated full suite is
+used for reassurance. Manual E2E is Not Required. This remains a BLOCKED
+checkpoint despite the passing checks because frozen acceptance is incomplete.
 
-Compiler prevalidation: PASS 20/20. Original baseline invocation: FAIL, 10/21
-test cases failed (plus semantic failures captured in other cases). Resource
-attempt: FAIL, 14/21 cases failed and the Rust child aborted. A baseline runner
-exit or a capture-only test-case PASS never establishes semantic acceptance.
-Scoped ESLint and final repository lint: see `verification.json`. `git diff --check`
-and diff review cover the stopped checkpoint. The exact final focused test,
-build, parity, full npm test, DSL reference check and Stage 3–6/#1358–#1360 gates
-are NOT_RUN after the stop; final implementation never stabilized. Rust
-fmt/check/test/clippy condition is NOT_APPLICABLE: no Rust source changed.
-Human Manual E2E: Not Required.
+`telemetry.json` and `summarize.mjs` record the union of accepted/rejected hashes
+and instrumented Stage 7 compiler/TS/production requests across retained phases.
+34 distinct accepted texts are below 56: 20 frozen, 13 current reducers/controls,
+and one retired non-equivalent root reducer. There are 43 rejected original
+prototype hashes, no optional primary counterfactuals and no filler inputs.
+Historical/parity/Rust unit suite requests are not included in campaign request
+counts. Request counts, timings and PASS counts are not quota measurements.
+Human before/after quota, reset identities and concurrent-use observations are
+UNAVAILABLE; no efficiency ratio is claimed.
 
-## Counts, quota and next action
-
-Exploratory accepted texts **20/56**; rejected distinct hashes **43**;
-compiler calls **160** (including 20 final compiler-only checkpoint calls); TS attempts **35**; production wrapper calls **25**,
-of which actual native requests **12** (11 completed, one aborted) and
-post-abort unavailable calls **13**. No adaptive text/reducer was generated.
-Request/source counts are not quota measurements. Human before/after weekly
-and five-hour quota, reset identities, precision and overlap observations are
-**UNAVAILABLE**; no attributable efficiency ratio or Stage 6 ranking is claimed.
-
-Independent review must inspect the exact pushed checkpoint, especially H2-00
-and the fail-stop evidence. The next concrete hypothesis is that loop-local
-indexed geometry aliases retained in Swap are evaluated against the escaped
-Carried collection, causing recursive whole-collection materialization instead
-of reading the incoming snapshot. This is a hypothesis, **not** a demonstrated
-first incorrect producer or a confirmed novel family. Review should settle a
-bounded recovery procedure before a new same-Task continuation admission.
-The rest of the frozen matrix and Issue #1260 remain open; no PR, merge,
-Issue closure, architecture change or unrelated cleanup is part of this stop.
+Original and continuation raw evidence stays outside the checkout under
+`/tmp/nuinui-stage7-1428*`; hashes and counts are committed. Temporary retention
+is not an archival guarantee; the frozen sources and reducers are reproducible.
+The next action is independent review of the exact pushed HEAD, followed by an
+explicit decision on extending the named parameters owner scope before a fresh
+same-Task continuation. Do not merge or close #1428/#1260 at this checkpoint.

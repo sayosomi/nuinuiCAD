@@ -31,6 +31,14 @@ export function checkGeometry(c:Cell,compiled:TextCompileResult,payload:Evaluati
   expect(payload.errors.map(e=>nameFor(compiled,e.elementId,payload)).sort(),"exact selected drawable diagnostic owners").toEqual(oracle.errors);
   if(c.hypothesis==="H1") expect(payload.geometryValueErrors ?? []).toEqual([]);
   else {
+    const causalName=c.type==="line" ? "Final1" : "Bad";
+    const causalIndex=compiled.doc.statements.findIndex(s=>s.kind==="typedDeclaration"&&s.name===causalName);
+    const causalId=compiled.doc.statementMap.statementIdByStatementIndex!.get(causalIndex);
+    for(const error of payload.errors) expect(error.missingDependencyId,"selected causal source, owned by One::Mark").toBe(causalId);
+    const one=compiled.doc.document.elements.find(e=>e.type==="moduleInstance"&&e.name==="One")!;
+    const onePath=compiled.doc.moduleMaterialization!.instanceBaseGeometrySnapshots.find(s=>s.instanceId===one.id)!.instancePath;
+    expect(payload.geometryValueErrors ?? [], "only the selected One::Final1 alias reports unavailability; unselected and disabled owners stay silent").toEqual(!c.control&&c.type==="line" ? [{ occurrence:{ sourceStatementId:causalId,instancePath:onePath },message:"Geometry value reference is unavailable at runtime." }] : []);
+    expect((payload.computedScalarBindings ?? []).filter(b=>b.evaluation.status==="error"&&b.evaluation.issueCode!=="poisoned-binding"),"disabled inputs are not evaluated").toEqual([]);
     const dormant=compiled.doc.document.elements.find(e=>e.type==="moduleInstance"&&e.name==="Dormant")!;
     for(const error of payload.errors) expect(nameFor(compiled,error.elementId,payload)).not.toContain("Dormant");
     const snapshot=compiled.doc.moduleMaterialization!.instanceBaseGeometrySnapshots.find(s=>s.instanceId===dormant.id)!;

@@ -108,5 +108,335 @@
     "path": "/tmp/nuinui-stage7-1428-checkpoint/prevalidation.ndjson",
     "bytes": 28829,
     "sha256": "2dea1abce374e1b84732ca6b46fc97e0decd834c5d50f5d9789c02565849e44e"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428/issue-checkpoint.md",
+    "bytes": 4770,
+    "sha256": "b5f2afb77b502627b6c0a53d02b295e54d15b589a178713c2fac1d1a742e17e4"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-H2-repaired/accepted.sha256",
+    "bytes": 65,
+    "sha256": "cb40de6eda9176d6241c1e02c37fa7a1646e295d06c5413bd2ec506b70750b9d"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-H2-repaired/raw.ndjson",
+    "bytes": 106076,
+    "sha256": "6d67bcb362d12c367f88ae0b43db69c520b8c611305742b7b07f4c7c19f59c91"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-H2-repaired/verify.json",
+    "bytes": 78547,
+    "sha256": "8f34928f5ffb0d52c429ffce24bd9f3ea454348da186adc609b215c591416d29"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-failure-before/accepted.sha256",
+    "bytes": 130,
+    "sha256": "298dcd44ebccafe87cfa54bdc6cfd2bb13b3da4410be8acf3719b2cfc05a62b8"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-failure-before/reductions.ndjson",
+    "bytes": 28573,
+    "sha256": "2e0211cb01024e1d44138e6bdebe38c13f0372820fe9e6fb8ede14e82ee0c2b9"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-failure-before/verify.json",
+    "bytes": 348,
+    "sha256": "b9d8f629774a3072faba5d00a469337aab968dd837bcadbf1aa193b8d22d13e8"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-final-focused/accepted.sha256",
+    "bytes": 2145,
+    "sha256": "9dbcc546fd856048154d42d634903319cebe97894e217d26e377fd37f64f2ef2"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-final-focused/raw.ndjson",
+    "bytes": 2534814,
+    "sha256": "1740e4282ea150ec0f4904f4757f6c93b313d6f18e76fbf5852a69fe9998dfb9"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-final-focused/reductions.ndjson",
+    "bytes": 207039,
+    "sha256": "9aac8327661f0f098a24a9a1921b2933e49ad64c3b38adbeac8b24f0bc80a0b2"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-final-focused/sensitivity.ndjson",
+    "bytes": 554123,
+    "sha256": "d4d9995b449dd93493aeb05c9e61b88983100d587c0c9a19bf5a48f940b3f1f2"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-final-focused/verify.json",
+    "bytes": 2002002,
+    "sha256": "b55832cc36a76c8b3acd010c8d8db8edc36b52fd880f5b58bd7e399e68171a11"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-focused-final2/accepted.sha256",
+    "bytes": 2145,
+    "sha256": "9dbcc546fd856048154d42d634903319cebe97894e217d26e377fd37f64f2ef2"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-focused-final2/raw.ndjson",
+    "bytes": 2534814,
+    "sha256": "2927636748073fbac53a15801834a30954bfaad484e4494adc853ec6ebc808c5"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-focused-final2/reductions.ndjson",
+    "bytes": 207039,
+    "sha256": "ce1b5fdd6aaf3864a6af8c725b5eb0f113ae4dc1da356e44612e54aba32902ef"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-focused-final2/sensitivity.ndjson",
+    "bytes": 723495,
+    "sha256": "723a9e6c47bc834fec02a0ca31f9f2f1ef5a780d2f3f76ce3ab8726f74505f12"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-focused-final2/verify.json",
+    "bytes": 2001338,
+    "sha256": "d9f7dd8b3778b325b7f173876f9ba785f2afe4b1d78c40d9cf41e46479123cce"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-matrix-after4/accepted.sha256",
+    "bytes": 1950,
+    "sha256": "3d1be243ebb9c9d0e14b1b1bf7b65e76291c9680e3eed8ffe6c46f1d358adc05"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-matrix-after4/raw.ndjson",
+    "bytes": 2534814,
+    "sha256": "39b9f34ecbe0fb88ad163405e8e41f01ecbe384bc225380795cd8dd43b753b04"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-matrix-after4/reductions.ndjson",
+    "bytes": 126504,
+    "sha256": "8a44ee509eacb69c21e97115e78983e407153e79260e3cfd3792bb6230470e1b"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-matrix-after4/verify.json",
+    "bytes": 1998242,
+    "sha256": "e70464f4792f91ddc06bb95ee725fcfa260cf1795958bb6b2b712fc170db373e"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-polyline-control/accepted.sha256",
+    "bytes": 195,
+    "sha256": "c74a27876a3f0a825bcb8344fff540b1ec08d218bb9d479ab85574e125379441"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-polyline-control/reductions.ndjson",
+    "bytes": 77530,
+    "sha256": "56574a5eba5f45dd210b8b3ed2e52073c452798f4dc151e6048119a4671b7755"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-polyline-control/verify.json",
+    "bytes": 601,
+    "sha256": "fa7fb9f4754ffd104d2802bee076be7c6a89fbd3ec269cb9e5a067437ace94a9"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-polyline-inspect/accepted.sha256",
+    "bytes": 910,
+    "sha256": "d7c7300449534cd1d215f980c14bce971d848b6cb2642b95237bd98057d0b32f"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-polyline-inspect/inspect.json",
+    "bytes": 890,
+    "sha256": "86ee367c025986bda72dbddefa116ecb7e90b2893a0c4f5437172f521619c570"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-polyline-inspect/inspection.ndjson",
+    "bytes": 488375,
+    "sha256": "c0426835d82a79e71bb8b0fb38f7a363802d297d3d68c4ce6ec9e241f762a38e"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-before2/accepted.sha256",
+    "bytes": 780,
+    "sha256": "e4657a28f2a74fd6975ec39a0e25f11d4f6a21fffd911360037d0ad59ac2a290"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-before2/inspect.json",
+    "bytes": 789,
+    "sha256": "528ff0ab5e005591a80f3b6797b942e5107074d6687310a3953e46a75a2b5031"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-before2/inspection.ndjson",
+    "bytes": 417217,
+    "sha256": "6b0aa3d8b99bee9b39b9c8e9e41e5cb4c3a0d31be8b792e89163a7d871867338"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-rust/accepted.sha256",
+    "bytes": 260,
+    "sha256": "f2f9855cd4301e4ae49b326499dd16ac21aaf3890b114f130a68de6d49984107"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-rust/reductions.ndjson",
+    "bytes": 12872,
+    "sha256": "4e45ee6c84b2d3f4c191f26d5f447122bd7d971b9599ce1a46f9532c087ba524"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-rust/verify.json",
+    "bytes": 471,
+    "sha256": "5fef831c80522e4c0a03c02053e71257aa9278860b58f367b03b6739053ac0db"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-rust2/accepted.sha256",
+    "bytes": 260,
+    "sha256": "f2f9855cd4301e4ae49b326499dd16ac21aaf3890b114f130a68de6d49984107"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-rust2/reductions.ndjson",
+    "bytes": 25744,
+    "sha256": "945a43c74b3915eef4d4d850fb8dc3ec9a112307941f1499c60afe3b41c7c81e"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-reducers-rust2/verify.json",
+    "bytes": 711,
+    "sha256": "80f29e4725e163e3a6b8d3fd513daa92297ea9bdc91b83f64210f50afa4ed30b"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-resume/accepted.sha256",
+    "bytes": 390,
+    "sha256": "3ae07ca49d98ccb454c0cb867991325c579df07d8f63a27c515b577cbd64c2a0"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-resume/inspect.json",
+    "bytes": 630,
+    "sha256": "fc91259207952eebfdc1a39b7f84abde64a8978b14f7556811a4f3cebc2584c3"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-resume/inspection.ndjson",
+    "bytes": 304319,
+    "sha256": "fbd07e53a15d48471a05c10a03bb7f6a27985836ef42ac4923dea0535335bbd9"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-resume-after1/accepted.sha256",
+    "bytes": 390,
+    "sha256": "3ae07ca49d98ccb454c0cb867991325c579df07d8f63a27c515b577cbd64c2a0"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-resume-after1/inspect.json",
+    "bytes": 504,
+    "sha256": "8d652e779e59bb672ce7e38123d5d9ebf210cf279550c5d567e0ee0b68052a55"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-1428-resume-after1/inspection.ndjson",
+    "bytes": 310567,
+    "sha256": "fde046009b6d71a53dd431d719a05455aaa928543ff970edf7cce2c2c34804e3"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-H2-repaired.log",
+    "bytes": 1418,
+    "sha256": "dcf4fdd7149250180a991005a46f2ed34282ae030af212d476177ed15e83a821"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-after1.log",
+    "bytes": 215,
+    "sha256": "7e7c6dc59184b09c2f2269faa1495b692208747ad1d788f98a1437fef5e104f9"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-before2.log",
+    "bytes": 215,
+    "sha256": "fc8f67c4fcda346a9a2ee47cc8a1da22c64bd948a3a6056f55ed843c6dd3b164"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-build.log",
+    "bytes": 429,
+    "sha256": "ea756f480c8c7318f2ef7c4034076b2bda504221b0030b878ddfcaadf1fd6789"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-cargo-check1.log",
+    "bytes": 163,
+    "sha256": "f6729e2733fb206150f7c2ff956d6ef4f24a7d3d4dce6786de7553bf9be37079"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-failure-before.log",
+    "bytes": 1289,
+    "sha256": "8ecdb0509d56c7fb1063507d3d3b658b99346bffe41260c0f010b34a025a1f32"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-final-focused.log",
+    "bytes": 8790,
+    "sha256": "15a201133561674f1e969200009883b0ca9dcf8406130b028aec6b158c41d61a"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-focused-final2.log",
+    "bytes": 5030,
+    "sha256": "6ad99df731660b17380962473c12427572e8b3fefbee00e34c43d5e1e90fab7e"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-matrix-after4.log",
+    "bytes": 4548,
+    "sha256": "41fed7566348d7029842959c88cfbc14ac84270d5119ad34bb5613e4fcb0d968"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-polyline-control.log",
+    "bytes": 215,
+    "sha256": "b0715cfc88af09697c29acf32ed0b4c5de83395d06362b54c615f92931c2b03d"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-polyline-inspect.log",
+    "bytes": 215,
+    "sha256": "ed036eaa9ac2a621ed0738281f49385c1ce218adef23d33bec5f770b86805366"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-reducers-rust.log",
+    "bytes": 3006,
+    "sha256": "ec22cefac14bd26596671abcbea0273c14426ae09682c9964d00aaa7e637bf4e"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-reducers-rust2.log",
+    "bytes": 215,
+    "sha256": "6276061c6246080ea287fdb69bcde443c74dbb32b1b27c93e1d96f96819a9607"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-resume-dsl.log",
+    "bytes": 106,
+    "sha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-resume-full.log",
+    "bytes": 5126,
+    "sha256": "4961ea4983bb7cbea8765d4f4ce7d8dd9d1e428e0f4d884b09610adc99a115a8"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-resume-inspect.log",
+    "bytes": 215,
+    "sha256": "23ecd7a4cd2992ae724b2210d67cc51e1d23a1198eb66c7fbeaa2f4b9bd07faa"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-resume-lint.log",
+    "bytes": 36,
+    "sha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-resume-parity.log",
+    "bytes": 319,
+    "sha256": "f50c3da066f733b624e0986dbf7bc4d08d7a40d794df53c7108ada5ff2c74281"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-rust-check.log",
+    "bytes": 163,
+    "sha256": "cf4a4627ff3e29a945bddd48529056bfcb294fc68e1f9a007ee7ea9e7114baee"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-rust-clippy-all.log",
+    "bytes": 163,
+    "sha256": "492a37b84460e0a23c6240e015e0e70684d25fd04ba4d859e4b6b7c1baf296a6"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-rust-clippy.log",
+    "bytes": 163,
+    "sha256": "30d73c69a4f92dc0db88def3fe187492c4f0e62a65166f526eac3b42f445ec0a"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-rust-fmt.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-rust-focused.log",
+    "bytes": 5649,
+    "sha256": "5956e20c73babe4f77673027f8271888aca957cf62219e54806ca71e9745b633"
+  },
+  {
+    "path": "/tmp/nuinui-stage7-rust-test.log",
+    "bytes": 71029,
+    "sha256": "d989cad631d8017779693e19ebe33e826ef6bf20ebf6eb3e5eca447f4982c8a7"
   }
 ]

@@ -2549,12 +2549,44 @@ export const evaluateElements = (
           if (initial && initial.kind !== "unavailable") geometryCarryValues.set(carry.bindingId, initial);
         }
       };
+      const captureGeometryCollectionTarget = (
+        target: Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" }>,
+        nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>,
+        seen: ReadonlySet<string> = new Set()
+      ): typeof target | undefined => {
+        if (target.kind === "drawable") {
+          const row = [...forGroupGeneratedRows].reverse().find(row => row.templateElementId === target.elementId);
+          return row ? { ...target, elementId: row.generatedElementId } : target;
+        }
+        if (target.kind !== "geometryValue" || target.pointKey || target.stagePath) return target;
+        const key = geometryValueOccurrenceKey(target.occurrence);
+        const entry = lazyFrameGeometryValues.get(key);
+        if (entry?.construction.kind !== "reference" || entry.construction.target.kind !== "geometryInputTarget") return target;
+        if (seen.has(key)) return undefined;
+        const indexed = entry.construction.target.target;
+        const lookupBinding = scalarBindingLookupFor(ancestorIterationVariables);
+        const environment = { lookupBinding };
+        const index = evaluateTypedExpression(indexed.index, environment);
+        if (index.status !== "ok" || index.value.kind !== "number" || !Number.isInteger(index.value.value) || index.value.value < 0) return undefined;
+        const source = indexed.value ?? nodes.get(indexed.collectionValueId);
+        const selected = source ? resolveGeometryCollectionMemberForNode(source, index.value.value, () => environment, {
+          resolveSourceCollectionNode: id => nodes.get(id)
+        }) : indexed.members[index.value.value];
+        if (!selected || selected.kind === "collectionIndex" || selected.kind === "collectionValue") return undefined;
+        // Capture the compiler-resolved member identity before installing next.
+        // Keep geometry lazy: do not evaluate an unrequested member or branch.
+        return captureGeometryCollectionTarget(selected, nodes, new Set([...seen, key]));
+      };
       const captureGeometryCollectionNode = (
         node: import("../types/geometry").GeometryInputCollectionNode,
         nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>,
         runtimeGeneration: number | undefined,
         seen: ReadonlySet<string>
       ): import("../types/geometry").GeometryInputCollectionNode | undefined => {
+        if (node.kind === "leaf") {
+          const targets = node.targets.map(target => captureGeometryCollectionTarget(target, nodes));
+          return targets.every((target): target is NonNullable<typeof target> => target !== undefined) ? { ...node, targets } : undefined;
+        }
         if (node.kind === "geometryValueMap") {
           if (node.source.kind === "node") return node;
           if (seen.has(node.source.valueId)) return undefined;

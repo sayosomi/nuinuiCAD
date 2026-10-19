@@ -1,0 +1,98 @@
+[
+  {
+    "id": "F1",
+    "name": "Indexed local collection aliases escape without an incoming snapshot",
+    "status": "FIXED",
+    "firstIncorrectProducer": [
+      "src/geometry/evaluate.ts::captureGeometryCollectionNode",
+      "rust-evaluator/src/evaluation/scalars/mutation/for_group_scheduler.rs::capture_geometry_collection_node"
+    ],
+    "minimized": [
+      "R-snapshot-root-1",
+      "R-snapshot-module-1"
+    ],
+    "adjacentPASS": [
+      "R-snapshot-root-0",
+      "R-snapshot-module-0"
+    ],
+    "FAILbefore": "Independent root and Module TS reducers throw RangeError; frozen H2-00 production Rust SIGABRT retained from initial checkpoint; Rust crash was not repeated.",
+    "PASSafter": "Four reducers and all ten H2 sources pass through normal eligible persistent Rust and TS.",
+    "repair": "Capture canonical indexed alias member identities against the incoming collection using existing member selectors; retain lazy geometry and canonical generated drawable provenance."
+  },
+  {
+    "id": "F2",
+    "name": "Line/path carry-index alias programs are dropped during lowering",
+    "status": "FIXED",
+    "firstIncorrectProducer": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts::lowerGeometryValuePath"
+    ],
+    "minimized": [
+      "R-indexed-line-module"
+    ],
+    "adjacentPASS": [
+      "R-snapshot-module-0"
+    ],
+    "FAILbefore": "Legal Module reducer and original H1 sources omit Out; compiler produces no alias program because line collection resolution lacks the deferred carry fallback already used for points.",
+    "PASSafter": "Identical Module reducer passes; drawable-seed root/Module controls and frozen line cells pass in both engines.",
+    "repair": "Reuse the existing canonical deferred collectionIndex target for carry-owned line/path references."
+  },
+  {
+    "id": "F3",
+    "name": "Path endpoint input retains the whole-path interface",
+    "status": "FIXED",
+    "firstIncorrectProducer": [
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts::geometryInputTargetForAlias"
+    ],
+    "minimized": [
+      "R-endpoint-path"
+    ],
+    "adjacentPASS": [
+      "R-endpoint-line"
+    ],
+    "FAILbefore": "Expected endpoint (8,11) works in TS, but compiler input labels the point source path and normal production Rust eligibility is false.",
+    "PASSafter": "Identical path and line reducers are normally Rust eligible and yield the expected point in both engines.",
+    "repair": "An alias with a point selector lowers as a point, while whole path identity remains path; applies to value and mapped-value aliases."
+  },
+  {
+    "id": "F4",
+    "name": "Missing immutable point input returns silently and leaks Module children",
+    "status": "FIXED",
+    "firstIncorrectProducer": [
+      "rust-evaluator/src/evaluation/point_anchor.rs::point_anchor_or_error"
+    ],
+    "minimized": [
+      "R-failure-invalid"
+    ],
+    "adjacentPASS": [
+      "R-failure-valid"
+    ],
+    "FAILbefore": "Independent invalid Module reducer emits Prefix without an Out diagnostic in Rust; TS suppresses the Module and attributes the error to Out. Valid adjacent input passes.",
+    "PASSafter": "Both engines report the exact consuming owner and suppress partial children; all H2 errors and survivors agree.",
+    "repair": "Emit the existing dependency diagnostic when a geometryValue point anchor is unavailable, allowing the existing atomicity/suppression path to act."
+  },
+  {
+    "id": "F5",
+    "name": "Polyline vertex coordinate expressions omit canonical numeric projection",
+    "status": "CONFIRMED_BLOCKED_NOT_FIXED",
+    "firstIncorrectProducer": [
+      "packages/nui-language/src/parameters/parameterDefinitions.ts::polyline parameter enumeration"
+    ],
+    "requiredExcludedOwner": [
+      "packages/nui-language/src/parameters/parameterDefinitions.ts",
+      "packages/nui-language/src/parameters/parameterAccess.ts"
+    ],
+    "affectedFrozen": [
+      "H1-05",
+      "H1-06",
+      "H1-07"
+    ],
+    "minimized": [
+      "R-polyline-inline"
+    ],
+    "adjacentPASS": [
+      "R-polyline-named"
+    ],
+    "FAILbefore": "Module Origin=7 with inline polyline vertices has no numeric bindings and evaluates Origin as an unavailable raw name. Named coordinate-point vertices pass in both engines. The frozen root nested geometry-property tuple is similarly not projected.",
+    "repair": "NOT_AUTHORIZED: list-coordinate enumeration/access must be extended in its canonical parameters owner; no local replacement or frozen-source workaround was introduced."
+  }
+]

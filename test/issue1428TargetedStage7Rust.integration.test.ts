@@ -12,8 +12,9 @@ import type { EvaluateDocumentInput } from "../src/geometry/rustEvaluationInput"
 import { resolveRustEvaluationBinaryPath, RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import { optionsFor } from "./evaluationParitySupport";
 import { json } from "./fixtures/issue1419/model";
+import { reductions } from "./fixtures/issue-stage7/reductions";
 import { campaign, type Cell } from "./fixtures/issue-stage7/model";
-import { checkCompiler, checkGeometry } from "./fixtures/issue-stage7/assertions";
+import { checkCompiler, checkGeometry, geometryProof, nameFor } from "./fixtures/issue-stage7/assertions";
 import { independentOracle } from "./fixtures/issue-stage7/oracles";
 const root = "test/fixtures/issue-stage7", mode = process.env.ISSUE1428_MODE ?? "verify";
 const evidence = process.env.ISSUE1428_EVIDENCE, all = campaign();
@@ -33,13 +34,13 @@ function compile(c: Cell) {
   return result;
 }
 beforeAll(() => {
-  expect(["freeze", "prevalidate", "baseline", "verify"], "explicit campaign phase").toContain(mode);
+  expect(["freeze", "prevalidate", "baseline", "verify", "inspect"], "explicit campaign phase").toContain(mode);
   if (mode === "baseline" && evidence) expect(existsSync(join(evidence, "baseline.json")), "retain original baseline; choose a fresh evidence directory for replay").toBe(false);
   if (evidence) {
     mkdirSync(evidence, { recursive: true });
     if (existsSync(join(evidence, "accepted.sha256"))) for (const h of readFileSync(join(evidence, "accepted.sha256"), "utf8").trim().split("\n")) if (h) accepted.add(h);
   }
-  if (["freeze", "prevalidate"].includes(mode)) return;
+  if (["freeze", "prevalidate", "inspect"].includes(mode)) return;
   const frozen = JSON.parse(readFileSync(freezeFile, "utf8"));
   expect(frozen.candidates).toEqual(frozenCandidates());
   if (mode === "baseline") expect(productHash(), "unchanged initial product before all 20 executions").toBe(frozen.productHash);
@@ -94,7 +95,7 @@ it("prevalidates all 20 sources before any primary evaluation and freezes the in
     writeFileSync(freezeFile,json({ issue:1428,base:"e08ff62174bc461661693173a27108f71c14de35",frozenAt:new Date().toISOString(),productHash:productHash(),candidates:frozenCandidates() })+"\n");
   }
 });
-for (const c of ["freeze", "prevalidate"].includes(mode) ? [] : all.filter(c => !process.env.ISSUE1428_IDS || process.env.ISSUE1428_IDS.split(",").includes(c.id))) it(c.id, async () => {
+for (const c of ["freeze", "prevalidate", "inspect"].includes(mode) ? [] : all.filter(c => !process.env.ISSUE1428_IDS || process.env.ISSUE1428_IDS.split(",").includes(c.id))) it(c.id, async () => {
   if (resourceError) {
     results.push({ id: c.id, sha256: hash(c.source), status: "BLOCKED", reason: "earlier resource failure; no further compilation or evaluation" });
     if (mode === "verify") throw resourceError;
@@ -121,8 +122,77 @@ for (const c of ["freeze", "prevalidate"].includes(mode) ? [] : all.filter(c => 
   if (reference) capture("TS", () => checkGeometry(c, compiled, reference!));
   if (actual) capture("Rust", () => checkGeometry(c, compiled, actual!));
   if (evidence) appendFileSync(join(evidence, "raw.ndjson"), json({ mode, id: c.id, phase: "after-rust", productionException, actual }) + "\n");
+  let sensitivity: Record<string, unknown> = { status:"NOT_COVERED", reason: failures.length ? "unresolved baseline" : "zero inner body or adjacent control" };
+  if (!failures.length && prepared.rustEligible && (c.hypothesis === "H2" || (!c.control && c.inner > 0))) {
+    const plans = new Map(options.bindingVersions!.immutableForGroups);
+    for (const [id, plan] of plans) plans.set(id, { ...plan, geometryCollectionCarries: plan.geometryCollectionCarries?.map(carry => {
+      if (c.hypothesis === "H2") return { ...carry, next:carry.initializer };
+      const inner = [...plans.values()].flatMap(p=>p.geometryCollectionCarries ?? []).find(v=>v.bindingId.endsWith(":Inner"));
+      return carry.bindingId.endsWith(":Outer") ? { ...carry, next:inner!.initializer } : carry;
+    }) });
+    const negativeOptions = { ...options, bindingVersions:{ ...options.bindingVersions!, immutableForGroups:plans } };
+    const negativePrepared = prepareRustEvaluation(elements, negativeOptions);
+    expect(negativePrepared.rustEligible).toBe(true);
+    counts.reference++;
+    const negativeReference = evaluateElementsReferencePayload(elements, negativeOptions), negativeActual = await request(negativePrepared.input);
+    const owner = c.hypothesis === "H2" ? "Two::Mark" : `${c.module ? "Live::" : ""}Result0`;
+    const selected = (p:EvaluationPayload) => geometryProof(compiled,p).find(g=>g.owner===owner && !g.at)?.shape;
+    const referenceDetected = json(selected(reference!)) !== json(selected(negativeReference));
+    const productionDetected = json(selected(actual!)) !== json(selected(negativeActual));
+    capture("first-loss sensitivity",()=>{ expect(referenceDetected).toBe(true); expect(productionDetected).toBe(true); });
+    sensitivity = { status:"OUTPUT_DETECTED", boundary:c.hypothesis === "H1" ? "outer consumes initializer instead of inner final" : "collection next loses swapped member identity",owner,referenceDetected,productionDetected };
+    if (evidence) appendFileSync(join(evidence,"sensitivity.ndjson"),json({ id:c.id,...sensitivity,negativeReference,negativeActual })+"\n");
+  }
   results.push({ id: c.id, sha256: hash(c.source), status: resourceError ? "BLOCKED" : failures.length ? "UNRESOLVED" : "PASS", failures,
     compiler: { elements, bindings: compiled.doc.bindingAnalysis!.catalog.bindings, dependencies: compiled.doc.typedDependencyGraph!.edges },
-    rustEligible: prepared.rustEligible, referenceException, productionException, reference, actual });
+    rustEligible: prepared.rustEligible, referenceException, productionException, sensitivity, reference, actual });
   if (mode === "verify") expect(failures, c.id).toEqual([]);
+}, 60_000);
+
+if (mode === "inspect") it("retains compiler products and bounded TS reducer evidence without starting Rust", () => {
+  for (const c of [...all.filter(c => c.id === "H2-00" || c.id === "H1-00"), ...reductions]) {
+    const compiled = compile(c as Cell), elements = compiled.doc.document.elements;
+    expect(compiled.status, c.id).toBe("valid"); expect(compiled.diagnostics, c.id).toEqual([]);
+    const prepared = prepareRustEvaluation(elements, optionsFor({ compiled, elements }));
+    let reference: EvaluationPayload | undefined, exception: string | undefined;
+    if ("expected" in c) {
+      counts.reference++;
+      try { reference = evaluateElementsReferencePayload(elements, optionsFor({ compiled, elements })); }
+      catch (e) { exception = String(e); }
+    }
+    const record = { id: c.id, source: c.source, sha256: hash(c.source), rustEligible: prepared.rustEligible, wire: prepared.input,
+      elements, geometryProgram: compiled.doc.geometryValueProgram, moduleProgram: compiled.doc.moduleGeometryRuntime,
+      statements: compiled.doc.statements, bindingVersions: compiled.doc.bindingVersions, reference, exception };
+    if (evidence) appendFileSync(join(evidence, "inspection.ndjson"), json(record) + "\n");
+    results.push({ id: c.id, status: exception ? "TS_EXCEPTION" : reference ? "OBSERVED" : "COMPILER_ONLY", exception });
+  }
+});
+
+if (mode === "verify") for (const c of reductions.filter(c => !process.env.ISSUE1428_IDS || process.env.ISSUE1428_IDS.split(",").includes(c.id))) it(c.id, async () => {
+  if (resourceError) throw resourceError;
+  const compiled = compile(c as Cell), elements = compiled.doc.document.elements;
+  expect(compiled.status).toBe("valid"); expect(compiled.diagnostics).toEqual([]);
+  const options = optionsFor({ compiled, elements }), prepared = prepareRustEvaluation(elements, options);
+  expect(prepared.rustEligible).toBe(true);
+  counts.reference++;
+  const reference = evaluateElementsReferencePayload(elements, options), actual = await request(prepared.input);
+  if (evidence) appendFileSync(join(evidence, "reductions.ndjson"), json({ id: c.id, sha256: hash(c.source), reference, actual }) + "\n");
+  for (const payload of [reference, actual]) {
+    if ("fail" in c) {
+      expect(payload.errors.map(e => nameFor(compiled, e.elementId))).toEqual(c.fail ? ["Live::Out"] : []);
+      expect(payload.computedGeometry.map(g => nameFor(compiled, g.elementId)).sort()).toEqual(c.fail ? ["Survivor"] : ["Live::Out", "Live::Prefix", "Survivor"]);
+      continue;
+    }
+    expect(payload.errors).toEqual([]); expect(payload.geometryValueErrors ?? []).toEqual([]);
+    if ("named" in c) {
+      const out = payload.computedGeometry.find(g => nameFor(compiled,g.elementId) === "Live::Out")!;
+      expect(out).toMatchObject({ kind:"polyline" });
+      if (out.kind === "polyline") expect(out.segments.map(s => ({ start:s.start, end:s.end }))).toMatchObject([c.expected]);
+      continue;
+    }
+    expect(payload.computedGeometry).toHaveLength("seedDrawable" in c && c.seedDrawable ? 2 : 1);
+    expect(payload.computedGeometry.find(g => nameFor(compiled,g.elementId).endsWith("Out"))).toMatchObject({ kind: "start" in c.expected ? "line" : "point", ...c.expected });
+  }
+  if (evidence) appendFileSync(join(evidence, "reductions.ndjson"), json({ id: c.id, sha256: hash(c.source), reference, actual }) + "\n");
+  results.push({ id: c.id, status: "PASS", sha256: hash(c.source) });
 }, 60_000);

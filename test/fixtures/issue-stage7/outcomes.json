@@ -1,0 +1,301 @@
+{
+  "status": "BLOCKED: polyline point-coordinate owner outside approved paths",
+  "initialFrozenSources": 20,
+  "PASS": 17,
+  "BLOCKED": 3,
+  "confirmedNovelFamilies": 5,
+  "fixedNovelFamilies": 4,
+  "initialEvidence": "checkpoint.json remains the immutable original BLOCKED checkpoint; original logs indexed in evidence-index.json",
+  "results": [
+    {
+      "id": "H1-03",
+      "sha256": "dabd65fb3c69cbc18c5449e6383082c57a82aa76bfeac7906ad1cb48319db56c",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "outer consumes initializer instead of inner final",
+        "owner": "Live::Result0",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "ee5c2b807f886aadcd2258f06c420ba71e2811850e42b41ef088c083f2650c97"
+    },
+    {
+      "id": "H1-07",
+      "sha256": "4dd2125a28c3458e34cabc30d521bbba12a2fe70b0c90a4a469d5dd0ec1ddb51",
+      "status": "BLOCKED_POLYLINE",
+      "rustEligible": false,
+      "failures": [
+        "compiler: AssertionError: normally eligible Rust input retains compiled carry plans: expected undefined to be defined",
+        "normal Rust eligibility FALSE; no production request or override",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [] to deeply equal [ 'Live::End0[]', …(24) ]"
+      ],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "unresolved baseline"
+      },
+      "proofSha256": "d23dd63a62c9a958174ca67c7b93d4d5f26d649498cf427f2582ef73263e73e8"
+    },
+    {
+      "id": "H2-00",
+      "sha256": "4630d94cd9ad4617ba7fd6b325e32d78e66b0f35b8de4ab0b0e98b3c59679084",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "22785f1aebef916673fa2d2637d34139f36f14964eab95fb67d61ed9d1770bc7"
+    },
+    {
+      "id": "H2-07",
+      "sha256": "b962640c89fdfbdcd0c0159b3d3dfc5b0a7dcf814ba819262df19b5ffdf374bb",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "e26a41dae50c00eebd28f098b3bcfbc1343e8fb289b7201e4c32ea3e90a322a2"
+    },
+    {
+      "id": "H1-00",
+      "sha256": "7c45498370221d2f75b0c526b5a39a554e76d1d60fe95674f7697d434eff98e9",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "714b174923fb29cab94b0db6dd3bd80ac29741924a5ff96356c4be1694125f3b"
+    },
+    {
+      "id": "H1-01",
+      "sha256": "7b5458fb27a1cd4ac5e57f93b44011b60c256e69c75a4d6af78c7691dac3b696",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "outer consumes initializer instead of inner final",
+        "owner": "Result0",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "ad56a9773346e314ea44ac332a65111ecb64ed0bfcf384102760919862760ae6"
+    },
+    {
+      "id": "H1-02",
+      "sha256": "9f63022dda18f258d6294adad3b1352bee0fefe4ad8caa47744706e82858abb0",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "1267a2c7897969c878ff67234628ec27fe0ce2534f6855cb5d5dd70ddd74f83d"
+    },
+    {
+      "id": "H1-04",
+      "sha256": "fd208dd3e3b8334ad493e7563df5f034656b14cc5debef144df6e2c522204cb5",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "ae754e3bb42a79ba988145d61c2807c65df54b2c4b8ef324edf6a423e0b9c6cf"
+    },
+    {
+      "id": "H1-05",
+      "sha256": "f3bb9b155d9564d049659228f774c0b3ceb97d7c0a12e5728f4c2bde1a91df78",
+      "status": "BLOCKED_POLYLINE",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'InnerEnd[0,0]', …(6) ] to deeply equal [ 'End0[]', 'End1[]', …(22) ]",
+        "Rust: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [ 'InnerEnd[0,0]', …(6) ] to deeply equal [ 'End0[]', 'End1[]', …(22) ]"
+      ],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "unresolved baseline"
+      },
+      "proofSha256": "6ade56a683ca8292b1ac8c563fcb6da3129d126aebc5f293469915913d91930b"
+    },
+    {
+      "id": "H1-06",
+      "sha256": "83ebc0ac1ae94303ceeb768d3e6f9234b416c17aa8b62922000bd3ea928a34b3",
+      "status": "BLOCKED_POLYLINE",
+      "rustEligible": false,
+      "failures": [
+        "compiler: AssertionError: normally eligible Rust input retains compiled carry plans: expected undefined to be defined",
+        "normal Rust eligibility FALSE; no production request or override",
+        "TS: AssertionError: exact emitted and suppressed geometry owners/occurrences: expected [] to deeply equal [ 'Live::End0[]', …(12) ]"
+      ],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "unresolved baseline"
+      },
+      "proofSha256": "41ef08fd5749af74f3143d91ccf7f8a8c98e67eced958a5d2cd22d3786f9f373"
+    },
+    {
+      "id": "H2-01",
+      "sha256": "aec41844eb520ff9b1adac21edca18e87eac1b2d3e5356f9ab2d29e7980e2bf0",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "5c34648eadab2e1f4a36e461e2c01d0ac4955d043b08b086b81705e5205ab173"
+    },
+    {
+      "id": "H2-02",
+      "sha256": "777657c8b7dec970636ae476261038828b03e0ec722717b6888b4b2bcb33bc33",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "c4d8dca50161120509df2a5616cd300bf9a0edb2772d60b33ba2356bf6f669be"
+    },
+    {
+      "id": "H2-03",
+      "sha256": "a2d2d84adcc048ae880dab7556ea9875ef5db85f167a41a7f7314b38a0636a9c",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "97c6e265d4d46b366105132ef33fce37f67ac8cfbd1b7d18741d7c3e1f0b6ab2"
+    },
+    {
+      "id": "H2-04",
+      "sha256": "04319fc2c1e2b3c793d5b997511d407a13b669c31283f47ef2a5cf3558a87975",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "d98bfa4abf1ba91d09a25bbd61df65f03bdba51ed1f324c68581ebf1179e7b34"
+    },
+    {
+      "id": "H2-05",
+      "sha256": "8c1e64daf0f276cb6f1610eaeac9e3e23a32bd841e7f695a789d93749c5fa70b",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "d527c938fc4960ba315e9900971c84e730392c7989e8a2d713e39bb74bf8a3cc"
+    },
+    {
+      "id": "H2-06",
+      "sha256": "dd58866984b4621407b7443bbdd0460868a7b63c5a255be6a9be31e0859324b7",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "27ac559e69befadbc5d2ddab2b67781cbddf2c54357cd9ed161da67b7726e9de"
+    },
+    {
+      "id": "H1-00-control",
+      "sha256": "137531b93236b6acd215b771e56980b45e97b60415a4aa7516476acd2bf1500a",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "273dab64d9b81e39a425346a750df5079428733a44acdb387d4d60938768f523"
+    },
+    {
+      "id": "H1-04-control",
+      "sha256": "f70c759fc5494b2b98e994b2b2e95a7538b24015cb444dc3a23c6f062e8ed6c9",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "42752a83bf9a173dc421f9324da3c6b567fb3f4444907421bf1aeb14b4fb3683"
+    },
+    {
+      "id": "H2-00-control",
+      "sha256": "639745a55ee254f7e62157dcf7868d20ce11f472e1508a0c41ee10cd962a7408",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "23b21081a5efd7777145c6b3782cec142b5fca8a2a89f89fbc549472229a1470"
+    },
+    {
+      "id": "H2-04-control",
+      "sha256": "8431d9772ebcf282352ef9bae3bda2ef2354a1d178e9e05984653039d32752a9",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "9d13203f8003025450a21570e72c7f5726305ff73d7072cb7e74f15bbdde96a5"
+    }
+  ],
+  "quota": "UNAVAILABLE",
+  "fullAcceptance": false,
+  "remainingUnconfirmedHypothesis": "Pure immutable line seed feeding a root zero-loop carry alias can still be released in the wrong order; the extra reducer is not equivalent to the frozen drawable-seed case and is not counted as a new family."
+}
