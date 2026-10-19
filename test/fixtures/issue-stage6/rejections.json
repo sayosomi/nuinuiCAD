@@ -1,0 +1,474 @@
+[
+  {
+    "id": "O-01-S",
+    "sha256": "899d028774136c1da94b6d6b251837f0361bdcbac03697bf927d4634422568bb",
+    "source": "nui 1\nconst Unit: number = 4\nconst Delta: number = 8\nconst Ticks: number[] = [-4,-12]\nmodule Box(Seed: number) {\nconst Private: point = if (@Seed > 0) { coordinate(x: @Seed / 0, y: 0) } else { coordinate(x: @Seed + 5, y: 8) }\nexport point Mark = from(source: @Private)\n}\nfor Tick in @Ticks {\ninstance Live = Box(Seed: @Tick)\npoint Consumer = from(source: @Live::Mark)\n}\npoint Survivor = coordinate(x: @Unit + @Delta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 26,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 78,
+              "to": 80
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 29,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 81,
+              "to": 84
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  },
+  {
+    "id": "O-01-T",
+    "sha256": "3d7a2df5c15e90e0d912cd17cf8b1f2e26711395b30d52fd14e6d3736582e724",
+    "source": "nui 1\nconst TwinDelta: number = 8\nconst TwinUnit: number = 4\nconst TwinPadding: number = @TwinUnit + @TwinDelta\nconst TwinTicks: number[] = [-4,-12]\nmodule TwinBox(TwinSeed: number) {\nconst TwinPrivate: point = if (@TwinSeed > 0) { coordinate(x: @TwinSeed / 0, y: 0) } else { coordinate(x: @TwinSeed + 5, y: 8) }\nconst TwinSend: point = @TwinPrivate\nexport point TwinMark = from(source: @TwinSend)\n}\nfor TwinTick in @TwinTicks {\ninstance TwinLive = TwinBox(TwinSeed: @TwinTick)\npoint TwinConsumer = from(source: @TwinLive::TwinMark)\n}\npoint TwinSurvivor = coordinate(x: @TwinUnit + @TwinDelta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 30,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 141,
+              "to": 143
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 33,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 144,
+              "to": 147
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  },
+  {
+    "id": "O-03-S",
+    "sha256": "8c886696860709709084a5b889a94e4f7a4db7b333c1db7b4f1da59119e6fbf0",
+    "source": "nui 1\nconst Unit: number = 11\nconst Delta: number = 15\nconst Ticks: number[] = [-11,-26]\nmodule Box(Seed: number) {\nconst Side: choice(positive, negative) = if (@Seed > 0) { positive } else { negative }\nconst Private: point = match @Side { positive => coordinate(x: @Seed / 0, y: 0) negative => coordinate(x: @Seed + 3, y: 15) }\nexport point Mark = from(source: @Private)\n}\nfor Tick in @Ticks {\ninstance Live = Box(Seed: @Tick)\npoint Consumer = from(source: @Live::Mark)\n}\npoint Survivor = coordinate(x: @Unit + @Delta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 26,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 80,
+              "to": 83
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 30,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 84,
+              "to": 87
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  },
+  {
+    "id": "O-03-T",
+    "sha256": "e7d2acd2ac15861ab63f62f216154be0aae02e3abfc91b2b2c7ab824db3418c3",
+    "source": "nui 1\nconst TwinDelta: number = 15\nconst TwinUnit: number = 11\nconst TwinPadding: number = @TwinUnit + @TwinDelta\nconst TwinTicks: number[] = [-11,-26]\nmodule TwinBox(TwinSeed: number) {\nconst TwinSide: choice(positive, negative) = if (@TwinSeed > 0) { positive } else { negative }\nconst TwinPrivate: point = match @TwinSide { positive => coordinate(x: @TwinSeed / 0, y: 0) negative => coordinate(x: @TwinSeed + 3, y: 15) }\nconst TwinSend: point = @TwinPrivate\nexport point TwinMark = from(source: @TwinSend)\n}\nfor TwinTick in @TwinTicks {\ninstance TwinLive = TwinBox(TwinSeed: @TwinTick)\npoint TwinConsumer = from(source: @TwinLive::TwinMark)\n}\npoint TwinSurvivor = coordinate(x: @TwinUnit + @TwinDelta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 30,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 143,
+              "to": 146
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 34,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 147,
+              "to": 150
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  },
+  {
+    "id": "O-05-S",
+    "sha256": "c50ac80c4f24a6184de30423ed8a845c855e3aa4c41d5088752127250134601d",
+    "source": "nui 1\nconst Unit: number = 26\nconst Delta: number = 12\nconst Ticks: number[] = [-26,-38,-50]\nmodule Box(Seed: number) {\nconst Private: point = if (@Seed > 0) { coordinate(x: @Seed / 0, y: 0) } else { coordinate(x: @Seed + 5, y: 12) }\nexport point Mark = from(source: @Private)\n}\nfor Tick in @Ticks {\ninstance Live = Box(Seed: @Tick)\npoint Consumer = from(source: @Live::Mark)\n}\npoint Survivor = coordinate(x: @Unit + @Delta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 26,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 80,
+              "to": 83
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 30,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 84,
+              "to": 87
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 34,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 88,
+              "to": 91
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  },
+  {
+    "id": "O-05-T",
+    "sha256": "e3657860c9c94645684e46da1f4abd4ce704c8ac8bf274523febec61c16c0f58",
+    "source": "nui 1\nconst TwinDelta: number = 12\nconst TwinUnit: number = 26\nconst TwinPadding: number = @TwinUnit + @TwinDelta\nconst TwinTicks: number[] = [-26,-38,-50]\nmodule TwinBox(TwinSeed: number) {\nconst TwinPrivate: point = if (@TwinSeed > 0) { coordinate(x: @TwinSeed / 0, y: 0) } else { coordinate(x: @TwinSeed + 5, y: 12) }\nconst TwinSend: point = @TwinPrivate\nexport point TwinMark = from(source: @TwinSend)\n}\nfor TwinTick in @TwinTicks {\ninstance TwinLive = TwinBox(TwinSeed: @TwinTick)\npoint TwinConsumer = from(source: @TwinLive::TwinMark)\n}\npoint TwinSurvivor = coordinate(x: @TwinUnit + @TwinDelta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 30,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 143,
+              "to": 146
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 34,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 147,
+              "to": 150
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 38,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 151,
+              "to": 154
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  },
+  {
+    "id": "O-07-S",
+    "sha256": "dee66b7d03739759814ffa2d231d0f848703a1608b2126f1c90c7adf4dab6e1a",
+    "source": "nui 1\nconst Unit: number = 13\nconst Delta: number = 7\nconst Ticks: number[] = [-13,-20,-27]\nmodule Box(Seed: number) {\nconst Side: choice(positive, negative) = if (@Seed > 0) { positive } else { negative }\nconst Private: point = match @Side { positive => coordinate(x: @Seed / 0, y: 0) negative => coordinate(x: @Seed + 8, y: 7) }\nexport point Mark = from(source: @Private)\n}\nfor Tick in @Ticks {\ninstance Live = Box(Seed: @Tick)\npoint Consumer = from(source: @Live::Mark)\n}\npoint Survivor = coordinate(x: @Unit + @Delta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 26,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 79,
+              "to": 82
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 30,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 83,
+              "to": 86
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 34,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 87,
+              "to": 90
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  },
+  {
+    "id": "O-07-T",
+    "sha256": "eadc31bc9281d687924610f40201537cde6c37f6f92551e617b20ad3dae3dbf4",
+    "source": "nui 1\nconst TwinDelta: number = 7\nconst TwinUnit: number = 13\nconst TwinPadding: number = @TwinUnit + @TwinDelta\nconst TwinTicks: number[] = [-13,-20,-27]\nmodule TwinBox(TwinSeed: number) {\nconst TwinSide: choice(positive, negative) = if (@TwinSeed > 0) { positive } else { negative }\nconst TwinPrivate: point = match @TwinSide { positive => coordinate(x: @TwinSeed / 0, y: 0) negative => coordinate(x: @TwinSeed + 8, y: 7) }\nconst TwinSend: point = @TwinPrivate\nexport point TwinMark = from(source: @TwinSend)\n}\nfor TwinTick in @TwinTicks {\ninstance TwinLive = TwinBox(TwinSeed: @TwinTick)\npoint TwinConsumer = from(source: @TwinLive::TwinMark)\n}\npoint TwinSurvivor = coordinate(x: @TwinUnit + @TwinDelta, y: 0)\n",
+    "status": "fatal",
+    "diagnostics": [
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 30,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 142,
+              "to": 145
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 34,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 146,
+              "to": 149
+            }
+          ],
+          "sourceRevision": 1
+        }
+      },
+      {
+        "severity": "error",
+        "line": 5,
+        "column": 38,
+        "code": "array-invalid-member",
+        "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。",
+        "presentation": {
+          "key": "diagnostic.array-invalid-member"
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 150,
+              "to": 153
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "disposition": "CONTRACT-INVALID"
+  }
+]

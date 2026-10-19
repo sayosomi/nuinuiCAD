@@ -1,0 +1,28 @@
+{
+  "focused": {
+    "stage6": {
+      "files": 1,
+      "tests": 52,
+      "status": "PASS"
+    },
+    "stage3_4_5": {
+      "files": 4,
+      "tests": 213,
+      "status": "PASS"
+    },
+    "test_harness_typecheck": "PASS",
+    "focused_eslint": "PASS"
+  },
+  "finalMandatoryResults": "See the final execution checkpoint on GitHub Issue #1426 and external mandatory.log; recorded after the final tree was frozen.",
+  "mandatoryCommands": [
+    "npm run build",
+    "npm run lint",
+    "npm run test:parity",
+    "npm test",
+    "npm run docs:dsl:check"
+  ],
+  "rustSourceChanged": false,
+  "conditionalRustFullGate": "NOT_REQUIRED: no Rust source change",
+  "humanManualE2E": "Not Required for this compiler/evaluator-only scope",
+  "independentBlockingReview": "Required on final exact pushed HEAD; not self-approved"
+}
