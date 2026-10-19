@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "issue": "sayosomi/nuinuiCAD#1421",
+  "phase": "Harness repair checkpoint only",
+  "base": "bab8313ae08f5e354a6cfd9d7b2ffb8177a15bc2",
+  "preservedCheckpoint": "dc5c276c1c7ac0dc5755cc6b5313719eab7cdba2",
+  "pilotSha256": "008a55cfd0732f03ce8d891623b1421a80ca8554bff3b58bdc220073611db7b1",
+  "acceptedPilotSources": 36,
+  "globalAcceptedExploratorySources": 48,
+  "frozenOrder": [
+    "E-A-00/S",
+    "E-A-00/T",
+    "E-A-01/S",
+    "E-A-01/T",
+    "E-B-00/S",
+    "E-B-00/T",
+    "E-B-01/S",
+    "E-B-01/T",
+    "E-C-00/S",
+    "E-C-00/T",
+    "E-C-01/S",
+    "E-C-01/T",
+    "C-A-00/S",
+    "C-A-00/T",
+    "C-A-01/S",
+    "C-A-01/T",
+    "C-B-00/S",
+    "C-B-00/T",
+    "C-B-01/S",
+    "C-B-01/T",
+    "C-C-00/S",
+    "C-C-00/T",
+    "C-C-01/S",
+    "C-C-01/T",
+    "D-A-00/S",
+    "D-A-00/T",
+    "D-A-01/S",
+    "D-A-01/T",
+    "D-B-00/S",
+    "D-B-00/T",
+    "D-B-01/S",
+    "D-B-01/T",
+    "D-C-00/S",
+    "D-C-00/T",
+    "D-C-01/S",
+    "D-C-01/T"
+  ],
+  "prevalidation": {
+    "compilerValid": 36,
+    "distinct": 36,
+    "shapeValid": 36,
+    "closedFormOracleAgreement": 36,
+    "reproducibleFreeze": true
+  },
+  "latestVerification": {
+    "freezeExitCode": 0,
+    "pilotExitCode": 1,
+    "testCounts": {
+      "passed": 12,
+      "failed": 7
+    },
+    "sourceCounts": {
+      "PASS": 25,
+      "UNRESOLVED": 11
+    },
+    "runs": [
+      {
+        "mode": "freeze",
+        "started": 1792383041488,
+        "ended": 1792383041689,
+        "elapsedMs": 201,
+        "counts": {
+          "compiler": 36,
+          "reference": 0,
+          "production": 0
+        },
+        "uniqueAccepted": 48
+      },
+      {
+        "mode": "pilot",
+        "started": 1792383053177,
+        "ended": 1792383055002,
+        "elapsedMs": 1825,
+        "counts": {
+          "compiler": 36,
+          "reference": 96,
+          "production": 96
+        },
+        "uniqueAccepted": 48
+      }
+    ]
+  },
+  "historicalPilotComparable": false,
+  "newConfirmedDefectFamilies": 0,
+  "newFixedDefectFamilies": 0,
+  "productSourcesChanged": false,
+  "adaptiveSelectionMade": false,
+  "sensitivityHoldouts": "DEFERRED: full Stage 4 campaign is outside this continuation",
+  "platformBlockers": [],
+  "rawEvidenceDirectories": [
+    "/tmp/issue1421-harness-repair",
+    "/tmp/issue1421-harness-corrected",
+    "/tmp/issue1421-harness-final",
+    "/tmp/issue1421-harness-repeat",
+    "/tmp/issue1421-harness-checkpoint"
+  ],
+  "verificationGaps": [
+    "F01/F04 holdouts and method effectiveness selection remain pending.",
+    "No independent minimized product reproduction or producer repair is claimed.",
+    "Import/generation/oracle effort and total agent token usage were not measured."
+  ]
+}

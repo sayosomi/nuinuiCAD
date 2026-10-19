@@ -6,6 +6,7 @@ export type Method = "A" | "B" | "C";
 export type Candidate = {
   id: string; stratum: Stratum; method: Method; variant: number; seed: number;
   member: "S" | "T"; program: Program; activation: string[];
+  oracleInputs: { unit: number; delta: number; factor: number };
   limits?: { placement: string; through?: string; expected: Program; instances: string[] }[];
 };
 export const matrix = [..."ECD"].flatMap(s => [..."ABC"].flatMap(m => [0, 1, 2, 3].map(v => `${s}-${m}-0${v}`)));
@@ -21,7 +22,7 @@ export function pair(id: string): Candidate[] {
   return (["S", "T"] as const).map(member => {
     const alias = member === "T" && variant % 2 === 1;
     const p = blank(), code = ["nui 1", `const Unit: number = ${u}`, `const Delta: number = ${d}`];
-    const c: Candidate = { id, stratum, method, variant, seed, member, program: p, activation: [] };
+    const c: Candidate = { id, stratum, method, variant, seed, member, program: p, activation: [], oracleInputs: { unit: u, delta: d, factor: f } };
     if (alias) code.push("const Padding: number = @Unit + @Delta");
     if (stratum === "E") {
       // The failed third instance is an atomicity contrast in every source.
@@ -29,7 +30,10 @@ export function pair(id: string): Candidate[] {
       if (method === "A") code.push("const Chosen: point = if (@Origin > 0) { coordinate(x: @Origin + 2, y: 7) } else { coordinate(x: 1 / 0, y: 0) }");
       if (method === "B") code.push("const FirstChoice: number = @Origin + 2", "const Choices: number[] = if (@Origin > 0) { [@FirstChoice, 7] } else { [] }", "const Chosen: point = coordinate(x: @Choices[0], y: @Choices[1])");
       if (method === "C") code.push(`const Chosen: point = coordinate(x: @Origin + ${f}, y: ${d})`);
-      code.push(...(alias ? ["const Send: point = @Chosen", "export point Mark = from(source: @Send)"] : ["export point Mark = from(source: @Chosen)"]), "point Fault(enabled: @Fail) = coordinate(x: 1 / 0, y: 0)", "}");
+      // Drawable header options are not the instance/group option syntax.
+      // Use a legal conditional owner, rather than accidentally naming a point
+      // "Fault(enabled: @Fail)" and evaluating it in every instance.
+      code.push(...(alias ? ["const Send: point = @Chosen", "export point Mark = from(source: @Send)"] : ["export point Mark = from(source: @Chosen)"]), "if (@Fail) {", "point Fault = coordinate(x: 1 / 0, y: 0)", "}", "}");
       const origins = [u, u + d + 13];
       for (const [i, name] of ["One", "Two"].entries()) {
         code.push(`instance ${name} = Box(Origin: ${origins[i]}, Fail: false)`);
@@ -106,6 +110,7 @@ export function pair(id: string): Candidate[] {
       if (selected) p.diagnosticBindings.Chosen = "evaluation-divide-by-zero";
       if (alias) { p.scalars.Forwarded = p.scalars.Chosen; if (selected) p.diagnosticBindings.Forwarded = "evaluation-divide-by-zero"; }
       p.geometry = [{ name: "Surviving", value: point(u, d) }];
+      p.absent = ["Mark"];
       if (!selected) p.geometry.push({ name: "Dependent", value: point(u + d, 5) });
       p.errors = selected ? ["IndependentErrorPoint", "Dependent"] : ["IndependentErrorPoint"];
       c.activation = [selected ? "selected-failure" : "unselected-failure-control", "independent-scalar-geometry-errors", method === "B" || variant === 3 ? "disabled-ancestor" : "disabled-Module", "diagnostic-owner-routing"];
@@ -119,6 +124,9 @@ export function pair(id: string): Candidate[] {
         p.geometry = p.geometry.map(o => ({ ...o, name: rename(o.name) }));
         p.templates = p.templates.map(rename); p.carries = p.carries.map(rename); p.errors = p.errors.map(rename);
         p.diagnosticBindings = Object.fromEntries(Object.entries(p.diagnosticBindings).map(([k, v]) => [rename(k), v]));
+        p.absent = p.absent.map(rename);
+        const state = (v: Record<string, unknown>) => Object.fromEntries(Object.entries(v).map(([k, value]) => [rename(k), value]));
+        p.trace = p.trace.map(row => ({ ...row, loop: rename(row.loop), incoming: state(row.incoming), next: state(row.next), final: state(row.final) }));
       };
       transform(p);
       const lines = p.source.split("\n"); [lines[1], lines[2]] = [lines[2], lines[1]]; p.source = lines.join("\n");
