@@ -1,0 +1,379 @@
+[
+  {
+    "sha256": "084a4dc8b7a337fde498fc2bef3f3bc4f010a576692f83a7742bae1673fdaf95",
+    "id": "H2-01",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "11141abb2140e3d2c97d4dd49723a18d95c0029b3d6d0820476ecec9d47fa929",
+    "id": "H1-00",
+    "codes": [
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "2b4622df9d507ded66082c0fca9ef390c2f45e2874472cd56d2777a89c5869ee",
+    "id": "H2-04-control",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "41a7f65ea5a3fd43f069d4da7985cd906709fff1cb9424633df76df0bbc634b5",
+    "id": "H1-05",
+    "codes": [
+      "construction-category-mismatch",
+      "geometry-array-member-not-geometry",
+      "geometry-array-member-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "4614ff195ea3131ed15d94eb7cd2b4444f6928b013519754d6bc7b41a294260f",
+    "id": "H1-05",
+    "codes": [
+      "module-geometry-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "540a091385846390655123476c3848ec6685ad818507f9dbad5348aa453c1b45",
+    "id": "H2-04-control",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "548685502c3aeb1fbb6e95b4b4b1ce3d6265f6333c9f835238edbb6cb20a9f5a",
+    "id": "H2-01",
+    "codes": [
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "575623c4816df17991cffd701f755cfcfe47d25176379bfb8126327d62f32394",
+    "id": "H2-04",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "5aa42141c22391928792087d9d6c63a5d6e2652e09e474c79666a012a6cb508e",
+    "id": "H2-03",
+    "codes": [
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "5cea86efcb90a4fd536f422f06de2910565a89a5e3a30c2402cea55e6aefd2ac",
+    "id": "H1-06",
+    "codes": [
+      "construction-category-mismatch",
+      "geometry-array-member-not-geometry",
+      "geometry-array-member-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "5d09c90bd98ddd112457826f97701f4e2933d6c6d0e24dd22a47d7d60b7f80a8",
+    "id": "H1-07",
+    "codes": [
+      "module-unknown-geometry-property"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "6cc944176f2649ed66ecdf708930e8f53c7044fa2c5f49ee9c529443ca37d168",
+    "id": "H2-05",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "70471409bd6b45557b2bde45fca07865ef91e9f40d600eabdecad0efa87b434d",
+    "id": "H2-00",
+    "codes": [
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "72c05e36e1861872e96f95bd052f735d4aaab5fe91cf1a44f287fb4ce93cc738",
+    "id": "H1-07",
+    "codes": [
+      "construction-category-mismatch",
+      "geometry-array-member-not-geometry",
+      "geometry-array-member-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "74631d0ea5ff2928075780be289ad178edd4cd0b96fa455d795ea10505ba743c",
+    "id": "H1-04",
+    "codes": [
+      "module-geometry-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "78a246c694d2a23cb499500d633c335d39a9247dcf1c820b4ff51b6427554471",
+    "id": "H2-02",
+    "codes": [
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "8cbc29a3b7942a69fa9f13e592ce44e32aaf0b41c4df96ea70f1a7f515711e3f",
+    "id": "H2-00",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "8e248867302daf63501323f3351cfc9fdbc6447a7df3de360acf9a40a6d6ced6",
+    "id": "H1-04-control",
+    "codes": [
+      "module-geometry-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "92c910e9cf744eccc1b3de6cfd50a44a71b85e71d91eb3ba4dea6aaebe5ce74b",
+    "id": "H1-06",
+    "codes": [
+      "module-unknown-geometry-property"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "9304f669e972f2708679274c0d9addfd3ac5460aee9a1aa13613ef0e7ad6d4ef",
+    "id": "H2-00-control",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "9528f200aa1255e309389e6e9b4d7436c534def55d080cf3fcd6a2ce0e787624",
+    "id": "H1-07",
+    "codes": [
+      "module-geometry-property-type-mismatch",
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "95979e6fdf767ccc1a0d1600ea764996c61b4aded2c5d8016135f9b4d90dd13e",
+    "id": "H2-07",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "9a1ce3c3359a4480b775884a83f307f7d82f3c1377db8017ffa1713e32f44aec",
+    "id": "H2-07",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "9e2158890f1c7f67ae50f465ca0622d916300a0f6791cee0cb25c02dc0a5e636",
+    "id": "H2-04",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "a0f8ed0109e2869975676638eec70b7bda62ff3e26cb78257b4cb6d9d31de1f9",
+    "id": "H1-06",
+    "codes": [
+      "module-geometry-property-type-mismatch",
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "a477eecb8170e0679120e0335abd30dadff3b51b7106b6fa5ebd4a9ebde2f252",
+    "id": "H2-00-control",
+    "codes": [
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "a4da83ed9eba1b221c2440db1be066fc3d38e8090da71da7210a2547b6d0a201",
+    "id": "H1-03",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "a575883b79492dd90c855d6e2c057426f48e198b6702232dda89ee6b3ce8469c",
+    "id": "H1-01",
+    "codes": [
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "a7c2d846130c5dc3e7c7dd380810cf9a1c3d9763563dbccf05c4a05ed3cec53b",
+    "id": "H1-00",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "numeric-binding-unresolved"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "a93ac64e8e76ee2277bed3d72f7d2d510a21fb10bcf3cb0426da3fd8294a3286",
+    "id": "H2-06",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "afc134bcacc8d577f8c6442691c7dc4f9a4db5d72333f4dfbb89d943b0c51b0d",
+    "id": "H2-03",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "b39dff49a56fcd9ab0779efb2d2a4e8cce549f8c9e723d1878689300e40457f9",
+    "id": "H2-05",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "c32369d3d4725a69b5894b08006cb66fbb7e06ff6937c9e059757080e2b64a14",
+    "id": "H1-06",
+    "codes": [
+      "module-unknown-geometry-property"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "c9996231f2275282f0b205fc3c087d3e81c07d516b4b92d547f7674094a0514c",
+    "id": "H2-02",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "ca64a9bfb246ffc117be25b78f4bf438b2860bf7ae237c6eca2b5df37df5f2be",
+    "id": "H1-03",
+    "codes": [
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "cfc9b6c3f653fa5483b0d71f817094037d5ab595e4062745359a1cf53726c0d5",
+    "id": "H1-04",
+    "codes": [
+      "construction-category-mismatch",
+      "geometry-array-member-not-geometry",
+      "geometry-array-member-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "d144affc76ac385a5a9fdd5f39341a53239e6c861c6aee2868f47ef111b8837b",
+    "id": "H1-02",
+    "codes": [
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "d5d359d94296ad01b39463df6739d15ece087b6a180116ad53c8408e15e4c386",
+    "id": "H1-07",
+    "codes": [
+      "module-unknown-geometry-property"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "db175e2fa920f050a5a8a205924b10b1f8f512135d2e60f07ccb05b15db2017c",
+    "id": "H2-06",
+    "codes": [
+      "geometry-array-invalid-member",
+      "geometry-array-member-not-geometry"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "db6ca5d28ef2652444fa01eb47d60a7e6c7be314feca691765484c0fbe1d7009",
+    "id": "H1-01",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "numeric-binding-unresolved"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "ef0fe7d9da1fdf72b5673cf1a55275c4596d4f97bc245e3c079cb812b02cf6e4",
+    "id": "H1-04-control",
+    "codes": [
+      "construction-category-mismatch",
+      "geometry-array-member-not-geometry",
+      "geometry-array-member-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "f7de5ac59abc42d59f0689f3affd33dbde73e5c9dfc56f0cfe213f0fd43c9b7c",
+    "id": "H1-00-control",
+    "codes": [
+      "module-geometry-type-mismatch"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  },
+  {
+    "sha256": "f8e3388ab7e4921244787f174cbb463731558af70a1e10ada3cb6f9bd56503fa",
+    "id": "H1-02",
+    "codes": [
+      "module-geometry-type-mismatch",
+      "module-undefined-reference"
+    ],
+    "classification": "PREVALIDATION_REJECTED; no runtime PASS or confirmed defect"
+  }
+]

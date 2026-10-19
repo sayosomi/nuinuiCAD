@@ -306,7 +306,7 @@ export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<Geome
     return {
       kind: "geometryValue",
       occurrence: alias.occurrence,
-      geometryType: alias.interfaceType === "path" ? "path" : alias.geometryType,
+      geometryType: alias.pointKey ? "point" : alias.interfaceType === "path" ? "path" : alias.geometryType,
       ...(alias.pointKey ? { pointKey: alias.pointKey } : {}),
       ...(alias.stagePath ? { stagePath: alias.stagePath } : {})
     };
@@ -315,7 +315,7 @@ export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<Geome
     return {
       kind: "geometryValueMapPending",
       occurrence: alias.occurrence,
-      geometryType: alias.interfaceType === "path" ? "path" : alias.geometryType,
+      geometryType: alias.pointKey ? "point" : alias.interfaceType === "path" ? "path" : alias.geometryType,
       source: alias.source,
       mapValueId: alias.mapValueId,
       binderId: alias.binderId,

@@ -14,7 +14,9 @@ pub(crate) type GeometryInputTargets =
 
 const PENDING_GEOMETRY_MAP_BINDER_ID: &str = "pending-geometry-map-binder";
 
-fn geometry_collection_match_arm_label(evaluation: ScalarEvaluation) -> Result<String, String> {
+pub(crate) fn geometry_collection_match_arm_label(
+    evaluation: ScalarEvaluation,
+) -> Result<String, String> {
     match evaluation {
         ScalarEvaluation::Ok {
             r#type: ScalarType::Choice { .. },
@@ -181,10 +183,12 @@ fn resolve_geometry_collection_endpoint_node_member(
                     point_key: point_key.clone(),
                     stage_path: None,
                 }),
+                GeometryInputTarget::Coordinate { anchor } => Ok(GeometryInputTarget::Coordinate {
+                    anchor: anchor.clone(),
+                }),
                 GeometryInputTarget::CollectionValue { .. }
                 | GeometryInputTarget::CollectionIndex { .. }
-                | GeometryInputTarget::ForGroupOccurrence { .. }
-                | GeometryInputTarget::Coordinate { .. } => {
+                | GeometryInputTarget::ForGroupOccurrence { .. } => {
                     Err("evaluation-collection-index-unavailable".to_owned())
                 }
             }
@@ -1350,8 +1354,13 @@ pub(crate) fn decode_geometry_input_targets(
 }
 
 fn is_point_anchor_parameter(element: &Value, parameter_key: &str) -> bool {
-    (parameter_key == "source"
-        && element.get("type").and_then(Value::as_str) == Some("materializedPoint"))
+    (element.get("type").and_then(Value::as_str) == Some("polyline")
+        && parameter_key
+            .strip_prefix("points:")
+            .and_then(|index| index.parse::<usize>().ok())
+            .is_some())
+        || (parameter_key == "source"
+            && element.get("type").and_then(Value::as_str) == Some("materializedPoint"))
         || matches!(
             parameter_key,
             "points"
@@ -2054,7 +2063,18 @@ pub(crate) fn materialize_geometry_input_targets_for_runtime(
                         is_point_anchor_parameter(element, parameter_key),
                     )
                 }) {
-                    if let Some(object) = element.as_object_mut() {
+                    if let Some(index) = parameter_key
+                        .strip_prefix("points:")
+                        .and_then(|index| index.parse::<usize>().ok())
+                    {
+                        if let Some(point) = element
+                            .get_mut("points")
+                            .and_then(Value::as_array_mut)
+                            .and_then(|points| points.get_mut(index))
+                        {
+                            *point = anchor;
+                        }
+                    } else if let Some(object) = element.as_object_mut() {
                         object.insert(parameter_key.clone(), anchor);
                     }
                 }

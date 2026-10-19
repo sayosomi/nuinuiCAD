@@ -1,0 +1,123 @@
+{
+  "initialCheckpoint": {
+    "status": "BLOCKED; final implementation did not stabilize",
+    "compilerOnlyInitial20": "PASS before freeze and first evaluator execution",
+    "checkpointCompilerOnly": "PASS 20/20; 2026-10-19 23:32 JST; no evaluator started",
+    "scopedEslint": "PASS",
+    "commands": [
+      {
+        "command": "npx vitest run test/issue1428TargetedStage7Rust.integration.test.ts",
+        "result": "FINAL_EXACT_COMMAND_NOT_RUN; original ISSUE1428_MODE=baseline invocation FAIL; second baseline attempt native SIGABRT; final prevalidate mode PASS"
+      },
+      {
+        "command": "npm run build",
+        "result": "NOT_RUN: resource hard stop before stabilized implementation"
+      },
+      {
+        "command": "npm run lint",
+        "result": "PASS"
+      },
+      {
+        "command": "npm run test:parity",
+        "result": "NOT_RUN: native resource hard stop"
+      },
+      {
+        "command": "npm test",
+        "result": "NOT_RUN: native resource hard stop; strict Stage 7 default remains failing"
+      },
+      {
+        "command": "npm run docs:dsl:check",
+        "result": "NOT_RUN: no product/doc contract change; final campaign gate not reached"
+      },
+      {
+        "command": "cargo fmt --manifest-path rust-evaluator/Cargo.toml -- --check",
+        "result": "NOT_APPLICABLE: conditional Rust source diff empty"
+      },
+      {
+        "command": "cargo check --manifest-path rust-evaluator/Cargo.toml",
+        "result": "NOT_APPLICABLE: conditional Rust source diff empty"
+      },
+      {
+        "command": "cargo test --manifest-path rust-evaluator/Cargo.toml",
+        "result": "NOT_APPLICABLE: conditional Rust source diff empty"
+      },
+      {
+        "command": "cargo clippy --manifest-path rust-evaluator/Cargo.toml -- -D warnings",
+        "result": "NOT_APPLICABLE: conditional Rust source diff empty"
+      },
+      {
+        "command": "directly affected Stage 3–6 and PR #1358/#1359/#1360 controls",
+        "result": "NOT_RUN: hard stop before repairs and regression gate"
+      },
+      {
+        "command": "git diff --check and staged diff review",
+        "result": "PASS recorded at commit boundary"
+      }
+    ],
+    "sensitivity": {
+      "H1": "NOT_COVERED",
+      "H2": "NOT_COVERED"
+    },
+    "quota": "UNAVAILABLE",
+    "productSourceChanges": false
+  },
+  "continuation": {
+    "status": "BLOCKED: excluded parameters owner required",
+    "checks": {
+      "focused": "FAIL: 30 passed/4 failed; H1-05/06/07 and R-polyline-inline; no native crash",
+      "build": "PASS",
+      "lint": "PASS",
+      "parity": "PASS: 203 tests",
+      "fullNpmTest": "FAIL: 1 failed/667 passed/2 skipped files; 4 failed/10535 passed/157 skipped tests. All failures are the four known Stage 7 polyline cases.",
+      "dslReference": "PASS",
+      "rustFmt": "PASS",
+      "rustCheck": "PASS",
+      "rustFocused": "PASS: 37 for_group tests",
+      "rustTest": "PASS: 614 library + 6 stdio + 1 integration; 9 ignored library tests",
+      "rustClippy": "PASS",
+      "rustClippyAllTargets": "PASS",
+      "diffCheck": "PASS",
+      "historical": "PASS within full npm test: Stage 3 issue1419; Stage 4 issue1421 strategy/sensitivity; Stage 5 issue1423; Stage 6 issue1426; geometryInputTargetOverlay, geometryCarryNextEndpointProjection, moduleGeometryCollectionCarry (#1358/#1359/#1360). No historical frozen fixture changed.",
+      "manualE2E": "Not Required"
+    },
+    "fullSuiteRuns": 1,
+    "frozenAcceptanceComplete": false
+  },
+  "currentPhase": "completion",
+  "completion": {
+    "status": "LOCAL_ACCEPTANCE_PASS; independent review and protected PR/CI pending",
+    "checks": {
+      "focused": "PASS: exact required entry point, 40 tests; combined projection/campaign verification 42 tests",
+      "build": "PASS",
+      "lint": "PASS: final npm run lint and focused source/summary lint",
+      "parity": "PASS: 203 tests",
+      "fullNpmTest": "PASS: 669 passed/2 skipped files; 10547 passed/157 skipped tests; zero failures",
+      "firstFullAttempt": "FAIL: 1 new test import boundary violation; 10546 passed/1 failed/157 skipped; 668 passed/1 failed/2 skipped files. Changed the test to use the existing public export. Boundary + projection tests then PASS 8/8; full repetition is required by that real failure, not reassurance.",
+      "dslReference": "PASS",
+      "rustFmt": "PASS",
+      "rustCheck": "PASS",
+      "rustFocused": "PASS: 37 for_group tests",
+      "rustTest": "PASS: 614 library + 6 stdio + 1 integration; 9 ignored library tests",
+      "rustClippy": "PASS: required command and --all-targets -- -D warnings",
+      "historical": "PASS within final full suite: Stage 3 issue1419; Stage 4 issue1421 strategy/sensitivity; Stage 5 issue1423; Stage 6 issue1426; geometryInputTargetOverlay, geometryCarryNextEndpointProjection, moduleGeometryCollectionCarry (#1358/#1359/#1360). Historical frozen fixtures unchanged.",
+      "diffCheck": "PASS",
+      "manualE2E": "Not Required"
+    },
+    "fullSuiteAttemptsThisContinuation": 2,
+    "implementationBlockers": [],
+    "independentReviewAndProtectedCI": "PENDING; do not self-merge or auto-close",
+    "quota": "UNAVAILABLE",
+    "frozenSources": "20/20 normally eligible Rust and TS PASS",
+    "families": {
+      "confirmed": 7,
+      "fixed": 7,
+      "newlyConfirmedThisContinuation": 2,
+      "fixedThisContinuation": 3,
+      "F1RepairRegression": "Corrected; not counted as another novel family"
+    },
+    "sensitivity": {
+      "outputDetectedPerRuntime": 14,
+      "H1NotCoveredZeroInnerOrControl": 6
+    }
+  }
+}

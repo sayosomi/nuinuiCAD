@@ -265,7 +265,7 @@ const pointAnchorInputsForElement = (element: CadElement): { parameterKey: strin
         { parameterKey: "endPoint", anchor: element.endPoint }
       ];
     case "polyline":
-      return element.points.map((anchor) => ({ parameterKey: "points", anchor }));
+      return element.points.map((anchor, index) => ({ parameterKey: `points:${index}`, anchor }));
     case "arcLine":
       return [{ parameterKey: "centerPoint", anchor: element.centerPoint }];
     case "threePointArcLine":

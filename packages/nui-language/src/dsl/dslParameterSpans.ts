@@ -2,7 +2,7 @@ import { getParameterDefinitions } from "../parameters/parameterDefinitions";
 import type { CadElement } from "../types/geometry";
 import { argNameForParameter } from "./dslConstructions";
 import { parseDslCallStatement, type DslCallStatement } from "./dslCallParser";
-import { coordinateComponent, recordFields, recordSpans } from "./dslParameterSpanScanner";
+import { coordinateComponent, recordFields, recordSpans, splitDslTopLevelSpans } from "./dslParameterSpanScanner";
 import type { DslSpan } from "./dslTypes";
 
 export type DslParameterValueSpan = DslSpan & {
@@ -124,6 +124,17 @@ export const resolveParameterValueSpan = (
   if (element.type === "bezierCurve" && parameterKey.startsWith("intermediate:")) {
     if (statement.name !== element.name) return null;
     return resolveIntermediateValueSpan(logicalText, element, parameterKey, statement, context);
+  }
+  if (element.type === "polyline") {
+    const vertex = parameterKey.match(/^points:(0|[1-9]\d*):(x|y)$/);
+    if (vertex) {
+      const list = statement.payloadSpans.points;
+      if (!list || logicalText[list.start] !== "[" || logicalText[list.end - 1] !== "]") return null;
+      const points = splitDslTopLevelSpans(logicalText, { start: list.start + 1, end: list.end - 1 }, ",");
+      const point = points[Number(vertex[1])];
+      const component = point && coordinateComponent(logicalText, point, vertex[2] as "x" | "y");
+      return component ? withParameter(component, "arg", "points", parameterKey) : null;
+    }
   }
 
   const suffix = coordinateSuffix(parameterKey);

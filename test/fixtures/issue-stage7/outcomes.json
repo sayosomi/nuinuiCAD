@@ -1,0 +1,393 @@
+{
+  "status": "LOCAL_ACCEPTANCE_PASS; independent review and protected PR/CI pending",
+  "initialFrozenSources": 20,
+  "PASS": 20,
+  "BLOCKED": 0,
+  "confirmedNovelFamilies": 7,
+  "fixedNovelFamilies": 7,
+  "initialEvidence": "checkpoint.json remains the immutable original BLOCKED checkpoint; original logs indexed in evidence-index.json",
+  "results": [
+    {
+      "id": "H1-03",
+      "sha256": "dabd65fb3c69cbc18c5449e6383082c57a82aa76bfeac7906ad1cb48319db56c",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "outer consumes initializer instead of inner final",
+        "owner": "Live::Result0",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "8914da9f9ab4a12d34d4026c925cc126cf9e79948eb968d07c90273fcd37d90a"
+    },
+    {
+      "id": "H1-07",
+      "sha256": "4dd2125a28c3458e34cabc30d521bbba12a2fe70b0c90a4a469d5dd0ec1ddb51",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "outer consumes initializer instead of inner final",
+        "owner": "Live::Result0",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "9f0350dac3a5e8f7ef57d823dad00c5baa9f582cde9e6d7849e624d6037c782c"
+    },
+    {
+      "id": "H2-00",
+      "sha256": "4630d94cd9ad4617ba7fd6b325e32d78e66b0f35b8de4ab0b0e98b3c59679084",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "2642b8a9aeaac0131e18e0916e76398de5b952bacedbab93aafbd9784828e0d0"
+    },
+    {
+      "id": "H2-07",
+      "sha256": "b962640c89fdfbdcd0c0159b3d3dfc5b0a7dcf814ba819262df19b5ffdf374bb",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "0c1842dff2a7e552414dbe64091e163b74364f9678d57397775584d027472a0b"
+    },
+    {
+      "id": "H1-00",
+      "sha256": "7c45498370221d2f75b0c526b5a39a554e76d1d60fe95674f7697d434eff98e9",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "82f2ba960e4ed5d0d7c0b6a4799f87f3c524af0400ce0d1bdc12b38d99b0e125"
+    },
+    {
+      "id": "H1-01",
+      "sha256": "7b5458fb27a1cd4ac5e57f93b44011b60c256e69c75a4d6af78c7691dac3b696",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "outer consumes initializer instead of inner final",
+        "owner": "Result0",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "68a90daeea18484981715a14e476e256072294bfd980b276c8dd865ec1cda87c"
+    },
+    {
+      "id": "H1-02",
+      "sha256": "9f63022dda18f258d6294adad3b1352bee0fefe4ad8caa47744706e82858abb0",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "1bb710750e128a4164caba1ec5a44b7aa21d273a88bec8bd1c70af709028eee5"
+    },
+    {
+      "id": "H1-04",
+      "sha256": "fd208dd3e3b8334ad493e7563df5f034656b14cc5debef144df6e2c522204cb5",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "136754e99a9de3c1cb4cd34564dcd6d47f728c82b7ba1dcbd92d58a49206abb2"
+    },
+    {
+      "id": "H1-05",
+      "sha256": "f3bb9b155d9564d049659228f774c0b3ceb97d7c0a12e5728f4c2bde1a91df78",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "outer consumes initializer instead of inner final",
+        "owner": "Result0",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "d6265c3c64e8a5008eca8597524ce2f6775673098350e7d93b45d7bfa184fff0"
+    },
+    {
+      "id": "H1-06",
+      "sha256": "83ebc0ac1ae94303ceeb768d3e6f9234b416c17aa8b62922000bd3ea928a34b3",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "c156f2ff84e873277c3f8d4cc5bff03824ba8bf6815e316160554a3b59170490"
+    },
+    {
+      "id": "H2-01",
+      "sha256": "aec41844eb520ff9b1adac21edca18e87eac1b2d3e5356f9ab2d29e7980e2bf0",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "036aff22f5d6608bb9bcc2aec08584342c670644ef3552318c144d8634b73b21"
+    },
+    {
+      "id": "H2-02",
+      "sha256": "777657c8b7dec970636ae476261038828b03e0ec722717b6888b4b2bcb33bc33",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "915c8f4553ab3376659a0d06e5c75f53ec93b4fa5c35cfbec842c087cadaeac9"
+    },
+    {
+      "id": "H2-03",
+      "sha256": "a2d2d84adcc048ae880dab7556ea9875ef5db85f167a41a7f7314b38a0636a9c",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "3a2c95434b26ce3e12828128c40a6c67f1b555bb3b77a7c8a5a56f0f7a8960ab"
+    },
+    {
+      "id": "H2-04",
+      "sha256": "04319fc2c1e2b3c793d5b997511d407a13b669c31283f47ef2a5cf3558a87975",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "eac7bd4e37673f86bc89a32998c5f7e9230dcd2dd29f9f20f83c9cbed25ff7b9"
+    },
+    {
+      "id": "H2-05",
+      "sha256": "8c1e64daf0f276cb6f1610eaeac9e3e23a32bd841e7f695a789d93749c5fa70b",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "2f89634ec05b63902de9898fb811c729d881c6789cea6d9af946bfb0713b398b"
+    },
+    {
+      "id": "H2-06",
+      "sha256": "dd58866984b4621407b7443bbdd0460868a7b63c5a255be6a9be31e0859324b7",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "5348327145ef3dbab9f63d07de6608af6f55533fdf5d97e88699572ad090d309"
+    },
+    {
+      "id": "H1-00-control",
+      "sha256": "137531b93236b6acd215b771e56980b45e97b60415a4aa7516476acd2bf1500a",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "f5bafa6608199f010cf98f3a25050c9a4ec5a27e55ffd22cf4277702320d15e5"
+    },
+    {
+      "id": "H1-04-control",
+      "sha256": "f70c759fc5494b2b98e994b2b2e95a7538b24015cb444dc3a23c6f062e8ed6c9",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "NOT_COVERED",
+        "reason": "zero inner body or adjacent control"
+      },
+      "proofSha256": "07d08c35e6d6c577231f5f24031e3b4e2868f28f0153b10cff9fbe52d7f0de06"
+    },
+    {
+      "id": "H2-00-control",
+      "sha256": "639745a55ee254f7e62157dcf7868d20ce11f472e1508a0c41ee10cd962a7408",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "4b199ab220bce899c089e3dc4b9cba4863023270cbbcad75f1b6a850fc7bd242"
+    },
+    {
+      "id": "H2-04-control",
+      "sha256": "8431d9772ebcf282352ef9bae3bda2ef2354a1d178e9e05984653039d32752a9",
+      "status": "PASS",
+      "failures": [],
+      "rustEligible": true,
+      "sensitivity": {
+        "status": "OUTPUT_DETECTED",
+        "boundary": "collection next loses swapped member identity",
+        "owner": "Two::Mark",
+        "referenceDetected": true,
+        "productionDetected": true
+      },
+      "proofSha256": "d86f6ef5ca5ee9837c0c6c0f999e5541e5ddd45beb6431eaf2fde8179e10b4bf"
+    }
+  ],
+  "quota": "UNAVAILABLE",
+  "fullAcceptance": "Local implementation/verification recorded in verification.json; no self-merge or Issue closure. Independent review and protected PR/CI remain external gates.",
+  "remainingUnconfirmedHypothesis": "A separately authorized future probe could test deferred immutable point/path endpoint references in Bezier intermediate anchors inside Module path collections: dslApplyArgs still calls anchor(point) without an intermediate slot key. This source-level hypothesis is unconfirmed and outside this closed matrix; no eighth family is claimed.",
+  "reducers": [
+    {
+      "id": "R-snapshot-root-1",
+      "status": "PASS",
+      "sha256": "887f30b4c19809b46833ebabda48ffbd2b1fd2fabe2622e50186e43f9c2317c5"
+    },
+    {
+      "id": "R-snapshot-root-0",
+      "status": "PASS",
+      "sha256": "b9930f268c8d3e51a6ca902e406cc61e0aeb3c13ac134f22d129bdba63636cfa"
+    },
+    {
+      "id": "R-snapshot-module-1",
+      "status": "PASS",
+      "sha256": "539ce01f996f41769b6753387e1a5efae09774eb0cc0e7540408a29ae453a1df"
+    },
+    {
+      "id": "R-snapshot-module-0",
+      "status": "PASS",
+      "sha256": "c8df85d076ed6ce9d2583f1868b74a5b082dbdaa5232abf51ae217c6e73c7684"
+    },
+    {
+      "id": "R-snapshot-root-2",
+      "status": "PASS",
+      "sha256": "4ef7a03fbd5bcfb0b9f8dfce72b546426cb9578b208834af9a1edb78a7628fb5"
+    },
+    {
+      "id": "R-indexed-drawable-root",
+      "status": "PASS",
+      "sha256": "75a212244fb8f473747a2fff5fc35d455977028193104c6a6a26c7e7936a295a"
+    },
+    {
+      "id": "R-indexed-drawable-module",
+      "status": "PASS",
+      "sha256": "bb5c23d9a99f7e69b95aaa2ab09592372da6105931bbe44bc74ae7285366a310"
+    },
+    {
+      "id": "R-indexed-line-module",
+      "status": "PASS",
+      "sha256": "f969c97cde8c0f392350f5773fb59a492390973bd6a402dc3c1b25c815445409"
+    },
+    {
+      "id": "R-indexed-line-root",
+      "status": "PASS",
+      "sha256": "4fbd01a1b7010aace22af543fa455abea7b09d30f4738621f9efce20a3d40f48"
+    },
+    {
+      "id": "R-endpoint-path",
+      "status": "PASS",
+      "sha256": "b538ad3a33c1c13351816be955b875e5cb931b2f60e3e4ee22fd03dc5285c21f"
+    },
+    {
+      "id": "R-endpoint-line",
+      "status": "PASS",
+      "sha256": "0224ad94b8c62a177c2e91abea57609b84c31571b0f7b57fc576753aace75d96"
+    },
+    {
+      "id": "R-failure-invalid",
+      "status": "PASS",
+      "sha256": "467775e6035ff4e2e8d0da332c5dfbc17223e4626c82ababa9160a7a975ef154"
+    },
+    {
+      "id": "R-failure-valid",
+      "status": "PASS",
+      "sha256": "ad7dcbd669b9b09beb1664d007b7597cec4241cf40df87395d86708ae26ba932"
+    },
+    {
+      "id": "R-polyline-inline",
+      "status": "PASS",
+      "sha256": "cf8aa8670f939d4c5a42a8359e4c30ee3999fd99a7dd95ba7791bbd8fd94d5d5"
+    },
+    {
+      "id": "R-polyline-named",
+      "status": "PASS",
+      "sha256": "adbb1cbea2f713ba5dd37309a7abaed91ebc9851792bfeac8a1b02167a8b51bf"
+    },
+    {
+      "id": "R-polyline-value-anchor",
+      "status": "PASS",
+      "sha256": "b2dd21c687f88c24487f2ad026a7a76a205f286220cc8756b14d183fc971de2a"
+    },
+    {
+      "id": "R-snapshot-lazy-if-root",
+      "status": "PASS",
+      "sha256": "d10510371be4101799afa9413e99d9d11638972d5214f8ba14b9ec9360d20a94"
+    },
+    {
+      "id": "R-snapshot-lazy-match-module",
+      "status": "PASS",
+      "sha256": "1490c41a209b3e4b7e6415e2d3036742a026a01209134f61a45ae242d6f6d154"
+    },
+    {
+      "id": "R-snapshot-lazy-else-root",
+      "status": "PASS",
+      "sha256": "463e80c2e7d6a4ad5d4fd0fe5aa0234149aa72067f01366ccfcce1e29f287ae9"
+    }
+  ]
+}

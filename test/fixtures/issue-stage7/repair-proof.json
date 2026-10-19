@@ -1,0 +1,680 @@
+[
+  {
+    "family": "F1",
+    "id": "R-snapshot-module-1",
+    "source": "nui 1\nmodule Box() {\nconst Seed: point[] = [(2,3),(8,11)]\nconst Ticks: number[] = [1]\nfor Tick in @Ticks carry Pts: point[] = @Seed {\nconst A: point = @Pts[0]\nconst B: point = @Pts[1]\nconst Swap: point[] = [@B,@A]\nnext Pts = @Swap\n}\nexport line Out = segment(start: @Pts[0], end: @Pts[1])\n}\ninstance Live = Box()\n",
+    "sha256": "539ce01f996f41769b6753387e1a5efae09774eb0cc0e7540408a29ae453a1df",
+    "before": {
+      "exception": "RangeError: Maximum call stack size exceeded",
+      "rustEligible": true,
+      "TS": {
+        "geometry": [],
+        "errors": []
+      },
+      "Rust": "NOT_REPEATED_OR_NOT_ELIGIBLE"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 8,
+              "y": 11
+            },
+            "end": {
+              "x": 2,
+              "y": 3
+            }
+          }
+        ],
+        "errors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 8,
+              "y": 11
+            },
+            "end": {
+              "x": 2,
+              "y": 3
+            }
+          }
+        ],
+        "errors": []
+      }
+    }
+  },
+  {
+    "family": "F2",
+    "id": "R-indexed-line-module",
+    "source": "nui 1\nmodule Box() {\nconst Seed: line = segment(start: (2,3), end: (8,11))\nconst Seeds: line[] = [@Seed]\nconst Ticks: number[] = []\nfor Tick in @Ticks carry Lines: line[] = @Seeds {\nnext Lines = @Lines\n}\nconst Pick: line = @Lines[0]\nexport line Out = from(source: @Pick)\n}\ninstance Live = Box()\n",
+    "sha256": "f969c97cde8c0f392350f5773fb59a492390973bd6a402dc3c1b25c815445409",
+    "before": {
+      "exception": null,
+      "rustEligible": true,
+      "TS": {
+        "geometry": [],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "module-runtime:10:moduleBody36:statement:moduleInstance:mvffip3m:5928:materializedLine-mvffip3m-54"
+          }
+        ]
+      },
+      "Rust": "NOT_REPEATED_OR_NOT_ELIGIBLE"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 2,
+              "y": 3
+            },
+            "end": {
+              "x": 8,
+              "y": 11
+            }
+          }
+        ],
+        "errors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "line",
+            "start": {
+              "x": 2,
+              "y": 3
+            },
+            "end": {
+              "x": 8,
+              "y": 11
+            }
+          }
+        ],
+        "errors": []
+      }
+    }
+  },
+  {
+    "family": "F3",
+    "id": "R-endpoint-path",
+    "source": "nui 1\nconst Seed: path = segment(start: (2,3), end: (8,11))\npoint Out = from(source: @Seed.end)\n",
+    "sha256": "b538ad3a33c1c13351816be955b875e5cb931b2f60e3e4ee22fd03dc5285c21f",
+    "before": {
+      "exception": null,
+      "rustEligible": false,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "point",
+            "x": 8,
+            "y": 11
+          }
+        ],
+        "errors": []
+      },
+      "Rust": "NOT_REPEATED_OR_NOT_ELIGIBLE"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "point",
+            "x": 8,
+            "y": 11
+          }
+        ],
+        "errors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Out",
+            "kind": "point",
+            "x": 8,
+            "y": 11
+          }
+        ],
+        "errors": []
+      }
+    }
+  },
+  {
+    "family": "F4",
+    "id": "R-failure-invalid",
+    "source": "nui 1\nmodule Box() {\nexport point Prefix = coordinate(x: 3, y: 4)\nconst Bad: point = coordinate(x: 1 / 0, y: 3)\nexport line Out = segment(start: @Bad, end: (8,11))\n}\ninstance Live = Box()\npoint Survivor = coordinate(x: 17, y: 19)\n",
+    "sha256": "467775e6035ff4e2e8d0da332c5dfbc17223e4626c82ababa9160a7a975ef154",
+    "before": {
+      "exception": null,
+      "rustEligible": null,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "statement:typedDeclaration:mvffirix:3"
+          }
+        ]
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Prefix",
+            "kind": "point",
+            "x": 3,
+            "y": 4
+          },
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": []
+      }
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "statement:typedDeclaration:mvffqsq6:297"
+          }
+        ]
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "name": "Survivor",
+            "kind": "point",
+            "x": 17,
+            "y": 19
+          }
+        ],
+        "errors": [
+          {
+            "owner": "Out",
+            "dependency": "statement:typedDeclaration:mvffqsq6:297"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "family": "F5",
+    "id": "R-polyline-inline",
+    "source": "nui 1\nmodule Box(Origin: number) {\nexport line Out = polyline(points: [(@Origin,2),(@Origin + 3,6)], closed: false)\n}\ninstance Live = Box(Origin: 7)\n",
+    "sha256": "cf8aa8670f939d4c5a42a8359e4c30ee3999fd99a7dd95ba7791bbd8fd94d5d5",
+    "before": {
+      "TS": {
+        "geometry": [],
+        "errors": [
+          {
+            "elementName": "Out",
+            "message": "Out の数値式を評価できません。Origin はこの要素内に存在しません。または参照可能な変数に存在しません。"
+          },
+          {
+            "elementName": "Out",
+            "message": "Out の数値式を評価できません。Origin はこの要素内に存在しません。または参照可能な変数に存在しません。"
+          }
+        ],
+        "geometryValueErrors": []
+      },
+      "Rust": {
+        "geometry": [],
+        "errors": [
+          {
+            "elementName": "Out",
+            "message": "Out の数値式を評価できません。Origin はこの要素内に存在しません。または参照可能な変数に存在しません。"
+          }
+        ],
+        "geometryValueErrors": []
+      },
+      "evidence": "/tmp/nuinui-stage7-1428-final-focused/reductions.ndjson"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "kind": "polyline",
+            "name": "Out",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "kind": "point",
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point1",
+                  "name": "Out.point1",
+                  "x": 7,
+                  "y": 2
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point2",
+                  "name": "Out.point2",
+                  "x": 10,
+                  "y": 6
+                },
+                "length": 5
+              }
+            ],
+            "start": {
+              "kind": "point",
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point1",
+              "name": "Out.point1",
+              "x": 7,
+              "y": 2
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point2",
+              "name": "Out.point2",
+              "x": 10,
+              "y": 6
+            }
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "end": {
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point2",
+              "kind": "point",
+              "name": "Out.point2",
+              "x": 10,
+              "y": 6
+            },
+            "kind": "polyline",
+            "name": "Out",
+            "segments": [
+              {
+                "end": {
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point2",
+                  "kind": "point",
+                  "name": "Out.point2",
+                  "x": 10,
+                  "y": 6
+                },
+                "kind": "line",
+                "length": 5,
+                "start": {
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point1",
+                  "kind": "point",
+                  "name": "Out.point1",
+                  "x": 7,
+                  "y": 2
+                }
+              }
+            ],
+            "start": {
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9o:31221:polyline-mvfk9c9o-384:point1",
+              "kind": "point",
+              "name": "Out.point1",
+              "x": 7,
+              "y": 2
+            }
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      }
+    }
+  },
+  {
+    "family": "F6",
+    "id": "R-indexed-line-root",
+    "source": "nui 1\nconst Seed: line = segment(start: (2,3), end: (8,11))\nconst Seeds: line[] = [@Seed]\nconst Ticks: number[] = []\nfor Tick in @Ticks carry Lines: line[] = @Seeds {\nnext Lines = @Lines\n}\nconst Pick: line = @Lines[0]\nline Out = from(source: @Pick)\n",
+    "sha256": "4fbd01a1b7010aace22af543fa455abea7b09d30f4738621f9efce20a3d40f48",
+    "before": {
+      "TS": {
+        "geometry": [],
+        "errors": [
+          {
+            "elementName": "Out",
+            "missingDependencyName": "Out",
+            "message": "Out の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvfjw6wr:5",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ]
+      },
+      "Rust": {
+        "geometry": [],
+        "errors": [
+          {
+            "elementName": "Out",
+            "missingDependencyName": "Out",
+            "message": "Out の source geometry が利用できません。依存先を確認してください。"
+          }
+        ],
+        "geometryValueErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvfjw6wr:5",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ]
+      }
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "kind": "line",
+            "name": "Out",
+            "start": {
+              "kind": "point",
+              "elementId": "materializedLine-mvfk9c97-375:start",
+              "name": "Out.start",
+              "x": 2,
+              "y": 3
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "materializedLine-mvfk9c97-375:end",
+              "name": "Out.end",
+              "x": 8,
+              "y": 11
+            }
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "end": {
+              "elementId": "materializedLine-mvfk9c97-375:end",
+              "kind": "point",
+              "name": "Out.end",
+              "x": 8,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Out",
+            "start": {
+              "elementId": "materializedLine-mvfk9c97-375:start",
+              "kind": "point",
+              "name": "Out.start",
+              "x": 2,
+              "y": 3
+            }
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      }
+    }
+  },
+  {
+    "family": "F1-repair-regression",
+    "id": "R-snapshot-lazy-if-root",
+    "source": "nui 1\nconst Seed: point[] = [(2,3),(8,11)]\nconst Ticks: number[] = [1]\nfor Tick in @Ticks carry Pts: point[] = @Seed {\nconst A: point = @Pts[0]\nconst B: point = @Pts[1]\nconst Missing: point = @Pts[9]\nconst Swap: point[] = if (true) { [@B,@A] } else { [@Missing,@A] }\nnext Pts = @Swap\n}\nline Out = segment(start: @Pts[0], end: @Pts[1])\n",
+    "sha256": "d10510371be4101799afa9413e99d9d11638972d5214f8ba14b9ec9360d20a94",
+    "before": {
+      "TS": {
+        "geometry": [
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mvfjw76x-5:start",
+              "name": "Out.start",
+              "x": 2,
+              "y": 3
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mvfjw76x-5:end",
+              "name": "Out.end",
+              "x": 8,
+              "y": 11
+            },
+            "name": "Out"
+          }
+        ],
+        "errors": [
+          {
+            "elementName": "",
+            "missingDependencyName": "binding:forGroup-mvfjw76x-4:carry:0:Pts",
+            "message": " の carry next collection を評価できません。"
+          }
+        ],
+        "geometryValueErrors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "end": {
+              "elementId": "line-mvfjw76x-5:end",
+              "kind": "point",
+              "name": "Out.end",
+              "x": 8,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Out",
+            "start": {
+              "elementId": "line-mvfjw76x-5:start",
+              "kind": "point",
+              "name": "Out.start",
+              "x": 2,
+              "y": 3
+            }
+          }
+        ],
+        "errors": [
+          {
+            "elementName": "forGroup",
+            "missingDependencyName": "binding:forGroup-mvfjw76x-4:carry:0:Pts",
+            "message": "forGroup-mvfjw76x-4 の carry next collection を評価できません。"
+          }
+        ],
+        "geometryValueErrors": []
+      }
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "kind": "line",
+            "start": {
+              "kind": "point",
+              "elementId": "line-mvfk9ca1-390:start",
+              "name": "Out.start",
+              "x": 8,
+              "y": 11
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "line-mvfk9ca1-390:end",
+              "name": "Out.end",
+              "x": 2,
+              "y": 3
+            },
+            "name": "Out"
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "end": {
+              "elementId": "line-mvfk9ca1-390:end",
+              "kind": "point",
+              "name": "Out.end",
+              "x": 2,
+              "y": 3
+            },
+            "kind": "line",
+            "name": "Out",
+            "start": {
+              "elementId": "line-mvfk9ca1-390:start",
+              "kind": "point",
+              "name": "Out.start",
+              "x": 8,
+              "y": 11
+            }
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      }
+    }
+  },
+  {
+    "family": "F7",
+    "id": "R-polyline-value-anchor",
+    "source": "nui 1\nmodule Box() {\nconst P: path = segment(start: (2,3), end: (8,11))\nexport line Out = polyline(points: [@P.end,(10,13)], closed: false)\n}\ninstance Live = Box()\n",
+    "sha256": "b2dd21c687f88c24487f2ad026a7a76a205f286220cc8756b14d183fc971de2a",
+    "before": {
+      "normallyRustEligible": false,
+      "TS": "NOT_RUN: minimum assertion stopped at normal eligibility; no forced native request",
+      "evidence": "/tmp/nuinui-stage7-polyline-anchor-before.log",
+      "evidenceSha256": "07b4bfd666be89d21c5eb1adf352be5472067858ada40bebb377fd4753cfb0cd",
+      "compilerProductEvidence": "/tmp/nuinui-stage7-1428-f5-inspect2/inspection.ndjson: H1-07 retains empty target key"
+    },
+    "after": {
+      "normallyRustEligible": true,
+      "TS": {
+        "geometry": [
+          {
+            "kind": "polyline",
+            "name": "Out",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "kind": "point",
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point1",
+                  "name": "Out.point1",
+                  "x": 8,
+                  "y": 11
+                },
+                "end": {
+                  "kind": "point",
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point2",
+                  "name": "Out.point2",
+                  "x": 10,
+                  "y": 13
+                },
+                "length": 2.8284271247461903
+              }
+            ],
+            "start": {
+              "kind": "point",
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point1",
+              "name": "Out.point1",
+              "x": 8,
+              "y": 11
+            },
+            "end": {
+              "kind": "point",
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point2",
+              "name": "Out.point2",
+              "x": 10,
+              "y": 13
+            }
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      },
+      "Rust": {
+        "geometry": [
+          {
+            "end": {
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point2",
+              "kind": "point",
+              "name": "Out.point2",
+              "x": 10,
+              "y": 13
+            },
+            "kind": "polyline",
+            "name": "Out",
+            "segments": [
+              {
+                "end": {
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point2",
+                  "kind": "point",
+                  "name": "Out.point2",
+                  "x": 10,
+                  "y": 13
+                },
+                "kind": "line",
+                "length": 2.8284271247461903,
+                "start": {
+                  "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point1",
+                  "kind": "point",
+                  "name": "Out.point1",
+                  "x": 8,
+                  "y": 11
+                }
+              }
+            ],
+            "start": {
+              "elementId": "module-runtime:10:moduleBody37:statement:moduleInstance:mvfk9c9x:31721:polyline-mvfk9c9x-388:point1",
+              "kind": "point",
+              "name": "Out.point1",
+              "x": 8,
+              "y": 11
+            }
+          }
+        ],
+        "errors": [],
+        "geometryValueErrors": []
+      }
+    }
+  }
+]
