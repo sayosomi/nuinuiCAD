@@ -167,6 +167,7 @@ export type ModuleScalarRuntimeCompilation = {
   controlByScopeId: ReadonlyMap<string, BindingControlMetadata>;
   scalarExecutionPositionByRuntimeElementId: ReadonlyMap<ElementId, number>;
   scalarExecutionPositionByStatementIndex: ReadonlyMap<number, number>;
+  scalarExecutionPositionByBindingId: ReadonlyMap<BindingId, number>;
   materializedPropertyBindings: readonly MaterializedPropertyBindingSource[];
   materializedNumericBindings: readonly MaterializedNumericBindingSource[];
   materializedTransformationNumericBindings: readonly CompiledTransformationNumericBinding[];
@@ -8292,6 +8293,7 @@ export const compileModuleScalarRuntime = ({
     controlByScopeId,
     scalarExecutionPositionByRuntimeElementId,
     scalarExecutionPositionByStatementIndex: sourceOrderByStatementIndex,
+    scalarExecutionPositionByBindingId: sourceOrderByBindingId,
     materializedPropertyBindings,
     materializedNumericBindings,
     materializedTransformationNumericBindings,

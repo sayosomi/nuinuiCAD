@@ -2324,9 +2324,6 @@ fn evaluate_document_input_with_scalar_program(
                                     .copied()
                                     .unwrap_or(false)
                         });
-                if has_unevaluated_geometry_value {
-                    continue;
-                }
                 let has_geometry_value_failure = !instance_path.is_empty()
                     && state.geometry_value_errors.iter().any(|error| {
                         error.occurrence.instance_path.len() >= instance_path.len()
@@ -2344,6 +2341,14 @@ fn evaluate_document_input_with_scalar_program(
                         .iter()
                         .any(|id| state.errors.iter().any(|error| &error.element_id == id))
                     || has_geometry_value_failure;
+                // A failed body is unavailable to consumers immediately;
+                // private alias completion must not postpone that fact.
+                if failed {
+                    failed_instance_ids.insert(snapshot.instance_id.clone());
+                }
+                if has_unevaluated_geometry_value {
+                    continue;
+                }
                 completed_instance_ids.insert(snapshot.instance_id.clone());
                 if failed {
                     let descendant_ids = snapshot
@@ -2383,7 +2388,6 @@ fn evaluate_document_input_with_scalar_program(
                                 .iter()
                                 .any(|id| descendant_ids.contains(id))
                     });
-                    failed_instance_ids.insert(snapshot.instance_id.clone());
                 } else {
                     let geometry = snapshot
                         .descendant_ids

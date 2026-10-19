@@ -108,5 +108,13 @@
     "F01/F04 holdouts and method effectiveness selection remain pending.",
     "No independent minimized product reproduction or producer repair is claimed.",
     "Import/generation/oracle effort and total agent token usage were not measured."
-  ]
+  ],
+  "currentContinuation": {
+    "phase": "product-repair",
+    "startingHead": "612cde2981a8bc99af14c624c96450eabb0876c8",
+    "report": "repair-report.md",
+    "summary": "repair-summary.json",
+    "proof": "repair-proof.json",
+    "globalAcceptedSources": 61
+  }
 }

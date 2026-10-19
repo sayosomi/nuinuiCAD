@@ -4958,7 +4958,9 @@ export const compileDslDocument = (
         scalarProgram,
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         controlByScopeId: bindingControlMetadata,
-        sourceOrderByBindingId: rootScalarExecutionOrder?.sourceOrderByBindingId,
+        // Disabled Module bindings have no executable initializer, but still
+        // own a canonical event position. Catalog rank is a different order.
+        sourceOrderByBindingId: moduleScalarCompilation?.scalarExecutionPositionByBindingId ?? rootScalarExecutionOrder?.sourceOrderByBindingId,
         nonProgramBindingIds: geometryCarryControllerNonProgramBindingIds,
         requiresExecutionOrdering: moduleScalarCompilation !== undefined || rootRequiresExecutionOrdering
       })

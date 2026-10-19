@@ -1187,20 +1187,12 @@ export const evaluateElements = (
   const geometryValueBindingLookup = () => activeGeometryValueBindingLookup ?? scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding());
 
   const evaluateGeometryValueScalar = (expression: TypedScalarExpression, sourceOrder: number): number | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     return evaluation.status === "ok" && evaluation.value.kind === "number" ? evaluation.value.value : undefined;
   };
 
   const evaluateGeometryValueDirection = (expression: TypedScalarExpression, sourceOrder: number): ArcDirection | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "clockwise" || evaluation.value.value === "counterclockwise"
       ? evaluation.value.value
@@ -1208,11 +1200,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueSide = (expression: TypedScalarExpression, sourceOrder: number): "left" | "right" | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "left" || evaluation.value.value === "right"
       ? evaluation.value.value
@@ -1220,11 +1208,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueTangentKind = (expression: TypedScalarExpression, sourceOrder: number): "external" | "internal" | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "external" || evaluation.value.value === "internal"
       ? evaluation.value.value
@@ -1232,11 +1216,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueCurveSide = (expression: TypedScalarExpression, sourceOrder: number): "convex" | "concave" | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "convex" || evaluation.value.value === "concave"
       ? evaluation.value.value
@@ -1244,11 +1224,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueBoolean = (expression: TypedScalarExpression, sourceOrder: number): boolean | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     return evaluation.status === "ok" && evaluation.value.kind === "boolean" ? evaluation.value.value : undefined;
   };
 
@@ -1514,11 +1490,7 @@ export const evaluateElements = (
       return;
     }
     if (entry.construction.kind === "match") {
-      const evaluation = evaluateTypedExpression(entry.construction.scrutinee, {
-        lookupBinding: geometryValueBindingLookup(),
-        lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-        lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-      });
+      const evaluation = evaluateOccurrenceIndexForEvaluation(entry.construction.scrutinee, sourceOrder, geometryValueBindingLookup());
       const label = evaluation.status === "ok"
         ? evaluation.type.kind === "optional"
           ? evaluation.value.kind === "none" ? "none" : "some"
@@ -3686,14 +3658,16 @@ export const evaluateElements = (
         instancePath.every((part, pathIndex) => entry.occurrence.instancePath[pathIndex] === part) &&
         !evaluatedGeometryValueEntries.has(index)
       );
-      if (hasUnevaluatedGeometryValue) continue;
       const hasGeometryValueFailure = instancePath.length > 0 && geometryValueErrors.some((error) =>
         error.occurrence.instancePath.length >= instancePath.length &&
         instancePath.every((part, index) => error.occurrence.instancePath[index] === part)
       );
       const failed = snapshot.descendantIds.some((id) => failedElementIds.has(id)) || hasGeometryValueFailure;
+      // Consumers must see failure as soon as the body has failed, even when
+      // private alias programs still need their ordinary completion/cleanup.
+      if (failed) failedModuleInstanceIds.add(snapshot.instanceId);
+      if (hasUnevaluatedGeometryValue) continue;
       if (failed) {
-        failedModuleInstanceIds.add(snapshot.instanceId);
         completedModuleInstanceIds.add(snapshot.instanceId);
         instanceBaseGeometry.delete(snapshot.instanceId);
         const descendantIds = new Set(snapshot.descendantIds);

@@ -14,6 +14,7 @@ import { checkCompiler, checkValues, recordsIn } from "./fixtures/issue1419/asse
 import { json } from "./fixtures/issue1419/model";
 import { matrix, pair, type Candidate } from "./fixtures/issue-stage4/model";
 import { independentOracle } from "./fixtures/issue-stage4/oracles";
+import { repairCandidates } from "./fixtures/issue-stage4/repairs";
 
 const root = "test/fixtures/issue-stage4";
 const evidence = process.env.ISSUE1421_EVIDENCE;
@@ -28,7 +29,7 @@ const selectionFile = join(root, "selection.json");
 const selected: Record<string, string> = existsSync(selectionFile) ? JSON.parse(readFileSync(selectionFile, "utf8")).methods : {};
 const adaptiveIds = matrix.filter(id => Number(id.split("-")[2]) >= 2 && selected[id[0]] === id[2]);
 const ids = process.env.ISSUE1421_IDS?.split(",");
-const cases = (mode === "pilot" ? pilotIds : mode === "adaptive" ? adaptiveIds : [...pilotIds, ...adaptiveIds]).filter(id => !ids || ids.includes(id));
+const cases = (mode === "repairs" ? [] : mode === "pilot" ? pilotIds : mode === "adaptive" ? adaptiveIds : [...pilotIds, ...adaptiveIds]).filter(id => !ids || ids.includes(id));
 
 describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio boundaries", () => {
   let rust: RustEvaluationProcess;
@@ -140,7 +141,7 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
   }
 
   async function evaluate(c: Candidate) {
-    const t = Date.now(), record: Record<string, unknown> = { id: c.id, member: c.member, sha256: hash(c.program.source), source: c.program.source, expected: JSON.parse(json(c.limits ?? c.program)), activationClaims: c.activation };
+    const t = Date.now(), record: Record<string, unknown> = { id: c.id, member: c.member, method: c.method, stratum: c.stratum, purpose: mode === "repairs" ? "minimization/regression" : "pilot", sha256: hash(c.program.source), source: c.program.source, expected: JSON.parse(json(c.limits ?? c.program)), activationClaims: c.activation };
     const failures: string[] = [];
     let boundary = "compiler";
     const capture = (boundary: string, action: () => void) => { try { action(); } catch (error) { failures.push(`${boundary}: ${String(error)}`); } };
@@ -152,11 +153,15 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
       const p = c.program;
       record.elements = fixture.elements;
       record.bindingCatalog = compiled.doc.bindingAnalysis!.catalog.bindings;
+      if (mode === "repairs") {
+        record.dependencyGraph = compiled.doc.typedDependencyGraph;
+        record.bindingVersionOrders = compiled.doc.bindingVersions?.versions.map(v => ({ bindingId: v.bindingId, sourceOrder: v.sourceOrder, initialState: v.initialState }));
+      }
       const placements = c.limits ?? [{ placement: "full", through: undefined, expected: p, instances: [] }];
       const observations: unknown[] = [];
       record.observations = observations;
       // A final full→zero replay tests persistent-process request isolation.
-      const ordered = c.limits ? [...placements, placements[0], placements[3]] : placements;
+      const ordered = c.limits?.length === 4 ? [...placements, placements[0], placements[3]] : placements;
       for (const limit of ordered) {
         const through = limit.through ? fixture.elements.findIndex(e => e.name === limit.through) : undefined;
         if (limit.through) expect(through, "limit source owner must exist").toBeGreaterThanOrEqual(0);
@@ -171,6 +176,13 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
           if (c.stratum === "C") { checkCompiler(p, compiled, prepared.input); return; }
           expect(compiled.doc.bindingAnalysis!.issues).toEqual([]);
           expect(compiled.doc.typedDependencyGraph!.cycles).toEqual([]);
+          if (c.id === "P1-reproducer") for (const fault of fixture.elements.filter(e => e.name === "Fault")) {
+            expect(compiled.doc.typedDependencyGraph!.edges.some(edge => edge.from.kind === "element" && edge.from.id === fault.id && edge.to.kind === "element" && edge.to.id === fault.parentGroupId && edge.requiredness === "required"), "canonical child waits for its statement condition").toBe(true);
+          }
+          if (c.id === "P3-reproducer") {
+            const parameter = compiled.doc.bindingAnalysis!.catalog.bindings.find(b => b.name === "X")!;
+            expect(compiled.doc.bindingVersions!.versions.find(v => v.bindingId === parameter.id)?.sourceOrder, "instance event 0, parameter event 1; catalog rank is not execution order").toBe(1);
+          }
           for (const name of Object.keys(p.scalars)) expect(compiled.doc.bindingAnalysis!.catalog.bindings.filter(b => b.name === name), `canonical binding ${name}`).toHaveLength(1);
           const wire = prepared.input;
           const occurrences = new Set(wire.geometryValueProgram?.map(entry => JSON.stringify(entry.occurrence)));
@@ -263,5 +275,10 @@ describe("Issue #1421 Stage 4 using the Stage 3 compiler/oracle/persistent-stdio
     for (const c of pair(id)) results.push(await evaluate(c));
     dispositions.push({ id, members: results.map(r => ({ member: r.member, status: r.status, failures: r.failures, elapsedMs: r.elapsedMs })) });
     expect(results.flatMap(r => r.failures as string[]), id).toEqual([]);
+  }, 60_000);
+  if (mode === "repairs" || mode === "verify") for (const c of repairCandidates.filter(c => !ids || ids.includes(c.id))) it(c.id, async () => {
+    const result = await evaluate(c);
+    dispositions.push({ id: c.id, status: result.status, failures: result.failures });
+    expect(result.failures, c.id).toEqual([]);
   }, 60_000);
 });
