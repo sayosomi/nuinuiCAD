@@ -1,170 +1,152 @@
-# Stage 7 — four repaired families, polyline owner blocker
+# Stage 7 — local acceptance passed, independent review pending
 
-[Issue #1428](https://github.com/sayosomi/nuinuiCAD/issues/1428) is **BLOCKED,
-not complete or merge-ready**. Base is
-`e08ff62174bc461661693173a27108f71c14de35`; the branch is
-`sayosomi/issue-1428-targeted-stage7`. The reviewed initial checkpoint was
-`0a6b47bef3c5c79395b199ddd74f83fdbe70ab60`. Human explicitly authorized its
-continuation on 2026-10-20. No Human admission was repeated, no other checkout
-was used, and no merge, Issue closure, dependency, CI or architecture change occurred.
+[Issue #1428](https://github.com/sayosomi/nuinuiCAD/issues/1428) has **20/20 frozen
+sources PASS**, **seven independently confirmed and fixed novel families**, and
+no remaining confirmed implementation blocker. This is a local implementation
+checkpoint; independent blocking review, protected PR/CI and integration remain
+external gates. Do not self-merge or close #1428/#1260 here.
 
-Current disposition: **17/20 frozen sources PASS; three BLOCKED**. Five novel
-families are independently confirmed; four are repaired. `families.json` gives
-the first incorrect owners, legal minimum reproductions, genuine passing
-controls and before/after evidence. The extra pure-seed root ordering failure
-is an unresolved, non-equivalent reducer, not a sixth confirmed novel family.
-Residual Issue #1260 remains open.
+Base: `e08ff62174bc461661693173a27108f71c14de35`. Branch:
+`sayosomi/issue-1428-targeted-stage7`. The initial BLOCKED checkpoint was
+`0a6b47bef3c5c79395b199ddd74f83fdbe70ab60`; the four-repair checkpoint was
+`0f0cc141bbcb189bbf9ca176f80412298ab58991`. Human authorized continuation and
+expanded F5 ownership to the two canonical parameters files on 2026-10-20.
+Only the bounded volatile recheck preceded mutation; Human admission was not
+repeated. No other checkout, force/reset/stash, dependency, CI, UI, architecture
+or normative specification change occurred.
 
-## Frozen sources and original failures
+## Frozen campaign and evidence
 
-`freeze.json` is unchanged. All 20 original sources were compiler-prevalidated
-before freezing and before any primary evaluation. It retains source hashes,
-seeds, independent geometry expectations, order and initial product fingerprint.
-`checkpoint.json` is the preserved original BLOCKED disposition, not the current
-result; `outcomes.json` owns the current per-source results. Original raw/log
-hashes remain in `evidence-index.json`; the original source hashes/oracles were
-not tuned to the observed results.
+`freeze.json` and `checkpoint.json` remain unchanged. The 20 initial texts were
+compiler-prevalidated and frozen with independent expectations, hashes, seeds,
+execution order and product fingerprint before any primary evaluation.
+`outcomes.json` owns current per-source results. Original failures are retained
+separately in the unchanged checkpoint and hash-indexed external logs.
 
-The first four scheduled texts are H1-03, H1-07, H2-00, H2-07, then the remaining
-16. Seed = `9000 + hypothesisOffset + cellIndex`, offsets H1/H2 = 0/100, indexes
-00..07. H1 bits: 4=path rather than line, 2=Module rather than root, 1=two inner
-iterations rather than zero. Outer length is two. H2 bits: 4=line rather than
-point, 2=exhaustive match rather than if, 1=ancestor gate rather than direct.
-Each hypothesis has two distinct-hash controls sharing the cell-00 numeric model.
+First scheduled texts: H1-03, H1-07, H2-00, H2-07, then the remaining 16. Seed =
+`9000 + hypothesisOffset + cellIndex`, H1/H2 offsets 0/100, indexes 00..07.
+H1 bits: 4=path, 2=Module, 1=two inner iterations rather than zero; outer length
+is two. H2 bits: 4=line rather than point, 2=exhaustive match rather than if,
+1=ancestor rather than direct dormant gate. Two distinct-hash controls per
+hypothesis share its cell-00 numeric model.
 
-The normative oracle is `docs/nui1/spec.md`: simultaneous immutable next,
-inner-final escape, ordered geometry arrays, immutable stages, lexical/export
-identity, lazy selection, enabled-before-input and Module atomic failure.
-The H1 oracle is independently unrolled: active final member ends are
-`(u+27,22)` and `(u+30,27)`; zero-inner variants preserve their initializer.
-It checks whole geometry, endpoints, lengths, generated occurrences, order and
-qualified exports. The H2 oracle independently applies one swap, includes only
-the successful Module's children and consumer plus the survivor, and requires
-selected errors to suppress the failed Module without activating Dormant.
+The normative oracle is `docs/nui1/spec.md`. H1 independently unrolls nested
+simultaneous next: active final member ends are `(u+27,22)` and `(u+30,27)`;
+zero-inner variants preserve initialization. Assertions check whole geometry,
+endpoints, lengths, stages, member order, generated occurrences and qualified
+exports. H2 independently applies one swap, emits only the successful Module's
+children/consumer plus Survivor, and checks selected failure, exact owners,
+Module atomic suppression, unselected laziness and dormant nonactivation.
+Compiler bindings/collection identities and dependency edges are checked before
+using TS/Rust agreement as corroboration.
 
-The original harness lost some per-cell rows on observer exceptions. Its
-unchanged-product retry hit the H2-00 native stack overflow at 23:28 JST on
-2026-10-19. The exact original native wire was not saved; frozen source, product
-fingerprint and stderr survive. No missing original native result is invented.
-The continuation preserved this incomplete original baseline and diagnosed it
-without repeating the native crash, as expressly requested by the Human.
+The initial harness lost rows on observer exceptions; its unchanged-product
+retry hit a real H2-00 native stack overflow at 23:28 JST on 2026-10-19. The exact
+original native wire was not saved; frozen source, product fingerprint and stderr
+survive. No missing native result is invented. Continuation used preserved
+compiler evidence and bounded TS reductions, then small Rust regressions after
+the snapshot repair. The original native crash was never repeated.
 
-## Diagnosis and repairs
+## Independently confirmed repairs
 
-1. **F1, runtime collection snapshots.** Independent root and Module reducers
-   throw a bounded TS RangeError after one swap; zero-iteration controls pass.
-   TS and Rust capture functions copied local geometry aliases into next
-   unchanged. Those aliases subsequently read the new carry, making a cycle.
-   The repair captures compiler-resolved indexed member identities against the
-   incoming snapshot, using existing collection member selection and canonical
-   generated provenance. It does not eagerly evaluate geometry or unselected
-   branches. The original native failure plus independent TS reduction establish
-   FAIL-before; four normally eligible persistent-Rust/TS reducers establish
-   PASS-after. The native stack overflow was never repeated.
-2. **F2, indexed line/path alias lowering.** `lowerGeometryValuePath` dropped
-   carry-owned indexed aliases because it lacked the existing point path's
-   deferred collectionIndex fallback. The legal minimum Module reducer omits
-   Out before and passes after. The repair reuses the existing canonical target,
-   with root/Module drawable-seed controls and the frozen line matrix passing.
-3. **F3, path endpoint interface metadata.** An alias with an endpoint selector
-   retained interface path, making a valid point consumer normally Rust-ineligible.
-   A path reducer and adjacent line control isolate this from carry execution.
-   Lowering now exposes the selected point interface; both are normally eligible
-   and produce (8,11) in both engines. Whole-path inputs keep their path interface.
-4. **F4, missing immutable point diagnostic.** Rust point-anchor resolution used
-   an early None return for a missing geometry value. The consuming Module
-   drawable had no error, so Prefix leaked and an external consumer failed.
-   The independent invalid/valid Module pair isolates the failure. Emitting the
-   existing dependency diagnostic at the missing input lets the existing atomic
-   Module/suppression logic operate. Both engines now attribute the error to the
-   exact consuming owner and suppress the partial Module.
-5. **F5, confirmed but unrepaired polyline projection.** Inline polyline tuple
-   coordinates containing Module parameters or geometry properties have no
-   canonical numeric bindings. The generic compiler enumerates numeric parameter
-   definitions, but polyline exposes only the points list and closed flag;
-   coordinate access also lacks indexed-list support. `R-polyline-inline` fails
-   while named coordinate points in `R-polyline-named` pass in both engines.
-   Required canonical owners `packages/nui-language/src/parameters/parameterDefinitions.ts`
-   and `parameterAccess.ts` are outside the Issue's approved paths. The contract
-   requires a stop when an expected signal needs excluded owners. No duplicate
-   local accessor, frozen-source rewrite or specification change was used.
+`families.json` records minimum legal reproductions, adjacent genuine PASS,
+first incorrect producers and repairs. `repair-proof.json` retains compact
+FAIL-before/PASS-after evidence; larger products/wires remain externally indexed.
 
-F5 blocks **H1-05, H1-06, H1-07**. Other current H1 sources and all H2 sources
-pass. The old pure immutable seed/root reducer has a separate release-order
-problem; it is retained as a non-equivalent reduction and is not assigned F2's
-PASS-after or counted as a repaired family. A future separately authorized
-probe could prioritize that specific collection-alias dependency-order hypothesis.
+1. **F1: incoming collection snapshot loss.** Local indexed aliases copied into
+   next subsequently read the new carry and recurse. Root/Module one-swap TS
+   reductions fail; zero-iteration neighbors pass. TS/Rust now capture canonical
+   member identity against the incoming snapshot and retain generated provenance.
+   A regression in the first repair eagerly captured both if/match arms. Two
+   independent unselected out-of-range alias reductions exposed it; selected-arm
+   capture fixes it. These are repair-regression evidence, not another novel
+   family. Then/else, exhaustive match and two-successive-swap controls pass.
+2. **F2: line/path indexed carry aliases omitted by lowering.** Reuse the point
+   path's canonical deferred collectionIndex fallback. The identical minimum
+   Module source and root/Module drawable-seed controls pass in both engines.
+3. **F3: path endpoints retain whole-path metadata.** Selected endpoints lower
+   as point inputs. Path/line controls are normally Rust eligible and yield
+   `(8,11)`; whole-path identity is preserved.
+4. **F4: missing immutable point diagnostic leaks Module output.** Rust now
+   emits the existing consuming drawable dependency diagnostic, allowing existing
+   atomicity/suppression to operate. Invalid/valid Module controls and all H2
+   geometry and exact diagnostic checks pass.
+5. **F5: inline polyline coordinates lack numeric projection.** Approved
+   `parameterDefinitions.ts` and `parameterAccess.ts` expose per-vertex numeric
+   slots. Existing DSL span and Module scalar-site owners preserve `points:index`
+   keys and exact expression spans; Rust materializes the same coordinates.
+   Inline/named controls and frozen H1-05/06/07 now pass without source rewrites.
+6. **F6: root collection-alias dependency ordering.** The retained pure-seed
+   root reducer independently fails in both engines while Module/drawable-seed
+   neighbors pass. Its graph lacks root loop-to-eager-seed and escaped-alias-to-
+   loop edges, releasing Seed after Pick. The canonical graph now supplies those
+   root joins, excludes frame-local owner cycles, and preserves existing Module
+   execution events and conditional/lazy activation. Graph assertions plus the
+   identical minimum pass; no authored statement was reordered.
+7. **F7: polyline deferred point targets lose vertex identity.** The independent
+   Module path-endpoint minimum is normally Rust-ineligible; frozen Module
+   inspection separately records its input under an empty key. `dslApplyArgs`
+   now transports `points:index` through existing eligibility and TS/Rust anchor
+   materialization. The normal production minimum yields `(8,11) -> (10,13)`.
+   The minimum's before run stops at eligibility: no TS-before result or forced
+   native request is claimed for that source.
 
-## Ownership, diagnostics and sensitivity
+No new resolver, scheduler, evaluator, transport or alternate parameter accessor
+was introduced. Rust remains the production semantics owner; TS is the reference.
+Historical Stage 3–6 fixtures and #1358/#1359/#1360 controls are unchanged.
 
-Canonical compiler plans and carry collection IDs are checked independently of
-runtime agreement, including inner initializer/outer-next identities and lexical
-Module owners. Original compiler bindings/dependency edges and final wire plans
-are retained externally for inspection. No new resolver, scheduler, evaluator,
-transport or production abstraction was introduced. Rust remains the production
-semantics owner; TS is the reference/parity boundary.
+## Sensitivity and limits
 
-Selected point-array errors belong to One::Mark and reference Bad's source ID.
-For line arrays, the selected unavailable Final1 alias has exactly One's canonical
-instance path, and One::Mark references that alias's source ID. Two's unselected
-error and Dormant produce no such diagnostics. Poisoned disabled bindings are
-bookkeeping, not evaluation of the invalid argument. Exact emitted/suppressed
-geometry and non-poisoned diagnostic absence are checked. The original frozen
-Chosen label names the selected collection, not a private diagnostic occurrence.
-Observer corrections are distinguished from product families.
+Test-local cloned next plans establish **14 actual output detections per engine**:
+four active H1 sources substitute inner initialization for inner-final outer
+consumption; all eight H2 primaries and both controls lose their swap. Each
+changes Result0 or Two::Mark geometry. The six zero-inner/control H1 sources
+remain NOT_COVERED for inner-body loss. No production historical fault injection,
+noise-only detection, or universal gate/atomicity sensitivity claim is made.
 
-Test-local cloned carry plans provide actual first-loss calibration:
+The strongest separate future hypothesis is a deferred immutable point/path
+endpoint in a Bezier intermediate anchor inside a Module path collection:
+`dslApplyArgs` still calls `anchor(point)` without the intermediate slot key.
+This is a source-level hypothesis outside the closed matrix, not a reproduced
+eighth family or a claim of global evaluator conformance.
 
-- H1's two passing nonempty line sources substitute inner initialization for
-  outer consumption of inner-final. Both engines detect wrong final Result0.
-- All eight H2 primaries and both H2 controls lose their swap in cloned next
-  plans. Both engines detect wrong Two::Mark geometry (10/10).
-- The five zero-inner/control H1 sources are NOT_COVERED for inner-body loss.
-  Three unresolved H1 sources are also NOT_COVERED. No gate/atomicity fault was
-  injected, and no sensitivity to every hypothetical H2 fault is claimed.
+## Replay and verification
 
-These 12 output detections are not diagnostic-only noise or novel product
-families. No production code was changed to inject a historical fault. Frozen
-Stage 3–6 fixtures and historical #1358/#1359/#1360 controls remain unchanged.
-
-## Replay, verification and telemetry
-
-Compiler-only replay is safe:
+Compiler-only replay starts no evaluator:
 
 ```sh
 ISSUE1428_MODE=prevalidate ISSUE1428_EVIDENCE=/tmp/nuinui-stage7-prevalidate \
   npx vitest run test/issue1428TargetedStage7Rust.integration.test.ts
 ```
 
-The default strict verification is the required focused command. It currently
-fails the three blocked frozen cells and the inline-polyline reducer; do not
-turn those into skips or call the Issue complete. `ISSUE1428_IDS` selects exact
-IDs for diagnosis; `inspect` records compiler products and bounded TS reducers
-without starting Rust. `baseline` requires the original product fingerprint and
-will not run against repaired product code or overwrite an existing baseline.
-Normal production eligibility is never overridden. Process safeguards remain:
-Rust build 120 seconds, request 20 seconds, process ten minutes, teardown five
-seconds; close/error listeners precede transitions. Native failure stops later
-cells and persists input before dispatch.
+Default strict verification runs 20 frozen sources and 19 necessary reductions/
+controls. `ISSUE1428_IDS` selects exact IDs; `inspect` persists compiler products
+and bounded TS evidence without Rust. `baseline` rejects repaired products and
+existing evidence files. Normal eligibility is never overridden. Primary and
+reducer wires are persisted before native dispatch. Native failure stops later
+cells. Build/request/process/teardown bounds remain 120s/20s/10m/5s; lifecycle
+listeners precede transitions and expected teardown errors are consumed.
 
-`verification.json` records the required build/lint/parity/full-suite/DSL and
-conditional Rust checks, plus historical regressions. No repeated full suite is
-used for reassurance. Manual E2E is Not Required. This remains a BLOCKED
-checkpoint despite the passing checks because frozen acceptance is incomplete.
+Run the Issue's required build/lint/parity/full-suite/DSL and conditional Rust
+checks on the settled implementation, plus `test/issue1428PolylineParameters.test.ts`.
+`verification.json` gives exact results and prior checkpoint failures. Full-suite
+verification includes directly affected Stage 3–6 and historical #1358/#1359/#1360
+regressions. Human Manual E2E is Not Required. Ordinary implementation changes
+stay within existing ownership; durable architecture and language docs need no
+incidental rewrite.
 
-`telemetry.json` and `summarize.mjs` record the union of accepted/rejected hashes
-and instrumented Stage 7 compiler/TS/production requests across retained phases.
-34 distinct accepted texts are below 56: 20 frozen, 13 current reducers/controls,
-and one retired non-equivalent root reducer. There are 43 rejected original
-prototype hashes, no optional primary counterfactuals and no filler inputs.
-Historical/parity/Rust unit suite requests are not included in campaign request
-counts. Request counts, timings and PASS counts are not quota measurements.
-Human before/after quota, reset identities and concurrent-use observations are
-UNAVAILABLE; no efficiency ratio is claimed.
+`telemetry.json`/`summarize.mjs` retain global accepted/rejected hashes and
+instrumented campaign compiler/TS/production request counts. **39/56 accepted
+texts** = 20 frozen + 19 reducers/controls, including the reactivated original
+root minimum; no optional primary counterfactual or filler sources. Original
+rejected prototypes remain separately classified. Historical/parity/Rust unit
+requests are outside campaign totals. Counts are not quota measurements; Human
+before/after quota/reset/concurrent-use observations are UNAVAILABLE.
 
-Original and continuation raw evidence stays outside the checkout under
-`/tmp/nuinui-stage7-1428*`; hashes and counts are committed. Temporary retention
-is not an archival guarantee; the frozen sources and reducers are reproducible.
-The next action is independent review of the exact pushed HEAD, followed by an
-explicit decision on extending the named parameters owner scope before a fresh
-same-Task continuation. Do not merge or close #1428/#1260 at this checkpoint.
+Large traces stay under `/tmp/nuinui-stage7-1428*` and `/tmp/nuinui-stage7-*`;
+committed sources and compact observations are reproducible, but temporary raw
+retention is not an archival guarantee. Added parameter owner hashes supplement
+the original campaign product fingerprint without altering freeze.json.
+Next action: independently review the exact normally pushed HEAD, then proceed
+through the existing protected PR/CI integration workflow. Keep both Issues open
+until their own required gates are satisfied.

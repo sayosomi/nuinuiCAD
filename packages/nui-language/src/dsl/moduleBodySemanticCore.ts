@@ -282,7 +282,8 @@ export const analyzeModuleBody = ({
     bodySemantic: ModuleBodyStatementSemantic | null,
     parameterKey: string | null,
     span: DslSpan,
-    reference: ModuleGeometryReferenceSemantic
+    reference: ModuleGeometryReferenceSemantic,
+    coordinateParameterKey = parameterKey
   ) => {
     if (!bodySemantic) return;
     bodySemantic.geometryReferences = [...bodySemantic.geometryReferences, { parameterKey, span, reference }];
@@ -290,8 +291,8 @@ export const analyzeModuleBody = ({
     // their typed scalar sites on the existing `<anchorKey>:x/y` path so the
     // normal numeric binding runtime can materialize them.
     if (reference.coordinate && (parameterKey === null || !parameterKey.startsWith("intermediates:"))) {
-      if (reference.coordinate.x) addScalar(bodySemantic, `${parameterKey}:x`, reference.coordinate.x.ast.span, reference.coordinate.x);
-      if (reference.coordinate.y) addScalar(bodySemantic, `${parameterKey}:y`, reference.coordinate.y.ast.span, reference.coordinate.y);
+      if (reference.coordinate.x) addScalar(bodySemantic, `${coordinateParameterKey}:x`, reference.coordinate.x.ast.span, reference.coordinate.x);
+      if (reference.coordinate.y) addScalar(bodySemantic, `${coordinateParameterKey}:y`, reference.coordinate.y.ast.span, reference.coordinate.y);
     }
   };
 
@@ -444,7 +445,7 @@ export const analyzeModuleBody = ({
     const raw = source.slice(valueSpan.start, valueSpan.end);
     const parsed = parseGeometryArrayExpression(raw);
     if (!bodySemantic || !parsed.expression || parsed.diagnostics.length || parsed.expression.kind !== "literal") return;
-    for (const member of parsed.expression.members) {
+    for (const [index, member] of parsed.expression.members.entries()) {
       const span = {
         start: valueSpan.start + member.span.start,
         end: valueSpan.start + member.span.end
@@ -463,7 +464,7 @@ export const analyzeModuleBody = ({
           geometryPropertyResolver: (candidate) => resolveBodyGeometryProperty(statementIndex, candidate)
         }
       );
-      addGeometry(bodySemantic, "points", span, reference);
+      addGeometry(bodySemantic, "points", span, reference, `points:${index}`);
     }
   };
 

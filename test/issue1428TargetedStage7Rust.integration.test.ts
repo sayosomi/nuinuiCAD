@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { emptyDocument } from "@nuinuicad/nui-language";
+import { emptyDocument, geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
 import { type EvaluationPayload } from "../src/geometry/evaluationPayload";
@@ -70,7 +70,9 @@ afterAll(async () => {
     rust?.dispose(); if (closed) await Promise.race([closed, timeout]);
   } finally {
     clearTimeout(timer);
-    const report = { mode, revision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), productHash: productHash(), counts, accepted: accepted.size, results };
+    const report = { mode, revision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(), productHash: productHash(),
+      addedOwnerHashes: Object.fromEntries(["parameterDefinitions.ts", "parameterAccess.ts"].map(name => [name, hash(readFileSync(`packages/nui-language/src/parameters/${name}`, "utf8"))])),
+      counts, accepted: accepted.size, results };
     if (evidence) {
       writeFileSync(join(evidence, "accepted.sha256"), [...accepted].sort().join("\n") + "\n");
       writeFileSync(join(evidence, `${mode}.json`), json(report) + "\n");
@@ -150,10 +152,11 @@ for (const c of ["freeze", "prevalidate", "inspect"].includes(mode) ? [] : all.f
 }, 60_000);
 
 if (mode === "inspect") it("retains compiler products and bounded TS reducer evidence without starting Rust", () => {
-  for (const c of [...all.filter(c => c.id === "H2-00" || c.id === "H1-00"), ...reductions]) {
+  for (const c of [...all.filter(c => process.env.ISSUE1428_IDS ? process.env.ISSUE1428_IDS.split(",").includes(c.id) : c.id === "H2-00" || c.id === "H1-00"), ...reductions.filter(c => !process.env.ISSUE1428_IDS || process.env.ISSUE1428_IDS.split(",").includes(c.id))]) {
     const compiled = compile(c as Cell), elements = compiled.doc.document.elements;
     expect(compiled.status, c.id).toBe("valid"); expect(compiled.diagnostics, c.id).toEqual([]);
-    const prepared = prepareRustEvaluation(elements, optionsFor({ compiled, elements }));
+    const inspectionOptions = optionsFor({ compiled, elements });
+    const prepared = prepareRustEvaluation(elements, inspectionOptions);
     let reference: EvaluationPayload | undefined, exception: string | undefined;
     if ("expected" in c) {
       counts.reference++;
@@ -162,7 +165,11 @@ if (mode === "inspect") it("retains compiler products and bounded TS reducer evi
     }
     const record = { id: c.id, source: c.source, sha256: hash(c.source), rustEligible: prepared.rustEligible, wire: prepared.input,
       elements, geometryProgram: compiled.doc.geometryValueProgram, moduleProgram: compiled.doc.moduleGeometryRuntime,
-      statements: compiled.doc.statements, bindingVersions: compiled.doc.bindingVersions, reference, exception };
+      statements: compiled.doc.statements, bindingVersions: compiled.doc.bindingVersions, dependencyGraph: compiled.doc.typedDependencyGraph,
+      numericBindingEntries: inspectionOptions.numericBindingEntries,
+      geometryInputTargets: [...(inspectionOptions.geometryInputTargetsByElementId ?? [])].map(([id, targets]) => [id, [...targets]]),
+      bindingIds: [...(inspectionOptions.bindingVersions?.versionIdsByBindingId.keys() ?? [])],
+      reference, exception };
     if (evidence) appendFileSync(join(evidence, "inspection.ndjson"), json(record) + "\n");
     results.push({ id: c.id, status: exception ? "TS_EXCEPTION" : reference ? "OBSERVED" : "COMPILER_ONLY", exception });
   }
@@ -173,10 +180,22 @@ if (mode === "verify") for (const c of reductions.filter(c => !process.env.ISSUE
   const compiled = compile(c as Cell), elements = compiled.doc.document.elements;
   expect(compiled.status).toBe("valid"); expect(compiled.diagnostics).toEqual([]);
   const options = optionsFor({ compiled, elements }), prepared = prepareRustEvaluation(elements, options);
+  if (c.id === "R-indexed-line-root") {
+    const graph = compiled.doc.typedDependencyGraph!;
+    const loop = elements.find(e => e.type === "forGroup")!;
+    const program = compiled.doc.geometryValueProgram!;
+    const seed = program.find(e => e.sourceStatementIndex === 1)!;
+    const pick = program.find(e => e.sourceStatementIndex === 7)!;
+    expect(graph.edges.some(e => e.from.kind === "element" && e.from.id === loop.id && e.to.kind === "geometry-value" && e.to.id === geometryValueOccurrenceKey(seed.occurrence))).toBe(true);
+    expect(graph.edges.some(e => e.from.kind === "geometry-value" && e.to.kind === "element" && e.to.id === loop.id)).toBe(true);
+    expect(seed.executionPosition).toBeLessThan(pick.executionPosition);
+  }
   expect(prepared.rustEligible).toBe(true);
   counts.reference++;
-  const reference = evaluateElementsReferencePayload(elements, options), actual = await request(prepared.input);
-  if (evidence) appendFileSync(join(evidence, "reductions.ndjson"), json({ id: c.id, sha256: hash(c.source), reference, actual }) + "\n");
+  const reference = evaluateElementsReferencePayload(elements, options);
+  if (evidence) appendFileSync(join(evidence, "reductions.ndjson"), json({ id: c.id, phase:"before-rust", source:c.source, sha256:hash(c.source), wire:prepared.input, reference }) + "\n");
+  const actual = await request(prepared.input);
+  if (evidence) appendFileSync(join(evidence, "reductions.ndjson"), json({ id: c.id, phase:"after-rust", sha256: hash(c.source), reference, actual }) + "\n");
   for (const payload of [reference, actual]) {
     if ("fail" in c) {
       expect(payload.errors.map(e => nameFor(compiled, e.elementId))).toEqual(c.fail ? ["Live::Out"] : []);
@@ -193,6 +212,5 @@ if (mode === "verify") for (const c of reductions.filter(c => !process.env.ISSUE
     expect(payload.computedGeometry).toHaveLength("seedDrawable" in c && c.seedDrawable ? 2 : 1);
     expect(payload.computedGeometry.find(g => nameFor(compiled,g.elementId).endsWith("Out"))).toMatchObject({ kind: "start" in c.expected ? "line" : "point", ...c.expected });
   }
-  if (evidence) appendFileSync(join(evidence, "reductions.ndjson"), json({ id: c.id, sha256: hash(c.source), reference, actual }) + "\n");
   results.push({ id: c.id, status: "PASS", sha256: hash(c.source) });
 }, 60_000);

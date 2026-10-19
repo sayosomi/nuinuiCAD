@@ -121,9 +121,14 @@ impl ScalarMutationResolver<'_> {
             }
             ValidatedImmutableGeometryCollectionSource::Node(node) => node.as_ref(),
         };
-        capture_geometry_collection_node(node, nodes, runtime_generation, &mut seen, &|target| {
-            capture_geometry_collection_target(target, state, resolver, &mut HashSet::new())
-        })
+        capture_geometry_collection_node(
+            node,
+            nodes,
+            runtime_generation,
+            &mut seen,
+            state,
+            resolver,
+        )
     }
 
     fn install_geometry_carry(
@@ -1147,13 +1152,16 @@ fn capture_geometry_collection_node(
     nodes: &HashMap<String, std::sync::Arc<GeometryInputCollectionNode>>,
     runtime_generation: Option<usize>,
     seen_value_ids: &mut HashSet<String>,
-    capture_target: &impl Fn(&GeometryInputTarget) -> Option<GeometryInputTarget>,
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
 ) -> Option<GeometryInputCollectionNode> {
     match node {
         GeometryInputCollectionNode::Leaf { targets } => Some(GeometryInputCollectionNode::Leaf {
             targets: targets
                 .iter()
-                .map(capture_target)
+                .map(|target| {
+                    capture_geometry_collection_target(target, state, resolver, &mut HashSet::new())
+                })
                 .collect::<Option<Vec<_>>>()?,
         }),
         GeometryInputCollectionNode::GeometryValueMap {
@@ -1178,7 +1186,8 @@ fn capture_geometry_collection_node(
                             nodes,
                             None,
                             seen_value_ids,
-                            capture_target,
+                            state,
+                            resolver,
                         )
                     });
                     seen_value_ids.remove(value_id);
@@ -1209,47 +1218,48 @@ fn capture_geometry_collection_node(
             source_order,
             then_branch,
             else_branch,
-        } => Some(GeometryInputCollectionNode::If {
-            condition: condition.clone(),
-            source_order: *source_order,
-            then_branch: Box::new(capture_geometry_collection_node(
-                then_branch,
+        } => {
+            let ScalarEvaluation::Ok {
+                value: ScalarValue::Boolean(selected),
+                ..
+            } = evaluate_document_typed_expression(condition, resolver, state, Some(*source_order))
+            else {
+                return None;
+            };
+            capture_geometry_collection_node(
+                if selected { then_branch } else { else_branch },
                 nodes,
                 runtime_generation,
                 seen_value_ids,
-                capture_target,
-            )?),
-            else_branch: Box::new(capture_geometry_collection_node(
-                else_branch,
-                nodes,
-                runtime_generation,
-                seen_value_ids,
-                capture_target,
-            )?),
-        }),
+                state,
+                resolver,
+            )
+        }
         GeometryInputCollectionNode::Match {
             scrutinee,
             source_order,
             arms,
-        } => Some(GeometryInputCollectionNode::Match {
-            scrutinee: scrutinee.clone(),
-            source_order: *source_order,
-            arms: arms
-                .iter()
-                .map(|(label, branch)| {
-                    Some((
-                        label.clone(),
-                        capture_geometry_collection_node(
-                            branch,
-                            nodes,
-                            runtime_generation,
-                            seen_value_ids,
-                            capture_target,
-                        )?,
-                    ))
-                })
-                .collect::<Option<Vec<_>>>()?,
-        }),
+        } => {
+            let label =
+                crate::evaluation::line_geometry_input::geometry_collection_match_arm_label(
+                    evaluate_document_typed_expression(
+                        scrutinee,
+                        resolver,
+                        state,
+                        Some(*source_order),
+                    ),
+                )
+                .ok()?;
+            let (_, branch) = arms.iter().find(|(candidate, _)| candidate == &label)?;
+            capture_geometry_collection_node(
+                branch,
+                nodes,
+                runtime_generation,
+                seen_value_ids,
+                state,
+                resolver,
+            )
+        }
         GeometryInputCollectionNode::Coalesce {
             left_branch,
             right_branch,
@@ -1259,14 +1269,16 @@ fn capture_geometry_collection_node(
                 nodes,
                 runtime_generation,
                 seen_value_ids,
-                capture_target,
+                state,
+                resolver,
             )?),
             right_branch: Box::new(capture_geometry_collection_node(
                 right_branch,
                 nodes,
                 runtime_generation,
                 seen_value_ids,
-                capture_target,
+                state,
+                resolver,
             )?),
         }),
         _ => clone_geometry_collection_node(node),

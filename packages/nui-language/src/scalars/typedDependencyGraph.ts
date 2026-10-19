@@ -1439,6 +1439,7 @@ export const buildTypedDependencyGraph = ({
     }, occurrenceNamespace);
   };
   const geometryCarryOwnerByBindingId = new Map<string, TypedDependencyEndpoint>();
+  const geometryCollectionOwnerByValueId = new Map<string, TypedDependencyEndpoint>();
   for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
     const moduleStatement = moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId);
     const ownerId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId) ?? moduleStatement?.runtimeElementId;
@@ -1446,7 +1447,28 @@ export const buildTypedDependencyGraph = ({
     const endpoint = elementEndpoint(elementsById, ownerId,
       moduleStatement?.executionUnitStatementIndex ?? elementStatementIndex.get(ownerId) ?? 0);
     for (const carry of plan.geometryCarries ?? []) geometryCarryOwnerByBindingId.set(carry.bindingId, endpoint);
+    // Module collection owners already use materialized execution events. This
+    // join supplies the missing root collection boundary without reordering
+    // Module-local conditional binding events.
+    if (rootForGroupElementIdByStatementId.has(plan.ownerStatementId)) {
+      for (const carry of plan.geometryCollectionCarries ?? []) geometryCollectionOwnerByValueId.set(carry.collectionValueId, endpoint);
+    }
   }
+  const addGeometryCollectionOwnerDependency = (from: TypedDependencyEndpoint, valueId: string, guards: readonly TypedDependencyActivationGuard[], namespace?: string) => {
+    const to = geometryCollectionOwnerByValueId.get(valueId);
+    if (!to || to.kind !== "element" || endpointId(to) === endpointId(from)) return;
+    // Frame-local aliases read the incoming collection inside the owner; only
+    // escaped consumers wait for the completed loop, avoiding a body/owner cycle.
+    if (from.kind === "geometry-value" && geometryValueProgram?.some(entry =>
+      geometryValueOccurrenceKey(entry.occurrence) === from.id && entry.lazy)) return;
+    let current = from.kind === "element" ? elementsById.get(from.id) : undefined;
+    while (current?.parentGroupId) {
+      if (current.parentGroupId === to.id) return;
+      current = elementsById.get(current.parentGroupId);
+    }
+    add({ kind: "geometry", from, to, span: null, requiredness: guards.length ? "conditional" : "required",
+      ...(guards.length ? { activation: { guards } } : {}) }, namespace);
+  };
   const geometryBindingEndpoint = (bindingId: string) => geometryCarryOwnerByBindingId.get(bindingId) ??
     (bindingAnalysis?.catalog.bindingsById.has(bindingId) ? bindingEndpoint(bindingAnalysis, bindingId) : undefined);
   if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
@@ -1584,6 +1606,7 @@ export const buildTypedDependencyGraph = ({
     ignoredBindingIds: ReadonlySet<BindingId> = new Set()
   ) => {
     if (target.kind === "geometryInputTarget") {
+      addGeometryCollectionOwnerDependency(from, target.target.collectionValueId, guards, occurrenceNamespace);
       addScalarProgramDependencies(from, target.target.index, guards, occurrenceNamespace, ignoredBindingIds);
       const input = target.target;
       for (const dependency of geometryValueOccurrencesInInput(input)) {
@@ -1690,6 +1713,7 @@ export const buildTypedDependencyGraph = ({
     } else if (target.kind === "collectionValue") {
       addGeometryCollectionNodeDependencies(from, target.value, undefined, guards, occurrenceNamespace);
     } else if (target.kind === "collectionIndex") {
+      addGeometryCollectionOwnerDependency(from, target.collectionValueId, guards, occurrenceNamespace);
       addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
       const index = target.index.kind === "numberLiteral" ? target.index.value : undefined;
       const members = index === undefined ? target.members : [target.members[index]].filter((member) => member !== undefined);
@@ -1719,6 +1743,7 @@ export const buildTypedDependencyGraph = ({
     occurrenceNamespace?: string
   ): void => {
     if (target.kind === "geometryCollectionIndex") {
+      addGeometryCollectionOwnerDependency(from, target.collectionValueId, guards, occurrenceNamespace);
       if (target.index) addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
       const collectionNode = geometryCollectionNodesByValueId?.get(target.collectionValueId);
       if (collectionNode) {
@@ -1928,6 +1953,22 @@ export const buildTypedDependencyGraph = ({
     const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId) ??
       moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId)?.runtimeElementId;
     if (!ownerElementId) continue;
+    const from = elementEndpoint(elementsById, ownerElementId, elementStatementIndex.get(ownerElementId) ?? 0);
+    for (const carry of rootForGroupElementIdByStatementId.has(plan.ownerStatementId) ? plan.geometryCollectionCarries ?? [] : []) {
+      const node = carry.initializer.kind === "node" ? carry.initializer.node : geometryCollectionNodesByValueId?.get(carry.initializer.valueId);
+      // Snapshotting a collection captures identities, not selected geometry.
+      // Only an unconditional eager value needs release here. Conditional and
+      // lazy leaves keep their existing consumer-owned activation boundary.
+      if (node) for (const dependency of geometryInputTargetsInCollectionNode(node, undefined, geometryCollectionNodesByValueId)) {
+        for (const [index, guard] of dependency.guards.entries()) {
+          if (guard.controllerExpression) addScalarProgramDependencies(from, guard.controllerExpression, dependency.guards.slice(0, index), `${plan.ownerStatementId}:${carry.bindingId}:selector`);
+        }
+        const target = dependency.target;
+        if (dependency.guards.length || target.kind !== "geometryValue") continue;
+        if (geometryValueProgram?.some(entry => geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(target.occurrence) && entry.lazy)) continue;
+        addGeometryInputTargetDependency(from, target, [], `${plan.ownerStatementId}:${carry.bindingId}:initializer`);
+      }
+    }
     for (const carry of plan.geometryCarries ?? []) {
       addImmutableGeometryCarryPlanDependencies(plan, ownerElementId, carry);
     }

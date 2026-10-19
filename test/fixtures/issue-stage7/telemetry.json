@@ -1,12 +1,15 @@
 {
-  "acceptedDistinct": 34,
+  "acceptedDistinct": 39,
   "acceptedHashes": [
     "0224ad94b8c62a177c2e91abea57609b84c31571b0f7b57fc576753aace75d96",
     "04319fc2c1e2b3c793d5b997511d407a13b669c31283f47ef2a5cf3558a87975",
     "137531b93236b6acd215b771e56980b45e97b60415a4aa7516476acd2bf1500a",
+    "1490c41a209b3e4b7e6415e2d3036742a026a01209134f61a45ae242d6f6d154",
     "4630d94cd9ad4617ba7fd6b325e32d78e66b0f35b8de4ab0b0e98b3c59679084",
+    "463e80c2e7d6a4ad5d4fd0fe5aa0234149aa72067f01366ccfcce1e29f287ae9",
     "467775e6035ff4e2e8d0da332c5dfbc17223e4626c82ababa9160a7a975ef154",
     "4dd2125a28c3458e34cabc30d521bbba12a2fe70b0c90a4a469d5dd0ec1ddb51",
+    "4ef7a03fbd5bcfb0b9f8dfce72b546426cb9578b208834af9a1edb78a7628fb5",
     "4fbd01a1b7010aace22af543fa455abea7b09d30f4738621f9efce20a3d40f48",
     "539ce01f996f41769b6753387e1a5efae09774eb0cc0e7540408a29ae453a1df",
     "639745a55ee254f7e62157dcf7868d20ce11f472e1508a0c41ee10cd962a7408",
@@ -23,12 +26,14 @@
     "ad7dcbd669b9b09beb1664d007b7597cec4241cf40df87395d86708ae26ba932",
     "adbb1cbea2f713ba5dd37309a7abaed91ebc9851792bfeac8a1b02167a8b51bf",
     "aec41844eb520ff9b1adac21edca18e87eac1b2d3e5356f9ab2d29e7980e2bf0",
+    "b2dd21c687f88c24487f2ad026a7a76a205f286220cc8756b14d183fc971de2a",
     "b538ad3a33c1c13351816be955b875e5cb931b2f60e3e4ee22fd03dc5285c21f",
     "b962640c89fdfbdcd0c0159b3d3dfc5b0a7dcf814ba819262df19b5ffdf374bb",
     "b9930f268c8d3e51a6ca902e406cc61e0aeb3c13ac134f22d129bdba63636cfa",
     "bb5c23d9a99f7e69b95aaa2ab09592372da6105931bbe44bc74ae7285366a310",
     "c8df85d076ed6ce9d2583f1868b74a5b082dbdaa5232abf51ae217c6e73c7684",
     "cf8aa8670f939d4c5a42a8359e4c30ee3999fd99a7dd95ba7791bbd8fd94d5d5",
+    "d10510371be4101799afa9413e99d9d11638972d5214f8ba14b9ec9360d20a94",
     "dabd65fb3c69cbc18c5449e6383082c57a82aa76bfeac7906ad1cb48319db56c",
     "dd58866984b4621407b7443bbdd0460868a7b63c5a255be6a9be31e0859324b7",
     "f3bb9b155d9564d049659228f774c0b3ceb97d7c0a12e5728f4c2bde1a91df78",
@@ -37,83 +42,17 @@
     "fd208dd3e3b8334ad493e7563df5f034656b14cc5debef144df6e2c522204cb5"
   ],
   "rejectedDistinct": 43,
-  "compilerCalls": 341,
-  "TSAttempts": 240,
-  "productionWrapperCalls": 192,
-  "actualNativeRequests": 179,
+  "compilerCalls": 690,
+  "TSAttempts": 672,
+  "productionWrapperCalls": 587,
+  "actualNativeRequests": 574,
   "nativeAborts": 1,
   "postAbortUnavailableCalls": 13,
   "scope": "Instrumented Stage 7 campaign only; required historical/parity/Rust unit suites are not included in request totals.",
   "quota": "UNAVAILABLE",
   "runs": [
     {
-      "root": "/tmp/nuinui-stage7-1428",
-      "mode": "baseline",
-      "counts": {
-        "compiler": 20,
-        "reference": 15,
-        "production": 10
-      },
-      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
-      "sha256": "7999b730188e7cb588eed75143c4aef7080442f771e37e3ffb2fd8db101d82f6"
-    },
-    {
-      "root": "/tmp/nuinui-stage7-1428-complete",
-      "mode": "baseline",
-      "counts": {
-        "compiler": 20,
-        "reference": 20,
-        "production": 15
-      },
-      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
-      "sha256": "45e538fe0886383d4cc21ba6531b007b637a01a3fd5abf60047b2d696868904e"
-    },
-    {
-      "root": "/tmp/nuinui-stage7-1428-resume",
-      "mode": "inspect",
-      "counts": {
-        "compiler": 6,
-        "reference": 4,
-        "production": 0
-      },
-      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
-      "sha256": "fc91259207952eebfdc1a39b7f84abde64a8978b14f7556811a4f3cebc2584c3"
-    },
-    {
-      "root": "/tmp/nuinui-stage7-1428-resume-after1",
-      "mode": "inspect",
-      "counts": {
-        "compiler": 6,
-        "reference": 4,
-        "production": 0
-      },
-      "productHash": "f813f0a08f79a00f60783ae5053f2a74a709d9d6cb01c3b021a2b903ea3a343f",
-      "sha256": "8d652e779e59bb672ce7e38123d5d9ebf210cf279550c5d567e0ee0b68052a55"
-    },
-    {
-      "root": "/tmp/nuinui-stage7-1428-reducers-rust",
-      "mode": "verify",
-      "counts": {
-        "compiler": 4,
-        "reference": 4,
-        "production": 4
-      },
-      "productHash": "078accb3d3aedbaccccc5571f21b0ba0ed5bf93fc0ab72e731e655d7d23b170e",
-      "sha256": "5fef831c80522e4c0a03c02053e71257aa9278860b58f367b03b6739053ac0db"
-    },
-    {
-      "root": "/tmp/nuinui-stage7-1428-reducers-rust2",
-      "mode": "verify",
-      "counts": {
-        "compiler": 4,
-        "reference": 4,
-        "production": 4
-      },
-      "productHash": "5910ef0980c3ce7a4c25afdffdf76fdb6739fb3b6f70ce6a3fd32dc8b7015535",
-      "sha256": "80f29e4725e163e3a6b8d3fd513daa92297ea9bdc91b83f64210f50afa4ed30b"
-    },
-    {
-      "root": "/tmp/nuinui-stage7-1428-H2-repaired",
+      "root": "/tmp/nuinui-stage7-1428-H2-repaired/",
       "mode": "verify",
       "counts": {
         "compiler": 1,
@@ -124,18 +63,144 @@
       "sha256": "8f34928f5ffb0d52c429ffce24bd9f3ea454348da186adc609b215c591416d29"
     },
     {
-      "root": "/tmp/nuinui-stage7-1428-reducers-before2",
-      "mode": "inspect",
+      "root": "/tmp/nuinui-stage7-1428-acceptance/",
+      "mode": "verify",
       "counts": {
-        "compiler": 12,
-        "reference": 10,
-        "production": 0
+        "compiler": 39,
+        "reference": 53,
+        "production": 53
       },
-      "productHash": "a48163a505a9762ddfb6620caa55ee47cff2c295f7efa53e20fa06085ae6d883",
-      "sha256": "528ff0ab5e005591a80f3b6797b942e5107074d6687310a3953e46a75a2b5031"
+      "productHash": "10e163d1700b59ca65ff18ddd774e0c05dbeb9a0d4a44d8d81fe25d7e4d69d59",
+      "addedOwnerHashes": {
+        "parameterDefinitions.ts": "bc492ddcfc1d244278c21adefd62347e218afa2d2f07101372ecc7f92c1fabb5",
+        "parameterAccess.ts": "8244103928f6893c3913f9001a365458f4a48dea11b0f463a0e35298e85a0f0e"
+      },
+      "sha256": "656ed39e3bbed7ac664c6b13b79f94e6d2ecc0ef0b8d022e4e23fd7c953da896"
     },
     {
-      "root": "/tmp/nuinui-stage7-1428-failure-before",
+      "root": "/tmp/nuinui-stage7-1428-complete/",
+      "mode": "baseline",
+      "counts": {
+        "compiler": 20,
+        "reference": 20,
+        "production": 15
+      },
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
+      "sha256": "45e538fe0886383d4cc21ba6531b007b637a01a3fd5abf60047b2d696868904e"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-completion-focused/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 39,
+        "reference": 53,
+        "production": 53
+      },
+      "productHash": "10e163d1700b59ca65ff18ddd774e0c05dbeb9a0d4a44d8d81fe25d7e4d69d59",
+      "addedOwnerHashes": {
+        "parameterDefinitions.ts": "bc492ddcfc1d244278c21adefd62347e218afa2d2f07101372ecc7f92c1fabb5",
+        "parameterAccess.ts": "8244103928f6893c3913f9001a365458f4a48dea11b0f463a0e35298e85a0f0e"
+      },
+      "sha256": "10c5830a83c3c132158a6d1ac0e2415bc061953589d5d691d28d58ed42cd16bf"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-completion-full-final/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 39,
+        "reference": 53,
+        "production": 53
+      },
+      "productHash": "10e163d1700b59ca65ff18ddd774e0c05dbeb9a0d4a44d8d81fe25d7e4d69d59",
+      "addedOwnerHashes": {
+        "parameterDefinitions.ts": "bc492ddcfc1d244278c21adefd62347e218afa2d2f07101372ecc7f92c1fabb5",
+        "parameterAccess.ts": "8244103928f6893c3913f9001a365458f4a48dea11b0f463a0e35298e85a0f0e"
+      },
+      "sha256": "729c0a6b0b28a276be3016f57554eae9bd6661fbda136981e3a5104167c6ec21"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-completion-full/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 39,
+        "reference": 53,
+        "production": 53
+      },
+      "productHash": "10e163d1700b59ca65ff18ddd774e0c05dbeb9a0d4a44d8d81fe25d7e4d69d59",
+      "addedOwnerHashes": {
+        "parameterDefinitions.ts": "bc492ddcfc1d244278c21adefd62347e218afa2d2f07101372ecc7f92c1fabb5",
+        "parameterAccess.ts": "8244103928f6893c3913f9001a365458f4a48dea11b0f463a0e35298e85a0f0e"
+      },
+      "sha256": "a7c3c142cc9b01967bf4de6f8a11ad58775b1aef9fe98eddcdcee88c805fc6e1"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-f5-after/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 5,
+        "reference": 0,
+        "production": 0
+      },
+      "productHash": "ce73216a785d94ed48eb9b50b410a99267f85e286fa51a308f69b35f56bc555c",
+      "sha256": "b85da6c5a8406659cbd3b4d7f904b403008e77957da0922cf2c11419376512b7"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-f5-after2/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 5,
+        "reference": 6,
+        "production": 4
+      },
+      "productHash": "ce73216a785d94ed48eb9b50b410a99267f85e286fa51a308f69b35f56bc555c",
+      "sha256": "71e5ce4b34dd84deac3cb59d24652e432aa29354fbf217045b39347137476e8a"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-f5-after3/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 5,
+        "reference": 6,
+        "production": 4
+      },
+      "productHash": "2fad43ff0033dab6e68c8403438e3a0de0b1c0186b54af4d5c6a6f4c97d50cd5",
+      "sha256": "be179f9b7c00b72ed017e9f5a07081759ed83abedc051e3af0024a582a00b382"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-f5-anchor-after/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 6,
+        "reference": 8,
+        "production": 8
+      },
+      "productHash": "48267f4d4ed91562af8ce0f8baae0d1654a628cb67a510726779dc2020085ba3",
+      "sha256": "699ce4ef10f47a1a3fba585698c41fa427704bf253a51644330c1da6c6007e0f"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-f5-inspect/",
+      "mode": "inspect",
+      "counts": {
+        "compiler": 17,
+        "reference": 16,
+        "production": 0
+      },
+      "productHash": "2fad43ff0033dab6e68c8403438e3a0de0b1c0186b54af4d5c6a6f4c97d50cd5",
+      "sha256": "c3a010fbd79cae5d87aae3fc6bf10b324cc5bb23627798093547f7180edd68a3"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-f5-inspect2/",
+      "mode": "inspect",
+      "counts": {
+        "compiler": 17,
+        "reference": 16,
+        "production": 0
+      },
+      "productHash": "2fad43ff0033dab6e68c8403438e3a0de0b1c0186b54af4d5c6a6f4c97d50cd5",
+      "sha256": "c3a010fbd79cae5d87aae3fc6bf10b324cc5bb23627798093547f7180edd68a3"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-failure-before/",
       "mode": "verify",
       "counts": {
         "compiler": 2,
@@ -146,40 +211,29 @@
       "sha256": "b9d8f629774a3072faba5d00a469337aab968dd837bcadbf1aa193b8d22d13e8"
     },
     {
-      "root": "/tmp/nuinui-stage7-1428-matrix-after4",
+      "root": "/tmp/nuinui-stage7-1428-final-candidate/",
       "mode": "verify",
       "counts": {
-        "compiler": 30,
-        "reference": 30,
-        "production": 28
+        "compiler": 39,
+        "reference": 43,
+        "production": 43
       },
-      "productHash": "8b6579dd7ed82fbd073da9ee3fb8528ccb13c0d4c882ec0ed2513e951a6a600a",
-      "sha256": "e70464f4792f91ddc06bb95ee725fcfa260cf1795958bb6b2b712fc170db373e"
+      "productHash": "cf97f434374d8bfb9adeeda57a9cc4a9be62f7f8df69768f892aa6a5c214fb60",
+      "sha256": "3fb219bb94b5501b44f082b6afc06b9b3c09b78dd3ed88d269bb335af94b0426"
     },
     {
-      "root": "/tmp/nuinui-stage7-1428-polyline-inspect",
-      "mode": "inspect",
-      "counts": {
-        "compiler": 14,
-        "reference": 12,
-        "production": 0
-      },
-      "productHash": "8b6579dd7ed82fbd073da9ee3fb8528ccb13c0d4c882ec0ed2513e951a6a600a",
-      "sha256": "86ee367c025986bda72dbddefa116ecb7e90b2893a0c4f5437172f521619c570"
-    },
-    {
-      "root": "/tmp/nuinui-stage7-1428-polyline-control",
+      "root": "/tmp/nuinui-stage7-1428-final-focus/",
       "mode": "verify",
       "counts": {
-        "compiler": 3,
-        "reference": 3,
-        "production": 3
+        "compiler": 39,
+        "reference": 48,
+        "production": 48
       },
-      "productHash": "8b6579dd7ed82fbd073da9ee3fb8528ccb13c0d4c882ec0ed2513e951a6a600a",
-      "sha256": "fa7fb9f4754ffd104d2802bee076be7c6a89fbd3ec269cb9e5a067437ace94a9"
+      "productHash": "19d675cd9824772034d4e9b226a474d60374841519ee1bb752d028c19ad9bb13",
+      "sha256": "a0920e7b7b73a3a1848031c0720011a9551f5a431920da5470e20d24d4e2f542"
     },
     {
-      "root": "/tmp/nuinui-stage7-1428-final-focused",
+      "root": "/tmp/nuinui-stage7-1428-final-focused/",
       "mode": "verify",
       "counts": {
         "compiler": 33,
@@ -190,7 +244,7 @@
       "sha256": "b55832cc36a76c8b3acd010c8d8db8edc36b52fd880f5b58bd7e399e68171a11"
     },
     {
-      "root": "/tmp/nuinui-stage7-1428-focused-final2",
+      "root": "/tmp/nuinui-stage7-1428-focused-final2/",
       "mode": "verify",
       "counts": {
         "compiler": 33,
@@ -199,6 +253,193 @@
       },
       "productHash": "8b6579dd7ed82fbd073da9ee3fb8528ccb13c0d4c882ec0ed2513e951a6a600a",
       "sha256": "d9f7dd8b3778b325b7f173876f9ba785f2afe4b1d78c40d9cf41e46479123cce"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-graph-refined/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 3,
+        "reference": 4,
+        "production": 4
+      },
+      "productHash": "c6c6d3764a0c80d3d4c2a77779f7070c442ca0e8ce2019a318e12bfb13c184a8",
+      "sha256": "5e1b6f7393b63d55d0de4fb155eee7cc3ca1c40fce6c19b01b0baa5cd1041ed6"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-graph-selectors/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 3,
+        "reference": 4,
+        "production": 4
+      },
+      "productHash": "c91d624724391ed3f3ea9d3f36e496ca757e12ca9793bd518f75fe4fad65b94c",
+      "sha256": "c02fca4e59ea6e534dcea6eb5e510b0bf25b66ef0fa6a5ec81337812c2c7ba17"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-lazy-after/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 6,
+        "reference": 8,
+        "production": 8
+      },
+      "productHash": "a2f1d823bdea65ed10d39cc91d2d54d2e0477d0e0f50a0546cf4ce0bba691ce4",
+      "sha256": "e5916de7745be445b7d6dcad9e0cb81c7509285395c6da7d3e8b442d5fc26b87"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-matrix-after4/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 30,
+        "reference": 30,
+        "production": 28
+      },
+      "productHash": "8b6579dd7ed82fbd073da9ee3fb8528ccb13c0d4c882ec0ed2513e951a6a600a",
+      "sha256": "e70464f4792f91ddc06bb95ee725fcfa260cf1795958bb6b2b712fc170db373e"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-order-lazy-before/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 3,
+        "reference": 3,
+        "production": 3
+      },
+      "productHash": "2fad43ff0033dab6e68c8403438e3a0de0b1c0186b54af4d5c6a6f4c97d50cd5",
+      "sha256": "66e0802e3df742889386d0f65bd6a15a1be0ecbc7f84e78750f9b2cc26f8f1ce"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-polyline-anchor-before/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 2,
+        "reference": 1,
+        "production": 1
+      },
+      "productHash": "2fad43ff0033dab6e68c8403438e3a0de0b1c0186b54af4d5c6a6f4c97d50cd5",
+      "sha256": "0dfcda2b3d53bed627e82cd981a02c24d6a7d04b300e90ed3083aaba6b029088"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-polyline-control/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 3,
+        "reference": 3,
+        "production": 3
+      },
+      "productHash": "8b6579dd7ed82fbd073da9ee3fb8528ccb13c0d4c882ec0ed2513e951a6a600a",
+      "sha256": "fa7fb9f4754ffd104d2802bee076be7c6a89fbd3ec269cb9e5a067437ace94a9"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-polyline-inspect/",
+      "mode": "inspect",
+      "counts": {
+        "compiler": 14,
+        "reference": 12,
+        "production": 0
+      },
+      "productHash": "8b6579dd7ed82fbd073da9ee3fb8528ccb13c0d4c882ec0ed2513e951a6a600a",
+      "sha256": "86ee367c025986bda72dbddefa116ecb7e90b2893a0c4f5437172f521619c570"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-reducers-before2/",
+      "mode": "inspect",
+      "counts": {
+        "compiler": 12,
+        "reference": 10,
+        "production": 0
+      },
+      "productHash": "a48163a505a9762ddfb6620caa55ee47cff2c295f7efa53e20fa06085ae6d883",
+      "sha256": "528ff0ab5e005591a80f3b6797b942e5107074d6687310a3953e46a75a2b5031"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-reducers-rust/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "productHash": "078accb3d3aedbaccccc5571f21b0ba0ed5bf93fc0ab72e731e655d7d23b170e",
+      "sha256": "5fef831c80522e4c0a03c02053e71257aa9278860b58f367b03b6739053ac0db"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-reducers-rust2/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "productHash": "5910ef0980c3ce7a4c25afdffdf76fdb6739fb3b6f70ce6a3fd32dc8b7015535",
+      "sha256": "80f29e4725e163e3a6b8d3fd513daa92297ea9bdc91b83f64210f50afa4ed30b"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-resume-after1/",
+      "mode": "inspect",
+      "counts": {
+        "compiler": 6,
+        "reference": 4,
+        "production": 0
+      },
+      "productHash": "f813f0a08f79a00f60783ae5053f2a74a709d9d6cb01c3b021a2b903ea3a343f",
+      "sha256": "8d652e779e59bb672ce7e38123d5d9ebf210cf279550c5d567e0ee0b68052a55"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-resume/",
+      "mode": "inspect",
+      "counts": {
+        "compiler": 6,
+        "reference": 4,
+        "production": 0
+      },
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
+      "sha256": "fc91259207952eebfdc1a39b7f84abde64a8978b14f7556811a4f3cebc2584c3"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-root-graph-final/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 39,
+        "reference": 53,
+        "production": 53
+      },
+      "productHash": "6c293cc0f99e6eab250c7f88f24759dd705a3db84c65868027a292e1760049b3",
+      "sha256": "f7b3c5435c99b3d1d15839389e93baadeee9e833afececd8c89c0f75bd545d5c"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-root-order-after/",
+      "mode": "verify",
+      "counts": {
+        "compiler": 3,
+        "reference": 3,
+        "production": 3
+      },
+      "productHash": "cf97f434374d8bfb9adeeda57a9cc4a9be62f7f8df69768f892aa6a5c214fb60",
+      "sha256": "676642ef89d15a7f7ebf528a61eec3587e96b1be75ee5731c1ce92d6ee08f773"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428-root-order-inspect/",
+      "mode": "inspect",
+      "counts": {
+        "compiler": 1,
+        "reference": 1,
+        "production": 0
+      },
+      "productHash": "a2f1d823bdea65ed10d39cc91d2d54d2e0477d0e0f50a0546cf4ce0bba691ce4",
+      "sha256": "08120bef4bb8b960fad232970cc13b912613d68c04e28f4da6cf2aed6f88641f"
+    },
+    {
+      "root": "/tmp/nuinui-stage7-1428/",
+      "mode": "baseline",
+      "counts": {
+        "compiler": 20,
+        "reference": 15,
+        "production": 10
+      },
+      "productHash": "b6e97ff9fb2b69f61df367741c579bacf90302525df1b6b44ddc436788b97d50",
+      "sha256": "7999b730188e7cb588eed75143c4aef7080442f771e37e3ffb2fd8db101d82f6"
     },
     {
       "root": "/tmp/nuinui-stage7-resume-full.log",

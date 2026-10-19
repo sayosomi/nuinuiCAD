@@ -344,6 +344,9 @@ const parameterDefinitionsForElement = (
       return [
         ...commonParameters,
         { key: "points", label: "点", kind: "pointReferenceList" },
+        ...(element.points ?? []).flatMap((anchor, index) => pointAnchorParameters({
+          anchor, key: `points:${index}`, label: `点 ${index + 1}`, allowCoordinate: true
+        }).filter(definition => definition.kind === "number")),
         { key: "closed", label: "閉じる", kind: "boolean" },
       ];
     case "angleLengthLine":

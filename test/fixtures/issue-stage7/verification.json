@@ -46,7 +46,7 @@
         "result": "NOT_APPLICABLE: conditional Rust source diff empty"
       },
       {
-        "command": "directly affected Stage 3\u20136 and PR #1358/#1359/#1360 controls",
+        "command": "directly affected Stage 3–6 and PR #1358/#1359/#1360 controls",
         "result": "NOT_RUN: hard stop before repairs and regression gate"
       },
       {
@@ -82,5 +82,42 @@
     },
     "fullSuiteRuns": 1,
     "frozenAcceptanceComplete": false
+  },
+  "currentPhase": "completion",
+  "completion": {
+    "status": "LOCAL_ACCEPTANCE_PASS; independent review and protected PR/CI pending",
+    "checks": {
+      "focused": "PASS: exact required entry point, 40 tests; combined projection/campaign verification 42 tests",
+      "build": "PASS",
+      "lint": "PASS: final npm run lint and focused source/summary lint",
+      "parity": "PASS: 203 tests",
+      "fullNpmTest": "PASS: 669 passed/2 skipped files; 10547 passed/157 skipped tests; zero failures",
+      "firstFullAttempt": "FAIL: 1 new test import boundary violation; 10546 passed/1 failed/157 skipped; 668 passed/1 failed/2 skipped files. Changed the test to use the existing public export. Boundary + projection tests then PASS 8/8; full repetition is required by that real failure, not reassurance.",
+      "dslReference": "PASS",
+      "rustFmt": "PASS",
+      "rustCheck": "PASS",
+      "rustFocused": "PASS: 37 for_group tests",
+      "rustTest": "PASS: 614 library + 6 stdio + 1 integration; 9 ignored library tests",
+      "rustClippy": "PASS: required command and --all-targets -- -D warnings",
+      "historical": "PASS within final full suite: Stage 3 issue1419; Stage 4 issue1421 strategy/sensitivity; Stage 5 issue1423; Stage 6 issue1426; geometryInputTargetOverlay, geometryCarryNextEndpointProjection, moduleGeometryCollectionCarry (#1358/#1359/#1360). Historical frozen fixtures unchanged.",
+      "diffCheck": "PASS",
+      "manualE2E": "Not Required"
+    },
+    "fullSuiteAttemptsThisContinuation": 2,
+    "implementationBlockers": [],
+    "independentReviewAndProtectedCI": "PENDING; do not self-merge or auto-close",
+    "quota": "UNAVAILABLE",
+    "frozenSources": "20/20 normally eligible Rust and TS PASS",
+    "families": {
+      "confirmed": 7,
+      "fixed": 7,
+      "newlyConfirmedThisContinuation": 2,
+      "fixedThisContinuation": 3,
+      "F1RepairRegression": "Corrected; not counted as another novel family"
+    },
+    "sensitivity": {
+      "outputDetectedPerRuntime": 14,
+      "H1NotCoveredZeroInnerOrControl": 6
+    }
   }
 }

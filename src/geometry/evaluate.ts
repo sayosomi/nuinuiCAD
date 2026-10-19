@@ -686,6 +686,7 @@ export const evaluateElements = (
       };
 
   const isPointAnchorInput = (element: CadElement, parameterKey: string) =>
+    (element.type === "polyline" && /^points:(0|[1-9]\d*)$/.test(parameterKey)) ||
     (parameterKey === "source" && element.type === "materializedPoint") ||
     [
       "points", "start", "end", "startPoint", "endPoint", "from", "fromPoint", "base", "basePoint",
@@ -2607,15 +2608,20 @@ export const evaluateElements = (
             : undefined;
         }
         if (node.kind === "if") {
-          const thenBranch = captureGeometryCollectionNode(node.thenBranch, nodes, runtimeGeneration, seen);
-          const elseBranch = captureGeometryCollectionNode(node.elseBranch, nodes, runtimeGeneration, seen);
-          return thenBranch && elseBranch ? { ...node, thenBranch, elseBranch } : undefined;
+          // Freeze the selected identity against the incoming snapshot; an
+          // unselected indexed alias must never invalidate this capture.
+          const condition = evaluateTypedExpression(node.condition, { lookupBinding: scalarBindingLookupFor(ancestorIterationVariables) });
+          if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+          return captureGeometryCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch, nodes, runtimeGeneration, seen);
         }
         if (node.kind === "match") {
-          const arms = node.arms.map((arm) => ({ ...arm, value: captureGeometryCollectionNode(arm.value, nodes, runtimeGeneration, seen) }));
-          return arms.every((arm) => arm.value !== undefined)
-            ? { ...node, arms: arms as { label: string; value: import("../types/geometry").GeometryInputCollectionNode }[] }
-            : undefined;
+          const scrutinee = evaluateTypedExpression(node.scrutinee, { lookupBinding: scalarBindingLookupFor(ancestorIterationVariables) });
+          if (scrutinee.status !== "ok") return undefined;
+          const label = scrutinee.type.kind === "optional"
+            ? scrutinee.value.kind === "none" ? "none" : "some"
+            : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
+          const arm = node.arms.find(candidate => candidate.label === label);
+          return arm ? captureGeometryCollectionNode(arm.value, nodes, runtimeGeneration, seen) : undefined;
         }
         if (node.kind === "coalesce") {
           const leftBranch = captureGeometryCollectionNode(node.leftBranch, nodes, runtimeGeneration, seen);

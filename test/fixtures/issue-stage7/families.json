@@ -17,7 +17,21 @@
     ],
     "FAILbefore": "Independent root and Module TS reducers throw RangeError; frozen H2-00 production Rust SIGABRT retained from initial checkpoint; Rust crash was not repeated.",
     "PASSafter": "Four reducers and all ten H2 sources pass through normal eligible persistent Rust and TS.",
-    "repair": "Capture canonical indexed alias member identities against the incoming collection using existing member selectors; retain lazy geometry and canonical generated drawable provenance."
+    "repair": "Capture canonical indexed alias member identities against the incoming collection using existing member selectors; retain lazy geometry and canonical generated drawable provenance.",
+    "continuationRegression": {
+      "cause": "The first F1 candidate captured both if/match arms and rejected an unselected out-of-range alias. This was a repair regression, not a new novel family.",
+      "FAILbefore": [
+        "R-snapshot-lazy-if-root",
+        "R-snapshot-lazy-match-module"
+      ],
+      "PASSafter": [
+        "R-snapshot-lazy-if-root",
+        "R-snapshot-lazy-match-module",
+        "R-snapshot-lazy-else-root",
+        "R-snapshot-root-2"
+      ],
+      "repair": "Select the if/match arm against the incoming snapshot before capturing indexed identities; retain lazy geometry in that arm."
+    }
   },
   {
     "id": "F2",
@@ -73,14 +87,13 @@
   {
     "id": "F5",
     "name": "Polyline vertex coordinate expressions omit canonical numeric projection",
-    "status": "CONFIRMED_BLOCKED_NOT_FIXED",
+    "status": "FIXED",
     "firstIncorrectProducer": [
-      "packages/nui-language/src/parameters/parameterDefinitions.ts::polyline parameter enumeration"
+      "packages/nui-language/src/parameters/parameterDefinitions.ts::polyline parameter enumeration",
+      "packages/nui-language/src/dsl/moduleBodySemanticCore.ts::analyzePointArray coordinate sites",
+      "packages/nui-language/src/dsl/dslParameterSpans.ts::resolveParameterValueSpan"
     ],
-    "requiredExcludedOwner": [
-      "packages/nui-language/src/parameters/parameterDefinitions.ts",
-      "packages/nui-language/src/parameters/parameterAccess.ts"
-    ],
+    "requiredExcludedOwner": [],
     "affectedFrozen": [
       "H1-05",
       "H1-06",
@@ -93,6 +106,44 @@
       "R-polyline-named"
     ],
     "FAILbefore": "Module Origin=7 with inline polyline vertices has no numeric bindings and evaluates Origin as an unavailable raw name. Named coordinate-point vertices pass in both engines. The frozen root nested geometry-property tuple is similarly not projected.",
-    "repair": "NOT_AUTHORIZED: list-coordinate enumeration/access must be extended in its canonical parameters owner; no local replacement or frozen-source workaround was introduced."
+    "repair": "Approved parameter definitions/access project each inline vertex coordinate; existing DSL span and Module scalar-site owners preserve indexed keys and exact expression spans. Rust numeric materialization reads/writes the same slots.",
+    "PASSafter": "Frozen H1-05/06/07 and inline/named minimum controls pass in normally eligible Rust and TS.",
+    "scopeAuthorization": "Issue #1428 Human-approved F5 owner extension, 2026-10-20; original BLOCKED evidence remains at parent 0f0cc141bbcb189bbf9ca176f80412298ab58991."
+  },
+  {
+    "id": "F6",
+    "name": "Root immutable collection carry omits seed/escaped-alias scheduling edges",
+    "status": "FIXED",
+    "minimized": [
+      "R-indexed-line-root"
+    ],
+    "adjacentPASS": [
+      "R-indexed-line-module",
+      "R-indexed-drawable-root"
+    ],
+    "firstIncorrectProducer": [
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts"
+    ],
+    "FAILbefore": "Identical root minimum fails in TS/Rust; compiler graph lacks loop -> eager Seed and escaped Pick -> loop, releasing Seed after Pick. Module and drawable-seed controls pass.",
+    "PASSafter": "Canonical graph assertions and identical source pass in both engines.",
+    "repair": "Join root collection IDs to their canonical loop owner and add unconditional eager seed prerequisites. Frame-local aliases avoid owner cycles; Module execution events and conditional/lazy leaf activation remain at existing boundaries."
+  },
+  {
+    "id": "F7",
+    "name": "Literal polyline deferred point targets lose their vertex slot identity",
+    "status": "FIXED",
+    "minimized": [
+      "R-polyline-value-anchor"
+    ],
+    "adjacentPASS": [
+      "R-polyline-named",
+      "R-polyline-inline"
+    ],
+    "firstIncorrectProducer": [
+      "packages/nui-language/src/dsl/dslApplyArgs.ts::literal points anchor application"
+    ],
+    "FAILbefore": "Independent legal Module minimum is normally Rust-ineligible. The compiler records its selected immutable path endpoint under an empty input key instead of the vertex. Frozen H1-07 inspection independently retains that empty-key product.",
+    "PASSafter": "Normally eligible TS/Rust minimum yields the segment (8,11) -> (10,13); all Module path cells pass.",
+    "repair": "Transport canonical points:index slot keys through existing target recording, eligibility and TS/Rust anchor materialization without replacing whole-list inputs."
   }
 ]

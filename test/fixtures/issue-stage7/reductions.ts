@@ -44,4 +44,26 @@ const minimalIndexedModule = {
   ...indexed[1], id:"R-indexed-line-module", seedDrawable:false,
   source:indexed[1].source.replace("line Seed =", "const Seed: line =")
 };
-export const reductions = [...snapshots, ...indexed, minimalIndexedModule, ...endpoints, ...failures, ...polylines];
+const minimalIndexedRoot = {
+  ...indexed[0], id:"R-indexed-line-root", seedDrawable:false,
+  source:indexed[0].source.replace("line Seed =", "const Seed: line =")
+};
+const lazySnapshots = [false,true].map(module => {
+  const base = snapshots.find(c => c.id === `R-snapshot-${module ? "module" : "root"}-1`)!;
+  return { ...base, id:`R-snapshot-lazy-${module ? "match-module" : "if-root"}`,
+    source:base.source.replace("const Swap: point[] = [@B,@A]", [
+      "const Missing: point = @Pts[9]",
+      ...(module ? ["const Side: choice(good,bad) = good"] : []),
+      `const Swap: point[] = ${module ? "match @Side { good => [@B,@A] bad => [@Missing,@A] }" : "if (true) { [@B,@A] } else { [@Missing,@A] }"}`
+    ].join("\n")) };
+});
+const polylineValueAnchor = {
+  ...polylines[0], id:"R-polyline-value-anchor",
+  source:"nui 1\nmodule Box() {\nconst P: path = segment(start: (2,3), end: (8,11))\nexport line Out = polyline(points: [@P.end,(10,13)], closed: false)\n}\ninstance Live = Box()\n",
+  expected:{ start:{ x:8,y:11 }, end:{ x:10,y:13 } }
+};
+const lazyElse = { ...lazySnapshots[0], id:"R-snapshot-lazy-else-root",
+  source:lazySnapshots[0].source.replace("if (true) { [@B,@A] } else { [@Missing,@A] }", "if (false) { [@Missing,@A] } else { [@B,@A] }") };
+const twice = { ...snapshots[0], id:"R-snapshot-root-2",
+  source:snapshots[0].source.replace("Ticks: number[] = [1]", "Ticks: number[] = [1,2]"), expected:snapshots[1].expected };
+export const reductions = [...snapshots, twice, ...indexed, minimalIndexedModule, minimalIndexedRoot, ...endpoints, ...failures, ...polylines, polylineValueAnchor, ...lazySnapshots, lazyElse];

@@ -2,9 +2,11 @@
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-const args = process.argv.slice(2), fullAt = args.indexOf("--full-suite-log");
-const fullLog = fullAt < 0 ? undefined : args[fullAt+1];
-const roots = fullAt < 0 ? args : args.slice(0,fullAt);
+const args = process.argv.slice(2), roots = [], fullLogs = [];
+for (let i=0;i<args.length;i++) {
+  if (args[i] === "--full-suite-log") fullLogs.push(args[++i]);
+  else roots.push(args[i]);
+}
 if (!roots.length) throw new Error("Supply retained evidence directories; optionally --full-suite-log <log>.");
 const accepted = new Set(), rejected = new Set(), runs = [];
 let compiler = 0, reference = 0, productionCalls = 0;
@@ -21,10 +23,10 @@ for (const root of roots) {
     if (!existsSync(file)) continue;
     const r = JSON.parse(readFileSync(file,"utf8"));
     compiler += r.counts.compiler; reference += r.counts.reference; productionCalls += r.counts.production;
-    runs.push({ root,mode,counts:r.counts,productHash:r.productHash,sha256:createHash("sha256").update(readFileSync(file)).digest("hex") });
+    runs.push({ root,mode,counts:r.counts,productHash:r.productHash, ...(r.addedOwnerHashes ? { addedOwnerHashes:r.addedOwnerHashes } : {}), sha256:createHash("sha256").update(readFileSync(file)).digest("hex") });
   }
 }
-if (fullLog) {
+for (const fullLog of fullLogs) {
   const content=readFileSync(fullLog,"utf8"), match=content.match(/Stage 7 (\{[^\n]+\})/);
   if (!match) throw new Error("Stage 7 telemetry absent from full-suite log");
   const r=JSON.parse(match[1]);
