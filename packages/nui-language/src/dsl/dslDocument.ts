@@ -3600,7 +3600,10 @@ export const compileDslDocument = (
   // The source semantic projection is also useful for Definition Query in a
   // document without Modules. Geometry values also need this path so their
   // source-only aliases can be lowered at existing geometry consumers.
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences || hasRootForGroupOccurrenceGeometryTargets ? sourceSemanticCompilation : undefined;
+  const hasNominalRecordCollectionAccess = Boolean(sourceSemanticCompilation && [...sourceSemanticCompilation.rootScalarExpressionsByStatementId.values()].some(site =>
+    site.expression.geometryProperties.some(property => property.target?.kind === "recordField" && property.target.record.kind === "recordCollectionIndex")
+  ));
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasNominalRecordCollectionAccess || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences || hasRootForGroupOccurrenceGeometryTargets ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const constructionInputConsumerElementIds = new Set<ElementId>();
   const coordinateTargetFor = (coordinate: import("./moduleSemanticTypes").ModulePointCoordinateSemantic, statementIndex: number, sourceText: string): GeometryInputTarget => {
@@ -3768,6 +3771,7 @@ export const compileDslDocument = (
     const hasRootGeometryRuntimeOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
         property.target?.kind === "sourceGeometryProperty" ||
+        property.target?.kind === "recordField" ||
         property.target?.kind === "deferredModuleExportProperty" ||
         property.target?.kind === "forGroupOccurrenceProperty"
       ));
@@ -3813,6 +3817,13 @@ export const compileDslDocument = (
       const rootRecordFieldContentsForTarget = (
         target: Extract<ModuleScalarSourceTarget, { kind: "recordField" }>
       ) => {
+        if (target.record.kind === "recordValue") return {
+          collectionValueId: recordFieldContentsCollectionValueIdFor(
+            recordValueCollectionIdFor([], target.record.statementId),
+            target.fieldPath ?? [target.field]
+          ),
+          targetSourceOrder: target.record.statementIndex
+        };
         if (target.record.kind !== "deferredModuleRecordExport") return null;
         const instance = moduleRuntimeContext?.instanceFor(target.record.instanceIdentity)
           ?? moduleSemanticCompilation.instancesByStatementId.get(target.record.instanceStatementId);
@@ -3948,7 +3959,7 @@ export const compileDslDocument = (
         if (!property?.type || !target) return null;
         if (
           target.kind === "recordField" &&
-          target.record.kind === "deferredModuleRecordExport" &&
+          (target.record.kind === "deferredModuleRecordExport" || target.record.kind === "recordValue") &&
           target.property === "length" &&
           isDslArrayValueType(target.valueType)
         ) {
@@ -4233,7 +4244,7 @@ export const compileDslDocument = (
           if (property?.target?.kind !== "recordField" || !property.type) return null;
           if (scalarTypeOfDslValueType(property.target.valueType) === null) return null;
           if (
-            property.target.record.kind === "deferredModuleRecordExport" &&
+            (property.target.record.kind === "deferredModuleRecordExport" || property.target.record.kind === "recordValue") &&
             property.target.collectionIndex !== undefined
           ) {
             const fieldContents = rootRecordFieldContentsForTarget(property.target);
@@ -4311,6 +4322,7 @@ export const compileDslDocument = (
                 : recordScalarBindingIdFor(target.record.statementId, target.field);
             }
             if (target.record.kind === "recordCollectionIndex") {
+              if (target.record.collectionTarget.kind === "deferredModuleCollectionExport") return null;
               const index = target.record.index.ast.kind === "numberLiteral" ? target.record.index.ast.value : null;
               const member = index !== null && Number.isInteger(index) && index >= 0
                 ? target.record.members?.[index]
@@ -4326,16 +4338,31 @@ export const compileDslDocument = (
                 exportName: target.record.exportName,
                 exportedStatementId: target.record.exportedStatementId,
                 field: target.field,
+                fieldPath: target.fieldPath,
                 moduleRuntimeContext
               }) ?? null;
             }
             return null;
           };
           const directBindingId = recordFieldBindingIdForTarget(property.target);
+          if (property.target.record.kind === "deferredModuleRecordExport" && (!directBindingId || !seedById.has(directBindingId))) {
+            const contents = rootRecordFieldContentsForTarget(property.target);
+            if (!contents) return null;
+            const fieldPath = property.target.fieldPath ?? [property.target.field];
+            const instance = moduleRuntimeContext?.instanceFor(property.target.record.instanceIdentity)
+              ?? moduleSemanticCompilation.instancesByStatementId.get(property.target.record.instanceStatementId);
+            if (!instance) return null;
+            const path = moduleRuntimeContext ? moduleRuntimeContext.runtimePathForInstance([], instance) : [instance.statementId];
+            return {
+              resolution: { kind: "resolvedCollectionIndex" as const,
+                collectionValueId: recordFieldCollectionValueIdFor(recordValueCollectionIdFor(path, property.target.record.exportedStatementId), property.target.field, fieldPath),
+                collectionLength: 1, targetSourceOrder: contents.targetSourceOrder, type: property.type },
+              collectionIndex: 0
+            };
+          }
           if (
             !directBindingId &&
             property.target.record.kind === "recordCollectionIndex" &&
-            !property.target.record.members &&
             node.occurrenceIndex
           ) {
             const fieldPath = property.target.fieldPath ?? [property.target.field];

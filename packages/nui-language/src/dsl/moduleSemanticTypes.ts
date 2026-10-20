@@ -1197,6 +1197,8 @@ export type ModuleSemanticAnalysisInput = {
   externalNamespaceResolver?: SourceLexicalExternalNamespaceResolver;
   /** Resolves an external public Module entry to its defining semantic data. */
   externalModuleResolver?: (member: SourceLexicalExternalNamespaceMember) => ExternalModuleSemanticTarget | null;
+  /** Nested exported record fields retain their defining document's catalog. */
+  externalRecordDefinitionResolver?: (documentId: DocumentId, identity: RecordTypeIdentity) => RecordDefinitionSemantic | undefined;
   /** Construction metadata is compiler-owned. The semantic pass asks this
    * narrow adapter for the source argument and its canonical runtime key; it
    * never reparses a declaration to discover the construction interface. */

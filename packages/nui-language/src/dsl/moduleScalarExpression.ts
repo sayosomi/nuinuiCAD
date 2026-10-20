@@ -557,7 +557,14 @@ const resolveAndTypecheck = ({
             ...(node.occurrenceRange ? { occurrenceRange: node.occurrenceRange } : {}),
             collectionMatchBinders: [...collectionMatchBinders.values()]
           });
-          if (node.occurrenceIndex) resolve(node.occurrenceIndex, boundNames, collectionMatchBinders);
+          // Record-field resolution owns and typechecks its selected record
+          // index. The scalar AST below becomes one reference, so feeding its
+          // removed index into this pass leaves an unconsumed resolution.
+          if (node.occurrenceIndex) {
+            const firstIndexResolution = resolvedTypes.length;
+            resolve(node.occurrenceIndex, boundNames, collectionMatchBinders);
+            if (resolution.target?.kind === "recordField") resolvedTypes.splice(firstIndexResolution);
+          }
           geometryProperties.push({
             geometryName: node.elementName,
             property: node.property,

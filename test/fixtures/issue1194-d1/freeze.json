@@ -1,0 +1,576 @@
+{
+  "seed": 1194,
+  "hashAlgorithm": "sha256(JSON.stringify([[\"root.nui\", source], ...savedEntriesSortedByFileName]))",
+  "authority": "docs/nui1/spec.md at base 21a270d8dafd1fd1c3b012f4f206fb62ee67d367",
+  "freezeBoundary": "Final 40 source/bundle bytes and authored oracle frozen before first actual TS/Rust execution; authoring/prevalidation prototypes are inventoried separately.",
+  "cells": [
+    {
+      "id": "A00",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "sha256": "5190d301ec3b187acf596918899f921cfdc42764e75c5e4cf8792320352268d0",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101
+      }
+    },
+    {
+      "id": "A01",
+      "axes": [
+        0,
+        0,
+        1
+      ],
+      "sha256": "200fdac6b92e982b1a44a957843b0cf5d1b376c09e9da0965c7767ea2b335e8d",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101,
+        "Size1": 2,
+        "Pick1": 43,
+        "Tag1": 307
+      }
+    },
+    {
+      "id": "A02",
+      "axes": [
+        0,
+        1,
+        0
+      ],
+      "sha256": "5612ee5c38c36b0beee4c1c6f653362bae6aee396f5860e204aa490756bf608e",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101
+      }
+    },
+    {
+      "id": "A03",
+      "axes": [
+        0,
+        1,
+        1
+      ],
+      "sha256": "933eb3fa49e664a3387745c420f36270e67d303b4374d6da6af619a5e43df08a",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101,
+        "Size1": 2,
+        "Pick1": 43,
+        "Tag1": 307
+      }
+    },
+    {
+      "id": "A04",
+      "axes": [
+        1,
+        0,
+        0
+      ],
+      "sha256": "d24d9b0baef9f63009625e1ff73cde15227a8e6d102d03f18d19c3b9c3271930",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101
+      }
+    },
+    {
+      "id": "A05",
+      "axes": [
+        1,
+        0,
+        1
+      ],
+      "sha256": "89125b7d45f684a77b2bc3f990cc21924f4731dfcde238da2ebc1b4ed089ab0a",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101,
+        "Size1": 2,
+        "Pick1": 43,
+        "Tag1": 307
+      }
+    },
+    {
+      "id": "A06",
+      "axes": [
+        1,
+        1,
+        0
+      ],
+      "sha256": "5569e4b4556bcaa94abfdd987b599e7d61bb6f8a90b201e5bc2db8a716fde952",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101
+      }
+    },
+    {
+      "id": "A07",
+      "axes": [
+        1,
+        1,
+        1
+      ],
+      "sha256": "2b3bbf1e8fe7ac7763738d9b884d7368e50d3eabe38a96eb0ca4e3370b067fef",
+      "expected": {
+        "Size0": 3,
+        "Pick0": 19,
+        "Tag0": 101,
+        "Size1": 2,
+        "Pick1": 43,
+        "Tag1": 307
+      }
+    },
+    {
+      "id": "B00",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "sha256": "50a54105d9cb412fbcce89ea9e4d7aec19174fac083fe00c975d127bf1218a59",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11
+      }
+    },
+    {
+      "id": "B01",
+      "axes": [
+        0,
+        0,
+        1
+      ],
+      "sha256": "8978fd68307c1424077d32a8337a02162f75b1cf7269607f3b6e5f93151e823f",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11
+      }
+    },
+    {
+      "id": "B02",
+      "axes": [
+        0,
+        1,
+        0
+      ],
+      "sha256": "90fd5b4487e329b64dae548775d81f95440f6521ba2a5b9c37863272a1de12c5",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11
+      }
+    },
+    {
+      "id": "B03",
+      "axes": [
+        0,
+        1,
+        1
+      ],
+      "sha256": "f3b4c1ebbda501c729fcd870d8828819f819c98a63a1d48914bbfe6071a14685",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11
+      }
+    },
+    {
+      "id": "B04",
+      "axes": [
+        1,
+        0,
+        0
+      ],
+      "sha256": "728e223a3725a44e33880730506694cbc81d34adc7add2cdf131d942eef92f90",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11,
+        "Tag": 47
+      }
+    },
+    {
+      "id": "B05",
+      "axes": [
+        1,
+        0,
+        1
+      ],
+      "sha256": "c6aad506ef974795de354e32488b2158f8f4b7f2a6f1d51176e37c16f39c7092",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11,
+        "Tag": 47
+      }
+    },
+    {
+      "id": "B06",
+      "axes": [
+        1,
+        1,
+        0
+      ],
+      "sha256": "336c127606d8aec55a7a5f940f851031fab2416899465b2d2679b48400861348",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11,
+        "Tag": 47
+      }
+    },
+    {
+      "id": "B07",
+      "axes": [
+        1,
+        1,
+        1
+      ],
+      "sha256": "c39bb5199439a397010e3cf6bec86395a00d79794c94ae3180ffca5c5935ed41",
+      "expected": {
+        "Size": 2,
+        "Pick": 23,
+        "NoneCheck": 73,
+        "OtherPick": 11,
+        "Tag": 47
+      }
+    },
+    {
+      "id": "C00",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "sha256": "7f49afed4dc06a2d6d2b5859a8eadd1d77bee81e8790e2324fd98d6b84950618",
+      "expected": {
+        "Pick": 29,
+        "Tag": 53
+      }
+    },
+    {
+      "id": "C01",
+      "axes": [
+        0,
+        0,
+        1
+      ],
+      "sha256": "d2b8b95d21fe105bd73ac77e41dcd1c6901c11ea288a63659e454ee8876404ac",
+      "expected": {
+        "Pick": 29,
+        "Tag": 53
+      }
+    },
+    {
+      "id": "C02",
+      "axes": [
+        0,
+        1,
+        0
+      ],
+      "sha256": "d184d810ffecea3b112cfca3b30e5530cbd04c3ec9af68944b94d82c04e7509a",
+      "expected": {
+        "Pick": 39,
+        "Tag": 53
+      }
+    },
+    {
+      "id": "C03",
+      "axes": [
+        0,
+        1,
+        1
+      ],
+      "sha256": "228a06ff64ce18f75155f75ae26c1ad3b459bdc278257646b2732fcc49e82fda",
+      "expected": {
+        "Pick": 39,
+        "Tag": 53
+      }
+    },
+    {
+      "id": "C04",
+      "axes": [
+        1,
+        0,
+        0
+      ],
+      "sha256": "22ba7e847a64452ba3901895703fbfa3d31f0367353660c0518a30cc23819e57",
+      "expected": {
+        "Pick": 29,
+        "Tag": 53
+      }
+    },
+    {
+      "id": "C05",
+      "axes": [
+        1,
+        0,
+        1
+      ],
+      "sha256": "4e9edaff7ffa0dc5f8948e6b1c23d4eb376b558b88255320a009e44944cafcb5",
+      "expected": {
+        "Pick": 29,
+        "Tag": 53
+      }
+    },
+    {
+      "id": "C06",
+      "axes": [
+        1,
+        1,
+        0
+      ],
+      "sha256": "e0b2bc71aa281b699374148a727af87e13be983a34392b5f83704a356f272e8f",
+      "expected": {
+        "Pick": 29,
+        "Tag": 63
+      }
+    },
+    {
+      "id": "C07",
+      "axes": [
+        1,
+        1,
+        1
+      ],
+      "sha256": "68554e5a0e7fbb2f0d0c76c5ed13a823e6e40bb270750e26fd0cb9803b16f969",
+      "expected": {
+        "Pick": 29,
+        "Tag": 63
+      }
+    },
+    {
+      "id": "D00",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "sha256": "6b25a8746743c9b53904f88e28bcbb5fdc610bd0e259a5b50acf4280e33bc0c0",
+      "expected": {
+        "X": 9,
+        "Y": 12
+      }
+    },
+    {
+      "id": "D01",
+      "axes": [
+        0,
+        0,
+        1
+      ],
+      "sha256": "b8bba01a70d7705d8c7d3e0b5769dbf8a7149afd482ddd7bf71db6b6901d4b8b",
+      "expected": {
+        "X": 9,
+        "Y": 12
+      }
+    },
+    {
+      "id": "D02",
+      "axes": [
+        0,
+        1,
+        0
+      ],
+      "sha256": "e41c461f74aea45884ba5e48708a922ce5e7fe1cc981896418cd8807072195aa",
+      "expected": {
+        "X": 9,
+        "Y": 12
+      }
+    },
+    {
+      "id": "D03",
+      "axes": [
+        0,
+        1,
+        1
+      ],
+      "sha256": "84259ce94c2253571ebb2f4b584fe3ec1062220e3d996788b2a4f598778cbf60",
+      "expected": {
+        "X": 9,
+        "Y": 12
+      }
+    },
+    {
+      "id": "D04",
+      "axes": [
+        1,
+        0,
+        0
+      ],
+      "sha256": "0a86a29eada79c675fbd77eb738e1db1ea3aafff088098b9f30777e8cec8635e",
+      "expected": {
+        "X": 9,
+        "Y": 12,
+        "Length": 10
+      }
+    },
+    {
+      "id": "D05",
+      "axes": [
+        1,
+        0,
+        1
+      ],
+      "sha256": "9b51e8521c96879e4766e7530da92956397c510ce9330f479e40dbd28e4f85cc",
+      "expected": {
+        "X": 9,
+        "Y": 12,
+        "Length": 10
+      }
+    },
+    {
+      "id": "D06",
+      "axes": [
+        1,
+        1,
+        0
+      ],
+      "sha256": "fe5b7736205c5b1286b2e993be1ae45d6c4686b6a3264574b2c5c01b8bf15f7a",
+      "expected": {
+        "X": 9,
+        "Y": 12,
+        "Length": 10
+      }
+    },
+    {
+      "id": "D07",
+      "axes": [
+        1,
+        1,
+        1
+      ],
+      "sha256": "e402ea51c7fac50bdbba303259f5288d16c7e0bd4f62c0e78c2adadaea89e137",
+      "expected": {
+        "X": 9,
+        "Y": 12,
+        "Length": 10
+      }
+    },
+    {
+      "id": "E00",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "sha256": "e3a3b718b189c0ea86dce656db5de8e62997fd2db10e4aecf01b68ea7399e7f8",
+      "expected": {
+        "Pick": 31,
+        "Tag": 83,
+        "Size": 3
+      }
+    },
+    {
+      "id": "E01",
+      "axes": [
+        0,
+        0,
+        1
+      ],
+      "sha256": "67cd7aa30f61400d4348593ce6baca2ec37f652c600bf664846812b701072a05",
+      "expected": {
+        "Pick": 31,
+        "Tag": 83,
+        "Size": 3
+      }
+    },
+    {
+      "id": "E02",
+      "axes": [
+        0,
+        1,
+        0
+      ],
+      "sha256": "61ddf54c2f6e722454931d325faa2beacf2406533dd2c50b2ef71899a08d41c2",
+      "expected": {
+        "Pick": 61,
+        "Tag": 83
+      }
+    },
+    {
+      "id": "E03",
+      "axes": [
+        0,
+        1,
+        1
+      ],
+      "sha256": "d9851fdd2c0af6c9780f363fbf48f1f727e5f7b98aca961360f5937e0e1185ac",
+      "expected": {
+        "Pick": 61,
+        "Tag": 83
+      }
+    },
+    {
+      "id": "E04",
+      "axes": [
+        1,
+        0,
+        0
+      ],
+      "sha256": "9e6b85874e03bc2b81bf001a9f36a3966d3b5ab76c8d1b83494816c18353ea3f",
+      "expected": {
+        "Pick": 31,
+        "Tag": 83,
+        "Size": 3
+      }
+    },
+    {
+      "id": "E05",
+      "axes": [
+        1,
+        0,
+        1
+      ],
+      "sha256": "45f3aae7600a1d91d7583668c1e65c0fb02824e14353df7923a009045f297188",
+      "expected": {
+        "Pick": 31,
+        "Tag": 83,
+        "Size": 3
+      }
+    },
+    {
+      "id": "E06",
+      "axes": [
+        1,
+        1,
+        0
+      ],
+      "sha256": "674d08cdb5ec79026089e791117e9b494a0b71d07c6bae11b9df6cb1115e545f",
+      "expected": {
+        "Pick": 61,
+        "Tag": 83
+      }
+    },
+    {
+      "id": "E07",
+      "axes": [
+        1,
+        1,
+        1
+      ],
+      "sha256": "5da21faaef46ef37dedf4110d380362f7df9fb2f10dd3354c10914a0d0f35315",
+      "expected": {
+        "Pick": 61,
+        "Tag": 83
+      }
+    }
+  ]
+}
