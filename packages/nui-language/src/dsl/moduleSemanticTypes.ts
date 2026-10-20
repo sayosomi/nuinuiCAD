@@ -62,7 +62,7 @@ export type ModuleRecordSourceTarget =
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
       /** Keeps the established whole-record target aware of the one
        * coalescing shape that needs collection-backed field projection. */
-      valueExpressionKind?: "coalesce";
+      valueExpressionKind?: "coalesce" | "match";
     }
   | {
       /** Immutable nominal-record binder owned by a record collection map. */
@@ -550,6 +550,7 @@ export type ModuleRecordValueExpressionSemantic =
       kind: "match";
       span: DslSpan;
       scrutinee: ModuleScalarExpressionSemantic | null;
+      optionalRecordMatch?: true;
       arms: readonly {
         label: string;
         labelSpan: DslSpan;

@@ -1,0 +1,301 @@
+[
+  {
+    "id": "F12",
+    "name": "Imported record argument export identity stamped with importer document",
+    "minimal": "R-document-export-identity",
+    "controls": [
+      "I01",
+      "I02"
+    ],
+    "cases": [
+      "I03",
+      "R-document-export-identity"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts:recordSourceLookup",
+    "repair": "Preserve exported.documentId in exportedIdentity before document-qualified decoration.",
+    "base": "1e4984b47b7e879731e3b7cbd46dd50007875f6b",
+    "before": {
+      "id": "R-document-export-identity",
+      "sha256": "f022e37c6078a772ee3dddad5a10f331451efccd0106f9c50ce15da8b4468284",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "compiler: AssertionError: expected '/issue1194/root.nui' to be '/issue1194/left/library.nui' // Object.is equality"
+      ]
+    },
+    "after": {
+      "id": "R-document-export-identity",
+      "sha256": "f022e37c6078a772ee3dddad5a10f331451efccd0106f9c50ce15da8b4468284",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "beforeSourceTreeSha256": "1693493d58ff9ab47e92a8dab72d8648e80c6d2d8c1289f60ea7d888ad12ab19",
+    "afterSourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa"
+  },
+  {
+    "id": "F13",
+    "name": "General optional nominal-record match treated as scalar scrutinee/binder",
+    "minimal": "R-optional-record-leaf",
+    "controls": [
+      "R-record-binder",
+      "R-binder-none",
+      "R-lazy-constructor-root",
+      "R-lazy-constructor-module",
+      "R-selected-error"
+    ],
+    "cases": [
+      "O01",
+      "O02",
+      "O03",
+      "O04",
+      "R-optional-record-leaf"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts and moduleSemanticAnalysis.ts",
+    "repair": "Resolve arm-local whole-record binder aliases; use existing singleton record descriptors and optional-length presence. Preserve exhaustiveness and selected-field laziness.",
+    "base": "1e4984b47b7e879731e3b7cbd46dd50007875f6b",
+    "before": {
+      "id": "R-optional-record-leaf",
+      "sha256": "1623a2f6979d59035a97841fe33109eda592feb482ba2b85c5aadc1c9e3b5707",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 27,
+          "code": "scalar-namespace-type-mismatch",
+          "message": "\"B\" \u306frecordValue\u306e\u305f\u3081\u3001scalar expression\u3067\u306f\u53c2\u7167\u3067\u304d\u307e\u305b\u3093\u3002",
+          "presentation": {
+            "key": "diagnostic.scalar-namespace-type-mismatch"
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 81,
+                "to": 83
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "bindingId": "record-field-binding:39:statement:typedDeclaration:mvgzf5zb:15539:statement:recordDefinition:mvgzf5zb:1531:0",
+          "navigationTarget": {
+            "kind": "binding",
+            "bindingId": "record-field-binding:39:statement:typedDeclaration:mvgzf5zb:15539:statement:recordDefinition:mvgzf5zb:1531:0"
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R-optional-record-leaf",
+      "sha256": "1623a2f6979d59035a97841fe33109eda592feb482ba2b85c5aadc1c9e3b5707",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "beforeSourceTreeSha256": "1693493d58ff9ab47e92a8dab72d8648e80c6d2d8c1289f60ea7d888ad12ab19",
+    "afterSourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa"
+  },
+  {
+    "id": "F14",
+    "name": "Immutable path geometry property omitted from full scalar reanalysis activation",
+    "minimal": "R-path-endpoint",
+    "controls": [
+      "G01",
+      "G02",
+      "G04",
+      "P-geometry-direct"
+    ],
+    "cases": [
+      "G03",
+      "R-path-endpoint"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/dslDocument.ts:hasRootGeometryRuntimeOccurrences",
+    "repair": "Include resolved geometryValueProperty occurrences in the existing reanalysis trigger.",
+    "base": "1e4984b47b7e879731e3b7cbd46dd50007875f6b",
+    "before": {
+      "id": "R-path-endpoint",
+      "sha256": "a436470ed0d15fe1c9b1b85468ff2f11e5f1881f106695226abd56a9d08d650d",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 10,
+          "column": 20,
+          "code": "geometry-property-invalid",
+          "message": "\u8981\u7d20\u300cResult\u300d\u3092\u4e00\u610f\u306b\u89e3\u6c7a\u3067\u304d\u307e\u305b\u3093\u3002",
+          "presentation": {
+            "key": "diagnostic.geometry-property-invalid",
+            "parameters": {
+              "target": "Result.endPoint.x"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 235,
+                "to": 241
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "bindingId": "binding:statement:typedDeclaration:mvgzf60k:209",
+          "navigationTarget": {
+            "kind": "binding",
+            "bindingId": "binding:statement:typedDeclaration:mvgzf60k:209"
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R-path-endpoint",
+      "sha256": "a436470ed0d15fe1c9b1b85468ff2f11e5f1881f106695226abd56a9d08d650d",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "beforeSourceTreeSha256": "1693493d58ff9ab47e92a8dab72d8648e80c6d2d8c1289f60ea7d888ad12ab19",
+    "afterSourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa"
+  },
+  {
+    "id": "F15",
+    "name": "Collection-valued record-field value-for rejected before canonical alias resolution",
+    "minimal": "T01",
+    "controls": [
+      "P-array-alias",
+      "C02 (unchanged initial-slice named-collection map)"
+    ],
+    "cases": [
+      "T01",
+      "T01-module",
+      "T-replay-C02",
+      "T-replay-C03"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/geometryArrayExpression.ts:parseValueFor and geometryArraySemanticAnalysis.ts",
+    "repair": "Allow parsed member reference through shape admission and reuse the established array-reference resolver for its whole collection value.",
+    "base": "1e4984b47b7e879731e3b7cbd46dd50007875f6b",
+    "before": {
+      "id": "T01",
+      "sha256": "9e4531cd93a718ba9db1ffc7414ef8e3b5c6c2b57c2a8ab58ecb3d0f759e6c16",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 38,
+          "code": "array-value-for-invalid",
+          "message": "value-for \u306e source \u306b\u306f whole-value collection reference \u304c\u5fc5\u8981\u3067\u3059\u3002",
+          "presentation": {
+            "key": "diagnostic.array-value-for-invalid"
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 100,
+                "to": 105
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "T01",
+      "sha256": "9e4531cd93a718ba9db1ffc7414ef8e3b5c6c2b57c2a8ab58ecb3d0f759e6c16",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "beforeSourceTreeSha256": "1693493d58ff9ab47e92a8dab72d8648e80c6d2d8c1289f60ea7d888ad12ab19",
+    "afterSourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa"
+  },
+  {
+    "id": "F16",
+    "name": "Scalar expression array members rejected instead of typed and lazily lowered",
+    "minimal": "T02",
+    "controls": [
+      "P-array-alias"
+    ],
+    "cases": [
+      "T02",
+      "T02-selected",
+      "T03",
+      "T04-argument",
+      "T05-property",
+      "T-replay-B00",
+      "T-replay-B01",
+      "T-replay-B02",
+      "T-replay-B03",
+      "T-replay-B04",
+      "T-replay-B05",
+      "T-replay-B06",
+      "T-replay-B07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts:resolveGenericArrayMember and moduleSemanticAnalysis.ts:analyzeRecordFieldValue",
+    "repair": "Check members through the canonical scalar semantic owner and lower through existing ordinal-seeded lazy map descriptors. Use normal caller/Module/geometry runtime adapters; no Rust schema or evaluator change.",
+    "base": "1e4984b47b7e879731e3b7cbd46dd50007875f6b",
+    "before": {
+      "id": "T02",
+      "sha256": "8a5206942b8abae3fcd786241b02165dc1949c18c5631e9353cb862ede6d0af6",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 2,
+          "column": 27,
+          "code": "array-invalid-member",
+          "message": "array member \u306f scalar/geometry/record reference \u307e\u305f\u306f scalar literal \u3067\u6307\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+          "presentation": {
+            "key": "diagnostic.array-invalid-member"
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 32,
+                "to": 38
+              }
+            ],
+            "sourceRevision": 1
+          }
+        },
+        {
+          "severity": "error",
+          "line": 2,
+          "column": 35,
+          "code": "array-invalid-member",
+          "message": "array member \u306f scalar/geometry/record reference \u307e\u305f\u306f scalar literal \u3067\u6307\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+          "presentation": {
+            "key": "diagnostic.array-invalid-member"
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 40,
+                "to": 45
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "T02",
+      "sha256": "8a5206942b8abae3fcd786241b02165dc1949c18c5631e9353cb862ede6d0af6",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "beforeSourceTreeSha256": "1693493d58ff9ab47e92a8dab72d8648e80c6d2d8c1289f60ea7d888ad12ab19",
+    "afterSourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa"
+  }
+]

@@ -1,0 +1,108 @@
+{
+  "finalRequiredBlock": "PASS; exact commands from task executed in order under set -euo pipefail",
+  "log": "/tmp/1194-final-gates3.log",
+  "productionSourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+  "checks": [
+    {
+      "command": "npx vitest run test/issue1194ResidualD1Rust.integration.test.ts test/issue1194StructuredD1Rust.integration.test.ts test/issue1376RootRecordModuleFieldsRust.integration.test.ts test/issue1428TargetedStage7Rust.integration.test.ts",
+      "status": "PASS",
+      "tests": 164
+    },
+    {
+      "command": "npm run build",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run lint",
+      "status": "PASS"
+    },
+    {
+      "command": "npm run test:parity",
+      "status": "PASS",
+      "tests": 203
+    },
+    {
+      "command": "npm test",
+      "status": "PASS",
+      "tests": 10668,
+      "skipped": 157,
+      "filesPassed": 671,
+      "filesSkipped": 2
+    },
+    {
+      "command": "npm run docs:dsl:check",
+      "status": "PASS"
+    },
+    {
+      "command": "cargo fmt --manifest-path rust-evaluator/Cargo.toml --check",
+      "status": "NOT_RUN_CONDITIONAL",
+      "reason": "No rust-evaluator/ changes from Base."
+    },
+    {
+      "command": "cargo check --manifest-path rust-evaluator/Cargo.toml",
+      "status": "NOT_RUN_CONDITIONAL",
+      "reason": "No rust-evaluator/ changes from Base."
+    },
+    {
+      "command": "cargo test --manifest-path rust-evaluator/Cargo.toml",
+      "status": "NOT_RUN_CONDITIONAL",
+      "reason": "No rust-evaluator/ changes from Base."
+    },
+    {
+      "command": "cargo clippy --manifest-path rust-evaluator/Cargo.toml",
+      "status": "NOT_RUN_CONDITIONAL",
+      "reason": "No rust-evaluator/ changes from Base."
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS"
+    }
+  ],
+  "resolvedEarlierFailures": [
+    {
+      "log": "/tmp/1194-final-gates.log",
+      "failure": "lint: unused semantics variable in residual test runner",
+      "fix": "Remove unused destructured variable; repeat mandatory block."
+    },
+    {
+      "log": "/tmp/1194-final-gates2.log",
+      "failure": "Full regression: Stage 2 generator-history test still expected now-supported parenthesized/negative scalar array expressions to be rejected. Other 10667 tests passed.",
+      "fix": "Preserve historical generator-rejections.json; assert current legal compilation and retain existing runtime controls. Repeat mandatory block."
+    }
+  ],
+  "focusedAfterCorrections": {
+    "log": "/tmp/1194-final-focused.log",
+    "passed": 432,
+    "skipped": 129
+  },
+  "scopeDeviations": [],
+  "correspondingRegressionUpdate": "test/issue1417ControlFlowMetamorphicRust.integration.test.ts compiler-admission expectation only; original rejected sources/codes/hashes retained unchanged.",
+  "remaining": "Independent exact-pushed-HEAD review, protected PR/CI integration, Human clean-main return. Issue 1194 remains OPEN; no PR/merge/close.",
+  "changedFiles": [
+    "docs/dsl/en/declarations.md",
+    "docs/dsl/en/types.md",
+    "packages/nui-language/src/dsl/dslDocument.ts",
+    "packages/nui-language/src/dsl/geometryArrayExpression.ts",
+    "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+    "packages/nui-language/src/dsl/geometryArraySemantics.ts",
+    "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+    "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+    "packages/nui-language/src/dsl/recordSemanticAnalysis.ts",
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "packages/nui-language/src/scalars/recordScalarLowering.ts",
+    "packages/nui-language/src/scalars/scalarExpressionCollection.ts",
+    "test/fixtures/issue1194-d1/residual-README.md",
+    "test/fixtures/issue1194-d1/residual-admission-triage.json",
+    "test/fixtures/issue1194-d1/residual-assertions.ts",
+    "test/fixtures/issue1194-d1/residual-dispositions.json",
+    "test/fixtures/issue1194-d1/residual-evidence-manifest.json",
+    "test/fixtures/issue1194-d1/residual-families.json",
+    "test/fixtures/issue1194-d1/residual-freeze.json",
+    "test/fixtures/issue1194-d1/residual-input-registry.json",
+    "test/fixtures/issue1194-d1/residual-model.ts",
+    "test/fixtures/issue1194-d1/residual-telemetry.json",
+    "test/fixtures/issue1194-d1/residual-verification.json",
+    "test/issue1194ResidualD1Rust.integration.test.ts",
+    "test/issue1417ControlFlowMetamorphicRust.integration.test.ts"
+  ]
+}

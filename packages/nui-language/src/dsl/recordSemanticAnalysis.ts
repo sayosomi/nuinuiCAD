@@ -87,6 +87,8 @@ export type RecordValueReferenceSemantic = {
   span: DslSpan;
   targetTypeIdentity: RecordTypeIdentity | null;
   valueType?: DslValueType;
+  /** Alias proven non-optional inside its owning some arm. */
+  optionalMatchBinder?: true;
 };
 
 /** Record-valued control flow keeps its scalar condition/scrutinee AST, while
@@ -134,6 +136,7 @@ export type RecordValueExpressionSemantic =
       kind: "match";
       span: DslSpan;
       scrutinee: ScalarExpressionAst;
+      optionalRecordMatch?: true;
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
@@ -759,7 +762,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         for (const parseDiagnostic of parsed.diagnostics) {
           diagnostics.push(diagnostic(statement, parseDiagnostic.span, parseDiagnostic.code, parseDiagnostic.message));
         }
-        const parseExpression = (node: ScalarExpressionAst): RecordValueExpressionSemantic | null => {
+        const parseExpression = (node: ScalarExpressionAst, recordBinders: ReadonlyMap<string, RecordValueReferenceSemantic> = new Map()): RecordValueExpressionSemantic | null => {
           const raw = paddedInitializer.slice(node.span.start, node.span.end);
           if (node.kind === "valueIf") {
             const condition = parseScalarExpression(paddedInitializer, node.condition.span);
@@ -769,8 +772,8 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               kind: "if",
               span: node.span,
               condition: condition.ast,
-              thenBranch: parseExpression(node.thenBranch),
-              elseBranch: node.elseBranch ? parseExpression(node.elseBranch) : null,
+              thenBranch: parseExpression(node.thenBranch, recordBinders),
+              elseBranch: node.elseBranch ? parseExpression(node.elseBranch, recordBinders) : null,
               ...(statement.valueType ? { valueType: statement.valueType } : {})
             };
           }
@@ -780,25 +783,29 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
             if (!scrutinee.ast) return null;
             const noneArm = node.arms.find(arm => arm.label === "none" && !arm.binder);
             const someArm = node.arms.find(arm => arm.label === "some" && arm.binder);
-            // Returning the selected whole some-binder is exactly the generic
-            // coalesce operation. Keep nominal values in that existing lazy
-            // descriptor path rather than projecting their fields as scalars.
-            if (node.arms.length === 2 && noneArm && someArm && someArm.expression.kind === "reference" && someArm.expression.name === someArm.binder) {
-              const left = parseExpression(node.scrutinee);
-              const right = parseExpression(noneArm.expression);
-              const valueType = dslCoalesceResultType(left?.valueType, right?.valueType);
-              if (valueType) return { kind: "coalesce", span: node.span, left, right, valueType };
-            }
+            // A record binder aliases the resolved whole scrutinee only in
+            // its selected some arm. It never becomes a scalar binding.
+            const scrutineeLeaf = (noneArm || someArm) && node.scrutinee.kind === "reference" ? analyzeRecordValueLeaf({
+              statements, stableStatementIdByIndex, input, definitionsByStatementIndex, valuesByStatementIndex,
+              moduleParameterTypeByDefinitionAndIndex, statement, statementIndex,
+              initializer: paddedInitializer.slice(node.scrutinee.span.start, node.scrutinee.span.end),
+              initializerSpan: node.scrutinee.span, expectedTypeReference: { ...typeReference, typeIdentity: null }, diagnostics: []
+            }) : null;
+            const optionalRecord = scrutineeLeaf?.reference && isDslOptionalValueType(scrutineeLeaf.reference.valueType)
+              ? { reference: scrutineeLeaf.reference, valueType: scrutineeLeaf.reference.valueType } : null;
             return {
               kind: "match",
               span: node.span,
               scrutinee: scrutinee.ast,
+              ...(optionalRecord ? { optionalRecordMatch: true as const } : {}),
               arms: node.arms.map((arm) => ({
                 label: arm.label,
                 labelSpan: arm.labelSpan,
                 binder: arm.binder,
                 binderSpan: arm.binderSpan,
-                expression: parseExpression(arm.expression)
+                expression: parseExpression(arm.expression, optionalRecord && arm.label === "some" && arm.binder
+                  ? new Map([...recordBinders, [arm.binder, { ...optionalRecord.reference, valueType: dslRequiredValueTypeOf(optionalRecord.valueType) ?? undefined, optionalMatchBinder: true as const }]])
+                  : recordBinders)
               })),
               ...(statement.valueType ? { valueType: statement.valueType } : {})
             };
@@ -821,6 +828,14 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               right,
               valueType: resultType
             };
+          }
+          if (node.kind === "reference" && recordBinders.has(node.name)) {
+            const reference = recordBinders.get(node.name)!;
+            if (reference.targetTypeIdentity !== typeReference.typeIdentity) {
+              diagnostics.push(diagnostic(statement, node.span, "record-nominal-type-mismatch", "optional record binder の nominal record 型が一致しません。"));
+              return null;
+            }
+            return { kind: "reference", span: node.span, reference: { ...reference, span: node.span }, valueType: reference.valueType };
           }
           const leaf = analyzeRecordValueLeaf({
             statements,

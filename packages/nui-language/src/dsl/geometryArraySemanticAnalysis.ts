@@ -13,6 +13,7 @@ import {
   type DslArrayLiteralValue,
   type DslArraySemanticValue,
   type DslArrayMemberResolution,
+  type ResolveDslArrayExpressionInput,
   type ResolveDslArrayExpressionResult,
   type GeometryArrayMemberResolution,
   type GeometryArraySemanticValue
@@ -34,6 +35,7 @@ import {
 } from "./dslValueTypes";
 import { resolveRecordMember, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
 import { recordFieldContentsCollectionValueIdFor, recordValueCollectionIdFor } from "../scalars/recordScalarLowering";
+import { parseScalarExpression } from "../scalars/expressionParser";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
@@ -50,6 +52,7 @@ export type GeometryArraySourceTarget =
 
 export type GenericArraySourceTarget =
   | GeometryArraySourceTarget
+  | { kind: "scalarExpression"; statementId: string; statementIndex: number }
   | { kind: "scalarValue"; statementId: string; statementIndex: number }
   | { kind: "scalarBinding"; bindingId: string }
   | { kind: "recordValue"; statementId: string; statementIndex: number }
@@ -1130,6 +1133,11 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         target: { kind: "recordValue", statementId: value.statementId, statementIndex }
       } };
     }
+    const scalarType = scalarTypeOfDslValueType(expectedElement);
+    const parsedExpression = scalarType ? parseScalarExpression(member.text, { start: 0, end: member.text.length }) : null;
+    if (parsedExpression?.ast && parsedExpression.diagnostics.length === 0 && !["reference", "geometryProperty"].includes(parsedExpression.ast.kind)) {
+      return { kind: "resolved", value: { elementType: expectedElement, target: { kind: "scalarExpression", statementId, statementIndex } } };
+    }
     const sourceReference = parsedSourceReference(member.text);
     if (!sourceReference) return collectionMemberDiagnostic("array-invalid-member", "array member は scalar/geometry/record reference または scalar literal で指定してください。", member.span);
     const path = parseDslReferenceToken(sourceReference.pathText);
@@ -1248,44 +1256,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         recordIdentityForType(expectedType.elementType, statementIndex, input.recordSemanticAnalysis, input.resolvePath)
       )
     };
-    return resolveDslArrayExpression<GenericArraySourceTarget>({
-      expectedType: enrichedExpectedType,
-      expectedValueType,
-      expression,
-      resolveMember: (member, localBindings) => resolveGenericArrayMember(
-        statementIndex, statementId, enrichedExpectedType.elementType, member, localBindings
-      ),
-      resolveOptionalCollectionMatchScrutinee: (sourceText, _sourceSpan, localBindings) => {
-        const path = referencePath(sourceText);
-        if (!path || path.segments.length === 0) return null;
-        if (path.segments.length === 1 && !path.absolute) {
-          if (localBindings?.some((binding) => binding.name === path.segments[0])) return null;
-          const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
-          if (parameter && isDslOptionalValueType(parameter.parameter.valueType)) {
-            const required = dslRequiredValueTypeOf(parameter.parameter.valueType);
-            return required && isDslArrayValueType(required) ? required : null;
-          }
-        }
-        const lookup = input.resolvePath(statementIndex, path);
-        if (lookup.kind === "resolved") {
-          const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
-          return target && isDslOptionalValueType(target.declaredValueType) ? target.valueType : null;
-        }
-        if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2 && lookup.segmentIndex === 1) {
-          const instance = lookup.declaration.statement.kind === "moduleInstance" ? lookup.declaration.statement : null;
-          if (!instance) return null;
-          const definitionLookup = input.resolvePath(lookup.declaration.statementIndex, parseDslReferenceToken(instance.moduleName));
-          if (definitionLookup.kind !== "resolved" || definitionLookup.declaration.statement.kind !== "moduleDefinition") return null;
-          const exportedIndex = statements.findIndex((candidate) =>
-            candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === path.segments[1] &&
-            candidate.enclosing?.statementIndex === definitionLookup.declaration.statementIndex
-          );
-          const target = exportedIndex >= 0 ? genericValuesByStatementIndex.get(exportedIndex) : null;
-          return target && isDslOptionalValueType(target.declaredValueType) ? target.valueType : null;
-        }
-        return null;
-      },
-      resolveArrayReference: (sourceText, sourceSpan, localBindings) => {
+    const resolveArrayReference: ResolveDslArrayExpressionInput<GenericArraySourceTarget>["resolveArrayReference"] = (sourceText, sourceSpan, localBindings) => {
         const reference = parseDslSourceReference(sourceText.trim());
         if (reference.kind === "valid" && reference.reference.property !== null) {
           const source = reference.reference;
@@ -1387,9 +1358,48 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           };
         }
         return { kind: "resolved", targetValueId: target.statementId, valueType: target.declaredValueType };
+      };
+    return resolveDslArrayExpression<GenericArraySourceTarget>({
+      expectedType: enrichedExpectedType,
+      expectedValueType,
+      expression,
+      resolveMember: (member, localBindings) => resolveGenericArrayMember(
+        statementIndex, statementId, enrichedExpectedType.elementType, member, localBindings
+      ),
+      resolveOptionalCollectionMatchScrutinee: (sourceText, _sourceSpan, localBindings) => {
+        const path = referencePath(sourceText);
+        if (!path || path.segments.length === 0) return null;
+        if (path.segments.length === 1 && !path.absolute) {
+          if (localBindings?.some((binding) => binding.name === path.segments[0])) return null;
+          const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
+          if (parameter && isDslOptionalValueType(parameter.parameter.valueType)) {
+            const required = dslRequiredValueTypeOf(parameter.parameter.valueType);
+            return required && isDslArrayValueType(required) ? required : null;
+          }
+        }
+        const lookup = input.resolvePath(statementIndex, path);
+        if (lookup.kind === "resolved") {
+          const target = genericValuesByStatementIndex.get(lookup.declaration.statementIndex);
+          return target && isDslOptionalValueType(target.declaredValueType) ? target.valueType : null;
+        }
+        if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2 && lookup.segmentIndex === 1) {
+          const instance = lookup.declaration.statement.kind === "moduleInstance" ? lookup.declaration.statement : null;
+          if (!instance) return null;
+          const definitionLookup = input.resolvePath(lookup.declaration.statementIndex, parseDslReferenceToken(instance.moduleName));
+          if (definitionLookup.kind !== "resolved" || definitionLookup.declaration.statement.kind !== "moduleDefinition") return null;
+          const exportedIndex = statements.findIndex((candidate) =>
+            candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === path.segments[1] &&
+            candidate.enclosing?.statementIndex === definitionLookup.declaration.statementIndex
+          );
+          const target = exportedIndex >= 0 ? genericValuesByStatementIndex.get(exportedIndex) : null;
+          return target && isDslOptionalValueType(target.declaredValueType) ? target.valueType : null;
+        }
+        return null;
       },
+      resolveArrayReference,
       resolveValueFor: (valueFor) => {
-        const sourcePath = referencePath(valueFor.sourceText);
+        const parsedSource = parseDslSourceReference(valueFor.sourceText);
+        const sourcePath = parsedSource.kind === "valid" ? parsedSource.reference.path : null;
         if (!sourcePath || sourcePath.segments.length === 0) {
           return { kind: "invalid", diagnostic: { code: "array-value-for-source-invalid", message: "value-for の source には whole-value collection reference が必要です。", span: valueFor.sourceSpan } };
         }
@@ -1400,6 +1410,13 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           if (parameter) {
             sourceValueType = genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null;
             sourceValueId = sourceValueType ? `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}` : null;
+          }
+        }
+        if (parsedSource.kind === "valid" && parsedSource.reference.property) {
+          const resolved = resolveArrayReference(valueFor.sourceText, valueFor.sourceSpan);
+          if (resolved.kind === "resolved" && isDslArrayValueType(resolved.valueType)) {
+            sourceValueType = resolved.valueType;
+            sourceValueId = resolved.targetValueId;
           }
         }
         const lookup = sourceValueType ? null : input.resolvePath(statementIndex, sourcePath);

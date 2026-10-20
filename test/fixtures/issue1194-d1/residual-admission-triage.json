@@ -1,0 +1,170 @@
+[
+  {
+    "historicalId": "B00",
+    "sha256": "d12d33573b7ea20fe105633501acb31f086b311444e857fe88293658221b85bf",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B00",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "B01",
+    "sha256": "5392cc7002bc8926176ac7b1a065293d9e1f0d271ae3cd22185e711612ee34ff",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B01",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "B02",
+    "sha256": "d0d8ae4b07298b8d94589e40df5b086b79a0c78857482948acd1c2e839199ab7",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B02",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "B03",
+    "sha256": "94d2c655c378096d99af3102f8ea0b4bab3ec2fa6ec87afe77848b133f43074a",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B03",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "B04",
+    "sha256": "c47274ef4cc930965e69ed34cf831a4de70deb96b64f45cfbe80c1ead09492fd",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B04",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "B05",
+    "sha256": "4c66820c95399959183b75a9ee617d6d9bbbab5f43b9e1f49b9f6c1aa05d6dd2",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B05",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "B06",
+    "sha256": "8da6bb2433b8d6d156addb84cd4bbb3b567285d720460f0f50029c61f5d1f5b6",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B06",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "B07",
+    "sha256": "bae19dd9092cedf2edb609088154c900cfc9fa1ff72479b6716d50b09eeee681",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-B07",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "C02",
+    "sha256": "96a46fb2324e880009857e686fbd67b14eef356c14efb607ebd6a7332c2ac692",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-C02",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "C03",
+    "sha256": "c6de731f59d053964edeb5c68e24f3ef2ebdcae2fa6e9f24755880b668f92144",
+    "disposition": "REPAIRED_THEN_PASS",
+    "residualId": "T-replay-C03",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "C04",
+    "sha256": "7ebf5fdb33aabc41a47eeb547e87129bb991ca4a48d1673948ada330244f829f",
+    "disposition": "PASS",
+    "residualId": "T-replay-C04",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "C05",
+    "sha256": "70f254f031764f3d3a51ca59d1371d7148739f4be80db740992cc858d9fba458",
+    "disposition": "PASS",
+    "residualId": "T-replay-C05",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "C06",
+    "sha256": "a10408f3ab51d6b253e718be2fe9203f8e902d0dc8e3879fc256ac90cce73d2c",
+    "disposition": "PASS",
+    "residualId": "T-replay-C06",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "C07",
+    "sha256": "4d56bdf6ae9c217c08fcd4fb3d0507a0e1cf5c3aea64af0715f1fed4cd5d1516",
+    "disposition": "PASS",
+    "residualId": "T-replay-C07",
+    "reason": "Exact retained root source replayed; expected values come from the frozen initial independent oracle."
+  },
+  {
+    "historicalId": "E00",
+    "sha256": "3128237bd614dbff4b7142731b96802412ceb3210616755cc516a928c80604ed",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "E01",
+    "sha256": "714fdd5ede96505c5e007558da8f55ddf9665897eebd63e9e9715e87c1129237",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "E02",
+    "sha256": "8d37b91b57c0833fbe2756be23e7859f8e03d1da6235082ed4042d5fa5184637",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "E03",
+    "sha256": "ed61da35500e259a7c0f7db04ec1d9e82120e79f71e032b13dbf40401240c142",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "E04",
+    "sha256": "5dd749aff47acb2373273c5524f4253d5c61043cef7d499f381903bc224f250c",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "E05",
+    "sha256": "2959e2781103774b4654914ebd9fad9afb8941a383a44ab73df7beabfc5c28ba",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "E06",
+    "sha256": "d7374ca06cca3db1b1adc8700028cd796a587df6952a46b91dcca704433502c5",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "E07",
+    "sha256": "12432e59cc8648919abf8b659e9434045e47b26901650490eee8cd80291921bd",
+    "disposition": "NOT_REPLAYED",
+    "residualId": null,
+    "reason": "CONTRACT_AMBIGUOUS: spec documents explicit public API and nominal types but does not establish file-public record-definition/type spelling. Retained registry lacks the complete saved dependency bundle, so no exact-bundle replay or compiler correctness claim."
+  },
+  {
+    "historicalId": "I-record-literal-nominal",
+    "sha256": "efc7ed67816e04c393cd59c53cbcd08e9a1b8e58193844f2fe3ab805642ba265",
+    "disposition": "CONTRACT_INVALID",
+    "residualId": null,
+    "reason": "Other and Box have different nominal declaration identities."
+  },
+  {
+    "historicalId": "P-record-literal-with-module",
+    "sha256": "7f5258680b63702d7139cf69b0671b99e995a1d199b68e97f768b09840904750",
+    "disposition": "CONTRACT_INVALID",
+    "residualId": null,
+    "reason": "Authoring typo: empty Module body needs a line break; corrected control has a different hash and passes at base and after."
+  }
+]
