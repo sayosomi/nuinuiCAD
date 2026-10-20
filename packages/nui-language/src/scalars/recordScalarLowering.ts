@@ -195,6 +195,17 @@ export const recordFieldContentsCollectionValueIdFor = (
   fieldPath.map((field) => [field.recordStatementId, field.fieldIndex])
 ])}`;
 
+export const recordFieldContentsCollectionIdentityFor = (valueId: string): { recordCollectionValueId: string; fieldPath: RecordFieldIdentity[] } | null => {
+  if (!valueId.startsWith("record-field-contents:")) return null;
+  try {
+    const tuple = JSON.parse(valueId.slice("record-field-contents:".length)) as unknown;
+    if (!Array.isArray(tuple) || tuple.length !== 2 || typeof tuple[0] !== "string" || !Array.isArray(tuple[1])) return null;
+    const fieldPath = tuple[1].flatMap((field): RecordFieldIdentity[] => Array.isArray(field) && field.length === 2 && typeof field[0] === "string" && Number.isInteger(field[1]) && field[1] >= 0
+      ? [{ recordStatementId: field[0], fieldIndex: field[1] }] : []);
+    return fieldPath.length > 0 && fieldPath.length === tuple[1].length ? { recordCollectionValueId: tuple[0], fieldPath } : null;
+  } catch { return null; }
+};
+
 const recordFieldPathKey = (path: readonly RecordFieldIdentity[]) => JSON.stringify(
   path.map((field) => [field.recordStatementId, field.fieldIndex])
 );
@@ -377,6 +388,8 @@ export const planRecordScalarLowering = ({
   additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
 }): RecordScalarLoweringPlan => {
   const bindingSeeds: BindingSeed[] = [];
+  const seedOrderByStatement = new Map<number, number>();
+  const nextSeedOrder = (index: number) => { const order = seedOrderByStatement.get(index) ?? 0; seedOrderByStatement.set(index, order + 1); return order; };
   const initializers: RecordScalarFieldInitializer[] = [];
   const fieldBindingIdsByValueStatementId = new Map<RecordValueIdentity, ReadonlyMap<number, BindingId>>();
   const fieldBindingIdsByAccessPathByValueStatementId = new Map<RecordValueIdentity, ReadonlyMap<string, BindingId>>();
@@ -422,6 +435,7 @@ export const planRecordScalarLowering = ({
   };
 
   for (const value of values) {
+    if (value.inlineCollectionMember && !seedOrderByStatement.has(value.statementIndex)) seedOrderByStatement.set(value.statementIndex, 1);
     const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(value.statementIndex);
     if (!scopeId || !value.typeIdentity) {
       unresolvedValueStatementIds.push(value.statementId);
@@ -450,7 +464,7 @@ export const planRecordScalarLowering = ({
       continue;
     }
 
-    if (value.valueExpression) {
+    if (value.valueExpression && !value.constructor) {
       const definition = analysis.definitionsByStatementId.get(value.typeIdentity);
       if (!definition) {
         unresolvedValueStatementIds.push(value.statementId);
@@ -460,7 +474,6 @@ export const planRecordScalarLowering = ({
       const pathBindings = new Map<string, BindingId>();
       let complete = true;
       let diagnosticOwnerAssigned = false;
-      let seedOrder = 0;
       for (const { field, path, type: expectedType } of scalarFieldPathsFor(definition)) {
         const bindingId = recordScalarBindingIdForPath(value.statementId, path);
         const ast = projectRecordFieldExpression(value.valueExpression, field, path);
@@ -476,7 +489,7 @@ export const planRecordScalarLowering = ({
           name: `${value.name}.${path.map((candidate) => analysis.definitionsByStatementId.get(candidate.recordStatementId)?.fields.find((field) => field.identity.fieldIndex === candidate.fieldIndex)?.name ?? "").join(".")}`,
           nameSpan: null,
           statementIndex: value.statementIndex,
-          sourceOrder: seedOrder++,
+          sourceOrder: nextSeedOrder(value.statementIndex),
           effectiveScopeId: scopeId,
           visibility: { kind: "typed", scopeId },
           mutability: "const",
@@ -517,7 +530,6 @@ export const planRecordScalarLowering = ({
       const pathBindings = new Map<string, BindingId>();
       const fields = scalarFieldPathsFor(analysis.definitionsByStatementId.get(value.typeIdentity)!);
       let complete = true;
-      let seedOrder = 0;
       for (const { field, path, type: expectedType } of fields) {
         const constructorField = constructorFieldAtPath(value.constructor.fields, path);
         if (!constructorField) {
@@ -533,7 +545,7 @@ export const planRecordScalarLowering = ({
           name: `${value.name}.${path.map((candidate) => analysis.definitionsByStatementId.get(candidate.recordStatementId)?.fields.find((field) => field.identity.fieldIndex === candidate.fieldIndex)?.name ?? "").join(".")}`,
           nameSpan: null,
           statementIndex: value.statementIndex,
-          sourceOrder: seedOrder++,
+          sourceOrder: nextSeedOrder(value.statementIndex),
           effectiveScopeId: scopeId,
           visibility: { kind: "typed", scopeId },
           mutability: "const",

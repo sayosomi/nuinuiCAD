@@ -32,7 +32,8 @@ import {
   type DslNonArrayValueType,
   type DslValueType
 } from "./dslValueTypes";
-import type { RecordSemanticAnalysis } from "./recordSemanticAnalysis";
+import { resolveRecordMember, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
+import { recordFieldContentsCollectionValueIdFor, recordValueCollectionIdFor } from "../scalars/recordScalarLowering";
 import { scanScalarLiteral } from "../scalars/literalScanner";
 import { isChoiceOptionMember } from "../scalars/scalarAssignability";
 import { bindingIdForStableStatementId } from "../scalars/bindingCatalog";
@@ -1120,6 +1121,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       );
     }
 
+    if (expectedElement.kind === "record") {
+      const value = [...(input.recordSemanticAnalysis?.valuesByStatementId.values() ?? [])].find(value =>
+        value.inlineCollectionMember?.collectionStatementId === statementId && value.inlineCollectionMember.span.start === member.span.start && value.inlineCollectionMember.span.end === member.span.end
+      );
+      if (value?.typeIdentity) return { kind: "resolved", value: {
+        elementType: { ...expectedElement, identity: value.typeIdentity },
+        target: { kind: "recordValue", statementId: value.statementId, statementIndex }
+      } };
+    }
     const sourceReference = parsedSourceReference(member.text);
     if (!sourceReference) return collectionMemberDiagnostic("array-invalid-member", "array member は scalar/geometry/record reference または scalar literal で指定してください。", member.span);
     const path = parseDslReferenceToken(sourceReference.pathText);
@@ -1276,6 +1286,23 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         return null;
       },
       resolveArrayReference: (sourceText, sourceSpan, localBindings) => {
+        const reference = parseDslSourceReference(sourceText.trim());
+        if (reference.kind === "valid" && reference.reference.property !== null) {
+          const source = reference.reference;
+          const lookup = input.resolvePath(statementIndex, source.path);
+          const recordValue = lookup.kind === "resolved" ? input.recordSemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId) : undefined;
+          const parameter = source.path.segments.length === 1
+            ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, source.path.segments[0]!) : null;
+          const recordParameter = parameter ? input.recordSemanticAnalysis?.moduleParameters.find(p => p.definitionStatementId === parameter.definitionStatementId && p.parameterIndex === parameter.parameterIndex) : undefined;
+          const identity = recordValue?.typeIdentity ?? recordParameter?.typeIdentity;
+          const definition = identity ? input.recordSemanticAnalysis?.definitionsByStatementId.get(identity) : undefined;
+          const member = definition ? resolveRecordMember(definition, id => input.recordSemanticAnalysis?.definitionsByStatementId.get(id), source.property!) : null;
+          const base = recordValue ? recordValueCollectionIdFor([], recordValue.statementId)
+            : recordParameter ? `${recordParameter.definitionStatementId}:parameter:${recordParameter.parameterIndex}` : null;
+          if (base && member && !member.property && member.collectionIndex === undefined && isDslArrayValueType(dslRequiredValueTypeOf(member.valueType))) return {
+            kind: "resolved", targetValueId: recordFieldContentsCollectionValueIdFor(base, member.fieldPath), valueType: member.valueType
+          };
+        }
         const path = referencePath(sourceText);
         if (!path || path.segments.length === 0) return { kind: "invalid", diagnostic: { code: "array-invalid-reference", message: "array alias の参照が不正です。", span: sourceSpan } };
         if (path.segments.length === 1 && !path.absolute) {

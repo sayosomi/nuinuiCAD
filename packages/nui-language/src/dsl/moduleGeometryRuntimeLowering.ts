@@ -583,14 +583,22 @@ export const sourceAliasForTarget = (
     };
   }
   if (target.kind === "recordFieldValue") {
+    let fieldContextPath = currentPath;
     const recordValueExpressionForTarget = (recordTarget: ModuleRecordSourceTarget): ModuleRecordValueSemantic["valueExpression"] | null => {
       if (recordTarget.kind === "recordValue") {
-        for (let index = currentPath.length; index >= 0; index -= 1) {
-          const context = contextsByPath.get(pathKey(currentPath.slice(0, index)));
+        for (let index = fieldContextPath.length; index >= 0; index -= 1) {
+          const context = contextsByPath.get(pathKey(fieldContextPath.slice(0, index)));
           const local = context?.definition.recordValues.find((value) => value.value.statementId === recordTarget.statementId);
-          if (local) return local.valueExpression;
+          if (local) {
+            fieldContextPath = context!.path;
+            return local.valueExpression ?? (local.target ? recordValueExpressionForTarget(local.target) : null);
+          }
         }
-        return rootRecordValuesByStatementId.get(recordTarget.statementId)?.valueExpression ?? null;
+        fieldContextPath = [];
+        const rootValue = rootRecordValuesByStatementId.get(recordTarget.statementId);
+        return rootValue?.valueExpression ?? (rootValue?.target && rootValue.target !== recordTarget
+          ? recordValueExpressionForTarget(rootValue.target)
+          : null);
       }
       if (recordTarget.kind === "recordCollectionIndex") {
         const index = recordTarget.index.ast.kind === "numberLiteral" ? recordTarget.index.ast.value : null;
@@ -598,20 +606,28 @@ export const sourceAliasForTarget = (
         return member ? recordValueExpressionForTarget(member) : null;
       }
       if (recordTarget.kind === "deferredModuleRecordExport") {
-        const child = childContextFor(recordTarget.instanceStatementId, recordTarget.instanceIdentity?.documentId);
+        const child = [...contextsByPath.values()].find(context =>
+          context.path.length === fieldContextPath.length + 1 &&
+          fieldContextPath.every((part, index) => context.path[index] === part) &&
+          context.instanceStatementId === recordTarget.instanceStatementId &&
+          (!recordTarget.instanceIdentity || context.instanceDocumentId === recordTarget.instanceIdentity.documentId)
+        );
         const exported = child?.definition.exports.find((candidate) =>
           candidate.kind === "record" && candidate.name === recordTarget.exportName && candidate.exportedStatementId === recordTarget.exportedStatementId
         );
-        return exported?.kind === "record" ? recordValueExpressionForTarget(exported.backingTarget) : null;
+        if (exported?.kind !== "record") return null;
+        fieldContextPath = child!.path;
+        return recordValueExpressionForTarget(exported.backingTarget);
       }
       if (recordTarget.kind === "recordParameter") {
         const context = [...contextsByPath.values()].find((candidate) =>
           candidate.definition.statementId === recordTarget.definitionStatementId &&
-          candidate.path.length <= currentPath.length &&
-          candidate.path.every((part, index) => currentPath[index] === part)
+          candidate.path.length <= fieldContextPath.length &&
+          candidate.path.every((part, index) => fieldContextPath[index] === part)
         );
         const binding = context?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === recordTarget.parameterIndex);
         if (binding?.value?.kind !== "record") return null;
+        fieldContextPath = context!.path.slice(0, -1);
         return binding.value.reference.constructor
           ? { kind: "constructor", span: binding.value.reference.span, constructor: binding.value.reference.constructor }
           : binding.value.reference.target
@@ -623,12 +639,11 @@ export const sourceAliasForTarget = (
     const fieldExpressionFor = (
       expression: ModuleRecordValueSemantic["valueExpression"] | ModuleRecordFieldValueExpressionSemantic | null,
       path: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[],
-      seen: ReadonlySet<string> = new Set()
+      seen: ReadonlySet<object> = new Set()
     ): ModuleRecordFieldValueExpressionSemantic | null => {
       if (!expression || path.length === 0) return null;
-      const key = `${expression.kind}:${path.map((field) => `${field.recordStatementId}:${field.fieldIndex}`).join("/")}`;
-      if (seen.has(key)) return null;
-      const nextSeen = new Set([...seen, key]);
+      if (seen.has(expression)) return null;
+      const nextSeen = new Set([...seen, expression]);
       if (expression.kind === "constructor") {
         const field = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === path[0]!.fieldIndex);
         if (!field?.valueExpression) return null;
@@ -651,7 +666,7 @@ export const sourceAliasForTarget = (
     if (!isDslGeometryValueType(target.valueType)) return undefined;
     if (expression.kind === "geometry") {
       if (expression.expression?.kind === "reference" && expression.expression.reference.target) {
-        const alias = sourceAliasForTarget(expression.expression.reference.target, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+        const alias = sourceAliasForTarget(expression.expression.reference.target, fieldContextPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
         return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
       }
       if (!expression.expression) return undefined;

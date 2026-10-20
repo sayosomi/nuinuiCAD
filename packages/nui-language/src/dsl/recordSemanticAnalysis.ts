@@ -5,9 +5,14 @@ import { parseDslSourceReference } from "./dslReferenceTokens";
 import type { SourceLexicalLookup } from "./sourceLexicalNamespaceIndex";
 import { isBareDslIdentifierChar } from "./dslTokens";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
+import type { ScalarExpressionType } from "../scalars/types";
+import { numericGeometryPropertySupportedByStaticTarget, numericGeometryStaticTargetForModuleInterface } from "../geometry/numericGeometryProperties";
+import { isDslRecordValueType, isDslGeometryValueType, scalarExpressionTypeOfDslValueType } from "./dslValueTypes";
 import type { DslValueType } from "./dslValueTypes";
 import { dslCoalesceResultType, dslRequiredValueTypeOf, isDslArrayValueType, isDslOptionalValueType, nominalRecordTypeOfDslValueType } from "./dslValueTypes";
 import { parseScalarExpression } from "../scalars/expressionParser";
+import { parseGeometryArrayExpression, type GeometryArrayExpression } from "./geometryArrayExpression";
+import { encodeIdentityTuple } from "../document/identityTuple";
 
 export type RecordTypeIdentity = string;
 export type RecordValueIdentity = string;
@@ -149,6 +154,8 @@ export type RecordValueSemantic = {
   reference: RecordValueReferenceSemantic | null;
   valueExpression: RecordValueExpressionSemantic | null;
   declaredValueType?: DslValueType;
+  /** An immutable literal occurrence owned by an authored collection statement. */
+  inlineCollectionMember?: { collectionStatementId: string; span: DslSpan };
 };
 
 export type RecordModuleParameterSemantic = {
@@ -746,7 +753,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     let valueExpression: RecordValueExpressionSemantic | null = null;
     if (initializerSpan) {
       const paddedInitializer = `${" ".repeat(initializerSpan.start)}${statement.initializer}`;
-      const parsed = parseScalarExpression(paddedInitializer, initializerSpan);
+      const parsed = parseScalarExpression(paddedInitializer, initializerSpan, { allowOpaqueNamedCalls: true });
       const dynamicCandidate = /^(?:if\s*\(|match\b|none\s*$)/.test(statement.initializer.trim()) || parsed.ast?.kind === "binary" && parsed.ast.operator === "??";
       if (dynamicCandidate) {
         for (const parseDiagnostic of parsed.diagnostics) {
@@ -755,20 +762,37 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
         const parseExpression = (node: ScalarExpressionAst): RecordValueExpressionSemantic | null => {
           const raw = paddedInitializer.slice(node.span.start, node.span.end);
           if (node.kind === "valueIf") {
+            const condition = parseScalarExpression(paddedInitializer, node.condition.span);
+            for (const error of condition.diagnostics) diagnostics.push(diagnostic(statement, error.span, error.code, error.message));
+            if (!condition.ast) return null;
             return {
               kind: "if",
               span: node.span,
-              condition: node.condition,
+              condition: condition.ast,
               thenBranch: parseExpression(node.thenBranch),
               elseBranch: node.elseBranch ? parseExpression(node.elseBranch) : null,
               ...(statement.valueType ? { valueType: statement.valueType } : {})
             };
           }
           if (node.kind === "valueMatch") {
+            const scrutinee = parseScalarExpression(paddedInitializer, node.scrutinee.span);
+            for (const error of scrutinee.diagnostics) diagnostics.push(diagnostic(statement, error.span, error.code, error.message));
+            if (!scrutinee.ast) return null;
+            const noneArm = node.arms.find(arm => arm.label === "none" && !arm.binder);
+            const someArm = node.arms.find(arm => arm.label === "some" && arm.binder);
+            // Returning the selected whole some-binder is exactly the generic
+            // coalesce operation. Keep nominal values in that existing lazy
+            // descriptor path rather than projecting their fields as scalars.
+            if (node.arms.length === 2 && noneArm && someArm && someArm.expression.kind === "reference" && someArm.expression.name === someArm.binder) {
+              const left = parseExpression(node.scrutinee);
+              const right = parseExpression(noneArm.expression);
+              const valueType = dslCoalesceResultType(left?.valueType, right?.valueType);
+              if (valueType) return { kind: "coalesce", span: node.span, left, right, valueType };
+            }
             return {
               kind: "match",
               span: node.span,
-              scrutinee: node.scrutinee,
+              scrutinee: scrutinee.ast,
               arms: node.arms.map((arm) => ({
                 label: arm.label,
                 labelSpan: arm.labelSpan,
@@ -859,6 +883,42 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     valuesByStatementIndex.set(statementIndex, value);
   }
 
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "typedDeclaration") continue;
+    const type = dslRequiredValueTypeOf(statement.valueType);
+    if (!isDslArrayValueType(type) || type.elementType.kind !== "record" || !statement.payloadSpans.initializer) continue;
+    const span = statement.payloadSpans.initializer;
+    const typeReference = resolveRecordType(input, definitionsByStatementIndex, statement, statementIndex, type.elementType, statement.payloadSpans.type ?? span, diagnostics);
+    if (!typeReference.typeIdentity) continue;
+    const typeIdentity = typeReference.typeIdentity;
+    const recordType: DslValueType = { kind: "record", name: type.elementType.name, identity: typeIdentity };
+    const owner = definitionIdAt(stableStatementIdByIndex, statementIndex, "record collection");
+    const text = `${" ".repeat(span.start)}${statement.initializer}`;
+    const parsed = parseGeometryArrayExpression(text, span);
+    let literalOrdinal = 0;
+    const visit = (expression: GeometryArrayExpression): void => {
+      if (expression.kind === "literal") {
+        const ordinal = literalOrdinal++;
+        for (const [index, member] of expression.members.entries()) {
+          if (member.text.trimStart().startsWith("@")) continue;
+          const leaf = analyzeRecordValueLeaf({ statements, stableStatementIdByIndex, input, definitionsByStatementIndex, valuesByStatementIndex,
+            moduleParameterTypeByDefinitionAndIndex, statement, statementIndex, initializer: member.text, initializerSpan: member.span,
+            expectedTypeReference: typeReference, diagnostics });
+          if (!leaf.constructor) continue;
+          const statementId = `record-array-member:${encodeIdentityTuple([owner, String(ordinal), String(index)])}`;
+          valuesByStatementId.set(statementId, { statementId, statementIndex, name: `${statement.name}[${index}]`, typeReference,
+            typeIdentity: typeReference.typeIdentity, constructor: leaf.constructor, reference: null,
+            valueExpression: { kind: "constructor", span: member.span, constructor: leaf.constructor, valueType: recordType },
+            declaredValueType: recordType,
+            inlineCollectionMember: { collectionStatementId: owner, span: member.span } });
+        }
+      } else if (expression.kind === "if") { visit(expression.thenBranch); if (expression.elseBranch) visit(expression.elseBranch); }
+      else if (expression.kind === "match") for (const arm of expression.arms) visit(arm.expression);
+      else if (expression.kind === "coalesce") { visit(expression.left); visit(expression.right); }
+    };
+    if (parsed.expression) visit(parsed.expression);
+  }
+
   return {
     definitionsByStatementId,
     definitionsByStatementIndex,
@@ -867,4 +927,90 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     moduleParameters,
     diagnostics
   };
+};
+
+export type RecordMemberResolution = {
+  field: RecordFieldSemantic;
+  fieldPath: readonly RecordFieldIdentity[];
+  valueType: import("./dslValueTypes").DslValueType;
+  property?: string;
+  collectionIndex?: number;
+  type: ScalarExpressionType | null;
+};
+
+const recordPropertyParts = (property: string): { name: string; index: number | null }[] | null => {
+  if (!property) return null;
+  const parts = property.split(".");
+  const parsed = parts.map((part) => {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(part);
+    return match
+      ? { name: match[1]!, index: match[2] === undefined ? null : Number(match[2]) }
+      : null;
+  });
+  return parsed.every((part): part is { name: string; index: number | null } => part !== null) ? parsed : null;
+};
+
+export const resolveRecordMember = (
+  recordDefinition: RecordDefinitionSemantic,
+  definitionFor: (identity: RecordTypeIdentity) => RecordDefinitionSemantic | null | undefined,
+  property: string,
+  allowOptionalTraversal = false
+): RecordMemberResolution | null => {
+  const parts = recordPropertyParts(property);
+  if (!parts) return null;
+  let definition: RecordDefinitionSemantic | null = recordDefinition;
+  let valueType: import("./dslValueTypes").DslValueType = { kind: "record", name: definition.name, identity: definition.statementId };
+  const fieldPath: RecordFieldIdentity[] = [];
+  let field: RecordFieldSemantic | null = null;
+  let collectionIndex: number | undefined;
+  for (const [partIndex, part] of parts.entries()) {
+    const optionalValueType = valueType as import("./dslValueTypes").DslValueType;
+    if (isDslOptionalValueType(optionalValueType)) {
+      if (!allowOptionalTraversal) return null;
+      valueType = optionalValueType.valueType;
+    }
+    if (isDslRecordValueType(valueType)) {
+      definition = partIndex === 0
+        ? recordDefinition
+        : definitionFor(valueType.identity ?? "") ?? null;
+      if (!definition) return null;
+      field = definition.fields.find((candidate) => candidate.name === part.name) ?? null;
+      if (!field) return null;
+      fieldPath.push(field.identity);
+      valueType = field.type;
+      if (part.index !== null) {
+        if (!isDslArrayValueType(valueType)) return null;
+        valueType = valueType.elementType;
+        collectionIndex = part.index;
+      }
+    } else if (isDslArrayValueType(valueType)) {
+      if (part.name !== "length" || part.index !== null || partIndex !== parts.length - 1) return null;
+      return field
+        ? { field, fieldPath, valueType, property: "length", type: { kind: "number" } }
+        : null;
+    } else if (isDslGeometryValueType(valueType)) {
+      const geometryProperty = parts.slice(partIndex).map((candidate) => candidate.name + (candidate.index === null ? "" : `[${candidate.index}]`)).join(".");
+      const type = numericGeometryPropertySupportedByStaticTarget(
+        numericGeometryStaticTargetForModuleInterface(valueType.kind),
+        geometryProperty
+      ) ? { kind: "number" as const } : null;
+      return field && type ? {
+        field,
+        fieldPath,
+        valueType,
+        property: geometryProperty,
+        type,
+        ...(collectionIndex !== undefined ? { collectionIndex } : {})
+      } : null;
+    } else {
+      return null;
+    }
+  }
+  return field ? {
+    field,
+    fieldPath,
+    valueType,
+    type: scalarExpressionTypeOfDslValueType(valueType),
+    ...(collectionIndex !== undefined ? { collectionIndex } : {})
+  } : null;
 };

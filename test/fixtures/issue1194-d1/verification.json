@@ -1,0 +1,69 @@
+{
+  "completedJST": "2026-10-21T01:56:39+09:00",
+  "sourceChangesAfterFinalGates": false,
+  "finalRequiredBlock": {
+    "status": "PASS",
+    "log": "/tmp/nuinuicad-1194-final-repaired-gates.log",
+    "sha256": "536283ba124260390cee6278f38f852595328885b13215c00caa1cd91b787600",
+    "focused": {
+      "files": 5,
+      "passed": 238
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "parity": {
+      "passed": 203
+    },
+    "fullSuite": {
+      "filesPassed": 670,
+      "filesSkipped": 2,
+      "testsPassed": 10622,
+      "testsSkipped": 157,
+      "unhandledErrors": 0
+    },
+    "rustFmtCheckTestClippy": "NOT_APPLICABLE: no Rust files changed",
+    "conditionalDslReferenceCheck": "NOT_APPLICABLE: no DSL reference files changed"
+  },
+  "additionalDslReferenceCheck": "PASS",
+  "diffCheck": "PASS",
+  "focusedRoutingRegression": {
+    "files": 4,
+    "passed": 84
+  },
+  "earlierFailurePreserved": {
+    "log": "/tmp/nuinuicad-1194-final-gates.log",
+    "geometryRegressionTests": 3,
+    "killedChildTests": 1,
+    "unhandledEPIPE": 1,
+    "resolution": "Narrowed activation to canonical nominal-record collection targets; 84 focused tests and repaired final required block pass. No runtime transport change."
+  },
+  "selfReviewAgainstContract": "PASS for bounded slice; independent exact-pushed-HEAD review remains pending",
+  "scopeDeviations": [],
+  "blockers": [],
+  "changedFiles": [
+    "packages/nui-language/src/document/multiDocumentModuleSemantics.ts",
+    "packages/nui-language/src/dsl/dslDocument.ts",
+    "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+    "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+    "packages/nui-language/src/dsl/moduleScalarExpression.ts",
+    "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+    "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+    "packages/nui-language/src/dsl/recordSemanticAnalysis.ts",
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "packages/nui-language/src/scalars/recordScalarLowering.ts",
+    "test/fixtures/issue1194-d1/README.md",
+    "test/fixtures/issue1194-d1/assertions.ts",
+    "test/fixtures/issue1194-d1/dispositions.json",
+    "test/fixtures/issue1194-d1/evidence-manifest.json",
+    "test/fixtures/issue1194-d1/families.json",
+    "test/fixtures/issue1194-d1/freeze.json",
+    "test/fixtures/issue1194-d1/input-registry.json",
+    "test/fixtures/issue1194-d1/model.ts",
+    "test/fixtures/issue1194-d1/oracles.ts",
+    "test/fixtures/issue1194-d1/reductions.ts",
+    "test/fixtures/issue1194-d1/telemetry.json",
+    "test/fixtures/issue1194-d1/verification.json",
+    "test/issue1194StructuredD1Rust.integration.test.ts"
+  ],
+  "productionOwnersSourceTreeSha256": "3fcaea92d77fdaa5ef87ac122c24deb2b9a874644c2f4d7c4405400b2851adcf"
+}
