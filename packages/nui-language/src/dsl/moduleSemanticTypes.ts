@@ -52,7 +52,7 @@ export type ModuleRecordSourceTarget =
       nameSpan: DslSpan;
       /** Statically known record members are retained for field-backing
        * resolution. Dynamic indexes are evaluated by the runtime owner. */
-      members?: readonly Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>[];
+      members?: readonly (Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> | null)[];
     }
   | {
       kind: "recordValue";

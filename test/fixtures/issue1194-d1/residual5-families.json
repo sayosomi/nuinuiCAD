@@ -1,0 +1,97 @@
+[
+  {
+    "id": "F31",
+    "name": "Constructor record-map geometry fields lose the selected source producer",
+    "fail": [
+      "M1"
+    ],
+    "control": [
+      "M0",
+      "M6",
+      "M3"
+    ],
+    "affected": [
+      "M1",
+      "G-module",
+      "G-chain",
+      "D-map-valid"
+    ],
+    "mechanism": "The canonical mapped constructor already contains a nominal record-field reference to the exact map binder. Geometry alias lowering stops at recordCollectionIndex unless a literal member exists, losing the map body and its source occurrence. Follow existing collection products and mapped-record bodies in the defining namespace, substituting the selected source record for the binder. No geometry evaluator or root scheduler is added.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts: sourceAliasForTarget / recordValueExpressionForTarget",
+      "packages/nui-language/src/dsl/moduleGeometryRuntime.ts: defining-namespace recordCollectionLookup adapter"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F32",
+    "name": "Optional-record collection elements skip inline constructor analysis and nominal enrichment",
+    "fail": [
+      "P-length-constructor"
+    ],
+    "control": [
+      "P-length-reference"
+    ],
+    "affected": [
+      "P-length-constructor",
+      "P2",
+      "P-module"
+    ],
+    "mechanism": "Both inline constructor discovery and generic collection admission test only element.kind record, so Box?[] rejects a Box constructor although T is assignable to T?. Unwrap only for canonical record identity/member analysis, retain the optional element wrapper and original ordinal. The reference-only counterfactual already passes on Base.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: inlineCollectionMember registration",
+      "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts: recordIdentityForType / resolveGenericArrayMember"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F33",
+    "name": "Indexed optional-record match loses its nominal selected binder and presence producer",
+    "fail": [
+      "P4"
+    ],
+    "control": [
+      "P-scalar-control",
+      "P5"
+    ],
+    "affected": [
+      "P2",
+      "P4",
+      "P-module",
+      "P-parameter",
+      "P-absent-parameter",
+      "P-inline-parameter",
+      "P-index-error",
+      "P-conditional-member"
+    ],
+    "mechanism": "The early record shell cannot retain a collection-index scrutinee and the Module owner therefore reparses its some binder as an unavailable record. Resolve the optional element nominal identity at the existing Module owner, preserve explicit-none ordinals, use existing singleton-record presence and canonical selected-member aliases. Retain occurrence-specific IDs through Module arguments and register their cardinality/forwarding descriptors. Bounds use the existing typed collection-index evaluator. These downstream parameter, none, conditional-member and bounds symptoms belong to this same initially rejected indexed-optional form, not extra Base-independent families.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: deferred optional indexed match binder",
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: moduleRecordValueExpressionFor / recordReferenceSemantic",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: selected singleton IDs, member resolver reuse and optional collection forwarding"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F34",
+    "name": "Indexed whole-record exports omit the singleton producer required by their field projections",
+    "fail": [
+      "S-index"
+    ],
+    "control": [
+      "S-reference-control",
+      "M10"
+    ],
+    "affected": [
+      "S-index",
+      "G-module",
+      "D-map-valid",
+      "D-identity-control-valid"
+    ],
+    "mechanism": "Base accepts the record index and can compute scalar fields through an alternate field path, yet exported whole-record field projections point at an absent record-value producer. Emit the exact selected singleton by reusing its original record alias or existing lazy field declarations; fall back to the existing lazy record-map descriptor when fields lack declarations. The minimal reducer has no geometry or optional values, independently separating this first loss from F31/F33.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordValueExpression"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  }
+]

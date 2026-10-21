@@ -467,13 +467,21 @@ export const geometryAliasForSourceElement = (
   pointKey
 );
 
+/** Exact collection products supplied by the defining source namespace. */
+export type RecordCollectionLookup = (valueId: string, path: readonly string[]) => {
+  value: import("./geometryArraySemantics").DslArraySemanticValue<import("./geometryArraySemanticAnalysis").GenericArraySourceTarget>;
+  path: readonly string[];
+  mappedBody?: NonNullable<ModuleDefinitionSemantic["mappedRecordCollectionBodies"]>[number];
+} | undefined;
+
 export const sourceAliasForTarget = (
   target: ModuleGeometrySourceTarget,
   currentPath: readonly string[],
   contextsByPath: ReadonlyMap<string, InstanceContext>,
   materialization: ModuleMaterialization,
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>,
-  rootRecordValuesByStatementId: ReadonlyMap<string, ModuleRecordValueSemantic> = new Map()
+  rootRecordValuesByStatementId: ReadonlyMap<string, ModuleRecordValueSemantic> = new Map(),
+  recordCollectionLookup?: RecordCollectionLookup
 ): GeometryAlias | undefined => {
   const carry = geometryCarrySourceForTarget(target, currentPath, contextsByPath);
   if (carry) return {
@@ -507,12 +515,13 @@ export const sourceAliasForTarget = (
       contextsByPath,
       materialization,
       exportsByPath,
-      rootRecordValuesByStatementId
+      rootRecordValuesByStatementId,
+      recordCollectionLookup
     );
   }
   if (target.kind === "geometryValue") {
     if (target.backingTarget && target.backingTarget.kind !== "collectionIndex") {
-      const alias = sourceAliasForTarget(target.backingTarget, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+      const alias = sourceAliasForTarget(target.backingTarget, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       if (!alias) return undefined;
       return lowerAliasWithPointKey(lowerAliasWithStagePath(alias, target.stagePath), target.pointKey);
     }
@@ -586,6 +595,7 @@ export const sourceAliasForTarget = (
     let fieldContextPath = currentPath;
     let fieldOccurrencePath = currentPath;
     let fieldRecordTarget = target.record;
+    const mapBinders = new Map<string, { target: Extract<ModuleRecordSourceTarget, { kind: "recordCollectionIndex" }>; path: readonly string[] }>();
     const recordValueExpressionForTarget = (recordTarget: ModuleRecordSourceTarget): ModuleRecordValueSemantic["valueExpression"] | null => {
       if (recordTarget.kind === "recordValue") {
         for (let index = fieldContextPath.length; index >= 0; index -= 1) {
@@ -609,7 +619,32 @@ export const sourceAliasForTarget = (
       if (recordTarget.kind === "recordCollectionIndex") {
         const index = recordTarget.index.ast.kind === "numberLiteral" ? recordTarget.index.ast.value : null;
         const member = index !== null && Number.isInteger(index) && index >= 0 ? recordTarget.members?.[index] : undefined;
-        return member ? recordValueExpressionForTarget(member) : null;
+        if (member) return recordValueExpressionForTarget(member);
+        if (index === null || !Number.isInteger(index) || index < 0) return null;
+        const collection = recordCollectionLookup?.(recordTarget.collectionValueId, fieldContextPath);
+        if (!collection) return null;
+        fieldContextPath = collection.path;
+        fieldOccurrencePath = collection.path;
+        if (collection.value.kind === "alias") return recordValueExpressionForTarget({ ...recordTarget, members: undefined, collectionValueId: collection.value.targetValueId });
+        if (collection.value.kind === "literal") {
+          const selected = collection.value.members[index]?.target;
+          return selected?.kind === "recordValue" ? recordValueExpressionForTarget({ ...selected, typeIdentity: recordTarget.typeIdentity }) : null;
+        }
+        if (collection.value.kind === "map" && collection.mappedBody) {
+          mapBinders.set(collection.value.binderId, { path: collection.path, target: {
+            ...recordTarget, members: undefined, collectionValueId: collection.value.sourceValueId,
+            typeIdentity: collection.mappedBody.sourceTypeIdentity
+          } });
+          fieldRecordTarget = recordTarget;
+          return collection.mappedBody.expression;
+        }
+        return null;
+      }
+      if (recordTarget.kind === "recordValueForBinder") {
+        const bound = mapBinders.get(recordTarget.binderId);
+        if (!bound) return null;
+        fieldContextPath = bound.path;
+        return recordValueExpressionForTarget(bound.target);
       }
       if (recordTarget.kind === "deferredModuleRecordExport") {
         const child = [...contextsByPath.values()].find(context =>
@@ -682,7 +717,12 @@ export const sourceAliasForTarget = (
     if (!expression) return undefined;
     if (expression.kind === "geometry") {
       if (expression.expression?.kind === "reference" && expression.expression.reference.target) {
-        const alias = sourceAliasForTarget(expression.expression.reference.target, fieldContextPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+        let geometryTarget = expression.expression.reference.target;
+        if (geometryTarget.kind === "recordFieldValue" && geometryTarget.record.kind === "recordValueForBinder") {
+          const bound = mapBinders.get(geometryTarget.record.binderId);
+          if (bound) { geometryTarget = { ...geometryTarget, record: bound.target }; fieldContextPath = bound.path; }
+        }
+        const alias = sourceAliasForTarget(geometryTarget, fieldContextPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
         return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
       }
       if (!expression.expression) return undefined;
@@ -697,7 +737,7 @@ export const sourceAliasForTarget = (
       const member = (expression.value as Extract<import("./geometryArraySemantics").DslArraySemanticValue<unknown>, { kind: "literal" }>).members[target.collectionIndex];
       const memberTarget = member?.target;
       if (memberTarget && typeof memberTarget === "object" && "kind" in memberTarget && typeof memberTarget.kind === "string") {
-        const alias = sourceAliasForTarget(memberTarget as ModuleGeometrySourceTarget, fieldContextPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+        const alias = sourceAliasForTarget(memberTarget as ModuleGeometrySourceTarget, fieldContextPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
         return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
       }
     }
@@ -796,11 +836,12 @@ export const lowerReference = (
   contextsByPath: ReadonlyMap<string, InstanceContext>,
   materialization: ModuleMaterialization,
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>,
-  rootRecordValuesByStatementId: ReadonlyMap<string, ModuleRecordValueSemantic> = new Map()
+  rootRecordValuesByStatementId: ReadonlyMap<string, ModuleRecordValueSemantic> = new Map(),
+  recordCollectionLookup?: RecordCollectionLookup
 ): GeometryAlias | undefined => {
   if (reference.coordinate) return { kind: "point", anchor: coordinateAnchor(reference.coordinate, statement), coordinate: reference.coordinate };
   if (!reference.target) return undefined;
-  const base = sourceAliasForTarget(reference.target, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+  const base = sourceAliasForTarget(reference.target, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
   return base;
 };
 
@@ -813,6 +854,7 @@ export const resolverForBody = ({
   materialization,
   exportsByPath,
   rootRecordValuesByStatementId,
+  recordCollectionLookup,
   resolveLineReferenceTargetAt,
   resolvePointReferenceAt
 }: {
@@ -824,6 +866,7 @@ export const resolverForBody = ({
   materialization: ModuleMaterialization;
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>;
   rootRecordValuesByStatementId?: ReadonlyMap<string, ModuleRecordValueSemantic>;
+  recordCollectionLookup?: RecordCollectionLookup;
   resolveLineReferenceTargetAt?: (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometrySourceTarget) => RuntimeGeometryInputTarget | null;
   resolvePointReferenceAt?: (token: string, statementIndex: number, currentPath: readonly string[], target?: ModuleGeometrySourceTarget) => PointAnchor | RuntimeGeometryInputTarget | null;
 }): DslGeometryResolverOverrides => {
@@ -849,7 +892,7 @@ export const resolverForBody = ({
       }
       const indexed = resolveLineReferenceTargetAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed) return indexed;
-      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
       if (loweredTarget?.kind === "collectionIndex") return { ...loweredTarget, currentPath };
       if (loweredTarget?.kind === "forGroupOccurrenceSource") return { ...loweredTarget, currentPath };
@@ -870,7 +913,7 @@ export const resolverForBody = ({
       }
       const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed && "kind" in indexed) return indexed;
-      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
       if (loweredTarget?.kind === "geometryValueMapPending") return { ...loweredTarget, currentPath };
       if (loweredTarget?.kind === "forGroupOccurrenceSource") return { ...loweredTarget, currentPath };
@@ -909,7 +952,7 @@ export const resolverForBody = ({
     },
     resolveId: (token, index, line, diagnostics, currentElement) => {
       const site = siteFor(token, "lineReference") ?? siteFor(token, "lineReferenceList");
-      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       return lowered?.kind === "line" ? lowered.elementId : fallback.resolveId(token, index, line, diagnostics, currentElement);
     },
     resolveAnchor: (token, index, line, diagnostics, numeric, currentElement) => {
@@ -925,13 +968,13 @@ export const resolverForBody = ({
       }
       const materializationSource = currentElement?.type === "materializedPoint" && site?.reference.target;
       if (materializationSource) {
-        const lowered = lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+        const lowered = lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
         const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
         if (loweredTarget && loweredTarget.kind !== "collectionIndex") return loweredTarget;
       }
       const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
       if (indexed) return indexed;
-      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       const loweredTarget = lowered ? geometryInputTargetSourceForAlias(lowered) : null;
       if (loweredTarget?.kind === "collectionIndex") return { ...loweredTarget, currentPath };
       if (loweredTarget?.kind === "forGroupOccurrenceSource") return { ...loweredTarget, currentPath };
@@ -943,7 +986,7 @@ export const resolverForBody = ({
     },
     resolveEndpoint: (token, index, line, diagnostics, currentElement) => {
       const site = siteFor(token, "lineEndpointReference");
-      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+      const lowered = site && lowerReference(site.reference, currentPath, statement, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       if (lowered?.kind === "point" && lowered.anchor.mode === "derived") {
         return { lineId: lowered.anchor.elementId, endpointKey: lowered.anchor.pointKey === "end" ? "end" : "start" };
       }
