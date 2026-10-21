@@ -18,7 +18,6 @@ import type {
   ModuleRecordValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
-  ModuleSourceTarget,
   ModuleGeometrySourceTarget,
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
@@ -98,6 +97,8 @@ import {
   recordScalarBindingIdForPath,
   recordScalarDeclarationVersionIdFor,
   recordValueCollectionIdFor,
+  recordValueCollectionIdentityFor,
+  indexedRecordValueCollectionIdFor,
   recordFieldContentsCollectionIdentityFor,
   recordFieldCollectionValueIdFor,
   recordFieldContentsCollectionValueIdFor
@@ -252,20 +253,6 @@ const recordFieldCollectionIdentityFor = (encoded: unknown): {
     : null;
 };
 
-/** Whole nominal records reuse the existing record-member collection runtime.
- * The JSON identity keeps the source path and statement identity unambiguous
- * while allowing semantic nodes to emit a root-form identity that this
- * compiler resolves for a concrete Module instance. */
-const recordValueCollectionIdentityFor = (valueId: string): { path: string[]; statementId: string } | null => {
-  if (!valueId.startsWith("record-value:")) return null;
-  try {
-    const encoded = JSON.parse(valueId.slice("record-value:".length)) as unknown;
-    if (!Array.isArray(encoded) || !Array.isArray(encoded[0]) || !encoded[0].every((part) => typeof part === "string") || typeof encoded[1] !== "string") return null;
-    return { path: encoded[0], statementId: encoded[1] };
-  } catch {
-    return null;
-  }
-};
 
 type RuntimeEvent =
   | { kind: "binding"; bindingId: BindingId }
@@ -1026,6 +1013,9 @@ const lowerRecordPropertyAst = (
             index: { kind: "numberLiteral", span: node.span, value: 0 }
           };
         }
+        if (target?.kind === "recordField" && target.record.kind === "recordCollectionIndex" && "valueType" in target.record.collectionTarget && target.record.collectionTarget.valueType?.kind === "array" && isDslOptionalValueType(target.record.collectionTarget.valueType.elementType)) {
+          return { kind: "collectionIndex", span: node.span, nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end }, name: node.elementName, index: { kind: "numberLiteral", span: node.span, value: 0 } };
+        }
         if (target?.kind === "recordField" && target.record.kind === "recordCollectionIndex" && (!target.record.members || !hasBinding(target)) && node.occurrenceIndex) {
           return {
             kind: "collectionIndex",
@@ -1761,7 +1751,10 @@ export const lowerExpression = (
           : null;
         const recordFieldPath = recordCollectionTarget ? recordFieldTarget!.fieldPath ?? [recordFieldTarget!.field] : null;
         const recordValueFieldPath = recordValueTarget ? recordFieldTarget!.fieldPath ?? [recordFieldTarget!.field] : null;
-        const recordFieldCollectionValueId = recordCollectionTarget && recordFieldPath
+        const optionalRecordIndex = recordCollectionTarget && "valueType" in recordCollectionTarget.collectionTarget && recordCollectionTarget.collectionTarget.valueType?.kind === "array" && isDslOptionalValueType(recordCollectionTarget.collectionTarget.valueType.elementType);
+        const recordFieldCollectionValueId = optionalRecordIndex
+          ? recordFieldCollectionValueIdFor(indexedRecordValueCollectionIdFor(recordCollectionTarget.collectionValueId, recordCollectionTarget.index.ast), recordFieldTarget!.field, recordFieldPath!)
+          : recordCollectionTarget && recordFieldPath
           ? `record-field-collection:${JSON.stringify(
               recordFieldPath.length === 1
                 ? [recordCollectionTarget.collectionValueId, recordFieldPath[0]!.recordStatementId, recordFieldPath[0]!.fieldIndex]
@@ -1811,7 +1804,7 @@ export const lowerExpression = (
             reference?.collectionValueId ??
             ""
           ),
-          collectionLength: recordCollectionTarget?.collectionLength ?? (
+          collectionLength: optionalRecordIndex ? 1 : recordCollectionTarget?.collectionLength ?? (
             recordValueTarget && recordFieldTarget?.collectionIndex === undefined
               ? 1
               : reference?.collectionLength ?? null
@@ -2442,6 +2435,18 @@ export const compileModuleScalarRuntime = ({
     }
     return undefined;
   };
+  // Bind an already resolved map-binder target to one canonical source member.
+  // Geometry constructions and collection-field expressions share this adapter.
+  const bindRecordValueBinder = <T,>(value: T, binderId: string, source: ModuleRecordSourceTarget | null): T => {
+    const visit = (node: unknown): unknown => {
+      if (Array.isArray(node)) return node.map(visit);
+      if (!node || typeof node !== "object") return node;
+      if ("kind" in node && node.kind === "recordValueForBinder" && "binderId" in node && node.binderId === binderId) return source ?? node;
+      return Object.fromEntries(Object.entries(node).map(([key, child]) => [key, visit(child)]));
+    };
+    return visit(value) as T;
+  };
+
   const constructorFieldAtPath = (
     fields: readonly import("../dsl/moduleSemanticTypes").ModuleRecordConstructorFieldSemantic[],
     path: readonly RecordFieldIdentity[]
@@ -2580,40 +2585,40 @@ export const compileModuleScalarRuntime = ({
       return null;
   }
 
+  function recordCollectionSourceFor(
+    collectionValueId: string,
+    context: InstanceContext | null,
+    seen: ReadonlySet<string> = new Set()
+  ): { value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>; context: InstanceContext | null } | null {
+    const key = `${pathKey(context?.path ?? [])}:${collectionValueId}`;
+    if (seen.has(key)) return null;
+    const nextSeen = new Set([...seen, key]);
+    const parameterMatch = /^(.*):parameter:(\d+)$/.exec(collectionValueId);
+    if (parameterMatch && context) {
+      const owner = contextCandidatesFor(context).find(candidate => candidate.definition.statementId === parameterMatch[1]);
+      const binding = owner?.instance.parameterBindings.find(candidate => candidate.parameterIndex === Number(parameterMatch[2]));
+      const callerContext = owner?.parentKey ? contextsByKey.get(owner.parentKey) ?? null : null;
+      if (binding?.value?.kind === "collectionLiteral") return { value: binding.value.value, context: callerContext };
+      if (binding?.value?.kind === "collection") return recordCollectionSourceFor(binding.value.targetValueId, callerContext, nextSeen);
+    }
+    const analyses = [context ? sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis : undefined, sourceNamespace?.geometryArraySemanticAnalysis];
+    const value = analyses.map(analysis => analysis?.genericValuesByStatementId.get(collectionValueId)).find(candidate => candidate !== undefined)?.value;
+    return value ? { value, context } : null;
+  }
+
   function recordTargetForCollectionMember(
-      collectionValueId: string,
-      index: number,
-      context: InstanceContext | null,
-      seen: ReadonlySet<string> = new Set()
-    ): ModuleRecordSourceTarget | null {
+    collectionValueId: string,
+    index: number,
+    context: InstanceContext | null,
+    seen: ReadonlySet<string> = new Set()
+  ): ModuleRecordSourceTarget | null {
       const visitKey = `${collectionValueId}:${index}`;
       if (seen.has(visitKey)) return null;
       const nextSeen = new Set([...seen, visitKey]);
-      const parameterMatch = /^(.*):parameter:(\d+)$/.exec(collectionValueId);
-      if (parameterMatch && context) {
-        const definitionStatementId = parameterMatch[1]!;
-        const parameterIndex = Number(parameterMatch[2]);
-        const owner = contextCandidatesFor(context).find((candidate) => candidate.definition.statementId === definitionStatementId);
-        const binding = owner?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameterIndex);
-        const callerContext = owner?.parentKey ? contextsByKey.get(owner.parentKey) ?? null : null;
-        if (binding?.value?.kind === "collectionLiteral") {
-          const member = binding.value.value.members[index];
-          return member ? recordTargetForGenericArraySourceTarget(member.target, callerContext) : null;
-        }
-        if (binding?.value?.kind === "collection") {
-          return recordTargetForCollectionMember(binding.value.targetValueId, index, callerContext, nextSeen);
-        }
-      }
-
-      const analyses = [
-        context ? sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis : undefined,
-        sourceNamespace?.geometryArraySemanticAnalysis
-      ];
-      const value = analyses
-        .map((analysis) => analysis?.genericValuesByStatementId.get(collectionValueId))
-        .find((candidate) => candidate !== undefined);
-      if (!value?.value) return null;
-      const genericValue = value.value;
+      const source = recordCollectionSourceFor(collectionValueId, context);
+      if (!source) return null;
+      context = source.context;
+      const genericValue = source.value;
       if (genericValue.kind === "alias") {
         return recordTargetForCollectionMember(genericValue.targetValueId, index, context, nextSeen);
       }
@@ -2826,6 +2831,10 @@ export const compileModuleScalarRuntime = ({
       allBindingInfos.push(info);
     }
     for (const recordValue of definition.recordValues) {
+      const inlineCollection = recordValue.value.inlineCollectionMember
+        ? definitionSourceNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(recordValue.value.inlineCollectionMember.collectionStatementId)
+        : null;
+      if (inlineCollection && isDslOptionalValueType(inlineCollection.valueType.elementType)) continue;
       if (!recordValue.value.typeIdentity || !recordValue.target) continue;
       const recordDefinition = definitionSourceNamespace?.recordSemanticAnalysis?.definitionsByStatementId.get(recordValue.value.typeIdentity);
       if (!recordDefinition) continue;
@@ -3337,8 +3346,9 @@ export const compileModuleScalarRuntime = ({
     }
     const recordValueIdentity = recordValueCollectionIdentityFor(valueId);
     if (recordValueIdentity) {
-      if (recordValueIdentity.path.length === 2 && recordValueIdentity.path[0] === recordValueIdentity.statementId && /^\d+$/.test(recordValueIdentity.path[1]!)) {
-        return mappedRecordMemberValueIdFor(collectionValueIdFor(recordValueIdentity.statementId, context), Number(recordValueIdentity.path[1]));
+      if (recordValueIdentity.path.length === 2 && recordValueIdentity.path[0] === recordValueIdentity.statementId && /^(?:\d+|index:)/.test(recordValueIdentity.path[1]!)) {
+        const sourceId = collectionValueIdFor(recordValueIdentity.statementId, context);
+        return recordValueCollectionIdFor([sourceId, recordValueIdentity.path[1]!], sourceId);
       }
       if (recordValueIdentity.path.length > 0) return valueId;
       const owner = context && contextCandidatesFor(context).find((candidate) =>
@@ -3429,6 +3439,7 @@ export const compileModuleScalarRuntime = ({
     if (target.kind === "recordCollectionIndex") {
       const index = target.index.ast.kind === "numberLiteral" ? target.index.ast.value : null;
       const arrayType = "valueType" in target.collectionTarget ? target.collectionTarget.valueType : null;
+      if (arrayType?.kind === "array" && isDslOptionalValueType(arrayType.elementType)) return indexedRecordValueCollectionIdFor(collectionValueIdFor(target.collectionValueId, context), target.index.ast);
       if ((target.members || arrayType?.kind === "array" && isDslOptionalValueType(arrayType.elementType)) && index !== null && Number.isInteger(index) && index >= 0) {
         const member = target.members?.[index] ?? recordTargetForCollectionMember(target.collectionValueId, index, context);
         return member ? recordTargetValueIdFor(member, context) : mappedRecordMemberValueIdFor(collectionValueIdFor(target.collectionValueId, context), index);
@@ -3580,12 +3591,12 @@ export const compileModuleScalarRuntime = ({
         : null;
     };
 
-    const appendOptionalRecordCardinality = (
+    const appendValueCollectionCardinality = (
       value: import("../dsl/geometryArraySemantics").DslArrayLiteralValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>,
       valueId: string
     ): boolean => {
       const element = value.valueType.elementType;
-      if (!isDslOptionalValueType(element) || element.valueType.kind !== "record") return false;
+      if (!isDslGeometryValueType(element) && (!isDslOptionalValueType(element) || element.valueType.kind !== "record")) return false;
       // Like geometry collections, this array descriptor supplies cardinality
       // and forwarding edges. Record values and their presence stay in their
       // canonical nominal singleton descriptors, never scalar record values.
@@ -3697,16 +3708,8 @@ export const compileModuleScalarRuntime = ({
           moduleCollectionValues.push(targetValueId ? { valueId, kind: "alias", targetValueId } : { valueId, kind: "none" });
         } else {
           const source = recordTargetForCollectionMember(mappedValue.sourceValueId, index, context);
-          const bindExpression = (expression: ModuleScalarExpressionSemantic): ModuleScalarExpressionSemantic => {
-            const bindTarget = <T extends ModuleSourceTarget | ModuleGeometryPropertySourceTarget | null>(target: T): T =>
-              source && target?.kind === "recordField" && target.record.kind === "recordValueForBinder" && target.record.binderId === mappedBody.binderId
-                ? { ...target, record: source } : target;
-            return { ...expression,
-              references: expression.references.map(reference => ({ ...reference, target: bindTarget(reference.target) })),
-              geometryProperties: expression.geometryProperties.map(property => ({ ...property, target: bindTarget(property.target) })),
-              optionalMembers: expression.optionalMembers?.map(member => ({ ...member, target: bindTarget(member.target) }))
-            };
-          };
+          const bindExpression = (expression: ModuleScalarExpressionSemantic): ModuleScalarExpressionSemantic =>
+            bindRecordValueBinder(expression, mappedBody.binderId, source);
           const bindContents = (value: typeof fieldValue.value): NonNullable<typeof fieldValue.value> => {
             if (!value) throw new Error("mapped record field contents missing");
             if (value.kind === "literal") return { ...value, members: value.members.map(member => ({ ...member, ...(member.expression ? { expression: bindExpression(member.expression) } : {}) })) };
@@ -3770,6 +3773,74 @@ export const compileModuleScalarRuntime = ({
       }
       const source = recordTargetForCollectionMember(collectionId, index, context);
       return source ? appendCanonicalRecordFieldContentsForTarget(source, fieldPath, context, analysis, sourceOrder) : null;
+    };
+
+    const appendIndexedRecordSelection = (
+      target: Extract<ModuleRecordSourceTarget, { kind: "recordCollectionIndex" }>,
+      context: InstanceContext | null,
+      sourceOrder: number
+    ): void => {
+      const valueId = indexedRecordValueCollectionIdFor(collectionValueIdFor(target.collectionValueId, context), target.index.ast);
+      if (registeredRecordValueIds.has(valueId)) return;
+      registeredRecordValueIds.add(valueId);
+      const index = lowerCollectionScalar(target.index, context ?? undefined);
+      const span = target.index.ast.span;
+      const appendSource = (sourceId: string, id: string, current: InstanceContext | null, seen: ReadonlySet<string>): void => {
+        const key = `${pathKey(current?.path ?? [])}:${sourceId}`;
+        if (seen.has(key)) return;
+        const source = recordCollectionSourceFor(sourceId, current);
+        if (source) appendValue(source.value, id, source.context, new Set([...seen, key]));
+      };
+      const appendValue = (
+        value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>,
+        id: string,
+        current: InstanceContext | null,
+        seen: ReadonlySet<string>
+      ): void => {
+        if (value.kind === "alias") { appendSource(value.targetValueId, id, current, seen); return; }
+        if (value.kind === "none") { moduleCollectionValues.push({ valueId: id, kind: "none" }); return; }
+        if (value.kind === "if") {
+          appendValue(value.thenValue, `${id}:then`, current, seen);
+          appendValue(value.elseValue, `${id}:else`, current, seen);
+          if (value.condition) moduleCollectionValues.push({ valueId: id, kind: "if", condition: lowerCollectionScalar(value.condition, current ?? undefined), thenValueId: `${id}:then`, elseValueId: `${id}:else`, sourceOrder });
+          return;
+        }
+        if (value.kind === "match") {
+          const arms = value.arms.map(arm => {
+            const armId = `${id}:arm:${arm.label}`;
+            appendValue(arm.value, armId, current, seen);
+            return { label: arm.label, valueId: armId, ...(arm.binderId ? { binderId: arm.binderId } : {}) };
+          });
+          if (value.scrutinee) {
+            const scrutinee = optionalCollectionMatchPresenceProjection(lowerCollectionScalar(value.scrutinee, current ?? undefined));
+            moduleCollectionValues.push({ valueId: id, kind: "match", scrutinee, arms: arms.map(arm => collectionMatchArm(arm.label, arm.valueId, arm.binderId, scrutinee, binder => moduleCollectionBinderIdFor(current?.path ?? [], binder))), sourceOrder });
+          }
+          return;
+        }
+        if (value.kind === "coalesce") {
+          appendValue(value.left, `${id}:left`, current, seen); appendValue(value.right, `${id}:right`, current, seen);
+          moduleCollectionValues.push({ valueId: id, kind: "coalesce", leftValueId: `${id}:left`, rightValueId: `${id}:right`, sourceOrder });
+          return;
+        }
+        if (value.kind !== "literal") return;
+        // Index the ordinal scaffold through the existing checked evaluator;
+        // only the selected singleton's nominal record fields are requested.
+        const boundsId = `${id}:bounds`;
+        const absentId = `${id}:absent`;
+        moduleCollectionValues.push({ valueId: boundsId, kind: "literal", members: value.members.map((_, i) => ({ kind: "literal", type: { kind: "number" }, value: { kind: "number", value: i } })) });
+        moduleCollectionValues.push({ valueId: absentId, kind: "none" });
+        const checkedIndex: TypedScalarExpression = { kind: "collectionIndex", span, nameSpan: target.nameSpan, name: target.source, collectionValueId: boundsId, collectionLength: value.members.length, targetSourceOrder: -1, index, type: { kind: "number" } };
+        const count = Math.max(1, value.members.length);
+        for (let i = 0; i < count; i++) {
+          const member = value.members[i];
+          const record = member ? recordTargetForGenericArraySourceTarget(member.target, current) : null;
+          const memberId = record ? recordTargetValueIdFor(record, current) : null;
+          moduleCollectionValues.push({ valueId: i === 0 ? id : `${id}:index:${i}`, kind: "if",
+            condition: { kind: "binary", operator: "==", span, type: { kind: "boolean" }, left: checkedIndex, right: { kind: "numberLiteral", span, value: i, type: { kind: "number" } } },
+            thenValueId: memberId ?? absentId, elseValueId: i + 1 < count ? `${id}:index:${i + 1}` : absentId, sourceOrder });
+        }
+      };
+      appendSource(target.collectionValueId, valueId, context, new Set());
     };
 
     const appendRecordValueExpression = (
@@ -3836,6 +3907,7 @@ export const compileModuleScalarRuntime = ({
         return;
       }
       if (expression.kind === "match") {
+        if (expression.recordScrutinee?.kind === "recordCollectionIndex") appendIndexedRecordSelection(expression.recordScrutinee, context, executionPositionForValue(context?.path ?? [], target.statementIndex));
         const arms: { label: string; valueId: string; binderId?: string }[] = [];
         for (const arm of expression.arms) {
           const armValueId = `${valueId}:arm:${arm.label}`;
@@ -3865,32 +3937,7 @@ export const compileModuleScalarRuntime = ({
           : null;
         if (!targetValueId) return;
         const source = expression.reference.target;
-        if (source?.kind === "recordCollectionIndex" && source.index.ast.kind === "numberLiteral") {
-          const index = source.index.ast.value;
-          const count = recordCollectionMemberCountFor(source.collectionValueId, context) ?? source.members?.length;
-          const selectionId = mappedRecordMemberValueIdFor(collectionValueIdFor(source.collectionValueId, context), index);
-          if (count !== undefined && count !== null && !registeredRecordValueIds.has(selectionId)) {
-            registeredRecordValueIds.add(selectionId);
-            if (Number.isInteger(index) && index >= 0 && index < count) {
-              moduleCollectionValues.push(selectionId !== targetValueId
-                ? { valueId: selectionId, kind: "alias", targetValueId }
-                : { valueId: selectionId, kind: "none" });
-            } else {
-              // Validate through the ordinary typed collection-index evaluator.
-              // An absent member is none; an invalid index must remain an error.
-              const absentId = `${selectionId}:absent`;
-              const span = source.index.ast.span;
-              moduleCollectionValues.push({ valueId: absentId, kind: "none" });
-              moduleCollectionValues.push({ valueId: selectionId, kind: "if",
-                condition: { kind: "binary", operator: "==", span, type: { kind: "boolean" },
-                  left: { kind: "collectionIndex", span, nameSpan: span, name: source.collectionValueId, collectionValueId: collectionValueIdFor(source.collectionValueId, context),
-                    collectionLength: count, targetSourceOrder: -1,
-                    index: { kind: "numberLiteral", span, value: index, type: { kind: "number" } }, type: { kind: "number" } },
-                  right: { kind: "numberLiteral", span, value: 0, type: { kind: "number" } } },
-                thenValueId: absentId, elseValueId: absentId, sourceOrder: executionPositionForValue(context?.path ?? [], target.statementIndex) });
-            }
-          }
-        }
+        if (source?.kind === "recordCollectionIndex") appendIndexedRecordSelection(source, context, executionPositionForValue(context?.path ?? [], target.statementIndex));
         moduleCollectionValues.push({ valueId, kind: "alias", targetValueId });
         return;
       }
@@ -3918,7 +3965,10 @@ export const compileModuleScalarRuntime = ({
         // eager field declarations. Reuse the existing lazy record-map field
         // bodies, so an unselected fallback never evaluates its scalar fields.
         const owner = recordValueSemanticForTarget(target, context);
-        if (expression.kind === "collectionIndex" || !owner?.value.constructor) {
+        const inlineCollection = owner?.value.inlineCollectionMember
+          ? (context ? sourceNamespaceForContext(context) : sourceNamespace)?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(owner.value.inlineCollectionMember.collectionStatementId)
+          : null;
+        if (expression.kind === "collectionIndex" || !owner?.value.constructor || inlineCollection && isDslOptionalValueType(inlineCollection.valueType.elementType)) {
           const analysis = (context ? sourceNamespaceForContext(context) : sourceNamespace)?.recordSemanticAnalysis;
           const definition = analysis?.definitionsByStatementId.get(typeIdentity);
           if (!definition) return;
@@ -4184,12 +4234,17 @@ export const compileModuleScalarRuntime = ({
       if (recordCollectionTarget?.kind === "recordField" && recordCollectionTarget.record.kind === "recordCollectionIndex") {
         const fieldPath = recordCollectionTarget.fieldPath ?? [recordCollectionTarget.field];
         const sourceType = "valueType" in recordCollectionTarget.record.collectionTarget ? recordCollectionTarget.record.collectionTarget.valueType : null;
-        const selectedIndex = recordCollectionTarget.record.index.ast.kind === "numberLiteral" ? recordCollectionTarget.record.index.ast.value : null;
-        const selectedCount = recordCollectionMemberCountFor(recordCollectionTarget.record.collectionValueId, context) ?? recordCollectionTarget.record.members?.length;
-        // A proven some-binder of a static optional record member already
-        // references that member's exact field binding, not a projection of
-        // the entire optional-record collection.
-        if (sourceType?.kind === "array" && isDslOptionalValueType(sourceType.elementType) && selectedIndex !== null && Number.isInteger(selectedIndex) && selectedIndex >= 0 && selectedCount != null && selectedIndex < selectedCount) return;
+        if (sourceType?.kind === "array" && isDslOptionalValueType(sourceType.elementType)) {
+          const sourceValueId = indexedRecordValueCollectionIdFor(collectionValueIdFor(recordCollectionTarget.record.collectionValueId, context), recordCollectionTarget.record.index.ast);
+          const valueId = recordFieldCollectionValueIdFor(sourceValueId, recordCollectionTarget.field, fieldPath);
+          if (!registeredRecordFieldProjectionIds.has(valueId)) {
+            registeredRecordFieldProjectionIds.add(valueId);
+            moduleCollectionValues.push({ valueId, kind: "recordField", sourceValueId,
+              field: { ...recordCollectionTarget.field, type: recordCollectionTarget.type!, ...(fieldPath.length > 1 ? { fieldPath } : {}) },
+              sourceOrder: Math.max(0, Math.floor(executionPositionForValue(context?.path ?? [], recordCollectionTarget.record.targetSourceOrder))) });
+          }
+          return;
+        }
         const requiredFieldType = dslRequiredValueTypeOf(recordCollectionTarget.valueType) ?? recordCollectionTarget.valueType;
         if (expression.ast.kind === "recordFieldCollectionIndex" && isDslArrayValueType(requiredFieldType)) {
           const recordCollection = recordCollectionTarget.record;
@@ -4590,7 +4645,7 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "none" });
         return;
       }
-      if (appendOptionalRecordCardinality(value, valueId)) return;
+      if (appendValueCollectionCardinality(value, valueId)) return;
       const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       if (value.valueType.elementType.kind === "record") {
         const members = value.members.flatMap((member) => {
@@ -4936,7 +4991,7 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "none" });
         continue;
       }
-      if (appendOptionalRecordCardinality(value.value, valueId)) continue;
+      if (appendValueCollectionCardinality(value.value, valueId)) continue;
       const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       if (value.valueType.elementType.kind === "record") {
         const members = value.value.members.flatMap((member) => {
@@ -4961,7 +5016,7 @@ export const compileModuleScalarRuntime = ({
       }
       if (members.length === value.value.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
     }
-    for (const parameter of contextAnalysis.genericModuleParameters.filter((candidate) => candidate.definitionStatementId === context.definition.statementId)) {
+    for (const parameter of [...contextAnalysis.genericModuleParameters, ...contextAnalysis.moduleParameters].filter((candidate) => candidate.definitionStatementId === context.definition.statementId)) {
       const binding = context.instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       const valueId = moduleCollectionValueIdFor(context.path, `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`);
       if (binding?.value?.kind === "collection") {
@@ -4973,7 +5028,7 @@ export const compileModuleScalarRuntime = ({
       } else if (binding?.value?.kind === "collectionLiteral") {
         const callerContext = context.parentKey ? contextsByKey.get(context.parentKey) ?? null : null;
         const literal = binding.value.value;
-        if (appendOptionalRecordCardinality(literal, valueId)) continue;
+        if (appendValueCollectionCardinality(literal, valueId)) continue;
         if (literal.valueType.elementType.kind === "record") {
           const members = literal.members.flatMap((member) => {
             const record = recordCollectionMemberForTarget(member.target, literal.valueType.elementType.kind === "record" ? literal.valueType.elementType.identity ?? "" : "", callerContext);
@@ -4998,9 +5053,10 @@ export const compileModuleScalarRuntime = ({
           }
           if (members.length === literal.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
         }
-      } else {
-        // An omitted or explicit-none optional collection is the ordinary
-        // shared none value, not a missing alias target.
+      } else if (binding?.state !== "supplied" || binding.value?.kind === "none") {
+        // Supplied geometry literals are owned by the geometry collection
+        // runtime and may have no generic argument value. Only absence emits
+        // none here; a synthetic none would shadow that canonical producer.
         moduleCollectionValues.push({ valueId, kind: "none" });
       }
     }
@@ -5061,7 +5117,7 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({
           valueId,
           kind: "match",
-          scrutinee,
+          scrutinee: optionalCollectionMatchPresenceProjection(scrutinee),
           arms: arms.map((arm) => collectionMatchArm(arm.label, arm.valueId, arm.binderId, scrutinee)),
           sourceOrder
         });
@@ -5087,7 +5143,7 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({ valueId, kind: "none" });
         return;
       }
-      if (appendOptionalRecordCardinality(value, valueId)) return;
+      if (appendValueCollectionCardinality(value, valueId)) return;
       if (value.valueType.elementType.kind === "record") {
         const members = value.members.flatMap((member) => {
           const record = recordCollectionMemberForTarget(member.target, value.valueType.elementType.kind === "record" ? value.valueType.elementType.identity ?? "" : "", null);
@@ -5119,6 +5175,32 @@ export const compileModuleScalarRuntime = ({
       }
       moduleCollectionValues.push({ valueId, kind: "literal", members });
     };
+    const geometryCardinalityValue = (
+      value: import("../dsl/geometryArraySemantics").GeometryArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GeometryArraySourceTarget>
+    ): import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget> => {
+      const valueType = { kind: "array" as const, elementType: { kind: value.type.elementType } };
+      if (value.kind === "literal") return { kind: "literal", valueType, members: value.members.map(member => ({ ...member, elementType: valueType.elementType })) };
+      if (value.kind === "map") return { kind: "alias", valueType, targetValueId: value.sourceValueId, sourceSpan: value.sourceSpan };
+      if (value.kind === "if") return { ...value, valueType, thenValue: geometryCardinalityValue(value.thenValue), elseValue: geometryCardinalityValue(value.elseValue) };
+      if (value.kind === "match") return { ...value, valueType, arms: value.arms.map(arm => ({ ...arm, value: geometryCardinalityValue(arm.value) })) };
+      if (value.kind === "coalesce") return { ...value, valueType, left: geometryCardinalityValue(value.left), right: geometryCardinalityValue(value.right) };
+      return { ...value, valueType };
+    };
+    const registeredGeometryCardinalityIds = new Set(moduleCollectionValues.map(value => value.valueId));
+    const appendGeometryCardinality = (analysis: GeometryArraySemanticAnalysis | null | undefined, context: InstanceContext | null) => {
+      for (const value of analysis?.values ?? []) {
+        if (!value.value || value.ownerModuleDefinitionStatementIndex !== null && value.ownerModuleDefinitionStatementIndex !== context?.definition.statementIndex) continue;
+        const id = collectionValueIdFor(value.statementId, context);
+        if (registeredGeometryCardinalityIds.has(id)) continue;
+        registeredGeometryCardinalityIds.add(id);
+        const cardinality = geometryCardinalityValue(value.value);
+        if (context && analysis) appendConditional(cardinality, id, context, analysis, value.statementIndex);
+        else appendRootConditional(cardinality, id, value.statementIndex);
+      }
+    };
+    appendGeometryCardinality(sourceNamespace?.geometryArraySemanticAnalysis, null);
+    for (const context of contextsByKey.values()) appendGeometryCardinality(sourceNamespaceForContext(context)?.geometryArraySemanticAnalysis, context);
+
     const hasExpressionMembers = (value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>): boolean => {
       if (value.kind === "literal") return value.members.some(member => member.expression !== undefined);
       if (value.kind === "if") return hasExpressionMembers(value.thenValue) || hasExpressionMembers(value.elseValue);
@@ -5148,7 +5230,7 @@ export const compileModuleScalarRuntime = ({
         appendRecordMap(value.value, valueId, null);
         continue;
       }
-      if (value.value.kind === "literal" && appendOptionalRecordCardinality(value.value, valueId)) continue;
+      if (value.value.kind === "literal" && appendValueCollectionCardinality(value.value, valueId)) continue;
       const rootElementType = dslRequiredValueTypeOf(value.valueType.elementType);
       if (rootElementType?.kind !== "record") continue;
       if (value.value.kind === "alias") {
@@ -6596,10 +6678,10 @@ export const compileModuleScalarRuntime = ({
   const moduleCollectionValues = buildModuleCollectionValues();
 
   const lazyGeometryValuePrograms = new Map<string, GeometryValueProgramNode>();
-  const lowerCollectionScalar = (
+  function lowerCollectionScalar(
     expression: ModuleScalarExpressionSemantic,
     context: InstanceContext | undefined
-  ): TypedScalarExpression => context
+  ): TypedScalarExpression { return context
     ? lowerExpression(
         expression,
         (target) => resolvedBindingForContext(target, context),
@@ -6620,7 +6702,8 @@ export const compileModuleScalarRuntime = ({
         resolvedGeometryBuiltinForRoot,
         (valueId) => collectionValueIdFor(valueId, null),
         (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
-      ).expression;
+      ).expression
+  }
 
   const lowerCollectionNode = (
     node: RuntimeGeometryCollectionNode
@@ -7104,6 +7187,11 @@ export const compileModuleScalarRuntime = ({
       return indexedProgramTarget ? { kind: "target", target: indexedProgramTarget } : undefined;
     }
     const stagePath = "stagePath" in target ? target.stagePath : undefined;
+    if (target.kind === "recordFieldValue" && target.collectionIndex !== undefined) {
+      const input = moduleGeometryRuntime.resolveInputTarget?.(target, path);
+      const selected = input ? geometryValueProgramTargetForInput(input, context, executionPosition, declaredInterfaceType) : null;
+      if (selected) return { kind: "target", target: selected };
+    }
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(target, path, declaredInterfaceType);
     if (!lowered) return undefined;
     const resolvedStagePath = stagePath ?? lowered.stagePath;
@@ -7301,11 +7389,28 @@ export const compileModuleScalarRuntime = ({
     executionPath?: readonly string[];
   }) => {
     const path = context?.path ?? [];
+    let selectedTarget = recordTarget;
+    let selectedExpression = recordValueExpression;
+    if (recordValueExpression.kind === "collectionIndex" && recordValueExpression.reference.target?.kind === "recordCollectionIndex") {
+      const indexed = recordValueExpression.reference.target;
+      const index = indexed.index.ast.kind === "numberLiteral" ? indexed.index.ast.value : null;
+      const collection = recordCollectionSourceFor(indexed.collectionValueId, context ?? null);
+      const mapped = collection?.value;
+      const bodies = context?.definition.mappedRecordCollectionBodies ?? moduleSemanticAnalysis.mappedRecordCollectionBodies;
+      const body = mapped?.kind === "map" ? bodies.find(candidate => candidate.binderId === mapped.binderId) : null;
+      if (mapped?.kind === "map" && body && index !== null) {
+        const source = recordTargetForCollectionMember(mapped.sourceValueId, index, collection?.context ?? null);
+        if (source) {
+          selectedExpression = bindRecordValueBinder(body.expression, body.binderId, source);
+          selectedTarget = indexed;
+        }
+      }
+    }
     for (const { field, path: fieldPath, valueType } of recordFieldPathsFor(recordDefinition, recordAnalysis)) {
       if (!isDslGeometryValueType(valueType)) continue;
-      const fieldValue = recordFieldValueExpressionAt(recordValueExpression, fieldPath, valueType.kind);
+      const fieldValue = recordFieldValueExpressionAt(selectedExpression, fieldPath, valueType.kind);
       if (fieldValue?.kind !== "geometry" || !fieldValue.expression || fieldValue.expression.kind === "reference") continue;
-      const occurrence = geometryValueOccurrenceForRecordField(recordTarget, fieldPath, path);
+      const occurrence = geometryValueOccurrenceForRecordField(selectedTarget, fieldPath, path);
       const virtualValue: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic = {
         statementId: occurrence.sourceStatementId,
         statementIndex,
@@ -7802,7 +7907,11 @@ export const compileModuleScalarRuntime = ({
   for (const collection of moduleCollectionValues) {
     if (collection.kind !== "alias") continue;
     const target = geometryCollectionNodesByValueId.get(collection.targetValueId);
-    if (target) geometryCollectionNodesByValueId.set(collection.valueId, target);
+    // Cardinality aliases supplement missing collection edges; they must not
+    // replace a canonical geometry node and its mapped occurrence programs.
+    if (target && !geometryCollectionNodesByValueId.has(collection.valueId)) {
+      geometryCollectionNodesByValueId.set(collection.valueId, target);
+    }
   }
   for (const context of contextsByKey.values()) {
     if (context.path.length !== 1 || contextIsDisabled(context) || !contextIsReachable(context)) continue;

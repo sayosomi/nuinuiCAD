@@ -34,6 +34,7 @@ import {
   sourceAliasForTarget,
   type ExportEntry,
   type GeometryAlias,
+  geometryInputTargetSourceForAlias,
   type RuntimeGeometryInputTarget,
   type RuntimeGeometryCollectionNode,
   type InstanceContext,
@@ -106,6 +107,7 @@ export type ModuleGeometryRuntimeCompilation = {
     target: Extract<ModuleGeometrySourceTarget, { kind: "collectionIndex" }>,
     currentPath: readonly string[]
   ) => RuntimeGeometryInputTarget | null;
+  resolveInputTarget?: (target: ModuleGeometrySourceTarget, instancePath: readonly string[]) => RuntimeGeometryInputTarget | null;
   coordinateForReference: (
     reference: ModuleGeometryReferenceSemantic,
     instancePath: readonly string[]
@@ -148,12 +150,13 @@ export const buildModuleGeometryRuntime = ({
     return [...existingTargets, ...newTargets];
   };
 
+  let geometryArrays: ReturnType<typeof buildModuleGeometryArrayRuntime> | undefined;
   const recordCollectionLookup: RecordCollectionLookup = (valueId, path) => {
     const context = contextsByPath.get(pathKey(path));
     const namespace = context?.definitionDocumentId && moduleRuntimeContext
       ? moduleRuntimeContext.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace : sourceNamespace;
     const value = namespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(valueId)?.value;
-    if (!value) return undefined;
+    if (!value) return { path, geometryAliases: geometryArrays?.resolveGeometryArrayAliasesForValueId(valueId, path), geometryCollection: geometryArrays?.resolveGeometryArrayCollectionForValueId(valueId, path) };
     const bodies = context?.definition.mappedRecordCollectionBodies ?? moduleSemanticAnalysis.mappedRecordCollectionBodies;
     return { value, path, ...(value.kind === "map" ? { mappedBody: bodies.find(body => body.binderId === value.binderId) } : {}) };
   };
@@ -162,7 +165,8 @@ export const buildModuleGeometryRuntime = ({
     // An indexed value must retain its declaration's lazy program and caller-
     // bound selector. It cannot be flattened to a static geometry alias.
     if (exported.backingTarget && exported.backingTarget.kind !== "collectionIndex") {
-      return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+      const alias = sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+      if (alias) return alias;
     }
     if (!exported.category && (exported.interfaceType === "point" || exported.interfaceType === "line" || exported.interfaceType === "path")) {
       return {
@@ -238,7 +242,7 @@ export const buildModuleGeometryRuntime = ({
     if (instance.callerModuleDefinitionStatementId === null) register(instance, []);
   }
 
-  const geometryArrayRuntime = buildModuleGeometryArrayRuntime({
+  const geometryArrayRuntime = geometryArrays = buildModuleGeometryArrayRuntime({
     statements,
     stableStatementIdByIndex,
     moduleSemanticAnalysis,
@@ -664,6 +668,10 @@ export const buildModuleGeometryRuntime = ({
     geometryInputTargetSourcesByRuntimeElementId,
     resolvePropertyTarget,
     resolveBuiltinTarget,
+    resolveInputTarget: (target, instancePath) => {
+      const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+      return alias ? geometryInputTargetSourceForAlias(alias) : null;
+    },
     resolvePointReferenceList: (token, statementIndex, currentPath) => geometryArrayRuntime.resolvePointReferenceList(token, statementIndex, currentPath),
     resolveGeometryCollectionIndexPoint,
     resolveGeometryCollectionIndexLine,

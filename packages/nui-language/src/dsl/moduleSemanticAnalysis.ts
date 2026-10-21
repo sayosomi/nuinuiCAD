@@ -33,7 +33,7 @@ import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceT
 import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import { moduleRecordFieldExpressionFor, recordValueCollectionIdFor, recordFieldContentsCollectionValueIdFor } from "../scalars/recordScalarLowering";
+import { moduleRecordFieldExpressionFor, recordValueCollectionIdFor, indexedRecordValueCollectionIdFor, recordFieldContentsCollectionValueIdFor } from "../scalars/recordScalarLowering";
 import { validateChoiceMatchExhaustiveness, validateOptionalMatchExhaustiveness } from "../scalars/expressionTypecheck";
 import { optionalMatchBinderId } from "../scalars/optionalMatchBinder";
 import { parseDslConstructionInvocation } from "./dslCallParser";
@@ -76,7 +76,7 @@ import {
   type DslArrayValueType,
   type DslValueType
 } from "./dslValueTypes";
-import { isDslNonArrayValueTypeAssignable } from "./geometryArrayTypes";
+import { dslValueTypeOfGeometryArrayType, isDslNonArrayValueTypeAssignable } from "./geometryArrayTypes";
 import type {
   DslArrayMappedValue,
   DslArraySemanticValue,
@@ -3129,6 +3129,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       geometryPropertyResolver?: (reference: ModuleGeometryPropertyReferenceInput) => ModuleGeometryPropertyReferenceResolution;
     } = {}
   ): ModuleGeometryConstructionSemantic | null => {
+    const geometryPropertyResolver = options.geometryPropertyResolver ?? ((reference: ModuleGeometryPropertyReferenceInput) =>
+      resolveGeometryProperty(statementIndex, ownerIndex, reference));
     const constructionName = rawValue.match(/^[A-Za-z_][A-Za-z0-9_]*/)?.[0] ?? "";
     const selectedSpec = constructionSpecsFor(constructionName).find((candidate) =>
       isModuleGeometryInterfaceAssignable(
@@ -3222,7 +3224,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           expectedType,
           options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span)),
           options.bareScalarResolver,
-          options.geometryPropertyResolver,
+          geometryPropertyResolver,
           undefined
         )
       : analyzeExpression(
@@ -3233,7 +3235,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           expectedType,
           options.scalarResolver ?? ((reference) => resolveSourceScalar(statementIndex, ownerIndex, reference.name, ownerIndex, reference.span)),
           options.bareScalarResolver,
-          options.geometryPropertyResolver,
+          geometryPropertyResolver,
           undefined
         );
     const scalar = (
@@ -3271,7 +3273,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             role: "pointReference",
             scalarResolver: options.scalarResolver,
             bareScalarResolver: options.bareScalarResolver,
-            geometryPropertyResolver: options.geometryPropertyResolver
+            geometryPropertyResolver: geometryPropertyResolver
           }
         )
       : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
@@ -3305,7 +3307,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver
+              geometryPropertyResolver: geometryPropertyResolver
             }
           );
         });
@@ -3339,7 +3341,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "pointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver
+              geometryPropertyResolver: geometryPropertyResolver
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
@@ -3434,7 +3436,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "pointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
@@ -3465,7 +3467,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "pointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
@@ -3482,7 +3484,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "pointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
@@ -3516,7 +3518,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineEndpointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
@@ -3559,7 +3561,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
@@ -3591,7 +3593,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
@@ -3629,7 +3631,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
@@ -3646,7 +3648,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "pointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
@@ -3685,7 +3687,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
@@ -3716,7 +3718,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "line", null, "invalid", null, "lineReference");
@@ -3754,7 +3756,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "pointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "pointReference");
@@ -3787,7 +3789,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "coordinatePoint",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "coordinatePoint");
@@ -3822,7 +3824,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             role: "lineEndpointReference",
             scalarResolver: options.scalarResolver,
             bareScalarResolver: options.bareScalarResolver,
-            geometryPropertyResolver: options.geometryPropertyResolver,
+            geometryPropertyResolver: geometryPropertyResolver,
           }
       )
       : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
@@ -3845,7 +3847,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               role: "lineEndpointReference",
               scalarResolver: options.scalarResolver,
               bareScalarResolver: options.bareScalarResolver,
-              geometryPropertyResolver: options.geometryPropertyResolver,
+              geometryPropertyResolver: geometryPropertyResolver,
             }
           )
         : geometryReference("", constructionSpan, "point", null, "invalid", null, "lineEndpointReference");
@@ -3878,7 +3880,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
                 role: "pointReference",
                 scalarResolver: options.scalarResolver,
                 bareScalarResolver: options.bareScalarResolver,
-                geometryPropertyResolver: options.geometryPropertyResolver,
+                geometryPropertyResolver: geometryPropertyResolver,
               }
             )
           : geometryReference("", record, "point", null, "invalid", null, "pointReference");
@@ -3940,7 +3942,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
                 role: "pointReference",
                 scalarResolver: options.scalarResolver,
                 bareScalarResolver: options.bareScalarResolver,
-                geometryPropertyResolver: options.geometryPropertyResolver,
+                geometryPropertyResolver: geometryPropertyResolver,
               }
             ));
           }
@@ -5125,15 +5127,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             ? recordMembersFor(value.value.sourceValueId, new Set([...seen, valueId]))
             : [];
         }
-        if (value.value.kind === "if") {
-          return [
-            ...recordMembersForValue(value.value.thenValue, new Set([...seen, valueId])),
-            ...recordMembersForValue(value.value.elseValue, new Set([...seen, valueId]))
-          ];
-        }
-        if (value.value.kind === "match") {
-          return value.value.arms.flatMap((arm) => recordMembersForValue(arm.value, new Set([...seen, valueId])));
-        }
+        // Branch alternatives are not consecutive members of one array.
+        if (value.value.kind === "if" || value.value.kind === "match") return [];
         return recordMembersForValue(value.value, new Set([...seen, valueId]));
       };
       const recordMembersForValue = (
@@ -5141,13 +5136,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         seen: ReadonlySet<string>
       ): readonly (Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> | null)[] => {
         if (value.kind === "alias") return recordMembersFor(value.targetValueId, seen);
-        if (value.kind === "if") {
-          return [
-            ...recordMembersForValue(value.thenValue, seen),
-            ...recordMembersForValue(value.elseValue, seen)
-          ];
-        }
-        if (value.kind === "match") return value.arms.flatMap((arm) => recordMembersForValue(arm.value, seen));
+        if (value.kind === "if" || value.kind === "match") return [];
         if (value.kind !== "literal") return [];
         return value.members.flatMap((member): (Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> | null)[] => {
           if (member.sourceText.trim() === "none") return [null];
@@ -5347,8 +5336,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     }
     if (path.segments.length === 1 && !path.absolute) {
       const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
-      const parameterValue = parameter
-        ? sourceNamespace.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType
+      const parameterSlot = parameter ? `${parameter.definitionStatementId}:${parameter.parameterIndex}` : null;
+      const geometryParameter = parameterSlot ? sourceNamespace.geometryArraySemanticAnalysis?.moduleParametersBySlot.get(parameterSlot) : null;
+      const parameterValue = parameterSlot
+        ? sourceNamespace.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(parameterSlot)?.valueType
+          ?? (geometryParameter ? dslValueTypeOfGeometryArrayType(geometryParameter.type) : null)
         : null;
       if (parameter && parameterValue) {
         return {
@@ -5364,8 +5356,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const value = sourceNamespace.geometryArraySemanticAnalysis
       ? collectionValueSemanticForStatement(sourceNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
       : null;
-    if (!value || !("valueType" in value)) return null;
-    return { targetValueId: value.statementId, valueType: value.valueType };
+    if (!value) return null;
+    return {
+      targetValueId: value.statementId,
+      valueType: "valueType" in value ? value.valueType : dslValueTypeOfGeometryArrayType(value.type)
+    };
   };
 
   function analyzeRecordFieldValue(
@@ -5673,13 +5668,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? `${recordMatch.target.definitionStatementId}:parameter:${recordMatch.target.parameterIndex}`
         : recordMatch?.kind === "record" && recordMatch.target.kind === "deferredModuleRecordExport"
           ? geometryArrayDeferredModuleExportId(recordMatch.target.instanceStatementId, recordMatch.target.exportName)
-          : recordMatch?.kind === "record" && recordMatch.target.kind === "recordCollectionIndex" && recordMatch.target.index.ast.kind === "numberLiteral"
-            ? (() => {
-                const target = recordMatch.target;
-                const index = target.index.ast.kind === "numberLiteral" ? target.index.ast.value : -1;
-                const member = target.members?.[index];
-                return member ? recordValueCollectionIdFor([], member.statementId) : recordValueCollectionIdFor([target.collectionValueId, String(index)], target.collectionValueId);
-              })() : null;
+          : recordMatch?.kind === "record" && recordMatch.target.kind === "recordCollectionIndex"
+            ? indexedRecordValueCollectionIdFor(recordMatch.target.collectionValueId, recordMatch.target.index.ast) : null;
     const recordMatchType = recordMatch?.kind === "record" ? { kind: "record" as const, name: recordMatch.definition.name, identity: recordMatch.typeIdentity } : null;
     const recordScrutinee: ModuleScalarExpressionSemantic | null = recordMatchValueId && recordMatchType && isDslOptionalValueType(recordMatch?.kind === "record" ? recordMatch.valueType : null) ? {
       ast: expression.scrutinee.kind === "collectionIndex" ? { kind: "reference", span: expression.scrutinee.span, nameSpan: expression.scrutinee.nameSpan, name: expression.scrutinee.name } : expression.scrutinee,
@@ -5729,6 +5719,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     return {
       kind: "match",
       ...(expression.optionalRecordMatch ? { optionalRecordMatch: true as const } : {}),
+      ...(recordMatch?.kind === "record" ? { recordScrutinee: recordMatch.target } : {}),
       span: expression.span,
       scrutinee,
       arms: expression.arms.map((arm) => {
@@ -6017,8 +6008,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const hasGeneralizedFields = Boolean(definition?.fields.some((field) => scalarTypeOfDslValueType(field.type) === null));
     const previous: boolean = suppressLocalDiagnostics;
     const previousSuppressScalarRecordFieldDiagnostics: boolean = suppressScalarRecordFieldDiagnostics;
-    suppressLocalDiagnostics = !hasGeneralizedFields && !(value.valueExpression?.kind === "match" && value.valueExpression.optionalRecordMatch);
-    suppressScalarRecordFieldDiagnostics = hasGeneralizedFields;
+    const inlineCollection = value.inlineCollectionMember ? sourceNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(value.inlineCollectionMember.collectionStatementId) : null;
+    const lazyInlineRecord = Boolean(inlineCollection && isDslOptionalValueType(inlineCollection.valueType.elementType));
+    suppressLocalDiagnostics = !lazyInlineRecord && !hasGeneralizedFields && !(value.valueExpression?.kind === "match" && value.valueExpression.optionalRecordMatch);
+    suppressScalarRecordFieldDiagnostics = !lazyInlineRecord && hasGeneralizedFields;
     let valueExpression: ModuleRecordValueExpressionSemantic | null = null;
     try {
       if (value.valueExpression) {
