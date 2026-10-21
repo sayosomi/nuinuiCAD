@@ -825,6 +825,10 @@ export const evaluateElements = (
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   };
   const collectionLookupsForEvaluation = (sourceOrder: number) => ({
+      ...(scalarBindingResolver?.resolveOptionalMember ? {
+        lookupOptionalMember: (target: import("@nuinuicad/nui-language").ScalarExpressionResolvedOptionalMemberTarget, type: import("@nuinuicad/nui-language").ScalarExpressionType) =>
+          scalarBindingResolver.resolveOptionalMember!(target, type, sourceOrder)
+      } : {}),
       ...(scalarBindingResolver?.resolveCollectionIndex ? {
         lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number) =>
           scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
@@ -3628,7 +3632,8 @@ export const evaluateElements = (
         if (candidate.prerequisiteEndpointIds.some((id) => !endpointIsReady(id)) || !candidate.expression) continue;
         const evaluation = evaluateTypedExpression(candidate.expression, {
           lookupBinding: scalarBindingResolver.resolveBinding,
-          lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY)
+          lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY),
+          ...collectionLookupsForEvaluation(Number.POSITIVE_INFINITY)
         });
         if (evaluation.status !== "ok") continue;
         const branch = evaluation.value.kind === "boolean"

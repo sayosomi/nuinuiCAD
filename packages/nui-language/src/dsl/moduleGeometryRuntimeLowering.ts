@@ -584,6 +584,8 @@ export const sourceAliasForTarget = (
   }
   if (target.kind === "recordFieldValue") {
     let fieldContextPath = currentPath;
+    let fieldOccurrencePath = currentPath;
+    let fieldRecordTarget = target.record;
     const recordValueExpressionForTarget = (recordTarget: ModuleRecordSourceTarget): ModuleRecordValueSemantic["valueExpression"] | null => {
       if (recordTarget.kind === "recordValue") {
         for (let index = fieldContextPath.length; index >= 0; index -= 1) {
@@ -591,11 +593,15 @@ export const sourceAliasForTarget = (
           const local = context?.definition.recordValues.find((value) => value.value.statementId === recordTarget.statementId);
           if (local) {
             fieldContextPath = context!.path;
+            fieldOccurrencePath = context!.path;
+            fieldRecordTarget = recordTarget;
             return local.valueExpression ?? (local.target ? recordValueExpressionForTarget(local.target) : null);
           }
         }
         fieldContextPath = [];
+        fieldOccurrencePath = [];
         const rootValue = rootRecordValuesByStatementId.get(recordTarget.statementId);
+        fieldRecordTarget = recordTarget;
         return rootValue?.valueExpression ?? (rootValue?.target && rootValue.target !== recordTarget
           ? recordValueExpressionForTarget(rootValue.target)
           : null);
@@ -627,6 +633,10 @@ export const sourceAliasForTarget = (
         );
         const binding = context?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === recordTarget.parameterIndex);
         if (binding?.value?.kind !== "record") return null;
+        // Inline arguments resolve their inputs in the caller, while the
+        // constructed field value belongs to this parameter's occurrence.
+        fieldRecordTarget = recordTarget;
+        fieldOccurrencePath = context!.path;
         fieldContextPath = context!.path.slice(0, -1);
         return binding.value.reference.constructor
           ? { kind: "constructor", span: binding.value.reference.span, constructor: binding.value.reference.constructor }
@@ -662,8 +672,14 @@ export const sourceAliasForTarget = (
     };
     const recordValueExpression = recordValueExpressionForTarget(target.record);
     const expression = fieldExpressionFor(recordValueExpression, target.fieldPath ?? [target.field]);
-    if (!expression) return undefined;
     if (!isDslGeometryValueType(target.valueType)) return undefined;
+    if (!expression && (recordValueExpression?.kind === "if" || recordValueExpression?.kind === "match" || recordValueExpression?.kind === "none")) {
+      return lowerAliasWithPointKey({ kind: "value",
+        occurrence: geometryValueOccurrenceForRecordField(fieldRecordTarget, target.fieldPath ?? [target.field], fieldOccurrencePath),
+        geometryType: target.valueType.kind === "point" ? "point" : "line", interfaceType: target.valueType.kind
+      }, target.pointKey);
+    }
+    if (!expression) return undefined;
     if (expression.kind === "geometry") {
       if (expression.expression?.kind === "reference" && expression.expression.reference.target) {
         const alias = sourceAliasForTarget(expression.expression.reference.target, fieldContextPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
@@ -672,7 +688,7 @@ export const sourceAliasForTarget = (
       if (!expression.expression) return undefined;
       return lowerAliasWithPointKey({
         kind: "value",
-        occurrence: geometryValueOccurrenceForRecordField(target.record, target.fieldPath ?? [target.field], currentPath),
+        occurrence: geometryValueOccurrenceForRecordField(fieldRecordTarget, target.fieldPath ?? [target.field], fieldOccurrencePath),
         geometryType: target.valueType.kind === "point" ? "point" : "line",
         interfaceType: target.valueType.kind
       }, target.pointKey);
@@ -681,7 +697,7 @@ export const sourceAliasForTarget = (
       const member = (expression.value as Extract<import("./geometryArraySemantics").DslArraySemanticValue<unknown>, { kind: "literal" }>).members[target.collectionIndex];
       const memberTarget = member?.target;
       if (memberTarget && typeof memberTarget === "object" && "kind" in memberTarget && typeof memberTarget.kind === "string") {
-        const alias = sourceAliasForTarget(memberTarget as ModuleGeometrySourceTarget, currentPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
+        const alias = sourceAliasForTarget(memberTarget as ModuleGeometrySourceTarget, fieldContextPath, contextsByPath, materialization, exportsByPath, rootRecordValuesByStatementId);
         return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
       }
     }

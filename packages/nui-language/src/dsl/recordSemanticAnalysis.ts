@@ -791,7 +791,10 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               initializer: paddedInitializer.slice(node.scrutinee.span.start, node.scrutinee.span.end),
               initializerSpan: node.scrutinee.span, expectedTypeReference: { ...typeReference, typeIdentity: null }, diagnostics: []
             }) : null;
-            const optionalRecord = scrutineeLeaf?.reference && isDslOptionalValueType(scrutineeLeaf.reference.valueType)
+            const optionalRecord = scrutineeLeaf?.reference && (isDslOptionalValueType(scrutineeLeaf.reference.valueType) ||
+              // Qualified exports are resolved by the Module semantic owner.
+              // Retain the arm binder until that owner checks its exact type.
+              !scrutineeLeaf.reference.targetTypeIdentity && scrutineeLeaf.reference.name.includes("::"))
               ? { reference: scrutineeLeaf.reference, valueType: scrutineeLeaf.reference.valueType } : null;
             return {
               kind: "match",
@@ -831,7 +834,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
           }
           if (node.kind === "reference" && recordBinders.has(node.name)) {
             const reference = recordBinders.get(node.name)!;
-            if (reference.targetTypeIdentity !== typeReference.typeIdentity) {
+            if (reference.targetTypeIdentity && reference.targetTypeIdentity !== typeReference.typeIdentity) {
               diagnostics.push(diagnostic(statement, node.span, "record-nominal-type-mismatch", "optional record binder の nominal record 型が一致しません。"));
               return null;
             }

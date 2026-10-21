@@ -1,0 +1,465 @@
+[
+  {
+    "id": "R1",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst Chosen: Box = match @B { none => Box(n: 1 / 0) some held => Box(n: @held.n) }\nconst X: number = @Chosen.n",
+    "expected": {
+      "X": 19
+    }
+  },
+  {
+    "id": "R2",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nconst B: Box? = Box(inner: Inner(n: 23), xs: [7, 19])\nconst Chosen: Box = match @B { none => Box(inner: Inner(n: 1 / 0), xs: [1 / 0]) some held => Box(inner: Inner(n: @held.inner.n + @held.xs.length), xs: [@held.xs[1], @held.xs[0]]) }\nconst X: number = @Chosen.inner.n\nconst Y: number = @Chosen.xs[0]\nconst Z: number = @Chosen.xs[1]",
+    "expected": {
+      "X": 25,
+      "Y": 19,
+      "Z": 7
+    }
+  },
+  {
+    "id": "R3",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number) {\n const B: Box? = Box(n: @n)\n export const Chosen: Box = match @B { none => Box(n: 1 / 0) some held => Box(n: @held.n + 2) }\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst X: number = @One::Chosen.n\nconst Y: number = @Two::Chosen.n",
+    "expected": {
+      "X": 21,
+      "Y": 45
+    }
+  },
+  {
+    "id": "R4",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Inner(n: number)\nrecord Box(inner: Inner, xs: number[])\nconst B: Box? = Box(inner: Inner(n: 23), xs: [7, 19])\nconst Chosen: Box = match @B { none => Box(inner: Inner(n: 1 / 0), xs: [1 / 0]) some held => Box(inner: @held.inner, xs: @held.xs) }\nconst X: number = @Chosen.inner.n\nconst Y: number = @Chosen.xs[1]\nconst Z: number = @Chosen.xs.length",
+    "expected": {
+      "X": 23,
+      "Y": 19,
+      "Z": 2
+    },
+    "expectedCompilerError": "module-record-reference-invalid"
+  },
+  {
+    "id": "R5",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = none\nconst Chosen: Box = match @B { some held => Box(n: @held.n / 0) none => Box(n: 31) }\nconst X: number = @Chosen.n",
+    "expected": {
+      "X": 31
+    }
+  },
+  {
+    "id": "R6",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box = Box(n: 19)\nconst Chosen: Box = Box(n: @B.n)\nconst X: number = @Chosen.n",
+    "expected": {
+      "X": 19
+    }
+  },
+  {
+    "id": "O1",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(b: Box?) {\n export const out: Box = match @b { none => Box(n: 31) some held => @held }\n}\nconst Input: Box = Box(n: 19)\ninstance Omitted = Read()\ninstance Absent = Read(b: none)\ninstance Present = Read(b: @Input)\nconst X: number = @Omitted::out.n\nconst Y: number = @Absent::out.n\nconst Z: number = @Present::out.n",
+    "expected": {
+      "X": 31,
+      "Y": 31,
+      "Z": 19
+    }
+  },
+  {
+    "id": "O2",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(b: Box?) {\n const Alias: Box? = @b\n export const out: Box = match @Alias { none => Box(n: 31) some held => @held }\n}\ninstance Omitted = Read()\ninstance Present = Read(b: Box(n: 43))\nconst X: number = @Omitted::out.n\nconst Y: number = @Present::out.n",
+    "expected": {
+      "X": 31,
+      "Y": 43
+    }
+  },
+  {
+    "id": "O3",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Relay(b: Box?) {\n export const out: Box? = @b\n}\nmodule Outer(b: Box?) {\n instance Inner = Relay(b: @b)\n export const out: Box? = @Inner::out\n}\ninstance Absent = Outer()\ninstance Present = Outer(b: Box(n: 43))\nconst X: number = @Absent::out?.n ?? 31\nconst Y: number = @Present::out?.n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 43
+    }
+  },
+  {
+    "id": "O4",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number?) {\n export const out: Box? = if (@n != none) { Box(n: @n ?? 0) }\n}\ninstance Absent = Make()\ninstance Present = Make(n: 43)\nconst Chosen: Box = match @Present::out { none => Box(n: 1 / 0) some held => @held }\nconst Fallback: Box = match @Absent::out { none => Box(n: 31) some held => @held }\nconst X: number = @Chosen.n\nconst Y: number = @Fallback.n",
+    "expected": {
+      "X": 43,
+      "Y": 31
+    },
+    "expectedCompilerError": "module-scalar-type-mismatch"
+  },
+  {
+    "id": "G1",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, ps: path[])\nconst P: path = polyline(points: [(0, 0), (3, 4), (3, 16)], closed: false)\nconst Q: path = segment(start: (1, 2), end: (6, 14))\nconst B: Shape = Shape(p: @P, ps: [@P, @Q])\nmodule Relay(b: Shape) {\n const Local: Shape = @b\n export const out: Shape = @Local\n}\ninstance Use = Relay(b: @B)\nconst Result: path = @Use::out.ps[1]\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y\nconst N: number = @Use::out.ps.length",
+    "expected": {
+      "L": 13,
+      "X": 6,
+      "Y": 14,
+      "N": 2
+    }
+  },
+  {
+    "id": "G2",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path)\nmodule Make(x: number) {\n const P: path = segment(start: (0, 0), end: (@x, 0))\n const B: Shape = Shape(p: @P)\n const Values: Shape[] = [@B]\n export const out: Shape = @Values[0]\n}\ninstance One = Make(x: 11)\ninstance Two = Make(x: 29)\nconst P: path = @One::out.p\nconst Q: path = @Two::out.p\nconst L: number = @P.length\nconst M: number = @Q.length\nconst X: number = @P.endPoint.x\nconst Y: number = @Q.endPoint.x",
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 11,
+      "Y": 29
+    }
+  },
+  {
+    "id": "G3",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path)\nline Edge = segment(start: (1, 2), end: (4, 6))\nmove Edge as shifted(from: (0, 0), to: (10, 20))\nconst Stage: path = @Edge.shifted\nconst B: Shape? = Shape(p: @Stage)\nconst Chosen: Shape = match @B { none => Shape(p: segment(start: (0, 0), end: (1 / 0, 0))) some held => @held }\nconst Result: path = @Chosen.p\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y",
+    "expected": {
+      "L": 5,
+      "X": 14,
+      "Y": 26
+    }
+  },
+  {
+    "id": "R7",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nrecord Wrap(b: Box)\nconst B: Box? = Box(n: 19)\nconst Chosen: Wrap = match @B { none => Wrap(b: Box(n: 1 / 0)) some held => Wrap(b: @held) }\nconst X: number = @Chosen.b.n",
+    "expected": {
+      "X": 19
+    }
+  },
+  {
+    "id": "R8",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(xs: number[])\nconst N: number = 19\nconst B: Box = Box(xs: [@N])\nconst X: number = @B.xs[0]",
+    "expected": {
+      "X": 19
+    }
+  },
+  {
+    "id": "R9",
+    "domain": "R",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(xs: number[])\nconst N: number = 19\nconst B: Box = Box(xs: [@N + 0])\nconst X: number = @B.xs[0]",
+    "expected": {
+      "X": 19
+    }
+  },
+  {
+    "id": "O5",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Relay(b: Box?) {\n export const out: Box? = @b\n}\ninstance Absent = Relay()\ninstance Present = Relay(b: Box(n: 43))\nconst X: number = @Absent::out?.n ?? 31\nconst Y: number = @Present::out?.n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 43
+    }
+  },
+  {
+    "id": "O6",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Read(b: Box?) {\n export const out: Box = @b\n}\ninstance Use = Read()",
+    "expected": {},
+    "expectedCompilerError": "module-record-reference-invalid"
+  },
+  {
+    "id": "O7",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nrecord Other(n: number)\nmodule Read(b: Box?) {\n export const out: Box? = @b\n}\ninstance Use = Read(b: Other(n: 19))",
+    "expected": {},
+    "expectedCompilerError": "module-record-reference-invalid"
+  },
+  {
+    "id": "G4",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(ps: path[])\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst B: Shape = Shape(ps: [@P])\nconst X: number = @B.ps.length",
+    "expected": {
+      "X": 1
+    }
+  },
+  {
+    "id": "G5",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(ps: number[])\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst B: Shape = Shape(ps: [7])\nconst X: number = @B.ps.length",
+    "expected": {
+      "X": 1
+    }
+  },
+  {
+    "id": "O8",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make(n: number, present: boolean) {\n export const out: Box? = if (@present) { Box(n: @n) }\n}\ninstance Absent = Make(n: 19, present: false)\ninstance Present = Make(n: 43, present: true)\nconst Chosen: Box = match @Present::out { none => Box(n: 1 / 0) some held => @held }\nconst Fallback: Box = match @Absent::out { none => Box(n: 31) some held => @held }\nconst X: number = @Chosen.n\nconst Y: number = @Fallback.n",
+    "expected": {
+      "X": 43,
+      "Y": 31
+    }
+  },
+  {
+    "id": "G6",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path)\nconst B: Shape? = none\nconst Chosen: Shape = match @B { some held => @held none => Shape(p: segment(start: (0, 0), end: (3, 4))) }\nconst Result: path = @Chosen.p\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y",
+    "expected": {
+      "L": 5,
+      "X": 3,
+      "Y": 4
+    }
+  },
+  {
+    "id": "G7",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nmodule Pick(p: path, present: boolean) {\n const B: Shape? = if (@present) { Shape(p: @p) }\n export const out: Shape = match @B { some held => @held none => Shape(p: segment(start: (0, 0), end: (7, 24))) }\n}\ninstance One = Pick(p: @P, present: true)\ninstance Two = Pick(p: @Q, present: false)\nconst A: path = @One::out.p\nconst B: path = @Two::out.p\nconst L: number = @A.length\nconst M: number = @B.length\nconst X: number = @A.endPoint.y\nconst Y: number = @B.endPoint.y",
+    "expected": {
+      "L": 5,
+      "M": 25,
+      "X": 4,
+      "Y": 24
+    }
+  },
+  {
+    "id": "G8",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(ps: path[])\nmodule Make(x: number) {\n const P: path = segment(start: (0, 0), end: (@x, 0))\n export const out: Shape = Shape(ps: [@P])\n}\ninstance One = Make(x: 11)\ninstance Two = Make(x: 29)\nconst A: path = @One::out.ps[0]\nconst B: path = @Two::out.ps[0]\nconst L: number = @A.length\nconst M: number = @B.length\nconst N: number = @One::out.ps.length\nconst K: number = @Two::out.ps.length",
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "N": 1,
+      "K": 1
+    }
+  },
+  {
+    "id": "G9",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match @B?.n { some held => @P none => @Q }\nconst L: number = @Result.length",
+    "expected": {
+      "L": 13
+    },
+    "deferred": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice."
+  },
+  {
+    "id": "G10",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match @N { some held => @P none => @Q }\nconst L: number = @Result.length",
+    "expected": {
+      "L": 13
+    },
+    "deferred": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice."
+  },
+  {
+    "id": "G11",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match @B?.n { some held => segment(start: (0, 0), end: (5, 12)) none => segment(start: (0, 0), end: (3, 4)) }\nconst L: number = @Result.length",
+    "expected": {
+      "L": 13
+    },
+    "deferred": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice."
+  },
+  {
+    "id": "G12",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst B: Box? = Box(n: 19)\nconst N: number? = 19\nconst P: path = segment(start: (0, 0), end: (5, 12))\nconst Q: path = segment(start: (0, 0), end: (3, 4))\nconst Result: path = match @N { some held => segment(start: (0, 0), end: (5, 12)) none => segment(start: (0, 0), end: (3, 4)) }\nconst L: number = @Result.length",
+    "expected": {
+      "L": 13
+    },
+    "deferred": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice."
+  },
+  {
+    "id": "O9",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nmodule Make() {\n export const out: Box? = Box(n: 19)\n}\ninstance Use = Make()\nconst Chosen: Box = match @Use::out { none => Box(n: 1 / 0) some held => @held }\nconst X: number = @Chosen.n",
+    "expected": {
+      "X": 19
+    }
+  },
+  {
+    "id": "G13",
+    "domain": "G",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(ps: path[])\nmodule Make() {\n const P: path = segment(start: (0, 0), end: (3, 4))\n export const out: Shape = Shape(ps: [@P])\n}\ninstance Use = Make()\nconst A: path = @Use::out.ps[0]\nconst L: number = @A.length",
+    "expected": {
+      "L": 5
+    }
+  },
+  {
+    "id": "O10",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst Input: Box = Box(n: 19)\nmodule Make(b: Box?) {\n const Input: Box = Box(n: 101)\n export const out: Box = match @b { none => @Input some held => Box(n: @held.n + 2) }\n}\ninstance Present = Make(b: @Input)\ninstance Absent = Make()\nconst X: number = @Present::out.n\nconst Y: number = @Absent::out.n",
+    "expected": {
+      "X": 21,
+      "Y": 101
+    }
+  },
+  {
+    "id": "O11",
+    "domain": "O",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nrecord Wrap(b: Box)\nmodule Make(b: Box?) {\n export const out: Wrap = match @b { none => Wrap(b: Box(n: 31)) some held => Wrap(b: @held) }\n}\ninstance Present = Make(b: Box(n: 19))\ninstance Absent = Make()\nconst X: number = @Present::out.b.n\nconst Y: number = @Absent::out.b.n",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    }
+  }
+]
