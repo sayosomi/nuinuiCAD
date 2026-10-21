@@ -1,3 +1,25 @@
+# #1194 sixth D1 slice — resumed BLOCKED WIP
+
+**Not integration-ready. C1–C7 remain provisional; zero finalized new families.**
+
+Human continue admission matched pushed checkpoint `6c735ef4c3898846363f68ff7af46cfdf97625f3`. The post-fetch volatile recheck matched Base/main, topic, checkout and ownership. Current Issue authorization and latest material comment were read before mutation.
+
+The original P4 timeout interval now has retained macOS AMFI/ASP evidence: `evaluation_stdio` encountered an `Unrecoverable CT signature issue` at 22:39:31 and execution-policy rejection at 22:39:41. Exact original PID correlation was not logged, so that limitation remains explicit. The exact retained payload answered twice in one bounded production process (about 3ms/1ms), and P4 passed in the resumed focused run. This supports a platform/transport startup failure rather than a deterministic product nontermination. The 10-second request guard is unchanged.
+
+The optional geometry collection parameter regression was repaired in `moduleScalarRuntime.ts`: supplied geometry literals may have no generic argument value; they must retain the canonical geometry collection producer instead of a synthetic `none` descriptor. The unchanged existing regression now returns **2**, with the absent control returning **0**. This is a WIP-introduced regression repair, not a novel family.
+
+Resumed focused verification: **348 PASS / 30 FAIL / 6 SKIP**, 11 files passed, 1 failed. Sixth runner: 22 TS/production-Rust PASS and 2 compiler rejection controls, 3 previously deferred rows. All failures came from fourth runner's first native process being rejected with `SIGKILL`, followed by guard/EPIPE aborts. Kernel AMFI/ASP logs explicitly identify PID 36403 and the binary path at 23:28:46. Per the task's platform stop condition, no further evaluator requests or Base/full verification followed. No OS policy change, timeout increase or bypass was attempted.
+
+The accepted registry is unchanged: **211 = 188 historical + 23 sixth-slice accepted**, with **zero additional hashes on resume**. Instrumented sixth-runner cumulative counts: compiler **102** + setup **20**, reference **90**, production **90**. Two external exact retained-wire transport requests are separately recorded. Uninstrumented existing tests are excluded from those counts.
+
+`residual6-resume.json` contains exact commands, observations, OS evidence, raw artifact hashes and the next safe action. Prior stopped observations below and in `residual6-blocked.json` are preserved as history. Full exact Base proofs and required gates remain **NOT COMPLETED**. General root scheduling stays #1260-owned and imported-public record grammar remains CONTRACT_AMBIGUOUS. No broad discovery was started.
+
+Next: Human resolves/authorizes resolution of the local native binary execution-policy blocker; fresh same-branch continue admission then completes exact Base proofs, focused regressions and required full gates before independent pushed-HEAD review. Preserve the WIP; do not integrate or create a PR from this checkpoint.
+
+---
+
+## Original stopped-checkpoint history
+
 # #1194 sixth D1 slice — BLOCKED WIP checkpoint
 
 **Do not integrate this checkpoint. No new family is finalized or numbered.**

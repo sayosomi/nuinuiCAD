@@ -31,8 +31,15 @@
       "runId": "focused-owners-1792589971190",
       "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "M1",
@@ -64,8 +71,15 @@
       "runId": "fix-selected-geometry-owner-1792589062844",
       "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-dynamic",
@@ -138,8 +152,15 @@
       "runId": "fix-lazy-members-1792588445404",
       "sourceTreeSha256": "c0f9fd7959fca15b89e81cd55ee8092398be1873fa48a9755b02a6fe42eb7f10"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-if",
@@ -174,8 +195,15 @@
       "runId": "fix-lazy-members-1792588445404",
       "sourceTreeSha256": "c0f9fd7959fca15b89e81cd55ee8092398be1873fa48a9755b02a6fe42eb7f10"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "G-construct",
@@ -253,7 +281,7 @@
       "runId": "fix-selected-geometry-owner-1792589062844",
       "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
     "scopeNote": "UNRESOLVED: map-free root record-scalar geometry control also fails production Rust; general root dependency/scheduling is #1260-owned. Preserve the source and actual results; do not count that remaining loss as repaired here."
   },
   {
@@ -288,8 +316,15 @@
       "runId": "fix-selected-projections-1792588873699",
       "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "C-parameter",
@@ -325,8 +360,15 @@
       "runId": "fix-selected-projections-1792588873699",
       "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-if-inline",
@@ -361,8 +403,15 @@
       "runId": "static-validation-gate-1792589892529",
       "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "G-constant",
@@ -399,8 +448,15 @@
       "runId": "fix-selected-geometry-owner-1792589062844",
       "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "C-record-field",
@@ -527,8 +583,15 @@
       "runId": "fix-record-geometry-alias-1792589440280",
       "sourceTreeSha256": "723e3025a91596fa7300a91a01cddda629c45931bdabb0aacc5dcce67a130216"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "C-document-nested",
@@ -566,8 +629,15 @@
       "runId": "fix-record-geometry-alias-1792589440280",
       "sourceTreeSha256": "723e3025a91596fa7300a91a01cddda629c45931bdabb0aacc5dcce67a130216"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-dynamic-fields",
@@ -591,8 +661,15 @@
       "runId": "fix-selected-projections-1792588873699",
       "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-if-false",
@@ -616,8 +693,15 @@
       "runId": "fix-selected-projections-1792588873699",
       "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-choice",
@@ -641,8 +725,15 @@
       "runId": "fix-selected-projections-1792588873699",
       "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-module",
@@ -666,8 +757,15 @@
       "runId": "fix-selected-projections-1792588873699",
       "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "C-document-field",
@@ -697,8 +795,15 @@
       "runId": "fix-context-boundaries-1792589644192",
       "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "G-scalar-source",
@@ -727,7 +832,7 @@
       "runId": "geometry-reduce-1792589190916",
       "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
     "scopeNote": "UNRESOLVED: map-free root record-scalar geometry control also fails production Rust; general root dependency/scheduling is #1260-owned. Preserve the source and actual results; do not count that remaining loss as repaired here."
   },
   {
@@ -756,7 +861,7 @@
       "runId": "geometry-reduce-1792589190916",
       "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
     "scopeNote": "UNRESOLVED: map-free root record-scalar geometry control also fails production Rust; general root dependency/scheduling is #1260-owned. Preserve the source and actual results; do not count that remaining loss as repaired here."
   },
   {
@@ -787,8 +892,15 @@
       "runId": "fix-record-geometry-alias-1792589440280",
       "sourceTreeSha256": "723e3025a91596fa7300a91a01cddda629c45931bdabb0aacc5dcce67a130216"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "G-module",
@@ -814,8 +926,15 @@
       "runId": "fix-context-boundaries-1792589644192",
       "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "G-module-direct-control",
@@ -841,8 +960,15 @@
       "runId": "module-geometry-alias-1792589309045",
       "sourceTreeSha256": "e8c808b213f0735b9091a39d3e6a537e51a03dd24dff4840ae8f2dca0cc41eee"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-index-errors",
@@ -867,8 +993,15 @@
       "runId": "fix-context-boundaries-1792589644192",
       "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-module-lazy",
@@ -891,8 +1024,15 @@
       "runId": "fix-static-validation-1792589827250",
       "sourceTreeSha256": "d359db4f9b785da93372259a79a618c602530557f3bb3aaa5f5088adbd26e554"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "G-unselected-member",
@@ -916,8 +1056,15 @@
       "runId": "fix-context-boundaries-1792589644192",
       "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "C-lazy-parameter",
@@ -947,8 +1094,15 @@
       "runId": "fix-static-validation-1792589827250",
       "sourceTreeSha256": "d359db4f9b785da93372259a79a618c602530557f3bb3aaa5f5088adbd26e554"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    }
   },
   {
     "id": "O-invalid-inline-type",
@@ -1014,8 +1168,16 @@
       "runId": "static-validation-gate-1792589892529",
       "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "CONTRACT_INVALID",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "diagnosticCodes": [
+        "module-scalar-type-mismatch"
+      ]
+    }
   },
   {
     "id": "O-invalid-arm-type",
@@ -1061,7 +1223,15 @@
       "runId": "static-validation-gate-1792589892529",
       "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
     },
-    "finalVerification": "BLOCKED: first P4 production request timed out; subsequent cases were not executed in focused-owners",
-    "scopeNote": null
+    "finalVerification": "BLOCKED: macOS AMFI rejected fourth-runner Rust process. Exact Base proof and full gates incomplete; no finalized novel family.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "CONTRACT_INVALID",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "diagnosticCodes": [
+        "record-nominal-type-mismatch"
+      ]
+    }
   }
 ]

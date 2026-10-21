@@ -56,6 +56,7 @@ let rust: RustEvaluationProcess | undefined;
 let child: ChildProcessWithoutNullStreams | undefined;
 let closed: Promise<void> | undefined;
 let stopping = false;
+const transportRecord = (event: string, details: Record<string, unknown> = {}) => record("lifecycle.ndjson", { event, timestamp: Date.now(), pid: child?.pid, ...details });
 let resourceError: Error | undefined;
 const record = (file: string, v: Record<string, unknown>) => { if (evidence) appendFileSync(join(evidence, file), json({ runId, phase, sourceTreeSha256, ...v }) + "\n"); };
 
@@ -79,13 +80,19 @@ beforeAll(() => {
   rust = new RustEvaluationProcess(resolveRustEvaluationBinaryPath(process.cwd()), {
     spawnProcess: ((...args: Parameters<typeof spawn>) => {
       child = spawn(...args) as ChildProcessWithoutNullStreams;
+      child.once("spawn", () => transportRecord("spawn"));
+      child.once("exit", (code, signal) => transportRecord("exit", { code, signal }));
       closed = new Promise(resolve => {
-        child!.once("close", (code, signal) => { if (!stopping) resourceError = new Error(`Rust unexpected close ${code}/${signal}`); resolve(); });
+        child!.once("close", (code, signal) => { transportRecord("close", { code, signal }); if (!stopping) resourceError = new Error(`Rust unexpected close ${code}/${signal}`); resolve(); });
         child!.once("error", e => { resourceError = e; });
       });
       child.stderr.on("data", chunk => record("stderr.ndjson", { data: String(chunk) }));
       child.stdout.on("data", chunk => record("transport.ndjson", { phase: "stdout", data: String(chunk) }));
-      writes = vi.spyOn(child.stdin, "write");
+      const write = child.stdin.write.bind(child.stdin);
+      writes = vi.spyOn(child.stdin, "write").mockImplementation(((...args: Parameters<typeof write>) => {
+        transportRecord("write", { bytes: Buffer.byteLength(String(args[0])), writable: child!.stdin.writable });
+        return write(...args);
+      }) as typeof write);
       child.stdin.on("error", (e: NodeJS.ErrnoException) => { if (!stopping || !["EPIPE", "ERR_STREAM_DESTROYED"].includes(e.code ?? "")) resourceError = e; });
       return child;
     }) as typeof spawn
@@ -187,7 +194,7 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1194_RES
     counts.production++;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      production = await Promise.race([rust!.request(prepared.input), new Promise<never>((_, reject) => { timer = setTimeout(() => { resourceError = new Error("Rust request timeout"); rust?.dispose(); reject(resourceError); }, 10_000); })]) as EvaluationPayload;
+      production = await Promise.race([rust!.request(prepared.input), new Promise<never>((_, reject) => { timer = setTimeout(() => { transportRecord("request-timeout", { writableLength: child?.stdin.writableLength, writable: child?.stdin.writable, exitCode: child?.exitCode, killed: child?.killed }); resourceError = new Error("Rust request timeout"); rust?.dispose(); reject(resourceError); }, 10_000); })]) as EvaluationPayload;
       expect(JSON.parse(String(writes!.mock.calls.at(-1)![0])).input).toEqual(JSON.parse(JSON.stringify(prepared.input)));
       check("Rust", () => assertPayload(production!));
       check("TS/Rust parity", () => expect(normalizeParityPayload(production)).toEqual(normalizeParityPayload(reference)));

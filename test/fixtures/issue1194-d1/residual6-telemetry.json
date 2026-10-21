@@ -1,10 +1,10 @@
 {
   "scope": "Instrumented sixth runner only, not total full-suite evaluator calls or quota usage.",
   "counts": {
-    "compiler": 78,
-    "setupCompiler": 19,
-    "reference": 68,
-    "production": 68
+    "compiler": 102,
+    "setupCompiler": 20,
+    "reference": 90,
+    "production": 90
   },
   "acceptedCount": 211,
   "newlyAcceptedCount": 23,
@@ -263,7 +263,31 @@
       },
       "observedProvisionalAcceptedCount": 211,
       "resourceError": "Rust request timeout"
+    },
+    {
+      "runId": "resume-focused-1792592926589",
+      "phase": "resume-focused",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "counts": {
+        "compiler": 24,
+        "setupCompiler": 1,
+        "reference": 22,
+        "production": 22
+      },
+      "observedProvisionalAcceptedCount": 211,
+      "resourceError": null
     }
   ],
-  "cleanup": "Timeout watchdog disposed the persistent Rust child; afterAll awaited close. Post-stop process inspection found no owned evaluator or Vitest child."
+  "cleanup": "Original timeout child and resumed focused children reaped; no owned evaluator/Vitest/cargo process remained after platform stop.",
+  "preResumeCounts": {
+    "compiler": 78,
+    "setupCompiler": 19,
+    "reference": 68,
+    "production": 68
+  },
+  "externalRetainedWireReplay": {
+    "productionRequests": 2,
+    "includedInRunnerCounts": false,
+    "evidence": "/tmp/issue1194-residual6/retained-wire-replay.json"
+  }
 }

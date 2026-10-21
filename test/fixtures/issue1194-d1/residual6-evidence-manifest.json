@@ -77,5 +77,72 @@
       "path": "transport.ndjson",
       "sha256": "a987c1bef40d649167bd8d1a7dfcf5a70c39670127ce61fdefe93b69c5b46dff"
     }
+  ],
+  "resume": "residual6-resume.json",
+  "resumeSourceOwnerHashes": [
+    {
+      "path": "packages/nui-language/src/dsl/dslDocument.ts",
+      "sha256": "77afa1f30c1aa3d3f631a0a64da25e0bd0a6a651d8ce5078ecadabd7db3a9597"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+      "sha256": "06e5cf67f7db180218e613217da6fa3fd99556b4ea5d29fe188bbbb313c37db1"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryArrayRuntime.ts",
+      "sha256": "620b21204fe9fcdcd2472a20e25e030bb23ccc32736b04b6619e3a218535f6a6"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+      "sha256": "11949ed28079320e5b132cd482302943147283d7d610accc9229d75a9c9ce1f8"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "sha256": "73aeee5322f8be758e5870b29173eb2a5b9bfb0db99dbf5d91cdeb4d34b0d3f4"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "sha256": "00565d412d4577411d06d717ffcfb22f51665f58fb9bd2aadd8043a7c090aa3c"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+      "sha256": "b2ef93984dd840ed3aa5de96caf3494d8d4c817ebced67836103944cb75c4890"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "sha256": "bc45c036c102b96a5346c4100573fbe2a58ab3e018c62b0eb7f4ca738fe0fd38"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "sha256": "b31ba8cd48400c50ec2c25053de163f75190286caf5ea9d3dcce0fb6d59e2e02"
+    }
+  ],
+  "resumeCounts": {
+    "compiler": 102,
+    "setupCompiler": 20,
+    "reference": 90,
+    "production": 90
+  },
+  "resumeRawArtifacts": [
+    {
+      "path": "/tmp/issue1194-residual6/compiler.ndjson",
+      "sha256": "3d3b6a061811bccd1d2fe31f42e1b7eeaa189210ffdd956063e68afc5cd8e6d1"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/raw.ndjson",
+      "sha256": "bf464082eb943f7c0ae87388cfdcdd6426cc84afbba4d6ede2973d16fd2acd55"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/runs.ndjson",
+      "sha256": "4b68bb046582c246ef2576158d5555725090229bcade5a6435178b3ad3af87e4"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/transport.ndjson",
+      "sha256": "01d43f2f7c29b29feec5eff734ea7f16a1f14e86af0f046576303e3f11145a5e"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/lifecycle.ndjson",
+      "sha256": "9bf54bfab610ed69138e40e662d1c45f6a905c07a7e7add37b16dd414a1df231"
+    }
   ]
 }

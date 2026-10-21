@@ -5054,9 +5054,10 @@ export const compileModuleScalarRuntime = ({
           }
           if (members.length === literal.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
         }
-      } else {
-        // An omitted or explicit-none optional collection is the ordinary
-        // shared none value, not a missing alias target.
+      } else if (binding?.state !== "supplied" || binding.value?.kind === "none") {
+        // Supplied geometry literals are owned by the geometry collection
+        // runtime and may have no generic argument value. Only absence emits
+        // none here; a synthetic none would shadow that canonical producer.
         moduleCollectionValues.push({ valueId, kind: "none" });
       }
     }
