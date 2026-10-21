@@ -5114,7 +5114,15 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         const value = collectionAnalysis.genericValuesByStatementId.get(valueId);
         if (!value?.value) return [];
         if (value.value.kind === "alias") return recordMembersFor(value.value.targetValueId, new Set([...seen, valueId]));
-        if (value.value.kind === "map") return [];
+        if (value.value.kind === "map") {
+          const source = input.logicalTextByStatementIndex?.get(value.statementIndex);
+          const body = source ? parseScalarExpression(source, value.value.bodySpan).ast : null;
+          // A whole-binder map preserves the original record occurrences,
+          // including geometry fields that do not own scalar backing slots.
+          return body?.kind === "reference" && body.name === value.value.binder
+            ? recordMembersFor(value.value.sourceValueId, new Set([...seen, valueId]))
+            : [];
+        }
         if (value.value.kind === "if") {
           return [
             ...recordMembersForValue(value.value.thenValue, new Set([...seen, valueId])),
@@ -5366,6 +5374,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   ): ModuleRecordFieldValueExpressionSemantic | null {
     const scalarType = scalarExpressionTypeOfDslValueType(expectedType);
     const requiredExpectedType = dslRequiredValueTypeOf(expectedType) ?? expectedType;
+    if (rawValue.trim() === "none" && isDslOptionalValueType(expectedType)) {
+      if (scalarType) return { kind: "scalar", expression: {
+        ast: { kind: "noneLiteral", span: valueSpan }, type: scalarType,
+        references: [], geometryProperties: [], geometryBuiltinArguments: []
+      } };
+      if (isDslGeometryValueType(requiredExpectedType)) return { kind: "geometry", expression: { kind: "none", span: valueSpan } };
+      if (isDslArrayValueType(requiredExpectedType)) return { kind: "collection", valueType: requiredExpectedType, value: { kind: "none", valueType: requiredExpectedType } };
+    }
     if (scalarType) {
       const previousSuppressLocalDiagnostics = suppressLocalDiagnostics;
       if (suppressScalarRecordFieldDiagnostics) suppressLocalDiagnostics = true;

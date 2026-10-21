@@ -1,0 +1,75 @@
+{
+  "verifiedAtJST": "2026-10-21T17:32:32.169722+09:00",
+  "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+  "focused": {
+    "command": "npx vitest run test/issue1194Residual4D1Rust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/scalars/recordScalarIntegration.test.ts src/dsl/recordDocumentIntegration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/recordSemanticAnalysis.test.ts",
+    "passed": 242,
+    "skipped": 3
+  },
+  "requiredBlock": {
+    "script": "/tmp/issue1194-r4-required-gates.zsh",
+    "sha256": "15920bd7caf7e9507dfc76e7168fecb3cac072c9cdd84b4c161e30484bc3d833",
+    "note": "Original requested block executed unchanged, in order. Its Rust conditional compares 4a43b27f, so Rust gates also ran although fourth-slice Rust delta is empty.",
+    "order": [
+      "specified 7-file vitest command",
+      "npm run build",
+      "npm run lint",
+      "npm run test:parity",
+      "npm test",
+      "npm run docs:dsl:check",
+      "cargo fmt --check --manifest-path rust-evaluator/Cargo.toml",
+      "cargo check --manifest-path rust-evaluator/Cargo.toml",
+      "cargo test --manifest-path rust-evaluator/Cargo.toml",
+      "cargo clippy --all-targets --manifest-path rust-evaluator/Cargo.toml",
+      "git diff --check"
+    ]
+  },
+  "settledResults": {
+    "targeted": {
+      "files": 7,
+      "passed": 320,
+      "skipped": 4
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "parity": {
+      "passed": 203
+    },
+    "full": {
+      "filesPassed": 673,
+      "filesSkipped": 2,
+      "passed": 10734,
+      "skipped": 164
+    },
+    "dslReference": "PASS",
+    "rustFmt": "PASS",
+    "rustCheck": "PASS",
+    "rustTest": {
+      "passed": 621,
+      "ignored": 9
+    },
+    "rustClippy": "PASS",
+    "diffCheck": "PASS"
+  },
+  "resume": {
+    "note": "Execution session was no longer retained after interruption. Completed set-e block log reaches successful final clippy; all preceding gate results retained. No evaluator/test process remained. git diff --check independently repeated successfully on resume; no broad suite repeated.",
+    "fetchAndVolatileRecheck": "PASS exact Base, topic and candidate owner SHA-256; no competing markers; Issue updated_at unchanged 2026-10-21T04:48:31Z, comments 15."
+  },
+  "logs": [
+    {
+      "path": "/tmp/issue1194-r4-focused-final.log",
+      "sha256": "e880a3357f9810f913d73b7589d37e3184c1994f2eb0fc2f1f918731fd73f971"
+    },
+    {
+      "path": "/tmp/issue1194-r4-gates.log",
+      "sha256": "cc43cbdd7bd598480cde23b43a37da17b616fe68a2dbc6b47137d0c6d015b82e"
+    }
+  ],
+  "quota": {
+    "originalHumanWeeklyRemainingPercent": 74,
+    "lastHumanReportedObservation": "63% after the third slice, in #1194 comment 6308214963",
+    "fourthSliceEnding": "UNAVAILABLE",
+    "attributableConsumption": "UNAVAILABLE",
+    "fiveHourRemaining": "UNAVAILABLE"
+  }
+}

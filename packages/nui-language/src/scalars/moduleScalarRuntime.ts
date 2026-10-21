@@ -18,6 +18,7 @@ import type {
   ModuleRecordValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
+  ModuleSourceTarget,
   ModuleGeometrySourceTarget,
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
@@ -2450,6 +2451,7 @@ export const compileModuleScalarRuntime = ({
       const current = currentFields.find((candidate) => candidate.field.fieldIndex === wanted.fieldIndex);
       if (!current) return null;
       if (index === path.length - 1) return current;
+      if (current.valueExpression?.kind === "record" && current.valueExpression.expression?.kind === "reference") return current;
       if (current.valueExpression?.kind !== "record" || current.valueExpression.expression?.kind !== "constructor") return null;
       currentFields = current.valueExpression.expression.constructor.fields;
     }
@@ -2468,8 +2470,17 @@ export const compileModuleScalarRuntime = ({
   const recordFieldValueExpressionAt = (
     expression: ModuleRecordValueExpressionSemantic,
     fieldPath: readonly RecordFieldIdentity[],
-    geometryType?: ModuleGeometryInterfaceType
+    geometryType?: ModuleGeometryInterfaceType,
+    valueType?: DslValueType
   ): ModuleRecordFieldValueExpressionSemantic | null => {
+    if (expression.kind === "reference" && valueType && isDslArrayValueType(valueType)) {
+      const target = expression.reference.target;
+      const sourceId = target?.kind === "recordValue" ? target.statementId : target?.kind === "recordValueForBinder" ? target.binderId : null;
+      if (sourceId) return { kind: "collection", valueType, value: {
+        kind: "alias", valueType, sourceSpan: expression.span,
+        targetValueId: recordFieldContentsCollectionValueIdFor(recordValueCollectionIdFor([], sourceId), fieldPath)
+      } };
+    }
     if (expression.kind === "none" && geometryType) return { kind: "geometry", expression: { kind: "none", span: expression.span } };
     if ((expression.kind === "reference" || expression.kind === "collectionIndex") && geometryType && expression.reference.target) {
       const field = fieldPath.at(-1)!;
@@ -2485,7 +2496,7 @@ export const compileModuleScalarRuntime = ({
       if (!field?.valueExpression) return null;
       if (fieldPath.length === 1) return field.valueExpression;
       if (field.valueExpression.kind !== "record" || !field.valueExpression.expression) return null;
-      return recordFieldValueExpressionAt(field.valueExpression.expression, fieldPath.slice(1), geometryType);
+      return recordFieldValueExpressionAt(field.valueExpression.expression, fieldPath.slice(1), geometryType, valueType);
     }
     if (expression.kind === "if") {
       const thenValue = expression.thenBranch ? recordFieldValueExpressionAt(expression.thenBranch, fieldPath, geometryType) : null;
@@ -3648,16 +3659,40 @@ export const compileModuleScalarRuntime = ({
       if (registeredRecordFieldContentsIds.has(valueId)) return;
       registeredRecordFieldContentsIds.add(valueId);
 
-      const fieldValue = recordFieldValueExpressionAt(mappedBody.expression, fieldPath);
+      const leaf = fieldPath.at(-1)!;
+      const fieldType = (context ? sourceNamespaceForContext(context) : sourceNamespace)?.recordSemanticAnalysis
+        ?.definitionsByStatementId.get(leaf.recordStatementId)?.fields.find(field => field.fieldIndex === leaf.fieldIndex)?.type;
+      const fieldValue = recordFieldValueExpressionAt(mappedBody.expression, fieldPath, undefined, fieldType);
       if (fieldValue?.kind === "collection" && fieldValue.value) {
         const contents = fieldValue.value.kind === "alias" ? recordFieldContentsCollectionIdentityFor(fieldValue.value.targetValueId) : null;
         const binderRecord = contents ? recordValueCollectionIdentityFor(contents.recordCollectionValueId) : null;
         if (binderRecord?.statementId === mappedBody.binderId) {
-          const source = recordTargetForCollectionMember(mappedValue.sourceValueId, index, context);
-          const targetValueId = source && contents ? appendCanonicalRecordFieldContentsForTarget(source, contents.fieldPath, context, contextAnalysis, mappedBody.statementIndex) : null;
+          const targetValueId = contents ? appendRecordCollectionMemberFieldContents(mappedValue.sourceValueId, index, contents.fieldPath, context, contextAnalysis, mappedBody.statementIndex) : null;
           moduleCollectionValues.push(targetValueId ? { valueId, kind: "alias", targetValueId } : { valueId, kind: "none" });
-        } else if (context) appendConditional(fieldValue.value, valueId, context, contextAnalysis, mappedBody.statementIndex);
-        else appendRootConditional(fieldValue.value, valueId, mappedBody.statementIndex);
+        } else {
+          const source = recordTargetForCollectionMember(mappedValue.sourceValueId, index, context);
+          const bindExpression = (expression: ModuleScalarExpressionSemantic): ModuleScalarExpressionSemantic => {
+            const bindTarget = <T extends ModuleSourceTarget | ModuleGeometryPropertySourceTarget | null>(target: T): T =>
+              source && target?.kind === "recordField" && target.record.kind === "recordValueForBinder" && target.record.binderId === mappedBody.binderId
+                ? { ...target, record: source } : target;
+            return { ...expression,
+              references: expression.references.map(reference => ({ ...reference, target: bindTarget(reference.target) })),
+              geometryProperties: expression.geometryProperties.map(property => ({ ...property, target: bindTarget(property.target) })),
+              optionalMembers: expression.optionalMembers?.map(member => ({ ...member, target: bindTarget(member.target) }))
+            };
+          };
+          const bindContents = (value: typeof fieldValue.value): NonNullable<typeof fieldValue.value> => {
+            if (!value) throw new Error("mapped record field contents missing");
+            if (value.kind === "literal") return { ...value, members: value.members.map(member => ({ ...member, ...(member.expression ? { expression: bindExpression(member.expression) } : {}) })) };
+            if (value.kind === "if") return { ...value, ...(value.condition ? { condition: bindExpression(value.condition) } : {}), thenValue: bindContents(value.thenValue), elseValue: bindContents(value.elseValue) };
+            if (value.kind === "match") return { ...value, ...(value.scrutinee ? { scrutinee: bindExpression(value.scrutinee) } : {}), arms: value.arms.map(arm => ({ ...arm, value: bindContents(arm.value) })) };
+            if (value.kind === "coalesce") return { ...value, left: bindContents(value.left), right: bindContents(value.right) };
+            return value;
+          };
+          const contents = bindContents(fieldValue.value);
+          if (context) appendConditional(contents, valueId, context, contextAnalysis, mappedBody.statementIndex);
+          else appendRootConditional(contents, valueId, mappedBody.statementIndex);
+        }
         return;
       }
 
@@ -3681,6 +3716,34 @@ export const compileModuleScalarRuntime = ({
         }
       }
       moduleCollectionValues.push({ valueId, kind: "none" });
+    };
+
+    // A mapped source can itself own a mapped field. Resolve that occurrence
+    // through the same field-content producer instead of treating it as an
+    // absent literal record member.
+    const appendRecordCollectionMemberFieldContents = (
+      collectionId: string,
+      index: number,
+      fieldPath: readonly RecordFieldIdentity[],
+      context: InstanceContext | null,
+      analysis: GeometryArraySemanticAnalysis,
+      sourceOrder: number,
+      seen: ReadonlySet<string> = new Set()
+    ): string | null => {
+      if (seen.has(collectionId)) return null;
+      const nextSeen = new Set([...seen, collectionId]);
+      const value = analysis.genericValuesByStatementId.get(collectionId)?.value;
+      if (value?.kind === "alias") return appendRecordCollectionMemberFieldContents(value.targetValueId, index, fieldPath, context, analysis, sourceOrder, nextSeen);
+      if (value?.kind === "map") {
+        const body = (context?.definition.mappedRecordCollectionBodies ?? moduleSemanticAnalysis.mappedRecordCollectionBodies)
+          .find(candidate => candidate.binderId === value.binderId);
+        if (body) {
+          appendMappedRecordFieldContents(value, body, fieldPath, index, context);
+          return recordFieldContentsCollectionValueIdFor(mappedRecordMemberValueIdFor(collectionValueIdFor(body.statementId, context), index), fieldPath);
+        }
+      }
+      const source = recordTargetForCollectionMember(collectionId, index, context);
+      return source ? appendCanonicalRecordFieldContentsForTarget(source, fieldPath, context, analysis, sourceOrder) : null;
     };
 
     const appendRecordValueExpression = (
@@ -4109,8 +4172,9 @@ export const compileModuleScalarRuntime = ({
                 moduleCollectionValues.push({ valueId: expectedValueId, kind: "alias", targetValueId: selectedContentsValueId });
               }
             } else if (!registeredRecordFieldContentsIds.has(expectedValueId)) {
+              const sourceContents = appendRecordCollectionMemberFieldContents(recordCollection.collectionValueId, index, fieldPath, context, contextAnalysis, selectorSourceOrder);
               registeredRecordFieldContentsIds.add(expectedValueId);
-              moduleCollectionValues.push({ valueId: expectedValueId, kind: "none" });
+              moduleCollectionValues.push(sourceContents ? { valueId: expectedValueId, kind: "alias", targetValueId: sourceContents } : { valueId: expectedValueId, kind: "none" });
             }
             return expectedValueId;
           };
@@ -4512,7 +4576,10 @@ export const compileModuleScalarRuntime = ({
           ).expression : null;
 
       if (expression.kind === "constructor") {
-        const fieldValue = recordFieldValueExpressionAt(expression, fieldPath);
+        const leaf = fieldPath.at(-1)!;
+        const fieldType = (context ? sourceNamespaceForContext(context) : sourceNamespace)?.recordSemanticAnalysis
+          ?.definitionsByStatementId.get(leaf.recordStatementId)?.fields.find(field => field.fieldIndex === leaf.fieldIndex)?.type;
+        const fieldValue = recordFieldValueExpressionAt(expression, fieldPath, undefined, fieldType);
         if (fieldValue?.kind === "collection" && fieldValue.value) {
           if (context) appendConditional(fieldValue.value, valueId, context, contextAnalysis, sourceOrder);
           else appendRootConditional(fieldValue.value, valueId, sourceOrder);
@@ -5987,6 +6054,16 @@ export const compileModuleScalarRuntime = ({
         if (bindingId) lowerForContext(value.expression, context, bindingId);
       } else if (value?.kind === "record" && value.expression?.kind === "constructor") {
         lowerRecordConstructorFields(value.expression.constructor.fields, fieldPath, bindingForPath, context);
+      } else if (value?.kind === "record" && value.expression?.kind === "reference") {
+        const type = dslRequiredValueTypeOf(field.expectedType);
+        const analysis = sourceNamespaceForContext(context)?.recordSemanticAnalysis;
+        const definition = type?.kind === "record" ? analysis?.definitionsByStatementId.get(type.identity ?? "") : null;
+        if (!definition) continue;
+        for (const { field: leaf, path, type: scalarType } of scalarFieldPathsFor(definition, [], analysis)) {
+          const bindingId = bindingForPath([...fieldPath, ...path]);
+          const expression = moduleRecordFieldExpressionFor(value.expression, { identity: leaf, fieldPath: path, name: "", type: scalarType });
+          if (bindingId && expression) lowerForContext(expression, context, bindingId);
+        }
       }
     }
   };

@@ -1,0 +1,497 @@
+[
+  {
+    "id": "M1",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: @P, n: 19)\nconst Values: Shape[] = [@A]\nconst Mapped: Shape[] = for item in @Values { Shape(p: @item.p, n: @item.n + 2) }\nconst Chosen: Shape = @Mapped[0]\nconst Result: path = @Chosen.p\nconst L: number = @Result.length\nconst N: number = @Chosen.n",
+    "expected": {
+      "L": 5,
+      "N": 21
+    },
+    "deferred": "UNRESOLVED: constructor record-map geometry fields lose the selected geometry producer; whole-binder identity maps are repaired separately. No geometry reference is emitted for Result. No #1260 scheduling repair attempted."
+  },
+  {
+    "id": "M2",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2, xs: [@item.xs[1], @item.xs[0]]) }\nconst Second: Box[] = for item in @First { Box(n: @item.n + 3, xs: @item.xs) }\nconst X: number = @Second[0].n\nconst Y: number = @Second[1].n\nconst Z: number = @Second[1].xs[0]",
+    "expected": {
+      "X": 24,
+      "Y": 48,
+      "Z": 31
+    }
+  },
+  {
+    "id": "M3",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box[] = [Box(n: 19), Box(n: 43)]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2) }\nconst Second: Box[] = for item in @First { Box(n: @item.n + 3) }\nconst X: number = @Second[0].n\nconst Y: number = @Second[1].n",
+    "expected": {
+      "X": 24,
+      "Y": 48
+    }
+  },
+  {
+    "id": "P1",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nconst Values: Box[] = [Box(), Box(n: 19)]\nconst X: number = @Values[0].n ?? 31\nconst Y: number = @Values[1].n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    }
+  },
+  {
+    "id": "P2",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box?[] = [none, Box(n: 19)]\nconst Chosen: Box = match @Values[1] { none => Box(n: 1 / 0) some held => @held }\nconst X: number = @Chosen.n\nconst Missing: Box = match @Values[0] { none => Box(n: 31) some held => @held }\nconst Y: number = @Missing.n",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "deferred": "UNRESOLVED: spec-valid optional-record collection constructor member is rejected before runtime; optional-indexed record match also lacks binder routing. No unsupported syntax is treated as PASS."
+  },
+  {
+    "id": "D1",
+    "domain": "document",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nimport \"./left/lib.nui\" as left\nimport \"./right/lib.nui\" as right\ninstance A = left::Make(n: 19)\ninstance B = right::Make(n: 43)\ninstance RA = left::Read(b: @A::out)\ninstance RB = right::Read(b: @B::out)\nconst X: number = @RA::out.n\nconst Y: number = @RB::out.xs[1]",
+    "expected": {
+      "X": 29,
+      "Y": 47
+    },
+    "saved": {
+      "left/lib.nui": "nui 1\nrecord Box(n: number, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(n: @n, xs: [@n + 2, @n + 4])\n export const out: Box = @B\n}\nexport module Read(b: Box) {\n export const out: Box = Box(n: @b.n + 10, xs: @b.xs)\n}",
+      "right/lib.nui": "nui 1\nrecord Box(n: number, xs: number[])\nexport module Make(n: number) {\n const B: Box = Box(n: @n, xs: [@n + 2, @n + 4])\n export const out: Box = @B\n}\nexport module Read(b: Box) {\n export const out: Box = Box(n: @b.n + 10, xs: @b.xs)\n}"
+    }
+  },
+  {
+    "id": "D2",
+    "domain": "document",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nimport \"./left/lib.nui\" as left\nimport \"./right/lib.nui\" as right\ninstance A = left::Make(x: 11)\ninstance B = right::Make(x: 29)\nconst P: path = @A::out.p\nconst Q: path = @B::out.p\nconst X: number = @P.length\nconst Y: number = @Q.endPoint.x",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    },
+    "saved": {
+      "left/lib.nui": "nui 1\nrecord Shape(p: path)\nexport module Make(x: number) {\n const P: path = segment(start: (0, 0), end: (@x, 0))\n const B: Shape = Shape(p: @P)\n export const out: Shape = @B\n}",
+      "right/lib.nui": "nui 1\nrecord Shape(p: path)\nexport module Make(x: number) {\n const P: path = segment(start: (0, 0), end: (@x, 0))\n const B: Shape = Shape(p: @P)\n export const out: Shape = @B\n}"
+    }
+  },
+  {
+    "id": "M0",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: @P, n: 19)\nconst Values: Shape[] = [@A]\nconst Chosen: Shape = @Values[0]\nconst Result: path = @Chosen.p\nconst L: number = @Result.length\nconst N: number = @Chosen.n",
+    "expected": {
+      "L": 5,
+      "N": 19
+    }
+  },
+  {
+    "id": "M4",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2, xs: [@item.xs[1], @item.xs[0]]) }\nconst X: number = @First[0].n\nconst Y: number = @First[1].n\nconst Z: number = @First[1].xs[0]",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    }
+  },
+  {
+    "id": "M5",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2, xs: @item.xs) }\nconst Second: Box[] = for item in @First { Box(n: @item.n + 3, xs: @item.xs) }\nconst X: number = @Second[0].n\nconst Y: number = @Second[1].n\nconst Z: number = @Second[1].xs[0]",
+    "expected": {
+      "X": 24,
+      "Y": 48,
+      "Z": 29
+    }
+  },
+  {
+    "id": "M6",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst A: Shape = Shape(p: @P, n: 19)\nconst Values: Shape[] = [@A]\nconst Mapped: Shape[] = for item in @Values { @item }\nconst Chosen: Shape = @Mapped[0]\nconst Result: path = @Chosen.p\nconst L: number = @Result.length\nconst N: number = @Chosen.n",
+    "expected": {
+      "L": 5,
+      "N": 19
+    }
+  },
+  {
+    "id": "P0",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nconst Values: Box[] = [Box(n: none), Box(n: 19)]\nconst X: number = @Values[0].n ?? 31\nconst Y: number = @Values[1].n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    }
+  },
+  {
+    "id": "P3",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nconst A: Box = Box()\nconst B: Box = Box(n: 19)\nconst X: number = @A.n ?? 31\nconst Y: number = @B.n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    }
+  },
+  {
+    "id": "P4",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst A: Box? = none\nconst B: Box? = Box(n: 19)\nconst Values: Box?[] = [@A, @B]\nconst Chosen: Box = match @Values[1] { none => Box(n: 1 / 0) some held => @held }\nconst X: number = @Chosen.n\nconst Missing: Box = match @Values[0] { none => Box(n: 31) some held => @held }\nconst Y: number = @Missing.n",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "deferred": "UNRESOLVED: references avoid the inline constructor rejection but optional-record indexed-match binder remains compiler-rejected."
+  },
+  {
+    "id": "P5",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nconst A: Box = Box(n: none)\nconst B: Box = Box(n: 19)\nconst X: number = @A.n ?? 31\nconst Y: number = @B.n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    }
+  },
+  {
+    "id": "P6",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number)\nconst Values: Box[] = [Box(n: 31), Box(n: 19)]\nconst X: number = @Values[0].n\nconst Y: number = @Values[1].n",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    }
+  },
+  {
+    "id": "M7",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2, xs: @item.xs) }\nconst Second: Box[] = @First\nconst X: number = @Second[0].n\nconst Y: number = @Second[1].n\nconst Z: number = @Second[1].xs[0]",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 29
+    }
+  },
+  {
+    "id": "M8",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2, xs: @item.xs) }\nconst X: number = @First[0].n\nconst Y: number = @First[1].n\nconst Z: number = @First[1].xs[0]",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 29
+    }
+  },
+  {
+    "id": "M9",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nmodule Make() {\n const Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2, xs: [@item.xs[1], @item.xs[0]]) }\nexport const X: number = @First[0].n\nexport const Y: number = @First[1].n\nexport const Z: number = @First[1].xs[0]\n}\ninstance Use = Make()\nconst X: number = @Use::X\nconst Y: number = @Use::Y\nconst Z: number = @Use::Z",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    }
+  },
+  {
+    "id": "P7",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n export const A: Box = Box()\n}\ninstance Use = Make()\nconst B: Box = Box(n: 19)\nconst X: number = @Use::A.n ?? 31\nconst Y: number = @B.n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    }
+  },
+  {
+    "id": "P8",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n export const A: Box = Box(n: none)\n}\ninstance Use = Make()\nconst B: Box = Box(n: 19)\nconst X: number = @Use::A.n ?? 31\nconst Y: number = @B.n ?? 31",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    }
+  },
+  {
+    "id": "D3",
+    "domain": "document",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "saved": {
+      "left/lib.nui": "nui 1\nrecord Box(n: number)\nexport module Make(n: number) {\n export const out: Box = Box(n: @n)\n}\nexport module Read(b: Box?) {\n const Alias: Box? = @b\n export const out: Box = match @Alias { none => Box(n: 31) some held => Box(n: @held.n + 2) }\n}",
+      "right/lib.nui": "nui 1\nrecord Box(n: number)\nexport module Make(n: number) {\n export const out: Box = Box(n: @n)\n}\nexport module Read(b: Box?) {\n const Alias: Box? = @b\n export const out: Box = match @Alias { none => Box(n: 31) some held => Box(n: @held.n + 2) }\n}",
+      "relay.nui": "nui 1\nimport \"./left/lib.nui\" as source\nexport @source::Make\nexport @source::Read"
+    },
+    "source": "nui 1\nimport \"./relay.nui\" as left\nimport \"./right/lib.nui\" as right\ninstance A = left::Make(n: 19)\ninstance B = right::Make(n: 43)\ninstance RA = left::Read(b: @A::out)\ninstance RB = right::Read(b: @B::out)\ninstance Empty = left::Read()\nconst X: number = @RA::out.n\nconst Y: number = @RB::out.n\nconst Z: number = @Empty::out.n",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    }
+  },
+  {
+    "id": "N1",
+    "domain": "nested-record",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst Mapped: Wrap[] = for item in @Values { Wrap(b: @item) }\nconst X: number = @Mapped[0].b.n\nconst Y: number = @Mapped[1].b.n\nconst Z: number = @Mapped[1].b.xs[0]",
+    "expected": {
+      "X": 19,
+      "Y": 43,
+      "Z": 29
+    }
+  },
+  {
+    "id": "N0",
+    "domain": "nested-record",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst A: Box = Box(n: 43, xs: [29, 31])\nconst B: Wrap = Wrap(b: @A)\nconst X: number = @B.b.n\nconst Y: number = @B.b.xs[0]",
+    "expected": {
+      "X": 43,
+      "Y": 29
+    }
+  },
+  {
+    "id": "N2",
+    "domain": "nested-record",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst A: Box = Box(n: 43, xs: [29, 31])\nconst B: Wrap = Wrap(b: Box(n: 43, xs: [29, 31]))\nconst X: number = @B.b.n\nconst Y: number = @B.b.xs[0]",
+    "expected": {
+      "X": 43,
+      "Y": 29
+    }
+  },
+  {
+    "id": "N3",
+    "domain": "nested-record",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst Mapped: Wrap[] = for item in @Values { Wrap(b: Box(n: @item.n, xs: [29, 31])) }\nconst X: number = @Mapped[0].b.n\nconst Y: number = @Mapped[1].b.n\nconst Z: number = @Mapped[1].b.xs[0]",
+    "expected": {
+      "X": 19,
+      "Y": 43,
+      "Z": 29
+    }
+  },
+  {
+    "id": "N4",
+    "domain": "nested-record",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nmodule Make(n: number) {\n const A: Box = Box(n: @n, xs: [29, 31])\nexport const B: Wrap = Wrap(b: @A)\n}\ninstance One = Make(n: 43)\ninstance Two = Make(n: 19)\nconst X: number = @One::B.b.n\nconst Z: number = @Two::B.b.n\nconst Y: number = @One::B.b.xs[0]",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19
+    }
+  },
+  {
+    "id": "D4",
+    "domain": "document",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nimport \"./relay.nui\" as source\nrecord Shape(dummy: number)\ninstance A = source::Relay(x: 11)\ninstance B = source::Relay(x: 29)\nconst X: number = @A::P.length\nconst Y: number = @B::P.endPoint.x\nconst N: number = @A::N\nconst M: number = @B::N",
+    "saved": {
+      "lib.nui": "nui 1\nrecord Shape(p: path, n: number)\nexport module Make(x: number) {\n const P: path = segment(start: (0, 0), end: (@x, 0))\n export const out: Shape = Shape(p: @P, n: @x + 2)\n}",
+      "relay.nui": "nui 1\nimport \"./lib.nui\" as source\nexport module Relay(x: number) {\n instance Inner = source::Make(x: @x)\n export const P: path = @Inner::out.p\n export const N: number = @Inner::out.n\n}"
+    },
+    "expected": {
+      "X": 11,
+      "Y": 29,
+      "N": 13,
+      "M": 31
+    }
+  },
+  {
+    "id": "M10",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Make(x: number) {\n const P: path = segment(start: (0, 0), end: (@x, 0))\nconst A: Shape = Shape(p: @P, n: 19)\nconst Values: Shape[] = [@A]\nconst Mapped: Shape[] = for item in @Values { @item }\nconst Chosen: Shape = @Mapped[0]\nconst Result: path = @Chosen.p\nexport const L: number = @Result.length\nexport const N: number = @Chosen.n\n}\ninstance One = Make(x: 11)\ninstance Two = Make(x: 29)\nconst X: number = @One::L\nconst Y: number = @Two::L",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    }
+  },
+  {
+    "id": "N5",
+    "domain": "nested-record",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nrecord Wrap(b: Box)\nmodule Read(w: Wrap) {\n export const X: number = @w.b.n\n export const Y: number = @w.b.xs[0]\n}\nconst A: Box = Box(n: 43, xs: [29, 31])\nconst B: Box = Box(n: 19, xs: [7, 13])\ninstance One = Read(w: Wrap(b: @A))\ninstance Two = Read(w: Wrap(b: @B))\nconst X: number = @One::X\nconst Y: number = @One::Y\nconst Z: number = @Two::X\nconst W: number = @Two::Y",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19,
+      "W": 7
+    }
+  },
+  {
+    "id": "P10",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n const A: Box = Box()\n export const X: number = @A.n ?? 31\n}\ninstance Use = Make()\nconst X: number = @Use::X",
+    "expected": {
+      "X": 31
+    }
+  },
+  {
+    "id": "P11",
+    "domain": "optional-members",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number?)\nmodule Make() {\n const A: Box = Box(n: none)\n export const X: number = @A.n ?? 31\n}\ninstance Use = Make()\nconst X: number = @Use::X",
+    "expected": {
+      "X": 31
+    }
+  },
+  {
+    "id": "M11",
+    "domain": "map",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Box(n: number, xs: number[])\nconst Values: Box[] = [Box(n: 19, xs: [7, 13]), Box(n: 43, xs: [29, 31])]\nconst First: Box[] = for item in @Values { Box(n: @item.n + 2, xs: [@item.xs[1], 1 / 0]) }\nconst X: number = @First[0].n\nconst Y: number = @First[1].n\nconst Z: number = @First[1].xs[0]",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    }
+  }
+]

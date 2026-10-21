@@ -1,0 +1,1644 @@
+[
+  {
+    "family": "F25",
+    "id": "P3",
+    "sha256": "414362dcdb08c58712302f356661b59393993ee02cd1d09b4cd9cb2a36d1fe83",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: planRecordScalarLowering / projectRecordFieldExpression",
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: analyzeRecordFieldValue"
+    ],
+    "mechanism": "An omitted field owns none but has only its definition name span. Reparse slices produced choice literal n, rather than the none AST. Retain canonical absence in root and Module field analysis.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {},
+        "production": {},
+        "canonicalPreparedInputSha256": null,
+        "rustEligible": null,
+        "diagnostics": [
+          {
+            "code": "invalid-choice-literal",
+            "line": 3,
+            "message": "choice literal \"n\" を解決できるchoice型の文脈がありません。"
+          }
+        ],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "e9a8655e806af30067f8741b60b1f664268d45b15280086cb7adb443cdf50a96",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F25",
+    "id": "P10",
+    "sha256": "add61529d39ca8950eb6a6f460ac577d2819aeb4664bf022e44bd02e6aef4837",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 31
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: planRecordScalarLowering / projectRecordFieldExpression",
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: analyzeRecordFieldValue"
+    ],
+    "mechanism": "An omitted field owns none but has only its definition name span. Reparse slices produced choice literal n, rather than the none AST. Retain canonical absence in root and Module field analysis.",
+    "snapshots": [
+      {
+        "phase": "base-exact-extra",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {},
+        "production": {},
+        "canonicalPreparedInputSha256": null,
+        "rustEligible": null,
+        "diagnostics": [
+          {
+            "code": "scalar-namespace-type-mismatch",
+            "line": 8,
+            "message": "\"Use::X\" はmoduleInstanceのため、scalar expressionでは参照できません。"
+          },
+          {
+            "code": "module-invalid-choice-literal",
+            "line": 4,
+            "message": "choice literal \"n\" を解決できるchoice型の文脈がありません。"
+          },
+          {
+            "code": "module-invalid-choice-literal",
+            "line": 4,
+            "message": "choice literal \"n\" を解決できるchoice型の文脈がありません。"
+          }
+        ],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "9378a3dca1ee6e51f5fe7193ab00d1227d9b7db3fa731e231741e49c19ef57c2",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F26",
+    "id": "P0",
+    "sha256": "65a9bd3bce09908a552aedd53142684ad6fd8d002a0a3d32e0c421b5d872e28d",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/dslDocument.ts: additionalRecordPropertyResolver"
+    ],
+    "mechanism": "The Module semantic result has the exact optional scalar type and nominal owner, but the root adapter tests only scalarTypeOfDslValueType. Accept the existing scalar expression subset including optional scalars.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {},
+        "production": {},
+        "canonicalPreparedInputSha256": null,
+        "rustEligible": null,
+        "diagnostics": [
+          {
+            "code": "geometry-property-invalid",
+            "line": 4,
+            "message": "要素「Values」を一意に解決できません。"
+          },
+          {
+            "code": "geometry-property-invalid",
+            "line": 5,
+            "message": "要素「Values」を一意に解決できません。"
+          }
+        ],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "12087f85c80524f4682bcea842662736ca627610b06d02fad4cc2b7e6e35fd7e",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F27",
+    "id": "M4",
+    "sha256": "79816a022c4c23d6f00d8bf51c74e18bab0312306b66dea6909849de538a9510",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendMappedRecordFieldContents"
+    ],
+    "mechanism": "The field literal was lowered outside its record-map binder environment, emitting a collectionIndex with an empty producer ID. Bind the existing semantic field references to the exact selected source record before canonical lowering; retain lazy member evaluation.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-static-type-null"
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "issueCode": "evaluation-static-type-null",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "895e10befedd27f64ece5fd4fdedf29a83f4534c31ab356108f311cedbc70488",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "884276791b5a2e54e415454f77ee0bef3dca3b222307d8e938ac4345a7e76aa6",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F28",
+    "id": "M5",
+    "sha256": "9b8e0958fd2b5cd131fb77a260c7bad63af88d709b7003b1f9fa9643a84bfe25",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 24,
+      "Y": 48,
+      "Z": 29
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordCollectionMemberFieldContents / appendMappedRecordFieldContents / appendSelectedContents"
+    ],
+    "mechanism": "Literal-only source lookup treats a preceding constructor map or alias of a map as absent. Recursively reuse the existing per-occurrence field-content producer through maps and aliases. F07 single-map forwarding is a merged control; this is a different first loss at a composed map source.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [
+            "record-field-contents:[\"record-value:[[\\\"statement:typedDeclaration:mvhnkxiv:89\\\",\\\"1\\\"],\\\"statement:typedDeclaration:mvhnkxiv:89\\\"]\",[[\"statement:recordDefinition:mvhnkxiv:86\",1]]]"
+          ],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 24
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 48
+            }
+          },
+          "Z": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-collection-index-unavailable"
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 24
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 48
+            }
+          },
+          "Z": {
+            "issueCode": "evaluation-collection-index-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "9be26e5bb4835d733d45964182bc3d532c8c4b91f9ce6c812dbda1b5c5cc24a1",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 24
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 48
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 24
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 48
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "fbf0bb84d9e8543919e6faafabf77cc3e8fc046e9eaeec72799c0ee29dcc016b",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F28",
+    "id": "M7",
+    "sha256": "6d9ed40b0722a08ea31534fb8bffa9ecdc49a76420aa7b09ed46a08d67e0d583",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 29
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordCollectionMemberFieldContents / appendMappedRecordFieldContents / appendSelectedContents"
+    ],
+    "mechanism": "Literal-only source lookup treats a preceding constructor map or alias of a map as absent. Recursively reuse the existing per-occurrence field-content producer through maps and aliases. F07 single-map forwarding is a merged control; this is a different first loss at a composed map source.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [
+            "record-field-contents:[\"record-value:[[\\\"statement:typedDeclaration:mvhnkxjn:131\\\",\\\"1\\\"],\\\"statement:typedDeclaration:mvhnkxjn:131\\\"]\",[[\"statement:recordDefinition:mvhnkxjn:128\",1]]]"
+          ],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-collection-index-unavailable"
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "issueCode": "evaluation-collection-index-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "7e3e2af0a90e1a6eaa74882acffc46eb4ac8ebc27151e53814c2879e8420d1bd",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 45
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "50d06f220637db88136fab680d37fbf687c1691d7cd11956c41fccec6ce7726d",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F29",
+    "id": "N0",
+    "sha256": "6ca21c92fd512d3d4339f803e8ae3fef78d91bb75db6b4d5897fa6f8d1e44c81",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 43,
+      "Y": 29
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: constructorFieldAtPath",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: constructorFieldAtPath / lowerRecordConstructorFields / recordFieldValueExpressionAt"
+    ],
+    "mechanism": "Nested constructor traversal only handles another constructor, not a legal whole-record reference. Root compilation references an unseeded scalar slot; Module compilation can register a slot without a declaration; nested collection projection also drops the remaining field path. Reuse the ordinary record-property adapter and existing semantic field projector, and forward the remaining canonical collection-field identity. These manifestations are one nested-reference family.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {},
+        "production": {},
+        "canonicalPreparedInputSha256": null,
+        "rustEligible": null,
+        "diagnostics": [],
+        "exception": "Error: typedDeclarationAnalysis: prepared dependency record-field-binding-path:39:statement:typedDeclaration:mvhnkxlg:20139:statement:recordDefinition:mvhnkxlg:1991:039:statement:recordDefinition:mvhnkxlg:1981:0 is not in the catalog"
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "f8543191218c3a6b5dd2e51d816824709451bd03d698812eef90a377a65b7a2c",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F29",
+    "id": "N1",
+    "sha256": "84af6c85041c85950696d1010e008578e1c79a6cfcbaf9c180c47d68856d2741",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 19,
+      "Y": 43,
+      "Z": 29
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: constructorFieldAtPath",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: constructorFieldAtPath / lowerRecordConstructorFields / recordFieldValueExpressionAt"
+    ],
+    "mechanism": "Nested constructor traversal only handles another constructor, not a legal whole-record reference. Root compilation references an unseeded scalar slot; Module compilation can register a slot without a declaration; nested collection projection also drops the remaining field path. Reuse the ordinary record-property adapter and existing semantic field projector, and forward the remaining canonical collection-field identity. These manifestations are one nested-reference family.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [
+            "record-field-contents:[\"record-value:[[\\\"statement:typedDeclaration:mvhnkxl9:194\\\",\\\"1\\\"],\\\"statement:typedDeclaration:mvhnkxl9:194\\\"]\",[[\"statement:recordDefinition:mvhnkxl9:192\",0],[\"statement:recordDefinition:mvhnkxl9:191\",1]]]"
+          ],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Z": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-collection-index-unavailable"
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Z": {
+            "issueCode": "evaluation-collection-index-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "00194e7076af0bc84c918d510fac60f893446cc06be1d7ecf33cea70aa2cb79f",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "9878de71267d885df16d3ea9e8be303bc3dbc049ba2f630dd001a9f0802a4c43",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F29",
+    "id": "N4",
+    "sha256": "7b6447daa5c0a2dc4976d5a7dfe2ad62888cc7e69e9e5711e65b149ab243da82",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: constructorFieldAtPath",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: constructorFieldAtPath / lowerRecordConstructorFields / recordFieldValueExpressionAt"
+    ],
+    "mechanism": "Nested constructor traversal only handles another constructor, not a legal whole-record reference. Root compilation references an unseeded scalar slot; Module compilation can register a slot without a declaration; nested collection projection also drops the remaining field path. Reuse the ordinary record-property adapter and existing semantic field projector, and forward the remaining canonical collection-field identity. These manifestations are one nested-reference family.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {},
+        "production": {},
+        "canonicalPreparedInputSha256": null,
+        "rustEligible": null,
+        "diagnostics": [],
+        "exception": "Error: bindingVersions: eligible binding module-record-binding:5:value37:statement:moduleInstance:mvhnkxlz:22239:statement:typedDeclaration:mvhnkxlz:22139:statement:recordDefinition:mvhnkxlz:2181:039:statement:recordDefinition:mvhnkxlz:2171:0 is missing its scalar program declaration"
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "2ee19cd0a07debade9dd4d72680d87af6c599904754404fe94c2cc4696cd4c0a",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F29",
+    "id": "N5",
+    "sha256": "e56c6d341af887be2de6bd8601096e744f28a3951cd6b312ad1a078fe64f23e4",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19,
+      "W": 7
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: constructorFieldAtPath",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: constructorFieldAtPath / lowerRecordConstructorFields / recordFieldValueExpressionAt"
+    ],
+    "mechanism": "Nested constructor traversal only handles another constructor, not a legal whole-record reference. Root compilation references an unseeded scalar slot; Module compilation can register a slot without a declaration; nested collection projection also drops the remaining field path. Reuse the ordinary record-property adapter and existing semantic field projector, and forward the remaining canonical collection-field identity. These manifestations are one nested-reference family.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [
+            {
+              "kind": "collectionIndex",
+              "collectionValueId": "record-field-contents:[\"module-record-parameter:37:statement:moduleInstance:mvhnkxn5:26539:statement:moduleDefinition:mvhnkxn5:2601:0\",[[\"statement:recordDefinition:mvhnkxn5:259\",0],[\"statement:recordDefinition:mvhnkxn5:258\",0]]]"
+            },
+            {
+              "kind": "collectionIndex",
+              "collectionValueId": "record-field-contents:[\"module-record-parameter:37:statement:moduleInstance:mvhnkxn5:26639:statement:moduleDefinition:mvhnkxn5:2601:0\",[[\"statement:recordDefinition:mvhnkxn5:259\",0],[\"statement:recordDefinition:mvhnkxn5:258\",0]]]"
+            }
+          ],
+          "absentContents": [
+            "record-field-contents:[\"module-record-parameter:37:statement:moduleInstance:mvhnkxn5:26539:statement:moduleDefinition:mvhnkxn5:2601:0\",[[\"statement:recordDefinition:mvhnkxn5:259\",0],[\"statement:recordDefinition:mvhnkxn5:258\",1]]]",
+            "record-field-contents:[\"module-record-parameter:37:statement:moduleInstance:mvhnkxn5:26639:statement:moduleDefinition:mvhnkxn5:2601:0\",[[\"statement:recordDefinition:mvhnkxn5:259\",0],[\"statement:recordDefinition:mvhnkxn5:258\",1]]]"
+          ],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-collection-index-unavailable"
+          },
+          "Y": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-collection-index-unavailable"
+          },
+          "Z": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-collection-index-unavailable"
+          },
+          "W": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-collection-index-unavailable"
+          }
+        },
+        "production": {
+          "X": {
+            "issueCode": "evaluation-collection-index-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "Y": {
+            "issueCode": "evaluation-collection-index-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "Z": {
+            "issueCode": "evaluation-collection-index-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "W": {
+            "issueCode": "evaluation-collection-index-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "7972cff989f8fbfb7ecc7d1d0bd7c186387b414b9fe7608a51b1676630e6d671",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "W": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 7
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          },
+          "Z": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "W": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 7
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "2f7bec25ee9c631a911bc11701359529d4d5bcf24f7d5cdf48e8be40a6768a79",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F30",
+    "id": "M6",
+    "sha256": "c5e75bc87027096edf753897cf3659176911a0314a2282e479bda1cc8ec8b379",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "L": 5,
+      "N": 19
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: recordReferenceSemantic / recordMembersFor"
+    ],
+    "mechanism": "Every map was treated as having no statically known members, even when its body is the whole binder reference. Preserve source members for this canonical identity form so geometry forwarding retains its defining producer. Constructor-map geometry is a separate unresolved frontier (M1).",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnkxj2:94",
+                "instancePath": []
+              },
+              "kind": "segment"
+            }
+          ]
+        },
+        "reference": {
+          "L": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "production": {
+          "L": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "dd44901a06d03494bcb6e7e08c25dbff2fc36bbc0deadfef80ecd87f79ca79a8",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnnbso:79",
+                "instancePath": []
+              },
+              "kind": "segment"
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnnbso:84",
+                "instancePath": []
+              },
+              "kind": "reference"
+            }
+          ]
+        },
+        "reference": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 5
+            }
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "production": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 5
+            }
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "c337dc6b136b85b3d8361d90598cb5130cb9d733e9445b06c1f68a19c2212519",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  },
+  {
+    "family": "F30",
+    "id": "M10",
+    "sha256": "7ca9fdf15a0eda3c22cf1255efc43817a555fb18a68ce21f5af92dff50749010",
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: recordReferenceSemantic / recordMembersFor"
+    ],
+    "mechanism": "Every map was treated as having no statically known members, even when its body is the whole binder reference. Preserve source members for this canonical identity form so geometry forwarding retains its defining producer. Constructor-map geometry is a separate unresolved frontier (M1).",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnkxms:246",
+                "instancePath": [
+                  "statement:moduleInstance:mvhnkxms:254"
+                ]
+              },
+              "kind": "segment"
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnkxms:246",
+                "instancePath": [
+                  "statement:moduleInstance:mvhnkxms:255"
+                ]
+              },
+              "kind": "segment"
+            }
+          ]
+        },
+        "reference": {
+          "X": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          },
+          "Y": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          }
+        },
+        "production": {
+          "X": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "Y": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "ef7481e067a5c72bc1a1c2faa61c3a21f3023b70e3f3af9fe56d82c70284042e",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      },
+      {
+        "phase": "focused-final",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "absentContents": [],
+          "geometry": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnnbx0:223",
+                "instancePath": [
+                  "statement:moduleInstance:mvhnnbx0:231"
+                ]
+              },
+              "kind": "segment"
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnnbx0:228",
+                "instancePath": [
+                  "statement:moduleInstance:mvhnnbx0:231"
+                ]
+              },
+              "kind": "reference"
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnnbx0:223",
+                "instancePath": [
+                  "statement:moduleInstance:mvhnnbx0:232"
+                ]
+              },
+              "kind": "segment"
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhnnbx0:228",
+                "instancePath": [
+                  "statement:moduleInstance:mvhnnbx0:232"
+                ]
+              },
+              "kind": "reference"
+            }
+          ]
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 11
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 11
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 29
+            }
+          }
+        },
+        "canonicalPreparedInputSha256": "3df9cd719725792c0d2094f1a7ca44c6f3b746081b9aa44821d47a0a6b528861",
+        "rustEligible": true,
+        "diagnostics": [],
+        "exception": null
+      }
+    ]
+  }
+]
