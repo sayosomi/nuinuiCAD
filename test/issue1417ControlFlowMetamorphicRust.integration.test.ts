@@ -170,16 +170,18 @@ describe("Issue #1417 deterministic control-flow metamorphic Stage 2", () => {
     expect(await evaluate(program)).toEqual([6, 8]);
   });
 
-  it("preserves rejected generator attempts and uses legal collection literal/reference controls", async () => {
+  it("retains historical generator rejections while accepting supported scalar array expressions", async () => {
     for (const attempt of [...rejected.attempts, ...rejected.reductions]) {
       if ("sha256" in attempt) expect(hashText(attempt.source)).toBe(attempt.sha256);
       counts.compiler++;
       const compiled = compileCanonicalText(initial, attempt.source);
-      expect(compiled.status).toBe("fatal");
-      expect([...new Set(compiled.diagnostics.filter(d => d.severity === "error").map(d => d.code))]).toEqual(attempt.codes);
+      // Keep the original rejection evidence immutable. #1194 repairs these
+      // spec-supported scalar expressions; current admission must now succeed.
+      expect(attempt.codes).toEqual(["array-invalid-member"]);
+      expect(compiled.status).toBe("valid");
+      expect(compiled.diagnostics.filter(d => d.severity === "error")).toEqual([]);
     }
-    // The collection contract explicitly permits scalar literals/references and
-    // a typed empty literal. Unary minus is authored in a scalar initializer.
+    // Retain the ordinary literal/reference and typed-empty runtime controls.
     for (const value of [1, -1, undefined]) {
       const program = emit({
         roots: [...(value === -1 ? [{ name: "seed", type: "number", expression: -1 }] : []), {

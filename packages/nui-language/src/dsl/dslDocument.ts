@@ -2992,6 +2992,9 @@ export const compileDslDocument = (
         values.push({ valueId, kind: "map", sourceValueId: collectionValue.sourceValueId, sourceElementType: collectionValue.sourceElementType, resultElementType: collectionValue.resultElementType, binderId: collectionValue.binderId, body: collectionValue.body, sourceOrder: collectionValue.sourceOrder });
         return;
       }
+      // Expression members need the fully resolved runtime geometry/binding
+      // adapters. The shared Module runtime appends their lazy descriptors.
+      if (collectionValue.members.some(member => member.expression)) return;
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of collectionValue.members) {
         if (member.target.kind === "scalarBinding") {
@@ -3053,6 +3056,10 @@ export const compileDslDocument = (
       }
       if (collectionValue.kind === "none") {
         values.push({ valueId: value.statementId, kind: "none" });
+        continue;
+      }
+      if (collectionValue.members.some(member => member.expression)) {
+        append(value.statementId, collectionValue, value.statementId, value.statementIndex);
         continue;
       }
       const members: ScalarProgramCollectionMember[] = [];
@@ -3771,6 +3778,7 @@ export const compileDslDocument = (
     const hasRootGeometryRuntimeOccurrences = [...moduleSemanticCompilation.rootScalarExpressionsByStatementId.values()]
       .some((site) => site.expression.geometryBuiltinArguments.length > 0 || site.expression.geometryProperties.some((property) =>
         property.target?.kind === "sourceGeometryProperty" ||
+        property.target?.kind === "geometryValueProperty" ||
         property.target?.kind === "recordField" ||
         property.target?.kind === "deferredModuleExportProperty" ||
         property.target?.kind === "forGroupOccurrenceProperty"
@@ -4294,7 +4302,7 @@ export const compileDslDocument = (
                 }
               };
             }
-            if (recordValue?.valueExpression?.kind === "coalesce") {
+            if (recordValue?.valueExpression?.kind === "coalesce" || recordValue?.valueExpression?.kind === "match" && recordValue.valueExpression.optionalRecordMatch) {
               const fieldPath = property.target.fieldPath ?? [property.target.field];
               return {
                 resolution: {

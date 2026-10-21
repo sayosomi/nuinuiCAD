@@ -1,3 +1,4 @@
+import { scalarExpressionCollection } from "./scalarExpressionCollection";
 import { encodeIdentityTuple } from "../document/identityTuple";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
 import { isCompilableDslStatement } from "../dsl/dslCompilationGuard";
@@ -714,7 +715,7 @@ const recordFieldBindingIdForSemanticTarget = ({
   if (target.kind === "recordValue") {
     const local = definition.recordValues.find((value) => value.value.statementId === target.statementId);
     if (local) {
-      if (!local.value.constructor && (local.valueExpression?.kind === "coalesce" || local.valueExpression?.kind === "none" || isDslOptionalValueType(local.declaredValueType))) return undefined;
+      if (!local.value.constructor && (local.valueExpression?.kind === "coalesce" || local.valueExpression?.kind === "match" && local.valueExpression.optionalRecordMatch || local.valueExpression?.kind === "none" || isDslOptionalValueType(local.declaredValueType))) return undefined;
       if (local.value.constructor || local.valueExpression) return moduleRecordScalarBindingIdForPath(path, target.statementId, fieldPath);
       return local.target
         ? recordFieldBindingIdForSemanticTarget({ target: local.target, field, fieldPath, path, definition, instance, moduleSemanticAnalysis, sourceNamespace, rootRecordPlan, visited })
@@ -1012,7 +1013,7 @@ const lowerRecordPropertyAst = (
         // second non-scalar optional model.
         if (
           target?.kind === "recordField" &&
-          ((target.record.kind === "recordValue" && target.record.valueExpressionKind === "coalesce") || (target.record.kind === "deferredModuleRecordExport" && !hasBinding(target))) &&
+          ((target.record.kind === "recordValue" && (target.record.valueExpressionKind === "coalesce" || target.record.valueExpressionKind === "match")) || (target.record.kind === "deferredModuleRecordExport" && !hasBinding(target))) &&
           target.collectionIndex === undefined
         ) {
           return {
@@ -2741,7 +2742,7 @@ export const compileModuleScalarRuntime = ({
           if (fieldPath.length === 1) fieldBindings.set(field.fieldIndex, info);
           allBindingInfos.push(info);
         }
-      } else if (recordValue.valueExpression?.kind === "coalesce") {
+      } else if (recordValue.valueExpression?.kind === "coalesce" || recordValue.valueExpression?.kind === "match" && recordValue.valueExpression.optionalRecordMatch) {
         // Constructor leaves are lazy record-map bodies, not eager declarations.
       } else if (recordValue.valueExpression?.kind === "none" || isDslOptionalValueType(recordValue.declaredValueType)) {
         // The ordinary none descriptor below represents an optional record
@@ -3741,7 +3742,8 @@ export const compileModuleScalarRuntime = ({
             : undefined;
           arms.push({ label: arm.label, valueId: armValueId, ...(binderId ? { binderId } : {}) });
         }
-        const scrutinee = lowerControlExpression(expression.scrutinee);
+        const loweredScrutinee = lowerControlExpression(expression.scrutinee);
+        const scrutinee = loweredScrutinee ? remapTypedExpressionCollectionValueIds(optionalCollectionMatchPresenceProjection(loweredScrutinee), (id) => collectionValueIdFor(id, context)) : null;
         if (scrutinee) moduleCollectionValues.push({
           valueId,
           kind: "match",
@@ -3999,7 +4001,7 @@ export const compileModuleScalarRuntime = ({
           });
           return;
         }
-        if (recordValueFieldTarget.record.valueExpressionKind !== "coalesce") return;
+        if (recordValueFieldTarget.record.valueExpressionKind !== "coalesce" && recordValueFieldTarget.record.valueExpressionKind !== "match") return;
         const sourceValueId = collectionValueIdFor(
           recordValueCollectionIdFor([], recordValueFieldTarget.record.statementId),
           context
@@ -4298,6 +4300,26 @@ export const compileModuleScalarRuntime = ({
         });
       }
     };
+    const appendScalarExpressionMembers = (
+      value: import("../dsl/geometryArraySemantics").DslArrayLiteralValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>,
+      valueId: string, context: InstanceContext | null, sourceOrder: number
+    ): boolean => {
+      if (!value.members.some(member => member.expression)) return false;
+      const type = scalarTypeOfDslValueType(value.valueType.elementType);
+      const expressions = value.members.map(member => member.expression ? lowerExpression(
+        member.expression,
+        target => context ? resolvedBindingForContext(target, context) : rootBindingForTarget(target, member.sourceSpan.start),
+        bindingsById,
+        target => context ? resolvedGeometryPropertyForContext(target, context) : rootGeometryPropertyFor(target),
+        target => context ? collectionLengthForTargetContext(target, context) : rootCollectionLengthFor(target),
+        occurrence => context ? resolvedGeometryBuiltinForContext(occurrence, context) : resolvedGeometryBuiltinForRoot(occurrence),
+        id => collectionValueIdFor(id, context),
+        order => context && order >= 0 ? executionPositionForValue(context.path, order) : order,
+        target => context ? recordParameterCollectionForTargetContext(target, context) : undefined
+      ).expression : null);
+      if (type && expressions.every(expression => expression !== null)) moduleCollectionValues.push(...scalarExpressionCollection(valueId, expressions, type, sourceOrder));
+      return true;
+    };
     const appendConditional = (
       value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>,
       valueId: string,
@@ -4417,6 +4439,7 @@ export const compileModuleScalarRuntime = ({
         return;
       }
       if (!elementType) return;
+      if (appendScalarExpressionMembers(value, valueId, context, executionOrderForValue(context.path, sourceOrder))) return;
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of value.members) {
         const literal = scalarCollectionMemberFromLiteral(member.sourceText, elementType);
@@ -4750,6 +4773,7 @@ export const compileModuleScalarRuntime = ({
         continue;
       }
       if (!elementType) continue;
+      if (appendScalarExpressionMembers(value.value, valueId, context, executionOrderForValue(context.path, value.statementIndex))) continue;
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of value.value.members) {
         const literal = scalarCollectionMemberFromLiteral(member.sourceText, elementType);
@@ -4784,6 +4808,7 @@ export const compileModuleScalarRuntime = ({
           continue;
         }
         const elementType = scalarExpressionTypeOfDslValueType(literal.valueType.elementType);
+        if (appendScalarExpressionMembers(literal, valueId, callerContext, executionOrderForValue(context.parentKey ? contextsByKey.get(context.parentKey)?.path ?? [] : [], context.instance.statementIndex))) continue;
         if (elementType) {
           const members: ScalarProgramCollectionMember[] = [];
           for (const member of literal.members) {
@@ -4897,6 +4922,7 @@ export const compileModuleScalarRuntime = ({
       }
       const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
       if (!elementType) return;
+      if (appendScalarExpressionMembers(value, valueId, null, sourceOrder)) return;
       const members: ScalarProgramCollectionMember[] = [];
       for (const member of value.members) {
         const literal = scalarCollectionMemberFromLiteral(member.sourceText, elementType);
@@ -4909,11 +4935,22 @@ export const compileModuleScalarRuntime = ({
       }
       moduleCollectionValues.push({ valueId, kind: "literal", members });
     };
+    const hasExpressionMembers = (value: import("../dsl/geometryArraySemantics").DslArraySemanticValue<import("../dsl/geometryArraySemanticAnalysis").GenericArraySourceTarget>): boolean => {
+      if (value.kind === "literal") return value.members.some(member => member.expression !== undefined);
+      if (value.kind === "if") return hasExpressionMembers(value.thenValue) || hasExpressionMembers(value.elseValue);
+      if (value.kind === "match") return value.arms.some(arm => hasExpressionMembers(arm.value));
+      if (value.kind === "coalesce") return hasExpressionMembers(value.left) || hasExpressionMembers(value.right);
+      return false;
+    };
     // Root nominal-record collections use the same lazy descriptors as Module
     // instances. Scalar root collections remain owned by documentScalarProgram.
     for (const value of sourceNamespace?.geometryArraySemanticAnalysis?.genericValues ?? []) {
       if (value.ownerModuleDefinitionStatementIndex !== null || !value.value) continue;
       const valueId = value.statementId;
+      if (hasExpressionMembers(value.value)) {
+        appendRootConditional(value.value, valueId, value.statementIndex);
+        continue;
+      }
       // Root scalar collections are already owned by documentScalarProgram;
       // only nominal-record collections need the module runtime projection.
       if (value.value.kind === "none") continue;

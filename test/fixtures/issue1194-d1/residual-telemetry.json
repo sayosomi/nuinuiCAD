@@ -1,0 +1,498 @@
+{
+  "measurementScope": "Actual instrumented residual runner calls across discovery, rejected compiler attempts, diagnostic traces, controlled Base replays, candidate verification and required gates. Compiler counts are authored top-level source/bundle attempts; blank canonical setup compiles are separate. Internal dependency artifact parsing/semantic recursion and other suite internals are not counted. Production counts are calls to the real persistent Rust stdio request path; successful requests verify the actual written input. No forced eligibility. No quota estimates.",
+  "residualTotals": {
+    "compiler": 578,
+    "setupCompiler": 31,
+    "reference": 481,
+    "production": 481
+  },
+  "measuredInitialSliceGateControlTotals": {
+    "compiler": 375,
+    "setupCompiler": 5,
+    "reference": 370,
+    "production": 370
+  },
+  "combinedMeasuredTotals": {
+    "compiler": 953,
+    "setupCompiler": 36,
+    "reference": 851,
+    "production": 851
+  },
+  "unmeasured": "Earlier initial-slice suite reruns without external telemetry, remaining parity/full-suite internals, and tsc/build invocations are excluded. These are measured scopes, not a fabricated whole-session evaluator-call census.",
+  "baseGitCommit": "1e4984b47b7e879731e3b7cbd46dd50007875f6b",
+  "baseGitTree": "ad772d72e6bda0877acaa6ec42b984fdcce2deb7",
+  "verifiedProductionSourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+  "resourceFailures": [],
+  "residualRuns": [
+    {
+      "runId": "base-identity-1792517767593",
+      "phase": "base-identity",
+      "mode": "discover",
+      "sourceTreeSha256": "3fcaea92d77fdaa5ef87ac122c24deb2b9a874644c2f4d7c4405400b2851adcf",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "accepted": 77
+    },
+    {
+      "runId": "base-optional-1792517833593",
+      "phase": "base-optional",
+      "mode": "discover",
+      "sourceTreeSha256": "3fcaea92d77fdaa5ef87ac122c24deb2b9a874644c2f4d7c4405400b2851adcf",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 77
+    },
+    {
+      "runId": "optional-candidate-1792517982404",
+      "phase": "optional-candidate",
+      "mode": "discover",
+      "sourceTreeSha256": "a935008fd0e7e05c770f3235b0bf36ebb65b80a1b783fc1b180df96bd488d0a0",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "accepted": 79
+    },
+    {
+      "runId": "optional-candidate2-1792518025431",
+      "phase": "optional-candidate2",
+      "mode": "discover",
+      "sourceTreeSha256": "e3c659caa1ba7ebc6e95b9df11a748e405edf5bb6301e3a49e9b4c36918b1328",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "accepted": 81
+    },
+    {
+      "runId": "optional-verified-1792518064765",
+      "phase": "optional-verified",
+      "mode": "verify",
+      "sourceTreeSha256": "576fc3c53f78c56332ad666ce62ac95f13c45f9b530f8dcd37f22ac9fbcd576c",
+      "counts": {
+        "compiler": 14,
+        "setupCompiler": 1,
+        "reference": 13,
+        "production": 13
+      },
+      "accepted": 82
+    },
+    {
+      "runId": "path-discovery-1792518095153",
+      "phase": "path-discovery",
+      "mode": "discover",
+      "sourceTreeSha256": "576fc3c53f78c56332ad666ce62ac95f13c45f9b530f8dcd37f22ac9fbcd576c",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "accepted": 85
+    },
+    {
+      "runId": "path-trace-1792518174532",
+      "phase": "path-trace",
+      "mode": "discover",
+      "sourceTreeSha256": "576fc3c53f78c56332ad666ce62ac95f13c45f9b530f8dcd37f22ac9fbcd576c",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 85
+    },
+    {
+      "runId": "path-trace2-1792518212169",
+      "phase": "path-trace2",
+      "mode": "discover",
+      "sourceTreeSha256": "576fc3c53f78c56332ad666ce62ac95f13c45f9b530f8dcd37f22ac9fbcd576c",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 85
+    },
+    {
+      "runId": "path-repaired-1792518248919",
+      "phase": "path-repaired",
+      "mode": "verify",
+      "sourceTreeSha256": "72b475f5b7dd3f4068b3aa759b02af9e43bfc227d361ae646a50657d4352e2d9",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "accepted": 86
+    },
+    {
+      "runId": "admission-before-1792518342686",
+      "phase": "admission-before",
+      "mode": "discover",
+      "sourceTreeSha256": "72b475f5b7dd3f4068b3aa759b02af9e43bfc227d361ae646a50657d4352e2d9",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 91
+    },
+    {
+      "runId": "field-for-candidate-1792518365876",
+      "phase": "field-for-candidate",
+      "mode": "discover",
+      "sourceTreeSha256": "ec95ae2274054c891725e2070085ad70d4fd78b80b576efea04a560e646947e2",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 91
+    },
+    {
+      "runId": "field-for-candidate2-1792518384293",
+      "phase": "field-for-candidate2",
+      "mode": "discover",
+      "sourceTreeSha256": "5b7b299eddbeeb9887ca351a8a121d88e92d3afb7b1c9adf573525cf89e28c09",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "accepted": 93
+    },
+    {
+      "runId": "array-expression-candidate-1792518464525",
+      "phase": "array-expression-candidate",
+      "mode": "discover",
+      "sourceTreeSha256": "c56dff97a29c788f2ef58c334d665305d2f323c2e6b797ecfa2ea8e63c2986b9",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 93
+    },
+    {
+      "runId": "array-expression-candidate2-1792518482905",
+      "phase": "array-expression-candidate2",
+      "mode": "discover",
+      "sourceTreeSha256": "66708893398514b5f98303357d65e56a633365938028ea480380b1547dcc7b3d",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "accepted": 96
+    },
+    {
+      "runId": "array-expression-verified-1792518514959",
+      "phase": "array-expression-verified",
+      "mode": "verify",
+      "sourceTreeSha256": "6f8e525f5ad8888d850787209fbf9bfb76ac0fecc82821e32bb62a7ed7979f58",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "accepted": 96
+    },
+    {
+      "runId": "prototype-replay-1792518556044",
+      "phase": "prototype-replay",
+      "mode": "discover",
+      "sourceTreeSha256": "6f8e525f5ad8888d850787209fbf9bfb76ac0fecc82821e32bb62a7ed7979f58",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "accepted": 102
+    },
+    {
+      "runId": "record-array-expression-1792518578071",
+      "phase": "record-array-expression",
+      "mode": "discover",
+      "sourceTreeSha256": "e024cafa73b166643d34939d3c32ab7eb0c21acdb88f97b80d26916c3d77a434",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "accepted": 106
+    },
+    {
+      "runId": "all-candidate-1792518632016",
+      "phase": "all-candidate",
+      "mode": "verify",
+      "sourceTreeSha256": "f95ff24fe3569185c26e4f995a83997ad2932f72aa31671886e77065f8e64205",
+      "counts": {
+        "compiler": 43,
+        "setupCompiler": 1,
+        "reference": 39,
+        "production": 39
+      },
+      "accepted": 106
+    },
+    {
+      "runId": "negative-controls-1792518673057",
+      "phase": "negative-controls",
+      "mode": "verify",
+      "sourceTreeSha256": "80d488293ab258c2f47afa844fb5417b412878ae4da3c975afad1713d5d550e0",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 107
+    },
+    {
+      "runId": "all-graph-verified-1792518701013",
+      "phase": "all-graph-verified",
+      "mode": "verify",
+      "sourceTreeSha256": "80d488293ab258c2f47afa844fb5417b412878ae4da3c975afad1713d5d550e0",
+      "counts": {
+        "compiler": 43,
+        "setupCompiler": 1,
+        "reference": 39,
+        "production": 39
+      },
+      "accepted": 107
+    },
+    {
+      "runId": "settled-residual-1792518758314",
+      "phase": "settled-residual",
+      "mode": "verify",
+      "sourceTreeSha256": "c60a32905b2f79610787c5df33fa197c276e7175c6ff7866b03e97a9e3c0567d",
+      "counts": {
+        "compiler": 44,
+        "setupCompiler": 1,
+        "reference": 40,
+        "production": 40
+      },
+      "accepted": 108
+    },
+    {
+      "runId": "independent-base-replay-1792518814670",
+      "phase": "independent-base-replay",
+      "mode": "discover",
+      "sourceTreeSha256": "1693493d58ff9ab47e92a8dab72d8648e80c6d2d8c1289f60ea7d888ad12ab19",
+      "counts": {
+        "compiler": 44,
+        "setupCompiler": 1,
+        "reference": 18,
+        "production": 18
+      },
+      "accepted": 108
+    },
+    {
+      "runId": "expression-owner-neighbors-1792518905013",
+      "phase": "expression-owner-neighbors",
+      "mode": "discover",
+      "sourceTreeSha256": "0ea40fce1a91107814da54cfbdf868d4ce55d5bef279b8d2850cc5de1c2ddbbb",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "settled-expression-owners-1792518927703",
+      "phase": "settled-expression-owners",
+      "mode": "verify",
+      "sourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+      "counts": {
+        "compiler": 46,
+        "setupCompiler": 1,
+        "reference": 42,
+        "production": 42
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "independent-base-expression-neighbors-1792518974187",
+      "phase": "independent-base-expression-neighbors",
+      "mode": "discover",
+      "sourceTreeSha256": "1693493d58ff9ab47e92a8dab72d8648e80c6d2d8c1289f60ea7d888ad12ab19",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "mandatory-1792518992581",
+      "phase": "mandatory",
+      "mode": "verify",
+      "sourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+      "counts": {
+        "compiler": 46,
+        "setupCompiler": 1,
+        "reference": 42,
+        "production": 42
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "mandatory-final-1792519112399",
+      "phase": "mandatory-final",
+      "mode": "verify",
+      "sourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+      "counts": {
+        "compiler": 46,
+        "setupCompiler": 1,
+        "reference": 42,
+        "production": 42
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "mandatory-final-1792519266444",
+      "phase": "mandatory-final",
+      "mode": "verify",
+      "sourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+      "counts": {
+        "compiler": 46,
+        "setupCompiler": 1,
+        "reference": 42,
+        "production": 42
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "final-focused-1792519406412",
+      "phase": "final-focused",
+      "mode": "verify",
+      "sourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+      "counts": {
+        "compiler": 46,
+        "setupCompiler": 1,
+        "reference": 42,
+        "production": 42
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "required-final-1792519433175",
+      "phase": "required-final",
+      "mode": "verify",
+      "sourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+      "counts": {
+        "compiler": 46,
+        "setupCompiler": 1,
+        "reference": 42,
+        "production": 42
+      },
+      "accepted": 110
+    },
+    {
+      "runId": "required-final-1792519580012",
+      "phase": "required-final",
+      "mode": "verify",
+      "sourceTreeSha256": "526811cd553155631e96bd4a44cefd3eb162f57734f8f5fb15303e4da5c044fa",
+      "counts": {
+        "compiler": 46,
+        "setupCompiler": 1,
+        "reference": 42,
+        "production": 42
+      },
+      "accepted": 110
+    }
+  ],
+  "initialSliceGateControlRuns": [
+    {
+      "runId": "mandatory-1792518992565",
+      "phase": "mandatory",
+      "mode": "verify",
+      "sourceTreeSha256": "249c0ce8dbf7d15e8369712a440e1b956b11048b9d12d678ecf8f65d08cee424",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "accepted": 74
+    },
+    {
+      "runId": "mandatory-final-1792519112383",
+      "phase": "mandatory-final",
+      "mode": "verify",
+      "sourceTreeSha256": "249c0ce8dbf7d15e8369712a440e1b956b11048b9d12d678ecf8f65d08cee424",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "accepted": 74
+    },
+    {
+      "runId": "mandatory-final-1792519265916",
+      "phase": "mandatory-final",
+      "mode": "verify",
+      "sourceTreeSha256": "249c0ce8dbf7d15e8369712a440e1b956b11048b9d12d678ecf8f65d08cee424",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "accepted": 74
+    },
+    {
+      "runId": "required-final-1792519433156",
+      "phase": "required-final",
+      "mode": "verify",
+      "sourceTreeSha256": "249c0ce8dbf7d15e8369712a440e1b956b11048b9d12d678ecf8f65d08cee424",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "accepted": 74
+    },
+    {
+      "runId": "required-final-1792519579383",
+      "phase": "required-final",
+      "mode": "verify",
+      "sourceTreeSha256": "249c0ce8dbf7d15e8369712a440e1b956b11048b9d12d678ecf8f65d08cee424",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "accepted": 74
+    }
+  ]
+}

@@ -458,6 +458,7 @@ export const planRecordScalarLowering = ({
     if (
       value.valueExpression?.kind === "none" ||
       value.valueExpression?.kind === "coalesce" ||
+      value.valueExpression?.kind === "match" && value.valueExpression.optionalRecordMatch ||
       isIndexedCollectionCarry ||
       isDslOptionalValueType(value.valueExpression?.valueType)
     ) {
@@ -823,7 +824,7 @@ export const resolveRecordScalarProperties = ({
     // scalar fields do not have independent backing bindings. Project the
     // field through the existing record collection runtime so the selected
     // branch remains lazy and no optional record is implicitly unwrapped.
-    if (value.valueExpression?.kind === "coalesce") {
+    if (value.valueExpression?.kind === "coalesce" || value.valueExpression?.kind === "match" && value.valueExpression.optionalRecordMatch) {
       referencesBySpanStart.set(node.span.start, {
         kind: "resolvedCollectionIndex",
         collectionValueId: recordFieldCollectionValueIdFor(

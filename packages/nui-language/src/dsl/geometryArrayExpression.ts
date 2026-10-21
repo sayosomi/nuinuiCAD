@@ -434,7 +434,7 @@ const parseValueFor = (source: string, span: DslSpan): GeometryArrayExpressionPa
   if (open < 0) return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for body の `{` がありません。", span: { start: span.end, end: span.end } }] };
   const sourceSpan = trimSpan(source, cursor, open);
   const sourceReference = parseDslSourceReference(source.slice(sourceSpan.start, sourceSpan.end));
-  if (sourceReference.kind !== "valid" || sourceReference.reference.property) {
+  if (sourceReference.kind !== "valid") {
     return { expression: null, diagnostics: [{ code: "geometry-array-value-for-invalid", message: "value-for の source には whole-value collection reference が必要です。", span: sourceSpan }] };
   }
   const close = matchingBraceClose(source, open, span.end);

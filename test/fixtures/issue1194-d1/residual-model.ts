@@ -1,0 +1,93 @@
+import { cells, type Cell } from "./model";
+import { reductions } from "./reductions";
+import initialRegistry from "./input-registry.json";
+export type ResidualCell = Cell & { domain: string };
+const source = (...lines: string[]) => ["nui 1", ...lines].join("\n");
+const library = source(
+  "record Inner(n: number)", "record Box(inner: Inner, xs: number[])",
+  "export module Make(n: number) {",
+  " const B: Box = Box(inner: Inner(n: @n), xs: [7, 19])",
+  " const Local: Box = @B", " export const out: Box = @Local", "}",
+  "export module Read(b: Box) {", " export const n: number = @b.inner.n", "}"
+);
+const saved = { "left/library.nui": library, "right/library.nui": library };
+export const residuals: ResidualCell[] = [
+  ...reductions.filter(c => ["R-record-binder", "R-binder-none", "R-lazy-constructor-root", "R-lazy-constructor-module", "R-selected-error", "P-array-alias", "P-geometry-direct"].includes(c.id)).map(c => ({ ...c, domain: "control" })),
+  { id: "I01", domain: "identity", axes: [0,0,0], expected: { X: 23, Y: 61, L: 2 }, saved,
+    source: source('import "./left/library.nui" as left', 'import "./right/library.nui" as right',
+      "instance A = left::Make(n: 23)", "instance B = right::Make(n: 61)",
+      "const X: number = @A::out.inner.n", "const Y: number = @B::out.inner.n", "const L: number = @B::out.xs.length") },
+  { id: "I02", domain: "identity", axes: [0,0,0], expected: { X: 23, Y: 61 },
+    saved: { ...saved, "relay/forward.nui": source('import "../left/library.nui" as original', "export @original::Make") },
+    source: source('import "./relay/forward.nui" as left', 'import "./right/library.nui" as right',
+      "instance A = left::Make(n: 23)", "instance B = right::Make(n: 61)",
+      "const X: number = @A::out.inner.n", "const Y: number = @B::out.inner.n") },
+  { id: "I03", domain: "identity", axes: [0,0,0], expected: { X: 23, Y: 61, Z: 97, W: 131 }, saved,
+    source: source('import "./left/library.nui" as left', 'import "./right/library.nui" as right',
+      "instance A = left::Make(n: 23)", "instance B = right::Make(n: 61)",
+      "instance C = left::Make(n: 97)", "instance D = right::Make(n: 131)",
+      "instance RA = left::Read(b: @A::out)", "instance RB = right::Read(b: @B::out)",
+      "instance RC = left::Read(b: @C::out)", "instance RD = right::Read(b: @D::out)",
+      "const X: number = @RA::n", "const Y: number = @RB::n", "const Z: number = @RC::n", "const W: number = @RD::n") },
+  { id: "I04", domain: "identity", axes: [0,0,0], expected: {}, expectedCompilerError: "module-record-reference-invalid", saved,
+    source: source('import "./left/library.nui" as left', 'import "./right/library.nui" as right',
+      "instance A = left::Make(n: 23)", "instance Wrong = right::Read(b: @A::out)") },
+  { id: "O01", domain: "optional", axes: [0,0,0], expected: { X: 19 },
+    source: source("record Box(n: number)", "const B: Box? = Box(n: 19)",
+      "const Chosen: Box = match @B { none => Box(n: 7) some held => if (true) { @held } else { Box(n: 31) } }", "const X: number = @Chosen.n") },
+  { id: "O02", domain: "optional", axes: [0,0,0], expected: { X: 31 }, expectedNone: ["Absent"],
+    source: source("record Box(n: number)", "const B: Box? = none", "const Fallback: Box = Box(n: 31)",
+      "const Chosen: Box = match @B { some held => Box(n: 1 / 0) none => @Fallback }", "const X: number = @Chosen.n", "const Absent: number? = @B?.n") },
+  { id: "O03", domain: "optional", axes: [0,0,0], expected: { X: 47 },
+    source: source("record Box(n: number)", "module Make(present: boolean) {", " const B: Box? = if (@present) { Box(n: 19) }",
+      " export const Chosen: Box = match @B { none => Box(n: 1 / 0) some held => if (true) { Box(n: 47) } else { Box(n: 1 / 0) } }", "}", "instance Use = Make(present: true)", "const X: number = @Use::Chosen.n") },
+  { id: "O04", domain: "optional", axes: [0,0,0], expected: {}, expectedIssues: { X: "evaluation-divide-by-zero" },
+    source: source("record Box(n: number)", "module Make(present: boolean) {", " const B: Box? = if (@present) { Box(n: 19) }",
+      " export const Chosen: Box = match @B { none => Box(n: 1 / 0) some held => if (true) { Box(n: 47) } else { Box(n: 1 / 0) } }", "}", "instance Use = Make(present: false)", "const X: number = @Use::Chosen.n") } ,{ id: "R-optional-record-leaf", domain: "optional", axes: [0,0,0], expected: { X: 31 },
+    source: source("record Box(n: number)", "const B: Box? = Box(n: 19)",
+      "const Chosen: Box = match @B { none => Box(n: 7) some held => Box(n: 31) }", "const X: number = @Chosen.n") } ,{ id: "G01", domain: "geometry", axes: [0,0,0], expected: { L: 17, X: 3, Y: 16 },
+    source: source("record Shape(p: path)", "const P: path = polyline(points: [(0, 0), (3, 4), (3, 16)], closed: false)",
+      "const B: Shape = Shape(p: @P)", "const Result: path = @B.p", "const L: number = @Result.length", "const X: number = @Result.endPoint.x", "const Y: number = @Result.endPoint.y") },
+  { id: "G02", domain: "geometry", axes: [0,0,0], expected: { L: 17, X: 3, Y: 16 },
+    source: source("record Shape(p: path)", "const P: path = polyline(points: [(0, 0), (3, 4), (3, 16)], closed: false)",
+      "const B: Shape = Shape(p: @P)", "module Relay(b: Shape) {", " const Local: Shape = @b", " export const out: Shape = @Local", "}", "instance Use = Relay(b: @B)",
+      "const Result: path = @Use::out.p", "const L: number = @Result.length", "const X: number = @Result.endPoint.x", "const Y: number = @Result.endPoint.y") },
+  { id: "G03", domain: "geometry", axes: [0,0,0], expected: { L: 17, M: 13, X: 3, Y: 21 },
+    source: source("record Shape(p: path)", "module Make(x: number, y: number) {",
+      " const P: path = polyline(points: [(0, 0), (3, 4), (@x, @y)], closed: false)", " const B: Shape = Shape(p: @P)", " const Local: Shape = @B", " export const out: Shape = @Local", "}",
+      "instance One = Make(x: 3, y: 16)", "instance Two = Make(x: 11, y: 4)",
+      "const P: path = @One::out.p", "const Q: path = @Two::out.p", "const L: number = @P.length", "const M: number = @Q.length", "const X: number = @P.endPoint.x", "const Y: number = @Q.endPoint.x + 10") },
+  { id: "G04", domain: "geometry", axes: [0,0,0], expected: { L: 5, X: 14, Y: 26, BaseX: 4, BaseY: 6 },
+    source: source("record Shape(p: path)", "line Edge = segment(start: (1, 2), end: (4, 6))", "move Edge as shifted(from: (0, 0), to: (10, 20))",
+      "const Stage: path = @Edge.shifted", "const B: Shape = Shape(p: @Stage)", "module Relay(b: Shape) {", " const Local: Shape = @b", " export const out: Shape = @Local", "}", "instance Use = Relay(b: @B)",
+      "const Result: path = @Use::out.p", "const L: number = @Result.length", "const X: number = @Result.endPoint.x", "const Y: number = @Result.endPoint.y", "const BaseX: number = @Edge.base.endPoint.x", "const BaseY: number = @Edge.base.endPoint.y") } ,{ id: "R-path-endpoint", domain: "geometry", axes: [0,0,0], expected: { X: 11 },
+    source: source("record Shape(p: path)", "module Make() {", " const P: path = segment(start: (0, 0), end: (11, 0))", " const B: Shape = Shape(p: @P)", " export const out: Shape = @B", "}", "instance Use = Make()", "const Result: path = @Use::out.p", "const X: number = @Result.endPoint.x") },
+  { id: "T01", domain: "admission", axes: [0,0,0], expected: { X: 29 },
+    source: source("record Box(xs: number[])", "const B: Box = Box(xs: [7, 19])", "const Mapped: number[] = for item in @B.xs { @item + 10 }", "const X: number = @Mapped[1]") },
+  { id: "T01-module", domain: "admission", axes: [0,0,0], expected: { X: 29 },
+    source: source("record Box(xs: number[])", "module Make(b: Box) {", " export const Mapped: number[] = for item in @b.xs { @item + 10 }", "}", "instance Use = Make(b: Box(xs: [7, 19]))", "const X: number = @Use::Mapped[1]") },
+  { id: "T02", domain: "admission", axes: [0,0,0], expected: { X: 19 },
+    source: source("const Values: number[] = [7 + 12, 1 / 0]", "const X: number = @Values[0]") },
+  { id: "T02-selected", domain: "admission", axes: [0,0,0], expected: {}, expectedIssues: { X: "evaluation-divide-by-zero" },
+    source: source("const Values: number[] = [7 + 12, 1 / 0]", "const X: number = @Values[1]") },
+  { id: "T03", domain: "admission", axes: [0,0,0], expected: { X: 29, Y: 53 },
+    source: source("module Make(n: number) {", " export const Values: number[] = if (true) { [@n + 10, 1 / 0] } else { [1 / 0] }", "}", "instance One = Make(n: 19)", "instance Two = Make(n: 43)", "const X: number = @One::Values[0]", "const Y: number = @Two::Values[0]") },
+  ...initialRegistry.rejected.filter(c => ["C04", "C05", "C06", "C07"].includes(c.provisionalId)).map(c => ({
+    id: `T-replay-${c.provisionalId}`, domain: "admission", axes: [0,0,0] as [number,number,number], source: c.rootSource,
+    expected: { Pick: 29, Tag: c.provisionalId === "C06" || c.provisionalId === "C07" ? 63 : 53 }
+  })) ,...initialRegistry.rejected.filter(c => /^B0[0-7]$/.test(c.provisionalId) || ["C02", "C03"].includes(c.provisionalId)).map(c => ({
+    id: `T-replay-${c.provisionalId}`, domain: "admission", axes: [0,0,0] as [number,number,number], source: c.rootSource,
+    expected: cells.find(cell => cell.id === c.provisionalId)!.expected
+  })) ,{ id: "O-invalid-arm", domain: "invalid-control", axes: [0,0,0], expected: {}, expectedCompilerError: "optional-match-missing-none",
+    source: source("record Box(n: number)", "const B: Box? = Box(n: 19)", "const Chosen: Box = match @B { some held => Box(n: 31) }") },
+  { id: "O-invalid-nominal", domain: "invalid-control", axes: [0,0,0], expected: {}, expectedCompilerError: "record-nominal-type-mismatch",
+    source: source("record Box(n: number)", "record Other(n: number)", "const B: Box? = Box(n: 19)", "const Chosen: Box = match @B { none => Box(n: 7) some held => Other(n: 31) }") },
+  { id: "O-invalid-scope", domain: "invalid-control", axes: [0,0,0], expected: {}, expectedCompilerError: "record-reference-not-record",
+    source: source("record Box(n: number)", "const B: Box? = Box(n: 19)", "const Chosen: Box = match @B { none => @held some held => @held }") } ,{ id: "R-document-export-identity", domain: "identity", axes: [0,0,0], expected: { X: 23 }, saved: {
+      "left/library.nui": source("record Box(n: number)", "export module Make() {", " export const out: Box = Box(n: 23)", "}", "export module Read(b: Box) {", " export const n: number = @b.n", "}"),
+      "right/library.nui": source("record Box(n: number)", "export module Make() {", " export const out: Box = Box(n: 61)", "}") },
+    source: source('import "./left/library.nui" as left', 'import "./right/library.nui" as right', "instance A = left::Make()", "instance RA = left::Read(b: @A::out)", "const X: number = @RA::n") } ,{ id: "T04-argument", domain: "admission", axes: [0,0,0], expected: { X: 19 },
+    source: source("module Read(xs: number[]) {", " export const n: number = @xs[0]", "}", "instance Use = Read(xs: [7 + 12, 1 / 0])", "const X: number = @Use::n") },
+  { id: "T05-property", domain: "admission", axes: [0,0,0], expected: { X: 19 },
+    source: source("const P: point = coordinate(x: 9, y: 12)", "const Values: number[] = [@P.x + 10]", "const X: number = @Values[0]") }
+];
