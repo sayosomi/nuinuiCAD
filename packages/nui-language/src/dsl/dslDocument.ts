@@ -4250,7 +4250,7 @@ export const compileDslDocument = (
           ];
           const property = candidates.find((candidate) => candidate.span.start === node.span.start) ?? (candidates.length === 1 ? candidates[0] : undefined);
           if (property?.target?.kind !== "recordField" || !property.type) return null;
-          if (scalarTypeOfDslValueType(property.target.valueType) === null) return null;
+          if (scalarExpressionTypeOfDslValueType(property.target.valueType) === null) return null;
           if (
             (property.target.record.kind === "deferredModuleRecordExport" || property.target.record.kind === "recordValue") &&
             property.target.collectionIndex !== undefined

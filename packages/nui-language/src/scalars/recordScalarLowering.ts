@@ -310,6 +310,7 @@ const projectRecordFieldExpression = (
   if (expression.kind === "constructor") {
     const constructorField = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex);
     if (!constructorField) return null;
+    if (constructorField.value === "none") return { kind: "noneLiteral", span: constructorField.valueSpan };
     return parseScalarExpression(
       `${" ".repeat(constructorField.valueSpan.start)}${constructorField.value}`,
       constructorField.valueSpan
@@ -416,7 +417,7 @@ export const planRecordScalarLowering = ({
   const constructorFieldAtPath = (
     constructorFields: readonly { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }[],
     path: readonly RecordFieldIdentity[]
-  ): { field: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }; path: readonly RecordFieldIdentity[] } | null => {
+  ): { field: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }; path: readonly RecordFieldIdentity[]; ast?: ScalarExpressionAst } | null => {
     let fields = constructorFields;
     let current: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType } | null = null;
     for (const [index, wanted] of path.entries()) {
@@ -429,7 +430,16 @@ export const planRecordScalarLowering = ({
         : null;
       if (!definition) return null;
       const nested = parseRecordConstructorFields({ initializer: current.value, initializerSpan: current.valueSpan, definition });
-      if (!nested) return null;
+      if (!nested) {
+        const parsed = parseScalarExpression(current.value, { start: 0, end: current.value.length });
+        if (parsed.ast?.kind !== "reference") return null;
+        const names = path.slice(index + 1).map(identity => analysis.definitionsByStatementId.get(identity.recordStatementId)
+          ?.fields.find(candidate => candidate.fieldIndex === identity.fieldIndex)?.name);
+        if (names.some(name => name === undefined)) return null;
+        // The nested field aliases a whole record. Project its remaining
+        // scalar path through the ordinary record-property binding adapter.
+        return { field: current, path, ast: syntheticRecordField({ name: parsed.ast.name, span: current.valueSpan }, names.join(".")) };
+      }
       fields = nested.fields;
     }
     return current ? { field: current, path } : null;
@@ -566,7 +576,11 @@ export const planRecordScalarLowering = ({
           sourceOrder: field.fieldIndex,
           raw: constructorField.field.value,
           span: constructorField.field.valueSpan,
-          expectedType
+          expectedType,
+          // Omitted optional fields have no authored expression span. Keep
+          // the canonical absence AST rather than reparsing the field name.
+          ...(constructorField.ast ? { ast: constructorField.ast }
+            : constructorField.field.value === "none" ? { ast: { kind: "noneLiteral" as const, span: constructorField.field.valueSpan } } : {})
         });
       }
       if (complete) {

@@ -1,0 +1,138 @@
+[
+  {
+    "id": "F25",
+    "name": "Omitted optional scalar record fields are reparsed as field names",
+    "fail": [
+      "P3",
+      "P10"
+    ],
+    "control": [
+      "P5",
+      "P11"
+    ],
+    "affected": [
+      "P1",
+      "P3",
+      "P7",
+      "P10"
+    ],
+    "mechanism": "An omitted field owns none but has only its definition name span. Reparse slices produced choice literal n, rather than the none AST. Retain canonical absence in root and Module field analysis.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: planRecordScalarLowering / projectRecordFieldExpression",
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: analyzeRecordFieldValue"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F26",
+    "name": "Optional scalar record fields are discarded at the root semantic adapter",
+    "fail": [
+      "P0"
+    ],
+    "control": [
+      "P6",
+      "P5"
+    ],
+    "affected": [
+      "P0",
+      "P1",
+      "P7",
+      "P8"
+    ],
+    "mechanism": "The Module semantic result has the exact optional scalar type and nominal owner, but the root adapter tests only scalarTypeOfDslValueType. Accept the existing scalar expression subset including optional scalars.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/dslDocument.ts: additionalRecordPropertyResolver"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F27",
+    "name": "Collection-literal fields of a mapped record lose their source binder occurrence",
+    "fail": [
+      "M4"
+    ],
+    "control": [
+      "M8",
+      "M3"
+    ],
+    "affected": [
+      "M2",
+      "M4",
+      "M9",
+      "M11"
+    ],
+    "mechanism": "The field literal was lowered outside its record-map binder environment, emitting a collectionIndex with an empty producer ID. Bind the existing semantic field references to the exact selected source record before canonical lowering; retain lazy member evaluation.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendMappedRecordFieldContents"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F28",
+    "name": "Chained and aliased record maps lose collection-field producers",
+    "fail": [
+      "M5",
+      "M7"
+    ],
+    "control": [
+      "M8",
+      "M3"
+    ],
+    "affected": [
+      "M2",
+      "M5",
+      "M7"
+    ],
+    "mechanism": "Literal-only source lookup treats a preceding constructor map or alias of a map as absent. Recursively reuse the existing per-occurrence field-content producer through maps and aliases. F07 single-map forwarding is a merged control; this is a different first loss at a composed map source.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordCollectionMemberFieldContents / appendMappedRecordFieldContents / appendSelectedContents"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F29",
+    "name": "A nested whole-record constructor field loses scalar and collection paths",
+    "fail": [
+      "N0",
+      "N1",
+      "N4",
+      "N5"
+    ],
+    "control": [
+      "N2",
+      "N3"
+    ],
+    "affected": [
+      "N0",
+      "N1",
+      "N4",
+      "N5"
+    ],
+    "mechanism": "Nested constructor traversal only handles another constructor, not a legal whole-record reference. Root compilation references an unseeded scalar slot; Module compilation can register a slot without a declaration; nested collection projection also drops the remaining field path. Reuse the ordinary record-property adapter and existing semantic field projector, and forward the remaining canonical collection-field identity. These manifestations are one nested-reference family.",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts: constructorFieldAtPath",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: constructorFieldAtPath / lowerRecordConstructorFields / recordFieldValueExpressionAt"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F30",
+    "name": "Whole-binder record maps drop the original record occurrences",
+    "fail": [
+      "M6",
+      "M10"
+    ],
+    "control": [
+      "M0"
+    ],
+    "affected": [
+      "M6",
+      "M10"
+    ],
+    "mechanism": "Every map was treated as having no statically known members, even when its body is the whole binder reference. Preserve source members for this canonical identity form so geometry forwarding retains its defining producer. Constructor-map geometry is a separate unresolved frontier (M1).",
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: recordReferenceSemantic / recordMembersFor"
+    ],
+    "status": "REPAIRED_THEN_PASS"
+  }
+]

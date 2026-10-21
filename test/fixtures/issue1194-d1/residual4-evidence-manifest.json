@@ -1,0 +1,59 @@
+{
+  "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+  "topic": "sayosomi/issue-1194-residual4-d1",
+  "authoritativeBasePhases": [
+    "base-exact",
+    "base-exact-extra"
+  ],
+  "baseSourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+  "finalSourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+  "exactRestoration": {
+    "base": "28a6161a0460c284921cc7920b8a7463f0504663",
+    "owners": [
+      {
+        "path": "packages/nui-language/src/dsl/dslDocument.ts",
+        "baseSha256": "21a087178d1d15b5af9711b687a18ab5344d779f10fc4f18ca0cf27a24c8a945",
+        "candidateSha256": "b9883b09470213c4e07ff0673b48e317803f87624e6afc3d279959060063eaed"
+      },
+      {
+        "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+        "baseSha256": "d47e6881cdeb2dba31e193c286f64d9b4e3bb4b2b9cd7c1fae3fcbaf3f397ff2",
+        "candidateSha256": "016a4e65af89e417ce9d7637e4598af0ae2bbad0786adabe8541394b24a0d966"
+      },
+      {
+        "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+        "baseSha256": "a0c2861d2addd86c5c97e5d342f3f3d76e1dbe91142ce52e4324694959e153f2",
+        "candidateSha256": "07b9f96bc553be8ad140b69ff507070b35fb945544f1f8a5b0241414e4847937"
+      },
+      {
+        "path": "packages/nui-language/src/scalars/recordScalarLowering.ts",
+        "baseSha256": "50a92e71c199e83630ddac4fd7bc15970281887ad13dc7db8a381b9647b59db1",
+        "candidateSha256": "48fe737c0e5416de8c91add9d38391849ded9596347f1c17eab04b0631f156d6"
+      }
+    ],
+    "replayExitCode": 0,
+    "candidateRestoredExactly": true
+  },
+  "rawEvidence": "/tmp/issue1194-residual4",
+  "freezeProcedure": "Sources/bundles and authored expected results written before each compiler/evaluator invocation; ordered document-path/source SHA-256. New cases/reducers admitted once in cumulative registry.",
+  "wireProcedure": "One persistent real Rust stdio child per runner invocation; normal prepareRustEvaluation eligibility; verify each exact stdin JSON request against canonical production input; assert authored expectations after payload decode and compare normalized reference/production.",
+  "artifacts": [
+    {
+      "path": "compiler.ndjson",
+      "sha256": "aa1b0ef8fad5082d60a89f5d6064690d2f3388851bba5c35d07c8db83efc081d"
+    },
+    {
+      "path": "raw.ndjson",
+      "sha256": "012a519ee4779efe6d4d2edce8b10743c997e45ae2b1f92c6722401884297aef"
+    },
+    {
+      "path": "runs.ndjson",
+      "sha256": "91ab3a3982a5dc37ea35179e07bba81f00bbb10e040137e1e1c2f3189f36a9d5"
+    },
+    {
+      "path": "transport.ndjson",
+      "sha256": "9d5c5e659d38de2f2940c7cb203d1b5c80e2447d70c2f6de44bb8c748117dc7c"
+    }
+  ],
+  "preparedInputHashEncoding": "SHA-256 of compact Python json.dumps(ensure_ascii=False, separators=(comma,colon)) of the decoded canonical prepared input object. These are semantic input hashes, not hashes of the raw stdio envelope bytes; raw stdout/stdin evidence remains external."
+}
