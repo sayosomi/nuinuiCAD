@@ -18,7 +18,6 @@ import type {
   ModuleRecordValueExpressionSemantic,
   ModuleScalarExpressionSemantic,
   ModuleScalarSourceTarget,
-  ModuleSourceTarget,
   ModuleGeometrySourceTarget,
   ModuleSemanticAnalysis
 } from "../dsl/moduleSemanticTypes";
@@ -5118,7 +5117,7 @@ export const compileModuleScalarRuntime = ({
         moduleCollectionValues.push({
           valueId,
           kind: "match",
-          scrutinee,
+          scrutinee: optionalCollectionMatchPresenceProjection(scrutinee),
           arms: arms.map((arm) => collectionMatchArm(arm.label, arm.valueId, arm.binderId, scrutinee)),
           sourceOrder
         });
@@ -7908,7 +7907,11 @@ export const compileModuleScalarRuntime = ({
   for (const collection of moduleCollectionValues) {
     if (collection.kind !== "alias") continue;
     const target = geometryCollectionNodesByValueId.get(collection.targetValueId);
-    if (target) geometryCollectionNodesByValueId.set(collection.valueId, target);
+    // Cardinality aliases supplement missing collection edges; they must not
+    // replace a canonical geometry node and its mapped occurrence programs.
+    if (target && !geometryCollectionNodesByValueId.has(collection.valueId)) {
+      geometryCollectionNodesByValueId.set(collection.valueId, target);
+    }
   }
   for (const context of contextsByKey.values()) {
     if (context.path.length !== 1 || contextIsDisabled(context) || !contextIsReachable(context)) continue;

@@ -415,22 +415,22 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
   // to resolve only through the existing lexical resolver.
   const recordCollectionReferenceFor = (statementIndex: number, sourceText: string): { targetValueId: string; valueType: DslValueType } | null => {
     const reference = parseDslSourceReference(sourceText.trim());
-        if (reference.kind === "valid" && reference.reference.property !== null) {
-          const source = reference.reference;
-          const lookup = input.resolvePath(statementIndex, source.path);
-          const recordValue = lookup.kind === "resolved" ? input.recordSemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId) : undefined;
-          const parameter = source.path.segments.length === 1
-            ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, source.path.segments[0]!) : null;
-          const recordParameter = parameter ? input.recordSemanticAnalysis?.moduleParameters.find(p => p.definitionStatementId === parameter.definitionStatementId && p.parameterIndex === parameter.parameterIndex) : undefined;
-          const identity = recordValue?.typeIdentity ?? recordParameter?.typeIdentity;
-          const definition = identity ? input.recordSemanticAnalysis?.definitionsByStatementId.get(identity) : undefined;
-          const member = definition ? resolveRecordMember(definition, id => input.recordSemanticAnalysis?.definitionsByStatementId.get(id), source.property!) : null;
-          const base = recordValue ? recordValueCollectionIdFor([], recordValue.statementId)
-            : recordParameter ? `${recordParameter.definitionStatementId}:parameter:${recordParameter.parameterIndex}` : null;
-          if (base && member && !member.property && member.collectionIndex === undefined && isDslArrayValueType(dslRequiredValueTypeOf(member.valueType))) return {
-            targetValueId: recordFieldContentsCollectionValueIdFor(base, member.fieldPath), valueType: member.valueType
-          };
-        }
+    if (reference.kind === "valid" && reference.reference.property !== null) {
+      const source = reference.reference;
+      const lookup = input.resolvePath(statementIndex, source.path);
+      const recordValue = lookup.kind === "resolved" ? input.recordSemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId) : undefined;
+      const parameter = source.path.segments.length === 1
+        ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, source.path.segments[0]!) : null;
+      const recordParameter = parameter ? input.recordSemanticAnalysis?.moduleParameters.find(p => p.definitionStatementId === parameter.definitionStatementId && p.parameterIndex === parameter.parameterIndex) : undefined;
+      const identity = recordValue?.typeIdentity ?? recordParameter?.typeIdentity;
+      const definition = identity ? input.recordSemanticAnalysis?.definitionsByStatementId.get(identity) : undefined;
+      const member = definition ? resolveRecordMember(definition, id => input.recordSemanticAnalysis?.definitionsByStatementId.get(id), source.property!) : null;
+      const base = recordValue ? recordValueCollectionIdFor([], recordValue.statementId)
+        : recordParameter ? `${recordParameter.definitionStatementId}:parameter:${recordParameter.parameterIndex}` : null;
+      if (base && member && !member.property && member.collectionIndex === undefined && isDslArrayValueType(dslRequiredValueTypeOf(member.valueType))) return {
+        targetValueId: recordFieldContentsCollectionValueIdFor(base, member.fieldPath), valueType: member.valueType
+      };
+    }
     return null;
   };
 

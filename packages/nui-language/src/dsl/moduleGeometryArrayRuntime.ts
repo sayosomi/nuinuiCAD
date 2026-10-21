@@ -17,6 +17,7 @@ import {
 import { geometryArrayTypeOfModuleParameter } from "./geometryArraySourceAnnotations";
 import {
   geometryArrayTypeName,
+  geometryArrayTypeOfDslValueType,
   isGeometryArrayTypeAssignable,
   type GeometryArrayType
 } from "./geometryArrayTypes";
@@ -1017,7 +1018,23 @@ export const buildModuleGeometryArrayRuntime = ({
         const value = context?.definition.recordValues.find(candidate => candidate.value.statementId === record.statementId)
           ?? sourceForPath(path).moduleSemanticAnalysis.rootRecordValuesByStatementId.get(record.statementId);
         const field = value?.fieldExpressions.find(candidate => candidate.field.recordStatementId === contents.fieldPath[0]!.recordStatementId && candidate.field.fieldIndex === contents.fieldPath[0]!.fieldIndex)?.valueExpression;
-        if (field?.kind === "collection" && field.value?.kind === "alias") return lowerValueById(field.value.targetValueId, path, new Set([...visited, key]));
+        if (field?.kind !== "collection") continue;
+        if (field.value?.kind === "alias") return lowerValueById(field.value.targetValueId, path, new Set([...visited, key]));
+        const type = geometryArrayTypeOfDslValueType(field.valueType);
+        if (type && field.value?.kind === "literal") {
+          const members = field.value.members.map((member): RuntimeArrayMember => {
+            // Geometry record-field members retain the canonical Module target
+            // in the shared generic collection carrier (see analyzeRecordFieldValue).
+            const target = member.target as unknown as NonNullable<ModuleGeometryReferenceSemantic["target"]>;
+            const alias = sourceAliasForTarget(target, path, contextsByPath, moduleMaterialization, exportsByPath);
+            return {
+              interfaceType: type.elementType,
+              alias: alias ?? null,
+              ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {})
+            };
+          });
+          return { type, members };
+        }
       }
       return null;
     }

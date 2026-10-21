@@ -1,3 +1,59 @@
+# #1194 sixth D1 slice — verified conformance repairs
+
+Base `05b4fa7078d5625090d5cb42a5131383c74f9cad`; topic `sayosomi/issue-1194-residual6-d1`. Refs #1194. Seven independently reproduced first-loss families, F35–F41, are repaired. F01–F34 remain merged controls, not new findings. Exact pushed HEAD is supplied by the final handoff/Git commit; the evidence manifest pins every changed production owner by SHA-256.
+
+The current Human continue admission for checkpoint `ada1bbcc29fd483c4f5b7aa1a7d669b60d5d4af0` was consumed once. Issue authorization and latest material comments were read; fetch and the bounded checkout/main/topic/HEAD/clean/ownership recheck passed before mutation. No reset, stash, extra checkout, main integration, force push, PR, merge or Issue closure.
+
+| Family | First incorrect producer | Exact Base FAIL / genuine Base PASS |
+|---|---|---|
+| F35 | Module optional indexed-match identity admitted literal indices only | O-dynamic / P4 |
+| F36 | Module record member reconstruction concatenated collection alternatives | O-if-false, O-choice / P4 |
+| F37 | Record scalar lowering seeded unselected inline optional-record fields eagerly | O-if-inline, O-module-lazy / P4 |
+| F38 | Geometry construction semantic analysis omitted the existing record-property resolver | G-module / G-module-direct-control, M1 |
+| F39 | Selected constructor-map geometry fields omitted their geometry program occurrence | G-constant / M1 |
+| F40 | Record-field collection reference adapter omitted canonical geometry collection types/products | C-record-field, C-record-direct-control / C-parameter, C-record-literal-control |
+| F41 | Geometry-array field aliases rejected/lost defining record-field content products | C-record-literal-alias / C-record-literal-control |
+
+`residual6-families.json` gives the normative oracle, difference from merged controls, exact owners, frozen input IDs, compiler diagnostics, decoded reference/native actual values, producer evidence and regression cases. The early F33 indexed-scrutinee shell and F31 mapped geometry alias repairs pass unchanged on this Base; F35 and F39 isolate later, distinct first losses. Whole collection alternatives in F36 differ from F33's conditional *member* controls.
+
+## Proof, inputs and coverage
+
+All 31 source/bundles and independent expectations were frozen before evaluation. All nine changed production owners were temporarily replaced with exact Base bytes for replay, with no other production difference, and restored byte-for-byte in `finally`; there was no Git reset or checkout switch. Base discovery mode records semantic FAIL/PASS observations rather than asserting the repaired expectations. Candidate verify mode asserts the independently authored numbers/errors, canonical nominal identity, producer/alias closure, asymmetric instance/document ownership, and nonselected failing arms through the existing canonical compiler, TS reference, normally eligible persistent production Rust stdio, and normal payload decode.
+
+C7's original imported case was masked by C6's earlier record-field argument error. Four mandatory proof reducers separate those owners: the first named-array pair also exposed the same C6 generic-only reference lookup at root; its intended direct control **also failed Base** and is not claimed as a genuine PASS. Replacing only the field initializer with a legal literal yielded a genuine Base direct-index PASS and a Base named-alias FAIL for C7. Those four inputs were independently frozen and accounted once. No new broad discovery sweep was started.
+
+**Cumulative legal accepted hashes: 215 = 188 historical + 27 sixth-slice new.** All 211 hashes from the prior WIP remain unchanged; this continuation adds only the four necessary proof reducers. The 29 legal frozen bundles include two historical replays; two additional static rejection controls are CONTRACT_INVALID and excluded from legal acceptance. Original provisional-count correction and historical registry observations are retained. There is no numerical ceiling.
+
+Final dispositions: 26 legal TS/Rust PASS (19 REPAIRED_THEN_PASS plus 7 Base PASS controls), 2 CONTRACT_INVALID rejection controls, and 3 explicitly deferred root runtime paths. This bounded sample does not establish correctness of all DSL forms.
+
+## Verification and corrected WIP regressions
+
+The existing optional geometry parameter regression now returns present **2** / absent **0**. Additional required gates found and corrected WIP regressions without adding family counts: an erased geometry target carrier needed its original type restored for build; a type import became unused; root optional-geometry collection matches needed the existing presence projection; cardinality aliases must supplement missing geometry edges without replacing native mapped occurrence producers. The existing independent map publication/unavailable-member controls now pass.
+
+Final focused command covers 15 owner/previous-slice/mapped-control files: **478 PASS / 6 SKIP**. The complete required block is recorded verbatim with results and logs in `residual6-verification.json`. The block's initial commands pass on the settled source; an external generated-file monitor briefly interrupted npm test during Cargo artifact recreation, then only that gate and its ordered suffix were resumed after bounded signature/execution checks. No production source changed between that prefix and suffix. Initial build/lint/parity/full-test failures and their repairs remain in external logs; tests were not weakened.
+
+The Rust source tree is unchanged by this slice. The required conditional still compares against original `4a43b27...`, so Rust fmt/check/test/clippy run as requested even though this slice has no Rust delta. DSL syntax, normative specification, architecture boundaries, hosts and UI remain unchanged; the implemented DSL reference check passes.
+
+## Platform and evidence
+
+Post-build signature verification and a bounded production smoke succeeded. Rust harnesses run serially with `VITEST_MAX_WORKERS=1`; generated binary bytes remain the verified SHA-256. Cargo may recreate the same bytes at a new inode. The external guard's initial FileNotFoundError during that recreation was a monitor error, not proof of an execution rejection; its bounded observation was corrected and one fresh smoke passed. Nonterminal AMFI CT diagnostic lines are retained alongside successfully responding processes; no matching ASP execution denial, SIGKILL or request timeout occurred in the successful serialized verification. No automatic re-signing or security-policy change was performed.
+
+Compact evidence is under this fixture directory; bulky compiler/model, raw request/response, lifecycle, OS and gate logs remain under `/tmp/issue1194-residual6/` and `/tmp/issue1194-r6-*.log`. `residual6-evidence-manifest.json` records artifact hashes and exact Base/final owner hashes. `residual6-telemetry.json` reports instrumented sixth-runner calls separately from uninstrumented historical suites and external transport smokes. Every owned child was cleaned up.
+
+## Residuals and independent handoff
+
+- G-construct, G-scalar-source and map-free G-direct-control retain explicitly UNRESOLVED root runtime paths. Generic root scheduling is #1260-owned; no scheduler change or runtime PASS is claimed for them.
+- File-public and qualified imported record-type spelling remains CONTRACT_AMBIGUOUS/BLOCKED pending Human contract. No guessed grammar or spec edit.
+- Deeper nested geometry collection aliases, constructor-map source chains and other unprobed combinations remain NOT_COVERED.
+
+Next safe action: independent blocking review of the exact pushed HEAD, seven first-loss proofs and completed gates, followed only then by the separate protected PR/CI integration workflow. Keep #1194 open.
+
+Quota: Human original weekly baseline **74% remaining**; ending/attributable sixth-slice consumption **UNAVAILABLE**. No request/token-based quota inference.
+
+---
+
+## Preserved earlier WIP checkpoint history
+
 # #1194 sixth D1 slice — resumed BLOCKED WIP
 
 **Not integration-ready. C1–C7 remain provisional; zero finalized new families.**

@@ -1,0 +1,62 @@
+{
+  "status": "POST_BUILD_SIGNATURE_AND_EXECUTION_VERIFIED",
+  "humanAdmissionCheckpoint": "ada1bbcc29fd483c4f5b7aa1a7d669b60d5d4af0",
+  "postBuildSmoke": {
+    "artifact": {
+      "sha256": "100d197779478530e49c35b0418374df286a62b8e9dd82f95ca4da5740681500",
+      "inode": 61742078,
+      "mtimeNs": 1792558420871550201,
+      "size": 12732400
+    },
+    "pid": 46970,
+    "requestBoundSeconds": 10,
+    "seconds": 0.5313815830159001,
+    "status": "PASS",
+    "exitCode": -15,
+    "reaped": true
+  },
+  "monitorInterruption": {
+    "status": "RUNNER_GUARD_CORRECTED",
+    "cause": "External binary hash monitor raised FileNotFoundError during generated artifact recreation; finally terminated its owned process group with SIGTERM. No evaluator request timeout or SIGKILL was observed.",
+    "sourceLog": "/tmp/issue1194-r6-final-gates-after-map.log",
+    "postSignatureVerification": "PASS",
+    "postBoundedSmoke": "guard-recreation-smoke.json",
+    "osObservation": "AMFI CT-signature diagnostic lines occurred during successfully responding serialized processes; no matching ASP execution denial was found. The diagnostic alone is not classified as an execution rejection.",
+    "osLog": "/tmp/issue1194-r6-amfi-success-context.log",
+    "correction": "Allow a bounded 5-second generated-file recreation/stability window before comparing bytes; no request retry or security policy change.",
+    "recordedAtJst": "2026-10-22T00:43:17.098294+09:00"
+  },
+  "monitorCorrectionSmoke": {
+    "pid": 77380,
+    "requestBoundSeconds": 10,
+    "binarySha256": "100d197779478530e49c35b0418374df286a62b8e9dd82f95ca4da5740681500",
+    "status": "PASS",
+    "seconds": 0.5154744579922408,
+    "exitCode": -15,
+    "reaped": true
+  },
+  "actualExecutionDenial": "None observed in the successful serialized verification. Nonterminal AMFI CT diagnostic lines coexist with successfully responding processes; original earlier ASP denial evidence remains in residual6-resume.json.",
+  "securityChanges": "None by agent: no automatic signing, no OS policy change, no request retry.",
+  "artifactEvidence": [
+    {
+      "path": "/tmp/issue1194-residual6/signature-smoke.json",
+      "sha256": "ba1f6efefcf623edf1628c1c21383ab76f5f48c86a249b50699eb4400e684fac"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/signature-build-replacement.json",
+      "sha256": "aefee03b9b87b52ef28e3e61a04031a2dd15d6eaa87b50772f4162f6ab8a8e0c"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/post-build-smoke.json",
+      "sha256": "6f7c7da51bb0c300446316d44e45c173dcdc7e23fdf61b45ed049e986f43a754"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/guard-interruption.json",
+      "sha256": "65380fb9cc5d55cf10e56c7752027265987fe8ffc55fc41da7c280c1b6be16f5"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/guard-recreation-smoke.json",
+      "sha256": "ce50413347c633bf35a1560f31e6fd2bcd877ec73f0deb7865ba8a6b51f26197"
+    }
+  ]
+}

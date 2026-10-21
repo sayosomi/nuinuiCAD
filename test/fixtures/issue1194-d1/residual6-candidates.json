@@ -19,7 +19,17 @@
       "O-module",
       "O-index-errors"
     ],
-    "status": "UNRESOLVED_UNVERIFIED_CANDIDATE"
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F35",
+    "exactBaseFail": [
+      "O-dynamic"
+    ],
+    "exactBasePass": [
+      "P4"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
   },
   {
     "id": "C2",
@@ -29,10 +39,6 @@
       "packages/nui-language/src/scalars/moduleScalarRuntime.ts"
     ],
     "baseFail": [],
-    "baseReplayRequired": [
-      "O-if-false",
-      "O-choice"
-    ],
     "basePass": [
       "P4"
     ],
@@ -40,7 +46,21 @@
       "O-if-false",
       "O-choice"
     ],
-    "status": "UNRESOLVED_UNVERIFIED_CANDIDATE"
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F36",
+    "exactBaseFail": [
+      "O-if-false",
+      "O-choice"
+    ],
+    "exactBasePass": [
+      "P4"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": [
+      "O-if-false",
+      "O-choice"
+    ]
   },
   {
     "id": "C3",
@@ -62,7 +82,18 @@
       "O-module-lazy"
     ],
     "note": "Static validation regression found during implementation was repaired in isolated tests; both invalid controls reject. It is not a novel family.",
-    "status": "UNRESOLVED_UNVERIFIED_CANDIDATE"
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F37",
+    "exactBaseFail": [
+      "O-if-inline",
+      "O-module-lazy"
+    ],
+    "exactBasePass": [
+      "P4"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
   },
   {
     "id": "C4",
@@ -76,13 +107,23 @@
     "basePass": [
       "M1"
     ],
-    "baseReplayRequired": [
-      "G-module"
-    ],
     "candidatePass": [
       "G-module"
     ],
-    "status": "UNRESOLVED_UNVERIFIED_CANDIDATE"
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F38",
+    "exactBaseFail": [
+      "G-module"
+    ],
+    "exactBasePass": [
+      "G-module-direct-control",
+      "M1"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": [
+      "G-module"
+    ]
   },
   {
     "id": "C5",
@@ -101,7 +142,17 @@
       "G-module",
       "G-unselected-member"
     ],
-    "status": "UNRESOLVED_UNVERIFIED_CANDIDATE"
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F39",
+    "exactBaseFail": [
+      "G-constant"
+    ],
+    "exactBasePass": [
+      "M1"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
   },
   {
     "id": "C6",
@@ -124,7 +175,19 @@
       "C-document-field-direct",
       "C-lazy-parameter"
     ],
-    "status": "UNRESOLVED_UNVERIFIED_CANDIDATE"
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F40",
+    "exactBaseFail": [
+      "C-record-field",
+      "C-record-direct-control"
+    ],
+    "exactBasePass": [
+      "C-parameter",
+      "C-record-literal-control"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
   },
   {
     "id": "C7",
@@ -135,15 +198,24 @@
       "packages/nui-language/src/scalars/recordScalarLowering.ts"
     ],
     "baseFail": [],
-    "baseReplayRequired": [
-      "C-document-field"
-    ],
     "basePass": [
       "C-document-nested"
     ],
     "candidatePass": [
       "C-document-field"
     ],
-    "status": "UNRESOLVED_UNVERIFIED_CANDIDATE"
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F41",
+    "exactBaseFail": [
+      "C-record-literal-alias"
+    ],
+    "exactBasePass": [
+      "C-record-literal-control"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": [
+      "C-document-field"
+    ]
   }
 ]

@@ -1,7 +1,7 @@
 {
   "base": "05b4fa7078d5625090d5cb42a5131383c74f9cad",
   "topic": "sayosomi/issue-1194-residual6-d1",
-  "status": "BLOCKED_UNVERIFIED_WIP",
+  "status": "VERIFIED_SIXTH_SLICE",
   "noDestructiveRecovery": true,
   "rawEvidence": "/tmp/issue1194-residual6",
   "sourceOwnerHashes": [
@@ -51,7 +51,7 @@
       "candidateSha256": "b31ba8cd48400c50ec2c25053de163f75190286caf5ea9d3dcce0fb6d59e2e02"
     }
   ],
-  "exactBaseReplay": "NOT COMPLETED: only base-initial and base-adjacent ran before any production mutation. Do not attribute later cases to exact Base or count finalized repairs.",
+  "exactBaseReplay": "All 31 frozen cases replayed with all nine changed production owners byte-identical to exact Base and no other production diff; candidate restored byte-for-byte in finally. Three separate Base phases and manifests preserve original observations.",
   "fingerprints": "Early phases fingerprint the inherited fifth-runner owner set. Boundary-controls and later add moduleGeometryArrayRuntime.ts; this owner-set expansion is preserved, so fingerprints across that boundary are not directly comparable.",
   "freezeProcedure": "All 27 exact source/bundles and independent expectations persisted before evaluation. No accepted source edited after evaluation. Three root geometry probes remain deferred; no speculative grammar or root scheduler fix.",
   "counts": {
@@ -143,6 +143,118 @@
     {
       "path": "/tmp/issue1194-residual6/lifecycle.ndjson",
       "sha256": "9bf54bfab610ed69138e40e662d1c45f6a905c07a7e7add37b16dd414a1df231"
+    }
+  ],
+  "previousStatus": "BLOCKED_UNVERIFIED_WIP",
+  "historicalSnapshotKeys": "counts, sourceOwnerHashes and artifacts retain the first stopped checkpoint; resume* retains the second stopped checkpoint. final* keys pin current verified evidence.",
+  "finalCounts": {
+    "compiler": 337,
+    "setupCompiler": 32,
+    "reference": 293,
+    "production": 293
+  },
+  "finalSourceOwnerHashes": [
+    {
+      "path": "packages/nui-language/src/dsl/dslDocument.ts",
+      "baseSha256": "b9883b09470213c4e07ff0673b48e317803f87624e6afc3d279959060063eaed",
+      "candidateSha256": "77afa1f30c1aa3d3f631a0a64da25e0bd0a6a651d8ce5078ecadabd7db3a9597"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+      "baseSha256": "e8827560c2740d8a3a9a16de1d156efb7435c66da397b852d930f938bbf0a747",
+      "candidateSha256": "612cf9713eccb69d0b15f2e206f91b762da12714518cafe2a1cd214e6df44f66"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryArrayRuntime.ts",
+      "baseSha256": "4f00807efcfd784f93050a19835e01c8d5327e6dbadfdfe5445ce32dfc2a7511",
+      "candidateSha256": "043960e8e5ca08d1e91ba02453a7e868c895c5a522b65643409d27e9861d9d02"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+      "baseSha256": "92325eaf61434c73899353b95f5f0aa39e9c08560a2450394fc8bea21a85387f",
+      "candidateSha256": "11949ed28079320e5b132cd482302943147283d7d610accc9229d75a9c9ce1f8"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "baseSha256": "6809c277af59033e3993a2f5a686950faeabd29ee875215b39316a78ef32bdfc",
+      "candidateSha256": "73aeee5322f8be758e5870b29173eb2a5b9bfb0db99dbf5d91cdeb4d34b0d3f4"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "baseSha256": "472c1951b7cf5fa12673d46e0a0568c49e5279ca36d8ed58ae912ec7a9ea9133",
+      "candidateSha256": "1dbba11cbac99dbe55b4e0ab84441c89c9524cb80cb3421f70238fcd31d0cdce"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+      "baseSha256": "fb5b249f47faea2550fe976f96f3a80bcea4d7fd104152119aaf7881eda6555d",
+      "candidateSha256": "b2ef93984dd840ed3aa5de96caf3494d8d4c817ebced67836103944cb75c4890"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "baseSha256": "6a515cee6be9e58e6545379352a9ecec40ab3f4f4f9ffd0693a346bcb80b8a48",
+      "candidateSha256": "b71f95fe324dd745ae348fd114e170b3958aaac2ea6194051c5a5ee6b853db66"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "baseSha256": "48fe737c0e5416de8c91add9d38391849ded9596347f1c17eab04b0631f156d6",
+      "candidateSha256": "b31ba8cd48400c50ec2c25053de163f75190286caf5ea9d3dcce0fb6d59e2e02"
+    }
+  ],
+  "finalFingerprint": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+  "finalRunId": "required-full-1792597512287",
+  "proofs": "residual6-families.json",
+  "finalRawArtifacts": [
+    {
+      "path": "/tmp/issue1194-residual6/compiler.ndjson",
+      "sha256": "7c1661ddf5514c163930b7d5c70db1640750d037af0c704e9657099357a68d61"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/raw.ndjson",
+      "sha256": "7ea9a25f6f3e286584e758917bc8c1c6374a4cc56ae234c1c7b177a48065cc01"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/runs.ndjson",
+      "sha256": "f1063942b0b55fb418de3d0dca12b1fbd8161c46e90490a1ad309107517f1cff"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/transport.ndjson",
+      "sha256": "840ee9de8674a4a15c6d2738e6a26295ab5c931e3e6c6a4121aae3b54fd27dab"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/lifecycle.ndjson",
+      "sha256": "81ec250a7de3350920456ea6ccc462cdc7b96ea0a20455e540578053ae302c9f"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/final-gates.json",
+      "sha256": "b2d262792d1770f1285480edd878795ff481c1cb713a43e5edf0350a79c59fa7"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/final-gates-npm-resume.json",
+      "sha256": "784947031ecd25eaa920fad16b1c4ac8de7b5b3e3a2921d267c2adc5290056ff"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/guard-interruption.json",
+      "sha256": "65380fb9cc5d55cf10e56c7752027265987fe8ffc55fc41da7c280c1b6be16f5"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/guard-recreation-smoke.json",
+      "sha256": "ce50413347c633bf35a1560f31e6fd2bcd877ec73f0deb7865ba8a6b51f26197"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/base-backup/manifest.json",
+      "sha256": "82507348c71b38a8faadacb53c3fb5bc82d1a7570d64ec75cff429f5be696eea"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/base-c7-backup/manifest.json",
+      "sha256": "87cc4e1fbf539a2604b12c2f794c3e2f522007fa0d126d6f36043dc9fe8e7e2a"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/base-c7-literal-backup/manifest.json",
+      "sha256": "3cf795303e505cf1170a26b91c85dc7b4eee5641f0830060c5b8bdbd10162f70"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/post-build-smoke.json",
+      "sha256": "6f7c7da51bb0c300446316d44e45c173dcdc7e23fdf61b45ed049e986f43a754"
     }
   ]
 }

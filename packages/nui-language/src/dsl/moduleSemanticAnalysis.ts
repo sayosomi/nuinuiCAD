@@ -5356,8 +5356,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const value = sourceNamespace.geometryArraySemanticAnalysis
       ? collectionValueSemanticForStatement(sourceNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
       : null;
-    if (!value || !("valueType" in value)) return null;
-    return { targetValueId: value.statementId, valueType: value.valueType };
+    if (!value) return null;
+    return {
+      targetValueId: value.statementId,
+      valueType: "valueType" in value ? value.valueType : dslValueTypeOfGeometryArrayType(value.type)
+    };
   };
 
   function analyzeRecordFieldValue(

@@ -282,5 +282,49 @@
     "expected": {},
     "expectedCompilerError": "*",
     "savedDocumentPaths": []
+  },
+  {
+    "id": "C-record-direct-control",
+    "sha256": "30a01f86fc21def2b62a17d9085cca50cc5392c5340b545ec4c4979cb596424c",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-record-alias-reduced",
+    "sha256": "c8e3d08eb287deb292b6e8d7a44abde06577e4c67e633517c5264548cb4e562a",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-record-literal-control",
+    "sha256": "ce6b5853ab7ff833b90ad7ed59144b0b84a93154ef727c9be35361d835295506",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-record-literal-alias",
+    "sha256": "6aee980c62a2fa9e346e3c79ecd1a9bd9d4ea63b0da47c3db187cfb3c02d2dfc",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    },
+    "savedDocumentPaths": []
   }
 ]

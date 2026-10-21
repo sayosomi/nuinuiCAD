@@ -424,5 +424,69 @@
     "source": "nui 1\nrecord Box(n: number)\nrecord Other(n: number)\nconst Values: Box?[] = if (true) { [none] } else { [Other(n: 43)] }",
     "expected": {},
     "expectedCompilerError": "*"
+  },
+  {
+    "id": "C-record-direct-control",
+    "domain": "geometry-record-alias-reduction",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: @Values)\nconst Result: path = @R.paths[1]\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y\nconst N: number = @Values.length",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    }
+  },
+  {
+    "id": "C-record-alias-reduced",
+    "domain": "geometry-record-alias-reduction",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: @Values)\nconst Local: path[] = @R.paths\nconst Result: path = @Local[1]\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y\nconst N: number = @Values.length",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    }
+  },
+  {
+    "id": "C-record-literal-control",
+    "domain": "geometry-record-alias-reduction",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: [@P, @Q])\nconst Result: path = @R.paths[1]\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y\nconst N: number = @Values.length",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    }
+  },
+  {
+    "id": "C-record-literal-alias",
+    "domain": "geometry-record-alias-reduction",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nrecord Rack(paths: path[])\nconst R: Rack = Rack(paths: [@P, @Q])\nconst Local: path[] = @R.paths\nconst Result: path = @Local[1]\nconst L: number = @Result.length\nconst X: number = @Result.endPoint.x\nconst Y: number = @Result.endPoint.y\nconst N: number = @Values.length",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    }
   }
 ]
