@@ -1,0 +1,248 @@
+[
+  {
+    "id": "M1",
+    "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+    "expected": {
+      "L": 5,
+      "N": 21
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M3",
+    "sha256": "158915c67e48909050533f1a933fac0bca299e2f6d970f26f82ccbb50b633662",
+    "expected": {
+      "X": 24,
+      "Y": 48
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P2",
+    "sha256": "a1c8549f78373021ae35961a7e0625acab56a32c4f660747722d38dc4abc2938",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M0",
+    "sha256": "11e36a5feec109374a32444770ff300beb74397cd1175e808d43fd07f7739ba0",
+    "expected": {
+      "L": 5,
+      "N": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M6",
+    "sha256": "c5e75bc87027096edf753897cf3659176911a0314a2282e479bda1cc8ec8b379",
+    "expected": {
+      "L": 5,
+      "N": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P4",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P5",
+    "sha256": "647b05fe478a2b61cb5b7ffb104bb9e16efc34a2eeb233a27d907ad3df4e4ca5",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P6",
+    "sha256": "a7b3e30f1a6e990bb0203873ce8dd214a6da419ba5cab0a613e8a029228191f2",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-length-constructor",
+    "sha256": "59e07b07931a44d4cd3c28f53946086075a4b4e89c1338cf3e022739a34454f8",
+    "expected": {
+      "N": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-length-reference",
+    "sha256": "79769469a3d3542e0694465c5ba017c3345549e6690ac0520b16384fa9338f7b",
+    "expected": {
+      "N": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-scalar-control",
+    "sha256": "710d70f26ee0cda0659a1c85bde66c4e69abbbd6e80f66dc3c2cf3c2f8057512",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-module",
+    "sha256": "5ec3bfe6e354c99837a79c1638711cc9b9c915385fe94cc36500b0474d04dcba",
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 12,
+      "Y": 30,
+      "N": 21,
+      "O": 45
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-chain",
+    "sha256": "2fb9e60c02ac38db76473a7cb2ea169810b635729cc43979b5d1a0086be76e19",
+    "expected": {
+      "L": 5,
+      "N": 24
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-module",
+    "sha256": "c84a53ebf4525859714098903d437f3745d9484aa29f9d1a33215848d4aab4e7",
+    "expected": {
+      "X": 21,
+      "Y": 45
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-parameter",
+    "sha256": "0fbf790c2e2418dc91aa2fb10a7096c31afa6c262608fe915e0ae3648509ac58",
+    "expected": {
+      "X": 19,
+      "Y": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-absent-parameter",
+    "sha256": "bca65c48fa96ee048a0885dd8a6dc6820f46dd1d69a58ce1213e451f4afda986",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-inline-parameter",
+    "sha256": "b1aaed9439fd73da56af910681b0140a54818afe0543b4cb5f8785e1760e1c77",
+    "expected": {
+      "X": 19,
+      "Y": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-index-error",
+    "sha256": "6ad24ccfbf0b89dc62c2e77df13f4f02730a2d03eab1e14589deba3310c7f85f",
+    "expected": {},
+    "expectedIssues": {
+      "X": "evaluation-collection-index-invalid"
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-wrong-nominal",
+    "sha256": "dab46870098baec793c5a7bfd0bdfb8cc5e226140d45d6635a84a0138751adce",
+    "expected": {},
+    "expectedCompilerError": "array-member-type-mismatch",
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-implicit-unwrap",
+    "sha256": "b2d553389f80db09aa29d4e57bc178e9b9e50333123d58cacd598533f91957f3",
+    "expected": {},
+    "expectedCompilerError": "*",
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P-conditional-member",
+    "sha256": "7b6e92b8fe6f7bf7356e7f29841b43d570e9078592518da75e2f94382106e41c",
+    "expected": {
+      "X": 21,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M10",
+    "sha256": "7ca9fdf15a0eda3c22cf1255efc43817a555fb18a68ce21f5af92dff50749010",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "D-map-valid",
+    "sha256": "4c08bb36757a3d59af7247fd94b7afd7d51f768ff34a63dedc26451061977cf0",
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 12,
+      "Y": 30,
+      "N": 21,
+      "O": 45
+    },
+    "savedDocumentPaths": [
+      "left/library.nui",
+      "right/library.nui"
+    ]
+  },
+  {
+    "id": "D-identity-control-valid",
+    "sha256": "6a6fdeb072fdfcf8b9c0111099f33e1630f54c2bcf97eab3515d3b82306e6b6a",
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 12,
+      "Y": 30,
+      "N": 19,
+      "O": 43
+    },
+    "savedDocumentPaths": [
+      "left/library.nui",
+      "right/library.nui"
+    ]
+  },
+  {
+    "id": "S-index",
+    "sha256": "cb83c234a2bb552d835a4c558c4d8da7d1d62b18638c8f1a8de11c4905f380c2",
+    "expected": {
+      "X": 19,
+      "Y": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "S-reference-control",
+    "sha256": "297a0a0ecd06b2a18f1ffabec5b95226c0adcefa0252be1cd00747bbdeac30aa",
+    "expected": {
+      "X": 19,
+      "Y": 43
+    },
+    "savedDocumentPaths": []
+  }
+]

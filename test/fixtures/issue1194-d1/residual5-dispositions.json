@@ -1,0 +1,821 @@
+[
+  {
+    "id": "M1",
+    "cluster": "map",
+    "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "N": 21
+      }
+    },
+    "families": [
+      "F31"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "M3",
+    "cluster": "map",
+    "sha256": "158915c67e48909050533f1a933fac0bca299e2f6d970f26f82ccbb50b633662",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "X": 24,
+        "Y": 48
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P2",
+    "cluster": "optional-members",
+    "sha256": "a1c8549f78373021ae35961a7e0625acab56a32c4f660747722d38dc4abc2938",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      }
+    },
+    "families": [
+      "F32",
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "array-invalid-member",
+        "record-reference-not-record"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "M0",
+    "cluster": "map",
+    "sha256": "11e36a5feec109374a32444770ff300beb74397cd1175e808d43fd07f7739ba0",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "N": 19
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "M6",
+    "cluster": "map",
+    "sha256": "c5e75bc87027096edf753897cf3659176911a0314a2282e479bda1cc8ec8b379",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "N": 19
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P4",
+    "cluster": "optional-members",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      }
+    },
+    "families": [
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "record-reference-not-record"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P5",
+    "cluster": "optional-members",
+    "sha256": "647b05fe478a2b61cb5b7ffb104bb9e16efc34a2eeb233a27d907ad3df4e4ca5",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "X": 31,
+        "Y": 19
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P6",
+    "cluster": "optional-members",
+    "sha256": "a7b3e30f1a6e990bb0203873ce8dd214a6da419ba5cab0a613e8a029228191f2",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "X": 31,
+        "Y": 19
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-length-constructor",
+    "cluster": "optional-record-index",
+    "sha256": "59e07b07931a44d4cd3c28f53946086075a4b4e89c1338cf3e022739a34454f8",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "N": 2
+      }
+    },
+    "families": [
+      "F32"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-length-reference",
+    "cluster": "optional-record-index",
+    "sha256": "79769469a3d3542e0694465c5ba017c3345549e6690ac0520b16384fa9338f7b",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "N": 2
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-scalar-control",
+    "cluster": "optional-record-index",
+    "sha256": "710d70f26ee0cda0659a1c85bde66c4e69abbbd6e80f66dc3c2cf3c2f8057512",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "G-module",
+    "cluster": "geometry-map",
+    "sha256": "5ec3bfe6e354c99837a79c1638711cc9b9c915385fe94cc36500b0474d04dcba",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 11,
+        "M": 29,
+        "X": 12,
+        "Y": 30,
+        "N": 21,
+        "O": 45
+      }
+    },
+    "families": [
+      "F31",
+      "F34"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "G-chain",
+    "cluster": "geometry-map",
+    "sha256": "2fb9e60c02ac38db76473a7cb2ea169810b635729cc43979b5d1a0086be76e19",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "N": 24
+      }
+    },
+    "families": [
+      "F31"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-module",
+    "cluster": "optional-record-index",
+    "sha256": "c84a53ebf4525859714098903d437f3745d9484aa29f9d1a33215848d4aab4e7",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 21,
+        "Y": 45
+      }
+    },
+    "families": [
+      "F32",
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "array-invalid-member"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-parameter",
+    "cluster": "optional-record-index",
+    "sha256": "0fbf790c2e2418dc91aa2fb10a7096c31afa6c262608fe915e0ae3648509ac58",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 43
+      }
+    },
+    "families": [
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "record-reference-not-record"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-absent-parameter",
+    "cluster": "optional-record-index",
+    "sha256": "bca65c48fa96ee048a0885dd8a6dc6820f46dd1d69a58ce1213e451f4afda986",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      }
+    },
+    "families": [
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "record-reference-not-record"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-inline-parameter",
+    "cluster": "optional-record-index",
+    "sha256": "b1aaed9439fd73da56af910681b0140a54818afe0543b4cb5f8785e1760e1c77",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 43
+      }
+    },
+    "families": [
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "record-reference-not-record"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-index-error",
+    "cluster": "optional-record-index",
+    "sha256": "6ad24ccfbf0b89dc62c2e77df13f4f02730a2d03eab1e14589deba3310c7f85f",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {},
+      "expectedIssues": {
+        "X": "evaluation-collection-index-invalid"
+      }
+    },
+    "families": [
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "record-reference-not-record"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-wrong-nominal",
+    "cluster": "invalid-control",
+    "sha256": "dab46870098baec793c5a7bfd0bdfb8cc5e226140d45d6635a84a0138751adce",
+    "disposition": "CONTRACT_INVALID",
+    "oracle": {
+      "expected": {},
+      "expectedCompilerError": "array-member-type-mismatch"
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "CONTRACT_INVALID",
+      "boundary": null,
+      "diagnosticCodes": [
+        "array-member-type-mismatch"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "CONTRACT_INVALID",
+      "rustEligible": null,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-implicit-unwrap",
+    "cluster": "invalid-control",
+    "sha256": "b2d553389f80db09aa29d4e57bc178e9b9e50333123d58cacd598533f91957f3",
+    "disposition": "CONTRACT_INVALID",
+    "oracle": {
+      "expected": {},
+      "expectedCompilerError": "*"
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "CONTRACT_INVALID",
+      "boundary": null,
+      "diagnosticCodes": [
+        "undefined-binding"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "CONTRACT_INVALID",
+      "rustEligible": null,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "P-conditional-member",
+    "cluster": "optional-record-index",
+    "sha256": "7b6e92b8fe6f7bf7356e7f29841b43d570e9078592518da75e2f94382106e41c",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 21,
+        "Y": 31
+      }
+    },
+    "families": [
+      "F33"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "geometry-property-invalid",
+        "module-collection-index-type",
+        "scalar-namespace-type-mismatch"
+      ],
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "M10",
+    "cluster": "map",
+    "sha256": "7ca9fdf15a0eda3c22cf1255efc43817a555fb18a68ce21f5af92dff50749010",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "X": 11,
+        "Y": 29
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "D-map-valid",
+    "cluster": "document",
+    "sha256": "4c08bb36757a3d59af7247fd94b7afd7d51f768ff34a63dedc26451061977cf0",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 11,
+        "M": 29,
+        "X": 12,
+        "Y": 30,
+        "N": 21,
+        "O": 45
+      }
+    },
+    "families": [
+      "F31",
+      "F34"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "D-identity-control-valid",
+    "cluster": "document",
+    "sha256": "6a6fdeb072fdfcf8b9c0111099f33e1630f54c2bcf97eab3515d3b82306e6b6a",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 11,
+        "M": 29,
+        "X": 12,
+        "Y": 30,
+        "N": 19,
+        "O": 43
+      }
+    },
+    "families": [
+      "F34"
+    ],
+    "before": {
+      "runId": "base-exact-1792575868915",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "S-index",
+    "cluster": "singleton",
+    "sha256": "cb83c234a2bb552d835a4c558c4d8da7d1d62b18638c8f1a8de11c4905f380c2",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 43
+      }
+    },
+    "families": [
+      "F34"
+    ],
+    "before": {
+      "runId": "base-exact-singleton-1792575943218",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  },
+  {
+    "id": "S-reference-control",
+    "cluster": "singleton",
+    "sha256": "297a0a0ecd06b2a18f1ffabec5b95226c0adcefa0252be1cd00747bbdeac30aa",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 43
+      }
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-singleton-1792575943218",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "settled-focused-1792576098225",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Independent normative oracle; exact Base replay; producer/alias and nominal checks; normal eligibility; TS and persistent production Rust payload decode. Invalid controls assert rejection only; incidental diagnostic codes do not define legality."
+  }
+]

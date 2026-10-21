@@ -332,7 +332,9 @@ const isLineEndpointPointKey = (value: string) => value === "start" || value ===
 const scalarLiteralType = (kind: "number" | "string" | "boolean"): DslNonArrayValueType => ({ kind });
 
 const recordTypeWithIdentity = (type: DslNonArrayValueType, identity: string | null): DslNonArrayValueType =>
-  type.kind === "record" && identity ? { ...type, identity } : type;
+  type.kind === "optional" && type.valueType.kind === "record" && identity
+    ? { ...type, valueType: { ...type.valueType, identity } }
+    : type.kind === "record" && identity ? { ...type, identity } : type;
 
 const recordIdentityForType = (
   type: DslNonArrayValueType,
@@ -340,6 +342,7 @@ const recordIdentityForType = (
   recordSemanticAnalysis: RecordSemanticAnalysis | undefined,
   resolvePath: GeometryArraySemanticAnalysisInput["resolvePath"]
 ): string | null => {
+  if (type.kind === "optional") return recordIdentityForType(type.valueType as DslNonArrayValueType, statementIndex, recordSemanticAnalysis, resolvePath);
   if (type.kind !== "record") return null;
   const lookup = resolvePath(statementIndex, parseDslReferenceToken(type.name));
   if (lookup.kind === "resolved" && lookup.declaration.kind === "recordDefinition") {
@@ -416,9 +419,10 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     statement.parameters.forEach((parameter, parameterIndex) => {
       const valueType = arrayValueTypeOfParameter(parameter);
       if (!valueType) return;
-      const recordIdentity = valueType.elementType.kind === "record"
+      const requiredElement = dslRequiredValueTypeOf(valueType.elementType);
+      const recordIdentity = requiredElement?.kind === "record"
         ? input.recordSemanticAnalysis?.moduleParameters.find((candidate) => candidate.definitionStatementId === definitionStatementId && candidate.parameterIndex === parameterIndex)?.typeIdentity
-          ?? resolvedArrayRecordIdentity(valueType.elementType, definitionStatementIndex, statement, parameter.typeSpan ?? statement.keywordSpan)
+          ?? resolvedArrayRecordIdentity(requiredElement, definitionStatementIndex, statement, parameter.typeSpan ?? statement.keywordSpan)
         : null;
       const enrichedValueType: DslArrayValueType = {
         ...valueType,
@@ -460,9 +464,9 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         ...requiredValueType,
         elementType: recordTypeWithIdentity(
           requiredValueType.elementType,
-          requiredValueType.elementType.kind === "record"
+          dslRequiredValueTypeOf(requiredValueType.elementType)?.kind === "record"
             ? recordIdentityForType(requiredValueType.elementType, statementIndex, input.recordSemanticAnalysis, input.resolvePath)
-            ?? resolvedArrayRecordIdentity(requiredValueType.elementType, statementIndex, statement, statement.payloadSpans.type ?? statement.nameSpan ?? statement.keywordSpan)
+            ?? resolvedArrayRecordIdentity(dslRequiredValueTypeOf(requiredValueType.elementType) as Extract<DslNonArrayValueType, { kind: "record" }>, statementIndex, statement, statement.payloadSpans.type ?? statement.nameSpan ?? statement.keywordSpan)
             : null
         )
       },
@@ -1124,12 +1128,13 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       );
     }
 
-    if (expectedElement.kind === "record") {
+    const requiredElement = dslRequiredValueTypeOf(expectedElement);
+    if (requiredElement?.kind === "record") {
       const value = [...(input.recordSemanticAnalysis?.valuesByStatementId.values() ?? [])].find(value =>
         value.inlineCollectionMember?.collectionStatementId === statementId && value.inlineCollectionMember.span.start === member.span.start && value.inlineCollectionMember.span.end === member.span.end
       );
       if (value?.typeIdentity) return { kind: "resolved", value: {
-        elementType: { ...expectedElement, identity: value.typeIdentity },
+        elementType: { ...requiredElement, identity: value.typeIdentity },
         target: { kind: "recordValue", statementId: value.statementId, statementIndex }
       } };
     }
@@ -1200,9 +1205,9 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       }
       const actual = recordTypeWithIdentity(
         target.statement.valueType,
-        target.statement.valueType.kind === "record" ? input.recordSemanticAnalysis?.valuesByStatementIndex.get(target.statementIndex)?.typeIdentity ?? null : null
+        dslRequiredValueTypeOf(target.statement.valueType)?.kind === "record" ? input.recordSemanticAnalysis?.valuesByStatementIndex.get(target.statementIndex)?.typeIdentity ?? null : null
       );
-      const targetKind = actual.kind === "record" ? "recordValue" : isDslGeometryValueType(actual) ? "geometryValue" : "scalarValue";
+      const targetKind = dslRequiredValueTypeOf(actual)?.kind === "record" ? "recordValue" : isDslGeometryValueType(actual) ? "geometryValue" : "scalarValue";
       const targetValue = targetKind === "recordValue"
         ? { kind: "recordValue" as const, statementId: target.statementId, statementIndex: target.statementIndex }
         : targetKind === "geometryValue"

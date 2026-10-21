@@ -1,0 +1,274 @@
+{
+  "scope": "Instrumented fifth-slice runner executions only; excludes uninstrumented full-suite requests and is not a quota estimate.",
+  "counts": {
+    "compiler": 204,
+    "setupCompiler": 20,
+    "reference": 176,
+    "production": 176
+  },
+  "runs": [
+    {
+      "runId": "base-initial-1792574066338",
+      "phase": "base-initial",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "counts": {
+        "compiler": 11,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "acceptedCumulative": 173,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-map-geometry-1792574229307",
+      "phase": "fix-map-geometry",
+      "sourceTreeSha256": "375d6acde6c9de6282872003e79487eee279e63e1c4c62ed2ac198ca4164bd68",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "acceptedCumulative": 173,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-optional-admission-1792574468432",
+      "phase": "fix-optional-admission",
+      "sourceTreeSha256": "f957c3fb991651e14a8e4c328cd8bd416a748d1e0fcb49243bd4bcb21b30ef39",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "acceptedCumulative": 174,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-indexed-record-match-1792574551927",
+      "phase": "fix-indexed-record-match",
+      "sourceTreeSha256": "6fa928b0880ad935d3be8138a4390e73a1f685ea264ba2c0de2dadd010ba349b",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "acceptedCumulative": 176,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-indexed-producers-1792574693460",
+      "phase": "fix-indexed-producers",
+      "sourceTreeSha256": "035d887a1ca6899e25c6dd358624d443336f05a84821cf2c30ebc668e3689911",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "acceptedCumulative": 176,
+      "resourceError": null
+    },
+    {
+      "runId": "module-adjacent-1792574860280",
+      "phase": "module-adjacent",
+      "sourceTreeSha256": "c9405a7fb30c2d2d6bda5616758ac045a08c4b3580480f55db2f9aaca4ae008d",
+      "counts": {
+        "compiler": 7,
+        "setupCompiler": 1,
+        "reference": 7,
+        "production": 7
+      },
+      "acceptedCumulative": 180,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-occurrence-selection-1792575103004",
+      "phase": "fix-occurrence-selection",
+      "sourceTreeSha256": "cdef39b67e2f34cd5013d84e76bf12fe0d7ca4b15fc400e51a227e4a2280778e",
+      "counts": {
+        "compiler": 7,
+        "setupCompiler": 1,
+        "reference": 7,
+        "production": 7
+      },
+      "acceptedCumulative": 180,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-optional-forwarding-1792575242969",
+      "phase": "fix-optional-forwarding",
+      "sourceTreeSha256": "a90bf200b57e5477027373d0fa3c6bf62be4bd2292a0952b7af5f7c0161f7899",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "acceptedCumulative": 180,
+      "resourceError": null
+    },
+    {
+      "runId": "selected-member-controls-1792575380537",
+      "phase": "selected-member-controls",
+      "sourceTreeSha256": "a90bf200b57e5477027373d0fa3c6bf62be4bd2292a0952b7af5f7c0161f7899",
+      "counts": {
+        "compiler": 7,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "acceptedCumulative": 184,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-selected-member-1792575666531",
+      "phase": "fix-selected-member",
+      "sourceTreeSha256": "a90bf200b57e5477027373d0fa3c6bf62be4bd2292a0952b7af5f7c0161f7899",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "acceptedCumulative": 184,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-selected-member2-1792575681476",
+      "phase": "fix-selected-member2",
+      "sourceTreeSha256": "d4857365d698a5d625651b120944fd97820654fa9d6f6c41da4d120096e33c80",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "acceptedCumulative": 184,
+      "resourceError": null
+    },
+    {
+      "runId": "document-adjacent-1792575752487",
+      "phase": "document-adjacent",
+      "sourceTreeSha256": "66ba451d92a0b574391552c704845a9dea63b83d545b473700c9193c38f59ce8",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "acceptedCumulative": 184,
+      "resourceError": null
+    },
+    {
+      "runId": "document-valid-1792575800896",
+      "phase": "document-valid",
+      "sourceTreeSha256": "9b7ab78cf91758dbcb639639c931ca7c37dc347cda0186fda3a83359abc90351",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "acceptedCumulative": 186,
+      "resourceError": null
+    },
+    {
+      "runId": "candidate-all-1792575826713",
+      "phase": "candidate-all",
+      "sourceTreeSha256": "dcf5396f42642a2f796900dbc2420324cae8b59f8f2f82ecd81c2752f47f1df1",
+      "counts": {
+        "compiler": 24,
+        "setupCompiler": 1,
+        "reference": 22,
+        "production": 22
+      },
+      "acceptedCumulative": 186,
+      "resourceError": null
+    },
+    {
+      "runId": "base-exact-1792575868915",
+      "phase": "base-exact",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "counts": {
+        "compiler": 24,
+        "setupCompiler": 1,
+        "reference": 13,
+        "production": 13
+      },
+      "acceptedCumulative": 186,
+      "resourceError": null
+    },
+    {
+      "runId": "singleton-reduce-1792575934424",
+      "phase": "singleton-reduce",
+      "sourceTreeSha256": "dcf5396f42642a2f796900dbc2420324cae8b59f8f2f82ecd81c2752f47f1df1",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "acceptedCumulative": 188,
+      "resourceError": null
+    },
+    {
+      "runId": "base-exact-singleton-1792575943218",
+      "phase": "base-exact-singleton",
+      "sourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "acceptedCumulative": 188,
+      "resourceError": null
+    },
+    {
+      "runId": "focused-final-1792575997745",
+      "phase": "focused-final",
+      "sourceTreeSha256": "dcf5396f42642a2f796900dbc2420324cae8b59f8f2f82ecd81c2752f47f1df1",
+      "counts": {
+        "compiler": 26,
+        "setupCompiler": 1,
+        "reference": 24,
+        "production": 24
+      },
+      "acceptedCumulative": 188,
+      "resourceError": null
+    },
+    {
+      "runId": "focused-producers-1792576058248",
+      "phase": "focused-producers",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "counts": {
+        "compiler": 26,
+        "setupCompiler": 1,
+        "reference": 24,
+        "production": 24
+      },
+      "acceptedCumulative": 188,
+      "resourceError": null
+    },
+    {
+      "runId": "settled-focused-1792576098225",
+      "phase": "settled-focused",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "counts": {
+        "compiler": 26,
+        "setupCompiler": 1,
+        "reference": 24,
+        "production": 24
+      },
+      "acceptedCumulative": 188,
+      "resourceError": null
+    }
+  ],
+  "accepted": 188,
+  "newAccepted": 17,
+  "processCleanup": "Each owned persistent production Rust child disposed and close awaited; per-request and process watchdogs; no recorded resource timeout or hang."
+}

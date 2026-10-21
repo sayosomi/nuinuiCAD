@@ -1,0 +1,148 @@
+{
+  "base": "9a19e02d5f916074368395f87b659931c99d9336",
+  "topic": "sayosomi/issue-1194-residual5-d1",
+  "authoritativeBasePhases": [
+    "base-exact",
+    "base-exact-singleton"
+  ],
+  "baseSourceTreeSha256": "b53e3a501783b9510d1da5596a5fa366e71a4a51d1f8402245aa8c389fd6df2c",
+  "finalSourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+  "initialBaseFingerprintMatches": true,
+  "exactRestoration": [
+    {
+      "base": "9a19e02d5f916074368395f87b659931c99d9336",
+      "owners": [
+        {
+          "path": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+          "baseSha256": "4ee9b173b3456af3a706acfd00483189e9b305b52e260cf22749c3539d504400",
+          "candidateSha256": "e8827560c2740d8a3a9a16de1d156efb7435c66da397b852d930f938bbf0a747"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+          "baseSha256": "2e6be721b7b07abbcdd81e0c940c9b33efac97eb4c001c34b70c538e2d95c13e",
+          "candidateSha256": "92325eaf61434c73899353b95f5f0aa39e9c08560a2450394fc8bea21a85387f"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+          "baseSha256": "ac9eeaf285d5d2014d066060fad7917fe4c634e5a43f1d3c0e9caf8b923fce22",
+          "candidateSha256": "6809c277af59033e3993a2f5a686950faeabd29ee875215b39316a78ef32bdfc"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+          "baseSha256": "016a4e65af89e417ce9d7637e4598af0ae2bbad0786adabe8541394b24a0d966",
+          "candidateSha256": "472c1951b7cf5fa12673d46e0a0568c49e5279ca36d8ed58ae912ec7a9ea9133"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+          "baseSha256": "ec900a63a3fa588663a6488eaf272ded0e24d98d208228a93a0fe9358acf31ba",
+          "candidateSha256": "fb5b249f47faea2550fe976f96f3a80bcea4d7fd104152119aaf7881eda6555d"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts",
+          "baseSha256": "57f27134e8a1d0cdd1f992bd8a69a686f5cfa3127ebc891ed4e0df8631150ea4",
+          "candidateSha256": "c6b230e5d5c0a0d557587cd1d6c71cc1c79509012ff473c961274fb25b1b0c48"
+        },
+        {
+          "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+          "baseSha256": "07b9f96bc553be8ad140b69ff507070b35fb945544f1f8a5b0241414e4847937",
+          "candidateSha256": "c0ac95ac654f0ea085d92aa74a185bb4b9211d42b473e3c6f6c1a5d7729c2802"
+        }
+      ],
+      "replayExitCode": 0,
+      "candidateRestoredExactly": true
+    },
+    {
+      "base": "9a19e02d5f916074368395f87b659931c99d9336",
+      "owners": [
+        {
+          "path": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+          "baseSha256": "4ee9b173b3456af3a706acfd00483189e9b305b52e260cf22749c3539d504400",
+          "candidateSha256": "e8827560c2740d8a3a9a16de1d156efb7435c66da397b852d930f938bbf0a747"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+          "baseSha256": "2e6be721b7b07abbcdd81e0c940c9b33efac97eb4c001c34b70c538e2d95c13e",
+          "candidateSha256": "92325eaf61434c73899353b95f5f0aa39e9c08560a2450394fc8bea21a85387f"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+          "baseSha256": "ac9eeaf285d5d2014d066060fad7917fe4c634e5a43f1d3c0e9caf8b923fce22",
+          "candidateSha256": "6809c277af59033e3993a2f5a686950faeabd29ee875215b39316a78ef32bdfc"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+          "baseSha256": "016a4e65af89e417ce9d7637e4598af0ae2bbad0786adabe8541394b24a0d966",
+          "candidateSha256": "472c1951b7cf5fa12673d46e0a0568c49e5279ca36d8ed58ae912ec7a9ea9133"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+          "baseSha256": "ec900a63a3fa588663a6488eaf272ded0e24d98d208228a93a0fe9358acf31ba",
+          "candidateSha256": "fb5b249f47faea2550fe976f96f3a80bcea4d7fd104152119aaf7881eda6555d"
+        },
+        {
+          "path": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts",
+          "baseSha256": "57f27134e8a1d0cdd1f992bd8a69a686f5cfa3127ebc891ed4e0df8631150ea4",
+          "candidateSha256": "c6b230e5d5c0a0d557587cd1d6c71cc1c79509012ff473c961274fb25b1b0c48"
+        },
+        {
+          "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+          "baseSha256": "07b9f96bc553be8ad140b69ff507070b35fb945544f1f8a5b0241414e4847937",
+          "candidateSha256": "c0ac95ac654f0ea085d92aa74a185bb4b9211d42b473e3c6f6c1a5d7729c2802"
+        }
+      ],
+      "replayExitCode": 0,
+      "candidateRestoredExactly": true
+    }
+  ],
+  "finalOwnerSha256": [
+    {
+      "path": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+      "sha256": "e8827560c2740d8a3a9a16de1d156efb7435c66da397b852d930f938bbf0a747"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+      "sha256": "92325eaf61434c73899353b95f5f0aa39e9c08560a2450394fc8bea21a85387f"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "sha256": "6809c277af59033e3993a2f5a686950faeabd29ee875215b39316a78ef32bdfc"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "sha256": "472c1951b7cf5fa12673d46e0a0568c49e5279ca36d8ed58ae912ec7a9ea9133"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+      "sha256": "fb5b249f47faea2550fe976f96f3a80bcea4d7fd104152119aaf7881eda6555d"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts",
+      "sha256": "c6b230e5d5c0a0d557587cd1d6c71cc1c79509012ff473c961274fb25b1b0c48"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "sha256": "6a515cee6be9e58e6545379352a9ecec40ab3f4f4f9ffd0693a346bcb80b8a48"
+    }
+  ],
+  "rawEvidence": "/tmp/issue1194-residual5",
+  "freezeProcedure": "Persist ordered source/bundle hashes and independent expectations before each compiler/evaluator call. Accepted sources never edited; rejected public-module prototypes preserved separately and corrected as new hashes. Invalid unwrap originally annotated a guessed diagnostic code; rejection oracle was always unchanged, code is non-normative and final wildcard asserts rejection without attributing diagnostic repair.",
+  "wireProcedure": "Canonical compiler, graph-backed document identities, TypeScript reference, normal production Rust eligibility and one persistent real Rust stdio child per invocation; exact stdin JSON comparison, independent decoded expectations and parity.",
+  "artifacts": [
+    {
+      "path": "compiler.ndjson",
+      "sha256": "74716acf940ee42e2d4e79ed046c345f02891b8b0baf2dcc8d39f638a13b729b"
+    },
+    {
+      "path": "raw.ndjson",
+      "sha256": "6c42787e26f6ba764a7168ab6c231a338c72e74c3fd1679525ad60721db63d9a"
+    },
+    {
+      "path": "runs.ndjson",
+      "sha256": "83ac748f4d25572fbbf386826f737814f599af3ad6ebdaf9ddc7d48acb7ee37c"
+    },
+    {
+      "path": "transport.ndjson",
+      "sha256": "d12fe6e7af12ebcacd1da95d4d5a8b54b9091840d6aa6c626a500a0b3a0f7368"
+    }
+  ]
+}

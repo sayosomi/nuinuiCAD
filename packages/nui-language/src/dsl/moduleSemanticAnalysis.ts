@@ -5091,7 +5091,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         : parameter
           ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
           : carryValueType ?? (collectionAnalysis ? collectionValueTypeFor(value) : null);
-      const element = valueType?.elementType.kind === "record" ? valueType.elementType : null;
+      const requiredElement = dslRequiredValueTypeOf(valueType?.elementType);
+      const element = requiredElement?.kind === "record" ? requiredElement : null;
       const indexSource = input.logicalTextByStatementIndex?.get(statementIndex) ?? trimmed;
       const indexSemantic = analyzeExpression(
         statementIndex,
@@ -5109,7 +5110,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (!collectionAnalysis || !element || element.identity !== expectedTypeIdentity || !indexSemantic || indexSemantic.type?.kind !== "number") {
         return invalid("invalid", `collection「${base}」の element 型が expected record 型と一致しません。`, baseSpan, [], { key: "diagnostic.module-record-invalid-reference", parameters: { name: base } });
       }
-      const recordMembersFor = (valueId: string, seen: ReadonlySet<string> = new Set()): readonly Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>[] => {
+      if (isDslOptionalValueType(valueType?.elementType) && !allowOptionalReference) return invalid("invalid", "optional record collection member は使用前に optional value を解決してください。", span);
+      const recordMembersFor = (valueId: string, seen: ReadonlySet<string> = new Set()): readonly (Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> | null)[] => {
         if (seen.has(valueId)) return [];
         const value = collectionAnalysis.genericValuesByStatementId.get(valueId);
         if (!value?.value) return [];
@@ -5137,7 +5139,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const recordMembersForValue = (
         value: DslArraySemanticValue<GenericArraySourceTarget>,
         seen: ReadonlySet<string>
-      ): readonly Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>[] => {
+      ): readonly (Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> | null)[] => {
         if (value.kind === "alias") return recordMembersFor(value.targetValueId, seen);
         if (value.kind === "if") {
           return [
@@ -5147,7 +5149,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         }
         if (value.kind === "match") return value.arms.flatMap((arm) => recordMembersForValue(arm.value, seen));
         if (value.kind !== "literal") return [];
-        return value.members.flatMap((member) => {
+        return value.members.flatMap((member): (Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> | null)[] => {
+          if (member.sourceText.trim() === "none") return [null];
           if (member.target.kind !== "recordValue") return [];
           const recordValue = recordAnalysis?.valuesByStatementId.get(member.target.statementId);
           return recordValue?.typeIdentity
@@ -5201,6 +5204,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         source: raw,
         span,
         typeIdentity: expectedTypeIdentity,
+        valueType: valueType!.elementType,
         target: {
           kind: "recordCollectionIndex",
           collectionValueId: exported?.kind === "collection"
@@ -5603,7 +5607,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         : null;
     }
     if (expression.kind === "reference") {
-      const reference = recordReferenceSemantic(statementIndex, ownerIndex, `@${expression.reference.name}`, expression.span, expectedTypeIdentity, allowOptionalReference || expression.reference.optionalMatchBinder === true, localBindings);
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, expression.reference.optionalMatchBinder ? raw : `@${expression.reference.name}`, expression.span, expectedTypeIdentity, allowOptionalReference || expression.reference.optionalMatchBinder === true, localBindings);
       return reference.target ? { kind: "reference", span: expression.span, reference, valueType: expression.valueType ?? reference.valueType } : null;
     }
     if (expression.kind === "collectionIndex") {
@@ -5650,16 +5654,35 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     // a scalar or evaluating any of its fields.
     const recordMatch = expression.optionalRecordMatch && expression.scrutinee.kind === "reference"
       ? recordSourceLookup(statementIndex, ownerIndex, expression.scrutinee.name, expression.scrutinee.span)
-      : null;
+      : expression.optionalRecordMatch && expression.scrutinee.kind === "collectionIndex"
+        ? (() => {
+            const node = expression.scrutinee;
+            const resolved = resolveCollectionIndex(statementIndex, ownerIndex, { name: node.name, span: node.nameSpan });
+            const target = resolved.target;
+            const valueType = target && "valueType" in target && target.valueType?.kind === "array" ? target.valueType.elementType : null;
+            const type = dslRequiredValueTypeOf(valueType);
+            if (!isDslOptionalValueType(valueType) || type?.kind !== "record" || !type.identity) return null;
+            const reference = recordReferenceSemantic(statementIndex, ownerIndex, source.slice(node.span.start, node.span.end), node.span, type.identity, true);
+            const definition = recordDefinitionFor(type.identity);
+            return reference.target && definition ? { kind: "record" as const, target: reference.target, typeIdentity: type.identity, definition, valueType } : null;
+          })()
+        : null;
     const recordMatchValueId = recordMatch?.kind === "record" && recordMatch.target.kind === "recordValue"
       ? recordValueCollectionIdFor([], recordMatch.target.statementId)
       : recordMatch?.kind === "record" && recordMatch.target.kind === "recordParameter"
         ? `${recordMatch.target.definitionStatementId}:parameter:${recordMatch.target.parameterIndex}`
         : recordMatch?.kind === "record" && recordMatch.target.kind === "deferredModuleRecordExport"
-          ? geometryArrayDeferredModuleExportId(recordMatch.target.instanceStatementId, recordMatch.target.exportName) : null;
+          ? geometryArrayDeferredModuleExportId(recordMatch.target.instanceStatementId, recordMatch.target.exportName)
+          : recordMatch?.kind === "record" && recordMatch.target.kind === "recordCollectionIndex" && recordMatch.target.index.ast.kind === "numberLiteral"
+            ? (() => {
+                const target = recordMatch.target;
+                const index = target.index.ast.kind === "numberLiteral" ? target.index.ast.value : -1;
+                const member = target.members?.[index];
+                return member ? recordValueCollectionIdFor([], member.statementId) : recordValueCollectionIdFor([target.collectionValueId, String(index)], target.collectionValueId);
+              })() : null;
     const recordMatchType = recordMatch?.kind === "record" ? { kind: "record" as const, name: recordMatch.definition.name, identity: recordMatch.typeIdentity } : null;
     const recordScrutinee: ModuleScalarExpressionSemantic | null = recordMatchValueId && recordMatchType && isDslOptionalValueType(recordMatch?.kind === "record" ? recordMatch.valueType : null) ? {
-      ast: expression.scrutinee,
+      ast: expression.scrutinee.kind === "collectionIndex" ? { kind: "reference", span: expression.scrutinee.span, nameSpan: expression.scrutinee.nameSpan, name: expression.scrutinee.name } : expression.scrutinee,
       type: { kind: "optional", valueType: recordMatchType },
       references: [{ name: expression.scrutinee.kind === "reference" ? expression.scrutinee.name : "", span: expression.scrutinee.span,
         nameSpan: expression.scrutinee.kind === "reference" ? expression.scrutinee.nameSpan : expression.scrutinee.span, target: null, resolution: "resolved",
@@ -5727,7 +5750,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               source: { ...recordMatch, optionalMatchBinder: true as const, valueType: dslRequiredValueTypeOf(recordMatch.valueType) ?? undefined,
                 target: recordMatch.target.kind === "recordValue"
                   ? { ...recordMatch.target, valueExpressionKind: "match" as const }
-                  : recordMatch.target }
+                  : recordMatch.target.kind === "recordCollectionIndex" && recordMatch.target.index.ast.kind === "numberLiteral" && recordMatch.target.members?.[recordMatch.target.index.ast.value]
+                    ? { ...recordMatch.target.members[recordMatch.target.index.ast.value]!, valueExpressionKind: "match" as const }
+                    : recordMatch.target }
             } : null;
             if (binding) activeRecordMatchBindings.push(binding);
             try {

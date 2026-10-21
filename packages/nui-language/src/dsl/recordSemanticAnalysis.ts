@@ -791,7 +791,10 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
               initializer: paddedInitializer.slice(node.scrutinee.span.start, node.scrutinee.span.end),
               initializerSpan: node.scrutinee.span, expectedTypeReference: { ...typeReference, typeIdentity: null }, diagnostics: []
             }) : null;
-            const optionalRecord = scrutineeLeaf?.reference && (isDslOptionalValueType(scrutineeLeaf.reference.valueType) ||
+            const indexedScrutinee = (noneArm || someArm) && node.scrutinee.kind === "collectionIndex"
+              ? { name: paddedInitializer.slice(node.scrutinee.span.start + 1, node.scrutinee.span.end), span: node.scrutinee.span, targetTypeIdentity: null }
+              : null;
+            const optionalRecord = indexedScrutinee ? { reference: indexedScrutinee, valueType: undefined } : scrutineeLeaf?.reference && (isDslOptionalValueType(scrutineeLeaf.reference.valueType) ||
               // Qualified exports are resolved by the Module semantic owner.
               // Retain the arm binder until that owner checks its exact type.
               !scrutineeLeaf.reference.targetTypeIdentity && scrutineeLeaf.reference.name.includes("::"))
@@ -904,12 +907,13 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
   for (const [statementIndex, statement] of statements.entries()) {
     if (statement.kind !== "typedDeclaration") continue;
     const type = dslRequiredValueTypeOf(statement.valueType);
-    if (!isDslArrayValueType(type) || type.elementType.kind !== "record" || !statement.payloadSpans.initializer) continue;
+    const element = isDslArrayValueType(type) ? dslRequiredValueTypeOf(type.elementType) : null;
+    if (!isDslArrayValueType(type) || element?.kind !== "record" || !statement.payloadSpans.initializer) continue;
     const span = statement.payloadSpans.initializer;
-    const typeReference = resolveRecordType(input, definitionsByStatementIndex, statement, statementIndex, type.elementType, statement.payloadSpans.type ?? span, diagnostics);
+    const typeReference = resolveRecordType(input, definitionsByStatementIndex, statement, statementIndex, element, statement.payloadSpans.type ?? span, diagnostics);
     if (!typeReference.typeIdentity) continue;
     const typeIdentity = typeReference.typeIdentity;
-    const recordType: DslValueType = { kind: "record", name: type.elementType.name, identity: typeIdentity };
+    const recordType: DslValueType = { kind: "record", name: element.name, identity: typeIdentity };
     const owner = definitionIdAt(stableStatementIdByIndex, statementIndex, "record collection");
     const text = `${" ".repeat(span.start)}${statement.initializer}`;
     const parsed = parseGeometryArrayExpression(text, span);
@@ -918,7 +922,7 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       if (expression.kind === "literal") {
         const ordinal = literalOrdinal++;
         for (const [index, member] of expression.members.entries()) {
-          if (member.text.trimStart().startsWith("@")) continue;
+          if (member.text.trimStart().startsWith("@") || member.text.trim() === "none") continue;
           const leaf = analyzeRecordValueLeaf({ statements, stableStatementIdByIndex, input, definitionsByStatementIndex, valuesByStatementIndex,
             moduleParameterTypeByDefinitionAndIndex, statement, statementIndex, initializer: member.text, initializerSpan: member.span,
             expectedTypeReference: typeReference, diagnostics });

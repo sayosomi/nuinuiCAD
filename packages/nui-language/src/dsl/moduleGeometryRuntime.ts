@@ -37,6 +37,7 @@ import {
   type RuntimeGeometryInputTarget,
   type RuntimeGeometryCollectionNode,
   type InstanceContext,
+  type RecordCollectionLookup,
   type ModuleGeometryPropertyRuntimeTarget
 } from "./moduleGeometryRuntimeLowering";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
@@ -147,11 +148,21 @@ export const buildModuleGeometryRuntime = ({
     return [...existingTargets, ...newTargets];
   };
 
+  const recordCollectionLookup: RecordCollectionLookup = (valueId, path) => {
+    const context = contextsByPath.get(pathKey(path));
+    const namespace = context?.definitionDocumentId && moduleRuntimeContext
+      ? moduleRuntimeContext.documentFor(context.definitionDocumentId)?.sourceLexicalNamespace : sourceNamespace;
+    const value = namespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(valueId)?.value;
+    if (!value) return undefined;
+    const bodies = context?.definition.mappedRecordCollectionBodies ?? moduleSemanticAnalysis.mappedRecordCollectionBodies;
+    return { value, path, ...(value.kind === "map" ? { mappedBody: bodies.find(body => body.binderId === value.binderId) } : {}) };
+  };
+
   const exportAliasFor = (path: readonly string[], exported: Extract<ResolvedModuleExport, { kind: "geometry" }>): GeometryAlias | undefined => {
     // An indexed value must retain its declaration's lazy program and caller-
     // bound selector. It cannot be flattened to a static geometry alias.
     if (exported.backingTarget && exported.backingTarget.kind !== "collectionIndex") {
-      return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+      return sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
     }
     if (!exported.category && (exported.interfaceType === "point" || exported.interfaceType === "line" || exported.interfaceType === "path")) {
       return {
@@ -210,7 +221,7 @@ export const buildModuleGeometryRuntime = ({
       const binding = instance.parameterBindings.find((candidate) => candidate.parameterIndex === parameter.parameterIndex);
       if (binding?.value?.kind !== "geometry") continue;
       const instanceStatement = moduleRuntimeContext?.documentFor(instanceDocumentId)?.statements[instance.statementIndex] ?? statements[instance.statementIndex];
-      const alias = lowerReference(binding.value.reference, parentPath, instanceStatement, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+      const alias = lowerReference(binding.value.reference, parentPath, instanceStatement, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       if (alias) (context.aliases as Map<number, GeometryAlias>).set(parameter.parameterIndex, alias);
     }
     for (const body of definition.bodyStatements) {
@@ -424,6 +435,7 @@ export const buildModuleGeometryRuntime = ({
       materialization: moduleMaterialization,
     exportsByPath,
     rootRecordValuesByStatementId,
+    recordCollectionLookup,
     resolveLineReferenceTargetAt: geometryArrayRuntime.resolveLineReferenceTargetAt,
       resolvePointReferenceAt: geometryArrayRuntime.resolvePointReferenceAt
     });
@@ -498,7 +510,7 @@ export const buildModuleGeometryRuntime = ({
         ...(target.fieldPath ? { fieldPath: target.fieldPath } : {}),
         ...(target.collectionIndex !== undefined ? { collectionIndex: target.collectionIndex } : {})
       };
-      const alias = sourceAliasForTarget(fieldTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+      const alias = sourceAliasForTarget(fieldTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
     }
     if (
@@ -535,7 +547,7 @@ export const buildModuleGeometryRuntime = ({
         ...(target.stagePath ? { stagePath: target.stagePath } : {}),
         ...(target.identity ? { identity: target.identity } : {})
       };
-      const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+      const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
       return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
     }
     const baseTarget: ModuleGeometrySourceTarget = target.kind === "parameterProperty"
@@ -556,14 +568,14 @@ export const buildModuleGeometryRuntime = ({
               ...(target.identity ? { identity: target.identity } : {})
             }
         : { ...target, kind: "deferredModuleExport", expectedGeometryKind: "line" };
-    const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+    const alias = sourceAliasForTarget(baseTarget, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
     return alias ? propertyForAlias(alias, target.property, elementsById) : undefined;
   };
 
   const coordinateForReference = (reference: ModuleGeometryReferenceSemantic, instancePath: readonly string[]) => {
     if (reference.coordinate) return reference.coordinate;
     if (!reference.target) return undefined;
-    const alias = sourceAliasForTarget(reference.target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+    const alias = sourceAliasForTarget(reference.target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
     return alias?.kind === "point" ? alias.coordinate : undefined;
   };
 
@@ -583,7 +595,7 @@ export const buildModuleGeometryRuntime = ({
         ...(carry.stagePath ? { stagePath: carry.stagePath } : {})
       };
     }
-    const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId);
+    const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
     if (!alias) return undefined;
     if (alias.kind === "forGroupOccurrence") {
       if (!isModuleGeometryInterfaceAssignable(alias.geometryType, expectedGeometryType)) return undefined;
