@@ -1413,6 +1413,9 @@ export const compileDslDocument = (
         };
       })()
     : undefined;
+  const hasOptionalRecordCollectionMembers = sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.some(value =>
+    isDslOptionalValueType(value.valueType.elementType) && dslRequiredValueTypeOf(value.valueType.elementType)?.kind === "record"
+  ) ?? false;
   const hasNominalRecordCollectionValueFor = sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValues.some((value) => {
     if (value.valueType.elementType.kind !== "record" || !value.value) return false;
     const visit = (candidate: DslArraySemanticValue<GenericArraySourceTarget>): boolean => {
@@ -3610,7 +3613,7 @@ export const compileDslDocument = (
   const hasNominalRecordCollectionAccess = Boolean(sourceSemanticCompilation && [...sourceSemanticCompilation.rootScalarExpressionsByStatementId.values()].some(site =>
     site.expression.geometryProperties.some(property => property.target?.kind === "recordField" && property.target.record.kind === "recordCollectionIndex")
   ));
-  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasNominalRecordCollectionAccess || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences || hasRootForGroupOccurrenceGeometryTargets ? sourceSemanticCompilation : undefined;
+  const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasOptionalRecordCollectionMembers || hasNominalRecordCollectionAccess || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences || hasRootForGroupOccurrenceGeometryTargets ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const constructionInputConsumerElementIds = new Set<ElementId>();
   const coordinateTargetFor = (coordinate: import("./moduleSemanticTypes").ModulePointCoordinateSemantic, statementIndex: number, sourceText: string): GeometryInputTarget => {

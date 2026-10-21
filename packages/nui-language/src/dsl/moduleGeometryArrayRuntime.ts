@@ -1,3 +1,4 @@
+import { recordFieldContentsCollectionIdentityFor, recordValueCollectionIdentityFor } from "../scalars/recordScalarLowering";
 import type { ElementId, PointAnchor } from "../types/geometry";
 import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
@@ -989,6 +990,12 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
+    if (recordFieldContentsCollectionIdentityFor(semantic.value.targetValueId)) {
+      const value = lowerValueById(semantic.value.targetValueId, currentPath, nextVisited);
+      sourceValueCache.set(key, value);
+      return value;
+    }
+
     sourceValueCache.set(key, null);
     return null;
   }
@@ -999,6 +1006,21 @@ export const buildModuleGeometryArrayRuntime = ({
     visited: ReadonlySet<string>
   ): RuntimeArrayValue | null => {
     const source = sourceForPath(currentPath);
+    const contents = recordFieldContentsCollectionIdentityFor(valueId);
+    const record = contents ? recordValueCollectionIdentityFor(contents.recordCollectionValueId) : null;
+    if (contents && record && contents.fieldPath.length === 1) {
+      const key = `${pathKey(currentPath)}:${valueId}`;
+      if (visited.has(key)) return null;
+      const paths = record.path.length > 0 ? [record.path] : Array.from({ length: currentPath.length + 1 }, (_, i) => currentPath.slice(0, currentPath.length - i));
+      for (const path of paths) {
+        const context = contextsByPath.get(pathKey(path));
+        const value = context?.definition.recordValues.find(candidate => candidate.value.statementId === record.statementId)
+          ?? sourceForPath(path).moduleSemanticAnalysis.rootRecordValuesByStatementId.get(record.statementId);
+        const field = value?.fieldExpressions.find(candidate => candidate.field.recordStatementId === contents.fieldPath[0]!.recordStatementId && candidate.field.fieldIndex === contents.fieldPath[0]!.fieldIndex)?.valueExpression;
+        if (field?.kind === "collection" && field.value?.kind === "alias") return lowerValueById(field.value.targetValueId, path, new Set([...visited, key]));
+      }
+      return null;
+    }
     const semantic = source.analysis?.valuesByStatementId.get(valueId);
     if (semantic) return lowerSemantic(semantic, currentPath, visited);
     const parameter = source.analysis ? parameterSlotFromValueId(source.analysis, valueId) : null;

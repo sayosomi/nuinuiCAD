@@ -1,0 +1,81 @@
+{
+  "base": "05b4fa7078d5625090d5cb42a5131383c74f9cad",
+  "topic": "sayosomi/issue-1194-residual6-d1",
+  "status": "BLOCKED_UNVERIFIED_WIP",
+  "noDestructiveRecovery": true,
+  "rawEvidence": "/tmp/issue1194-residual6",
+  "sourceOwnerHashes": [
+    {
+      "path": "packages/nui-language/src/dsl/dslDocument.ts",
+      "baseSha256": "b9883b09470213c4e07ff0673b48e317803f87624e6afc3d279959060063eaed",
+      "candidateSha256": "77afa1f30c1aa3d3f631a0a64da25e0bd0a6a651d8ce5078ecadabd7db3a9597"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+      "baseSha256": "e8827560c2740d8a3a9a16de1d156efb7435c66da397b852d930f938bbf0a747",
+      "candidateSha256": "06e5cf67f7db180218e613217da6fa3fd99556b4ea5d29fe188bbbb313c37db1"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryArrayRuntime.ts",
+      "baseSha256": "4f00807efcfd784f93050a19835e01c8d5327e6dbadfdfe5445ce32dfc2a7511",
+      "candidateSha256": "620b21204fe9fcdcd2472a20e25e030bb23ccc32736b04b6619e3a218535f6a6"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+      "baseSha256": "92325eaf61434c73899353b95f5f0aa39e9c08560a2450394fc8bea21a85387f",
+      "candidateSha256": "11949ed28079320e5b132cd482302943147283d7d610accc9229d75a9c9ce1f8"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "baseSha256": "6809c277af59033e3993a2f5a686950faeabd29ee875215b39316a78ef32bdfc",
+      "candidateSha256": "73aeee5322f8be758e5870b29173eb2a5b9bfb0db99dbf5d91cdeb4d34b0d3f4"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "baseSha256": "472c1951b7cf5fa12673d46e0a0568c49e5279ca36d8ed58ae912ec7a9ea9133",
+      "candidateSha256": "00565d412d4577411d06d717ffcfb22f51665f58fb9bd2aadd8043a7c090aa3c"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+      "baseSha256": "fb5b249f47faea2550fe976f96f3a80bcea4d7fd104152119aaf7881eda6555d",
+      "candidateSha256": "b2ef93984dd840ed3aa5de96caf3494d8d4c817ebced67836103944cb75c4890"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "baseSha256": "6a515cee6be9e58e6545379352a9ecec40ab3f4f4f9ffd0693a346bcb80b8a48",
+      "candidateSha256": "c6001d1a853662f882527848c41f7ecb0188ecd558685c4e477aa583280fffff"
+    },
+    {
+      "path": "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "baseSha256": "48fe737c0e5416de8c91add9d38391849ded9596347f1c17eab04b0631f156d6",
+      "candidateSha256": "b31ba8cd48400c50ec2c25053de163f75190286caf5ea9d3dcce0fb6d59e2e02"
+    }
+  ],
+  "exactBaseReplay": "NOT COMPLETED: only base-initial and base-adjacent ran before any production mutation. Do not attribute later cases to exact Base or count finalized repairs.",
+  "fingerprints": "Early phases fingerprint the inherited fifth-runner owner set. Boundary-controls and later add moduleGeometryArrayRuntime.ts; this owner-set expansion is preserved, so fingerprints across that boundary are not directly comparable.",
+  "freezeProcedure": "All 27 exact source/bundles and independent expectations persisted before evaluation. No accepted source edited after evaluation. Three root geometry probes remain deferred; no speculative grammar or root scheduler fix.",
+  "counts": {
+    "compiler": 78,
+    "setupCompiler": 19,
+    "reference": 68,
+    "production": 68
+  },
+  "artifacts": [
+    {
+      "path": "compiler.ndjson",
+      "sha256": "48f587091d7c448c34132572c5940de25ff7c48ff44344a09059781e4f4b9631"
+    },
+    {
+      "path": "raw.ndjson",
+      "sha256": "0092567285eaa157f4684b2b11ddb2bda25b5a91b6d19b21829a40f80f63ef33"
+    },
+    {
+      "path": "runs.ndjson",
+      "sha256": "d9b88647eb28530cb7580f20c0109a85a1b6662c0086ade2a1e1a2e79d057015"
+    },
+    {
+      "path": "transport.ndjson",
+      "sha256": "a987c1bef40d649167bd8d1a7dfcf5a70c39670127ce61fdefe93b69c5b46dff"
+    }
+  ]
+}

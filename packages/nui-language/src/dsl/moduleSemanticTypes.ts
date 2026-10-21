@@ -551,6 +551,7 @@ export type ModuleRecordValueExpressionSemantic =
       span: DslSpan;
       scrutinee: ModuleScalarExpressionSemantic | null;
       optionalRecordMatch?: true;
+      recordScrutinee?: ModuleRecordSourceTarget;
       arms: readonly {
         label: string;
         labelSpan: DslSpan;

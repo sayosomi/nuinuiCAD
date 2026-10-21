@@ -1,0 +1,286 @@
+[
+  {
+    "id": "P4",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M1",
+    "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+    "expected": {
+      "L": 5,
+      "N": 21
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-dynamic",
+    "sha256": "73bd0e6214f7bfc6a2ec3c407ef4cb82aaa444843a34b8e75faf94b8f3711e39",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-if",
+    "sha256": "ab4b76600cb5b5fd43401fdbc3a641a0f9fde46a1410f8c4e0411d0297c67249",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-construct",
+    "sha256": "475925e365d8dcce7f4df3b7dd13f6b986f1ec1b7c123e472c20720f3358befc",
+    "expected": {
+      "L": 5,
+      "X": 22,
+      "Y": 6,
+      "N": 21
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-root-control",
+    "sha256": "8de05279051079e710f4ddd1eb460f23ae2b775cef048ed8f4dc7d13d0ba2278",
+    "expected": {
+      "L": 13,
+      "X": 5,
+      "Y": 12,
+      "N": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-parameter",
+    "sha256": "28ddba31ecb9c7073df811241ceba8bc309e5d004162eeb6877a42f0ce8f1c1e",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 3,
+      "N": 2,
+      "O": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-if-inline",
+    "sha256": "61c8fe1d62984cfa0feff6dbd0419805c8ba9273e4149c88072f21e145b2dc2f",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-constant",
+    "sha256": "9395700c41010eef82813dd77c665e266769bd43f7392ce7b42ab08264299e2c",
+    "expected": {
+      "L": 5,
+      "X": 22,
+      "Y": 6,
+      "N": 21
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-record-field",
+    "sha256": "014ccab1870034e0471fc9f0593501258750b28e6739ab7ba0db14d79c80898f",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 3,
+      "N": 2,
+      "O": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-document-nested",
+    "sha256": "c72e80d05aab7edfeec67c5b1932341ee4a6a0d140f5b98206cc97e9eed2ffe8",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 3,
+      "N": 2,
+      "O": 2
+    },
+    "savedDocumentPaths": [
+      "lib.nui"
+    ]
+  },
+  {
+    "id": "O-dynamic-fields",
+    "sha256": "177e92981df606093770804a1b58ba2347481d1797a505ccf2da4d74f8f36262",
+    "expected": {
+      "X": 21,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-if-false",
+    "sha256": "7cc5017925372c7d7e08c7e2ddf8fb2029c8921337971ee734f589cb1bef2378",
+    "expected": {
+      "X": 43,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-choice",
+    "sha256": "db944b692dc234b3951b3aa35a2dd6edcad818a8d16a752bd34b70739bb04b3e",
+    "expected": {
+      "X": 43,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-module",
+    "sha256": "e96c0458e0d068ad9481b3372563fa3837876a25584cec772db5fdac6631b22d",
+    "expected": {
+      "X": 21,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-document-field",
+    "sha256": "c33ae85eb83473fd3fe15f6f35b7e1aa060315182d4a4f45816c7a697c234428",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 3,
+      "N": 2,
+      "O": 2
+    },
+    "savedDocumentPaths": [
+      "lib.nui"
+    ]
+  },
+  {
+    "id": "G-scalar-source",
+    "sha256": "1fe587437fc5817b28d06d943f67dcea5f085652d41d1bb101f935329c16369c",
+    "expected": {
+      "L": 5,
+      "X": 22,
+      "Y": 6,
+      "N": 21
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-direct-control",
+    "sha256": "8d11d42d53c05427fe677c9bce6c34ae263307d85c74afc240864b6863df58bd",
+    "expected": {
+      "L": 5,
+      "X": 22,
+      "Y": 6
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-document-field-direct",
+    "sha256": "f5a24b5a1d2ca5f36e36f51c83f9818c40b7aec3f275209677471fab73a3d749",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 3,
+      "N": 2,
+      "O": 2
+    },
+    "savedDocumentPaths": [
+      "lib.nui"
+    ]
+  },
+  {
+    "id": "G-module",
+    "sha256": "5c321af7af7a8516bb8441c4053f7823aa9ba5c7af000cc2701e93f953ffec18",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 22,
+      "Y": 46
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-module-direct-control",
+    "sha256": "291c09f4e340e7b38cb7b25c04c7567e575f23f0f2b1252e63dcc93f2823c2e0",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 22,
+      "Y": 46
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-index-errors",
+    "sha256": "2b2ceef1359f3083c75f01f1afdcaea51e3a5f1cd598b2e5486eb6c473deadaa",
+    "expected": {},
+    "expectedIssues": {
+      "X": "evaluation-collection-index-invalid",
+      "Y": "evaluation-collection-index-invalid"
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-module-lazy",
+    "sha256": "741dab2a92e8271fc3ed5d0a1f1cbd4b8a6f3ae0a794bc7b68aa7964dea93c36",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-unselected-member",
+    "sha256": "75555553022a659cacd8c371368b79567dd1c8a4ee63a118ef5a854af3005340",
+    "expected": {
+      "L": 5,
+      "X": 4
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-lazy-parameter",
+    "sha256": "192403364a27fbdf79511adc1e1155af8950531c44befbf03ce3bddb9bb67f39",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 2,
+      "O": 2
+    },
+    "savedDocumentPaths": [
+      "lib.nui"
+    ]
+  },
+  {
+    "id": "O-invalid-inline-type",
+    "sha256": "5be2319bdb8e79c3f6c6aa02d6443234efef2bc08d49efc6f3711631031e8b07",
+    "expected": {},
+    "expectedCompilerError": "*",
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O-invalid-arm-type",
+    "sha256": "7ec1711207a16f0cc9b7a6a004c60aa5140a98c429a492a0c95f13382a1885e4",
+    "expected": {},
+    "expectedCompilerError": "*",
+    "savedDocumentPaths": []
+  }
+]

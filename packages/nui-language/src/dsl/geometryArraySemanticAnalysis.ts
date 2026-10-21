@@ -413,6 +413,27 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
   // Register the generalized collection namespace before resolving any
   // initializer, preserving source-order lookup while allowing later aliases
   // to resolve only through the existing lexical resolver.
+  const recordCollectionReferenceFor = (statementIndex: number, sourceText: string): { targetValueId: string; valueType: DslValueType } | null => {
+    const reference = parseDslSourceReference(sourceText.trim());
+        if (reference.kind === "valid" && reference.reference.property !== null) {
+          const source = reference.reference;
+          const lookup = input.resolvePath(statementIndex, source.path);
+          const recordValue = lookup.kind === "resolved" ? input.recordSemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId) : undefined;
+          const parameter = source.path.segments.length === 1
+            ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, source.path.segments[0]!) : null;
+          const recordParameter = parameter ? input.recordSemanticAnalysis?.moduleParameters.find(p => p.definitionStatementId === parameter.definitionStatementId && p.parameterIndex === parameter.parameterIndex) : undefined;
+          const identity = recordValue?.typeIdentity ?? recordParameter?.typeIdentity;
+          const definition = identity ? input.recordSemanticAnalysis?.definitionsByStatementId.get(identity) : undefined;
+          const member = definition ? resolveRecordMember(definition, id => input.recordSemanticAnalysis?.definitionsByStatementId.get(id), source.property!) : null;
+          const base = recordValue ? recordValueCollectionIdFor([], recordValue.statementId)
+            : recordParameter ? `${recordParameter.definitionStatementId}:parameter:${recordParameter.parameterIndex}` : null;
+          if (base && member && !member.property && member.collectionIndex === undefined && isDslArrayValueType(dslRequiredValueTypeOf(member.valueType))) return {
+            targetValueId: recordFieldContentsCollectionValueIdFor(base, member.fieldPath), valueType: member.valueType
+          };
+        }
+    return null;
+  };
+
   for (const [definitionStatementIndex, statement] of statements.entries()) {
     if (statement.kind !== "moduleDefinition") continue;
     const definitionStatementId = statementIdAt(stableStatementIdByIndex, definitionStatementIndex, "module definition");
@@ -920,6 +941,9 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           : null;
       },
       resolveArrayReference: (sourceText, sourceSpan, localBindings) => {
+        const recordCollection = recordCollectionReferenceFor(statementIndex, sourceText);
+        const recordCollectionType = recordCollection ? geometryArrayTypeOfDslValueType(recordCollection.valueType) : null;
+        if (recordCollection && recordCollectionType) return { kind: "resolved", ...recordCollection, type: recordCollectionType };
         const path = referencePath(sourceText);
         if (!path || path.segments.length === 0) {
           return { kind: "invalid", diagnostic: { code: "geometry-array-invalid-reference", message: "geometry array alias の参照が不正です。", span: sourceSpan } };
@@ -1262,23 +1286,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       )
     };
     const resolveArrayReference: ResolveDslArrayExpressionInput<GenericArraySourceTarget>["resolveArrayReference"] = (sourceText, sourceSpan, localBindings) => {
-        const reference = parseDslSourceReference(sourceText.trim());
-        if (reference.kind === "valid" && reference.reference.property !== null) {
-          const source = reference.reference;
-          const lookup = input.resolvePath(statementIndex, source.path);
-          const recordValue = lookup.kind === "resolved" ? input.recordSemanticAnalysis?.valuesByStatementId.get(lookup.declaration.statementId) : undefined;
-          const parameter = source.path.segments.length === 1
-            ? moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, source.path.segments[0]!) : null;
-          const recordParameter = parameter ? input.recordSemanticAnalysis?.moduleParameters.find(p => p.definitionStatementId === parameter.definitionStatementId && p.parameterIndex === parameter.parameterIndex) : undefined;
-          const identity = recordValue?.typeIdentity ?? recordParameter?.typeIdentity;
-          const definition = identity ? input.recordSemanticAnalysis?.definitionsByStatementId.get(identity) : undefined;
-          const member = definition ? resolveRecordMember(definition, id => input.recordSemanticAnalysis?.definitionsByStatementId.get(id), source.property!) : null;
-          const base = recordValue ? recordValueCollectionIdFor([], recordValue.statementId)
-            : recordParameter ? `${recordParameter.definitionStatementId}:parameter:${recordParameter.parameterIndex}` : null;
-          if (base && member && !member.property && member.collectionIndex === undefined && isDslArrayValueType(dslRequiredValueTypeOf(member.valueType))) return {
-            kind: "resolved", targetValueId: recordFieldContentsCollectionValueIdFor(base, member.fieldPath), valueType: member.valueType
-          };
-        }
+        const recordCollection = recordCollectionReferenceFor(statementIndex, sourceText);
+        if (recordCollection) return { kind: "resolved", ...recordCollection };
         const path = referencePath(sourceText);
         if (!path || path.segments.length === 0) return { kind: "invalid", diagnostic: { code: "array-invalid-reference", message: "array alias の参照が不正です。", span: sourceSpan } };
         if (path.segments.length === 1 && !path.absolute) {

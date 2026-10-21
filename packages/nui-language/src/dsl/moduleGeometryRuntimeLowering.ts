@@ -469,8 +469,10 @@ export const geometryAliasForSourceElement = (
 
 /** Exact collection products supplied by the defining source namespace. */
 export type RecordCollectionLookup = (valueId: string, path: readonly string[]) => {
-  value: import("./geometryArraySemantics").DslArraySemanticValue<import("./geometryArraySemanticAnalysis").GenericArraySourceTarget>;
+  value?: import("./geometryArraySemantics").DslArraySemanticValue<import("./geometryArraySemanticAnalysis").GenericArraySourceTarget>;
   path: readonly string[];
+  geometryAliases?: readonly GeometryAlias[] | null;
+  geometryCollection?: RuntimeGeometryCollectionNode | null;
   mappedBody?: NonNullable<ModuleDefinitionSemantic["mappedRecordCollectionBodies"]>[number];
 } | undefined;
 
@@ -622,7 +624,7 @@ export const sourceAliasForTarget = (
         if (member) return recordValueExpressionForTarget(member);
         if (index === null || !Number.isInteger(index) || index < 0) return null;
         const collection = recordCollectionLookup?.(recordTarget.collectionValueId, fieldContextPath);
-        if (!collection) return null;
+        if (!collection?.value) return null;
         fieldContextPath = collection.path;
         fieldOccurrencePath = collection.path;
         if (collection.value.kind === "alias") return recordValueExpressionForTarget({ ...recordTarget, members: undefined, collectionValueId: collection.value.targetValueId });
@@ -732,6 +734,20 @@ export const sourceAliasForTarget = (
         geometryType: target.valueType.kind === "point" ? "point" : "line",
         interfaceType: target.valueType.kind
       }, target.pointKey);
+    }
+    if (expression.kind === "collection" && target.collectionIndex !== undefined && expression.value?.kind === "alias") {
+      const collection = recordCollectionLookup?.(expression.value.targetValueId, fieldContextPath);
+      if (collection?.geometryCollection && collection.geometryCollection.kind !== "leaf") {
+        const span = expression.value.sourceSpan;
+        return { kind: "collectionIndex", members: [], value: collection.geometryCollection, target: {
+          kind: "collectionIndex", collectionValueId: expression.value.targetValueId, collectionLength: null, targetSourceOrder: -1,
+          elementInterfaceType: target.valueType.kind, expectedGeometryKind: target.valueType.kind === "point" ? "point" : "line", expectedInterfaceType: target.valueType.kind,
+          index: { ast: { kind: "numberLiteral", span, value: target.collectionIndex }, type: { kind: "number" }, references: [], geometryProperties: [], geometryBuiltinArguments: [] },
+          source: expression.value.targetValueId, referenceSpan: span, nameSpan: span, ...(target.pointKey ? { pointKey: target.pointKey } : {})
+        } };
+      }
+      const alias = collection?.geometryAliases?.[target.collectionIndex];
+      return alias ? lowerAliasWithPointKey(alias, target.pointKey) : undefined;
     }
     if (expression.kind === "collection" && target.collectionIndex !== undefined && expression.value && typeof expression.value === "object" && "kind" in expression.value && expression.value.kind === "literal") {
       const member = (expression.value as Extract<import("./geometryArraySemantics").DslArraySemanticValue<unknown>, { kind: "literal" }>).members[target.collectionIndex];

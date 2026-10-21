@@ -171,6 +171,26 @@ export const recordScalarBindingIdForPath = (
 export const recordValueCollectionIdFor = (path: readonly string[], statementId: string): string =>
   `record-value:${JSON.stringify([path, statementId])}`;
 
+/** Whole nominal records reuse the existing record-member collection runtime.
+ * The JSON identity keeps the source path and statement identity unambiguous
+ * while allowing semantic nodes to emit a root-form identity that this
+ * compiler resolves for a concrete Module instance. */
+export const recordValueCollectionIdentityFor = (valueId: string): { path: string[]; statementId: string } | null => {
+  if (!valueId.startsWith("record-value:")) return null;
+  try {
+    const encoded = JSON.parse(valueId.slice("record-value:".length)) as unknown;
+    if (!Array.isArray(encoded) || !Array.isArray(encoded[0]) || !encoded[0].every((part) => typeof part === "string") || typeof encoded[1] !== "string") return null;
+    return { path: encoded[0], statementId: encoded[1] };
+  } catch {
+    return null;
+  }
+};
+
+
+/** A selected record owns a singleton, distinct from its source array. */
+export const indexedRecordValueCollectionIdFor = (collectionValueId: string, index: ScalarExpressionAst): string =>
+  recordValueCollectionIdFor([collectionValueId, index.kind === "numberLiteral" ? String(index.value) : `index:${index.span.start}:${index.span.end}`], collectionValueId);
+
 /** Stable collection-runtime identity for a scalar field projected from a
  * whole nominal record value. */
 export const recordFieldCollectionValueIdFor = (
@@ -446,6 +466,12 @@ export const planRecordScalarLowering = ({
   };
 
   for (const value of values) {
+    const inlineCollection = value.inlineCollectionMember
+      ? sourceNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(value.inlineCollectionMember.collectionStatementId)
+      : null;
+    // Optional record members own lazy singleton descriptors. Seeding their
+    // fields as root declarations evaluates unselected collection branches.
+    if (inlineCollection && isDslOptionalValueType(inlineCollection.valueType.elementType)) continue;
     if (value.inlineCollectionMember && !seedOrderByStatement.has(value.statementIndex)) seedOrderByStatement.set(value.statementIndex, 1);
     const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(value.statementIndex);
     if (!scopeId || !value.typeIdentity) {

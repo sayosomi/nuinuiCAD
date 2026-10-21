@@ -1,0 +1,43 @@
+{
+  "status": "BLOCKED",
+  "recordedAtJST": "2026-10-21T22:42:32.946370+09:00",
+  "reason": "Required focused verification detected a real 10-second production Rust request timeout. Task stop rule followed: no evaluator retry, further repair, Base replay or full gate execution after detection.",
+  "timeout": {
+    "phase": "focused-owners",
+    "case": "P4",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "resourceError": "Rust request timeout",
+    "elapsedMs": 10087,
+    "results": "Only first request attempted; later sixth-runner tests failed the resource guard without evaluation."
+  },
+  "separateRegression": {
+    "file": "src/dsl/moduleScalarRuntime.integration.test.ts",
+    "test": "matches optional Module geometry collection parameters with required binders",
+    "expectedPresentResult": 2,
+    "actualPresentResult": 0,
+    "status": "UNRESOLVED"
+  },
+  "focused": {
+    "filesPassed": 10,
+    "filesFailed": 2,
+    "passed": 353,
+    "failed": 25,
+    "skipped": 6,
+    "command": "npx vitest run test/issue1194Residual6D1Rust.integration.test.ts test/issue1194Residual5D1Rust.integration.test.ts test/issue1194Residual4D1Rust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/scalars/recordScalarIntegration.test.ts src/dsl/recordDocumentIntegration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/recordSemanticAnalysis.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/moduleGeometryRuntime.integration.test.ts src/dsl/geometryArrayRuntimeLowering.integration.test.ts src/dsl/geometryArraySemanticAnalysis.integration.test.ts",
+    "log": "/tmp/issue1194-r6-focused.log",
+    "logSha256": "f56fd626dc5dfaf9d7b56d79ff2a7b00654c019bf88ade15290f9f33cea9b4e6"
+  },
+  "completedNewFamilies": 0,
+  "provisionalCandidateMechanisms": 7,
+  "requiredOrderedVerificationBlock": "NOT RUN: tree never reached settled focused verification",
+  "exactBaseFullReplay": "NOT RUN",
+  "cleanup": "No owned evaluator/test child remained after timeout teardown",
+  "quota": {
+    "originalHumanWeeklyBaseline": 74,
+    "lastHumanReading": "57% after fourth slice",
+    "sixthSliceStart": "UNAVAILABLE",
+    "sixthSliceEnd": "UNAVAILABLE",
+    "attributableConsumption": "UNAVAILABLE"
+  },
+  "nextSafeAction": "Explicit Human-authorized resume to diagnose the timeout before evaluator execution, then repair the existing optional geometry-parameter regression. Re-establish exact Base FAIL/PASS proof for all candidates, rerun affected focused gates, and only then perform the required settled full block. Do not integrate this WIP or count candidates as finalized families."
+}

@@ -1,0 +1,269 @@
+{
+  "scope": "Instrumented sixth runner only, not total full-suite evaluator calls or quota usage.",
+  "counts": {
+    "compiler": 78,
+    "setupCompiler": 19,
+    "reference": 68,
+    "production": 68
+  },
+  "acceptedCount": 211,
+  "newlyAcceptedCount": 23,
+  "historicalAcceptedCount": 188,
+  "accountingCorrection": {
+    "phase": "invalid-controls",
+    "removedIllegalPrototypeSha256": "5be2319bdb8e79c3f6c6aa02d6443234efef2bc08d49efc6f3711631031e8b07",
+    "provisionalCount": 212,
+    "legalAcceptedCount": 211,
+    "reason": "An expected-illegal prototype was temporarily compiler-admitted after lazy binding changes. It is not a legal accepted exploration input; the regression is fixed and preserved as a static rejection control. Historical 188 entries unchanged."
+  },
+  "runs": [
+    {
+      "runId": "base-initial-1792587747531",
+      "phase": "base-initial",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "counts": {
+        "compiler": 7,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "observedProvisionalAcceptedCount": 191,
+      "resourceError": null
+    },
+    {
+      "runId": "base-adjacent-1792587820467",
+      "phase": "base-adjacent",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "observedProvisionalAcceptedCount": 194,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-field-analysis-1792588125208",
+      "phase": "fix-field-analysis",
+      "sourceTreeSha256": "37f9b43ef96805290e58546e7a4fdd6607f54bf8516b970895bd5b14314d7f63",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "observedProvisionalAcceptedCount": 196,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-selector-1792588396089",
+      "phase": "fix-selector",
+      "sourceTreeSha256": "72edf527e1e477c8eee1a4416290d64e8c94324de7dd963e663afc93d44b5645",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "observedProvisionalAcceptedCount": 197,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-lazy-members-1792588445404",
+      "phase": "fix-lazy-members",
+      "sourceTreeSha256": "c0f9fd7959fca15b89e81cd55ee8092398be1873fa48a9755b02a6fe42eb7f10",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "observedProvisionalAcceptedCount": 197,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-geometry-collection-1792588623642",
+      "phase": "fix-geometry-collection",
+      "sourceTreeSha256": "6781090ff6a7fcf6950eea5df6d0eb201b3c551908888a52e84f015c79265d2c",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "observedProvisionalAcceptedCount": 197,
+      "resourceError": null
+    },
+    {
+      "runId": "selected-adjacent-1792588662701",
+      "phase": "selected-adjacent",
+      "sourceTreeSha256": "6781090ff6a7fcf6950eea5df6d0eb201b3c551908888a52e84f015c79265d2c",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "observedProvisionalAcceptedCount": 201,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-selected-projections-1792588873699",
+      "phase": "fix-selected-projections",
+      "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "observedProvisionalAcceptedCount": 201,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-map-construction-1792588955320",
+      "phase": "fix-map-construction",
+      "sourceTreeSha256": "3f54e80df801f7dd96dcb6ea1db49521af1b002e53bbcc0a8fd2d8a54a8ed5d4",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "observedProvisionalAcceptedCount": 201,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-selected-geometry-owner-1792589062844",
+      "phase": "fix-selected-geometry-owner",
+      "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "observedProvisionalAcceptedCount": 201,
+      "resourceError": null
+    },
+    {
+      "runId": "geometry-reduce-1792589190916",
+      "phase": "geometry-reduce",
+      "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "observedProvisionalAcceptedCount": 204,
+      "resourceError": null
+    },
+    {
+      "runId": "module-geometry-alias-1792589309045",
+      "phase": "module-geometry-alias",
+      "sourceTreeSha256": "e8c808b213f0735b9091a39d3e6a537e51a03dd24dff4840ae8f2dca0cc41eee",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "observedProvisionalAcceptedCount": 207,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-record-geometry-alias-1792589440280",
+      "phase": "fix-record-geometry-alias",
+      "sourceTreeSha256": "723e3025a91596fa7300a91a01cddda629c45931bdabb0aacc5dcce67a130216",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "observedProvisionalAcceptedCount": 207,
+      "resourceError": null
+    },
+    {
+      "runId": "boundary-controls-1792589570751",
+      "phase": "boundary-controls",
+      "sourceTreeSha256": "73afe3bd8d90e8e4adad0a62658472c3aea6cb4c5a11921566d67ade0ed2b68e",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "observedProvisionalAcceptedCount": 211,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-context-boundaries-1792589644192",
+      "phase": "fix-context-boundaries",
+      "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "observedProvisionalAcceptedCount": 211,
+      "resourceError": null
+    },
+    {
+      "runId": "invalid-controls-1792589709252",
+      "phase": "invalid-controls",
+      "sourceTreeSha256": "1439bf43180961158b994adea8a1352b1ce6de0ea2f34064716b0da92228655d",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "observedProvisionalAcceptedCount": 212,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-static-validation-1792589827250",
+      "phase": "fix-static-validation",
+      "sourceTreeSha256": "d359db4f9b785da93372259a79a618c602530557f3bb3aaa5f5088adbd26e554",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "observedProvisionalAcceptedCount": 211,
+      "resourceError": null
+    },
+    {
+      "runId": "static-validation-gate-1792589892529",
+      "phase": "static-validation-gate",
+      "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "observedProvisionalAcceptedCount": 211,
+      "resourceError": null
+    },
+    {
+      "runId": "focused-owners-1792589971190",
+      "phase": "focused-owners",
+      "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "observedProvisionalAcceptedCount": 211,
+      "resourceError": "Rust request timeout"
+    }
+  ],
+  "cleanup": "Timeout watchdog disposed the persistent Rust child; afterAll awaited close. Post-stop process inspection found no owned evaluator or Vitest child."
+}
