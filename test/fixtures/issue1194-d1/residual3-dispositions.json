@@ -1,0 +1,1772 @@
+[
+  {
+    "id": "R1",
+    "cluster": "R",
+    "sha256": "be93859232d349c978a3b4c75987ca75b987c80cfdf3d8cc31bd02ffabe8d7cc",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F17"
+    ],
+    "expected": {
+      "X": 19
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R1",
+      "sha256": "be93859232d349c978a3b4c75987ca75b987c80cfdf3d8cc31bd02ffabe8d7cc",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 74,
+          "code": "module-undefined-geometry-reference",
+          "message": "未定義のgeometry「held」を参照しています。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 128,
+                "to": 135
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-undefined-geometry-reference",
+            "parameters": {
+              "name": "held"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R1",
+      "sha256": "be93859232d349c978a3b4c75987ca75b987c80cfdf3d8cc31bd02ffabe8d7cc",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "R2",
+    "cluster": "R",
+    "sha256": "85cda2c86b1566f3f8e8314df16e29df5d3020a9cd6c3d05feee1501e03053ed",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F17",
+      "F18"
+    ],
+    "expected": {
+      "X": 25,
+      "Y": 19,
+      "Z": 7
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R2",
+      "sha256": "85cda2c86b1566f3f8e8314df16e29df5d3020a9cd6c3d05feee1501e03053ed",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 153,
+          "code": "module-undefined-geometry-reference",
+          "message": "未定義のgeometry「held」を参照しています。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 275,
+                "to": 286
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-undefined-geometry-reference",
+            "parameters": {
+              "name": "held"
+            }
+          }
+        },
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 166,
+          "code": "module-undefined-geometry-reference",
+          "message": "未定義のgeometry「held」を参照しています。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 288,
+                "to": 299
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-undefined-geometry-reference",
+            "parameters": {
+              "name": "held"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R2",
+      "sha256": "85cda2c86b1566f3f8e8314df16e29df5d3020a9cd6c3d05feee1501e03053ed",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "R3",
+    "cluster": "R",
+    "sha256": "14a41553cdb5246f42dd1a2bffe8748ba7588e8df5f8d11eb7f42d4f6541730a",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F17"
+    ],
+    "expected": {
+      "X": 21,
+      "Y": 45
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R3",
+      "sha256": "14a41553cdb5246f42dd1a2bffe8748ba7588e8df5f8d11eb7f42d4f6541730a",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 81,
+          "code": "module-undefined-geometry-reference",
+          "message": "未定義のgeometry「held」を参照しています。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 162,
+                "to": 169
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-undefined-geometry-reference",
+            "parameters": {
+              "name": "held"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R3",
+      "sha256": "14a41553cdb5246f42dd1a2bffe8748ba7588e8df5f8d11eb7f42d4f6541730a",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "R4",
+    "cluster": "R",
+    "sha256": "d49589dfa356d15a51ef3f9b47ccead02b200d9da1c0b4d4991e87e275e806df",
+    "disposition": "CONTRACT_INVALID",
+    "reason": "R4: property-valued nominal leaf is outside the enumerated @name/static-index record leaf forms.",
+    "families": [],
+    "expected": {
+      "X": 23,
+      "Y": 19,
+      "Z": 2
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R4",
+      "sha256": "d49589dfa356d15a51ef3f9b47ccead02b200d9da1c0b4d4991e87e275e806df",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 105,
+          "code": "module-record-reference-invalid",
+          "message": "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 227,
+                "to": 238
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-reference-invalid"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 122,
+          "code": "array-reference-invalid",
+          "message": "未解決の array 参照です: @held.xs",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 244,
+                "to": 252
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.array-reference-invalid"
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R4",
+      "sha256": "d49589dfa356d15a51ef3f9b47ccead02b200d9da1c0b4d4991e87e275e806df",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 105,
+          "code": "module-record-reference-invalid",
+          "message": "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 227,
+                "to": 238
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-reference-invalid"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "R5",
+    "cluster": "R",
+    "sha256": "673dc6d9a3b34e0997715d772e1aba3e63cf5833c0c4f24869a61a1e5de39fd7",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F17"
+    ],
+    "expected": {
+      "X": 31
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R5",
+      "sha256": "673dc6d9a3b34e0997715d772e1aba3e63cf5833c0c4f24869a61a1e5de39fd7",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 52,
+          "code": "module-undefined-geometry-reference",
+          "message": "未定義のgeometry「held」を参照しています。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 100,
+                "to": 107
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-undefined-geometry-reference",
+            "parameters": {
+              "name": "held"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R5",
+      "sha256": "673dc6d9a3b34e0997715d772e1aba3e63cf5833c0c4f24869a61a1e5de39fd7",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "R6",
+    "cluster": "R",
+    "sha256": "59b5d7a5a8911e6a09dda0789060ea15e50aaf2957221469d02901034a072614",
+    "disposition": "PASS",
+    "reason": "Genuine Base PASS control.",
+    "families": [],
+    "expected": {
+      "X": 19
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R6",
+      "sha256": "59b5d7a5a8911e6a09dda0789060ea15e50aaf2957221469d02901034a072614",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "after": {
+      "id": "R6",
+      "sha256": "59b5d7a5a8911e6a09dda0789060ea15e50aaf2957221469d02901034a072614",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O1",
+    "cluster": "O",
+    "sha256": "e4761cab2cff07e8171ad17a53498ecd598c810ad38a56012d5120285c3ea4de",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F19"
+    ],
+    "expected": {
+      "X": 31,
+      "Y": 31,
+      "Z": 19
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O1",
+      "sha256": "e4761cab2cff07e8171ad17a53498ecd598c810ad38a56012d5120285c3ea4de",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 31,
+          "code": "module-record-value-in-scalar",
+          "message": "record 値「b」は scalar expression では参照できません。record field を指定してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 82,
+                "to": 84
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-value-in-scalar",
+            "parameters": {
+              "name": "b"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O1",
+      "sha256": "e4761cab2cff07e8171ad17a53498ecd598c810ad38a56012d5120285c3ea4de",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O2",
+    "cluster": "O",
+    "sha256": "ca728d19cbd684ca9c86d271e5163b4bf016c414334e71cce788563ca9a4de12",
+    "disposition": "PASS",
+    "reason": "Genuine Base PASS control.",
+    "families": [],
+    "expected": {
+      "X": 31,
+      "Y": 43
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O2",
+      "sha256": "ca728d19cbd684ca9c86d271e5163b4bf016c414334e71cce788563ca9a4de12",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "after": {
+      "id": "O2",
+      "sha256": "ca728d19cbd684ca9c86d271e5163b4bf016c414334e71cce788563ca9a4de12",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O3",
+    "cluster": "O",
+    "sha256": "86062b1f5e2c13c713ab597d753d439f07954abc42d7b5f91c135135c4aa0cc5",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F20"
+    ],
+    "expected": {
+      "X": 31,
+      "Y": 43
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O3",
+      "sha256": "86062b1f5e2c13c713ab597d753d439f07954abc42d7b5f91c135135c4aa0cc5",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 12,
+          "column": 19,
+          "code": "module-optional-member-non-optional-receiver",
+          "message": "optional member access の receiver は optional value (T?) である必要があります。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 262,
+                "to": 274
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 12,
+          "column": 19,
+          "code": "module-scalar-type-mismatch",
+          "message": "optional member access の receiver は T? 型である必要があります(実際: Box)。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 262,
+                "to": 274
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver",
+            "parameters": {
+              "actual": "Box"
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Expected type declared here",
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 253,
+                    "to": 259
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "severity": "error",
+          "line": 13,
+          "column": 19,
+          "code": "module-optional-member-non-optional-receiver",
+          "message": "optional member access の receiver は optional value (T?) である必要があります。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 302,
+                "to": 315
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 13,
+          "column": 19,
+          "code": "module-scalar-type-mismatch",
+          "message": "optional member access の receiver は T? 型である必要があります(実際: Box)。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 302,
+                "to": 315
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver",
+            "parameters": {
+              "actual": "Box"
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Expected type declared here",
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 293,
+                    "to": 299
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "severity": "error",
+          "line": 7,
+          "column": 28,
+          "code": "module-record-reference-invalid",
+          "message": "optional module parameter「b」は optional value を解決してから参照してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 135,
+                "to": 136
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-optional-value-required",
+            "parameters": {
+              "name": "b"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O3",
+      "sha256": "86062b1f5e2c13c713ab597d753d439f07954abc42d7b5f91c135135c4aa0cc5",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O4",
+    "cluster": "O",
+    "sha256": "ed827b6fc4230f76154986f0e46a2ea7c60f3a5bbc79e0bbc044e2ebdb3532df",
+    "disposition": "CONTRACT_INVALID",
+    "reason": "O4: none comparison lacks an expected underlying optional operand type.",
+    "families": [],
+    "expected": {
+      "X": 43,
+      "Y": 31
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O4",
+      "sha256": "ed827b6fc4230f76154986f0e46a2ea7c60f3a5bbc79e0bbc044e2ebdb3532df",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 8,
+          "column": 78,
+          "code": "record-reference-not-record",
+          "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。",
+          "presentation": {
+            "key": "diagnostic.record-reference-not-record",
+            "parameters": {
+              "name": "held"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 251,
+                "to": 256
+              }
+            ],
+            "sourceRevision": 1
+          }
+        },
+        {
+          "severity": "error",
+          "line": 9,
+          "column": 76,
+          "code": "record-reference-not-record",
+          "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。",
+          "presentation": {
+            "key": "diagnostic.record-reference-not-record",
+            "parameters": {
+              "name": "held"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 334,
+                "to": 339
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O4",
+      "sha256": "ed827b6fc4230f76154986f0e46a2ea7c60f3a5bbc79e0bbc044e2ebdb3532df",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 36,
+          "code": "module-scalar-type-mismatch",
+          "message": "none は基底型が確定した optional 型の文脈でのみ使用できます。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 90,
+                "to": 94
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.none-requires-optional-type"
+          },
+          "relatedInformation": [
+            {
+              "message": "Expected type declared here",
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 73,
+                    "to": 77
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "G1",
+    "cluster": "G",
+    "sha256": "4406030ca8e77b3e581b3514f3772c22d7a42c31e7be4033df2bf0180d8cda7b",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F22"
+    ],
+    "expected": {
+      "L": 13,
+      "X": 6,
+      "Y": 14,
+      "N": 2
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G1",
+      "sha256": "4406030ca8e77b3e581b3514f3772c22d7a42c31e7be4033df2bf0180d8cda7b",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "compiler: AssertionError: record-field-contents:[\"record-value:[[],\\\"statement:typedDeclaration:mvhl6906:76\\\"]\",[[\"statement:recordDefinition:mvhl6906:73\",1]]]: expected false to be true // Object.is equality",
+        "TS: AssertionError: N: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "Rust: AssertionError: N: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)"
+      ]
+    },
+    "after": {
+      "id": "G1",
+      "sha256": "4406030ca8e77b3e581b3514f3772c22d7a42c31e7be4033df2bf0180d8cda7b",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G2",
+    "cluster": "G",
+    "sha256": "b5e047e718f155e660b66beebeb7ec16ebd051145272f90132f12b933f5553b1",
+    "disposition": "PASS",
+    "reason": "Genuine Base PASS control.",
+    "families": [],
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 11,
+      "Y": 29
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G2",
+      "sha256": "b5e047e718f155e660b66beebeb7ec16ebd051145272f90132f12b933f5553b1",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "after": {
+      "id": "G2",
+      "sha256": "b5e047e718f155e660b66beebeb7ec16ebd051145272f90132f12b933f5553b1",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G3",
+    "cluster": "G",
+    "sha256": "c61bcfde9bb181d43366d8c54690e125ed45745da8ca2f2c5fd692bb4ba86890",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F23"
+    ],
+    "expected": {
+      "L": 5,
+      "X": 14,
+      "Y": 26
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G3",
+      "sha256": "c61bcfde9bb181d43366d8c54690e125ed45745da8ca2f2c5fd692bb4ba86890",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "compiler: AssertionError: expected undefined to match object { kind: 'match', …(1) }",
+        "TS: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "Rust: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)"
+      ]
+    },
+    "after": {
+      "id": "G3",
+      "sha256": "c61bcfde9bb181d43366d8c54690e125ed45745da8ca2f2c5fd692bb4ba86890",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "R7",
+    "cluster": "R",
+    "sha256": "2725dcc79f496ebfbf2296ed2d1ec830252353aa83faa66cb8bafb458354a0a2",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F17"
+    ],
+    "expected": {
+      "X": 19
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R7",
+      "sha256": "2725dcc79f496ebfbf2296ed2d1ec830252353aa83faa66cb8bafb458354a0a2",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 85,
+          "code": "module-record-reference-invalid",
+          "message": "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 159,
+                "to": 164
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-reference-invalid"
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "R7",
+      "sha256": "2725dcc79f496ebfbf2296ed2d1ec830252353aa83faa66cb8bafb458354a0a2",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "R8",
+    "cluster": "R",
+    "sha256": "3faaee6dee22b679e030cc8be043316e5de74d65ea90704a6871e02e2d10eed4",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F18"
+    ],
+    "expected": {
+      "X": 19
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R8",
+      "sha256": "3faaee6dee22b679e030cc8be043316e5de74d65ea90704a6871e02e2d10eed4",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: X: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "Rust: AssertionError: X: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)"
+      ]
+    },
+    "after": {
+      "id": "R8",
+      "sha256": "3faaee6dee22b679e030cc8be043316e5de74d65ea90704a6871e02e2d10eed4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "R9",
+    "cluster": "R",
+    "sha256": "a78f4663fb2b2dd7777887c71151cfbb672ade8ab007f149c590708e551019ed",
+    "disposition": "PASS",
+    "reason": "Genuine Base PASS control.",
+    "families": [],
+    "expected": {
+      "X": 19
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "R9",
+      "sha256": "a78f4663fb2b2dd7777887c71151cfbb672ade8ab007f149c590708e551019ed",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "after": {
+      "id": "R9",
+      "sha256": "a78f4663fb2b2dd7777887c71151cfbb672ade8ab007f149c590708e551019ed",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O5",
+    "cluster": "O",
+    "sha256": "b0b6d343d439e6ab77bdd0344d6e734841f7a1724615ed3c98b7a243683fe713",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F20"
+    ],
+    "expected": {
+      "X": 31,
+      "Y": 43
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O5",
+      "sha256": "b0b6d343d439e6ab77bdd0344d6e734841f7a1724615ed3c98b7a243683fe713",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 8,
+          "column": 19,
+          "code": "module-optional-member-non-optional-receiver",
+          "message": "optional member access の receiver は optional value (T?) である必要があります。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 167,
+                "to": 179
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 8,
+          "column": 19,
+          "code": "module-scalar-type-mismatch",
+          "message": "optional member access の receiver は T? 型である必要があります(実際: Box)。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 167,
+                "to": 179
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver",
+            "parameters": {
+              "actual": "Box"
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Expected type declared here",
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 158,
+                    "to": 164
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        },
+        {
+          "severity": "error",
+          "line": 9,
+          "column": 19,
+          "code": "module-optional-member-non-optional-receiver",
+          "message": "optional member access の receiver は optional value (T?) である必要があります。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 207,
+                "to": 220
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 9,
+          "column": 19,
+          "code": "module-scalar-type-mismatch",
+          "message": "optional member access の receiver は T? 型である必要があります(実際: Box)。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 207,
+                "to": 220
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.optional-member-non-optional-receiver",
+            "parameters": {
+              "actual": "Box"
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Expected type declared here",
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 198,
+                    "to": 204
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "after": {
+      "id": "O5",
+      "sha256": "b0b6d343d439e6ab77bdd0344d6e734841f7a1724615ed3c98b7a243683fe713",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O6",
+    "cluster": "O",
+    "sha256": "fe2ef9e6fa48df75bdca1642c73f959869cfa1881cf4e62be015ce6e1faced28",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Base accepted an invalid implicit optional-record unwrap; repaired compiler rejects it.",
+    "families": [
+      "F20"
+    ],
+    "expected": {},
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O6",
+      "sha256": "fe2ef9e6fa48df75bdca1642c73f959869cfa1881cf4e62be015ce6e1faced28",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "compiler: AssertionError: expected undefined to be defined"
+      ]
+    },
+    "after": {
+      "id": "O6",
+      "sha256": "fe2ef9e6fa48df75bdca1642c73f959869cfa1881cf4e62be015ce6e1faced28",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 26,
+          "code": "module-record-reference-invalid",
+          "message": "optional module parameter「b」は optional value を解決してから参照してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 77,
+                "to": 78
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-optional-value-required",
+            "parameters": {
+              "name": "b"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "O7",
+    "cluster": "O",
+    "sha256": "40aa154e2adf15f092fe5f1d85e2015acd6e6b53a09fb4da66fd9209276c5e32",
+    "disposition": "CONTRACT_INVALID",
+    "reason": "O7: structurally equal Other has a distinct nominal definition.",
+    "families": [],
+    "expected": {},
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O7",
+      "sha256": "40aa154e2adf15f092fe5f1d85e2015acd6e6b53a09fb4da66fd9209276c5e32",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 7,
+          "column": 24,
+          "code": "module-record-reference-invalid",
+          "message": "constructor「Other」の nominal record 型が expected type と一致しません。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 129,
+                "to": 134
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-invalid-reference",
+            "parameters": {
+              "name": "Other"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O7",
+      "sha256": "40aa154e2adf15f092fe5f1d85e2015acd6e6b53a09fb4da66fd9209276c5e32",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 7,
+          "column": 24,
+          "code": "module-record-reference-invalid",
+          "message": "constructor「Other」の nominal record 型が expected type と一致しません。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 129,
+                "to": 134
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-invalid-reference",
+            "parameters": {
+              "name": "Other"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "G4",
+    "cluster": "G",
+    "sha256": "c94a3aa61cedeab592389d3a75a0fc26a5a66a48e38f62061a05d22274079547",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F22"
+    ],
+    "expected": {
+      "X": 1
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G4",
+      "sha256": "c94a3aa61cedeab592389d3a75a0fc26a5a66a48e38f62061a05d22274079547",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: X: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "Rust: AssertionError: X: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)"
+      ]
+    },
+    "after": {
+      "id": "G4",
+      "sha256": "c94a3aa61cedeab592389d3a75a0fc26a5a66a48e38f62061a05d22274079547",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G5",
+    "cluster": "G",
+    "sha256": "b33c65d8693c1393afb6ca601c5325208c0f87d910e9186a18006fa334020bd2",
+    "disposition": "PASS",
+    "reason": "Genuine Base PASS control.",
+    "families": [],
+    "expected": {
+      "X": 1
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G5",
+      "sha256": "b33c65d8693c1393afb6ca601c5325208c0f87d910e9186a18006fa334020bd2",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "after": {
+      "id": "G5",
+      "sha256": "b33c65d8693c1393afb6ca601c5325208c0f87d910e9186a18006fa334020bd2",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O8",
+    "cluster": "O",
+    "sha256": "bb48aabf05d4325fb02e6fb0401f2327b77faa52e2af814dd2659955e01f1c94",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F21"
+    ],
+    "expected": {
+      "X": 43,
+      "Y": 31
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O8",
+      "sha256": "bb48aabf05d4325fb02e6fb0401f2327b77faa52e2af814dd2659955e01f1c94",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 8,
+          "column": 78,
+          "code": "record-reference-not-record",
+          "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。",
+          "presentation": {
+            "key": "diagnostic.record-reference-not-record",
+            "parameters": {
+              "name": "held"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 297,
+                "to": 302
+              }
+            ],
+            "sourceRevision": 1
+          }
+        },
+        {
+          "severity": "error",
+          "line": 9,
+          "column": 76,
+          "code": "record-reference-not-record",
+          "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。",
+          "presentation": {
+            "key": "diagnostic.record-reference-not-record",
+            "parameters": {
+              "name": "held"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 380,
+                "to": 385
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O8",
+      "sha256": "bb48aabf05d4325fb02e6fb0401f2327b77faa52e2af814dd2659955e01f1c94",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G6",
+    "cluster": "G",
+    "sha256": "78c16359d63fb9ac11d1ebd8a3349aa47021c383164d00e2bf5494a67991fdf4",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F23"
+    ],
+    "expected": {
+      "L": 5,
+      "X": 3,
+      "Y": 4
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G6",
+      "sha256": "78c16359d63fb9ac11d1ebd8a3349aa47021c383164d00e2bf5494a67991fdf4",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "Rust: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)"
+      ]
+    },
+    "after": {
+      "id": "G6",
+      "sha256": "78c16359d63fb9ac11d1ebd8a3349aa47021c383164d00e2bf5494a67991fdf4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G7",
+    "cluster": "G",
+    "sha256": "dc1d850e3cf44c1e119e8cfc5794ea1634027544fc8537485988b008820befea",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F23"
+    ],
+    "expected": {
+      "L": 5,
+      "M": 25,
+      "X": 4,
+      "Y": 24
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G7",
+      "sha256": "dc1d850e3cf44c1e119e8cfc5794ea1634027544fc8537485988b008820befea",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "compiler: AssertionError: A: expected undefined to be defined",
+        "TS: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "Rust: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)"
+      ]
+    },
+    "after": {
+      "id": "G7",
+      "sha256": "dc1d850e3cf44c1e119e8cfc5794ea1634027544fc8537485988b008820befea",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G8",
+    "cluster": "G",
+    "sha256": "2a092efb9118dc9416fb13d83189626cc6ef7e6d32db0c27500c55a5a29d1ebf",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F22",
+      "F24"
+    ],
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "N": 1,
+      "K": 1
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G8",
+      "sha256": "2a092efb9118dc9416fb13d83189626cc6ef7e6d32db0c27500c55a5a29d1ebf",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "compiler: AssertionError: expected { kind: 'reference', target: { …(5) } } to match object { kind: 'reference', target: { …(2) } }\n(4 matching properties omitted from actual)",
+        "TS: AssertionError: expected [ Array(2) ] to deeply equal []",
+        "Rust: AssertionError: expected [ Array(2) ] to deeply equal []"
+      ]
+    },
+    "after": {
+      "id": "G8",
+      "sha256": "2a092efb9118dc9416fb13d83189626cc6ef7e6d32db0c27500c55a5a29d1ebf",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G9",
+    "cluster": "G",
+    "sha256": "f242523458c3ebc61421709429c722287f6023c10ca23b2130e76f880d171695",
+    "disposition": "UNRESOLVED",
+    "reason": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice.",
+    "families": [],
+    "expected": {
+      "L": 13
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G9",
+      "sha256": "f242523458c3ebc61421709429c722287f6023c10ca23b2130e76f880d171695",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []"
+      ]
+    },
+    "after": null
+  },
+  {
+    "id": "G10",
+    "cluster": "G",
+    "sha256": "26ee4ac7f1884d9c7b7f18e7262f18e5982ffeae1765c6a435556168d3adfd79",
+    "disposition": "UNRESOLVED",
+    "reason": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice.",
+    "families": [],
+    "expected": {
+      "L": 13
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G10",
+      "sha256": "26ee4ac7f1884d9c7b7f18e7262f18e5982ffeae1765c6a435556168d3adfd79",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], …(12) } to deeply equal { computedGeometry: [], …(12) }"
+      ]
+    },
+    "after": null
+  },
+  {
+    "id": "G11",
+    "cluster": "G",
+    "sha256": "39a02dd9dcf63196e0defdc938f16b07395b89d92c03630e4349d49acf19a5ed",
+    "disposition": "UNRESOLVED",
+    "reason": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice.",
+    "families": [],
+    "expected": {
+      "L": 13
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G11",
+      "sha256": "39a02dd9dcf63196e0defdc938f16b07395b89d92c03630e4349d49acf19a5ed",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []"
+      ]
+    },
+    "after": null
+  },
+  {
+    "id": "G12",
+    "cluster": "G",
+    "sha256": "f2a1369f5bc6221f873732e3d57098f87d140bc15c8a913b0e290cf40da63855",
+    "disposition": "UNRESOLVED",
+    "reason": "UNRESOLVED: root scalar selector is released before its canonical binding is available; scalar-only G10/G12 reproduce it. General root control scheduling belongs to #1260; excluded from this slice.",
+    "families": [],
+    "expected": {
+      "L": 13
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G12",
+      "sha256": "f2a1369f5bc6221f873732e3d57098f87d140bc15c8a913b0e290cf40da63855",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], …(12) } to deeply equal { computedGeometry: [], …(11) }"
+      ]
+    },
+    "after": null
+  },
+  {
+    "id": "O9",
+    "cluster": "O",
+    "sha256": "3fe9cd9e01c74f4d92fe61c55e4d226a49b8c64d6cc14c214aa7a7c867efe547",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F21"
+    ],
+    "expected": {
+      "X": 19
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O9",
+      "sha256": "3fe9cd9e01c74f4d92fe61c55e4d226a49b8c64d6cc14c214aa7a7c867efe547",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 7,
+          "column": 74,
+          "code": "record-reference-not-record",
+          "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。",
+          "presentation": {
+            "key": "diagnostic.record-reference-not-record",
+            "parameters": {
+              "name": "held"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 178,
+                "to": 183
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O9",
+      "sha256": "3fe9cd9e01c74f4d92fe61c55e4d226a49b8c64d6cc14c214aa7a7c867efe547",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "G13",
+    "cluster": "G",
+    "sha256": "658811ffb8535a9657f1d4b4ff49c64b4b5355d376c790ecf911351ea15a0413",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F24"
+    ],
+    "expected": {
+      "L": 5
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "G13",
+      "sha256": "658811ffb8535a9657f1d4b4ff49c64b4b5355d376c790ecf911351ea15a0413",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []"
+      ]
+    },
+    "after": {
+      "id": "G13",
+      "sha256": "658811ffb8535a9657f1d4b4ff49c64b4b5355d376c790ecf911351ea15a0413",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O10",
+    "cluster": "O",
+    "sha256": "6231cbb2c38c5a475cfdffd237e4015edd3125804111ccafc857c1b1ef27a3e8",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F17",
+      "F19"
+    ],
+    "expected": {
+      "X": 21,
+      "Y": 101
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O10",
+      "sha256": "6231cbb2c38c5a475cfdffd237e4015edd3125804111ccafc857c1b1ef27a3e8",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 6,
+          "column": 31,
+          "code": "module-record-value-in-scalar",
+          "message": "record 値「b」は scalar expression では参照できません。record field を指定してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 144,
+                "to": 146
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-value-in-scalar",
+            "parameters": {
+              "name": "b"
+            }
+          }
+        },
+        {
+          "severity": "error",
+          "line": 6,
+          "column": 71,
+          "code": "module-undefined-geometry-reference",
+          "message": "未定義のgeometry「held」を参照しています。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 184,
+                "to": 191
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-undefined-geometry-reference",
+            "parameters": {
+              "name": "held"
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O10",
+      "sha256": "6231cbb2c38c5a475cfdffd237e4015edd3125804111ccafc857c1b1ef27a3e8",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  },
+  {
+    "id": "O11",
+    "cluster": "O",
+    "sha256": "19bff183b9ddebf2375cd9e3d6d19ba721605aff97abdb483342ed6d51a71364",
+    "disposition": "REPAIRED_THEN_PASS",
+    "reason": "Authored expected values checked through compiler, TS, normal persistent Rust and decode.",
+    "families": [
+      "F17",
+      "F19"
+    ],
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "before": {
+      "phase": "base-exact",
+      "sourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+      "id": "O11",
+      "sha256": "19bff183b9ddebf2375cd9e3d6d19ba721605aff97abdb483342ed6d51a71364",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 32,
+          "code": "module-record-value-in-scalar",
+          "message": "record 値「b」は scalar expression では参照できません。record field を指定してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 103,
+                "to": 105
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-value-in-scalar",
+            "parameters": {
+              "name": "b"
+            }
+          }
+        },
+        {
+          "severity": "error",
+          "line": 5,
+          "column": 86,
+          "code": "module-record-reference-invalid",
+          "message": "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 157,
+                "to": 162
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-record-reference-invalid"
+          }
+        }
+      ]
+    },
+    "after": {
+      "id": "O11",
+      "sha256": "19bff183b9ddebf2375cd9e3d6d19ba721605aff97abdb483342ed6d51a71364",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    }
+  }
+]

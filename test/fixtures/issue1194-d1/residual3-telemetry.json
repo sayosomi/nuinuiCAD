@@ -1,0 +1,479 @@
+{
+  "measuredThirdRunnerCounts": {
+    "compiler": 527,
+    "setupCompiler": 36,
+    "reference": 442,
+    "production": 442
+  },
+  "runs": [
+    {
+      "runId": "base-R-1792553372265",
+      "phase": "base-R",
+      "mode": "discover",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 110,
+      "resourceError": null
+    },
+    {
+      "runId": "base-all-1792553464606",
+      "phase": "base-all",
+      "mode": "discover",
+      "counts": {
+        "compiler": 13,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 115,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-R1-1792553576101",
+      "phase": "repair-R1",
+      "mode": "discover",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 119,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-R2-1792553624272",
+      "phase": "repair-R2",
+      "mode": "discover",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 119,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-R3-1792553678585",
+      "phase": "repair-R3",
+      "mode": "discover",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 119,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-R4-1792553754531",
+      "phase": "repair-R4",
+      "mode": "discover",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 119,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-RO-1792553820908",
+      "phase": "repair-RO",
+      "mode": "discover",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "accepted": 121,
+      "resourceError": null
+    },
+    {
+      "runId": "base-adaptive-1792553861532",
+      "phase": "base-adaptive",
+      "mode": "discover",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 126,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-RO2-1792553933396",
+      "phase": "repair-RO2",
+      "mode": "discover",
+      "counts": {
+        "compiler": 9,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "accepted": 127,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-ROG-1792554022609",
+      "phase": "repair-ROG",
+      "mode": "discover",
+      "counts": {
+        "compiler": 21,
+        "setupCompiler": 1,
+        "reference": 17,
+        "production": 17
+      },
+      "accepted": 128,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-RG2-1792554132268",
+      "phase": "repair-RG2",
+      "mode": "discover",
+      "counts": {
+        "compiler": 13,
+        "setupCompiler": 1,
+        "reference": 13,
+        "production": 13
+      },
+      "accepted": 128,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-G3-1792554441287",
+      "phase": "repair-G3",
+      "mode": "discover",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "accepted": 128,
+      "resourceError": null
+    },
+    {
+      "runId": "base-neighbors-1792554475410",
+      "phase": "base-neighbors",
+      "mode": "discover",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "accepted": 131,
+      "resourceError": null
+    },
+    {
+      "runId": "neighbors-fixed-1792554484883",
+      "phase": "neighbors-fixed",
+      "mode": "discover",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "accepted": 132,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-G-neighbors-1792554518226",
+      "phase": "repair-G-neighbors",
+      "mode": "discover",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "accepted": 132,
+      "resourceError": null
+    },
+    {
+      "runId": "repair-G7-1792554572702",
+      "phase": "repair-G7",
+      "mode": "discover",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "accepted": 132,
+      "resourceError": null
+    },
+    {
+      "runId": "base-controller-1792554614339",
+      "phase": "base-controller",
+      "mode": "discover",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "accepted": 134,
+      "resourceError": null
+    },
+    {
+      "runId": "base-controller-reduced-1792554662143",
+      "phase": "base-controller-reduced",
+      "mode": "discover",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "accepted": 136,
+      "resourceError": null
+    },
+    {
+      "runId": "controllers-fixed-1792554674887",
+      "phase": "controllers-fixed",
+      "mode": "discover",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "accepted": 136,
+      "resourceError": null
+    },
+    {
+      "runId": "debug-G12-1792554713083",
+      "phase": "debug-G12",
+      "mode": "discover",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "accepted": 136,
+      "resourceError": null
+    },
+    {
+      "runId": "focused-final-1792554854747",
+      "phase": "focused-final",
+      "mode": "verify",
+      "counts": {
+        "compiler": 32,
+        "setupCompiler": 1,
+        "reference": 28,
+        "production": 28
+      },
+      "accepted": 136,
+      "resourceError": null
+    },
+    {
+      "runId": "focused-final2-1792554918756",
+      "phase": "focused-final2",
+      "mode": "verify",
+      "counts": {
+        "compiler": 32,
+        "setupCompiler": 1,
+        "reference": 28,
+        "production": 28
+      },
+      "accepted": 136,
+      "resourceError": null
+    },
+    {
+      "runId": "base-minimal-1792554943264",
+      "phase": "base-minimal",
+      "mode": "discover",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "accepted": 137,
+      "resourceError": null
+    },
+    {
+      "runId": "base-parameter-constructors-1792554989037",
+      "phase": "base-parameter-constructors",
+      "mode": "discover",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "accepted": 137,
+      "resourceError": null
+    },
+    {
+      "runId": "parameter-constructors-fixed-1792554996893",
+      "phase": "parameter-constructors-fixed",
+      "mode": "discover",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "accepted": 139,
+      "resourceError": null
+    },
+    {
+      "runId": "last-neighbor-1792555028394",
+      "phase": "last-neighbor",
+      "mode": "discover",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "settled-focused-1792555135442",
+      "phase": "settled-focused",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "base-controls-1792555225056",
+      "phase": "base-controls",
+      "mode": "discover",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "base-exact-1792555348462",
+      "phase": "base-exact",
+      "mode": "discover",
+      "counts": {
+        "compiler": 40,
+        "setupCompiler": 1,
+        "reference": 25,
+        "production": 25
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "pre-gates-focused-1792555399420",
+      "phase": "pre-gates-focused",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "final-block-1792555428918",
+      "phase": "final-block",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "final-block-1792555576067",
+      "phase": "final-block",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "regression-repair-focused-1792555709771",
+      "phase": "regression-repair-focused",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "final-block-1792555732566",
+      "phase": "final-block",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "final-block-1792555882040",
+      "phase": "final-block",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    },
+    {
+      "runId": "identity-assertions-final-1792556053487",
+      "phase": "identity-assertions-final",
+      "mode": "verify",
+      "counts": {
+        "compiler": 36,
+        "setupCompiler": 1,
+        "reference": 32,
+        "production": 32
+      },
+      "accepted": 140,
+      "resourceError": null
+    }
+  ],
+  "note": "Counts cover instrumented third-runner executions only, including Base replays, intermediate repairs, debug and verification. They do not estimate Codex quota. Historical runs retain their original fingerprint path sets. Some intermediate base-* replays excluded the changed Rust owner; these are NOT unchanged-Base proofs. The authoritative unchanged Base replay is base-exact, which restored every changed TS and Rust owner. The expanded fingerprint also includes evaluate.ts and the Rust controller adapter."
+}

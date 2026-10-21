@@ -1,3 +1,4 @@
+import { moduleRecordFieldExpressionFor } from "./recordScalarLowering";
 import { scalarExpressionCollection } from "./scalarExpressionCollection";
 import { encodeIdentityTuple } from "../document/identityTuple";
 import { buildDslBindingAdapterSeeds } from "../dsl/bindingCatalogAdapter";
@@ -1013,7 +1014,7 @@ const lowerRecordPropertyAst = (
         // second non-scalar optional model.
         if (
           target?.kind === "recordField" &&
-          ((target.record.kind === "recordValue" && (target.record.valueExpressionKind === "coalesce" || target.record.valueExpressionKind === "match")) || (target.record.kind === "deferredModuleRecordExport" && !hasBinding(target))) &&
+          ((target.record.kind === "recordValue" && (target.record.valueExpressionKind === "coalesce" || target.record.valueExpressionKind === "match")) || ((target.record.kind === "deferredModuleRecordExport" || target.record.kind === "recordParameter") && !hasBinding(target))) &&
           target.collectionIndex === undefined
         ) {
           return {
@@ -2466,18 +2467,31 @@ export const compileModuleScalarRuntime = ({
   });
   const recordFieldValueExpressionAt = (
     expression: ModuleRecordValueExpressionSemantic,
-    fieldPath: readonly RecordFieldIdentity[]
+    fieldPath: readonly RecordFieldIdentity[],
+    geometryType?: ModuleGeometryInterfaceType
   ): ModuleRecordFieldValueExpressionSemantic | null => {
+    if (expression.kind === "none" && geometryType) return { kind: "geometry", expression: { kind: "none", span: expression.span } };
+    if ((expression.kind === "reference" || expression.kind === "collectionIndex") && geometryType && expression.reference.target) {
+      const field = fieldPath.at(-1)!;
+      return { kind: "geometry", expression: { kind: "reference", span: expression.span, reference: {
+        source: expression.reference.source, span: expression.span, expectedGeometryKind: geometryType === "point" ? "point" : "line",
+        role: geometryType === "point" ? "pointReference" : "lineReference", coordinate: null, resolution: "resolved",
+        target: { kind: "recordFieldValue", record: expression.reference.target, field, fieldName: "", fieldPath,
+          valueType: { kind: geometryType } }
+      } } };
+    }
     if (expression.kind === "constructor") {
       const field = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === fieldPath[0]?.fieldIndex);
       if (!field?.valueExpression) return null;
       if (fieldPath.length === 1) return field.valueExpression;
       if (field.valueExpression.kind !== "record" || !field.valueExpression.expression) return null;
-      return recordFieldValueExpressionAt(field.valueExpression.expression, fieldPath.slice(1));
+      return recordFieldValueExpressionAt(field.valueExpression.expression, fieldPath.slice(1), geometryType);
     }
     if (expression.kind === "if") {
-      const thenValue = expression.thenBranch ? recordFieldValueExpressionAt(expression.thenBranch, fieldPath) : null;
-      const elseValue = expression.elseBranch ? recordFieldValueExpressionAt(expression.elseBranch, fieldPath) : null;
+      const thenValue = expression.thenBranch ? recordFieldValueExpressionAt(expression.thenBranch, fieldPath, geometryType) : null;
+      const elseValue: ModuleRecordFieldValueExpressionSemantic | null = expression.elseBranch
+        ? recordFieldValueExpressionAt(expression.elseBranch, fieldPath, geometryType)
+        : geometryType ? { kind: "geometry", expression: { kind: "none", span: expression.span } } : null;
       return thenValue?.kind === "geometry" && thenValue.expression &&
         elseValue?.kind === "geometry" && elseValue.expression && expression.condition
         ? {
@@ -2495,7 +2509,7 @@ export const compileModuleScalarRuntime = ({
     if (expression.kind === "match") {
       if (!expression.scrutinee) return null;
       const arms = expression.arms.map((arm) => {
-        const value = arm.expression ? recordFieldValueExpressionAt(arm.expression, fieldPath) : null;
+        const value = arm.expression ? recordFieldValueExpressionAt(arm.expression, fieldPath, geometryType) : null;
         return value?.kind === "geometry" && value.expression
           ? { label: arm.label, labelSpan: arm.labelSpan, expression: value.expression }
           : null;
@@ -3258,10 +3272,10 @@ export const compileModuleScalarRuntime = ({
     const deferred = parseGeometryArrayDeferredModuleExportId(valueId);
     if (deferred) {
       const child = runtimeContextForSourceInstance(context, deferred.instanceStatementId);
-      const exported = child?.definition.exports.find((candidate) => candidate.kind === "collection" && candidate.name === deferred.exportName);
+      const exported = child?.definition.exports.find((candidate) => (candidate.kind === "collection" || candidate.kind === "record") && candidate.name === deferred.exportName);
       return child && exported?.kind === "collection"
         ? moduleCollectionValueIdFor(child.path, exported.exportedStatementId)
-        : valueId;
+        : child && exported?.kind === "record" ? recordTargetValueIdFor(exported.backingTarget, child) ?? valueId : valueId;
     }
     const parameterMatch = /^(.*):parameter:(\d+)$/.exec(valueId);
     if (parameterMatch && context) {
@@ -3695,6 +3709,7 @@ export const compileModuleScalarRuntime = ({
       }
       const lowerControlExpression = (semantic: ModuleScalarExpressionSemantic | null) => {
         if (!semantic) return null;
+        appendRecordFieldProjection(semantic, context);
         return context
           ? lowerExpression(
               semantic,
@@ -3715,7 +3730,7 @@ export const compileModuleScalarRuntime = ({
               rootCollectionLengthFor,
               resolvedGeometryBuiltinForRoot,
               (id) => collectionValueIdFor(id, null),
-              (sourceOrder) => sourceOrder
+              (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder
             ).expression;
       };
       if (expression.kind === "if") {
@@ -3774,7 +3789,7 @@ export const compileModuleScalarRuntime = ({
           if (!definition) return;
           const seedId = `${valueId}:constructor-seed`;
           const fields = scalarFieldPathsFor(definition, [], analysis).flatMap(({ field, path: fieldPath, type }) => {
-            const semantic = constructorFieldAtPath(expression.constructor.fields, fieldPath)?.expression;
+            const semantic = moduleRecordFieldExpressionFor(expression, { identity: field, name: "", type, fieldPath });
             const body = lowerControlExpression(semantic ?? null);
             return body ? [{ ...field, type, body, ...(fieldPath.length > 1 ? { fieldPath } : {}) }] : [];
           });
@@ -3948,11 +3963,16 @@ export const compileModuleScalarRuntime = ({
         sourceOrder: context ? executionOrderForValue(context.path, value.sourceOrder) : executionPositionForValue([], value.sourceOrder)
       });
     };
-    const appendRecordFieldProjection = (
+    function appendRecordFieldProjection(
       expression: ModuleScalarExpressionSemantic | null,
       context: InstanceContext | null
-    ): void => {
+    ): void {
       if (!expression) return;
+      if (expression.references.length > 1) {
+        for (const reference of expression.references) appendRecordFieldProjection({ ...expression,
+          references: [reference], type: reference.target?.kind === "recordField" ? reference.target.type : expression.type }, context);
+        return;
+      }
       for (const reference of expression.references) {
         const target = reference.target;
         if (target?.kind !== "recordField" || target.record.kind !== "deferredModuleRecordExport" || target.property || target.collectionIndex !== undefined || !target.type) continue;
@@ -4253,7 +4273,7 @@ export const compileModuleScalarRuntime = ({
         // The compiler only emits its own encoded projection IDs. Ignore a
         // malformed value defensively at this runtime boundary.
       }
-    };
+    }
     const appendOptionalMemberProjection = (
       expression: ModuleScalarExpressionSemantic | null,
       context: InstanceContext | null
@@ -4274,7 +4294,7 @@ export const compileModuleScalarRuntime = ({
           sourceOrder = context
             ? Math.max(0, Math.floor(executionPositionForValue(context.path, target.record.targetSourceOrder)))
             : target.record.targetSourceOrder;
-        } else if (target.record.kind === "recordParameter" && context) {
+        } else if (target.record.kind === "deferredModuleRecordExport" || target.record.kind === "recordParameter" && context) {
           const recordParameter = recordParameterCollectionForTargetContext(target, context);
           if (recordParameter) {
             sourceValueId = recordParameter.collectionValueId;
@@ -4306,6 +4326,7 @@ export const compileModuleScalarRuntime = ({
     ): boolean => {
       if (!value.members.some(member => member.expression)) return false;
       const type = scalarTypeOfDslValueType(value.valueType.elementType);
+      for (const member of value.members) appendRecordFieldProjection(member.expression ?? null, context);
       const expressions = value.members.map(member => member.expression ? lowerExpression(
         member.expression,
         target => context ? resolvedBindingForContext(target, context) : rootBindingForTarget(target, member.sourceSpan.start),
@@ -4436,6 +4457,14 @@ export const compileModuleScalarRuntime = ({
           return record ? [record] : [];
         });
         if (members.length === value.members.length) moduleCollectionValues.push({ valueId, kind: "literal", members });
+        return;
+      }
+      if (isDslGeometryValueType(value.valueType.elementType)) {
+        // Scalar consumers need only cardinality. Geometry members stay in
+        // the canonical geometry runtime; ordinal values preserve their order.
+        moduleCollectionValues.push({ valueId, kind: "literal", members: value.members.map((_, index) => ({
+          kind: "literal", type: { kind: "number" }, value: { kind: "number", value: index }
+        })) });
         return;
       }
       if (!elementType) return;
@@ -4921,6 +4950,14 @@ export const compileModuleScalarRuntime = ({
         return;
       }
       const elementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
+      if (isDslGeometryValueType(value.valueType.elementType)) {
+        // Scalar consumers need only cardinality. Geometry members stay in
+        // the canonical geometry runtime; ordinal values preserve their order.
+        moduleCollectionValues.push({ valueId, kind: "literal", members: value.members.map((_, index) => ({
+          kind: "literal", type: { kind: "number" }, value: { kind: "number", value: index }
+        })) });
+        return;
+      }
       if (!elementType) return;
       if (appendScalarExpressionMembers(value, valueId, null, sourceOrder)) return;
       const members: ScalarProgramCollectionMember[] = [];
@@ -7058,7 +7095,8 @@ export const compileModuleScalarRuntime = ({
         : undefined;
       return lowered ? [{ label: arm.label, expression: lowered }] : [];
     });
-    return scrutinee && arms.length === expression.arms.length ? { kind: "match", scrutinee, arms } : undefined;
+    return scrutinee && arms.length === expression.arms.length ? { kind: "match", scrutinee: remapTypedExpressionCollectionValueIds(optionalCollectionMatchPresenceProjection(scrutinee),
+      id => collectionValueIdFor(id, context ?? null)), arms } : undefined;
   };
 
   const geometryInputTargetsByRuntimeElementId = new Map<ElementId, ReadonlyMap<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
@@ -7106,7 +7144,7 @@ export const compileModuleScalarRuntime = ({
     const path = context?.path ?? [];
     for (const { field, path: fieldPath, valueType } of recordFieldPathsFor(recordDefinition, recordAnalysis)) {
       if (!isDslGeometryValueType(valueType)) continue;
-      const fieldValue = recordFieldValueExpressionAt(recordValueExpression, fieldPath);
+      const fieldValue = recordFieldValueExpressionAt(recordValueExpression, fieldPath, valueType.kind);
       if (fieldValue?.kind !== "geometry" || !fieldValue.expression || fieldValue.expression.kind === "reference") continue;
       const occurrence = geometryValueOccurrenceForRecordField(recordTarget, fieldPath, path);
       const virtualValue: import("../dsl/moduleSemanticTypes").ModuleGeometryValueSemantic = {

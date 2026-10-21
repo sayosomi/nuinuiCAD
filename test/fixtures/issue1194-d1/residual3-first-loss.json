@@ -1,0 +1,558 @@
+[
+  {
+    "family": "F17",
+    "id": "R1",
+    "sha256": "be93859232d349c978a3b4c75987ca75b987c80cfdf3d8cc31bd02ffabe8d7cc",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: moduleRecordValueExpressionFor / recordSourceLookup",
+    "expected": {
+      "X": 19
+    },
+    "baseCompilerDiagnostics": [
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 74,
+        "code": "module-undefined-geometry-reference",
+        "message": "未定義のgeometry「held」を参照しています。",
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 128,
+              "to": 135
+            }
+          ],
+          "sourceRevision": 1
+        },
+        "presentation": {
+          "key": "diagnostic.module-undefined-geometry-reference",
+          "parameters": {
+            "name": "held"
+          }
+        }
+      }
+    ],
+    "genuineBasePassControl": "R6"
+  },
+  {
+    "family": "F18",
+    "id": "R8",
+    "sha256": "3faaee6dee22b679e030cc8be043316e5de74d65ea90704a6871e02e2d10eed4",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: analyzeRecordFieldValue",
+    "expected": {
+      "X": 19
+    },
+    "baseCompilerDiagnostics": [],
+    "rustEligible": true,
+    "baseTS": {
+      "X": {
+        "status": "error",
+        "type": {
+          "kind": "number"
+        },
+        "issueCode": "evaluation-collection-index-unavailable"
+      }
+    },
+    "baseRust": {
+      "X": {
+        "issueCode": "evaluation-collection-index-unavailable",
+        "status": "error",
+        "type": {
+          "kind": "number"
+        }
+      }
+    },
+    "baseGeometryErrors": [],
+    "baseCollectionProducers": [
+      {
+        "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl691x:115\"]",
+        "kind": "literal",
+        "members": [
+          {
+            "kind": "record",
+            "typeIdentity": "statement:recordDefinition:mvhl691x:113",
+            "fields": []
+          }
+        ]
+      }
+    ],
+    "baseGeometryProducers": [],
+    "genuineBasePassControl": "R9"
+  },
+  {
+    "family": "F19",
+    "id": "O1",
+    "sha256": "e4761cab2cff07e8171ad17a53498ecd598c810ad38a56012d5120285c3ea4de",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: moduleRecordValueExpressionFor",
+    "expected": {
+      "X": 31,
+      "Y": 31,
+      "Z": 19
+    },
+    "baseCompilerDiagnostics": [
+      {
+        "severity": "error",
+        "line": 4,
+        "column": 31,
+        "code": "module-record-value-in-scalar",
+        "message": "record 値「b」は scalar expression では参照できません。record field を指定してください。",
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 82,
+              "to": 84
+            }
+          ],
+          "sourceRevision": 1
+        },
+        "presentation": {
+          "key": "diagnostic.module-record-value-in-scalar",
+          "parameters": {
+            "name": "b"
+          }
+        }
+      }
+    ],
+    "genuineBasePassControl": "O2"
+  },
+  {
+    "family": "F20",
+    "id": "O5",
+    "sha256": "b0b6d343d439e6ab77bdd0344d6e734841f7a1724615ed3c98b7a243683fe713",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: qualifiedRecordExportFor / optionalMemberResolver / definitionRecordValues",
+    "expected": {
+      "X": 31,
+      "Y": 43
+    },
+    "baseCompilerDiagnostics": [
+      {
+        "severity": "error",
+        "line": 8,
+        "column": 19,
+        "code": "module-optional-member-non-optional-receiver",
+        "message": "optional member access の receiver は optional value (T?) である必要があります。",
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 167,
+              "to": 179
+            }
+          ],
+          "sourceRevision": 1
+        },
+        "presentation": {
+          "key": "diagnostic.optional-member-non-optional-receiver"
+        }
+      },
+      {
+        "severity": "error",
+        "line": 8,
+        "column": 19,
+        "code": "module-scalar-type-mismatch",
+        "message": "optional member access の receiver は T? 型である必要があります(実際: Box)。",
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 167,
+              "to": 179
+            }
+          ],
+          "sourceRevision": 1
+        },
+        "presentation": {
+          "key": "diagnostic.optional-member-non-optional-receiver",
+          "parameters": {
+            "actual": "Box"
+          }
+        },
+        "relatedInformation": [
+          {
+            "message": "Expected type declared here",
+            "physicalSpan": {
+              "segments": [
+                {
+                  "from": 158,
+                  "to": 164
+                }
+              ],
+              "sourceRevision": 1
+            }
+          }
+        ]
+      },
+      {
+        "severity": "error",
+        "line": 9,
+        "column": 19,
+        "code": "module-optional-member-non-optional-receiver",
+        "message": "optional member access の receiver は optional value (T?) である必要があります。",
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 207,
+              "to": 220
+            }
+          ],
+          "sourceRevision": 1
+        },
+        "presentation": {
+          "key": "diagnostic.optional-member-non-optional-receiver"
+        }
+      },
+      {
+        "severity": "error",
+        "line": 9,
+        "column": 19,
+        "code": "module-scalar-type-mismatch",
+        "message": "optional member access の receiver は T? 型である必要があります(実際: Box)。",
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 207,
+              "to": 220
+            }
+          ],
+          "sourceRevision": 1
+        },
+        "presentation": {
+          "key": "diagnostic.optional-member-non-optional-receiver",
+          "parameters": {
+            "actual": "Box"
+          }
+        },
+        "relatedInformation": [
+          {
+            "message": "Expected type declared here",
+            "physicalSpan": {
+              "segments": [
+                {
+                  "from": 198,
+                  "to": 204
+                }
+              ],
+              "sourceRevision": 1
+            }
+          }
+        ]
+      }
+    ],
+    "genuineBasePassControl": "O2"
+  },
+  {
+    "family": "F21",
+    "id": "O9",
+    "sha256": "3fe9cd9e01c74f4d92fe61c55e4d226a49b8c64d6cc14c214aa7a7c867efe547",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: parseExpression",
+    "expected": {
+      "X": 19
+    },
+    "baseCompilerDiagnostics": [
+      {
+        "severity": "error",
+        "line": 7,
+        "column": 74,
+        "code": "record-reference-not-record",
+        "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。",
+        "presentation": {
+          "key": "diagnostic.record-reference-not-record",
+          "parameters": {
+            "name": "held"
+          }
+        },
+        "exactSpanOnly": true,
+        "physicalSpan": {
+          "segments": [
+            {
+              "from": 178,
+              "to": 183
+            }
+          ],
+          "sourceRevision": 1
+        }
+      }
+    ],
+    "genuineBasePassControl": "O2"
+  },
+  {
+    "family": "F22",
+    "id": "G4",
+    "sha256": "c94a3aa61cedeab592389d3a75a0fc26a5a66a48e38f62061a05d22274079547",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRootConditional / appendConditional",
+    "expected": {
+      "X": 1
+    },
+    "baseCompilerDiagnostics": [],
+    "rustEligible": true,
+    "baseTS": {
+      "X": {
+        "status": "error",
+        "type": {
+          "kind": "number"
+        },
+        "issueCode": "evaluation-geometry-property-unavailable"
+      }
+    },
+    "baseRust": {
+      "X": {
+        "issueCode": "evaluation-geometry-property-unavailable",
+        "status": "error",
+        "type": {
+          "kind": "number"
+        }
+      }
+    },
+    "baseGeometryErrors": [],
+    "baseCollectionProducers": [
+      {
+        "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692a:139\"]",
+        "kind": "literal",
+        "members": [
+          {
+            "kind": "record",
+            "typeIdentity": "statement:recordDefinition:mvhl692a:137",
+            "fields": []
+          }
+        ]
+      }
+    ],
+    "baseGeometryProducers": [
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvhl692a:138",
+          "instancePath": []
+        },
+        "constructionKind": "segment"
+      }
+    ],
+    "genuineBasePassControl": "G5"
+  },
+  {
+    "family": "F23",
+    "id": "G6",
+    "sha256": "78c16359d63fb9ac11d1ebd8a3349aa47021c383164d00e2bf5494a67991fdf4",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts: sourceAliasForTarget",
+    "expected": {
+      "L": 5,
+      "X": 3,
+      "Y": 4
+    },
+    "baseCompilerDiagnostics": [],
+    "rustEligible": true,
+    "baseTS": {
+      "L": {
+        "status": "error",
+        "type": {
+          "kind": "number"
+        },
+        "issueCode": "evaluation-geometry-property-unavailable"
+      },
+      "X": {
+        "status": "error",
+        "type": {
+          "kind": "number"
+        },
+        "issueCode": "evaluation-geometry-property-unavailable"
+      },
+      "Y": {
+        "status": "error",
+        "type": {
+          "kind": "number"
+        },
+        "issueCode": "evaluation-geometry-property-unavailable"
+      }
+    },
+    "baseRust": {
+      "L": {
+        "issueCode": "evaluation-geometry-property-unavailable",
+        "status": "error",
+        "type": {
+          "kind": "number"
+        }
+      },
+      "X": {
+        "issueCode": "evaluation-geometry-property-unavailable",
+        "status": "error",
+        "type": {
+          "kind": "number"
+        }
+      },
+      "Y": {
+        "issueCode": "evaluation-geometry-property-unavailable",
+        "status": "error",
+        "type": {
+          "kind": "number"
+        }
+      }
+    },
+    "baseGeometryErrors": [],
+    "baseCollectionProducers": [
+      {
+        "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:155\"]",
+        "kind": "none"
+      },
+      {
+        "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]:arm:some",
+        "kind": "alias",
+        "targetValueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:155\"]"
+      },
+      {
+        "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]:arm:none:constructor-seed",
+        "kind": "literal",
+        "members": [
+          {
+            "kind": "record",
+            "typeIdentity": "statement:recordDefinition:mvhl692i:154",
+            "fields": []
+          }
+        ]
+      },
+      {
+        "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]:arm:none",
+        "kind": "recordMap",
+        "sourceValueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]:arm:none:constructor-seed",
+        "sourceTypeIdentity": "statement:recordDefinition:mvhl692i:154",
+        "resultTypeIdentity": "statement:recordDefinition:mvhl692i:154",
+        "binderId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]:arm:none:constructor-binder",
+        "binderFields": [],
+        "fields": [],
+        "sourceOrder": 0
+      },
+      {
+        "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]",
+        "kind": "match",
+        "scrutinee": {
+          "kind": "optionalMember",
+          "span": {
+            "start": 28,
+            "end": 30
+          },
+          "receiverSpan": {
+            "start": 28,
+            "end": 30
+          },
+          "operatorSpan": {
+            "start": 30,
+            "end": 30
+          },
+          "memberSpan": {
+            "start": 30,
+            "end": 30
+          },
+          "member": "length",
+          "target": {
+            "kind": "collectionLength",
+            "collectionValueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:155\"]",
+            "collectionLength": 1,
+            "targetSourceOrder": -1
+          },
+          "type": {
+            "kind": "optional",
+            "valueType": {
+              "kind": "number"
+            }
+          }
+        },
+        "arms": [
+          {
+            "label": "some",
+            "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]:arm:some",
+            "binderId": "module-collection-binder:30:optional-match-binder:22:33:38",
+            "binderType": {
+              "kind": "number"
+            }
+          },
+          {
+            "label": "none",
+            "valueId": "record-value:[[],\"statement:typedDeclaration:mvhl692i:156\"]:arm:none"
+          }
+        ],
+        "sourceOrder": 0
+      }
+    ],
+    "baseGeometryProducers": [],
+    "genuineBasePassControl": "G04"
+  },
+  {
+    "family": "F24",
+    "id": "G13",
+    "sha256": "658811ffb8535a9657f1d4b4ff49c64b4b5355d376c790ecf911351ea15a0413",
+    "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts: sourceAliasForTarget collection member",
+    "expected": {
+      "L": 5
+    },
+    "baseCompilerDiagnostics": [],
+    "rustEligible": true,
+    "baseTS": {
+      "L": {
+        "status": "error",
+        "type": {
+          "kind": "number"
+        },
+        "issueCode": "evaluation-geometry-property-unavailable"
+      }
+    },
+    "baseRust": {
+      "L": {
+        "issueCode": "evaluation-geometry-property-unavailable",
+        "status": "error",
+        "type": {
+          "kind": "number"
+        }
+      }
+    },
+    "baseGeometryErrors": [
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvhl693s:226",
+          "instancePath": []
+        },
+        "message": "Geometry value reference is unavailable at runtime."
+      }
+    ],
+    "baseCollectionProducers": [
+      {
+        "valueId": "record-value:[[\"statement:moduleInstance:mvhl693s:225\"],\"statement:typedDeclaration:mvhl693s:224\"]",
+        "kind": "literal",
+        "members": [
+          {
+            "kind": "record",
+            "typeIdentity": "statement:recordDefinition:mvhl693s:221",
+            "fields": []
+          }
+        ]
+      }
+    ],
+    "baseGeometryProducers": [
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvhl693s:223",
+          "instancePath": [
+            "statement:moduleInstance:mvhl693s:225"
+          ]
+        },
+        "constructionKind": "segment"
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvhl693s:226",
+          "instancePath": []
+        },
+        "constructionKind": "reference"
+      }
+    ],
+    "genuineBasePassControl": "G03"
+  }
+]

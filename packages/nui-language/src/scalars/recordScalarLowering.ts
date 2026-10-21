@@ -1,3 +1,4 @@
+import type { ModuleRecordValueExpressionSemantic, ModuleScalarExpressionSemantic, ModuleRecordFieldSourceTarget } from "../dsl/moduleSemanticTypes";
 import { encodeIdentityTuple } from "../document/identityTuple";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import type {
@@ -1319,4 +1320,136 @@ export const prepareRecordScalarExpression = ({
       ...[...additionalPropertiesBySpanStart.values()].flatMap((property) => property.dependency ? [property.dependency] : [])
     ]
   };
+};
+
+/** Shared semantic field projection for Module analysis and lazy constructors.
+ * A nested record reference retains its original owner and remaining field path. */
+export const moduleRecordFieldExpressionFor = (
+  expression: ModuleRecordValueExpressionSemantic,
+  field: { identity: RecordFieldIdentity; name: string; type: ScalarExpressionType; fieldPath?: readonly RecordFieldIdentity[] }
+): ModuleScalarExpressionSemantic | null => {
+  const fieldPath = field.fieldPath ?? [field.identity];
+  if (expression.kind === "constructor") {
+    const current = expression.constructor.fields.find(candidate => candidate.field.fieldIndex === fieldPath[0]?.fieldIndex);
+    if (fieldPath.length === 1) return current?.expression ?? null;
+    const nested = current?.valueExpression;
+    return nested?.kind === "record" && nested.expression
+      ? moduleRecordFieldExpressionFor(nested.expression, { ...field, fieldPath: fieldPath.slice(1) }) : null;
+  }
+  if (expression.kind === "reference" || expression.kind === "collectionIndex") {
+    const reference = expression.reference;
+    if (!reference.target) return null;
+    if (reference.target.kind === "recordCollectionIndex" && !reference.target.members) {
+      const collectionValueId = `record-field-collection:${JSON.stringify(
+        fieldPath.length === 1
+          ? [reference.target.collectionValueId, field.identity.recordStatementId, field.identity.fieldIndex]
+          : [reference.target.collectionValueId, "path", fieldPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])]
+      )}`;
+      const baseName = reference.source.trim().replace(/^@/, "");
+      return {
+        ast: {
+          kind: "collectionIndex",
+          span: reference.span,
+          nameSpan: reference.span,
+          name: baseName,
+          index: reference.target.index.ast
+        },
+        type: field.type,
+        references: [{
+          name: baseName,
+          nameSpan: reference.span,
+          span: reference.span,
+          target: null,
+          resolution: "resolved",
+          collectionValueId,
+          collectionLength: reference.target.collectionLength,
+          targetSourceOrder: reference.target.targetSourceOrder,
+          collectionElementType: field.type
+        }],
+        geometryProperties: [],
+        geometryBuiltinArguments: []
+      };
+    }
+    const baseName = reference.source.trim().replace(/^@/, "");
+    const target: ModuleRecordFieldSourceTarget = {
+      kind: "recordField",
+      record: reference.target,
+      field: field.identity,
+      fieldName: field.name,
+      valueType: field.type,
+      type: field.type,
+      ...(fieldPath.length > 1 ? { fieldPath } : {})
+    };
+    return {
+      ast: {
+        kind: "geometryProperty",
+        span: reference.span,
+        elementNameSpan: reference.span,
+        propertySpan: reference.span,
+        elementName: baseName,
+        property: field.name
+      },
+      type: field.type,
+      references: [{
+          name: `${baseName}.${field.name}`,
+        nameSpan: reference.span,
+        span: reference.span,
+        target,
+        resolution: "resolved"
+      }],
+      geometryProperties: [{
+        geometryName: baseName,
+        property: field.name,
+        elementNameSpan: reference.span,
+        propertySpan: reference.span,
+        span: reference.span,
+        target,
+        type: field.type,
+        resolution: "resolved"
+      }],
+      geometryBuiltinArguments: []
+    };
+  }
+  if (expression.kind === "if") {
+    const thenBranch = expression.thenBranch ? moduleRecordFieldExpressionFor(expression.thenBranch, field) : null;
+    const elseBranch = expression.elseBranch ? moduleRecordFieldExpressionFor(expression.elseBranch, field) : null;
+    return expression.condition && thenBranch && elseBranch
+      ? {
+          ast: {
+            kind: "valueIf",
+            span: expression.span,
+            condition: expression.condition.ast,
+            thenBranch: thenBranch.ast,
+            elseBranch: elseBranch.ast
+          },
+          type: field.type,
+          references: [expression.condition.references, thenBranch.references, elseBranch.references].flat(),
+          geometryProperties: [expression.condition.geometryProperties, thenBranch.geometryProperties, elseBranch.geometryProperties].flat(),
+          geometryBuiltinArguments: [expression.condition.geometryBuiltinArguments, thenBranch.geometryBuiltinArguments, elseBranch.geometryBuiltinArguments].flat()
+        }
+      : null;
+  }
+  if (expression.kind === "none" || expression.kind === "coalesce") return null;
+  const arms = expression.arms.map((arm) => ({
+    label: arm.label,
+    labelSpan: arm.labelSpan,
+    expression: arm.expression ? moduleRecordFieldExpressionFor(arm.expression, field) : null
+  }));
+  return expression.scrutinee && arms.every((arm) => arm.expression)
+    ? {
+        ast: {
+          kind: "valueMatch",
+          span: expression.span,
+          scrutinee: expression.scrutinee.ast,
+          arms: arms.map((arm, index) => recordScalarMatchArmFor(
+            expression.arms[index]!,
+            arm.expression!.ast
+          ))
+        },
+        type: field.type,
+        references: [expression.scrutinee.references, ...arms.map((arm) => arm.expression!.references)].flat(),
+        geometryProperties: [expression.scrutinee.geometryProperties, ...arms.map((arm) => arm.expression!.geometryProperties)].flat(),
+        geometryBuiltinArguments: [expression.scrutinee.geometryBuiltinArguments, ...arms.map((arm) => arm.expression!.geometryBuiltinArguments)].flat()
+      }
+    : null;
 };

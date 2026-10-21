@@ -1,0 +1,366 @@
+[
+  {
+    "id": "R1",
+    "sha256": "be93859232d349c978a3b4c75987ca75b987c80cfdf3d8cc31bd02ffabe8d7cc",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R2",
+    "sha256": "85cda2c86b1566f3f8e8314df16e29df5d3020a9cd6c3d05feee1501e03053ed",
+    "expected": {
+      "X": 25,
+      "Y": 19,
+      "Z": 7
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R3",
+    "sha256": "14a41553cdb5246f42dd1a2bffe8748ba7588e8df5f8d11eb7f42d4f6541730a",
+    "expected": {
+      "X": 21,
+      "Y": 45
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R4",
+    "sha256": "d49589dfa356d15a51ef3f9b47ccead02b200d9da1c0b4d4991e87e275e806df",
+    "expected": {
+      "X": 23,
+      "Y": 19,
+      "Z": 2
+    },
+    "expectedCompilerError": "module-record-reference-invalid",
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R5",
+    "sha256": "673dc6d9a3b34e0997715d772e1aba3e63cf5833c0c4f24869a61a1e5de39fd7",
+    "expected": {
+      "X": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R6",
+    "sha256": "59b5d7a5a8911e6a09dda0789060ea15e50aaf2957221469d02901034a072614",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O1",
+    "sha256": "e4761cab2cff07e8171ad17a53498ecd598c810ad38a56012d5120285c3ea4de",
+    "expected": {
+      "X": 31,
+      "Y": 31,
+      "Z": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O2",
+    "sha256": "ca728d19cbd684ca9c86d271e5163b4bf016c414334e71cce788563ca9a4de12",
+    "expected": {
+      "X": 31,
+      "Y": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O3",
+    "sha256": "86062b1f5e2c13c713ab597d753d439f07954abc42d7b5f91c135135c4aa0cc5",
+    "expected": {
+      "X": 31,
+      "Y": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O4",
+    "sha256": "ed827b6fc4230f76154986f0e46a2ea7c60f3a5bbc79e0bbc044e2ebdb3532df",
+    "expected": {
+      "X": 43,
+      "Y": 31
+    },
+    "expectedCompilerError": "module-scalar-type-mismatch",
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G1",
+    "sha256": "4406030ca8e77b3e581b3514f3772c22d7a42c31e7be4033df2bf0180d8cda7b",
+    "expected": {
+      "L": 13,
+      "X": 6,
+      "Y": 14,
+      "N": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G2",
+    "sha256": "b5e047e718f155e660b66beebeb7ec16ebd051145272f90132f12b933f5553b1",
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 11,
+      "Y": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G3",
+    "sha256": "c61bcfde9bb181d43366d8c54690e125ed45745da8ca2f2c5fd692bb4ba86890",
+    "expected": {
+      "L": 5,
+      "X": 14,
+      "Y": 26
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R7",
+    "sha256": "2725dcc79f496ebfbf2296ed2d1ec830252353aa83faa66cb8bafb458354a0a2",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R8",
+    "sha256": "3faaee6dee22b679e030cc8be043316e5de74d65ea90704a6871e02e2d10eed4",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R9",
+    "sha256": "a78f4663fb2b2dd7777887c71151cfbb672ade8ab007f149c590708e551019ed",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O5",
+    "sha256": "b0b6d343d439e6ab77bdd0344d6e734841f7a1724615ed3c98b7a243683fe713",
+    "expected": {
+      "X": 31,
+      "Y": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O6",
+    "sha256": "fe2ef9e6fa48df75bdca1642c73f959869cfa1881cf4e62be015ce6e1faced28",
+    "expected": {},
+    "expectedCompilerError": "module-record-reference-invalid",
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O7",
+    "sha256": "40aa154e2adf15f092fe5f1d85e2015acd6e6b53a09fb4da66fd9209276c5e32",
+    "expected": {},
+    "expectedCompilerError": "module-record-reference-invalid",
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G4",
+    "sha256": "c94a3aa61cedeab592389d3a75a0fc26a5a66a48e38f62061a05d22274079547",
+    "expected": {
+      "X": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G5",
+    "sha256": "b33c65d8693c1393afb6ca601c5325208c0f87d910e9186a18006fa334020bd2",
+    "expected": {
+      "X": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O8",
+    "sha256": "bb48aabf05d4325fb02e6fb0401f2327b77faa52e2af814dd2659955e01f1c94",
+    "expected": {
+      "X": 43,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G6",
+    "sha256": "78c16359d63fb9ac11d1ebd8a3349aa47021c383164d00e2bf5494a67991fdf4",
+    "expected": {
+      "L": 5,
+      "X": 3,
+      "Y": 4
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G7",
+    "sha256": "dc1d850e3cf44c1e119e8cfc5794ea1634027544fc8537485988b008820befea",
+    "expected": {
+      "L": 5,
+      "M": 25,
+      "X": 4,
+      "Y": 24
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G8",
+    "sha256": "2a092efb9118dc9416fb13d83189626cc6ef7e6d32db0c27500c55a5a29d1ebf",
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "N": 1,
+      "K": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G9",
+    "sha256": "f242523458c3ebc61421709429c722287f6023c10ca23b2130e76f880d171695",
+    "expected": {
+      "L": 13
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G10",
+    "sha256": "26ee4ac7f1884d9c7b7f18e7262f18e5982ffeae1765c6a435556168d3adfd79",
+    "expected": {
+      "L": 13
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G11",
+    "sha256": "39a02dd9dcf63196e0defdc938f16b07395b89d92c03630e4349d49acf19a5ed",
+    "expected": {
+      "L": 13
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G12",
+    "sha256": "f2a1369f5bc6221f873732e3d57098f87d140bc15c8a913b0e290cf40da63855",
+    "expected": {
+      "L": 13
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "R-record-binder",
+    "sha256": "05fb26f7b23dc78cef27b73fe7550056c248c4b2062d7c098a3044ce7d266925",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O01",
+    "sha256": "da2ca8480de262bce907ad3ef75c076323b7edb2244903bd96dce3c1f25b38eb",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O02",
+    "sha256": "5657e2866cd6406ebb75e95380742c06ab6e410de1326b08bc585039181249e8",
+    "expected": {
+      "X": 31
+    },
+    "expectedNone": [
+      "Absent"
+    ],
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G01",
+    "sha256": "e6820d32fc52e5bc819c17cbd3a6de8f6e60894bb3696117c565d85783bfce41",
+    "expected": {
+      "L": 17,
+      "X": 3,
+      "Y": 16
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G02",
+    "sha256": "0c6f4e4366c372cc89b8496daa43f65df23604a40406871b680615c9523703a2",
+    "expected": {
+      "L": 17,
+      "X": 3,
+      "Y": 16
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G03",
+    "sha256": "6b2296b9c03e253e52f44543f2d25e11ad53f1342c5f299e794bfa685d027d77",
+    "expected": {
+      "L": 17,
+      "M": 13,
+      "X": 3,
+      "Y": 21
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G04",
+    "sha256": "3f0949ce07ef11bf18544dbaf1098cf94f70341d203f601faaf56bcf08e92af6",
+    "expected": {
+      "L": 5,
+      "X": 14,
+      "Y": 26,
+      "BaseX": 4,
+      "BaseY": 6
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O9",
+    "sha256": "3fe9cd9e01c74f4d92fe61c55e4d226a49b8c64d6cc14c214aa7a7c867efe547",
+    "expected": {
+      "X": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G13",
+    "sha256": "658811ffb8535a9657f1d4b4ff49c64b4b5355d376c790ecf911351ea15a0413",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O10",
+    "sha256": "6231cbb2c38c5a475cfdffd237e4015edd3125804111ccafc857c1b1ef27a3e8",
+    "expected": {
+      "X": 21,
+      "Y": 101
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "O11",
+    "sha256": "19bff183b9ddebf2375cd9e3d6d19ba721605aff97abdb483342ed6d51a71364",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  }
+]

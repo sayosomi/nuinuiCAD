@@ -33,7 +33,7 @@ import { parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceT
 import { coordinateComponent, recordField, recordSpans } from "./dslParameterSpanScanner";
 import { parseScalarExpression } from "../scalars/expressionParser";
 import type { ScalarExpressionAst } from "../scalars/expressionAst";
-import { recordScalarMatchArmFor, recordValueCollectionIdFor, recordFieldContentsCollectionValueIdFor } from "../scalars/recordScalarLowering";
+import { moduleRecordFieldExpressionFor, recordValueCollectionIdFor, recordFieldContentsCollectionValueIdFor } from "../scalars/recordScalarLowering";
 import { validateChoiceMatchExhaustiveness, validateOptionalMatchExhaustiveness } from "../scalars/expressionTypecheck";
 import { optionalMatchBinderId } from "../scalars/optionalMatchBinder";
 import { parseDslConstructionInvocation } from "./dslCallParser";
@@ -1853,6 +1853,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   type RecordSourceLookup =
     | {
         kind: "record";
+        optionalMatchBinder?: true;
+        valueType?: DslValueType;
         target: ModuleRecordSourceTarget;
         typeIdentity: RecordTypeIdentity;
         definition: RecordDefinitionSemantic;
@@ -1876,6 +1878,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     span: DslSpan
   ): RecordSourceLookup {
     if (!recordAnalysis) return { kind: "notRecord" };
+    const matchBinding = [...activeRecordMatchBindings].reverse().find(binding => binding.name === base);
+    if (matchBinding) return matchBinding.source;
     if (activeRecordValueBinder) {
       const binderPath = parseDslReferenceToken(base);
       if (!binderPath.absolute && binderPath.segments.length === 1 && binderPath.segments[0] === activeRecordValueBinder.name) {
@@ -1914,6 +1918,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             memberSpan: qualified.memberSpan
           },
           typeIdentity: exported.typeIdentity,
+          valueType: exported.valueType,
           definition: exported.definition,
           ...(exported.documentId ? { documentId: exported.documentId } : {})
         };
@@ -1941,6 +1946,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               typeIdentity
             },
             typeIdentity,
+            valueType: lookup.parameter.parameter.valueType ?? undefined,
             definition
           }
         : { kind: "blocked", resolution: "invalid" };
@@ -1996,6 +2002,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           ...((value.valueExpression?.kind === "coalesce" || value.valueExpression?.kind === "match" && value.valueExpression.optionalRecordMatch) ? { valueExpressionKind: value.valueExpression.kind } : {})
         },
         typeIdentity: value.typeIdentity,
+        valueType: value.declaredValueType,
         definition
       };
     }
@@ -2053,7 +2060,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   function qualifiedRecordExportFor(
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
-  ): { kind: "record"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; typeIdentity: RecordTypeIdentity; definition: RecordDefinitionSemantic; documentId?: import("../document/multiDocumentPrimitives").DocumentId }
+  ): { kind: "record"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; typeIdentity: RecordTypeIdentity; definition: RecordDefinitionSemantic; valueType?: DslValueType; documentId?: import("../document/multiDocumentPrimitives").DocumentId }
     | { kind: "other" }
     | null {
     const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
@@ -2067,6 +2074,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             exportedStatementIndex: exported.exportedStatementIndex,
             typeIdentity: exported.typeIdentity,
             definition: exported.definition,
+            valueType: exported.valueType,
             documentId: externalDefinition.documentId
           }
         : exported ? { kind: "other" } : null;
@@ -2094,6 +2102,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           exportedStatementId: value.statementId,
           exportedStatementIndex: value.statementIndex,
           typeIdentity: value.typeIdentity,
+          valueType: value.declaredValueType,
           definition: recordDefinition
         }
       : { kind: "other" };
@@ -2158,6 +2167,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     );
   };
 
+  // Scoped aliases reuse the resolved record owner; only the selected arm
+  // sees its required type and collection-backed field projection.
+  const activeRecordMatchBindings: { name: string; source: Extract<RecordSourceLookup, { kind: "record" }> }[] = [];
   let activeGeometryValueBinder: Extract<ModuleGeometrySourceTarget, { kind: "geometryValueForBinder" }> | null = null;
   let activeRecordValueBinder: Extract<ModuleRecordSourceTarget, { kind: "recordValueForBinder" }> | null = null;
   const constructionInputResolutionStack = new Set<string>();
@@ -4474,7 +4486,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         ? definitionStates.find((candidate) => candidate.statementId === recordParameterTarget.definitionStatementId)
         : undefined;
       if (
-        recordParameterTarget &&
+        recordParameterTarget && !record.optionalMatchBinder &&
         isDslOptionalValueType(parameterDefinition?.parameters[recordParameterTarget.parameterIndex]?.valueType) &&
         !reference.allowOptionalTraversal
       ) {
@@ -4855,6 +4867,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           const definition = definitionStates.find((candidate) => candidate.statementId === recordTarget.definitionStatementId);
           return definition?.parameters[recordTarget.parameterIndex]?.valueType ?? null;
         }
+        if (recordTarget.kind === "deferredModuleRecordExport") {
+          const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, name, span);
+          const exported = qualified?.kind === "deferred" ? qualifiedRecordExportFor(qualified) : null;
+          if (exported?.kind === "record" && exported.valueType) return exported.valueType;
+        }
         return { kind: "record", name: record.definition.name, identity: record.typeIdentity };
       }
       const path = parseDslReferenceToken(name);
@@ -5227,7 +5244,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           resolvedRecordParameter &&
           isDslOptionalValueType(stateByIndex.get(
             definitionStates.find((candidate) => candidate.statementId === resolvedRecordParameter.definitionStatementId)?.statementIndex ?? -1
-          )?.parameters[resolvedRecordParameter.parameterIndex]?.valueType) && !allowOptionalReference
+          )?.parameters[resolvedRecordParameter.parameterIndex]?.valueType) && !allowOptionalReference && !resolved.optionalMatchBinder
         ) {
           return invalid(
             "invalid",
@@ -5244,11 +5261,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           target: resolved.target,
           constructor: null,
           resolution: "resolved",
-          ...(resolved.target.kind === "recordValue"
-            ? recordAnalysis?.valuesByStatementId.get(resolved.target.statementId)?.declaredValueType
-              ? { valueType: recordAnalysis.valuesByStatementId.get(resolved.target.statementId)!.declaredValueType }
-              : {}
-            : {})
+          ...(resolved.valueType ? { valueType: resolved.valueType } : {})
         };
       }
       if (resolved.kind === "blocked") {
@@ -5525,7 +5538,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             undefined
           );
           return expression
-            ? { kind: "resolved", value: { elementType, target: { kind: parsedReference.kind === "valid" ? "scalarValue" : "scalarExpression", statementId: `record-field:${member.span.start}`, statementIndex } } }
+            ? { kind: "resolved", value: { elementType, target: { kind: "scalarExpression", statementId: `record-field:${member.span.start}`, statementIndex } } }
             : { kind: "invalid", diagnostic: { code: "array-member-type-mismatch", message: `array member「${member.text}」の型が宣言型と一致しません。`, span: member.span } };
         }
       });
@@ -5623,9 +5636,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? recordSourceLookup(statementIndex, ownerIndex, expression.scrutinee.name, expression.scrutinee.span)
       : null;
     const recordMatchValueId = recordMatch?.kind === "record" && recordMatch.target.kind === "recordValue"
-      ? recordValueCollectionIdFor([], recordMatch.target.statementId) : null;
+      ? recordValueCollectionIdFor([], recordMatch.target.statementId)
+      : recordMatch?.kind === "record" && recordMatch.target.kind === "recordParameter"
+        ? `${recordMatch.target.definitionStatementId}:parameter:${recordMatch.target.parameterIndex}`
+        : recordMatch?.kind === "record" && recordMatch.target.kind === "deferredModuleRecordExport"
+          ? geometryArrayDeferredModuleExportId(recordMatch.target.instanceStatementId, recordMatch.target.exportName) : null;
     const recordMatchType = recordMatch?.kind === "record" ? { kind: "record" as const, name: recordMatch.definition.name, identity: recordMatch.typeIdentity } : null;
-    const recordScrutinee: ModuleScalarExpressionSemantic | null = recordMatchValueId && recordMatchType ? {
+    const recordScrutinee: ModuleScalarExpressionSemantic | null = recordMatchValueId && recordMatchType && isDslOptionalValueType(recordMatch?.kind === "record" ? recordMatch.valueType : null) ? {
       ast: expression.scrutinee,
       type: { kind: "optional", valueType: recordMatchType },
       references: [{ name: expression.scrutinee.kind === "reference" ? expression.scrutinee.name : "", span: expression.scrutinee.span,
@@ -5687,9 +5704,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           labelSpan: arm.labelSpan,
           binder: arm.binder,
           binderSpan: arm.binderSpan,
-          expression: arm.expression
-            ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: arm.expression, expectedTypeIdentity, localBindings: armBindings })
-            : null
+          expression: (() => {
+            const definition = recordMatchType ? recordDefinitionFor(recordMatchType.identity) : null;
+            const binding = arm.label === "some" && arm.binder && recordMatch?.kind === "record" && definition ? {
+              name: arm.binder,
+              source: { ...recordMatch, optionalMatchBinder: true as const, valueType: dslRequiredValueTypeOf(recordMatch.valueType) ?? undefined,
+                target: recordMatch.target.kind === "recordValue"
+                  ? { ...recordMatch.target, valueExpressionKind: "match" as const }
+                  : recordMatch.target }
+            } : null;
+            if (binding) activeRecordMatchBindings.push(binding);
+            try {
+              return arm.expression ? moduleRecordValueExpressionFor({ statementIndex, ownerIndex, source, expression: arm.expression, expectedTypeIdentity, localBindings: armBindings }) : null;
+            } finally { if (binding) activeRecordMatchBindings.pop(); }
+          })()
         };
       })
     };
@@ -5706,148 +5734,6 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const nested = recordDefinitionFor(field.type.identity ?? null);
     return nested ? scalarRecordFieldPathsFor(nested, path) : [];
   });
-
-  const moduleRecordFieldExpressionFor = (
-    expression: ModuleRecordValueExpressionSemantic,
-    field: { identity: RecordFieldIdentity; name: string; type: ScalarExpressionType; fieldPath?: readonly RecordFieldIdentity[] }
-  ): ModuleScalarExpressionSemantic | null => {
-    const fieldPath = field.fieldPath ?? [field.identity];
-    const constructorFieldAtPath = (
-      fields: readonly ModuleRecordConstructorFieldSemantic[],
-      path: readonly RecordFieldIdentity[]
-    ): ModuleRecordConstructorFieldSemantic | null => {
-      let currentFields = fields;
-      for (const [index, identity] of path.entries()) {
-        const current = currentFields.find((candidate) => candidate.field.fieldIndex === identity.fieldIndex);
-        if (!current) return null;
-        if (index === path.length - 1) return current;
-        if (current.valueExpression?.kind !== "record" || !current.valueExpression.expression) return null;
-        const nested = current.valueExpression.expression;
-        if (nested.kind !== "constructor") return null;
-        currentFields = nested.constructor.fields;
-      }
-      return null;
-    };
-    if (expression.kind === "constructor") {
-      return constructorFieldAtPath(expression.constructor.fields, fieldPath)?.expression ?? null;
-    }
-    if (expression.kind === "reference" || expression.kind === "collectionIndex") {
-      const reference = expression.reference;
-      if (!reference.target) return null;
-      if (reference.target.kind === "recordCollectionIndex" && !reference.target.members) {
-        const collectionValueId = `record-field-collection:${JSON.stringify(
-          fieldPath.length === 1
-            ? [reference.target.collectionValueId, field.identity.recordStatementId, field.identity.fieldIndex]
-            : [reference.target.collectionValueId, "path", fieldPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])]
-        )}`;
-        const baseName = reference.source.trim().replace(/^@/, "");
-        return {
-          ast: {
-            kind: "collectionIndex",
-            span: reference.span,
-            nameSpan: reference.span,
-            name: baseName,
-            index: reference.target.index.ast
-          },
-          type: field.type,
-          references: [{
-            name: baseName,
-            nameSpan: reference.span,
-            span: reference.span,
-            target: null,
-            resolution: "resolved",
-            collectionValueId,
-            collectionLength: reference.target.collectionLength,
-            targetSourceOrder: reference.target.targetSourceOrder,
-            collectionElementType: field.type
-          }],
-          geometryProperties: [],
-          geometryBuiltinArguments: []
-        };
-      }
-      const baseName = reference.source.trim().replace(/^@/, "");
-      const target: ModuleRecordFieldSourceTarget = {
-        kind: "recordField",
-        record: reference.target,
-        field: field.identity,
-        fieldName: field.name,
-        valueType: field.type,
-        type: field.type,
-        ...(fieldPath.length > 1 ? { fieldPath } : {})
-      };
-      return {
-        ast: {
-          kind: "geometryProperty",
-          span: reference.span,
-          elementNameSpan: reference.span,
-          propertySpan: reference.span,
-          elementName: baseName,
-          property: field.name
-        },
-        type: field.type,
-        references: [{
-            name: `${baseName}.${field.name}`,
-          nameSpan: reference.span,
-          span: reference.span,
-          target,
-          resolution: "resolved"
-        }],
-        geometryProperties: [{
-          geometryName: baseName,
-          property: field.name,
-          elementNameSpan: reference.span,
-          propertySpan: reference.span,
-          span: reference.span,
-          target,
-          type: field.type,
-          resolution: "resolved"
-        }],
-        geometryBuiltinArguments: []
-      };
-    }
-    if (expression.kind === "if") {
-      const thenBranch = expression.thenBranch ? moduleRecordFieldExpressionFor(expression.thenBranch, field) : null;
-      const elseBranch = expression.elseBranch ? moduleRecordFieldExpressionFor(expression.elseBranch, field) : null;
-      return expression.condition && thenBranch && elseBranch
-        ? {
-            ast: {
-              kind: "valueIf",
-              span: expression.span,
-              condition: expression.condition.ast,
-              thenBranch: thenBranch.ast,
-              elseBranch: elseBranch.ast
-            },
-            type: field.type,
-            references: [expression.condition.references, thenBranch.references, elseBranch.references].flat(),
-            geometryProperties: [expression.condition.geometryProperties, thenBranch.geometryProperties, elseBranch.geometryProperties].flat(),
-            geometryBuiltinArguments: [expression.condition.geometryBuiltinArguments, thenBranch.geometryBuiltinArguments, elseBranch.geometryBuiltinArguments].flat()
-          }
-        : null;
-    }
-    if (expression.kind === "none" || expression.kind === "coalesce") return null;
-    const arms = expression.arms.map((arm) => ({
-      label: arm.label,
-      labelSpan: arm.labelSpan,
-      expression: arm.expression ? moduleRecordFieldExpressionFor(arm.expression, field) : null
-    }));
-    return expression.scrutinee && arms.every((arm) => arm.expression)
-      ? {
-          ast: {
-            kind: "valueMatch",
-            span: expression.span,
-            scrutinee: expression.scrutinee.ast,
-            arms: arms.map((arm, index) => recordScalarMatchArmFor(
-              expression.arms[index]!,
-              arm.expression!.ast
-            ))
-          },
-          type: field.type,
-          references: [expression.scrutinee.references, ...arms.map((arm) => arm.expression!.references)].flat(),
-          geometryProperties: [expression.scrutinee.geometryProperties, ...arms.map((arm) => arm.expression!.geometryProperties)].flat(),
-          geometryBuiltinArguments: [expression.scrutinee.geometryBuiltinArguments, ...arms.map((arm) => arm.expression!.geometryBuiltinArguments)].flat()
-        }
-      : null;
-  };
 
   const moduleRecordValueExpressionFromAst = ({
     statementIndex,
@@ -6960,7 +6846,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               ownerIndex,
               argument.value,
               argument.valueSpan,
-              parameter.recordTypeIdentity
+              parameter.recordTypeIdentity,
+              isDslOptionalValueType(parameter.valueType)
             );
             value = { kind: "record", reference };
           } else {
@@ -7707,14 +7594,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               }
             : value.reference
               ? (() => {
-                  const resolved = recordSourceLookup(
-                    value.statementIndex,
-                    definition.statementIndex,
-                    value.reference.name,
-                    value.reference.span
-                  );
-                  if (resolved.kind === "blocked" && resolved.diagnostic) addLocal(value.statementIndex, resolved.diagnostic);
-                  return resolved.kind === "record" && resolved.typeIdentity === value.typeIdentity ? resolved.target : null;
+                  return recordReferenceSemantic(value.statementIndex, definition.statementIndex,
+                    `@${value.reference.name}`, value.reference.span, value.typeIdentity,
+                    isDslOptionalValueType(value.declaredValueType)).target;
                 })()
               : null
           : null;
@@ -7786,6 +7668,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         exportedStatementIndex: recordValue.value.statementIndex,
         sourceOrder: recordValue.value.statementIndex,
         name: recordValue.value.name,
+        valueType: recordValue.value.declaredValueType,
         typeIdentity: recordValue.value.typeIdentity,
         definition: recordDefinition,
         backingTarget: recordValue.target

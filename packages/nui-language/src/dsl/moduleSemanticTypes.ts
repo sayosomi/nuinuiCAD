@@ -923,6 +923,7 @@ export type ResolvedModuleScalarExport = ResolvedModuleExportBase & {
 
 export type ResolvedModuleRecordExport = ResolvedModuleExportBase & {
   kind: "record";
+  valueType?: DslValueType;
   typeIdentity: RecordTypeIdentity;
   definition: RecordDefinitionSemantic;
   backingTarget: ModuleRecordSourceTarget;

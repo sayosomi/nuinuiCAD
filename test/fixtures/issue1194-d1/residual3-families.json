@@ -1,0 +1,107 @@
+[
+  {
+    "id": "F17",
+    "name": "Selected nominal-record binder scope in constructor fields",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: moduleRecordValueExpressionFor / recordSourceLookup",
+    "affectedCases": [
+      "R1",
+      "R2",
+      "R3",
+      "R5",
+      "R7",
+      "O10",
+      "O11"
+    ],
+    "reducedFailBefore": "R1",
+    "genuineBasePassControl": "R6",
+    "repair": "Constructor field resolvers did not receive the selected record binder. Reuse the canonical source target inside a scoped required alias; reuse the existing field projector for nested whole-record references."
+  },
+  {
+    "id": "F18",
+    "name": "Reference members in record collection-field literals",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: analyzeRecordFieldValue",
+    "affectedCases": [
+      "R8",
+      "R2"
+    ],
+    "reducedFailBefore": "R8",
+    "genuineBasePassControl": "R9",
+    "repair": "A parsed reference was labeled scalarValue with a fabricated record-field ID and no binding or expression. Retain its checked scalar expression and emit its existing lazy member/projection producers."
+  },
+  {
+    "id": "F19",
+    "name": "Optional record parameter used directly as match scrutinee",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: moduleRecordValueExpressionFor",
+    "affectedCases": [
+      "O1",
+      "O10",
+      "O11"
+    ],
+    "reducedFailBefore": "O1",
+    "genuineBasePassControl": "O2",
+    "repair": "Presence lowering supported recordValue only, excluding recordParameter. Use the canonical parameter slot collection ID."
+  },
+  {
+    "id": "F20",
+    "name": "Optional record Module forwarding type and required-read validation",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: qualifiedRecordExportFor / optionalMemberResolver / definitionRecordValues",
+    "affectedCases": [
+      "O3",
+      "O5",
+      "O6"
+    ],
+    "reducedFailBefore": "O5",
+    "genuineBasePassControl": "O2",
+    "repair": "Optional exported record type was erased to required Box; nested optional arguments were rejected, while a required local alias could silently unwrap. Preserve declared valueType across the existing record source/export projection; validate aliases and optional arguments with recordReferenceSemantic; register qualified optional field projections."
+  },
+  {
+    "id": "F21",
+    "name": "Qualified optional record export loses selected binder before Module resolution",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: parseExpression",
+    "affectedCases": [
+      "O8",
+      "O9"
+    ],
+    "reducedFailBefore": "O9",
+    "genuineBasePassControl": "O2",
+    "repair": "The early record pass could not know the qualified scrutinee type and omitted the some-binder. Retain deferred qualified binder identity for the existing Module owner to check exact nominal type and optionality."
+  },
+  {
+    "id": "F22",
+    "name": "Geometry collection record-field cardinality producer absent",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRootConditional / appendConditional",
+    "affectedCases": [
+      "G1",
+      "G4",
+      "G8"
+    ],
+    "reducedFailBefore": "G4",
+    "genuineBasePassControl": "G5",
+    "repair": "Geometry literals were dropped at the scalar element-type guard even though field length consumers referenced their contents descriptor. Emit only ordinal cardinality/order; geometry targets remain in the geometry runtime."
+  },
+  {
+    "id": "F23",
+    "name": "Selected geometry fields of optional/control-flow records",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts: sourceAliasForTarget",
+    "affectedCases": [
+      "G3",
+      "G6",
+      "G7"
+    ],
+    "reducedFailBefore": "G6",
+    "genuineBasePassControl": "G04",
+    "repair": "Field alias lookup discarded if/match/none. Preserve the defining record occurrence and emit existing field geometry programs with reference/none leaves and remapped optional presence. The existing TS geometry/controller environments and Rust graph-controller adapter also need their canonical document optional-member lookups to activate these dependencies."
+  },
+  {
+    "id": "F24",
+    "name": "Module-local geometry collection record member resolved in consumer context",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts: sourceAliasForTarget collection member",
+    "affectedCases": [
+      "G8",
+      "G13"
+    ],
+    "reducedFailBefore": "G13",
+    "genuineBasePassControl": "G03",
+    "repair": "After following a qualified record export, its geometry collection member was resolved at root currentPath instead of the defining fieldContextPath. Reuse the already-resolved field owner path."
+  }
+]
