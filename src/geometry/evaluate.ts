@@ -2715,6 +2715,17 @@ export const evaluateElements = (
           } else if (selectedTarget) {
             resolvedTarget = selectedTarget;
           }
+          if (resolvedTarget?.kind === "geometryValue") {
+            const key = geometryValueOccurrenceKey(resolvedTarget.occurrence);
+            const entry = lazyFrameGeometryValues.get(key);
+            if (entry) {
+              computedGeometryValues.delete(key);
+              const previousLookup = activeGeometryValueBindingLookup;
+              activeGeometryValueBindingLookup = (bindingId) => incomingBindings.get(bindingId) ?? lookupBinding(bindingId);
+              try { evaluateGeometryValueEntry(entry, carry.nextSourceOrder, true); }
+              finally { activeGeometryValueBindingLookup = previousLookup; }
+            }
+          }
           const next = resolvedTarget
             ? resolveGeometryTargetForEvaluation(resolvedTarget, carry.nextSourceOrder, lookupBinding, snapshot)
             : undefined;
@@ -3697,6 +3708,31 @@ export const evaluateElements = (
     );
   };
 
+  const discardModuleInstanceGeometry = (snapshot: (typeof instanceSnapshots)[number], runtimeDescendantIds: readonly ElementId[], instancePath: readonly string[]) => {
+  instanceBaseGeometry.delete(snapshot.instanceId);
+  const descendantIds = new Set([...snapshot.descendantIds, ...runtimeDescendantIds]);
+  for (const id of descendantIds) {
+    computedGeometry.delete(id);
+    preMutationGeometry.delete(id);
+    baseTransformationGeometry.delete(id);
+  }
+  for (const key of transformationStageGeometry.keys()) {
+    if ([...descendantIds].some((id) => key.startsWith(`${id}\u0000`))) transformationStageGeometry.delete(key);
+  }
+  for (const [key, entry] of computedGeometryValues) {
+    const path = entry.occurrence.instancePath;
+    if (path.length >= instancePath.length && instancePath.every((part, index) => path[index] === part)) {
+      computedGeometryValues.delete(key);
+    }
+  }
+  for (let index = geometryMutationExecutions.length - 1; index >= 0; index -= 1) {
+    const execution = geometryMutationExecutions[index]!;
+    if (descendantIds.has(execution.mutationElementId) || execution.targetElementIds.some((id) => descendantIds.has(id))) {
+      geometryMutationExecutions.splice(index, 1);
+    }
+  }
+  };
+
   const captureReadyModuleInstanceBases = () => {
     for (const snapshot of instanceSnapshots) {
       if (capturedInstanceIds.has(snapshot.instanceId)) continue;
@@ -3706,7 +3742,21 @@ export const evaluateElements = (
         capturedInstanceIds.add(snapshot.instanceId);
         continue;
       }
-      if (!snapshot.descendantIds.every((id) => completedElementIds.has(id))) continue;
+      const completionIds = snapshot.descendantIds.map((id) => {
+        let completionId = id;
+        let parentId = elementsById.get(id)?.parentGroupId;
+        while (parentId) {
+          const parent = elementsById.get(parentId);
+          if (!parent) break;
+          if (isForGroupElement(parent)) completionId = parent.id;
+          parentId = parent.parentGroupId;
+        }
+        return completionId;
+      });
+      if (!completionIds.every((id) => completedElementIds.has(id))) continue;
+      const runtimeDescendantIds = snapshot.descendantIds.flatMap((id) => templateDescendantIds.has(id)
+        ? forGroupGeneratedRows.filter(row => row.templateElementId === id).map(row => row.generatedElementId)
+        : [id]);
       const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
         options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
       const hasUnevaluatedGeometryValue = geometryValueProgram.some((entry, index) =>
@@ -3718,39 +3768,18 @@ export const evaluateElements = (
         error.occurrence.instancePath.length >= instancePath.length &&
         instancePath.every((part, index) => error.occurrence.instancePath[index] === part)
       );
-      const failed = snapshot.descendantIds.some((id) => failedElementIds.has(id)) || hasGeometryValueFailure;
+      const failed = [...completionIds, ...runtimeDescendantIds].some((id) => failedElementIds.has(id)) || hasGeometryValueFailure;
       // Consumers must see failure as soon as the body has failed, even when
       // private alias programs still need their ordinary completion/cleanup.
       if (failed) failedModuleInstanceIds.add(snapshot.instanceId);
       if (hasUnevaluatedGeometryValue) continue;
       if (failed) {
         completedModuleInstanceIds.add(snapshot.instanceId);
-        instanceBaseGeometry.delete(snapshot.instanceId);
-        const descendantIds = new Set(snapshot.descendantIds);
-        for (const id of descendantIds) {
-          computedGeometry.delete(id);
-          preMutationGeometry.delete(id);
-          baseTransformationGeometry.delete(id);
-        }
-        for (const key of transformationStageGeometry.keys()) {
-          if ([...descendantIds].some((id) => key.startsWith(`${id}\u0000`))) transformationStageGeometry.delete(key);
-        }
-        for (const [key, entry] of computedGeometryValues) {
-          const path = entry.occurrence.instancePath;
-          if (path.length >= instancePath.length && instancePath.every((part, index) => path[index] === part)) {
-            computedGeometryValues.delete(key);
-          }
-        }
-        for (let index = geometryMutationExecutions.length - 1; index >= 0; index -= 1) {
-          const execution = geometryMutationExecutions[index]!;
-          if (descendantIds.has(execution.mutationElementId) || execution.targetElementIds.some((id) => descendantIds.has(id))) {
-            geometryMutationExecutions.splice(index, 1);
-          }
-        }
+        discardModuleInstanceGeometry(snapshot, runtimeDescendantIds, instancePath);
         capturedInstanceIds.add(snapshot.instanceId);
         continue;
       }
-      const geometry = snapshot.descendantIds
+      const geometry = runtimeDescendantIds
         .map((id) => computedGeometry.get(id))
         .filter((value): value is ComputedGeometry => Boolean(value))
         .map((value) => structuredClone(value));
@@ -3833,6 +3862,8 @@ export const evaluateElements = (
   for (const snapshot of unavailableModuleSnapshots) {
     const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
       options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
+    discardModuleInstanceGeometry(snapshot, forGroupGeneratedRows
+      .filter(row => snapshot.descendantIds.includes(row.templateElementId)).map(row => row.generatedElementId), instancePath);
     if (instancePath.length > 0) {
       const localBindingPrefix = `module-binding:${encodeIdentityTuple(["local", ...instancePath])}`;
       for (const bindingId of bindingIdsToWithhold) {

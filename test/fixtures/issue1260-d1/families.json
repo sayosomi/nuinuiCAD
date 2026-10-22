@@ -35,5 +35,86 @@
       "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs"
     ],
     "familySubtraction": "The mirrored controller correction prevents regressions exposed by new dependency edges; it has no independent Base DSL FAIL proof and is not counted as an additional family. All #1194 F01–F49 are excluded."
+  },
+  {
+    "id": "1260-D1-F3",
+    "status": "BUG→FIXED→REPASS",
+    "slice": 2,
+    "owner": "packages/nui-language/src/dsl/dslDocument.ts",
+    "firstLoss": "geometryCollectionSourceForRaw dropped the explicit stage suffix when lowering an inline drawable collection member.",
+    "repair": "Use the established resolveGeometryArrayStageSelection result, including selected endpoint and full stage path.",
+    "affected": [
+      "R2-02"
+    ],
+    "adjacentBasePass": "R2-01; historical rootPathCarryEndpointsRust / issue1386 non-final stage controls",
+    "proof": "r2-proofs.json"
+  },
+  {
+    "id": "1260-D1-F4",
+    "status": "BUG→FIXED→REPASS",
+    "slice": 2,
+    "owner": "packages/nui-language/src/dsl/dslDocument.ts",
+    "firstLoss": "Definition-local single-geometry carry declarations also produced unqualified root loop plans, causing buildForGroupExecutionOwners to throw before eligibility.",
+    "repair": "Keep definition carries exclusively in the existing per-instance Module projection. Downstream corrections retain point endpoint type/stage and consume a lazy next alias in the incoming frame in both existing runtimes. These masked corrections are not counted as extra independently confirmed Base families.",
+    "affected": [
+      "R2-03",
+      "R2-04"
+    ],
+    "adjacentBasePass": "C-R2-selected; R2-01; Stage 7 H1-03/H2-07",
+    "proof": "r2-proofs.json"
+  },
+  {
+    "id": "1260-D1-F5",
+    "status": "BUG→FIXED→REPASS",
+    "slice": 2,
+    "owner": "packages/nui-language/src/scalars/typedDependencyGraph.ts",
+    "firstLoss": "An escaped scalar carry read had no dependency on its completed loop element. Rust released Final before Total existed when an independent choice binding advanced the scheduler.",
+    "repair": "Add the compiler-owned loop prerequisite for escaped scalar reads; retain incoming-frame reads without a back edge.",
+    "affected": [
+      "R4-02"
+    ],
+    "adjacentBasePass": "C-R4-arithmetic",
+    "proof": "r2-proofs.json"
+  },
+  {
+    "id": "1260-D1-F6",
+    "status": "BUG→FIXED→REPASS",
+    "slice": 2,
+    "owner": "packages/nui-language/src/dsl/dslDocument.ts",
+    "firstLoss": "Module collection carry literal members skipped the canonical scalar semantic pass, so expression members were not lowered. The reduction also exposed omission of semantic Module carry inputs when root scalar analysis was absent.",
+    "repair": "Send literal members through the existing Module expression analysis, and project exact compiler-owned semantic carry inputs independently from the presence of root scalar declarations. Reuse existing scalarExpressionCollection and collection IDs. Canonical array alias lookup preserves a nearer Module-local declaration/carry before a same-named Module parameter.",
+    "affected": [
+      "R4-03",
+      "D-R4-literal"
+    ],
+    "adjacentBasePass": "C-R4-literal",
+    "proof": "r2-proofs.json"
+  },
+  {
+    "id": "1260-D1-F7",
+    "status": "BUG→FIXED→REPASS",
+    "slice": 2,
+    "owner": "src/geometry/evaluate.ts; rust-evaluator/src/evaluation/mod.rs",
+    "firstLoss": "Module completion waited for authored generated templates to complete as ordinary elements; its snapshot could never be captured.",
+    "repair": "Use the existing outer loop completion and actual generated row identities for snapshot readiness, failure detection and snapshot geometry. Preserve healthy/failed instance separation.",
+    "affected": [
+      "R6-04",
+      "C-R6-generated-failure"
+    ],
+    "adjacentBasePass": "R6-02; C-R6-complete-failed",
+    "proof": "r2-proofs.json"
+  },
+  {
+    "id": "1260-D1-F8",
+    "status": "BUG→FIXED→REPASS",
+    "slice": 2,
+    "owner": "src/geometry/evaluate.ts; rust-evaluator/src/evaluation/mod.rs",
+    "firstLoss": "A failed Module cut off inside its body skipped snapshot failure cleanup and published its successful Prefix as normal output.",
+    "repair": "Reuse the existing Module geometry discard operation for unavailable/excluded instances at publication, including generated rows.",
+    "affected": [
+      "R6-03"
+    ],
+    "adjacentBasePass": "C-R6-complete-failed; R6-02",
+    "proof": "r2-proofs.json"
   }
 ]

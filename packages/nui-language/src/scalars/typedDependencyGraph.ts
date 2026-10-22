@@ -1518,6 +1518,7 @@ export const buildTypedDependencyGraph = ({
     }, occurrenceNamespace);
   };
   const geometryCarryOwnerByBindingId = new Map<string, TypedDependencyEndpoint>();
+  const scalarCarryOwnerByBindingId = new Map<string, { endpoint: TypedDependencyEndpoint; ownerStatementId: string }>();
   const geometryCollectionOwnerByValueId = new Map<string, TypedDependencyEndpoint>();
   for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
     const moduleStatement = moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId);
@@ -1525,12 +1526,28 @@ export const buildTypedDependencyGraph = ({
     if (!ownerId) continue;
     const endpoint = elementEndpoint(elementsById, ownerId,
       moduleStatement?.executionUnitStatementIndex ?? elementStatementIndex.get(ownerId) ?? 0);
+    for (const carry of plan.carries) scalarCarryOwnerByBindingId.set(carry.bindingId, { endpoint, ownerStatementId: plan.ownerStatementId });
     for (const carry of plan.geometryCarries ?? []) geometryCarryOwnerByBindingId.set(carry.bindingId, endpoint);
     // Module collection owners already use materialized execution events. This
     // join supplies the missing root collection boundary without reordering
     // Module-local conditional binding events.
     if (rootForGroupElementIdByStatementId.has(plan.ownerStatementId)) {
       for (const carry of plan.geometryCollectionCarries ?? []) geometryCollectionOwnerByValueId.set(carry.collectionValueId, endpoint);
+    }
+  }
+  if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
+    const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
+    const versions = (bindingVersions?.versionIdsByBindingId.get(statement.bindingId) ?? [])
+      .flatMap(id => bindingVersions?.versionsById.get(id) ?? []);
+    for (const reference of referencesIn(statement.declaration.initializer, scalarCollectionsById)) {
+      const owner = reference.bindingId ? scalarCarryOwnerByBindingId.get(reference.bindingId) : undefined;
+      if (!owner || versions.some(version => version.control.ownerChain.some(control =>
+        control.kind === "forGroup" && control.ownerStatementId === owner.ownerStatementId))) continue;
+      // Escaped reads require the completed loop; body reads use its incoming
+      // snapshot and must not acquire a dependency back to their own owner.
+      add({ kind: "initializer", from, to: owner.endpoint, span: reference.span,
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {}) });
     }
   }
   const addGeometryCollectionOwnerDependency = (from: TypedDependencyEndpoint, valueId: string, guards: readonly TypedDependencyActivationGuard[], namespace?: string) => {

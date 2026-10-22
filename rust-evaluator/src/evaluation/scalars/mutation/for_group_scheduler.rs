@@ -439,6 +439,18 @@ impl ScalarMutationResolver<'_> {
                 };
                 let resolved = match selected_target.as_ref() {
                     Some(target) => {
+                        if let Some(occurrence) = target.geometry_value_occurrence.as_ref() {
+                            if let Some(source) = state.lazy_geometry_value_programs.get(occurrence) {
+                                if let Ok(entries) = crate::evaluation::geometry_value_runtime::decode_geometry_value_program(Some(
+                                    &Value::Array(vec![source.clone()]),
+                                )) {
+                                    state.computed_geometry_values.remove(occurrence);
+                                    crate::evaluation::geometry_value_runtime::evaluate_geometry_value_entry(
+                                        &entries[0], &snapshot_resolver, state,
+                                    );
+                                }
+                            }
+                        }
                         // A body-local drawable denotes the current iteration's row.
                         // Explicit occurrence targets must retain their index and use
                         // the canonical indexed resolver below instead.

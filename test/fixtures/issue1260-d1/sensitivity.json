@@ -28,13 +28,20 @@
       ],
       "status": "SENSITIVE",
       "method": "Unselected arithmetic failure, selected member with asymmetric n, and cardinality independent of member evaluation. Both normal Rust and TS checked against numeric oracle."
+    },
+    {
+      "status": "SENSITIVE",
+      "cases": [
+        "R2-02",
+        "R4-03",
+        "R6-04",
+        "R7-01"
+      ],
+      "method": "Verification explicitly rejects test-local wrong coordinates, dropped Module snapshot and dropped attributed diagnostics. Exact Base FAIL versus adjacent Base PASS controls retained in r2-proofs.json. No production fault injection."
     }
   ],
   "notCovered": [
-    "R4 owner-scope hunt",
-    "R6 functional limit primary cells",
-    "R7 reordered diagnostic primary cells",
-    "R5 range primary cells"
+    "R1-04 whole geometry collection carry identity, separately scoped under #1442"
   ],
   "notes": "Historical Stage 3–7 focused regressions verify overlaps; they are not substituted for unexecuted primary cells."
 }
