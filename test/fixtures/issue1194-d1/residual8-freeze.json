@@ -1,0 +1,378 @@
+[
+  {
+    "id": "A-direct",
+    "sha256": "ab7923f8e58f3bd5da708cc061b5301fc5ad655e516c54e65eb6b2be64063ec7",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 21,
+      "O": 45,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-optional-construct",
+    "sha256": "c8240cb2a26abfbfe469fc71e26f8a973431ca279051f26df25743a92a6f277b",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-optional-forward",
+    "sha256": "eace8869a91d2fd8869e93926da6b77683c8d5a781e523a4744f938973aadc64",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-fixed",
+    "sha256": "c1f97a672a02eb644707fdf87ce30fc888ae046aeeb89083183f25405d6edf20",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 19,
+      "O": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-dynamic",
+    "sha256": "b5abc9b8403e0fb645887f71df9c86a193147f8fda94edc5b4f78419b4cdd21f",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 19,
+      "O": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-scalar-fixed",
+    "sha256": "1fa168c9b394315d43b1f1b84c836c2d9f76c972a10cd3c8900303ec0e8bfdb6",
+    "expected": {
+      "N": 19,
+      "O": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-scalar-dynamic",
+    "sha256": "f474bee93d500dc43f92cb53da780b29d58a1a414cd18bb150b74cd8a449a1a3",
+    "expected": {
+      "N": 19,
+      "O": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-forward-direct",
+    "sha256": "4d90320784ff5ddf408b3ec12594b0f1c03f636f38b431d8743a12ca306e17a1",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 21,
+      "O": 45,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-if-forward",
+    "sha256": "6401e9ea0d5fb0831b900f26a04b6e27dc6c7ed289b35e5904fbb1fb2bf041da",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-coalesce-forward",
+    "sha256": "6af69983ae2cf7fd18ef6d0111e4dfea3e805ea848932c460943d80cb90eb805",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-computed-selector",
+    "sha256": "4bd0edca2ce47931e65a440226f1fe49af08a7add98718b19dbc6ba504cb5695",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 19,
+      "O": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-constructor-fixed",
+    "sha256": "14e123561bde59bca28d3f9e7d42b7aeb866d60f9095eedd04566ea86fbb771b",
+    "expected": {
+      "L": 17,
+      "M": 17,
+      "X": 17,
+      "Y": 17,
+      "N": 19,
+      "O": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-constructor-dynamic",
+    "sha256": "4906a24ce65861b4a616cc1bd1a97e959ec677d7f4dceaec59f1963292a44b88",
+    "expected": {
+      "L": 17,
+      "M": 41,
+      "X": 17,
+      "Y": 41,
+      "N": 19,
+      "O": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-deep-local",
+    "sha256": "714e8d60565c205818e8eab0375ff9b6936edfb4e80b0aa6c9d916fd2959c67b",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 13,
+      "C": 2,
+      "D": 3,
+      "N": 351,
+      "O": 423
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "C-deep-reexport",
+    "sha256": "3dbd379c9e6edf7c5e57bddff1ac21e63a16451a4760348e0b7316663d06728f",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 13,
+      "C": 2,
+      "D": 3,
+      "N": 351,
+      "O": 423
+    },
+    "savedDocumentPaths": [
+      "lib.nui",
+      "relay-right.nui",
+      "relay.nui",
+      "right.nui"
+    ]
+  },
+  {
+    "id": "B-constructor-lazy",
+    "sha256": "ba0b3d7a46fd30804d29df339ad778470c70d90680fd4273aaaf1674ab44c8e9",
+    "expected": {
+      "L": 17,
+      "M": 41,
+      "X": 17,
+      "Y": 41,
+      "N": 19,
+      "O": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-optional-source-constructor",
+    "sha256": "2970fb9a7b15c2cb1b3652a17b6584548907d100b78afc15441715b4c5d13b1e",
+    "expected": {
+      "L": 19,
+      "M": 143,
+      "X": 19,
+      "Y": 143,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-point-dynamic",
+    "sha256": "d87ff81872d5b9d3f682d66ea08061e26ab5a21d88f6429977c66d156cea5424",
+    "expected": {
+      "L": 3,
+      "M": 5,
+      "X": 4,
+      "Y": 12,
+      "N": 19,
+      "O": 43
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-min-forward-dynamic",
+    "sha256": "113202a229d39234618c98bf5036d04be7a567ed8e4320207cbe536fce9497fe",
+    "expected": {
+      "L": 13
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-min-forward-fixed",
+    "sha256": "b57614e40b6d5b58839a9f713578626e6bd626ba80b2187340d4e439eb386db5",
+    "expected": {
+      "L": 13
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-min-construct-dynamic",
+    "sha256": "f8f6985b4c72a5d6c1d65b6f8b2886a34f6043be75f694b85adeaf490263c448",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-min-construct-fixed",
+    "sha256": "91977d713338c868afc533473668a671e09c94ffdbe2af79cd276d4168bfc4e5",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-min-optional-forward",
+    "sha256": "bedbfb0d0dc395f2037e3b71cd0194837c0572afb5e4e11382aa2e1b101dd0d7",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-min-direct-forward",
+    "sha256": "0678a6eff1662b059d34987ae3bc4c0adc489085b1dae1a5ab581a49eb1d93fc",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-map-free-optional-control",
+    "sha256": "5a8da03ec54e988adaafc0a1b6bfd1bb4e4d55ac4247f87345763215bf4e5b8e",
+    "expected": {
+      "L": 19,
+      "M": 143
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-map-free-dynamic",
+    "sha256": "a61cdb06a2f0fd4eb346b2c5038fa0ec193dd8ffc1a975a05785fe1a76eba014",
+    "expected": {
+      "L": 13
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "G-map-free-construct",
+    "sha256": "fcb210041d84ed0d7cc13b29873c7baa99fe1fea6c1cb1e261626fcff9ca6164",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-reduced-forward-dynamic",
+    "sha256": "1c5af82d7625c183840a915a59ea7a8d6fab5e1fce15475f18b34c06d351333d",
+    "expected": {
+      "L": 13,
+      "N": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-reduced-forward-fixed",
+    "sha256": "367b48987197d8c36a09d3073d4bbdc353c19642310d9bd9c06373affbb099c4",
+    "expected": {
+      "L": 13,
+      "N": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-reduced-construct-dynamic",
+    "sha256": "f34cddb0241d12ab285f4b620377335949cb2cf5547cad9e1f78202d74d4107a",
+    "expected": {
+      "L": 5,
+      "N": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-reduced-construct-fixed",
+    "sha256": "fff07c39ac15bae6947127eb30347a7fe821a3d1df52847fca27b6a8651c1549",
+    "expected": {
+      "L": 5,
+      "N": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-reduced-optional-forward",
+    "sha256": "e024abc0bd3ab6e55154e6b6a2ca8378217b8c8537a2d083d87e5eb5c55fa720",
+    "expected": {
+      "L": 5,
+      "N": 3
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-reduced-direct-forward",
+    "sha256": "2b7588a40558aaf8ce48220a36f33eff406fff68e4e57ea0bcd9eeac940c6bd3",
+    "expected": {
+      "L": 5,
+      "N": 3
+    },
+    "savedDocumentPaths": []
+  }
+]

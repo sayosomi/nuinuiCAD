@@ -1148,7 +1148,15 @@ export const evaluateElements = (
         }
         return mapped;
       }
-      const members = collectionNode ? materializeCollectionNode(collectionNode) : target.members.map((member) => materialize(member));
+      if (!collectionNode) {
+        // Explicit members may contain lazy record-field constructions.
+        // Materialize only the member selected by the validated index.
+        const selected = target.members[index];
+        if (selected) return materialize(selected, parameterKey);
+        invalid(target, "evaluation-collection-index-invalid");
+        return null;
+      }
+      const members = materializeCollectionNode(collectionNode);
       if (!members || members.some((member) => member === null)) {
         invalid(target, "evaluation-collection-index-invalid");
         return null;
