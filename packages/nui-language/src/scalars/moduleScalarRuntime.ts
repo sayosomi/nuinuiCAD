@@ -5605,31 +5605,11 @@ export const compileModuleScalarRuntime = ({
         .sort((left, right) => right[0] - left[0])[0];
       return Math.max(0, previous ? previous[1] + 0.5 : statementIndex);
     }
-    const candidates = moduleMaterialization.executionStatements
-      .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => {
-        const entryPath = entry.runtimeInstancePath ?? entry.instancePath;
-        return entryPath.length === path.length && entryPath.every((part, index) => part === path[index]);
-      });
-    const first = candidates.find(({ entry }) => entry.sourceStatementIndex >= statementIndex) ?? candidates.at(-1);
-    const base = first?.index ?? 0;
-    const context = contextsByKey.get(pathKey(path));
-    const priorScalarEvents = context
-      ? [
-          ...[...context.parameters.values()].map((parameter) => eventOrderByBindingId.get(parameter.id)),
-          ...context.definition.bodyStatements
-            .filter((body) => body.statementIndex < statementIndex)
-            .map((body) => eventOrderByStatementIndex.get(body.statementIndex))
-        ].filter((order): order is number => order !== undefined)
-      : [];
-    const statementFraction = statementIndex / Math.max(1_000_000, statements.length + 1);
-    const firstAvailableAfterScalars = priorScalarEvents.length > 0
-      ? Math.max(...priorScalarEvents) + 0.5 + statementFraction
-      : base + statementFraction;
-    return Math.max(
-      base + statementFraction,
-      firstAvailableAfterScalars
-    );
+    // Collections and their geometry consumers share the same materialized
+    // Module event clock. Source-only declarations between two events are
+    // available at that boundary; a statement fraction would incorrectly put
+    // an earlier collection after its consumer (and cross instance clocks).
+    return runtimeEventPositionForValue(path, statementIndex);
   };
   const executionOrderForValue = (path: readonly string[], statementIndex: number): number => {
     const context = contextsByKey.get(pathKey(path));

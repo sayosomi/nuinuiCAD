@@ -1,0 +1,356 @@
+{
+  "status": "BLOCKED",
+  "transferred": [
+    {
+      "id": "G-map-free-dynamic",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1"
+      ]
+    },
+    {
+      "id": "B-min-forward-dynamic",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1"
+      ]
+    },
+    {
+      "id": "A-map-free-optional-control",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1",
+        "1260-D1-F2"
+      ]
+    },
+    {
+      "id": "A-min-optional-forward",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1"
+      ]
+    },
+    {
+      "id": "A-optional-source-constructor",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1",
+        "1260-D1-F2"
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "domain": "R1",
+      "status": "UNRESOLVED",
+      "cells": [
+        {
+          "id": "R1-01",
+          "sha256": "10d93b50d62f6ed7f2fcca249eb0b4d0ad49c86b79d37e8c9f1e4953e3dbfe65",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R1-02",
+          "sha256": "62ac5ac0fc993e732f7ed903340b99045a97bac448e08f6591fc0ad83a781386",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R1-03",
+          "sha256": "00a874b6f404205154b41451842cff07ec89823b093d75aba1949a67867ac6e4",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R1-04",
+          "sha256": "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d",
+          "status": "UNRESOLVED",
+          "reason": "Selected whole geometry carry has no identity-preserving reference node in the current closed branch model; shared model/payload authorization required.",
+          "boundary": "compiler",
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "Remaining cells block domain completion.",
+      "semanticOracle": "Settled; blocked implementation/representation scope, not a claimed normative ambiguity."
+    },
+    {
+      "domain": "R2",
+      "status": "UNRESOLVED",
+      "cells": [
+        {
+          "id": "R2-01",
+          "sha256": "b4551966b85217dc4302bb6f3072099e1c0e4accb5031fd321c4e3f985997adb",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R2-02",
+          "sha256": "86d86f729bd0c2027aa294345b93d821874ff576469b4e38e34b95ad5d3e9aed",
+          "status": "UNRESOLVED",
+          "reason": "Inline next path[] loses Seed.base stage; both runtimes select Seed.final.",
+          "boundary": null,
+          "failures": [
+            "TS: AssertionError: expected { kind: 'point', x: 108, y: 211 } to deeply equal { kind: 'point', x: 3, y: 4 }",
+            "Rust: AssertionError: expected { kind: 'point', x: 108, y: 211 } to deeply equal { kind: 'point', x: 3, y: 4 }"
+          ]
+        },
+        {
+          "id": "R2-03",
+          "sha256": "0b94a57ff707f275bbc045be701c53e0b9c8db4c4f3975c0755ef5ed97aa9b8e",
+          "status": "UNRESOLVED",
+          "reason": "Canonical payload setup throws for an unqualified definition-local geometry carry owner.",
+          "boundary": "production-payload",
+          "failures": []
+        },
+        {
+          "id": "R2-04",
+          "sha256": "ac436ebcef0be39fb1bd13dbdcdab5ef647ea9ed9900a004050db0913cdfc624",
+          "status": "UNRESOLVED",
+          "reason": "Canonical payload setup throws for an unqualified definition-local geometry carry owner.",
+          "boundary": "production-payload",
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "Remaining cells block domain completion.",
+      "semanticOracle": "Settled; blocked implementation/representation scope, not a claimed normative ambiguity."
+    },
+    {
+      "domain": "R3",
+      "status": "PASS",
+      "cells": [
+        {
+          "id": "R3-01",
+          "sha256": "585666aa98bea5895eb775258e4ea77840605d1fba4683579b2fa07215453b2c",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R3-02",
+          "sha256": "9b23a90c34dd084f7b4ee3a07baafc953b23e33e116288625b352aa21ebd4259",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R3-03",
+          "sha256": "b71fadaa504d3c48ef61961d65ca6e2e9caf0d45e5fdced90b1ee548c598cc92",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R3-04",
+          "sha256": "52ddda28749c50ed5cf5356943d24211351b480d81b32950086a24dda1434600",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "Only the four declared primary cells; not exhaustive language conformance."
+    },
+    {
+      "domain": "R4",
+      "status": "NOT_COVERED",
+      "cells": [
+        {
+          "id": "R4-01",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R4-02",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R4-03",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R4-04",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        }
+      ],
+      "boundedConclusion": "Remaining cells block domain completion."
+    },
+    {
+      "domain": "R5",
+      "status": "NOT_COVERED",
+      "cells": [
+        {
+          "id": "R5-01",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R5-02",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R5-03",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R5-04",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        }
+      ],
+      "boundedConclusion": "Remaining cells block domain completion."
+    },
+    {
+      "domain": "R6",
+      "status": "NOT_COVERED",
+      "cells": [
+        {
+          "id": "R6-01",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R6-02",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R6-03",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R6-04",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        }
+      ],
+      "boundedConclusion": "Remaining cells block domain completion."
+    },
+    {
+      "domain": "R7",
+      "status": "NOT_COVERED",
+      "cells": [
+        {
+          "id": "R7-01",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R7-02",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R7-03",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        },
+        {
+          "id": "R7-04",
+          "status": "NOT_COVERED",
+          "reason": "Campaign stopped at R1-04 shared-model/serialized-representation scope boundary before authoring this cell."
+        }
+      ],
+      "boundedConclusion": "Remaining cells block domain completion."
+    },
+    {
+      "domain": "R8",
+      "status": "PASS",
+      "cells": [
+        {
+          "id": "R8-01",
+          "sha256": "9cdaef37a213851d4d54c1682dc3f0c353bfea32c7a13159d6ee7329b7ef6b78",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R8-02",
+          "sha256": "b2c4dc104e80d69b29e7568539d1760748c43358e0ecff080b15c995dc6ba445",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R8-03",
+          "sha256": "c410a1962a88d0862e28230d8de6c845ddaa0778615c0f3ec55656f7bf0e92af",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R8-04",
+          "sha256": "007c800b52fcbb7dee4c38702caa66be52a5c2c3cedc0440f55e7b9dff18a7c4",
+          "status": "PASS",
+          "reason": "All authored oracle observations pass in TS and normally eligible persistent Rust.",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "Only the four declared primary cells; not exhaustive language conformance."
+    }
+  ],
+  "primarySummary": {
+    "PASS": 12,
+    "UNRESOLVED": 4,
+    "NOT_COVERED": 16
+  },
+  "additionalCases": [
+    {
+      "id": "C-lazy-index",
+      "sha256": "c0913473406587852c8a3c206a3c61d434fc6d259f76f81ada4323e3f5c137bb",
+      "status": "PASS",
+      "reason": null
+    },
+    {
+      "id": "C-lazy-map",
+      "sha256": "7c9e4557ad5dc75d2bb67990ed8ba1a3fee433db8ad972b2e7fb96b0c4f75ccc",
+      "status": "PASS",
+      "reason": null
+    },
+    {
+      "id": "C-carry-if",
+      "sha256": "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb",
+      "status": "UNRESOLVED",
+      "reason": "Compiler rejects the legal selected whole point[] carry; see R1-04 model boundary."
+    },
+    {
+      "id": "C-carry-if-control",
+      "sha256": "3198f44aae23c7bc33901fd38ee09a054394609e22cd98938096d7ba2c0056c2",
+      "status": "PASS",
+      "reason": null
+    },
+    {
+      "id": "C-coordinate",
+      "sha256": "306311f4de9be9a6331a39e6dc2ff03c946e411a7f282df6436eda157a0ee504",
+      "status": "UNRESOLVED",
+      "reason": "Root-only point collection materialization is Rust-ineligible and TS unavailable; no new family adjudicated."
+    },
+    {
+      "id": "C-coordinate-control",
+      "sha256": "e77f13db40523a7dc7f91c0a6c6dada8697d746d776e63f96c260db8dd1766aa",
+      "status": "UNRESOLVED",
+      "reason": "Root-only named point collection materialization is Rust-ineligible and TS unavailable; not a passing control."
+    }
+  ]
+}

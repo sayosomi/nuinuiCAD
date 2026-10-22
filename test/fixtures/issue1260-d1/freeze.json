@@ -1,0 +1,883 @@
+[
+  {
+    "id": "G-map-free-dynamic",
+    "sha256": "857923b3481fa29d5a8fa55554058fe8ec20008fd9d8a4889b8b0afc56e79d08",
+    "expected": {
+      "L": 13
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "B-min-forward-dynamic",
+    "sha256": "a58930d28dc3fca63b6db01b049f8e8a0c74851fd9feda03dc62a421d78772ef",
+    "expected": {
+      "L": 13
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "B-min-forward-fixed",
+    "sha256": "d8e2abce6abe7179e8aea91c5638ea154e265e763241e1204eedb178591c8b25",
+    "expected": {
+      "L": 13
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "A-map-free-optional-control",
+    "sha256": "31400c0bb77a317adb1682d24bccdfa798d2fc66c04e2028236894db63c4dddb",
+    "expected": {
+      "L": 19,
+      "M": 143
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "A-min-optional-forward",
+    "sha256": "f0c4f3ce324916e7d1d50c56023b59d21fa8ae990495ec2a46c2a2fd31fdf554",
+    "expected": {
+      "L": 5
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "A-optional-source-constructor",
+    "sha256": "cf6bcf2051ef90da218b206c02de59e95a07b101aca0dc641c51efd69519b29f",
+    "expected": {
+      "L": 19,
+      "M": 143,
+      "X": 19,
+      "Y": 143,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "B-map-free-scalar-source",
+    "sha256": "bf1b47256d4cd5c1e744c4e576970670624a9ad116382e810fa191baf2c1bf7c",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 32,
+      "Y": 56
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "G-map-free-construct",
+    "sha256": "cfeec48cfe9a6eac7e1462f0886b4a6dbf4e0acbfaf1a7cf06b3c5f510d425cb",
+    "expected": {
+      "L": 5
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "B-min-construct-dynamic",
+    "sha256": "723b047841e454bea08e375bc704e5145a805185abf8e20e408de51915e0726b",
+    "expected": {
+      "L": 5
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "B-min-construct-fixed",
+    "sha256": "428fb0b3947b0f070fe1d0d14fa8ec762051619ff49d4696662407a3cdfb48b6",
+    "expected": {
+      "L": 5
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "C-lazy-index",
+    "sha256": "c0913473406587852c8a3c206a3c61d434fc6d259f76f81ada4323e3f5c137bb",
+    "expected": {
+      "L": 17,
+      "M": 31
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "C-lazy-map",
+    "sha256": "7c9e4557ad5dc75d2bb67990ed8ba1a3fee433db8ad972b2e7fb96b0c4f75ccc",
+    "expected": {
+      "L": 19,
+      "M": 33,
+      "C": 2
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R1-01",
+    "sha256": "10d93b50d62f6ed7f2fcca249eb0b4d0ad49c86b79d37e8c9f1e4953e3dbfe65",
+    "expected": {
+      "L0": 3,
+      "L1": 8,
+      "R0": 13,
+      "R2": 19,
+      "LL": 2,
+      "RL": 3
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R1-02",
+    "sha256": "62ac5ac0fc993e732f7ed903340b99045a97bac448e08f6591fc0ad83a781386",
+    "expected": {
+      "X": 7,
+      "Y": 12,
+      "N": 2
+    },
+    "geometry": [],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R1-03",
+    "sha256": "00a874b6f404205154b41451842cff07ec89823b093d75aba1949a67867ac6e4",
+    "expected": {
+      "N": 2,
+      "M": 2
+    },
+    "geometry": [
+      {
+        "owner": "One::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 2
+        }
+      },
+      {
+        "owner": "One::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 47,
+          "y": 4
+        }
+      },
+      {
+        "owner": "One::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 7,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Two::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 51,
+          "y": 2
+        }
+      },
+      {
+        "owner": "Two::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 81,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Two::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 41,
+          "y": 1
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R1-04",
+    "sha256": "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d",
+    "expected": {
+      "N": 2,
+      "M": 2
+    },
+    "geometry": [
+      {
+        "owner": "One::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 2
+        }
+      },
+      {
+        "owner": "One::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 47,
+          "y": 4
+        }
+      },
+      {
+        "owner": "One::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 7,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Two::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 51,
+          "y": 2
+        }
+      },
+      {
+        "owner": "Two::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 81,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Two::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 41,
+          "y": 1
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R2-01",
+    "sha256": "b4551966b85217dc4302bb6f3072099e1c0e4accb5031fd321c4e3f985997adb",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Moving",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 10,
+              "y": 2
+            }
+          ],
+          "length": 9.219544457292887
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Moving",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 11,
+              "y": 3
+            }
+          ],
+          "length": 10.44030650891055
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 10,
+          "y": 2
+        }
+      },
+      {
+        "owner": "Final",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 11,
+              "y": 3
+            }
+          ],
+          "length": 10.44030650891055
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R2-02",
+    "sha256": "86d86f729bd0c2027aa294345b93d821874ff576469b4e38e34b95ad5d3e9aed",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 105,
+              "y": 207
+            },
+            {
+              "x": 108,
+              "y": 207
+            },
+            {
+              "x": 108,
+              "y": 211
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "Incoming",
+        "shape": {
+          "kind": "point",
+          "x": 8,
+          "y": 11
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Incoming",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R2-03",
+    "sha256": "0b94a57ff707f275bbc045be701c53e0b9c8db4c4f3975c0755ef5ed97aa9b8e",
+    "expected": {
+      "X": 5,
+      "Y": 5
+    },
+    "geometry": [
+      {
+        "owner": "One::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 20,
+          "y": 12
+        }
+      },
+      {
+        "owner": "One::Result",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 10,
+              "y": 4
+            },
+            {
+              "x": 20,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      },
+      {
+        "owner": "Two::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 44,
+          "y": 12
+        }
+      },
+      {
+        "owner": "Two::Result",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 34,
+              "y": 4
+            },
+            {
+              "x": 44,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      },
+      {
+        "owner": "One::Rebuilt",
+        "at": [
+          0
+        ],
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 10,
+              "y": 4
+            },
+            {
+              "x": 20,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      },
+      {
+        "owner": "Two::Rebuilt",
+        "at": [
+          0
+        ],
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 34,
+              "y": 4
+            },
+            {
+              "x": 44,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R2-04",
+    "sha256": "ac436ebcef0be39fb1bd13dbdcdab5ef647ea9ed9900a004050db0913cdfc624",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "One::Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 16,
+              "y": 7
+            },
+            {
+              "x": 19,
+              "y": 7
+            },
+            {
+              "x": 19,
+              "y": 11
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "One::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 19,
+          "y": 11
+        }
+      },
+      {
+        "owner": "Two::Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 42,
+              "y": 7
+            },
+            {
+              "x": 45,
+              "y": 7
+            },
+            {
+              "x": 45,
+              "y": 11
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "Two::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 45,
+          "y": 11
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R3-01",
+    "sha256": "585666aa98bea5895eb775258e4ea77840605d1fba4683579b2fa07215453b2c",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 29,
+          "y": 7
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R3-02",
+    "sha256": "9b23a90c34dd084f7b4ee3a07baafc953b23e33e116288625b352aa21ebd4259",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "HiddenButEvaluated",
+        "shape": {
+          "kind": "point",
+          "x": 31,
+          "y": 9
+        }
+      },
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 5,
+          "y": 6
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R3-03",
+    "sha256": "b71fadaa504d3c48ef61961d65ca6e2e9caf0d45e5fdced90b1ee548c598cc92",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Live::P",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 3
+        }
+      },
+      {
+        "owner": "Live::L",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 43,
+              "y": 0
+            },
+            {
+              "x": 46,
+              "y": 4
+            }
+          ],
+          "length": 5.0
+        }
+      },
+      {
+        "owner": "UseP",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 3
+        }
+      },
+      {
+        "owner": "UseL",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 43,
+              "y": 0
+            },
+            {
+              "x": 46,
+              "y": 4
+            }
+          ],
+          "length": 5.0
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R3-04",
+    "sha256": "52ddda28749c50ed5cf5356943d24211351b480d81b32950086a24dda1434600",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Live::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 47,
+          "y": 3
+        }
+      },
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 11,
+          "y": 13
+        }
+      }
+    ],
+    "errors": [
+      "IndependentFault"
+    ],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R8-01",
+    "sha256": "9cdaef37a213851d4d54c1682dc3f0c353bfea32c7a13159d6ee7329b7ef6b78",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 23,
+          "y": 29
+        }
+      }
+    ],
+    "errors": [
+      "Dependent"
+    ],
+    "expectedIssues": {
+      "Chosen": "evaluation-divide-by-zero",
+      "Independent": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "R8-02",
+    "sha256": "b2c4dc104e80d69b29e7568539d1760748c43358e0ecff080b15c995dc6ba445",
+    "expected": {
+      "Chosen": 17
+    },
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 3
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {
+      "Independent": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "R8-03",
+    "sha256": "c410a1962a88d0862e28230d8de6c845ddaa0778615c0f3ec55656f7bf0e92af",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 31,
+          "y": 37
+        }
+      }
+    ],
+    "errors": [
+      "IndependentFault"
+    ],
+    "expectedIssues": {
+      "Independent": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "R8-04",
+    "sha256": "007c800b52fcbb7dee4c38702caa66be52a5c2c3cedc0440f55e7b9dff18a7c4",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy::Prefix",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Healthy::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 46,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Use",
+        "shape": {
+          "kind": "point",
+          "x": 46,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [
+      "Failed::Fault"
+    ],
+    "expectedIssues": {
+      "Independent": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "C-carry-if",
+    "sha256": "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "C-carry-if-control",
+    "sha256": "3198f44aae23c7bc33901fd38ee09a054394609e22cd98938096d7ba2c0056c2",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "C-coordinate",
+    "sha256": "306311f4de9be9a6331a39e6dc2ff03c946e411a7f282df6436eda157a0ee504",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "C-coordinate-control",
+    "sha256": "e77f13db40523a7dc7f91c0a6c6dada8697d746d776e63f96c260db8dd1766aa",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "expectedIssues": {}
+  }
+]
