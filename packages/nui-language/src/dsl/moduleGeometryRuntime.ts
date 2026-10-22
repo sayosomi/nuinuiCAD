@@ -250,6 +250,8 @@ export const buildModuleGeometryRuntime = ({
     contextsByPath,
     exportsByPath,
     moduleRuntimeContext,
+    rootRecordValuesByStatementId,
+    recordCollectionLookup,
     sourceNamespace
   });
   for (const context of contextsByPath.values()) {

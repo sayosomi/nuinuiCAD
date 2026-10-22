@@ -476,6 +476,133 @@ export type RecordCollectionLookup = (valueId: string, path: readonly string[]) 
   mappedBody?: NonNullable<ModuleDefinitionSemantic["mappedRecordCollectionBodies"]>[number];
 } | undefined;
 
+/** Canonical typed record-field traversal shared by singular and collection geometry. */
+export const recordFieldValueSourceFor = (
+  recordTarget: ModuleRecordSourceTarget,
+  fieldPath: readonly RecordFieldIdentity[],
+  currentPath: readonly string[],
+  contextsByPath: ReadonlyMap<string, InstanceContext>,
+  rootRecordValuesByStatementId: ReadonlyMap<string, ModuleRecordValueSemantic>,
+  recordCollectionLookup?: RecordCollectionLookup
+) => {
+  let fieldContextPath = currentPath;
+  let fieldOccurrencePath = currentPath;
+  let fieldRecordTarget = recordTarget;
+  const mapBinders = new Map<string, { target: Extract<ModuleRecordSourceTarget, { kind: "recordCollectionIndex" }>; path: readonly string[] }>();
+  const recordValueExpressionForTarget = (recordTarget: ModuleRecordSourceTarget): ModuleRecordValueSemantic["valueExpression"] | null => {
+    if (recordTarget.kind === "recordValue") {
+      for (let index = fieldContextPath.length; index >= 0; index -= 1) {
+        const context = contextsByPath.get(pathKey(fieldContextPath.slice(0, index)));
+        const local = context?.definition.recordValues.find((value) => value.value.statementId === recordTarget.statementId);
+        if (local) {
+          fieldContextPath = context!.path;
+          fieldOccurrencePath = context!.path;
+          fieldRecordTarget = recordTarget;
+          return local.valueExpression ?? (local.target ? recordValueExpressionForTarget(local.target) : null);
+        }
+      }
+      fieldContextPath = [];
+      fieldOccurrencePath = [];
+      const rootValue = rootRecordValuesByStatementId.get(recordTarget.statementId);
+      fieldRecordTarget = recordTarget;
+      return rootValue?.valueExpression ?? (rootValue?.target && rootValue.target !== recordTarget
+        ? recordValueExpressionForTarget(rootValue.target)
+        : null);
+    }
+    if (recordTarget.kind === "recordCollectionIndex") {
+      const index = recordTarget.index.ast.kind === "numberLiteral" ? recordTarget.index.ast.value : null;
+      const member = index !== null && Number.isInteger(index) && index >= 0 ? recordTarget.members?.[index] : undefined;
+      if (member) return recordValueExpressionForTarget(member);
+      if (index === null || !Number.isInteger(index) || index < 0) return null;
+      const collection = recordCollectionLookup?.(recordTarget.collectionValueId, fieldContextPath);
+      if (!collection?.value) return null;
+      fieldContextPath = collection.path;
+      fieldOccurrencePath = collection.path;
+      if (collection.value.kind === "alias") return recordValueExpressionForTarget({ ...recordTarget, members: undefined, collectionValueId: collection.value.targetValueId });
+      if (collection.value.kind === "literal") {
+        const selected = collection.value.members[index]?.target;
+        return selected?.kind === "recordValue" ? recordValueExpressionForTarget({ ...selected, typeIdentity: recordTarget.typeIdentity }) : null;
+      }
+      if (collection.value.kind === "map" && collection.mappedBody) {
+        mapBinders.set(collection.value.binderId, { path: collection.path, target: {
+          ...recordTarget, members: undefined, collectionValueId: collection.value.sourceValueId,
+          typeIdentity: collection.mappedBody.sourceTypeIdentity
+        } });
+        fieldRecordTarget = recordTarget;
+        return collection.mappedBody.expression;
+      }
+      return null;
+    }
+    if (recordTarget.kind === "recordValueForBinder") {
+      const bound = mapBinders.get(recordTarget.binderId);
+      if (!bound) return null;
+      fieldContextPath = bound.path;
+      return recordValueExpressionForTarget(bound.target);
+    }
+    if (recordTarget.kind === "deferredModuleRecordExport") {
+      const child = [...contextsByPath.values()].find(context =>
+        context.path.length === fieldContextPath.length + 1 &&
+        fieldContextPath.every((part, index) => context.path[index] === part) &&
+        context.instanceStatementId === recordTarget.instanceStatementId &&
+        (!recordTarget.instanceIdentity || context.instanceDocumentId === recordTarget.instanceIdentity.documentId)
+      );
+      const exported = child?.definition.exports.find((candidate) =>
+        candidate.kind === "record" && candidate.name === recordTarget.exportName && candidate.exportedStatementId === recordTarget.exportedStatementId
+      );
+      if (exported?.kind !== "record") return null;
+      fieldContextPath = child!.path;
+      return recordValueExpressionForTarget(exported.backingTarget);
+    }
+    if (recordTarget.kind === "recordParameter") {
+      const context = [...contextsByPath.values()].find((candidate) =>
+        candidate.definition.statementId === recordTarget.definitionStatementId &&
+        candidate.path.length <= fieldContextPath.length &&
+        candidate.path.every((part, index) => fieldContextPath[index] === part)
+      );
+      const binding = context?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === recordTarget.parameterIndex);
+      if (binding?.value?.kind !== "record") return null;
+      // Inline arguments resolve their inputs in the caller, while the
+      // constructed field value belongs to this parameter's occurrence.
+      fieldRecordTarget = recordTarget;
+      fieldOccurrencePath = context!.path;
+      fieldContextPath = context!.path.slice(0, -1);
+      return binding.value.reference.constructor
+        ? { kind: "constructor", span: binding.value.reference.span, constructor: binding.value.reference.constructor }
+        : binding.value.reference.target
+          ? { kind: "reference", span: binding.value.reference.span, reference: binding.value.reference }
+          : null;
+    }
+    return null;
+  };
+  const fieldExpressionFor = (
+    expression: ModuleRecordValueSemantic["valueExpression"] | ModuleRecordFieldValueExpressionSemantic | null,
+    path: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[],
+    seen: ReadonlySet<object> = new Set()
+  ): ModuleRecordFieldValueExpressionSemantic | null => {
+    if (!expression || path.length === 0) return null;
+    if (seen.has(expression)) return null;
+    const nextSeen = new Set([...seen, expression]);
+    if (expression.kind === "constructor") {
+      const field = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === path[0]!.fieldIndex);
+      if (!field?.valueExpression) return null;
+      if (path.length === 1) return field.valueExpression;
+      return field.valueExpression.kind === "record"
+        ? fieldExpressionFor(field.valueExpression.expression, path.slice(1), nextSeen)
+        : null;
+    }
+    if (expression.kind === "reference" || expression.kind === "collectionIndex") {
+      const nextTarget = expression.reference.target;
+      return nextTarget
+        ? fieldExpressionFor(recordValueExpressionForTarget(nextTarget), path, nextSeen)
+        : null;
+    }
+    return null;
+  };
+  const recordValueExpression = recordValueExpressionForTarget(recordTarget);
+  const expression = fieldExpressionFor(recordValueExpression, fieldPath);
+  return { expression, recordValueExpression, fieldContextPath, fieldOccurrencePath, fieldRecordTarget, mapBinders };
+};
+
 export const sourceAliasForTarget = (
   target: ModuleGeometrySourceTarget,
   currentPath: readonly string[],
@@ -594,121 +721,9 @@ export const sourceAliasForTarget = (
     };
   }
   if (target.kind === "recordFieldValue") {
-    let fieldContextPath = currentPath;
-    let fieldOccurrencePath = currentPath;
-    let fieldRecordTarget = target.record;
-    const mapBinders = new Map<string, { target: Extract<ModuleRecordSourceTarget, { kind: "recordCollectionIndex" }>; path: readonly string[] }>();
-    const recordValueExpressionForTarget = (recordTarget: ModuleRecordSourceTarget): ModuleRecordValueSemantic["valueExpression"] | null => {
-      if (recordTarget.kind === "recordValue") {
-        for (let index = fieldContextPath.length; index >= 0; index -= 1) {
-          const context = contextsByPath.get(pathKey(fieldContextPath.slice(0, index)));
-          const local = context?.definition.recordValues.find((value) => value.value.statementId === recordTarget.statementId);
-          if (local) {
-            fieldContextPath = context!.path;
-            fieldOccurrencePath = context!.path;
-            fieldRecordTarget = recordTarget;
-            return local.valueExpression ?? (local.target ? recordValueExpressionForTarget(local.target) : null);
-          }
-        }
-        fieldContextPath = [];
-        fieldOccurrencePath = [];
-        const rootValue = rootRecordValuesByStatementId.get(recordTarget.statementId);
-        fieldRecordTarget = recordTarget;
-        return rootValue?.valueExpression ?? (rootValue?.target && rootValue.target !== recordTarget
-          ? recordValueExpressionForTarget(rootValue.target)
-          : null);
-      }
-      if (recordTarget.kind === "recordCollectionIndex") {
-        const index = recordTarget.index.ast.kind === "numberLiteral" ? recordTarget.index.ast.value : null;
-        const member = index !== null && Number.isInteger(index) && index >= 0 ? recordTarget.members?.[index] : undefined;
-        if (member) return recordValueExpressionForTarget(member);
-        if (index === null || !Number.isInteger(index) || index < 0) return null;
-        const collection = recordCollectionLookup?.(recordTarget.collectionValueId, fieldContextPath);
-        if (!collection?.value) return null;
-        fieldContextPath = collection.path;
-        fieldOccurrencePath = collection.path;
-        if (collection.value.kind === "alias") return recordValueExpressionForTarget({ ...recordTarget, members: undefined, collectionValueId: collection.value.targetValueId });
-        if (collection.value.kind === "literal") {
-          const selected = collection.value.members[index]?.target;
-          return selected?.kind === "recordValue" ? recordValueExpressionForTarget({ ...selected, typeIdentity: recordTarget.typeIdentity }) : null;
-        }
-        if (collection.value.kind === "map" && collection.mappedBody) {
-          mapBinders.set(collection.value.binderId, { path: collection.path, target: {
-            ...recordTarget, members: undefined, collectionValueId: collection.value.sourceValueId,
-            typeIdentity: collection.mappedBody.sourceTypeIdentity
-          } });
-          fieldRecordTarget = recordTarget;
-          return collection.mappedBody.expression;
-        }
-        return null;
-      }
-      if (recordTarget.kind === "recordValueForBinder") {
-        const bound = mapBinders.get(recordTarget.binderId);
-        if (!bound) return null;
-        fieldContextPath = bound.path;
-        return recordValueExpressionForTarget(bound.target);
-      }
-      if (recordTarget.kind === "deferredModuleRecordExport") {
-        const child = [...contextsByPath.values()].find(context =>
-          context.path.length === fieldContextPath.length + 1 &&
-          fieldContextPath.every((part, index) => context.path[index] === part) &&
-          context.instanceStatementId === recordTarget.instanceStatementId &&
-          (!recordTarget.instanceIdentity || context.instanceDocumentId === recordTarget.instanceIdentity.documentId)
-        );
-        const exported = child?.definition.exports.find((candidate) =>
-          candidate.kind === "record" && candidate.name === recordTarget.exportName && candidate.exportedStatementId === recordTarget.exportedStatementId
-        );
-        if (exported?.kind !== "record") return null;
-        fieldContextPath = child!.path;
-        return recordValueExpressionForTarget(exported.backingTarget);
-      }
-      if (recordTarget.kind === "recordParameter") {
-        const context = [...contextsByPath.values()].find((candidate) =>
-          candidate.definition.statementId === recordTarget.definitionStatementId &&
-          candidate.path.length <= fieldContextPath.length &&
-          candidate.path.every((part, index) => fieldContextPath[index] === part)
-        );
-        const binding = context?.instance.parameterBindings.find((candidate) => candidate.parameterIndex === recordTarget.parameterIndex);
-        if (binding?.value?.kind !== "record") return null;
-        // Inline arguments resolve their inputs in the caller, while the
-        // constructed field value belongs to this parameter's occurrence.
-        fieldRecordTarget = recordTarget;
-        fieldOccurrencePath = context!.path;
-        fieldContextPath = context!.path.slice(0, -1);
-        return binding.value.reference.constructor
-          ? { kind: "constructor", span: binding.value.reference.span, constructor: binding.value.reference.constructor }
-          : binding.value.reference.target
-            ? { kind: "reference", span: binding.value.reference.span, reference: binding.value.reference }
-            : null;
-      }
-      return null;
-    };
-    const fieldExpressionFor = (
-      expression: ModuleRecordValueSemantic["valueExpression"] | ModuleRecordFieldValueExpressionSemantic | null,
-      path: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[],
-      seen: ReadonlySet<object> = new Set()
-    ): ModuleRecordFieldValueExpressionSemantic | null => {
-      if (!expression || path.length === 0) return null;
-      if (seen.has(expression)) return null;
-      const nextSeen = new Set([...seen, expression]);
-      if (expression.kind === "constructor") {
-        const field = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === path[0]!.fieldIndex);
-        if (!field?.valueExpression) return null;
-        if (path.length === 1) return field.valueExpression;
-        return field.valueExpression.kind === "record"
-          ? fieldExpressionFor(field.valueExpression.expression, path.slice(1), nextSeen)
-          : null;
-      }
-      if (expression.kind === "reference" || expression.kind === "collectionIndex") {
-        const nextTarget = expression.reference.target;
-        return nextTarget
-          ? fieldExpressionFor(recordValueExpressionForTarget(nextTarget), path, nextSeen)
-          : null;
-      }
-      return null;
-    };
-    const recordValueExpression = recordValueExpressionForTarget(target.record);
-    const expression = fieldExpressionFor(recordValueExpression, target.fieldPath ?? [target.field]);
+    const { expression, recordValueExpression, fieldContextPath: resolvedPath, fieldOccurrencePath, fieldRecordTarget, mapBinders } =
+      recordFieldValueSourceFor(target.record, target.fieldPath ?? [target.field], currentPath, contextsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+    let fieldContextPath = resolvedPath;
     if (!isDslGeometryValueType(target.valueType)) return undefined;
     if (!expression && (recordValueExpression?.kind === "if" || recordValueExpression?.kind === "match" || recordValueExpression?.kind === "none")) {
       return lowerAliasWithPointKey({ kind: "value",
