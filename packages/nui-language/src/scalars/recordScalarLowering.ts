@@ -1405,9 +1405,9 @@ export const moduleRecordFieldExpressionFor = (
           collectionLength: reference.target.collectionLength,
           targetSourceOrder: reference.target.targetSourceOrder,
           collectionElementType: field.type
-        }],
-        geometryProperties: [],
-        geometryBuiltinArguments: []
+        }, ...reference.target.index.references],
+        geometryProperties: reference.target.index.geometryProperties,
+        geometryBuiltinArguments: reference.target.index.geometryBuiltinArguments
       };
     }
     const baseName = reference.source.trim().replace(/^@/, "");

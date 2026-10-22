@@ -6788,7 +6788,10 @@ export const compileModuleScalarRuntime = ({
     return arms.every((arm) => arm !== null)
       ? {
           kind: "match",
-          scrutinee: optionalCollectionMatchPresenceProjection(lowerCollectionScalar(node.scrutinee, sourceContext)),
+          scrutinee: remapTypedExpressionCollectionValueIds(
+            optionalCollectionMatchPresenceProjection(lowerCollectionScalar(node.scrutinee, sourceContext)),
+            (id) => collectionValueIdFor(id, sourceContext ?? null)
+          ),
           sourceOrder: executionPositionForValue(node.sourcePath, node.sourceOrder),
           arms: arms as { label: string; value: GeometryInputCollectionNode }[]
         }
@@ -7093,6 +7096,11 @@ export const compileModuleScalarRuntime = ({
       return target ? { kind: "target", target } : undefined;
     }
     const stagePath = "stagePath" in reference.target ? reference.target.stagePath : undefined;
+    if (reference.target.kind === "recordFieldValue") {
+      const input = moduleGeometryRuntime.resolveInputTarget?.(reference.target, path);
+      const selected = input ? geometryValueProgramTargetForInput(input, context, executionPosition, "point") : null;
+      if (selected) return { kind: "target", target: selected };
+    }
     const lowered = moduleGeometryRuntime.resolveBuiltinTarget(reference.target, path, "point");
     if (!lowered) return undefined;
     const resolvedStagePath = stagePath ?? lowered.stagePath;
@@ -7190,7 +7198,7 @@ export const compileModuleScalarRuntime = ({
       return indexedProgramTarget ? { kind: "target", target: indexedProgramTarget } : undefined;
     }
     const stagePath = "stagePath" in target ? target.stagePath : undefined;
-    if (target.kind === "recordFieldValue" && target.collectionIndex !== undefined) {
+    if (target.kind === "recordFieldValue") {
       const input = moduleGeometryRuntime.resolveInputTarget?.(target, path);
       const selected = input ? geometryValueProgramTargetForInput(input, context, executionPosition, declaredInterfaceType) : null;
       if (selected) return { kind: "target", target: selected };
@@ -7380,7 +7388,8 @@ export const compileModuleScalarRuntime = ({
     context,
     statementId,
     statementIndex,
-    executionPath
+    executionPath,
+    lazy = false
   }: {
     recordTarget: ModuleRecordSourceTarget;
     recordValueExpression: ModuleRecordValueExpressionSemantic;
@@ -7390,12 +7399,28 @@ export const compileModuleScalarRuntime = ({
     statementId: string;
     statementIndex: number;
     executionPath?: readonly string[];
+    lazy?: boolean;
   }) => {
     const path = context?.path ?? [];
     let selectedTarget = recordTarget;
     let selectedExpression = recordValueExpression;
     if (recordValueExpression.kind === "collectionIndex" && recordValueExpression.reference.target?.kind === "recordCollectionIndex") {
       const indexed = recordValueExpression.reference.target;
+      if (indexed.index.ast.kind !== "numberLiteral" && indexed.collectionLength !== null) {
+        // Register each possible producer on the existing lazy value path.
+        // The selected member alone evaluates its construction and source.
+        for (let index = 0; index < indexed.collectionLength; index += 1) {
+          const member = { ...indexed, index: { ...indexed.index,
+            ast: { kind: "numberLiteral" as const, span: indexed.index.ast.span, value: index },
+            references: [], geometryProperties: [], geometryBuiltinArguments: [] } };
+          appendRecordGeometryValuePrograms({
+            recordTarget: member,
+            recordValueExpression: { ...recordValueExpression, reference: { ...recordValueExpression.reference, target: member } },
+            recordDefinition, recordAnalysis, context, statementId, statementIndex, executionPath, lazy: true
+          });
+        }
+        return;
+      }
       const index = indexed.index.ast.kind === "numberLiteral" ? indexed.index.ast.value : null;
       let collectionId = indexed.collectionValueId;
       let collection = recordCollectionSourceFor(collectionId, context ?? null);
@@ -7425,7 +7450,7 @@ export const compileModuleScalarRuntime = ({
               ...recordValueExpression.reference, target: source, typeIdentity: body.sourceTypeIdentity
             } },
             recordDefinition: sourceDefinition, recordAnalysis, context: sourceContext ?? undefined,
-            statementId, statementIndex, executionPath
+            statementId, statementIndex, executionPath, lazy
           });
         }
       }
@@ -7451,7 +7476,8 @@ export const compileModuleScalarRuntime = ({
       const executionPosition = runtimeEventPositionForValue(executionPath ?? path, statementIndex);
       const construction = lowerGeometryValueExpression(virtualValue, fieldValue.expression, context, executionPosition);
       if (!construction) continue;
-      if (geometryValueProgramEntries.some(entry => entry.occurrence.sourceStatementId === occurrence.sourceStatementId && pathKey(entry.occurrence.instancePath) === pathKey(occurrence.instancePath))) continue;
+      if (geometryValueProgramEntries.some(entry => geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(occurrence))) continue;
+      if (lazy) lazyGeometryValuePrograms.set(geometryValueOccurrenceKey(occurrence), construction);
       geometryValueProgramEntries.push({
         sourceStatementId: occurrence.sourceStatementId,
         sourceStatementIndex: statementIndex,
@@ -7459,7 +7485,8 @@ export const compileModuleScalarRuntime = ({
         occurrence,
         sourceExecutionPosition: executionPosition,
         executionPosition,
-        construction
+        construction,
+        ...(lazy ? { lazy: true } : {})
       });
     }
   };

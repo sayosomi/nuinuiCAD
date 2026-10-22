@@ -166,7 +166,7 @@ export const buildModuleGeometryRuntime = ({
     // bound selector. It cannot be flattened to a static geometry alias.
     if (exported.backingTarget && exported.backingTarget.kind !== "collectionIndex") {
       const alias = sourceAliasForTarget(exported.backingTarget, path, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
-      if (alias) return alias;
+      if (alias && alias.kind !== "collectionIndex") return alias;
     }
     if (!exported.category && (exported.interfaceType === "point" || exported.interfaceType === "line" || exported.interfaceType === "path")) {
       return {
@@ -672,7 +672,8 @@ export const buildModuleGeometryRuntime = ({
     resolveBuiltinTarget,
     resolveInputTarget: (target, instancePath) => {
       const alias = sourceAliasForTarget(target, instancePath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
-      return alias ? geometryInputTargetSourceForAlias(alias) : null;
+      const input = alias ? geometryInputTargetSourceForAlias(alias) : null;
+      return input?.kind === "collectionIndex" ? { ...input, currentPath: instancePath } : input;
     },
     resolvePointReferenceList: (token, statementIndex, currentPath) => geometryArrayRuntime.resolvePointReferenceList(token, statementIndex, currentPath),
     resolveGeometryCollectionIndexPoint,

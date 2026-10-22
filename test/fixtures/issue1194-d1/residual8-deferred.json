@@ -1,0 +1,1190 @@
+[
+  {
+    "id": "A-optional-source-constructor",
+    "sha256": "2970fb9a7b15c2cb1b3652a17b6584548907d100b78afc15441715b4c5d13b1e",
+    "classification": "UNRESOLVED",
+    "routing": "#1260 shared scheduler; independent ownership review pending for observation-only reductions",
+    "reason": "#1260: generic scalar-collection source release; map-free optional control reproduces Rust failure. Typed identity/producers are retained; no runtime PASS.",
+    "correctedCanonicalProducts": {
+      "recordGeometryPrograms": [
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv7z:439"
+            ]
+          },
+          "kind": "segment",
+          "lazy": false
+        },
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv7z:440"
+            ]
+          },
+          "kind": "segment",
+          "lazy": false
+        }
+      ],
+      "recordGeometryDependencyEdges": [
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "module-occurrence",
+            "id": "module-occurrence:module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv7z:439",
+            "name": "module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv7z:439",
+            "statementIndex": 0
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:439",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "module-occurrence",
+            "id": "module-occurrence:module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv7z:440",
+            "name": "module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv7z:440",
+            "statementIndex": 0
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:440",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv7z:43437:statement:moduleInstance:mvizfv7z:439",
+            "name": "statement:typedDeclaration:mvizfv7z:434",
+            "statementIndex": 13
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:439",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv7z:43437:statement:moduleInstance:mvizfv7z:440",
+            "name": "statement:typedDeclaration:mvizfv7z:434",
+            "statementIndex": 13
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:440",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv7z:441",
+            "name": "statement:typedDeclaration:mvizfv7z:441",
+            "statementIndex": 21
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:439",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv7z:442",
+            "name": "statement:typedDeclaration:mvizfv7z:442",
+            "statementIndex": 22
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:440",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mvizfv7z:443",
+            "name": "L",
+            "statementIndex": 23,
+            "span": {
+              "start": 6,
+              "end": 7
+            }
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:439",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": {
+            "start": 18,
+            "end": 31
+          },
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mvizfv7z:444",
+            "name": "M",
+            "statementIndex": 24,
+            "span": {
+              "start": 6,
+              "end": 7
+            }
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:440",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": {
+            "start": 18,
+            "end": 32
+          },
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mvizfv7z:445",
+            "name": "X",
+            "statementIndex": 25,
+            "span": {
+              "start": 6,
+              "end": 7
+            }
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:439",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": {
+            "start": 18,
+            "end": 35
+          },
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mvizfv7z:446",
+            "name": "Y",
+            "statementIndex": 26,
+            "span": {
+              "start": 6,
+              "end": 7
+            }
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value192:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:037:statement:moduleInstance:mvizfv7z:440",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "statementIndex": 12
+          },
+          "span": {
+            "start": 18,
+            "end": 36
+          },
+          "requiredness": "required"
+        }
+      ]
+    },
+    "observations": {
+      "runId": "reducers-1792639779578",
+      "sourceTreeSha256": "3e2c5c2e8e1a57ba263773d505b8bc799fc6c17deadef1f32d8476db815a4e70",
+      "compilerSha256": "eb278b0ba41708ccb31e627b7559beb14a0204b3a408c42327371f52b1967d47",
+      "status": "UNRESOLVED",
+      "failures": [
+        "Rust: AssertionError: expected [ Array(4) ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], \u2026(13) } to deeply equal { computedGeometry: [], \u2026(13) }"
+      ],
+      "diagnostics": [],
+      "rustEligible": true,
+      "wireSha256": "633e322d37f212769dd7d53bd8e22c51b0ed417bd29a7fbc7e4108e3d0779633",
+      "reference": {
+        "sha256": "60714d00cfda6f16f62d31d99d9e2a890fee14a19f843edc94221bf12c19797c",
+        "observed": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "M": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 143
+            }
+          },
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 143
+            }
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          },
+          "O": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 145
+            }
+          },
+          "C": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 1
+            }
+          },
+          "D": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 1
+            }
+          }
+        },
+        "geometryErrors": [],
+        "errors": []
+      },
+      "production": {
+        "sha256": "c576f2e3317718c273d2c880a342d008ed247c24ef56a6483b22d07a19ce9a5b",
+        "observed": {
+          "L": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "M": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "X": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "Y": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "geometryErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv7z:434",
+              "instancePath": [
+                "statement:moduleInstance:mvizfv7z:439"
+              ]
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv7z:434",
+              "instancePath": [
+                "statement:moduleInstance:mvizfv7z:440"
+              ]
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv7z:441",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv7z:442",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "errors": []
+      },
+      "recordGeometryPrograms": [
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv7z:439"
+            ]
+          },
+          "kind": "segment",
+          "lazy": false
+        },
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv7z:4322:112:302:3139:statement:recordDefinition:mvizfv7z:4231:039:statement:recordDefinition:mvizfv7z:4231:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv7z:440"
+            ]
+          },
+          "kind": "segment",
+          "lazy": false
+        }
+      ],
+      "collectionProducerCount": 32
+    },
+    "mapFreeDiscriminators": [
+      "A-map-free-optional-control",
+      "G-map-free-dynamic",
+      "residual7:B-map-free-scalar-source"
+    ]
+  },
+  {
+    "id": "B-min-forward-dynamic",
+    "sha256": "113202a229d39234618c98bf5036d04be7a567ed8e4320207cbe536fce9497fe",
+    "classification": "UNRESOLVED",
+    "routing": "#1260 shared scheduler; independent ownership review pending for observation-only reductions",
+    "reason": "#1260: scalar-observation-free reduction crosses the same map-free dynamic selector release failure; canonical geometry targets/producers are retained.",
+    "correctedCanonicalProducts": {
+      "recordGeometryPrograms": [],
+      "recordGeometryDependencyEdges": []
+    },
+    "observations": {
+      "runId": "reducers-1792639779578",
+      "sourceTreeSha256": "3e2c5c2e8e1a57ba263773d505b8bc799fc6c17deadef1f32d8476db815a4e70",
+      "compilerSha256": "fac1449fadf190b387fd5219536722a1c97de01c93045c0a15270fbdee5b7cf2",
+      "status": "UNRESOLVED",
+      "failures": [
+        "Rust: AssertionError: expected [ Array(2) ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], \u2026(13) } to deeply equal { computedGeometry: [], \u2026(13) }"
+      ],
+      "diagnostics": [],
+      "rustEligible": true,
+      "wireSha256": "36fd70ca28f1bd927017809129992df75b1a37c6829e78a79b78154eca9a124c",
+      "reference": {
+        "sha256": "90f55e66de73c689c2bc32aee8f54be2ad91e7017d5f998cb40e4770590e6078",
+        "observed": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 13
+            }
+          }
+        },
+        "geometryErrors": [],
+        "errors": []
+      },
+      "production": {
+        "sha256": "9b73c8b2e9825caca0d3f3f3b6c42557151835da113b1e6b4ec6c9918c676c4d",
+        "observed": {
+          "L": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "geometryErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv92:479",
+              "instancePath": [
+                "statement:moduleInstance:mvizfv92:482"
+              ]
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv92:483",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "errors": []
+      },
+      "recordGeometryPrograms": [],
+      "collectionProducerCount": 5
+    },
+    "mapFreeDiscriminators": [
+      "A-map-free-optional-control",
+      "G-map-free-dynamic",
+      "residual7:B-map-free-scalar-source"
+    ]
+  },
+  {
+    "id": "B-min-construct-dynamic",
+    "sha256": "f8f6985b4c72a5d6c1d65b6f8b2886a34f6043be75f694b85adeaf490263c448",
+    "classification": "UNRESOLVED",
+    "routing": "#1260 shared scheduler; independent ownership review pending for observation-only reductions",
+    "reason": "#1260 scheduler boundary: canonical occurrence, construction producer and binding prerequisite are present; TS does not release required field construction. Not a verified repaired family.",
+    "correctedCanonicalProducts": {
+      "recordGeometryPrograms": [
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv9h:509"
+            ]
+          },
+          "kind": "segment",
+          "lazy": true
+        },
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv9h:509"
+            ]
+          },
+          "kind": "segment",
+          "lazy": true
+        }
+      ],
+      "recordGeometryDependencyEdges": [
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "module-occurrence",
+            "id": "module-occurrence:module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv9h:509",
+            "name": "module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv9h:509",
+            "statementIndex": 0
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:037:statement:moduleInstance:mvizfv9h:509",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:0",
+            "statementIndex": 8
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "module-occurrence",
+            "id": "module-occurrence:module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv9h:509",
+            "name": "module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv9h:509",
+            "statementIndex": 0
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:037:statement:moduleInstance:mvizfv9h:509",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:0",
+            "statementIndex": 8
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "initializer",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:037:statement:moduleInstance:mvizfv9h:509",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:0",
+            "statementIndex": 8
+          },
+          "to": {
+            "kind": "binding",
+            "id": "module-record-binding:5:value37:statement:moduleInstance:mvizfv9h:50939:statement:typedDeclaration:mvizfv9h:50139:statement:recordDefinition:mvizfv9h:4991:0",
+            "name": "A.n",
+            "statementIndex": 4,
+            "span": null
+          },
+          "span": {
+            "start": 76,
+            "end": 83
+          },
+          "requiredness": "required"
+        },
+        {
+          "kind": "initializer",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:037:statement:moduleInstance:mvizfv9h:509",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:0",
+            "statementIndex": 8
+          },
+          "to": {
+            "kind": "binding",
+            "id": "module-record-binding:5:value37:statement:moduleInstance:mvizfv9h:50939:statement:typedDeclaration:mvizfv9h:50239:statement:recordDefinition:mvizfv9h:4991:0",
+            "name": "B.n",
+            "statementIndex": 5,
+            "span": null
+          },
+          "span": {
+            "start": 76,
+            "end": 83
+          },
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv9h:50637:statement:moduleInstance:mvizfv9h:509",
+            "name": "statement:typedDeclaration:mvizfv9h:506",
+            "statementIndex": 9
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:037:statement:moduleInstance:mvizfv9h:509",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:0",
+            "statementIndex": 8
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv9h:50637:statement:moduleInstance:mvizfv9h:509",
+            "name": "statement:typedDeclaration:mvizfv9h:506",
+            "statementIndex": 9
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:037:statement:moduleInstance:mvizfv9h:509",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:0",
+            "statementIndex": 8
+          },
+          "span": null,
+          "requiredness": "required"
+        }
+      ]
+    },
+    "observations": {
+      "runId": "reducers-1792639779578",
+      "sourceTreeSha256": "3e2c5c2e8e1a57ba263773d505b8bc799fc6c17deadef1f32d8476db815a4e70",
+      "compilerSha256": "3f6007e915ef3142d0fc139b13e95fa9ae4f635079bd578e3434c5642af1d57e",
+      "status": "UNRESOLVED",
+      "failures": [
+        "TS: AssertionError: expected [ Array(2) ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], \u2026(13) } to deeply equal { computedGeometry: [], \u2026(13) }"
+      ],
+      "diagnostics": [],
+      "rustEligible": true,
+      "wireSha256": "21084e2da3d513db21cfb45eb782751d6d0065912f7a9bf4c32f1ac2019d6312",
+      "reference": {
+        "sha256": "0cddf3ef33dbe37b04742d0a8268da3947dc3779f2f8d618b6386a259f22a686",
+        "observed": {
+          "L": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          }
+        },
+        "geometryErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv9h:506",
+              "instancePath": [
+                "statement:moduleInstance:mvizfv9h:509"
+              ]
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv9h:510",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "errors": []
+      },
+      "production": {
+        "sha256": "5c016a90b11577b9c0f0e9ef97202db70f39d253aaf47cd02277a93814429284",
+        "observed": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 5
+            }
+          }
+        },
+        "geometryErrors": [],
+        "errors": []
+      },
+      "recordGeometryPrograms": [
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:039:statement:recordDefinition:mvizfv9h:4981:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv9h:509"
+            ]
+          },
+          "kind": "segment",
+          "lazy": true
+        },
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9h:5041:72:262:3239:statement:recordDefinition:mvizfv9h:4981:139:statement:recordDefinition:mvizfv9h:4981:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv9h:509"
+            ]
+          },
+          "kind": "segment",
+          "lazy": true
+        }
+      ],
+      "collectionProducerCount": 5
+    },
+    "mapFreeDiscriminators": [
+      "A-map-free-optional-control",
+      "G-map-free-dynamic",
+      "residual7:B-map-free-scalar-source"
+    ]
+  },
+  {
+    "id": "B-min-construct-fixed",
+    "sha256": "91977d713338c868afc533473668a671e09c94ffdbe2af79cd276d4168bfc4e5",
+    "classification": "UNRESOLVED",
+    "routing": "#1260 shared scheduler; independent ownership review pending for observation-only reductions",
+    "reason": "#1260 scheduler boundary: same static selected construction is present with its scalar prerequisite; TS release fails without selected scalar observation. Not a verified repaired family.",
+    "correctedCanonicalProducts": {
+      "recordGeometryPrograms": [
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv9r:523"
+            ]
+          },
+          "kind": "segment",
+          "lazy": false
+        }
+      ],
+      "recordGeometryDependencyEdges": [
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "module-occurrence",
+            "id": "module-occurrence:module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv9r:523",
+            "name": "module-runtime:14:moduleInstance37:statement:moduleInstance:mvizfv9r:523",
+            "statementIndex": 0
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:037:statement:moduleInstance:mvizfv9r:523",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:0",
+            "statementIndex": 8
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "initializer",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:037:statement:moduleInstance:mvizfv9r:523",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:0",
+            "statementIndex": 8
+          },
+          "to": {
+            "kind": "binding",
+            "id": "module-record-binding:5:value37:statement:moduleInstance:mvizfv9r:52339:statement:typedDeclaration:mvizfv9r:51639:statement:recordDefinition:mvizfv9r:5131:0",
+            "name": "B.n",
+            "statementIndex": 5,
+            "span": null
+          },
+          "span": {
+            "start": 76,
+            "end": 83
+          },
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv9r:52037:statement:moduleInstance:mvizfv9r:523",
+            "name": "statement:typedDeclaration:mvizfv9r:520",
+            "statementIndex": 9
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:037:statement:moduleInstance:mvizfv9r:523",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:0",
+            "statementIndex": 8
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value39:statement:typedDeclaration:mvizfv9r:524",
+            "name": "statement:typedDeclaration:mvizfv9r:524",
+            "statementIndex": 14
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:037:statement:moduleInstance:mvizfv9r:523",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:0",
+            "statementIndex": 8
+          },
+          "span": null,
+          "requiredness": "required"
+        },
+        {
+          "kind": "geometry",
+          "from": {
+            "kind": "binding",
+            "id": "binding:statement:typedDeclaration:mvizfv9r:525",
+            "name": "L",
+            "statementIndex": 15,
+            "span": {
+              "start": 6,
+              "end": 7
+            }
+          },
+          "to": {
+            "kind": "geometry-value",
+            "id": "14:geometry-value191:21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:037:statement:moduleInstance:mvizfv9r:523",
+            "name": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:0",
+            "statementIndex": 8
+          },
+          "span": {
+            "start": 18,
+            "end": 31
+          },
+          "requiredness": "required"
+        }
+      ]
+    },
+    "observations": {
+      "runId": "reducers-1792639779578",
+      "sourceTreeSha256": "3e2c5c2e8e1a57ba263773d505b8bc799fc6c17deadef1f32d8476db815a4e70",
+      "compilerSha256": "bd924a02309fd8f088f6466541725c5263b944a968892d8a50e0ee7ada393acf",
+      "status": "UNRESOLVED",
+      "failures": [
+        "TS: AssertionError: expected [ Array(2) ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], \u2026(13) } to deeply equal { computedGeometry: [], \u2026(13) }"
+      ],
+      "diagnostics": [],
+      "rustEligible": true,
+      "wireSha256": "66bba578b1057f21cd8de1682446c96f8c8f5b47cdb8e51cd726ba9390be1c51",
+      "reference": {
+        "sha256": "109ebad1eb0f0b9cabdf8fb10c8316a52c58993f03006b447043d490280f6efe",
+        "observed": {
+          "L": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          }
+        },
+        "geometryErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv9r:520",
+              "instancePath": [
+                "statement:moduleInstance:mvizfv9r:523"
+              ]
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv9r:524",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "errors": []
+      },
+      "production": {
+        "sha256": "58e5137f76f97ec8fa0f28867e59ce42fc212c2fdd9468912f7ce34a6be84098",
+        "observed": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 5
+            }
+          }
+        },
+        "geometryErrors": [],
+        "errors": []
+      },
+      "recordGeometryPrograms": [
+        {
+          "occurrence": {
+            "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizfv9r:5181:72:262:2739:statement:recordDefinition:mvizfv9r:5121:139:statement:recordDefinition:mvizfv9r:5121:0",
+            "instancePath": [
+              "statement:moduleInstance:mvizfv9r:523"
+            ]
+          },
+          "kind": "segment",
+          "lazy": false
+        }
+      ],
+      "collectionProducerCount": 5
+    },
+    "mapFreeDiscriminators": [
+      "A-map-free-optional-control",
+      "G-map-free-dynamic",
+      "residual7:B-map-free-scalar-source"
+    ]
+  },
+  {
+    "id": "A-min-optional-forward",
+    "sha256": "bedbfb0d0dc395f2037e3b71cd0194837c0572afb5e4e11382aa2e1b101dd0d7",
+    "classification": "UNRESOLVED",
+    "routing": "#1260 shared scheduler; independent ownership review pending for observation-only reductions",
+    "reason": "#1260: scalar-observation-free reduction retains corrected selected collection identity; Rust controller/dependency release remains unavailable.",
+    "correctedCanonicalProducts": {
+      "recordGeometryPrograms": [],
+      "recordGeometryDependencyEdges": []
+    },
+    "observations": {
+      "runId": "reducers-1792639779578",
+      "sourceTreeSha256": "3e2c5c2e8e1a57ba263773d505b8bc799fc6c17deadef1f32d8476db815a4e70",
+      "compilerSha256": "49e15cfbbbe4f7c4f7bb0673d3b99e6d8840888b8862b9ead3a7ec400c5923d8",
+      "status": "UNRESOLVED",
+      "failures": [
+        "Rust: AssertionError: expected [ Array(2) ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], \u2026(13) } to deeply equal { computedGeometry: [], \u2026(13) }"
+      ],
+      "diagnostics": [],
+      "rustEligible": true,
+      "wireSha256": "f8b984932e3ff7049f3f00cc3856b86f64dea18ce5600982c98316629dc55a61",
+      "reference": {
+        "sha256": "b679f9fa93ae783dd722071771175b3a2408c4671e0b76dfc5016ae6349b4051",
+        "observed": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 5
+            }
+          }
+        },
+        "geometryErrors": [],
+        "errors": []
+      },
+      "production": {
+        "sha256": "a001258714e0306136ef5790255c596dd000434ec87a7866ca09e99c0bc0139f",
+        "observed": {
+          "L": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "geometryErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv9z:536",
+              "instancePath": [
+                "statement:moduleInstance:mvizfv9z:539"
+              ]
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfv9z:540",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "errors": []
+      },
+      "recordGeometryPrograms": [],
+      "collectionProducerCount": 13
+    },
+    "mapFreeDiscriminators": [
+      "A-map-free-optional-control",
+      "G-map-free-dynamic",
+      "residual7:B-map-free-scalar-source"
+    ]
+  },
+  {
+    "id": "A-map-free-optional-control",
+    "sha256": "5a8da03ec54e988adaafc0a1b6bfd1bb4e4d55ac4247f87345763215bf4e5b8e",
+    "classification": "UNRESOLVED",
+    "routing": "#1260 shared scheduler; independent ownership review pending for observation-only reductions",
+    "reason": "#1260: map-free scalar optional collection construction control; Rust unavailable while TS passes.",
+    "correctedCanonicalProducts": {
+      "recordGeometryPrograms": [],
+      "recordGeometryDependencyEdges": []
+    },
+    "observations": {
+      "runId": "reducers-1792639779578",
+      "sourceTreeSha256": "3e2c5c2e8e1a57ba263773d505b8bc799fc6c17deadef1f32d8476db815a4e70",
+      "compilerSha256": "f8156903c5ffa517484536d46de383a9f1806e0b2ec2451e2305395422bcfdc7",
+      "status": "UNRESOLVED",
+      "failures": [
+        "Rust: AssertionError: expected [ Array(2) ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], \u2026(13) } to deeply equal { computedGeometry: [], \u2026(13) }"
+      ],
+      "diagnostics": [],
+      "rustEligible": true,
+      "wireSha256": "5642dee4c2f5cfa41d5180c583478484b7dc4e6e5d1176f66d3661eaf8aa0905",
+      "reference": {
+        "sha256": "c68f0455e7ac5ffd242096c1656dc8524e49b2f129feea2f9166b36e14f3120c",
+        "observed": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "M": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 143
+            }
+          }
+        },
+        "geometryErrors": [],
+        "errors": []
+      },
+      "production": {
+        "sha256": "d868e43c9d62517d93763db3b241f01157c72e5fb943192c2af469af39d7b6f1",
+        "observed": {
+          "L": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "M": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "geometryErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfvah:567",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizfvah:568",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "errors": []
+      },
+      "recordGeometryPrograms": [],
+      "collectionProducerCount": 22
+    },
+    "mapFreeDiscriminators": [
+      "A-map-free-optional-control",
+      "G-map-free-dynamic",
+      "residual7:B-map-free-scalar-source"
+    ]
+  },
+  {
+    "id": "G-map-free-dynamic",
+    "sha256": "a61cdb06a2f0fd4eb346b2c5038fa0ec193dd8ffc1a975a05785fe1a76eba014",
+    "classification": "UNRESOLVED",
+    "routing": "#1260 shared scheduler; independent ownership review pending for observation-only reductions",
+    "reason": "#1260: map-free dynamic geometry collection selector; Rust unavailable while TS passes.",
+    "correctedCanonicalProducts": {
+      "recordGeometryPrograms": [],
+      "recordGeometryDependencyEdges": []
+    },
+    "observations": {
+      "runId": "boundaries-1792639917304",
+      "sourceTreeSha256": "07fa28cd15364ce26927ee7812643cabacc02014c7332f628a36eda80555064a",
+      "compilerSha256": "7f67a6b9876120b36aa936d260d70557ab8738bda9eabf14ea4bfc82efc8d0de",
+      "status": "UNRESOLVED",
+      "failures": [
+        "Rust: AssertionError: expected [ Array(2) ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], \u2026(13) } to deeply equal { computedGeometry: [], \u2026(13) }"
+      ],
+      "diagnostics": [],
+      "rustEligible": true,
+      "wireSha256": "429d5a5ceebdfb74af052f5dd5d88e81f16d6b50b1eb3db9d10d4642b475be25",
+      "reference": {
+        "sha256": "0d60f7bf673e4392a6e23f6d46719623f60adf63600c12f6235a79293c9bcc41",
+        "observed": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 13
+            }
+          }
+        },
+        "geometryErrors": [],
+        "errors": []
+      },
+      "production": {
+        "sha256": "33b69a96b7c1932e3e17946579e165ff8f8b63272793a67a57cad517300cbd23",
+        "observed": {
+          "L": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          }
+        },
+        "geometryErrors": [
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizissa:4",
+              "instancePath": [
+                "statement:moduleInstance:mvizissa:7"
+              ]
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          },
+          {
+            "occurrence": {
+              "sourceStatementId": "statement:typedDeclaration:mvizissa:8",
+              "instancePath": []
+            },
+            "message": "Geometry value reference is unavailable at runtime."
+          }
+        ],
+        "errors": []
+      },
+      "recordGeometryPrograms": [],
+      "collectionProducerCount": 1
+    },
+    "mapFreeDiscriminators": [
+      "A-map-free-optional-control",
+      "G-map-free-dynamic",
+      "residual7:B-map-free-scalar-source"
+    ]
+  }
+]
