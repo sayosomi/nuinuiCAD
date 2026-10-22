@@ -1,0 +1,41 @@
+{
+  "issue": "sayosomi/nuinuiCAD#1260",
+  "base": "c595241dd5974aa643cae707eb7ac849beefb344",
+  "branch": "sayosomi/issue-1260-residual-d1",
+  "origin": "https://github.com/sayosomi/nuinuiCAD.git",
+  "humanAdmissionComment": "https://github.com/sayosomi/nuinuiCAD/issues/1260#issuecomment-6338190011",
+  "acceptedHandoffComment": "https://github.com/sayosomi/nuinuiCAD/issues/1260#issuecomment-6337793839",
+  "humanEvidence": "LOCAL CHECK PASS mode=new issue=sayosomi/nuinuiCAD#1260 branch=sayosomi/issue-1260-residual-d1 main=c595241dd5974aa643cae707eb7ac849beefb344 local_head=c595241dd5974aa643cae707eb7ac849beefb344 ancestry=exact human_clear=yes",
+  "startup": {
+    "fetch": "git fetch origin --prune",
+    "result": "PASS: clean main at exact Base, origin/main exact, local/remote topic absent; no competing implementation/lock/releasing/audit/native-E2E markers at registered gitdirs; supplied Human proof applicable",
+    "branchCreation": "git switch -c sayosomi/issue-1260-residual-d1 c595241dd5974aa643cae707eb7ac849beefb344",
+    "fullHumanInventoryRepeated": false
+  },
+  "productionPaths": [
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "packages/nui-language/src/scalars/typedDependencyGraph.ts",
+    "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs"
+  ],
+  "sourceFingerprintFile": "source-fingerprints.json",
+  "checkpointIdentity": "The commit containing this file is the candidate checkpoint; exact commit/push/read-back and clean-state proof are returned after the normal push, not self-referentially embedded into its own commit.",
+  "scope": {
+    "newWorktree": false,
+    "resetStashRebaseForce": false,
+    "transportProtocolChanged": false,
+    "issue1194Changed": false,
+    "prCreated": false,
+    "issueClosed": false,
+    "humanManualE2E": "Not Required"
+  },
+  "authority": {
+    "issueState": "OPEN",
+    "issueUpdatedAt": "2026-10-22T10:08:52Z",
+    "issueBodyUnchangedAtPrePush": true,
+    "specGitBlob": "1dfee3af8c2231a430c364725b32f939af6902a6",
+    "agentsGitBlob": "c6ea4c555a91e3af013a74f134bca7435c34ee90",
+    "projectRouterGitBlob": "2e27610f8fd56476c55b6ac8f6204052fed6ff2a"
+  },
+  "preCommitRemoteReadBack": "git fetch origin --prune succeeded; remote main and local HEAD equal exact Base; exact authorized topic checked out with only task-owned changes; remote topic absent; current Issue OPEN, authorization/body unchanged, latest admission still 6338190011",
+  "preCommitRefreshAtUtc": "2026-10-22T13:29:14.547505+00:00"
+}

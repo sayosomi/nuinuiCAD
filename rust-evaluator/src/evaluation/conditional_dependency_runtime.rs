@@ -711,6 +711,12 @@ impl ConditionalDependencyGraph {
                         branches: Vec::new(),
                         prerequisite_endpoint_ids: Vec::new(),
                     });
+                // Module atomicity forwards this activation to consumers.
+                // Their prerequisites must not become the producer's own
+                // controller prerequisites (which would wait for its output).
+                if candidate.source_endpoint_id != source_endpoint_id {
+                    continue;
+                }
                 if !candidate.branches.contains(&guard.branch) {
                     candidate.branches.push(guard.branch.clone());
                 }
@@ -1386,6 +1392,52 @@ mod tests {
             geometry_value_errors: Vec::new(),
             warnings: Vec::new(),
         }
+    }
+
+    #[test]
+    fn forwarded_activation_keeps_controller_prerequisites_at_its_producer() {
+        let conditional = |from| ConditionalDependencyEdge {
+            from,
+            to: endpoint("binding", "selected", "selected"),
+            span: None,
+            requiredness: Some("conditional".to_owned()),
+            activation: Some(ConditionalDependencyActivation {
+                guards: vec![ConditionalDependencyGuard {
+                    controller_id: "geometry-value:chosen\0choice".to_owned(),
+                    branch: "then".to_owned(),
+                    controller_kind: None,
+                    static_selection: None,
+                    controller_expression: Some(
+                        validate_typed_expression_payload(&serde_json::json!({
+                            "kind": "booleanLiteral", "span": { "start": 0, "end": 1 },
+                            "value": true, "type": { "kind": "boolean" }
+                        }))
+                        .expect("valid typed controller"),
+                    ),
+                }],
+            }),
+        };
+        let graph = ConditionalDependencyGraph {
+            edges: vec![
+                required_edge(
+                    endpoint("geometry-value", "chosen", "chosen"),
+                    endpoint("binding", "flag", "flag"),
+                ),
+                conditional(endpoint("geometry-value", "chosen", "chosen")),
+                required_edge(
+                    endpoint("element", "outside", "outside"),
+                    endpoint("geometry-value", "chosen", "chosen"),
+                ),
+                conditional(endpoint("element", "outside", "outside")),
+            ],
+        };
+        let candidates = graph.controller_candidates(&HashMap::new());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].source_endpoint_id, "geometry-value:chosen");
+        assert_eq!(
+            candidates[0].prerequisite_endpoint_ids,
+            vec!["binding:flag"]
+        );
     }
 
     #[test]

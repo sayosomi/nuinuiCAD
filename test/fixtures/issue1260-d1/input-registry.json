@@ -1,0 +1,186 @@
+{
+  "ceiling": 96,
+  "acceptedCount": 24,
+  "acceptedSha256": [
+    "007c800b52fcbb7dee4c38702caa66be52a5c2c3cedc0440f55e7b9dff18a7c4",
+    "00a874b6f404205154b41451842cff07ec89823b093d75aba1949a67867ac6e4",
+    "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d",
+    "0b94a57ff707f275bbc045be701c53e0b9c8db4c4f3975c0755ef5ed97aa9b8e",
+    "10d93b50d62f6ed7f2fcca249eb0b4d0ad49c86b79d37e8c9f1e4953e3dbfe65",
+    "306311f4de9be9a6331a39e6dc2ff03c946e411a7f282df6436eda157a0ee504",
+    "3198f44aae23c7bc33901fd38ee09a054394609e22cd98938096d7ba2c0056c2",
+    "3f4a848a77548b1a35ac72bf65c73da7182c4de64e4ecbc66686318960afa659",
+    "52ddda28749c50ed5cf5356943d24211351b480d81b32950086a24dda1434600",
+    "585666aa98bea5895eb775258e4ea77840605d1fba4683579b2fa07215453b2c",
+    "62ac5ac0fc993e732f7ed903340b99045a97bac448e08f6591fc0ad83a781386",
+    "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb",
+    "7c9e4557ad5dc75d2bb67990ed8ba1a3fee433db8ad972b2e7fb96b0c4f75ccc",
+    "86d86f729bd0c2027aa294345b93d821874ff576469b4e38e34b95ad5d3e9aed",
+    "8e0f9929b1d8a736c4a81a2066334d2262a582c420e425c639e567ffdd09645c",
+    "9b23a90c34dd084f7b4ee3a07baafc953b23e33e116288625b352aa21ebd4259",
+    "9cdaef37a213851d4d54c1682dc3f0c353bfea32c7a13159d6ee7329b7ef6b78",
+    "ac436ebcef0be39fb1bd13dbdcdab5ef647ea9ed9900a004050db0913cdfc624",
+    "b2c4dc104e80d69b29e7568539d1760748c43358e0ecff080b15c995dc6ba445",
+    "b4551966b85217dc4302bb6f3072099e1c0e4accb5031fd321c4e3f985997adb",
+    "b71fadaa504d3c48ef61961d65ca6e2e9caf0d45e5fdced90b1ee548c598cc92",
+    "c0913473406587852c8a3c206a3c61d434fc6d259f76f81ada4323e3f5c137bb",
+    "c410a1962a88d0862e28230d8de6c845ddaa0778615c0f3ec55656f7bf0e92af",
+    "e77f13db40523a7dc7f91c0a6c6dada8697d746d776e63f96c260db8dd1766aa"
+  ],
+  "historical1194AcceptedCount": 276,
+  "historicalRegistryUnchanged": true,
+  "method": "SHA-256 of exact UTF-8 source text, including whitespace/newlines. Distinct accepted programs counted once across prevalidation, Base replay, reductions, controls, candidate attempts and verification. Ten exact historical controls/transfers excluded; all historical audit/suite sources and exact replays excluded. Sources admitted only under the non-adopted local carry type patch remain charged conservatively; they are not passing cases.",
+  "acceptedWitnesses": [
+    {
+      "sha256": "c0913473406587852c8a3c206a3c61d434fc6d259f76f81ada4323e3f5c137bb",
+      "id": "C-lazy-index",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "7c9e4557ad5dc75d2bb67990ed8ba1a3fee433db8ad972b2e7fb96b0c4f75ccc",
+      "id": "C-lazy-map",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "10d93b50d62f6ed7f2fcca249eb0b4d0ad49c86b79d37e8c9f1e4953e3dbfe65",
+      "id": "R1-01",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "62ac5ac0fc993e732f7ed903340b99045a97bac448e08f6591fc0ad83a781386",
+      "id": "R1-02",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "00a874b6f404205154b41451842cff07ec89823b093d75aba1949a67867ac6e4",
+      "id": "R1-03",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "b4551966b85217dc4302bb6f3072099e1c0e4accb5031fd321c4e3f985997adb",
+      "id": "R2-01",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "585666aa98bea5895eb775258e4ea77840605d1fba4683579b2fa07215453b2c",
+      "id": "R3-01",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "9b23a90c34dd084f7b4ee3a07baafc953b23e33e116288625b352aa21ebd4259",
+      "id": "R3-02",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "b71fadaa504d3c48ef61961d65ca6e2e9caf0d45e5fdced90b1ee548c598cc92",
+      "id": "R3-03",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "52ddda28749c50ed5cf5356943d24211351b480d81b32950086a24dda1434600",
+      "id": "R3-04",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "9cdaef37a213851d4d54c1682dc3f0c353bfea32c7a13159d6ee7329b7ef6b78",
+      "id": "R8-01",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "b2c4dc104e80d69b29e7568539d1760748c43358e0ecff080b15c995dc6ba445",
+      "id": "R8-02",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "c410a1962a88d0862e28230d8de6c845ddaa0778615c0f3ec55656f7bf0e92af",
+      "id": "R8-03",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "007c800b52fcbb7dee4c38702caa66be52a5c2c3cedc0440f55e7b9dff18a7c4",
+      "id": "R8-04",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "3198f44aae23c7bc33901fd38ee09a054394609e22cd98938096d7ba2c0056c2",
+      "id": "C-carry-if-control",
+      "witness": "/tmp/issue1260-d1/focused-final/compiler.ndjson",
+      "phase": "verify"
+    },
+    {
+      "sha256": "8e0f9929b1d8a736c4a81a2066334d2262a582c420e425c639e567ffdd09645c",
+      "id": "R1-03",
+      "witness": "/tmp/issue1260-d1/prevalidate2/compiler.ndjson",
+      "phase": "prevalidate"
+    },
+    {
+      "sha256": "86d86f729bd0c2027aa294345b93d821874ff576469b4e38e34b95ad5d3e9aed",
+      "id": "R2-02",
+      "witness": "/tmp/issue1260-d1/prevalidate2/compiler.ndjson",
+      "phase": "prevalidate"
+    },
+    {
+      "sha256": "0b94a57ff707f275bbc045be701c53e0b9c8db4c4f3975c0755ef5ed97aa9b8e",
+      "id": "R2-03",
+      "witness": "/tmp/issue1260-d1/prevalidate2/compiler.ndjson",
+      "phase": "prevalidate"
+    },
+    {
+      "sha256": "ac436ebcef0be39fb1bd13dbdcdab5ef647ea9ed9900a004050db0913cdfc624",
+      "id": "R2-04",
+      "witness": "/tmp/issue1260-d1/prevalidate2/compiler.ndjson",
+      "phase": "prevalidate"
+    },
+    {
+      "sha256": "306311f4de9be9a6331a39e6dc2ff03c946e411a7f282df6436eda157a0ee504",
+      "id": "C-coordinate",
+      "witness": "/tmp/issue1260-d1/settled-all/compiler.ndjson",
+      "phase": "discover"
+    },
+    {
+      "sha256": "e77f13db40523a7dc7f91c0a6c6dada8697d746d776e63f96c260db8dd1766aa",
+      "id": "C-coordinate-control",
+      "witness": "/tmp/issue1260-d1/settled-all/compiler.ndjson",
+      "phase": "discover"
+    },
+    {
+      "sha256": "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d",
+      "id": "R1-04",
+      "witness": "/tmp/issue1260-d1/owner-fix/compiler.ndjson",
+      "phase": "discover"
+    },
+    {
+      "sha256": "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb",
+      "id": "C-carry-if",
+      "witness": "/tmp/issue1260-d1/owner-fix/compiler.ndjson",
+      "phase": "discover"
+    },
+    {
+      "sha256": "3f4a848a77548b1a35ac72bf65c73da7182c4de64e4ecbc66686318960afa659",
+      "id": "C-carry-if-control",
+      "witness": "/tmp/issue1260-d1/pilot/compiler.ndjson",
+      "phase": "discover"
+    }
+  ],
+  "historicalCrossCheck": {
+    "registry": "test/fixtures/issue1194-d1/residual9-input-registry.json",
+    "sha256": "d5a5dfc7488540847fca365a9135664149b3bffe19e251a292b80a407299e690",
+    "acceptedHistoricalHashes": 276,
+    "overlappingNewHashes": 0,
+    "byteIdenticalToBase": true
+  }
+}

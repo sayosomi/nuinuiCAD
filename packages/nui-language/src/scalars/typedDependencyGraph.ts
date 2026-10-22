@@ -23,7 +23,7 @@ import type {
   TypedBuiltinArgument,
   TypedScalarExpression
 } from "./typedExpressionAst";
-import type { ScalarProgram } from "./scalarProgram";
+import type { ScalarProgram, ScalarProgramCollection, ScalarProgramRecordField } from "./scalarProgram";
 import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "../dsl/transformationRecipes";
 import { moduleOwnerIdFor } from "../dsl/moduleMaterialization";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
@@ -228,7 +228,10 @@ const scopeActivationToSource = (
     }
   : undefined;
 
-export const referencesIn = (expression: TypedScalarExpression): readonly TypedDependencyReferenceNode[] => {
+export const referencesIn = (
+  expression: TypedScalarExpression,
+  collections: ReadonlyMap<string, ScalarProgramCollection> = new Map()
+): readonly TypedDependencyReferenceNode[] => {
   const result: TypedDependencyReferenceNode[] = [];
   const visit = (
     node: TypedScalarExpression,
@@ -238,7 +241,7 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
   ): void => {
     if (node.kind === "reference") {
       if (node.bindingId === null || !localBindingIds.has(node.bindingId)) {
-        result.push({ ...node, ...(lazy ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
+        result.push({ ...node, ...((lazy || activation?.guards.length) ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
       }
     }
     else if (node.kind === "unary") visit(node.operand, lazy, activation, localBindingIds);
@@ -285,11 +288,81 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
         }), armLocalBindingIds);
       });
     }
-    else if (node.kind === "collectionIndex") visit(node.index, lazy, activation, localBindingIds);
+    else if (node.kind === "collectionIndex") {
+      visit(node.index, lazy, activation, localBindingIds);
+      if (node.collectionValueId) visitCollection(node.collectionValueId, node.index, lazy, activation, localBindingIds, new Set());
+    } else if (node.kind === "optionalMember" && node.target?.kind === "collectionLength") {
+      visitCollection(node.target.collectionValueId, undefined, lazy, activation, localBindingIds, new Set());
+    }
     else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation, localBindingIds);
     else if (node.kind === "call") node.args.forEach((argument) => {
       if (argument.kind === "scalar") visit(argument.expression, lazy, activation, localBindingIds);
     });
+  };
+  // Follow compiler-owned collection descriptors, retaining the requested
+  // member and branch guards. A length/presence read visits controllers only.
+  const visitCollection = (
+    valueId: string, index: TypedScalarExpression | undefined, lazy: boolean,
+    activation: TypedDependencyActivation | undefined, locals: ReadonlySet<BindingId>,
+    seen: ReadonlySet<string>, field?: ScalarProgramRecordField
+  ): void => {
+    if (seen.has(valueId)) return;
+    const value = collections.get(valueId);
+    if (!value) return;
+    const nextSeen = new Set([...seen, valueId]);
+    const follow = (id: string, nextActivation = activation, nextField = field) =>
+      visitCollection(id, index, lazy, nextActivation, locals, nextSeen, nextField);
+    const guard = (branch: string, controllerExpression: TypedScalarExpression) => appendActivationGuard(activation, {
+      controllerId: `collection:${valueId}`, branch, controllerExpression
+    });
+    if (value.kind === "alias") follow(value.targetValueId);
+    else if (value.kind === "recordField") follow(value.sourceValueId, activation, { ...value.field, bindingId: "" });
+    else if (value.kind === "if") {
+      visit(value.condition, lazy, activation, locals);
+      follow(value.thenValueId, guard("then", value.condition));
+      follow(value.elseValueId, guard("else", value.condition));
+    } else if (value.kind === "match") {
+      visit(value.scrutinee, lazy, activation, locals);
+      for (const arm of value.arms) follow(arm.valueId, guard(`match:${arm.label}`, value.scrutinee));
+    } else if (value.kind === "map" && index) {
+      // Bind the map variable to the same selected source occurrence in any
+      // controller AST, so conditional graph edges remain evaluable outside
+      // the member's local frame. This is a typed projection, not evaluation.
+      const binder: TypedScalarExpression = { kind: "collectionIndex", span: index.span, nameSpan: index.span,
+        name: value.sourceValueId, collectionValueId: value.sourceValueId, collectionLength: null,
+        targetSourceOrder: value.sourceOrder, index, type: value.sourceElementType };
+      const replace = (node: TypedScalarExpression): TypedScalarExpression => {
+        switch (node.kind) {
+          case "reference": return node.bindingId === value.binderId ? binder : node;
+          case "unary": return { ...node, operand: replace(node.operand) };
+          case "binary": return { ...node, left: replace(node.left), right: replace(node.right) };
+          case "group": return { ...node, expression: replace(node.expression) };
+          case "valueIf": return { ...node, condition: replace(node.condition), thenBranch: replace(node.thenBranch), elseBranch: replace(node.elseBranch) };
+          case "valueMatch": return { ...node, scrutinee: replace(node.scrutinee), arms: node.arms.map(arm => ({ ...arm, expression: replace(arm.expression) })) };
+          case "collectionIndex": return { ...node, index: replace(node.index) };
+          case "call": return { ...node, args: node.args.map(arg => arg.kind === "scalar" ? { ...arg, expression: replace(arg.expression) } : arg) };
+          default: return node;
+        }
+      };
+      visit(replace(value.body), lazy, activation, locals);
+    } else if (value.kind === "literal" && index) {
+      value.members.forEach((member, ordinal) => {
+        if (index.kind === "numberLiteral" && index.value !== ordinal) return;
+        const memberActivation = index.kind === "numberLiteral" ? activation : appendActivationGuard(activation, {
+          controllerId: `collection:${valueId}:index:${index.span.start}:${index.span.end}`, branch: "then",
+          controllerExpression: { kind: "binary", span: index.span, operator: "==", type: { kind: "boolean" },
+            left: index, right: { kind: "numberLiteral", span: index.span, value: ordinal, type: { kind: "number" } } }
+        });
+        if (member.kind === "binding") visit({ kind: "reference", span: index.span, nameSpan: index.span,
+          name: member.bindingId, bindingId: member.bindingId, type: member.type }, lazy, memberActivation, locals);
+        if (member.kind === "record" && field) for (const leaf of member.fields) {
+          if (leaf.recordStatementId !== field.recordStatementId || leaf.fieldIndex !== field.fieldIndex ||
+              JSON.stringify(leaf.fieldPath) !== JSON.stringify(field.fieldPath)) continue;
+          visit({ kind: "reference", span: index.span, nameSpan: index.span,
+            name: leaf.bindingId, bindingId: leaf.bindingId, type: leaf.type }, lazy, memberActivation, locals);
+        }
+      });
+    }
   };
   visit(expression);
   return result;
@@ -873,6 +946,11 @@ export const typedDependencyControllerCandidates = (
         branches: new Set<string>(),
         prerequisites: new Set<string>()
       };
+      // Module atomicity forwards the producer's activation onto downstream
+      // consumers. Those consumers do not own the controller: adding their
+      // prerequisites here would make selection wait for its own output (or
+      // for the completed Module containing it).
+      if (candidate.sourceEndpointId !== endpointId(edge.from)) return;
       candidate.branches.add(guard.branch);
       for (const prerequisite of graph.edges) {
         if (endpointId(prerequisite.from) !== endpointId(edge.from)) continue;
@@ -1026,6 +1104,7 @@ export const buildTypedDependencyGraph = ({
     seen.set(key, edges.length);
     edges.push(scopedEdge);
   };
+  const scalarCollectionsById = new Map((scalarProgram?.collectionValues ?? []).map(value => [value.valueId, value]));
   const reasonFor = (bindingId: BindingId): TypedDependencyReason | undefined => {
     if (!bindingAnalysis) return undefined;
     const entry = bindingAnalysis.entriesById.get(bindingId);
@@ -1067,7 +1146,7 @@ export const buildTypedDependencyGraph = ({
     // Binding-analysis intentionally keeps the unconditional graph small. The
     // canonical graph also retains conditional value-branch references so the
     // selected branch can be scheduled later by either evaluator.
-    for (const reference of referencesIn(statement.declaration.initializer)) {
+    for (const reference of referencesIn(statement.declaration.initializer, scalarCollectionsById)) {
       if (!reference.bindingId || !bindingAnalysis.catalog.bindingsById.has(reference.bindingId)) continue;
       add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, reference.bindingId), span: reference.span, reason: reasonFor(reference.bindingId), requiredness: reference.lazy ? "conditional" : "required", ...(reference.activation ? { activation: reference.activation } : {}) });
     }
@@ -1087,7 +1166,7 @@ export const buildTypedDependencyGraph = ({
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId) continue;
     const from = elementEndpoint(elementsById, elementId, statementIndex);
-    for (const reference of referencesIn(expression)) {
+    for (const reference of referencesIn(expression, scalarCollectionsById)) {
       if (!reference.bindingId || !bindingAnalysis.catalog.bindingsById.has(reference.bindingId)) continue;
       add({
         kind: "property-binding",
@@ -1541,7 +1620,7 @@ export const buildTypedDependencyGraph = ({
     occurrenceNamespace?: string,
     ignoredBindingIds: ReadonlySet<BindingId> = new Set()
   ) => {
-    for (const reference of referencesIn(expression)) {
+    for (const reference of referencesIn(expression, scalarCollectionsById)) {
       if (!reference.bindingId || ignoredBindingIds.has(reference.bindingId) || !bindingAnalysis?.catalog.bindingsById.has(reference.bindingId)) continue;
       const mergedGuards = [...guards, ...(reference.activation?.guards ?? [])];
       add({

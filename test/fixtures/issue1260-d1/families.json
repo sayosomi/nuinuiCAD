@@ -1,0 +1,39 @@
+[
+  {
+    "id": "1260-D1-F1",
+    "status": "BUG→FIXED→REPASS",
+    "owner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "firstLoss": "Module executionPositionForValue used definition-global events plus a statement fraction, while geometry consumers used the instance event clock. Earlier targets/controllers were advertised after consumption (1.500002 > 1.5, 1.500009 > 1.5, 2.500004 > 2.5).",
+    "repair": "Use the existing path-specific materialized runtime event position for Module collection producers and geometry consumers; root scheduling is unchanged.",
+    "minimal": "G-map-free-dynamic",
+    "adjacentBasePass": "B-min-forward-fixed",
+    "affected": [
+      "G-map-free-dynamic",
+      "B-min-forward-dynamic",
+      "A-min-optional-forward"
+    ],
+    "combined": [
+      "A-map-free-optional-control",
+      "A-optional-source-constructor"
+    ]
+  },
+  {
+    "id": "1260-D1-F2",
+    "status": "BUG→FIXED→REPASS",
+    "owner": "packages/nui-language/src/scalars/typedDependencyGraph.ts",
+    "firstLoss": "referencesIn visited only the scalar collection index expression, omitting the selected source member and its scalar prerequisites. Geometry→n edges are absent on Base.",
+    "repair": "Follow existing compiler collection descriptors with selected member/field identity, alias/if/match guards and typed map-binder projection. Keep conditional controllers owned by their producer when Module atomicity forwards activation to consumers; mirror this in existing Rust conditional_dependency_runtime.rs.",
+    "minimal": "B-map-free-scalar-source",
+    "adjacentBasePass": "G-map-free-construct",
+    "affected": [
+      "B-map-free-scalar-source",
+      "A-map-free-optional-control",
+      "A-optional-source-constructor",
+      "C-lazy-map"
+    ],
+    "supportingOwners": [
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs"
+    ],
+    "familySubtraction": "The mirrored controller correction prevents regressions exposed by new dependency edges; it has no independent Base DSL FAIL proof and is not counted as an additional family. All #1194 F01–F49 are excluded."
+  }
+]
