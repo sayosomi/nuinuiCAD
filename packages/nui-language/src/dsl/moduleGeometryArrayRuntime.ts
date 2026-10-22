@@ -33,6 +33,8 @@ import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
   pathKey,
   sourceAliasForTarget,
+  recordFieldValueSourceFor,
+  type RecordCollectionLookup,
   lowerAliasWithPointKey as lowerStagePreservingAliasWithPointKey,
   pointAnchorForAlias as pointAnchorForGeometryAlias,
   geometryInputTargetForAlias,
@@ -218,7 +220,9 @@ export const buildModuleGeometryArrayRuntime = ({
   contextsByPath,
   exportsByPath,
   moduleRuntimeContext,
-  sourceNamespace
+  sourceNamespace,
+  rootRecordValuesByStatementId = moduleSemanticAnalysis.rootRecordValuesByStatementId,
+  recordCollectionLookup
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -228,6 +232,8 @@ export const buildModuleGeometryArrayRuntime = ({
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>;
   moduleRuntimeContext?: ModuleRuntimeContext;
   sourceNamespace?: SourceLexicalNamespaceIndex;
+  rootRecordValuesByStatementId?: ReadonlyMap<string, import("./moduleSemanticTypes").ModuleRecordValueSemantic>;
+  recordCollectionLookup?: RecordCollectionLookup;
 }): ModuleGeometryArrayRuntimeCompilation => {
   type RuntimeSource = {
     documentId: string;
@@ -1009,7 +1015,7 @@ export const buildModuleGeometryArrayRuntime = ({
     const source = sourceForPath(currentPath);
     const contents = recordFieldContentsCollectionIdentityFor(valueId);
     const record = contents ? recordValueCollectionIdentityFor(contents.recordCollectionValueId) : null;
-    if (contents && record && contents.fieldPath.length === 1) {
+    if (contents && record) {
       const key = `${pathKey(currentPath)}:${valueId}`;
       if (visited.has(key)) return null;
       const paths = record.path.length > 0 ? [record.path] : Array.from({ length: currentPath.length + 1 }, (_, i) => currentPath.slice(0, currentPath.length - i));
@@ -1017,16 +1023,18 @@ export const buildModuleGeometryArrayRuntime = ({
         const context = contextsByPath.get(pathKey(path));
         const value = context?.definition.recordValues.find(candidate => candidate.value.statementId === record.statementId)
           ?? sourceForPath(path).moduleSemanticAnalysis.rootRecordValuesByStatementId.get(record.statementId);
-        const field = value?.fieldExpressions.find(candidate => candidate.field.recordStatementId === contents.fieldPath[0]!.recordStatementId && candidate.field.fieldIndex === contents.fieldPath[0]!.fieldIndex)?.valueExpression;
+        if (!value?.target) continue;
+        const resolved = recordFieldValueSourceFor(value.target, contents.fieldPath, path, contextsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+        const field = resolved.expression;
         if (field?.kind !== "collection") continue;
-        if (field.value?.kind === "alias") return lowerValueById(field.value.targetValueId, path, new Set([...visited, key]));
+        if (field.value?.kind === "alias") return lowerValueById(field.value.targetValueId, resolved.fieldContextPath, new Set([...visited, key]));
         const type = geometryArrayTypeOfDslValueType(field.valueType);
         if (type && field.value?.kind === "literal") {
           const members = field.value.members.map((member): RuntimeArrayMember => {
             // Geometry record-field members retain the canonical Module target
             // in the shared generic collection carrier (see analyzeRecordFieldValue).
             const target = member.target as unknown as NonNullable<ModuleGeometryReferenceSemantic["target"]>;
-            const alias = sourceAliasForTarget(target, path, contextsByPath, moduleMaterialization, exportsByPath);
+            const alias = sourceAliasForTarget(target, resolved.fieldContextPath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
             return {
               interfaceType: type.elementType,
               alias: alias ?? null,

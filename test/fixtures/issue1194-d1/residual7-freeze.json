@@ -1,0 +1,325 @@
+[
+  {
+    "id": "A-direct",
+    "sha256": "9d576813fab8214483af8e833f93fe643ee5f56d9662d0473aa056f8a880ccd7",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 4,
+      "N": 2,
+      "O": 3,
+      "T": 134,
+      "U": 182
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-alias",
+    "sha256": "2673d20e678b0dbaa74b18f096e8dc772565cd46b2661920e706a1121c663d4c",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 4,
+      "N": 2,
+      "O": 3,
+      "T": 134,
+      "U": 182
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-min-direct",
+    "sha256": "b090f385f879d7709257e0f728c81e5f8e0636eaac0aec215c9d446eaee57bce",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-min-alias",
+    "sha256": "1401adcb53d3c712229ab7a590eb28f81129119f342da5e16f13f1348226c4d3",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-control",
+    "sha256": "f88a2c91ea444e74556d427301cb91d21ffa0a109e9209dc2b6c1a19adf976b2",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 22,
+      "Y": 48,
+      "N": 21,
+      "O": 45,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-forward-chain",
+    "sha256": "28849d1c67d99c1cd98f8701a63bfa7b3d5e593448cdf840480083281538504a",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 22,
+      "Y": 48,
+      "N": 31,
+      "O": 55,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-construct-chain",
+    "sha256": "5608adfbd74e48bdfffb54e4d77a8b0c3c2ac7742771cdbd96967accb85b3b81",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 32,
+      "Y": 58,
+      "N": 31,
+      "O": 55,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-selected-chain",
+    "sha256": "6d5e25f603c3b15d038ed9e6466784d2d27fff9343e757f56b4b6a2622cb7abb",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 22,
+      "Y": 48,
+      "N": 31,
+      "O": 55,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-direct-map",
+    "sha256": "6c6869eb500d6a7e9caf04bf854ba18deb60c19fbce73942f64f5741a684f9e5",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 22,
+      "Y": 48,
+      "N": 21,
+      "O": 45,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-forward-noalias",
+    "sha256": "59b3dbeafc417965c0399fc124bedd63782d5c5bdf74523bc46fb42854a4ff1c",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 22,
+      "Y": 48,
+      "N": 31,
+      "O": 55,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-construct-noalias",
+    "sha256": "9f4f27de336d67e0f2c631c6e299249a9cf9abb189ef5f1b7fb15cd401722e6f",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 32,
+      "Y": 58,
+      "N": 31,
+      "O": 55,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-map-free-scalar-source",
+    "sha256": "3b957e06b22d0f679d79bde8b38030fd3eeb16e8f866beaba7a79ede13075682",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 32,
+      "Y": 56
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-line-alias",
+    "sha256": "0fbbf6d0a0be5443fad56c53ce9a933938497d953047a5a9982f4d0eeff1a349",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 4,
+      "N": 2,
+      "O": 3,
+      "T": 134,
+      "U": 182
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-point-alias",
+    "sha256": "f8da3a728dbf0118286cd7699d3570ebd17838d87ee747f0745aa40c6efb0e02",
+    "expected": {
+      "L": 5,
+      "M": 3,
+      "X": 5,
+      "Y": 4,
+      "N": 2,
+      "O": 3,
+      "T": 134,
+      "U": 182
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-record-parameter",
+    "sha256": "e26e4f688e059ec26ebaab65fe56b76de18355eb06ddb5320d8cb7ed17a003de",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 4,
+      "N": 2,
+      "O": 3,
+      "T": 134,
+      "U": 182
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "A-saved-reexport",
+    "sha256": "fba90a5258ccf863c3f5bac2a1bc8754781cc8660758f0f1ec418cd8cbe3d829",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 4,
+      "N": 2,
+      "O": 3,
+      "T": 134,
+      "U": 182
+    },
+    "savedDocumentPaths": [
+      "lib.nui",
+      "relay.nui",
+      "right.nui"
+    ]
+  },
+  {
+    "id": "A-record-export",
+    "sha256": "36982386c6e2a96ad889ef1451ac9cad41704b537c6df221c5a1899e2ea07924",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 4,
+      "N": 2,
+      "O": 3,
+      "T": 134,
+      "U": 182
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-match-chain",
+    "sha256": "97151d9f23b725b3a389d097579d6123e5c172b3df860a329278ac7f8841d564",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 22,
+      "Y": 48,
+      "N": 31,
+      "O": 55,
+      "C": 1,
+      "D": 1
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-indexed-chain",
+    "sha256": "21831a05953f3475170972aab664d1ebca505fa7db8f44024ea62fb5031b457e",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 122,
+      "Y": 148,
+      "N": 131,
+      "O": 155,
+      "C": 2,
+      "D": 2
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-poison-selected",
+    "sha256": "93be625fb8c54ca60e884993e6893356731dbee14def898d77fb3d0976cde16a",
+    "expected": {},
+    "savedDocumentPaths": [],
+    "expectedIssues": {
+      "Poison": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "B-min-direct",
+    "sha256": "6e6cac96f644b9fdac2b8e53fc5fba52c5c36eaec1cf83712f15e7b3d5f03fab",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-min-alias",
+    "sha256": "cf601bb7e6914e72788910502d763ce803dd5f7a1b2f061942a7e20759379aac",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-min-source",
+    "sha256": "033526e7fda43a3d88c801f99e4d8ef8391e70979c703fc11eeaa6de55ad1391",
+    "expected": {
+      "L": 5
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "B-saved-reexport",
+    "sha256": "d6aeb51d5e88a0245f7c4fa460ba11294c2a47c1f053084b60b5e7805ea33dc9",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 122,
+      "Y": 148,
+      "N": 131,
+      "O": 155,
+      "C": 2,
+      "D": 2
+    },
+    "savedDocumentPaths": [
+      "lib.nui",
+      "relay.nui",
+      "right.nui"
+    ]
+  }
+]
