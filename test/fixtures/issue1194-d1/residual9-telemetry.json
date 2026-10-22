@@ -1,0 +1,157 @@
+{
+  "runs": [
+    {
+      "directory": "/tmp/issue1194-residual9/base",
+      "runId": "ninth-base-1792656622852",
+      "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 10,
+        "production": 10
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 7,
+        "PASS": 3
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/base-all",
+      "runId": "base-all-1792657054982",
+      "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+      "counts": {
+        "compiler": 15,
+        "setupCompiler": 1,
+        "reference": 15,
+        "production": 15
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 11,
+        "PASS": 4
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/base-regression",
+      "runId": "base-regression-1792657058579",
+      "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 10,
+        "production": 10
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 6,
+        "PASS": 4
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/first-fix",
+      "runId": "ninth-first-fix-1792656797419",
+      "sourceTreeSha256": "f4ad7d0801cd9ee394420222bbd507c735de236f25a3a6c02d43797667c4bbd6",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 10,
+        "production": 10
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 5,
+        "PASS": 5
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/new-cases",
+      "runId": "new-cases-1792656953136",
+      "sourceTreeSha256": "f4ad7d0801cd9ee394420222bbd507c735de236f25a3a6c02d43797667c4bbd6",
+      "counts": {
+        "compiler": 15,
+        "setupCompiler": 1,
+        "reference": 15,
+        "production": 15
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 10,
+        "UNRESOLVED": 5
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/presettled",
+      "runId": "presettled-1792657144066",
+      "sourceTreeSha256": "f4ad7d0801cd9ee394420222bbd507c735de236f25a3a6c02d43797667c4bbd6",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 10,
+        "production": 10
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 10
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/required",
+      "runId": "required-1792657256383",
+      "sourceTreeSha256": "f4ad7d0801cd9ee394420222bbd507c735de236f25a3a6c02d43797667c4bbd6",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 10,
+        "production": 10
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 10
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/required",
+      "runId": "required-1792657544273",
+      "sourceTreeSha256": "f4ad7d0801cd9ee394420222bbd507c735de236f25a3a6c02d43797667c4bbd6",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 10,
+        "production": 10
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 10
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/transfers",
+      "runId": "transfer-evidence-1792657220265",
+      "sourceTreeSha256": "f4ad7d0801cd9ee394420222bbd507c735de236f25a3a6c02d43797667c4bbd6",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 6
+      }
+    },
+    {
+      "directory": "/tmp/issue1194-residual9/trace.log",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "note": "Explicit temporary diagnostic tracing, restored in finally."
+    }
+  ],
+  "scope": "Actual instrumented ninth-slice calls only; historical/full-suite consumer calls are not attributed.",
+  "quota": "No quota readings, estimates or attribution."
+}

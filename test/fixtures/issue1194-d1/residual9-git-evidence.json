@@ -1,0 +1,25 @@
+{
+  "base": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+  "branch": "sayosomi/issue-1194-closure-d1",
+  "remoteMain": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+  "remoteTopic": "absent",
+  "localHead": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+  "competingMarkers": [],
+  "ownedDirtyPaths": [
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "test/fixtures/issue1194-d1/residual9-README.md",
+    "test/fixtures/issue1194-d1/residual9-cases.json",
+    "test/fixtures/issue1194-d1/residual9-dispositions.json",
+    "test/fixtures/issue1194-d1/residual9-family.json",
+    "test/fixtures/issue1194-d1/residual9-freeze.json",
+    "test/fixtures/issue1194-d1/residual9-input-registry.json",
+    "test/fixtures/issue1194-d1/residual9-telemetry.json",
+    "test/fixtures/issue1194-d1/residual9-transfers.json",
+    "test/fixtures/issue1194-d1/residual9-verification.json",
+    "test/issue1194Residual9D1Rust.integration.test.ts"
+  ],
+  "issue": "OPEN and authorization unchanged; latest material comments 6334576121 / 6335195705",
+  "time": "2026-10-22T17:33:51.688128+09:00",
+  "forbiddenRecovery": "None",
+  "afterPush": "Exact pushed HEAD / clean status reported by final read-back; no self-referential commit fingerprint."
+}
