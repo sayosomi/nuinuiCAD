@@ -1290,6 +1290,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         if (recordCollection) return { kind: "resolved", ...recordCollection };
         const path = referencePath(sourceText);
         if (!path || path.segments.length === 0) return { kind: "invalid", diagnostic: { code: "array-invalid-reference", message: "array alias の参照が不正です。", span: sourceSpan } };
+        const lookup = input.resolvePath(statementIndex, path);
         if (path.segments.length === 1 && !path.absolute) {
           const localBinding = [...(localBindings ?? [])].reverse().find((candidate) => candidate.name === path.segments[0]);
           if (localBinding) {
@@ -1301,14 +1302,15 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
           const parameterType = parameter
             ? genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
             : null;
-          if (parameter && parameterType) {
+          const shadowedByLocal = parameter && lookup.kind === "resolved" &&
+            geometryArrayModuleOwnerIndexOf(statements, lookup.declaration.statementIndex) === parameter.definitionStatementIndex;
+          if (parameter && parameterType && !shadowedByLocal) {
             const valueType = isDslOptionalValueType(parameter.parameter.valueType)
               ? { kind: "optional" as const, valueType: parameterType }
               : parameterType;
             return { kind: "resolved", targetValueId: `${parameter.definitionStatementId}:parameter:${parameter.parameterIndex}`, valueType };
           }
         }
-        const lookup = input.resolvePath(statementIndex, path);
         if (lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance" && path.segments.length === 2 && lookup.segmentIndex === 1) {
           const instance = lookup.declaration.statement.kind === "moduleInstance" ? lookup.declaration.statement : null;
           if (!instance) return { kind: "deferred", targetValueId: geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!) };

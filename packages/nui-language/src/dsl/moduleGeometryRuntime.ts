@@ -592,11 +592,15 @@ export const buildModuleGeometryRuntime = ({
   ): ModuleGeometryBuiltinRuntimeTarget | undefined => {
     const carry = geometryCarrySourceForTarget(target, instancePath, contextsByPath);
     if (carry) {
-      if (!isModuleGeometryInterfaceAssignable(carry.geometryKind, expectedGeometryType)) return undefined;
+      const isPointProjection = Boolean(carry.pointKey && expectedGeometryType === "point");
+      const projectedType = isPointProjection ? "point" : carry.geometryKind;
+      if (!isModuleGeometryInterfaceAssignable(projectedType, expectedGeometryType)) return undefined;
       return {
         kind: "geometryCarry",
         bindingId: moduleCarryBindingIdFor(carry.instancePath, carry.bindingId),
-        geometryType: expectedGeometryType,
+        // Carry targets retain their carrier type plus pointKey; drawable
+        // inputs project to point, while tangent builtins keep the path view.
+        geometryType: isPointProjection ? carry.geometryKind : expectedGeometryType,
         ...(carry.pointKey ? { pointKey: carry.pointKey } : {}),
         ...(carry.stagePath ? { stagePath: carry.stagePath } : {})
       };

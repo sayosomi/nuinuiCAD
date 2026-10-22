@@ -1,0 +1,62 @@
+{
+  "externalDirectory": "/tmp/issue1260-r2-evidence",
+  "files": {
+    "required-final-v4.log": {
+      "sha256": "739a3a672566d2931a0c533c8ded9546c82db11071fa0b4b9e3873f0201a2941",
+      "bytes": 72480
+    },
+    "focused-final-v4.log": {
+      "sha256": "b97437dae7012f6042fbdbb26d1d9e0794044efdd4934e1dc440dbd43eaefb87",
+      "bytes": 232
+    },
+    "focused-final.log": {
+      "sha256": "faeb83b77876d71594772530d2974233d41c27dc5c91431c9507269a966bde3c",
+      "bytes": 229
+    },
+    "rust-focused.log": {
+      "sha256": "279a4417470650e1f284a1f572ea9f7a80ec7d7c208a6562a7a993d9c40ba4bc",
+      "bytes": 5649
+    },
+    "base-historical-controls.log": {
+      "sha256": "1e8cc4e495602efe4150f7cc507a8d5dcd30f47053c732140cba2bbeb8fe7e47",
+      "bytes": 228
+    },
+    "base-expanded.log": {
+      "sha256": "32748a0de746ead481141cda5412407ff6b430bf50db767990a9277b5b66145d",
+      "bytes": 217
+    },
+    "base-reduced.log": {
+      "sha256": "c3b8800ed998fd74f2fc63f004e430d891d6b3487b3950f4bef09013fc867526",
+      "bytes": 217
+    },
+    "base-partial-exact.log": {
+      "sha256": "72dbde4a466818ae81707c3bb2ca9157065c32490979c49eb12133316f052dc9",
+      "bytes": 215
+    },
+    "compiler.ndjson": {
+      "sha256": "1eb165dab338ec2f7e7daf527b0e583530af29f58d119c063d0946099932bc8d",
+      "bytes": 104820939
+    },
+    "raw.ndjson": {
+      "sha256": "bcaedf0380f2c4db3cfdef7580766db7a1094f240b12db6f91ee881493951de5",
+      "bytes": 22669371
+    },
+    "transport.ndjson": {
+      "sha256": "96472c1909ae839907bebb88eab88ec18c7d74b9748b13275e56359dab84bed1",
+      "bytes": 5268140
+    },
+    "lifecycle.ndjson": {
+      "sha256": "b115ccb5034c2ae3fa9ce0d118b651b8780da4174f0795042b5c0cb20f1dc3b0",
+      "bytes": 160191
+    },
+    "runs.ndjson": {
+      "sha256": "75b810a2c95198bf882f96f9f8d3cc9c7877e6a12081ebad300f3ec539ea9ae8",
+      "bytes": 106048
+    },
+    "accepted.sha256": {
+      "sha256": "b05af40b73040afcc15d541ba1a69d389413954fe4a13a2fb846a88815cd3d94",
+      "bytes": 3185
+    }
+  },
+  "bulkyLogsRetainedOutsideRepository": true
+}

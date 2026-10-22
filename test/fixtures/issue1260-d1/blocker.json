@@ -1,5 +1,5 @@
 {
-  "status": "BLOCKED",
+  "status": "UNRESOLVED_SCOPE",
   "primary": "R1-04",
   "minimal": "C-carry-if",
   "normative": "docs/nui1/spec.md: immutable incoming collection carry, simultaneous next and lazy whole collection if; a whole alias retains its source identity.",
@@ -7,14 +7,17 @@
   "partialProbe": "Local type-lookup-only patch admitted the source, but lowerSemantic(alias→carry) in moduleGeometryArrayRuntime.ts has no representation for the dynamic whole carry. The collection node was absent; both evaluators failed carry next or kept initial A. This partial patch and definition-root guard trial were removed, byte-identical to Base.",
   "firstBoundary": "geometryArraySemanticAnalysis.ts resolveArrayReference lacks the carry alias case; then moduleGeometryArrayRuntime.ts lowerSemantic has no whole-carry reference RuntimeGeometryCollectionNode. GeometryInputCollectionNode in packages/nui-language/src/model/cadDocumentTypes.ts:221 has none/leaf/map/if/match/coalesce only.",
   "scope": "A direct identity-preserving whole-carry reference would require authorizing the shared model and serialized collection representation across compiler and Rust. This task excludes model owner expansion and transport protocol changes. A synthesized identity map would introduce a map occurrence for an alias, so it was not adopted as an identity workaround.",
-  "nextSafeAction": "Independent blocking review of this pushed checkpoint, then authorize or choose the shared whole-collection reference representation and its model/payload owners. Resume from a newly admitted checkpoint; replay C-carry-if and R1-04, then R2-02/03/04 and remaining R4/R6/R7/R5 cells.",
+  "nextSafeAction": "Independent blocking review of this exact pushed slice, then protected integration. R1-04/C-carry-if require the separately authorized #1442 representation change and subsequent replay.",
   "otherResiduals": [
-    "R2-02: inline path[] next loses Seed.base; selected final stage appears in both runtimes (108,211 versus3,4).",
-    "R2-03/R2-04: an unqualified definition-local single-geometry carry plan reaches buildForGroupExecutionOwners and payload setup throws; not a request or process failure.",
     "Retired coordinate point[] carry: TS unavailable, Rust returns raw model coordinate instead of a computed point; no independent family repair claimed.",
     "C-coordinate and C-coordinate-control: root-only forms Rust-ineligible; not passing controls and not force-enabled."
   ],
-  "remainingCells": 16,
+  "remainingCells": 0,
   "transportProtocolChanged": false,
-  "partialSourceEditsRetained": false
+  "partialSourceEditsRetained": false,
+  "separateIssue": "https://github.com/sayosomi/nuinuiCAD/issues/1442",
+  "unresolvedPrimaryCells": [
+    "R1-04"
+  ],
+  "R2": "All four primary cells verified; see r2-proofs.json."
 }

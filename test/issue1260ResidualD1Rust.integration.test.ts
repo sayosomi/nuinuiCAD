@@ -19,6 +19,8 @@ import { checkEighthCompiler as checkCompiler } from "./fixtures/issue1194-d1/re
 const reductions: Cell[] = [];
 import { recordsIn } from "./fixtures/issue1419/assertions";
 import { normalizeParityPayload } from "./evaluationParitySupport";
+import { nameFor } from "./fixtures/issue-stage7/assertions";
+import registry from "./fixtures/issue1260-d1/input-registry.json";
 
 const mode = process.env.ISSUE1260_MODE ?? "verify";
 const phase = process.env.ISSUE1260_PHASE ?? mode;
@@ -38,7 +40,8 @@ const productionOwners = [
   "packages/nui-language/src/scalars/recordScalarLowering.ts",
   "packages/nui-language/src/dsl/geometryArrayExpression.ts", "packages/nui-language/src/dsl/geometryArraySemantics.ts",
   "packages/nui-language/src/scalars/scalarExpressionCollection.ts", "packages/nui-language/src/scalars/typedDependencyGraph.ts",
-  "src/geometry/evaluate.ts", "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs"
+  "src/geometry/evaluate.ts", "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs",
+  "rust-evaluator/src/evaluation/mod.rs", "rust-evaluator/src/evaluation/scalars/mutation/for_group_scheduler.rs"
 ];
 const sourceTreeSha256 = hash(json(productionOwners.map(path => [path, hash(readFileSync(path, "utf8"))])));
 const runId = `${phase}-${Date.now()}`;
@@ -56,6 +59,7 @@ let resourceError: Error | undefined;
 const record = (file: string, v: Record<string, unknown>) => { if (evidence) appendFileSync(join(evidence, file), json({ runId, phase, sourceTreeSha256, ...v }) + "\n"); };
 
 beforeAll(() => {
+  for (const sourceHash of registry.acceptedSha256) accepted.add(sourceHash);
   expect(cells.filter(c => c.historical && c.deferred), "fixed transfers and historical repaired controls must run in normal verification").toEqual([]);
   if (evidence) {
     mkdirSync(evidence, { recursive: true });
@@ -154,7 +158,10 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1260_IDS
   if (mode === "prevalidate") { results.push({ id: c.id, sha256, status: "PREVALIDATED" }); return; }
   const document = { ...compiled, document: compiled.document, statementMap: compiled.statementMap, majorVersion: compiled.majorVersion };
   const elements = document.document.elements;
-  const limit = c.limitThrough === "before-first" ? 0 : c.limitThrough ? elements.findIndex(e => e.name === c.limitThrough) + 1 : document.document.evaluationLimitIndex;
+  const through = c.limitThrough && c.limitThrough !== "before-first"
+    ? elements.findIndex(e => nameFor(output.result, e.id) === c.limitThrough) : undefined;
+  if (through !== undefined) expect(through, "limit must name an exact current owner").toBeGreaterThanOrEqual(0);
+  const limit = c.limitThrough === "before-first" ? 0 : through !== undefined ? through + 1 : document.document.evaluationLimitIndex;
   let options: ReturnType<typeof buildEvaluationOptions>;
   let prepared: ReturnType<typeof prepareRustEvaluation>;
   try {
@@ -190,6 +197,23 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1260_IDS
         expect(dependency.to.id).toContain(entry.occurrence.instancePath[0]);
       }
     }
+    if (c.id === "R2-02") {
+      const carry = [...document.bindingVersions!.immutableForGroups!.values()]
+        .flatMap(plan => plan.geometryCollectionCarries ?? [])[0];
+      expect(carry.next).toMatchObject({ kind: "node", node: { kind: "leaf", targets: [{ stagePath: ["base"] }] } });
+    }
+    if (c.id === "R2-03" || c.id === "R2-04") {
+      const owners = new Set([...document.moduleForGroupExecutionOwnerByElementId!.values()].map(owner => owner.ownerStatementId));
+      const plans = [...document.bindingVersions!.immutableForGroups!.values()];
+      expect(plans).toHaveLength(2);
+      for (const plan of plans) expect(owners.has(plan.ownerStatementId), "exact instance-qualified carry owner").toBe(true);
+    }
+    if (c.id === "R4-02") {
+      const final = document.bindingAnalysis!.catalog.bindings.find(binding => binding.name === "Final")!;
+      const plan = [...document.bindingVersions!.immutableForGroups!.values()].find(plan => plan.carries.some(carry => carry.bindingId.endsWith(":Total")))!;
+      const owner = [...options.forGroupMutationOwnerByElementId!.values()].find(owner => owner.ownerStatementId === plan.ownerStatementId)!;
+      expect(document.typedDependencyGraph!.edges.some(edge => edge.from.id === final.id && edge.to.kind === "element" && edge.to.id === owner.elementId), "escaped scalar waits for loop completion").toBe(true);
+    }
   });
   const assertPayload = (payload: EvaluationPayload) => {
     if (c.historical) checkPayload(c, document, payload);
@@ -199,6 +223,16 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1260_IDS
   counts.reference++;
   try { reference = evaluateElementsReferencePayload(elements, options); check("TS", () => assertPayload(reference!)); }
   catch (e) { failures.push(`TS exception: ${String(e)}`); }
+  if (mode === "verify" && reference && ["R2-02", "R4-03", "R6-04", "R7-01"].includes(c.id)) {
+    const changed = structuredClone(reference);
+    if (c.id === "R6-04") changed.instanceBaseGeometry = [];
+    else if (c.id === "R7-01") changed.computedScalarBindings = [];
+    else {
+      const point = changed.computedGeometry.find(geometry => geometry.kind === "point")!;
+      if (point.kind === "point") point.x += 1;
+    }
+    expect(() => assertPayload(changed), "detector rejects a wrong coordinate, owner snapshot, or diagnostic set").toThrow();
+  }
   record("raw.ndjson", { id: c.id, sha256, phase: "before-rust", wire: prepared.input, rustEligible: prepared.rustEligible, reference, failures });
   if (prepared.rustEligible) {
     counts.production++;

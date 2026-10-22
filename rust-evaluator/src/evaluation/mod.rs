@@ -2105,6 +2105,57 @@ fn evaluate_document_input(input: EvaluationInput) -> EvaluationPayload {
     )
 }
 
+fn discard_module_instance_geometry(
+    state: &mut EvaluationState,
+    snapshot: &types::ModuleMaterializationSnapshotInput,
+) {
+    let instance_path = &snapshot.instance_path;
+    let mut descendant_ids = snapshot
+        .descendant_ids
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    descendant_ids.extend(
+        state
+            .for_group_generated_rows
+            .iter()
+            .filter(|row| snapshot.descendant_ids.contains(&row.template_element_id))
+            .map(|row| row.generated_element_id.clone()),
+    );
+    state.instance_base_geometry.remove(&snapshot.instance_id);
+    state
+        .computed_geometry
+        .retain(|id, _| !descendant_ids.contains(id));
+    state
+        .base_transformation_geometry
+        .retain(|id, _| !descendant_ids.contains(id));
+    state
+        .pre_mutation_geometry
+        .retain(|id, _| !descendant_ids.contains(id));
+    state
+        .computed_geometry_order
+        .retain(|id| !descendant_ids.contains(id));
+    state.transformation_stage_geometry.retain(|key, _| {
+        !descendant_ids
+            .iter()
+            .any(|id| key.starts_with(&format!("{id}\u{0}")))
+    });
+    state.computed_geometry_values.retain(|occurrence, _| {
+        occurrence.instance_path.len() < instance_path.len()
+            || !instance_path
+                .iter()
+                .zip(&occurrence.instance_path)
+                .all(|(left, right)| left == right)
+    });
+    state.geometry_mutation_executions.retain(|execution| {
+        !descendant_ids.contains(&execution.mutation_element_id)
+            && !execution
+                .target_element_ids
+                .iter()
+                .any(|id| descendant_ids.contains(id))
+    });
+}
+
 fn evaluate_document_input_with_scalar_program(
     input: EvaluationInput,
     decoded: DecodedScalarPayloads,
@@ -2301,13 +2352,54 @@ fn evaluate_document_input_with_scalar_program(
                     captured_instance_ids.insert(snapshot.instance_id.clone());
                     continue;
                 }
-                if !snapshot
+                let completion_ids = snapshot
                     .descendant_ids
+                    .iter()
+                    .map(|id| {
+                        let mut completion_id = id.clone();
+                        let mut parent_id = state
+                            .elements_by_id
+                            .get(id)
+                            .and_then(|index| state.elements.get(*index))
+                            .and_then(types::parent_group_id);
+                        while let Some(current_id) = parent_id {
+                            let Some(parent) = state
+                                .elements_by_id
+                                .get(&current_id)
+                                .and_then(|index| state.elements.get(*index))
+                            else {
+                                break;
+                            };
+                            if element_type(parent) == Some("forGroup") {
+                                completion_id = current_id;
+                            }
+                            parent_id = types::parent_group_id(parent);
+                        }
+                        completion_id
+                    })
+                    .collect::<Vec<_>>();
+                if !completion_ids
                     .iter()
                     .all(|id| completed_element_ids.contains(id))
                 {
                     continue;
                 }
+                let runtime_descendant_ids = snapshot
+                    .descendant_ids
+                    .iter()
+                    .flat_map(|id| {
+                        if template_descendant_ids.contains(id) {
+                            state
+                                .for_group_generated_rows
+                                .iter()
+                                .filter(|row| &row.template_element_id == id)
+                                .map(|row| row.generated_element_id.clone())
+                                .collect::<Vec<_>>()
+                        } else {
+                            vec![id.clone()]
+                        }
+                    })
+                    .collect::<Vec<_>>();
                 let instance_path = &snapshot.instance_path;
                 let has_unevaluated_geometry_value =
                     geometry_value_program
@@ -2332,12 +2424,11 @@ fn evaluate_document_input_with_scalar_program(
                                 .zip(&error.occurrence.instance_path)
                                 .all(|(left, right)| left == right)
                     });
-                let failed = snapshot
-                    .descendant_ids
+                let failed = completion_ids
                     .iter()
+                    .chain(runtime_descendant_ids.iter())
                     .any(|id| failed_element_ids.contains(id))
-                    || snapshot
-                        .descendant_ids
+                    || runtime_descendant_ids
                         .iter()
                         .any(|id| state.errors.iter().any(|error| &error.element_id == id))
                     || has_geometry_value_failure;
@@ -2351,46 +2442,9 @@ fn evaluate_document_input_with_scalar_program(
                 }
                 completed_instance_ids.insert(snapshot.instance_id.clone());
                 if failed {
-                    let descendant_ids = snapshot
-                        .descendant_ids
-                        .iter()
-                        .cloned()
-                        .collect::<HashSet<_>>();
-                    state.instance_base_geometry.remove(&snapshot.instance_id);
-                    state
-                        .computed_geometry
-                        .retain(|id, _| !descendant_ids.contains(id));
-                    state
-                        .base_transformation_geometry
-                        .retain(|id, _| !descendant_ids.contains(id));
-                    state
-                        .pre_mutation_geometry
-                        .retain(|id, _| !descendant_ids.contains(id));
-                    state
-                        .computed_geometry_order
-                        .retain(|id| !descendant_ids.contains(id));
-                    state.transformation_stage_geometry.retain(|key, _| {
-                        !descendant_ids
-                            .iter()
-                            .any(|id| key.starts_with(&format!("{id}\u{0}")))
-                    });
-                    state.computed_geometry_values.retain(|occurrence, _| {
-                        occurrence.instance_path.len() < instance_path.len()
-                            || !instance_path
-                                .iter()
-                                .zip(&occurrence.instance_path)
-                                .all(|(left, right)| left == right)
-                    });
-                    state.geometry_mutation_executions.retain(|execution| {
-                        !descendant_ids.contains(&execution.mutation_element_id)
-                            && !execution
-                                .target_element_ids
-                                .iter()
-                                .any(|id| descendant_ids.contains(id))
-                    });
+                    discard_module_instance_geometry(state, snapshot);
                 } else {
-                    let geometry = snapshot
-                        .descendant_ids
+                    let geometry = runtime_descendant_ids
                         .iter()
                         .filter_map(|id| state.computed_geometry.get(id).cloned())
                         .collect::<Vec<_>>();
@@ -3897,6 +3951,11 @@ fn evaluate_document_input_with_scalar_program(
         })
         .map(|snapshot| snapshot.instance_id.clone())
         .collect::<HashSet<_>>();
+    for snapshot in &instance_snapshots {
+        if unavailable_module_instance_ids.contains(&snapshot.instance_id) {
+            discard_module_instance_geometry(&mut state, snapshot);
+        }
+    }
     let unavailable_local_module_binding_prefixes = instance_snapshots
         .iter()
         .filter(|snapshot| unavailable_module_instance_ids.contains(&snapshot.instance_id))

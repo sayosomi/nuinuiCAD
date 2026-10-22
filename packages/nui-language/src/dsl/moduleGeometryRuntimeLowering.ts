@@ -301,7 +301,7 @@ export const lowerAliasWithStagePath = (alias: GeometryAlias, stagePath: readonl
 };
 
 export const geometryInputTargetForAlias = (alias: GeometryAlias): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" } | { kind: "forGroupOccurrence" }> | GeometryValueMapPendingTarget | null => {
-  if (alias.kind === "geometryCarry") return alias;
+  if (alias.kind === "geometryCarry") return { ...alias, geometryType: alias.pointKey ? "point" : alias.geometryType };
   if (alias.kind === "collectionIndex") return null;
   if (alias.kind === "line") {
     return { kind: "drawable", elementId: alias.elementId, geometryType: alias.interfaceType ?? "line", ...(alias.stagePath ? { stagePath: alias.stagePath } : {}) };
@@ -988,8 +988,9 @@ export const resolverForBody = ({
         return {
           kind: "geometryCarry",
           bindingId: moduleCarryBindingIdFor(currentPath, carry.bindingId),
-          geometryType: carry.geometryKind,
-          ...(carry.pointKey ? { pointKey: carry.pointKey } : {})
+          geometryType: carry.pointKey ? "point" : carry.geometryKind,
+          ...(carry.pointKey ? { pointKey: carry.pointKey } : {}),
+          ...(carry.stagePath ? { stagePath: carry.stagePath } : {})
         } satisfies GeometryInputTarget;
       }
       const indexed = resolveLineReferenceTargetAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
@@ -1009,8 +1010,9 @@ export const resolverForBody = ({
         return {
           kind: "geometryCarry",
           bindingId: moduleCarryBindingIdFor(currentPath, carry.bindingId),
-          geometryType: carry.geometryKind,
-          ...(carry.pointKey ? { pointKey: carry.pointKey } : {})
+          geometryType: carry.pointKey ? "point" : carry.geometryKind,
+          ...(carry.pointKey ? { pointKey: carry.pointKey } : {}),
+          ...(carry.stagePath ? { stagePath: carry.stagePath } : {})
         } satisfies GeometryInputTarget;
       }
       const indexed = resolvePointReferenceAt?.(token, statementIndex, currentPath, site?.reference.target ?? undefined);
@@ -1064,8 +1066,9 @@ export const resolverForBody = ({
         return {
           kind: "geometryCarry",
           bindingId: moduleCarryBindingIdFor(currentPath, carry.bindingId),
-          geometryType: carry.geometryKind,
-          ...(carry.pointKey ? { pointKey: carry.pointKey } : {})
+          geometryType: carry.pointKey ? "point" : carry.geometryKind,
+          ...(carry.pointKey ? { pointKey: carry.pointKey } : {}),
+          ...(carry.stagePath ? { stagePath: carry.stagePath } : {})
         } satisfies GeometryInputTarget;
       }
       const materializationSource = currentElement?.type === "materializedPoint" && site?.reference.target;
