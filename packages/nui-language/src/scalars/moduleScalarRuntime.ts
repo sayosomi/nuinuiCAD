@@ -3030,7 +3030,10 @@ export const compileModuleScalarRuntime = ({
     if (sourceStatementIndex !== undefined) {
       const key = pathKey(runtimePath);
       const pathEvents = eventOrderByPathAndStatementIndex.get(key) ?? new Map<number, number>();
-      if (!pathEvents.has(sourceStatementIndex)) pathEvents.set(sourceStatementIndex, order);
+      // A record declaration can emit several field bindings. Subsequent
+      // Module values must follow its final event, including a binding also
+      // exposed through the nested-field view.
+      pathEvents.set(sourceStatementIndex, order);
       eventOrderByPathAndStatementIndex.set(key, pathEvents);
     }
     if (event.kind === "binding") eventOrderByBindingId.set(event.bindingId, order);

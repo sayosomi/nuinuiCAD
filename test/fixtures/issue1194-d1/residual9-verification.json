@@ -1,0 +1,147 @@
+{
+  "base": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+  "branch": "sayosomi/issue-1194-closure-d1",
+  "status": "PASS; implementation checkpoint pending independent pushed-HEAD review and transfer adjudication",
+  "requiredBlockVerbatim": "(\n  set -e\n  cd /Users/yosomi/Code/nuinuiCAD || {\n    echo \"BLOCKED: registered implementation checkout missing\"\n    exit 1\n  }\n\n  export VITEST_MAX_WORKERS=1\n\n  npx vitest run \\\n    test/issue1194Residual9D1Rust.integration.test.ts \\\n    test/issue1194Residual8D1Rust.integration.test.ts \\\n    test/issue1194Residual7D1Rust.integration.test.ts \\\n    test/issue1194Residual6D1Rust.integration.test.ts \\\n    test/issue1194Residual5D1Rust.integration.test.ts \\\n    test/issue1194Residual4D1Rust.integration.test.ts \\\n    test/issue1194Residual3D1Rust.integration.test.ts \\\n    test/issue1194ResidualD1Rust.integration.test.ts \\\n    test/issue1194StructuredD1Rust.integration.test.ts \\\n    test/issue1376RootRecordModuleFieldsRust.integration.test.ts \\\n    src/scalars/recordScalarLowering.test.ts \\\n    src/scalars/recordScalarIntegration.test.ts \\\n    src/dsl/recordDocumentIntegration.test.ts \\\n    src/dsl/moduleScalarRuntime.integration.test.ts \\\n    src/dsl/moduleGeometryArrayRuntime.integration.test.ts \\\n    src/dsl/geometryArraySemanticAnalysis.integration.test.ts \\\n    test/mappedGeometryOccurrenceIdentityRust.integration.test.ts\n\n  npx vitest run \\\n    test/issue1415ScalarMetamorphicRust.integration.test.ts \\\n    test/issue1417ControlFlowMetamorphicRust.integration.test.ts \\\n    test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts \\\n    test/issue1421EvaluatorStrategyRust.integration.test.ts \\\n    test/issue1423EvaluatorStrategyRust.integration.test.ts \\\n    test/issue1426MutationSensitiveRust.integration.test.ts \\\n    test/issue1428TargetedStage7Rust.integration.test.ts\n\n  npm run build\n  npm run lint\n  npm run test:parity\n  npm test\n  npm run docs:dsl:check\n\n  if [[ -n \"$(git diff --name-only 87ae4dd2a7552b73435f8627ec540f5e53b784a6 -- rust-evaluator/)\" ]]; then\n    cargo fmt --check --manifest-path rust-evaluator/Cargo.toml\n    cargo check --manifest-path rust-evaluator/Cargo.toml\n    cargo test --manifest-path rust-evaluator/Cargo.toml\n    cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings\n  fi\n\n  git diff --check\n)\n",
+  "requiredBlockExecution": {
+    "exitCode": 0,
+    "blocked": null,
+    "events": [
+      {
+        "event": "start",
+        "pid": 11019,
+        "command": "npm exec vitest run test/issue1194Residual9D1Rust.integration.test.ts test/issue1194Residual8D1Rust.integration.test.ts test/issue1194Residual7D1Rust.integration.test.ts test/issue1194Residual6D1Rust.integration.test.ts test/issue1194Residual5D1Rust.integration.test.ts test/issue1194Residual4D1Rust.integration.test.ts test/issue1194Residual3D1Rust.integration.test.ts test/issue1194ResidualD1Rust.integration.test.ts test/issue1194StructuredD1Rust.integration.test.ts test/issue1376RootRecordModuleFieldsRust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/scalars/recordScalarIntegration.test.ts src/dsl/recordDocumentIntegration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/geometryArraySemanticAnalysis.integration.test.ts test/mappedGeometryOccurrenceIdentityRust.integration.test.ts               ",
+        "seconds": 1.04
+      },
+      {
+        "event": "start",
+        "pid": 11600,
+        "command": "npm exec vitest run test/issue1415ScalarMetamorphicRust.integration.test.ts test/issue1417ControlFlowMetamorphicRust.integration.test.ts test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts test/issue1421EvaluatorStrategyRust.integration.test.ts test/issue1423EvaluatorStrategyRust.integration.test.ts test/issue1426MutationSensitiveRust.integration.test.ts test/issue1428TargetedStage7Rust.integration.test.ts",
+        "seconds": 20.83
+      },
+      {
+        "event": "start",
+        "pid": 12092,
+        "command": "npm run build",
+        "seconds": 45.79
+      },
+      {
+        "event": "start",
+        "pid": 12173,
+        "command": "npm run typecheck:nui-language",
+        "seconds": 63.55
+      },
+      {
+        "event": "start",
+        "pid": 12219,
+        "command": "npm run build:mcp",
+        "seconds": 67.72
+      },
+      {
+        "event": "start",
+        "pid": 12259,
+        "command": "npm run lint",
+        "seconds": 71.88
+      },
+      {
+        "event": "start",
+        "pid": 12429,
+        "command": "npm run test:parity",
+        "seconds": 102.14
+      },
+      {
+        "event": "start",
+        "pid": 18090,
+        "command": "npm test",
+        "seconds": 160.75
+      },
+      {
+        "event": "start",
+        "pid": 23976,
+        "command": "npm run docs:dsl:check",
+        "seconds": 685.74
+      }
+    ],
+    "elapsedSeconds": 686.78
+  },
+  "results": {
+    "focused": {
+      "passed": 565,
+      "skipped": 26
+    },
+    "stageControls": {
+      "passed": 1073,
+      "skipped": 0
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "parity": {
+      "passed": 203,
+      "skipped": 0
+    },
+    "fullNpm": {
+      "passed": 10845,
+      "skipped": 183
+    },
+    "dslReference": "PASS",
+    "diffCheck": "PASS",
+    "conditionalRust": "NOT_RUN: no Rust source delta"
+  },
+  "focusedBeforeRequired": {
+    "command": "VITEST_MAX_WORKERS=1 npx vitest run test/issue1194Residual9D1Rust.integration.test.ts test/issue1194Residual8D1Rust.integration.test.ts test/issue1194Residual7D1Rust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/dsl/moduleScalarRuntime.integration.test.ts test/mappedGeometryOccurrenceIdentityRust.integration.test.ts",
+    "passed": 253,
+    "skipped": 16
+  },
+  "baseProof": {
+    "base": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+    "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "candidateSha256": "6991385a56ff194b68b72133d26f7c165e6d0838115ae0c619390e81213d50e4",
+    "baseSha256": "cc4846ce095f0dbb8476e201fb363932cdbc1e75a42d5c66c0433fae98870baa",
+    "productionDiff": "empty",
+    "base-all": {
+      "exitCode": 0,
+      "mode": "discover"
+    },
+    "base-regression": {
+      "exitCode": 1,
+      "mode": "verify"
+    },
+    "restoredSha256": "6991385a56ff194b68b72133d26f7c165e6d0838115ae0c619390e81213d50e4"
+  },
+  "baseRegression": {
+    "expectedExit": 1,
+    "actualExit": 1,
+    "failed": 6,
+    "adjacentPassed": 4,
+    "deferredSkipped": 5,
+    "originalCaseCount": 15,
+    "note": "An additional existing residual7 map-free transfer control was added after this proof; default final verification has six skips. Exact original case hashes are unchanged."
+  },
+  "admission": {
+    "base": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+    "branch": "sayosomi/issue-1194-closure-d1",
+    "remoteMain": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+    "localHead": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+    "localBranch": "main",
+    "clean": true,
+    "topicUnused": true,
+    "competingMarkers": [],
+    "humanClear": "supplied actual PASS consumed once",
+    "issue": "OPEN / authorized",
+    "time": "2026-10-22T17:10:00.784488+09:00"
+  },
+  "processBounds": {
+    "cargoBuildSeconds": 120,
+    "requestSeconds": 10,
+    "persistentRustLifetimeSeconds": 600,
+    "cleanupSeconds": 5,
+    "testSeconds": 60,
+    "focusedSubprocessSeconds": 180,
+    "ordinaryRequiredCommandSeconds": 180,
+    "fullNpmSeconds": 600,
+    "requiredBlockSeconds": 1200
+  },
+  "processOutcome": "All owned evaluator children closed; no timeout, denial, unsafe cleanup or resource exhaustion.",
+  "scopeDeviations": [],
+  "remaining": "Five original eighth sources UNRESOLVED with proposed generic #1260 transfer; one additional historical map-free control also unresolved. #1439 is an independent future feature. No PR/merge/closure performed."
+}
