@@ -5,7 +5,7 @@ import type {
   ComputedPoint
 } from "./evaluationTypes";
 import type { ElementEvaluationContext } from "./elementEvaluatorTypes";
-import { geometryError } from "./evaluationContext";
+import { geometryError, getPointAnchorOrError } from "./evaluationContext";
 import { geometryValueOccurrenceKey } from "@nuinuicad/nui-language";
 import { resolveDerivedPoint } from "../model/pointAnchorsRuntime";
 
@@ -150,9 +150,26 @@ const sourceTarget = (context: ElementEvaluationContext): GeometryInputTarget | 
 };
 
 const sourceGeometry = (
+  element: CadElement,
   context: ElementEvaluationContext,
   target: GeometryInputTarget
 ): ComputedGeometry | ComputedGeometryValue | undefined => {
+  if (element.type === "materializedPoint" && target.kind === "coordinate") {
+    const point = getPointAnchorOrError(
+      element,
+      target.anchor,
+      "source",
+      context.computedGeometry,
+      context.elementsById,
+      context.errors,
+      context.localVariables.localVariableValues,
+      context.localVariables.localVariableNames,
+      context.disabledByGroupId,
+      context.elements,
+      context.computedGeometryValues
+    );
+    return point ? { kind: "point", x: point.x, y: point.y } : undefined;
+  }
   if (target.kind === "drawable") {
     const source = context.resolveGeometrySnapshot
       ? context.resolveGeometrySnapshot(target.elementId, target.stagePath)
@@ -173,9 +190,12 @@ const sourceGeometry = (
 export const evaluateMaterializedElement = (element: CadElement, context: ElementEvaluationContext): boolean => {
   if (element.type !== "materializedPoint" && element.type !== "materializedLine" && element.type !== "materializedPath") return false;
   const target = sourceTarget(context);
-  const source = target ? sourceGeometry(context, target) : undefined;
+  const errorsBeforeSource = context.errors.length;
+  const source = target ? sourceGeometry(element, context, target) : undefined;
   if (!source) {
-    context.errors.push(geometryError(element, `${element.name} の source geometry が利用できません。依存先を確認してください。`));
+    if (context.errors.length === errorsBeforeSource) {
+      context.errors.push(geometryError(element, `${element.name} の source geometry が利用できません。依存先を確認してください。`));
+    }
     return true;
   }
   const materialized = "elementId" in source

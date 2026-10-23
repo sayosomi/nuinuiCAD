@@ -115,6 +115,7 @@ import type { DslDiagnostic, DslEnclosing, DslStatement, ParseDslResult } from "
 import type { DslValueType } from "./dslValueTypes";
 import { dslValueTypeForParameterDefinition, getParameterDefinitions } from "../parameters/parameterDefinitions";
 import { makeNumericExpression } from "../geometry/numericExpressions";
+import { coordinateComponent } from "./dslParameterSpanScanner";
 import { formatDslReferencePath, formatDslReferenceToken, parseDslReferenceToken, parseDslSourceReference } from "./dslReferenceTokens";
 import { DSL_INDENT, formatDslName, splitDslList } from "./dslTokens";
 import { parseScalarExpression } from "../scalars/expressionParser";
@@ -1637,6 +1638,21 @@ export const compileDslDocument = (
     sourceLexicalNamespace?.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(valueId) ??
     sourceLexicalNamespace?.geometryArraySemanticAnalysis?.valuesByStatementId.get(valueId);
   const geometryTargetForArrayMember = (target: GenericArraySourceTarget): Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }> | null => {
+    if (target.kind === "coordinate") {
+      const span = { start: 0, end: target.source.length };
+      const x = coordinateComponent(target.source, span, "x");
+      const y = coordinateComponent(target.source, span, "y");
+      return x && y
+        ? {
+            kind: "coordinate",
+            anchor: {
+              mode: "coordinate",
+              x: makeNumericExpression(target.source.slice(x.start, x.end)),
+              y: makeNumericExpression(target.source.slice(y.start, y.end))
+            }
+          }
+        : null;
+    }
     if (target.kind === "geometryCarry") return {
       kind: "geometryCarry", bindingId: target.bindingId, geometryType: target.interfaceType,
       ...(target.pointKey ? { pointKey: target.pointKey } : {})
@@ -3715,10 +3731,8 @@ export const compileDslDocument = (
       };
     }
     if (target.kind === "collectionIndex") {
-      // Ordinary authored collections already have established target lowering
-      // through the document compiler. This semantic path is needed for
-      // runtime-backed carry snapshots, which have no authored member list.
-      if (!target.collectionValueId.startsWith("carry-collection:")) return undefined;
+      const collection = geometryArraySemanticForValueId(target.collectionValueId);
+      const rootAuthoredCollection = collection?.ownerModuleDefinitionStatementIndex === null;
       let index: import("../scalars/typedExpressionAst").TypedScalarExpression;
       try {
         index = lowerExpression(target.index, () => undefined, new Map()).expression;
@@ -3730,7 +3744,11 @@ export const compileDslDocument = (
         kind: "collectionIndex",
         collectionValueId: target.collectionValueId,
         collectionLength: target.collectionLength,
-        targetSourceOrder: target.targetSourceOrder,
+        // Authored immutable collections are compiled into value nodes, not
+        // runtime geometry producers. Their statement index is not comparable
+        // with the evaluator's geometry source order; the selected member's
+        // own dependency remains validated when the index is materialized.
+        targetSourceOrder: rootAuthoredCollection ? -1 : target.targetSourceOrder,
         index,
         members: [],
         ...(value ? { value } : {})
