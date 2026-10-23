@@ -233,6 +233,14 @@ for (const c of [...cells, ...reductions].filter(c => !process.env.ISSUE1260_IDS
     }
     expect(() => assertPayload(changed), "detector rejects a wrong coordinate, owner snapshot, or diagnostic set").toThrow();
   }
+  if (mode === "verify" && reference && c.id === "R1-04") {
+    const changed = structuredClone(reference);
+    const expectedOwner = c.geometry?.[0]?.owner;
+    const point = changed.computedGeometry.find(g => g.kind === "point" && nameFor(output.result, g.elementId) === expectedOwner);
+    expect(point, "R1-04 output point is present for mutation sensitivity").toBeDefined();
+    if (point?.kind === "point") point.x += 1;
+    expect(() => assertPayload(changed), "detector rejects an incorrect R1-04 output coordinate").toThrow();
+  }
   record("raw.ndjson", { id: c.id, sha256, phase: "before-rust", wire: prepared.input, rustEligible: prepared.rustEligible, reference, failures });
   if (prepared.rustEligible) {
     counts.production++;

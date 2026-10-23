@@ -360,8 +360,7 @@
     ],
     "errors": [],
     "claims": "R1-04 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
-    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts",
-    "deferred": "Selected whole geometry carry has no identity-preserving reference node in the current closed branch model; shared model/payload authorization required."
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
   },
   {
     "id": "R2-01",
@@ -1008,8 +1007,7 @@
     ],
     "errors": [],
     "claims": "The selected whole carry is the immutable incoming point[] value; the unselected invalid coordinate stays lazy.",
-    "control": "C-carry-if-control",
-    "deferred": "Compiler rejects the legal selected whole point[] carry; see R1-04 model boundary."
+    "control": "C-carry-if-control"
   },
   {
     "id": "C-carry-if-control",
