@@ -1,0 +1,291 @@
+{
+  "base": "7a31489d69aadbf1fafcdef9f68b64c491633ba3",
+  "phase": "compiler/target prevalidation only; oracles authored in cases.json before any plan/evaluation comparison",
+  "cases": [
+    {
+      "id": "G1",
+      "sha256": "6fd189e0830242a151bb4177388f0d84b0d9803e26329a8545dac0d8b5d1cb65",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Anchor",
+        "range": {
+          "from": 48,
+          "to": 54
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "element",
+            "elementId": "hunt:G1:1"
+          },
+          "key": "element:hunt:G1:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "G2",
+      "sha256": "a886554c69048e1e21f12ed021c63edfde81a1554c832a44a1308722748f3c23",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Anchor",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "element",
+            "elementId": "hunt:G2:1"
+          },
+          "key": "element:hunt:G2:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "G3",
+      "sha256": "60e5b07f631720cd59cba4308bce2cd9746e8f1b8ee6a368003083ca07a6ca5c",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Anchor",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "element",
+            "elementId": "hunt:G3:1"
+          },
+          "key": "element:hunt:G3:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "G4",
+      "sha256": "86997a842a4d9fa3f6139446d13ec9278d649d4621fa73669cd34987d4ef368d",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Anchor",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "element",
+            "elementId": "hunt:G4:1"
+          },
+          "key": "element:hunt:G4:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "T1",
+      "sha256": "d638e8eb2edd27e7f29951810fb54b4859741ee6dd3df5dba5d7800d7454682a",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "width",
+        "range": {
+          "from": 12,
+          "to": 17
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "typed",
+            "bindingId": "binding:hunt:T1:1"
+          },
+          "key": "typed:binding:hunt:T1:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "T2",
+      "sha256": "544d4aeed3c936ad4137ea42d7a75a662afe193fb907c1e691ec3817b0686404",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "widths",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "typed",
+            "bindingId": "binding:hunt:T2:1"
+          },
+          "key": "typed:binding:hunt:T2:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "T3",
+      "sha256": "ba3c6170cf72cc346598418f170f4f9ab44af03f938fbb7c2156ca28dfec99c0",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Anchor",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "module",
+            "target": {
+              "kind": "moduleSource",
+              "statementId": "hunt:T3:1"
+            }
+          },
+          "key": "module:moduleSource:hunt:T3:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "T4",
+      "sha256": "2057dfba6410f2f0745437baa2c54add99f16d51c26b3232602d154d38125866",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "width",
+        "range": {
+          "from": 70,
+          "to": 75
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "module",
+            "target": {
+              "kind": "moduleSource",
+              "statementId": "hunt:T4:3"
+            }
+          },
+          "key": "module:moduleSource:hunt:T4:3"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "M1",
+      "sha256": "75056c848ac1df68944c7533f0bf8957140d248c4275f198c3f74a445e0cd344",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Pattern",
+        "range": {
+          "from": 13,
+          "to": 20
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "module",
+            "target": {
+              "kind": "moduleDefinition",
+              "statementId": "hunt:M1:1"
+            }
+          },
+          "key": "module:moduleDefinition:hunt:M1:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "M2",
+      "sha256": "75056c848ac1df68944c7533f0bf8957140d248c4275f198c3f74a445e0cd344",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "seed",
+        "range": {
+          "from": 21,
+          "to": 25
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "module",
+            "target": {
+              "kind": "moduleParameter",
+              "slot": {
+                "definitionStatementId": "hunt:M2:1",
+                "parameterIndex": 0
+              }
+            }
+          },
+          "key": "module:parameter:hunt:M2:1:0"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "M3",
+      "sha256": "75056c848ac1df68944c7533f0bf8957140d248c4275f198c3f74a445e0cd344",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Left",
+        "range": {
+          "from": 108,
+          "to": 112
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "module",
+            "target": {
+              "kind": "moduleInstance",
+              "statementId": "hunt:M3:4"
+            }
+          },
+          "key": "module:moduleInstance:hunt:M3:4"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "M4",
+      "sha256": "75056c848ac1df68944c7533f0bf8957140d248c4275f198c3f74a445e0cd344",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Tip",
+        "range": {
+          "from": 52,
+          "to": 55
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "module",
+            "target": {
+              "kind": "moduleSource",
+              "statementId": "hunt:M4:2"
+            }
+          },
+          "key": "module:moduleSource:hunt:M4:2"
+        }
+      ],
+      "errors": []
+    }
+  ]
+}

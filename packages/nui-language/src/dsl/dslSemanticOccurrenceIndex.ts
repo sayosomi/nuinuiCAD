@@ -248,6 +248,33 @@ const addTypedOccurrences = (
         (scalarExpressionTypeOfDslValueType(binding.declaredType) === null && !isNonGeometryArray)) continue;
     addPhysicalOccurrence(add, compiled, binding.statementIndex, binding.nameSpan, { kind: "typed", bindingId: binding.id }, "declaration");
   }
+  const addCollectionReferences = (statementIndex: number, expression: TypedScalarExpression): void => {
+    if (expression.kind === "collectionIndex") {
+      const binding = expression.collectionValueId
+        ? analysis.catalog.bindingsById.get(bindingIdForStableStatementId(expression.collectionValueId))
+        : undefined;
+      if (binding && isDslArrayValueType(binding.declaredType)) {
+        addPhysicalOccurrence(add, compiled, statementIndex, expression.nameSpan, { kind: "typed", bindingId: binding.id }, "reference");
+      }
+      addCollectionReferences(statementIndex, expression.index);
+    } else if (expression.kind === "unary") addCollectionReferences(statementIndex, expression.operand);
+    else if (expression.kind === "binary") {
+      addCollectionReferences(statementIndex, expression.left);
+      addCollectionReferences(statementIndex, expression.right);
+    } else if (expression.kind === "group") addCollectionReferences(statementIndex, expression.expression);
+    else if (expression.kind === "valueIf") {
+      addCollectionReferences(statementIndex, expression.condition);
+      addCollectionReferences(statementIndex, expression.thenBranch);
+      addCollectionReferences(statementIndex, expression.elseBranch);
+    } else if (expression.kind === "valueMatch") {
+      addCollectionReferences(statementIndex, expression.scrutinee);
+      for (const arm of expression.arms) addCollectionReferences(statementIndex, arm.expression);
+    } else if (expression.kind === "call") {
+      for (const argument of expression.args) {
+        if (argument.kind === "scalar") addCollectionReferences(statementIndex, argument.expression);
+      }
+    }
+  };
   const addExpression = (statementIndex: number, expression: TypedScalarExpression) => {
     for (const reference of referencesIn(expression)) {
       if (!reference.bindingId) continue;
@@ -257,6 +284,7 @@ const addTypedOccurrences = (
         bindingId: reference.bindingId
       }, "reference");
     }
+    addCollectionReferences(statementIndex, expression);
     addTypedGeometryPropertyOccurrences(compiled, add, statementIndex, expression, addQualifiedPathOccurrences);
   };
   for (const statement of compiled.scalarProgram?.statements ?? []) {
@@ -339,6 +367,12 @@ const addTypedOccurrences = (
         : null;
       if (physical && !isSyntheticRecordBinding(reference.bindingId)) add("reference", physical.from, physical.to, { kind: "typed", bindingId: reference.bindingId });
     }
+  }
+  // Root collection-index numeric inputs are lowered through the Module
+  // runtime too. Their typed spans still belong to the authored statement.
+  for (const { elementId, binding } of compiled.materializedNumericBindings ?? []) {
+    const statementIndex = compiled.statementMap?.byElementId.get(elementId)?.statementIndex;
+    if (statementIndex !== undefined && binding.typedExpression) addCollectionReferences(statementIndex, binding.typedExpression);
   }
 };
 
