@@ -31,6 +31,7 @@ import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryReferenceSemantic, ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
+  moduleCarryBindingIdFor,
   pathKey,
   sourceAliasForTarget,
   recordFieldValueSourceFor,
@@ -46,6 +47,7 @@ import {
   type GeometryAlias,
   type InstanceContext
 } from "./moduleGeometryRuntimeLowering";
+import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
 import {
   buildSourceLexicalNamespaceIndex,
   resolveSourceLexicalPath,
@@ -925,6 +927,26 @@ export const buildModuleGeometryArrayRuntime = ({
             }
           }
         : null;
+      sourceValueCache.set(key, value);
+      return value;
+    }
+
+    if (semantic.value.kind === "alias" && semantic.value.targetValueId.startsWith("carry-collection:")) {
+      const geometryType = semantic.value.type.elementType;
+      const sourceBindingId = semantic.value.targetValueId.slice("carry-collection:".length);
+      if (!geometryType || !sourceBindingId) {
+        sourceValueCache.set(key, null);
+        return null;
+      }
+      const value: RuntimeArrayValue = {
+        type: semantic.type,
+        members: [],
+        collection: {
+          kind: "carryReference",
+          collectionValueId: immutableCarryCollectionValueId(moduleCarryBindingIdFor(currentPath, sourceBindingId)),
+          geometryType
+        }
+      };
       sourceValueCache.set(key, value);
       return value;
     }

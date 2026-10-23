@@ -942,11 +942,21 @@ export const evaluateElements = (
           scalarBindingResolver.resolveOptionalMember!(target, type, evaluationSourceOrder)
       } : {})
     });
-    const materializeCollectionNode = (node: import("../types/geometry").GeometryInputCollectionNode): GeometryInputTarget[] | null => {
+    const materializeCollectionNode = (
+      node: import("../types/geometry").GeometryInputCollectionNode,
+      seen: ReadonlySet<string> = new Set()
+    ): GeometryInputTarget[] | null => {
       if (node.kind === "none") return null;
       if (node.kind === "leaf") {
         const targets = node.targets.map((target) => materialize(target));
         return targets.some((target) => target === null) ? null : targets as GeometryInputTarget[];
+      }
+      if (node.kind === "carryReference") {
+        if (seen.has(node.collectionValueId)) return null;
+        const sourceNode = geometryCollectionNodesByValueId.get(node.collectionValueId);
+        return sourceNode
+          ? materializeCollectionNode(sourceNode, new Set([...seen, node.collectionValueId]))
+          : null;
       }
       if (node.kind === "geometryValueMap") {
         const collectionResolvers = {
@@ -979,11 +989,11 @@ export const evaluateElements = (
         const environment = scalarEnvironmentFor(node.sourceOrder);
         const condition = evaluateTypedExpression(node.condition, environment);
         if (condition.status !== "ok" || condition.value.kind !== "boolean") return null;
-        return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch);
+        return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch, seen);
       }
       if (node.kind === "coalesce") {
-        const left = materializeCollectionNode(node.leftBranch);
-        return left ?? materializeCollectionNode(node.rightBranch);
+        const left = materializeCollectionNode(node.leftBranch, seen);
+        return left ?? materializeCollectionNode(node.rightBranch, seen);
       }
       const scrutinee = evaluateTypedExpression(node.scrutinee, scalarEnvironmentFor(node.sourceOrder));
       if (scrutinee.status !== "ok") return null;
@@ -992,18 +1002,26 @@ export const evaluateElements = (
         : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
       if (label === undefined) return null;
       const arm = node.arms.find((candidate) => candidate.label === label);
-      return arm ? materializeCollectionNode(arm.value) : null;
+      return arm ? materializeCollectionNode(arm.value, seen) : null;
     };
     const containsDeferredGeometryValueMap = (
-      node: import("../types/geometry").GeometryInputCollectionNode
+      node: import("../types/geometry").GeometryInputCollectionNode,
+      seen: ReadonlySet<string> = new Set()
     ): boolean => {
       if (node.kind === "geometryValueMap") return true;
-      if (node.kind === "if") {
-        return containsDeferredGeometryValueMap(node.thenBranch) || containsDeferredGeometryValueMap(node.elseBranch);
+      if (node.kind === "carryReference") {
+        if (seen.has(node.collectionValueId)) return false;
+        const sourceNode = geometryCollectionNodesByValueId.get(node.collectionValueId);
+        return sourceNode
+          ? containsDeferredGeometryValueMap(sourceNode, new Set([...seen, node.collectionValueId]))
+          : false;
       }
-      if (node.kind === "match") return node.arms.some((arm) => containsDeferredGeometryValueMap(arm.value));
+      if (node.kind === "if") {
+        return containsDeferredGeometryValueMap(node.thenBranch, seen) || containsDeferredGeometryValueMap(node.elseBranch, seen);
+      }
+      if (node.kind === "match") return node.arms.some((arm) => containsDeferredGeometryValueMap(arm.value, seen));
       if (node.kind === "coalesce") {
-        return containsDeferredGeometryValueMap(node.leftBranch) || containsDeferredGeometryValueMap(node.rightBranch);
+        return containsDeferredGeometryValueMap(node.leftBranch, seen) || containsDeferredGeometryValueMap(node.rightBranch, seen);
       }
       return false;
     };
@@ -2599,6 +2617,18 @@ export const evaluateElements = (
         if (node.kind === "leaf") {
           const targets = node.targets.map(target => captureGeometryCollectionTarget(target, nodes));
           return targets.every((target): target is NonNullable<typeof target> => target !== undefined) ? { ...node, targets } : undefined;
+        }
+        if (node.kind === "carryReference") {
+          if (seen.has(node.collectionValueId)) return undefined;
+          const sourceNode = nodes.get(node.collectionValueId);
+          return sourceNode
+            ? captureGeometryCollectionNode(
+                sourceNode,
+                nodes,
+                runtimeGeneration,
+                new Set([...seen, node.collectionValueId])
+              )
+            : undefined;
         }
         if (node.kind === "geometryValueMap") {
           if (node.source.kind === "node") return node;

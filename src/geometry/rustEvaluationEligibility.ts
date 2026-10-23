@@ -143,6 +143,8 @@ const referencesRustSupportedLineCollectionNode = (
   ? true
   : node.kind === "leaf"
     ? node.targets.every((target) => referencesRustSupportedLineTargetValue(target, elementsById))
+    : node.kind === "carryReference"
+      ? node.geometryType === "line" || node.geometryType === "path"
     : node.kind === "geometryValueMap"
       ? node.geometryType === "line" || node.geometryType === "path"
     : node.kind === "if"
@@ -220,6 +222,8 @@ const referencesRustSupportedPointCollectionNode = (
   ? true
   : node.kind === "leaf"
     ? node.targets.every((target) => referencesRustSupportedPointTargetValue(target, elementsById))
+    : node.kind === "carryReference"
+      ? node.geometryType === "point"
     : node.kind === "geometryValueMap"
       ? node.geometryType === "point"
     : node.kind === "if"

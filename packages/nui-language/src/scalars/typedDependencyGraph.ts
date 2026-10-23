@@ -663,11 +663,22 @@ type GeometryValueInputDependency = {
 };
 
 const geometryValueOccurrencesInInput = (
-  input: GeometryInputTarget | readonly GeometryInputTarget[]
+  input: GeometryInputTarget | readonly GeometryInputTarget[],
+  nodesByValueId: ReadonlyMap<string, GeometryInputCollectionNode> = new Map()
 ): readonly GeometryValueInputDependency[] => {
   const dependencies: GeometryValueInputDependency[] = [];
+  const activeCollectionIds = new Set<string>();
   const visitCollection = (node: GeometryInputCollectionNode, guards: readonly TypedDependencyActivationGuard[]): void => {
     if (node.kind === "leaf") node.targets.forEach((target) => visitTarget(target, guards));
+    else if (node.kind === "carryReference") {
+      if (activeCollectionIds.has(node.collectionValueId)) return;
+      const sourceNode = nodesByValueId.get(node.collectionValueId);
+      if (sourceNode) {
+        activeCollectionIds.add(node.collectionValueId);
+        visitCollection(sourceNode, guards);
+        activeCollectionIds.delete(node.collectionValueId);
+      }
+    }
     else if (node.kind === "if") {
       const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
       const controllerId = `geometry-input:if:${node.condition.span.start}`;
@@ -736,6 +747,17 @@ const geometryInputTargetsInCollectionNode = (
     if (current.kind === "leaf") {
       const targets = index === undefined ? current.targets : [current.targets[index]].filter((target) => target !== undefined);
       targets.forEach((target) => dependencies.push({ target, guards }));
+      return;
+    }
+    if (current.kind === "carryReference") {
+      if (!activeValues.has(current.collectionValueId)) {
+        const sourceNode = nodesByValueId.get(current.collectionValueId);
+        if (sourceNode) {
+          activeValues.add(current.collectionValueId);
+          visit(sourceNode, guards, index);
+          activeValues.delete(current.collectionValueId);
+        }
+      }
       return;
     }
     if (current.kind === "geometryValueMap") {
@@ -1275,7 +1297,7 @@ export const buildTypedDependencyGraph = ({
       for (const [parameterKey, target] of targetMap) {
         if (scalarOwnedParameterKeys.has(parameterKey)) continue;
         collectStructuredGeometryDependencies(target, structuredDependencies);
-        for (const dependency of geometryValueOccurrencesInInput(target)) {
+        for (const dependency of geometryValueOccurrencesInInput(target, geometryCollectionNodesByValueId)) {
           deferredGeometryValueEdges.push({
             from,
             occurrence: dependency.occurrence,
@@ -1705,7 +1727,7 @@ export const buildTypedDependencyGraph = ({
       addGeometryCollectionOwnerDependency(from, target.target.collectionValueId, guards, occurrenceNamespace);
       addScalarProgramDependencies(from, target.target.index, guards, occurrenceNamespace, ignoredBindingIds);
       const input = target.target;
-      for (const dependency of geometryValueOccurrencesInInput(input)) {
+      for (const dependency of geometryValueOccurrencesInInput(input, geometryCollectionNodesByValueId)) {
         const mergedGuards = [...guards, ...dependency.guards];
         addGeometryValueDependency(from, dependency.occurrence, null, mergedGuards, occurrenceNamespace);
       }

@@ -1674,7 +1674,20 @@ export const compileDslDocument = (
     let node: GeometryInputCollectionNode | null = null;
     if (value?.kind === "none") node = { kind: "none" };
     else if (value?.kind === "alias") {
-      node = geometryCollectionNodeForValueId(value.targetValueId, nextSeen);
+      if (value.targetValueId.startsWith("carry-collection:")) {
+        const carryBindingId = value.targetValueId.slice("carry-collection:".length);
+        const geometryType = "type" in value ? value.type.elementType : null;
+        node = carryBindingId && geometryType &&
+          (carryBindingId.startsWith("binding:") || carryBindingId.startsWith("module-binding:"))
+          ? {
+              kind: "carryReference",
+              collectionValueId: value.targetValueId,
+              geometryType
+            }
+          : null;
+      } else {
+        node = geometryCollectionNodeForValueId(value.targetValueId, nextSeen);
+      }
     } else if (value?.kind === "literal") {
       const targets = value.members.map((member) => geometryTargetForArrayMember(member.target)).filter(
         (target): target is NonNullable<typeof target> => target !== null

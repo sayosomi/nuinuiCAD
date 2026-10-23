@@ -193,6 +193,31 @@ fn resolve_geometry_collection_endpoint_node_member(
                 }
             }
         }
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            ..
+        } => {
+            if !seen_value_ids.insert(collection_value_id.clone()) {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            }
+            let result = state
+                .geometry_collection_nodes
+                .get(collection_value_id)
+                .cloned()
+                .ok_or_else(|| "evaluation-collection-index-unavailable".to_owned())
+                .and_then(|source_node| {
+                    resolve_geometry_collection_endpoint_node_member(
+                        source_node.as_ref(),
+                        index,
+                        resolver,
+                        state,
+                        _current_source_order,
+                        seen_value_ids,
+                    )
+                });
+            seen_value_ids.remove(collection_value_id);
+            result
+        }
         GeometryInputCollectionNode::GeometryValueMap {
             source,
             source_statement_id,
@@ -400,6 +425,31 @@ fn resolve_geometry_collection_node_member(
                     Err("evaluation-collection-index-unavailable".to_owned())
                 }
             }
+        }
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            ..
+        } => {
+            if !seen_value_ids.insert(collection_value_id.clone()) {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            }
+            let result = state
+                .geometry_collection_nodes
+                .get(collection_value_id)
+                .cloned()
+                .ok_or_else(|| "evaluation-collection-index-unavailable".to_owned())
+                .and_then(|source_node| {
+                    resolve_geometry_collection_node_member(
+                        source_node.as_ref(),
+                        index,
+                        resolver,
+                        state,
+                        current_source_order,
+                        seen_value_ids,
+                    )
+                });
+            seen_value_ids.remove(collection_value_id);
+            result
         }
         GeometryInputCollectionNode::GeometryValueMap {
             source,
@@ -740,6 +790,37 @@ pub(crate) fn decode_collection_node(
                 )));
             }
             Ok(GeometryInputCollectionNode::Leaf { targets })
+        }
+        "carryReference" => {
+            reject_unexpected_fields(
+                object,
+                &["kind", "collectionValueId", "geometryType"],
+                context,
+            )?;
+            let collection_value_id = non_empty_string(object, "collectionValueId", context)?;
+            let source_binding_id = collection_value_id.strip_prefix("carry-collection:");
+            if !source_binding_id.is_some_and(|value| {
+                value
+                    .strip_prefix("binding:")
+                    .is_some_and(|binding_id| !binding_id.is_empty())
+                    || value
+                        .strip_prefix("module-binding:")
+                        .is_some_and(|binding_id| !binding_id.is_empty())
+            }) {
+                return Err(invalid(format!(
+                    "{context}.collectionValueId must be a canonical carry collection identity"
+                )));
+            }
+            let geometry_type = non_empty_string(object, "geometryType", context)?;
+            if !["point", "line", "path"].contains(&geometry_type.as_str()) {
+                return Err(invalid(format!(
+                    "{context}.geometryType must be point, line, or path"
+                )));
+            }
+            Ok(GeometryInputCollectionNode::CarryReference {
+                collection_value_id,
+                geometry_type,
+            })
         }
         "geometryValueMap" => {
             reject_unexpected_fields(
@@ -1453,26 +1534,46 @@ fn point_anchor_for_target(
     }
 }
 
-fn contains_deferred_geometry_value_map(node: &GeometryInputCollectionNode) -> bool {
+fn contains_deferred_geometry_value_map(
+    node: &GeometryInputCollectionNode,
+    state: &EvaluationState,
+    seen_value_ids: &mut HashSet<String>,
+) -> bool {
     match node {
         GeometryInputCollectionNode::GeometryValueMap { .. } => true,
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            ..
+        } => {
+            if !seen_value_ids.insert(collection_value_id.clone()) {
+                return false;
+            }
+            let found = state
+                .geometry_collection_nodes
+                .get(collection_value_id)
+                .is_some_and(|source_node| {
+                    contains_deferred_geometry_value_map(source_node, state, seen_value_ids)
+                });
+            seen_value_ids.remove(collection_value_id);
+            found
+        }
         GeometryInputCollectionNode::If {
             then_branch,
             else_branch,
             ..
         } => {
-            contains_deferred_geometry_value_map(then_branch)
-                || contains_deferred_geometry_value_map(else_branch)
+            contains_deferred_geometry_value_map(then_branch, state, seen_value_ids)
+                || contains_deferred_geometry_value_map(else_branch, state, seen_value_ids)
         }
         GeometryInputCollectionNode::Match { arms, .. } => arms
             .iter()
-            .any(|(_, branch)| contains_deferred_geometry_value_map(branch)),
+            .any(|(_, branch)| contains_deferred_geometry_value_map(branch, state, seen_value_ids)),
         GeometryInputCollectionNode::Coalesce {
             left_branch,
             right_branch,
         } => {
-            contains_deferred_geometry_value_map(left_branch)
-                || contains_deferred_geometry_value_map(right_branch)
+            contains_deferred_geometry_value_map(left_branch, state, seen_value_ids)
+                || contains_deferred_geometry_value_map(right_branch, state, seen_value_ids)
         }
         GeometryInputCollectionNode::None | GeometryInputCollectionNode::Leaf { .. } => false,
     }
@@ -1484,6 +1585,22 @@ fn materialize_collection_node(
     state: &mut EvaluationState,
     current_source_order: Option<f64>,
 ) -> Result<Vec<GeometryInputTarget>, String> {
+    materialize_collection_node_with_seen(
+        node,
+        resolver,
+        state,
+        current_source_order,
+        &mut HashSet::new(),
+    )
+}
+
+fn materialize_collection_node_with_seen(
+    node: &GeometryInputCollectionNode,
+    resolver: Option<&dyn ScalarDocumentBindingResolver>,
+    state: &mut EvaluationState,
+    current_source_order: Option<f64>,
+    seen_value_ids: &mut HashSet<String>,
+) -> Result<Vec<GeometryInputTarget>, String> {
     match node {
         GeometryInputCollectionNode::None => {
             Err("evaluation-collection-index-unavailable".to_owned())
@@ -1493,6 +1610,30 @@ fn materialize_collection_node(
             .map(|target| materialize_target(target, resolver, state, current_source_order, false))
             .collect::<Result<Vec<_>, _>>()
             .map(|groups| groups.into_iter().flatten().collect()),
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            ..
+        } => {
+            if !seen_value_ids.insert(collection_value_id.clone()) {
+                return Err("evaluation-collection-index-unavailable".to_owned());
+            }
+            let result = state
+                .geometry_collection_nodes
+                .get(collection_value_id)
+                .cloned()
+                .ok_or_else(|| "evaluation-collection-index-unavailable".to_owned())
+                .and_then(|source_node| {
+                    materialize_collection_node_with_seen(
+                        source_node.as_ref(),
+                        resolver,
+                        state,
+                        current_source_order,
+                        seen_value_ids,
+                    )
+                });
+            seen_value_ids.remove(collection_value_id);
+            result
+        }
         GeometryInputCollectionNode::GeometryValueMap { source, .. } => {
             let Some(resolver) = resolver else {
                 return Err("evaluation-binding-unavailable".to_owned());
@@ -1546,11 +1687,12 @@ fn materialize_collection_node(
                 ScalarEvaluation::Ok {
                     value: ScalarValue::Boolean(value),
                     ..
-                } => materialize_collection_node(
+                } => materialize_collection_node_with_seen(
                     if value { then_branch } else { else_branch },
                     Some(resolver),
                     state,
                     current_source_order,
+                    seen_value_ids,
                 ),
                 ScalarEvaluation::Error { issue_code, .. } => Err(issue_code),
                 ScalarEvaluation::Ok { .. } => {
@@ -1576,17 +1718,33 @@ fn materialize_collection_node(
                 .iter()
                 .find(|(candidate, _)| candidate == &label)
                 .ok_or_else(|| "evaluation-runtime-value-type-mismatch".to_owned())?;
-            materialize_collection_node(branch, Some(resolver), state, current_source_order)
+            materialize_collection_node_with_seen(
+                branch,
+                Some(resolver),
+                state,
+                current_source_order,
+                seen_value_ids,
+            )
         }
         GeometryInputCollectionNode::Coalesce {
             left_branch,
             right_branch,
         } => {
-            match materialize_collection_node(left_branch, resolver, state, current_source_order) {
+            match materialize_collection_node_with_seen(
+                left_branch,
+                resolver,
+                state,
+                current_source_order,
+                seen_value_ids,
+            ) {
                 Ok(value) => Ok(value),
-                Err(_) => {
-                    materialize_collection_node(right_branch, resolver, state, current_source_order)
-                }
+                Err(_) => materialize_collection_node_with_seen(
+                    right_branch,
+                    resolver,
+                    state,
+                    current_source_order,
+                    seen_value_ids,
+                ),
             }
         }
     }
@@ -1884,32 +2042,36 @@ fn materialize_target(
                 }
                 ScalarEvaluation::Error { issue_code, .. } => return Err(issue_code),
             };
-            if let Some(value) = value
-                .as_ref()
-                .filter(|value| contains_deferred_geometry_value_map(value))
-            {
-                return materialize_deferred_collection_member(
-                    value,
-                    index,
-                    resolver,
-                    state,
-                    current_source_order,
-                );
-            }
-            if members.is_empty() {
-                if let Some(value) = state
-                    .geometry_collection_nodes
-                    .get(collection_value_id)
-                    .filter(|value| contains_deferred_geometry_value_map(value))
-                    .cloned()
-                {
+            if let Some(value) = value.as_ref() {
+                if contains_deferred_geometry_value_map(value, state, &mut HashSet::new()) {
                     return materialize_deferred_collection_member(
-                        value.as_ref(),
+                        value,
                         index,
                         resolver,
                         state,
                         current_source_order,
                     );
+                }
+            }
+            if members.is_empty() {
+                if let Some(value) = state
+                    .geometry_collection_nodes
+                    .get(collection_value_id)
+                    .cloned()
+                {
+                    if contains_deferred_geometry_value_map(
+                        value.as_ref(),
+                        state,
+                        &mut HashSet::new(),
+                    ) {
+                        return materialize_deferred_collection_member(
+                            value.as_ref(),
+                            index,
+                            resolver,
+                            state,
+                            current_source_order,
+                        );
+                    }
                 }
             }
             let selected = if let Some(value) = value {
@@ -2236,8 +2398,40 @@ pub(crate) fn resolve_line_geometry_inputs(
 
 #[cfg(test)]
 mod tests {
-    use super::decode_geometry_input_targets;
+    use super::{decode_collection_node, decode_geometry_input_targets};
     use serde_json::json;
+
+    #[test]
+    fn decodes_canonical_whole_carry_collection_references() {
+        let decoded = decode_collection_node(
+            &json!({
+                "kind": "carryReference",
+                "collectionValueId": "carry-collection:module-binding:[\"carry\",\"instance-one\",\"binding:owner:carry\"]",
+                "geometryType": "path"
+            }),
+            "geometryCollectionNodes[0].value",
+        )
+        .expect("valid typed carry collection reference");
+        assert!(matches!(
+            decoded,
+            super::super::types::GeometryInputCollectionNode::CarryReference {
+                collection_value_id,
+                geometry_type
+            } if collection_value_id.starts_with("carry-collection:module-binding:") && geometry_type == "path"
+        ));
+    }
+
+    #[test]
+    fn rejects_malformed_whole_carry_collection_references() {
+        for value in [
+            json!({ "kind": "carryReference", "collectionValueId": "carry-collection:binding:owner" }),
+            json!({ "kind": "carryReference", "collectionValueId": "other:binding:owner", "geometryType": "point" }),
+            json!({ "kind": "carryReference", "collectionValueId": "carry-collection:binding:owner", "geometryType": "number" }),
+            json!({ "kind": "carryReference", "collectionValueId": "carry-collection:binding:owner", "geometryType": "point", "members": [] }),
+        ] {
+            assert!(decode_collection_node(&value, "geometryCollectionNodes[0].value").is_err());
+        }
+    }
 
     #[test]
     fn decodes_drawable_and_immutable_value_targets_without_coercing_identity() {

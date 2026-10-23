@@ -12,6 +12,10 @@ pub(crate) enum GeometryInputCollectionNode {
     Leaf {
         targets: Vec<GeometryInputTarget>,
     },
+    CarryReference {
+        collection_value_id: String,
+        geometry_type: String,
+    },
     GeometryValueMap {
         source: GeometryInputCollectionSource,
         source_statement_id: String,

@@ -221,6 +221,8 @@ export type GeometryInputCollectionSource =
 export type GeometryInputCollectionNode =
   | { kind: "none" }
   | { kind: "leaf"; targets: readonly Exclude<GeometryInputTarget, { kind: "collectionIndex" } | { kind: "collectionValue" }>[] }
+  /** Resolves the active immutable collection snapshot by canonical identity. */
+  | { kind: "carryReference"; collectionValueId: string; geometryType: "point" | "line" | "path" }
   | {
       kind: "geometryValueMap";
       source: GeometryInputCollectionSource;
