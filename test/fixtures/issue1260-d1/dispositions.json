@@ -388,14 +388,14 @@
     {
       "id": "C-coordinate",
       "sha256": "306311f4de9be9a6331a39e6dc2ff03c946e411a7f282df6436eda157a0ee504",
-      "status": "UNRESOLVED",
-      "reason": "Root-only point collection materialization is Rust-ineligible and TS unavailable; no new family adjudicated."
+      "status": "PASS",
+      "reason": "Frozen TypeScript and ordinarily eligible persistent Rust both produce independent Observed = (3,4); repaired under #1446."
     },
     {
       "id": "C-coordinate-control",
       "sha256": "e77f13db40523a7dc7f91c0a6c6dada8697d746d776e63f96c260db8dd1766aa",
-      "status": "UNRESOLVED",
-      "reason": "Root-only named point collection materialization is Rust-ineligible and TS unavailable; not a passing control."
+      "status": "PASS",
+      "reason": "Frozen TypeScript and ordinarily eligible persistent Rust both preserve the selected named point and produce independent Observed = (3,4); repaired under #1446."
     },
     {
       "id": "C-R7-01",

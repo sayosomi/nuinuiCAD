@@ -1005,7 +1005,12 @@ fn rekey_materialized_points(
     }
 }
 
-fn evaluate_materialized_element(element: &Value, id: &ElementId, state: &mut EvaluationState) {
+fn evaluate_materialized_element(
+    element: &Value,
+    id: &ElementId,
+    local_variables: &(HashMap<String, f64>, HashMap<String, String>),
+    state: &mut EvaluationState,
+) {
     let target = state
         .geometry_input_targets
         .get(id)
@@ -1021,17 +1026,53 @@ fn evaluate_materialized_element(element: &Value, id: &ElementId, state: &mut Ev
         ));
         return;
     };
-    let Some(mut geometry) = resolve_geometry_input_target(state, target) else {
-        state.errors.push(geometry_error(
-            element,
-            format!(
-                "{} の source geometry が利用できません。依存先を確認してください。",
-                element_display_name(element)
-            ),
-        ));
+    let is_geometry_value = matches!(target, GeometryInputTarget::GeometryValue { .. });
+    let coordinate_anchor = match (element_type(element), target) {
+        (Some("materializedPoint"), GeometryInputTarget::Coordinate { anchor }) => {
+            Some(anchor.clone())
+        }
+        _ => None,
+    };
+    let is_coordinate = coordinate_anchor.is_some();
+    let source_error_count = state.errors.len();
+    let geometry = if let Some(anchor) = coordinate_anchor {
+        let x = anchor.get("x").and_then(|value| {
+            evaluate_numeric_or_push(
+                value,
+                state,
+                element,
+                &local_variables.0,
+                &local_variables.1,
+            )
+        });
+        let y = anchor.get("y").and_then(|value| {
+            evaluate_numeric_or_push(
+                value,
+                state,
+                element,
+                &local_variables.0,
+                &local_variables.1,
+            )
+        });
+        x.zip(y).and_then(|(x, y)| {
+            materialize_geometry_value(element, &json!({ "kind": "point", "x": x, "y": y }))
+        })
+    } else {
+        resolve_geometry_input_target(state, target)
+    };
+    let Some(mut geometry) = geometry else {
+        if state.errors.len() == source_error_count {
+            state.errors.push(geometry_error(
+                element,
+                format!(
+                    "{} の source geometry が利用できません。依存先を確認してください。",
+                    element_display_name(element)
+                ),
+            ));
+        }
         return;
     };
-    if matches!(target, GeometryInputTarget::GeometryValue { .. }) {
+    if is_geometry_value {
         let Some(materialized) = materialize_geometry_value(element, &geometry) else {
             state.errors.push(geometry_error(
                 element,
@@ -1043,7 +1084,7 @@ fn evaluate_materialized_element(element: &Value, id: &ElementId, state: &mut Ev
             return;
         };
         geometry = materialized;
-    } else {
+    } else if !is_coordinate {
         let source_id = geometry
             .get("elementId")
             .and_then(Value::as_str)
@@ -1118,7 +1159,7 @@ fn evaluate_element_by_type(
         }
         Some("group" | "forGroup" | "moduleInstance") => {}
         Some("materializedPoint" | "materializedLine" | "materializedPath") => {
-            evaluate_materialized_element(&element, &id, state)
+            evaluate_materialized_element(&element, &id, &local_variables, state)
         }
         Some("freePoint") => evaluate_free_point(&element, &local_variables, state),
         Some("offsetPoint") => evaluate_offset_point(&element, &local_variables, state),

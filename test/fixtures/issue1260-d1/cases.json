@@ -1055,8 +1055,7 @@
     ],
     "errors": [],
     "claims": "Coordinate collection members are immutable points; from materializes the selected point.",
-    "control": "C-coordinate-control",
-    "deferred": "Root-only point collection materialization is Rust-ineligible and TS unavailable; no new family adjudicated."
+    "control": "C-coordinate-control"
   },
   {
     "id": "C-coordinate-control",
@@ -1080,8 +1079,7 @@
     ],
     "errors": [],
     "claims": "Same point observed through a named geometry value.",
-    "control": "C-coordinate-control",
-    "deferred": "Root-only named point collection materialization is Rust-ineligible and TS unavailable; not a passing control."
+    "control": "C-coordinate-control"
   },
   {
     "id": "R4-01",
