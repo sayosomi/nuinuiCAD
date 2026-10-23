@@ -1176,6 +1176,26 @@ fn capture_geometry_collection_node(
                 })
                 .collect::<Option<Vec<_>>>()?,
         }),
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            ..
+        } => {
+            if !seen_value_ids.insert(collection_value_id.clone()) {
+                return None;
+            }
+            let captured = nodes.get(collection_value_id).and_then(|source_node| {
+                capture_geometry_collection_node(
+                    source_node,
+                    nodes,
+                    runtime_generation,
+                    seen_value_ids,
+                    state,
+                    resolver,
+                )
+            });
+            seen_value_ids.remove(collection_value_id);
+            captured
+        }
         GeometryInputCollectionNode::GeometryValueMap {
             source,
             source_statement_id,
@@ -1307,6 +1327,13 @@ fn clone_geometry_collection_node(
                 .iter()
                 .map(clone_geometry_input_target)
                 .collect::<Option<Vec<_>>>()?,
+        }),
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            geometry_type,
+        } => Some(GeometryInputCollectionNode::CarryReference {
+            collection_value_id: collection_value_id.clone(),
+            geometry_type: geometry_type.clone(),
         }),
         GeometryInputCollectionNode::GeometryValueMap {
             source,

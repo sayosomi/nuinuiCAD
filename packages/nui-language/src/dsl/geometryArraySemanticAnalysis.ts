@@ -1003,6 +1003,28 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
             }
           };
         }
+        if (lookup.declaration.kind === "carry" && lookup.declaration.statement.kind === "element") {
+          const carry = lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name);
+          const carryValueType = carry?.valueType;
+          const carryType = geometryArrayTypeOfDslValueType(carryValueType);
+          if (carry && carryValueType && carryType) {
+            return {
+              kind: "resolved",
+              targetValueId: immutableCarryCollectionValueId(bindingIdForStableStatementId(lookup.declaration.statementId)),
+              type: carryType,
+              valueType: carryValueType
+            };
+          }
+          return {
+            kind: "invalid",
+            diagnostic: {
+              code: "geometry-array-reference-not-array",
+              message: `参照先「${sourceText}」は geometry array ではありません。`,
+              presentation: { key: "diagnostic.geometry-array-reference-not-array", parameters: { reference: sourceText } },
+              span: sourceSpan
+            }
+          };
+        }
         const target = valuesByStatementIndex.get(lookup.declaration.statementIndex);
         if (!target) {
           return {

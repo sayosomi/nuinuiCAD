@@ -6694,6 +6694,11 @@ export const compileModuleScalarRuntime = ({
     node: RuntimeGeometryCollectionNode
   ): GeometryInputCollectionNode | null => {
     if (node.kind === "none") return { kind: "none" };
+    if (node.kind === "carryReference") return {
+      kind: "carryReference",
+      collectionValueId: node.collectionValueId,
+      geometryType: node.geometryType
+    };
     if (node.kind === "leaf") {
       const targets = node.aliases.map((alias) => {
         const lowered = geometryInputTargetForAlias(alias);
@@ -7973,6 +7978,7 @@ export const compileModuleScalarRuntime = ({
     }
     const replaceCollectionNode = (node: GeometryInputCollectionNode): GeometryInputCollectionNode => {
       if (node.kind === "none") return node;
+      if (node.kind === "carryReference") return node;
       if (node.kind === "leaf") return { kind: "leaf", targets: node.targets.map(replaceLazyGeometryMapPrograms) as Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" }>[] };
       if (node.kind === "geometryValueMap") return {
         ...node,

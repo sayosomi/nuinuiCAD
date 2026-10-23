@@ -39,6 +39,7 @@ export type GeometryAlias =
 export type RuntimeGeometryCollectionNode =
   | { kind: "none" }
   | { kind: "leaf"; aliases: readonly Exclude<GeometryAlias, { kind: "collectionIndex" }>[] }
+  | { kind: "carryReference"; collectionValueId: string; geometryType: "point" | "line" | "path" }
   | {
       kind: "geometryValueMap";
       sourceValueId: string;

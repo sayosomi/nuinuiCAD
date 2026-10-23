@@ -1,0 +1,95 @@
+{
+  "issue": "sayosomi/nuinuiCAD#1442",
+  "base": "70c792de3ea174ef340298501afad1ff7c245649",
+  "fixtureSource": "test/fixtures/issue1260-d1/cases.json",
+  "compilerReplay": {
+    "command": "ISSUE1260_MODE=prevalidate ISSUE1260_IDS=C-carry-if,C-carry-if-control npx vitest run test/issue1260ResidualD1Rust.integration.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism",
+    "result": "PASS: 2 tests; compiler-only replay completed"
+  },
+  "cases": [
+    {
+      "id": "C-carry-if",
+      "sourceSha256": "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb",
+      "oracle": {
+        "diagnostics": [],
+        "geometry": [{ "owner": "Observed", "shape": { "kind": "point", "x": 3, "y": 4 } }]
+      },
+      "observed": {
+        "status": "BASE_FAIL",
+        "diagnostics": [{
+          "code": "geometry-array-reference-not-array",
+          "message": "参照先「@Points」は geometry array ではありません。",
+          "line": 5,
+          "column": 39
+        }],
+        "compiledDocument": false,
+        "runtimePayload": "not produced because compilation failed"
+      }
+    },
+    {
+      "id": "C-carry-if-control",
+      "sourceSha256": "3198f44aae23c7bc33901fd38ee09a054394609e22cd98938096d7ba2c0056c2",
+      "oracle": {
+        "diagnostics": [],
+        "geometry": [{ "owner": "Observed", "shape": { "kind": "point", "x": 3, "y": 4 } }]
+      },
+      "observed": {
+        "status": "BASE_PASS",
+        "diagnostics": [],
+        "compiledDocument": true,
+        "runtimePayload": "not requested in the compiler-only baseline replay"
+      }
+    }
+  ],
+  "firstLoss": {
+    "compiler": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts: geometry-specific resolveArrayReference rejects the carry declaration at the selected @Points whole-collection reference.",
+    "modelAndPayload": "The compiler rejection prevents payload creation on unmodified Base. The retained prior typed-lookup-only experiment in test/fixtures/issue1260-d1/blocker.json records that after type admission, moduleGeometryArrayRuntime.ts lowerSemantic still cannot represent the alias as a carry snapshot, and GeometryInputCollectionNode has no whole-carry reference variant. The trial was reverted before this Base.",
+    "independentOracle": "The exact source and expected values remain in the frozen #1260 cases.json; this evidence does not alter that oracle."
+  },
+  "r1_04": {
+    "sourceSha256": "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d",
+    "oracle": {
+      "size": { "One": 2, "Two": 2 },
+      "geometry": [
+        { "owner": "One::OutA", "shape": { "kind": "point", "x": 17, "y": 2 } },
+        { "owner": "One::OutB", "shape": { "kind": "point", "x": 47, "y": 4 } },
+        { "owner": "One::OutC", "shape": { "kind": "point", "x": 7, "y": 1 } },
+        { "owner": "Two::OutA", "shape": { "kind": "point", "x": 51, "y": 2 } },
+        { "owner": "Two::OutB", "shape": { "kind": "point", "x": 81, "y": 4 } },
+        { "owner": "Two::OutC", "shape": { "kind": "point", "x": 41, "y": 1 } }
+      ],
+      "errors": []
+    }
+  },
+  "corrected": {
+    "C-carry-if": {
+      "status": "PASS",
+      "typescript": { "Observed": [3, 4], "errors": [], "geometryValueErrors": [] },
+      "persistentRust": { "Observed": [3, 4], "errors": [], "geometryValueErrors": [] },
+      "rustEligibility": true
+    },
+    "C-carry-if-control": {
+      "status": "PASS",
+      "typescript": "frozen oracle",
+      "persistentRust": "frozen oracle",
+      "rustEligibility": true
+    },
+    "R1-04": {
+      "status": "PASS",
+      "typescript": "all frozen geometry, size, and error oracles",
+      "persistentRust": "all frozen geometry, size, and error oracles",
+      "rustEligibility": true
+    },
+    "canonicalPayloadIdentity": {
+      "C-carry-if": "carryReference collectionValueId equals its compiler bindingVersions geometryCollectionCarries identity",
+      "R1-04": "two distinct module-binding carryReference identities equal their prepared carry-plan identities"
+    }
+  },
+  "focusedVerification": [
+    { "command": "npx vitest run test/issue1442GeometryCarryReference.integration.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism", "result": "PASS: 7 tests" },
+    { "command": "npx vitest run test/rootGeometryCollectionCarryValueForRust.integration.test.ts test/moduleGeometryCollectionCarryRust.integration.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism", "result": "PASS: 10 tests" },
+    { "command": "VITEST_MAX_WORKERS=1 ISSUE1428_IDS=H1-03,H2-07 npx vitest run test/issue1428TargetedStage7Rust.integration.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism", "result": "PASS: 3 tests including prevalidation and both controls" },
+    { "command": "VITEST_MAX_WORKERS=1 ISSUE1260_IDS=G-map-free-dynamic,B-min-forward-fixed,B-map-free-scalar-source,G-map-free-construct,R2-01,R2-02,R2-03,R2-04,C-R2-selected,R4-02,C-R4-arithmetic,R4-03,D-R4-literal,C-R4-literal,R6-02,R6-03,R6-04,C-R6-generated-failure,C-R6-complete-failed npx vitest run test/issue1260ResidualD1Rust.integration.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism", "result": "PASS: 19 accepted F1-F8 family/controller cells" },
+    { "command": "cargo test --manifest-path rust-evaluator/Cargo.toml whole_carry_collection_references", "result": "PASS: 2 Rust decoder tests" }
+  ]
+}
