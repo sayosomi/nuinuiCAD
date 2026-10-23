@@ -13,8 +13,10 @@ import { applyLineSplices } from "./textPatch";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { moduleSemanticStableFingerprint } from "./moduleSemanticRenameAnalysis";
 import type { ModuleScalarExpressionSemantic, ModuleGeometryReferenceSemantic } from "../dsl/moduleSemanticTypes";
-import { isDslGeometryValueType } from "../dsl/dslValueTypes";
+import { isDslArrayValueType, isDslGeometryValueType } from "../dsl/dslValueTypes";
 import type { DslArraySemanticValue, GeometryArraySemanticValue } from "../dsl/geometryArraySemantics";
+import { createDslSemanticOccurrenceIndex } from "../dsl/dslSemanticOccurrenceIndex";
+import { physicalToLogicalOffset } from "../dsl/logicalStatementSourceMap";
 
 export type { TypedRenameAnalysis, TypedRenameAnalysisRejected, TypedRenameSpan } from "../scalars/typedRenameAnalysis";
 
@@ -45,8 +47,30 @@ export const analyzeTypedBindingRenameInDocument = ({
   if (analysis.verdict === "rejected" || !compiled.moduleSemanticAnalysis) return analysis;
 
   const moduleOccurrences = moduleBindingOccurrences(compiled, targetBindingId, newName);
-  const combined = { ...analysis, occurrences: [...analysis.occurrences, ...moduleOccurrences] };
   const target = compiled.bindingAnalysis.catalog.bindingsById.get(targetBindingId);
+  const occurrences = [...analysis.occurrences, ...moduleOccurrences];
+  // Scalar dependency references do not include the source collection name of
+  // an indexed read. Reuse the source occurrence owner for those identities.
+  if (target && isDslArrayValueType(target.declaredType)) {
+    const seen = new Set(occurrences.map((entry) => `${entry.statementIndex}:${entry.span.start}:${entry.span.end}`));
+    for (const occurrence of createDslSemanticOccurrenceIndex(compiled).occurrences) {
+      if (occurrence.kind !== "reference" || occurrence.identity.kind !== "typed" || occurrence.identity.bindingId !== targetBindingId) continue;
+      const statementIndex = compiled.statements.findIndex((statement) =>
+        statement.physicalSpan.segments.some((segment) => occurrence.from >= segment.from && occurrence.to <= segment.to));
+      const statement = compiled.statements[statementIndex];
+      const logical = statement && compiled.spans.logicalStatementByRangeFrom.get(statement.documentRange.from);
+      const start = logical && physicalToLogicalOffset(compiled.spans.sourceMap, logical, occurrence.from);
+      const end = logical && physicalToLogicalOffset(compiled.spans.sourceMap, logical, occurrence.to);
+      if (start === undefined || start === null || end === undefined || end === null) {
+        return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: target.nameSpan!, name: target.name } };
+      }
+      const key = `${statementIndex}:${start}:${end}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      occurrences.push({ kind: "module-semantic", statementIndex, span: { start, end }, oldName: target.name, newName });
+    }
+  }
+  const combined = { ...analysis, occurrences };
   if (!target || !combined.declarationSpan) return combined;
   const spliceAnalysis = buildTypedRenameSplices(compiled.spans.sourceMap.source, compiled, [
     { statementIndex: target.statementIndex, span: combined.declarationSpan, oldName: target.name, newName },
@@ -62,7 +86,12 @@ export const analyzeTypedBindingRenameInDocument = ({
     return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: combined.declarationSpan, name: target.name } };
   }
   const after = compileDslDocument(candidateSource, { assignedStatementIds: compiled.statementMap?.statementIdByStatementIndex });
-  if (after.diagnostics.length > 0 || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled)) {
+  const collectionReferences = (document: CompiledDslDocument) => createDslSemanticOccurrenceIndex(document).occurrences
+    .filter((occurrence) => occurrence.identity.kind === "typed" &&
+      isDslArrayValueType(compiled.bindingAnalysis!.catalog.bindingsById.get(occurrence.identity.bindingId)?.declaredType))
+    .map((occurrence) => occurrence.identity.kind === "typed" ? `${occurrence.kind}:${occurrence.identity.bindingId}` : "");
+  if (after.diagnostics.length > 0 || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled) ||
+      (target && isDslArrayValueType(target.declaredType) && JSON.stringify(collectionReferences(after)) !== JSON.stringify(collectionReferences(compiled)))) {
     return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: combined.declarationSpan, name: target.name } };
   }
   return combined;
