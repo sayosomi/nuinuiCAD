@@ -42,7 +42,7 @@
   "domains": [
     {
       "domain": "R1",
-      "status": "UNRESOLVED",
+      "status": "BUG→FIXED→REPASS",
       "cells": [
         {
           "id": "R1-01",
@@ -71,14 +71,14 @@
         {
           "id": "R1-04",
           "sha256": "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d",
-          "status": "UNRESOLVED",
-          "reason": "Selected whole geometry carry has no identity-preserving reference node in the current closed branch model; shared model/payload authorization required.",
-          "boundary": "compiler",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Frozen oracle passed through the canonical compiler, TypeScript reference and normally eligible persistent Rust after the already merged #1442 repair; this is not a new #1260 defect family.",
+          "boundary": null,
           "failures": []
         }
       ],
-      "boundedConclusion": "R1-04 remains separately scoped under #1442.",
-      "semanticOracle": "Settled; blocked implementation/representation scope, not a claimed normative ambiguity."
+      "boundedConclusion": "All four primary cells dispositioned; R1-04 passed after the already merged #1442 repair, not as a new #1260 defect family.",
+      "semanticOracle": "Settled; the R1-04 repair was merged under #1442 / PR #1444 and was reverified here against unchanged frozen sources and oracles."
     },
     {
       "domain": "R2",
@@ -357,8 +357,8 @@
   ],
   "primarySummary": {
     "PASS": 24,
-    "UNRESOLVED": 1,
-    "BUG→FIXED→REPASS": 7
+    "UNRESOLVED": 0,
+    "BUG→FIXED→REPASS": 8
   },
   "additionalCases": [
     {
@@ -376,8 +376,8 @@
     {
       "id": "C-carry-if",
       "sha256": "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb",
-      "status": "UNRESOLVED",
-      "reason": "Compiler rejects the legal selected whole point[] carry; see R1-04 model boundary."
+      "status": "BUG→FIXED→REPASS",
+      "reason": "Frozen TypeScript and normally eligible persistent-Rust oracles passed after the already merged #1442 repair; this control is not a new #1260 defect family."
     },
     {
       "id": "C-carry-if-control",

@@ -1,8 +1,8 @@
 # Issue #1260 autonomous evaluator campaign
 
-Current reviewable checkpoint: sequential slice 2, Base `d8e8ad20a325e2d190561940f6f15a39347d910e`, branch `sayosomi/issue-1260-r2-d1`. **#1260 remains OPEN.** All R2/R4/R5/R6/R7 primary cells are now dispositioned. R1-04 and `C-carry-if` remain UNRESOLVED under separate [#1442](https://github.com/sayosomi/nuinuiCAD/issues/1442); no whole-collection representation workaround is introduced.
+Current reviewable checkpoint: final R1 disposition slice, Base `d20f1c14a7da9000de4bc2a2e8fe59aed6c6c48e`, branch `sayosomi/issue-1260-final-r1-d1`. **#1260 remains OPEN.** The frozen `R1-04` and `C-carry-if` cases pass through the canonical compiler, TypeScript reference and normally eligible persistent Rust after the already merged [#1442](https://github.com/sayosomi/nuinuiCAD/issues/1442) / [PR #1444](https://github.com/sayosomi/nuinuiCAD/pull/1444) repair. They are attributed to that existing repair, not a new #1260 defect family.
 
-The 32 primary cells comprise 24 PASS, 7 BUG→FIXED→REPASS, and 1 UNRESOLVED. R1 is unresolved; R2/R4/R6 are BUG→FIXED→REPASS; R3/R5/R7/R8 are PASS within their four-cell matrices. The two historical root-only coordinate controls also remain explicitly unresolved and skipped, without forced Rust eligibility.
+The 32 primary cells comprise 24 PASS, 8 BUG→FIXED→REPASS, and 0 UNRESOLVED. R1/R2/R4/R6 are BUG→FIXED→REPASS; R3/R5/R7/R8 are PASS within their four-cell matrices. The two historical root-only coordinate controls remain explicitly unresolved and skipped, without forced Rust eligibility.
 
 | New family | First incorrect producer | Base FAIL and adjacent Base PASS |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ All six newly counted families have exact frozen sources/oracles, independent Ba
 
 Exact accepted sources are charged once across both slices, including discarded accepted trials. The campaign started this slice at 24/96 and now retains 49/96 (25 newly accepted). No quota efficiency is asserted without attributable Human observations.
 
-Normal verification exercises all repaired cases and skips only the four explicit unresolved cases. Discovery mode reports observed failures instead of converting discovery runs into a green acceptance gate:
+Normal verification exercises the repaired cases and skips only the two explicit unresolved coordinate controls. Discovery mode reports observed failures instead of converting discovery runs into a green acceptance gate:
 
 ```sh
 ISSUE1260_MODE=discover ISSUE1260_EVIDENCE=/tmp/issue1260-replay VITEST_MAX_WORKERS=1 npx vitest run test/issue1260ResidualD1Rust.integration.test.ts
@@ -29,4 +29,4 @@ ISSUE1260_MODE=discover ISSUE1260_EVIDENCE=/tmp/issue1260-replay VITEST_MAX_WORK
 
 DSL impact stays within canonical lowering, dependencies and existing evaluator consumption/publication. Grammar, public semantics, source spans, identity, editor/host/persistence and architecture ownership remain unchanged, so the normative specification and implemented DSL Reference require no contract edits. Existing authored-stage, endpoint and carry-shadowing regressions remain intact. Human Manual E2E is Not Required.
 
-Next action: independent blocking review of the exact normally pushed HEAD, then protected PR/CI/integration. This agent creates no PR, self-approval, merge or Issue closure. #1442 remains separately authorized work after this checkpoint.
+Next action: independent blocking review of the exact normally pushed HEAD, then protected PR/CI/integration. This agent creates no PR, self-approval, merge or Issue closure. The #1442 repair is already closed and its provenance is retained in the final verification record.
