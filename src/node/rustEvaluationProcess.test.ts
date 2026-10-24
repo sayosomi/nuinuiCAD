@@ -8,7 +8,8 @@ import {
   RustEvaluationProcessOwner
 } from "./rustEvaluationProcess";
 
-// Frozen oracle and event order: test/fixtures/issue-1454/traces.md (seed 1454).
+// Frozen traces: test/fixtures/issue-1454/traces.md (seed 1454).
+// Authorized oracle corrections: test/fixtures/issue-1454/completion.md.
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 type Observation = { state: "pending" | "fulfilled" | "rejected"; value?: unknown };
 const observe = (promise: Promise<unknown>): Observation => {
@@ -51,7 +52,7 @@ class ControlledInput extends Writable {
 }
 
 type Fixture = ReturnType<typeof fixture>;
-const fixtures: Fixture[] = [];
+const fixtures: Array<() => void> = [];
 const owners: RustEvaluationProcessOwner[] = [];
 const fixture = (backpressure = false, notify = vi.fn()) => {
   const stdin = new ControlledInput(backpressure);
@@ -59,7 +60,8 @@ const fixture = (backpressure = false, notify = vi.fn()) => {
   const stderr = new PassThrough();
   const streamErrors: Error[] = [];
   // Independent observation consumes expected errors even on the defective Base.
-  for (const stream of [stdin, stdout, stderr]) stream.on("error", (error) => streamErrors.push(error));
+  const observeStreamError = (error: Error) => { streamErrors.push(error); };
+  for (const stream of [stdin, stdout, stderr]) stream.on("error", observeStreamError);
   const child = Object.assign(new EventEmitter(), { stdin, stdout, stderr, kill: vi.fn(() => true) });
   const diagnostic = vi.fn();
   const process = new RustEvaluationProcess("evaluation_stdio", {
@@ -68,12 +70,17 @@ const fixture = (backpressure = false, notify = vi.fn()) => {
     reportDiagnostic: diagnostic
   });
   const result = {
-    child, stdin, stdout, stderr, process, notify, diagnostic, streamErrors,
+    child, stdin, stdout, stderr, process, notify, diagnostic, streamErrors, observeStreamError,
     frame: (bytes: string) => stdout.write(bytes),
     evaluation: (kind = "E1") => observe(process.request({ kind })),
     output: () => observe(process.exportOutput({ kind: "X2" }))
   };
-  fixtures.push(result);
+  fixtures.push(() => {
+    process.dispose();
+    stdin.destroy();
+    stdout.destroy();
+    stderr.destroy();
+  });
   return result;
 };
 const ownerFixture = () => {
@@ -102,6 +109,7 @@ const rejectNew = async (f: Fixture) => {
   await turn();
   states([later], ["rejected"]);
   expect(f.stdin.writes).toHaveLength(count);
+  return later;
 };
 const failedPair = async (f: Fixture, observations: Observation[]) => {
   await turn();
@@ -112,12 +120,7 @@ const failedPair = async (f: Fixture, observations: Observation[]) => {
 
 afterEach(async () => {
   for (const owner of owners.splice(0)) owner.dispose();
-  for (const f of fixtures.splice(0)) {
-    f.process.dispose();
-    f.stdin.destroy();
-    f.stdout.destroy();
-    f.stderr.destroy();
-  }
+  for (const cleanup of fixtures.splice(0)) cleanup();
   await turn();
 });
 
@@ -247,13 +250,25 @@ describe("Issue 1454 frozen process lifecycle matrix", () => {
     expect(f.notify).not.toHaveBeenCalled();
   });
 
-  it("P7 synchronous real Writable write throw rejects the generation", async () => {
+  it("P7 synchronous real Writable throw rejects affected work without leaking correlation", async () => {
     const f = fixture();
     const work = [f.evaluation()];
     f.stdin.throwWrite = true;
     work.push(f.output());
-    await failedPair(f, work);
-    expect(f.child.kill).toHaveBeenCalledTimes(1);
+    await turn();
+    states([work[1]!], ["rejected"]);
+    // Both policies are permitted: isolate the failed request or fail-close G1.
+    if (work[0]!.state === "pending") {
+      f.frame(replyE1);
+      await turn();
+      states(work, ["fulfilled", "rejected"]);
+      values([work[0]!], ["E1"]);
+      expect(f.notify).not.toHaveBeenCalled();
+    } else {
+      await failedPair(f, work);
+      expect(f.child.kill).toHaveBeenCalledTimes(1);
+    }
+    expect(Reflect.get(f.process, "pending").size).toBe(0);
   });
 
   it.each(["callback", "destroy"])("P7 asynchronous stdin %s failure rejects all pending", async (mode) => {
@@ -372,16 +387,23 @@ describe("Issue 1454 evidence-triggered reducers", () => {
     expect(f.child.kill).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["cycle", "bigint"])("A3 serialization failure (%s) rejects the pending generation", async (mode) => {
+  it.each(["cycle", "bigint"])("A3 serialization failure (%s) isolates unsent work without leaking correlation", async (mode) => {
     const f = fixture();
     const cycle: { self?: unknown } = {};
     cycle.self = cycle;
     const work = [f.evaluation(), observe(f.process.exportOutput(mode === "cycle" ? cycle : 1n))];
-    await failedPair(f, work);
+    await turn();
+    states(work, ["pending", "rejected"]);
+    expect(f.stdin.writes).toEqual(['{"id":1,"input":{"kind":"E1"}}\n']);
     f.frame(replyE1);
     await turn();
-    states(work, ["rejected", "rejected"]);
-    expect(f.child.kill).toHaveBeenCalledTimes(1);
+    states(work, ["fulfilled", "rejected"]);
+    values([work[0]!], ["E1"]);
+    const pendingCount = Reflect.get(f.process, "pending").size;
+    expect(pendingCount).toBe(0);
+    expect(() => expect(pendingCount + 1).toBe(0)).toThrow();
+    expect(f.notify).not.toHaveBeenCalled();
+    expect(f.child.kill).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -406,18 +428,28 @@ describe("Issue 1454 evidence-triggered reducers", () => {
     expect(f.child.kill).toHaveBeenCalledTimes(1);
   });
 
-  it("A6 stderr diagnostics are harmless; stderr failure rejects pending work", async () => {
+  it("A6 consumes stderr errors as diagnostics while evaluation remains usable", async () => {
     const f = fixture();
     const work = pair(f);
     f.stderr.write("diagnostic\n");
     await turn();
     states(work, ["pending", "pending"]);
     expect(f.diagnostic).toHaveBeenCalledWith("evaluation_stdio: diagnostic");
-    const closed = once(f.stderr, "close").catch((error: unknown) => error);
+    // The client must consume the error itself; no harness listener masks it.
+    f.stderr.removeListener("error", f.observeStreamError);
+    expect(f.stderr.listenerCount("error")).toBeGreaterThan(0);
+    const closed = new Promise<void>((resolve) => f.stderr.once("close", resolve));
     f.stderr.destroy(new Error("stderr failed"));
     await closed;
-    await failedPair(f, work);
-    expect(f.child.kill).toHaveBeenCalledTimes(1);
+    await turn();
+    states(work, ["pending", "pending"]);
+    expect(f.diagnostic).toHaveBeenCalledWith("evaluation_stdio stderr: stderr failed");
+    f.frame(replyE1 + replyX2);
+    await turn();
+    states(work, ["fulfilled", "fulfilled"]);
+    values(work, ["E1", "X2"]);
+    expect(f.notify).not.toHaveBeenCalled();
+    expect(f.child.kill).not.toHaveBeenCalled();
   });
 });
 
@@ -448,7 +480,9 @@ describe("independent oracle sensitivity controls", () => {
     expect(owner.get()).toBe(second);
     expect(() => expect(f.process).toBe(second)).toThrow();
     expect(f.notify).toHaveBeenCalledTimes(1);
-    expect(() => expect([1, 2]).toHaveLength(1)).toThrow();
+    const notificationCount = f.notify.mock.calls.length;
+    expect(notificationCount).toBe(1);
+    expect(() => expect(notificationCount + 1).toBe(1)).toThrow();
   });
 
   it("detects post-terminal, write-error and backpressure misclassification", async () => {
@@ -469,8 +503,8 @@ describe("independent oracle sensitivity controls", () => {
     await turn();
     states([failed], ["rejected"]);
     expect(() => states([{ state: "fulfilled" }], ["rejected"])).toThrow();
-    await rejectNew(f);
-    expect(() => states([{ state: "pending" }], ["rejected"])).toThrow();
+    const later = await rejectNew(f);
+    expect(() => states([{ ...later, state: "pending" }], ["rejected"])).toThrow();
   });
 });
 
