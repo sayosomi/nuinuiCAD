@@ -335,6 +335,22 @@ const preferredUniverse = (
   occurrences: readonly MultiDocumentSemanticOccurrence[];
 } | null => {
   if (indexes.some((index) => !index.valid)) return null;
+  // A current view may replace saved ranges, but cannot make graphs built
+  // against incompatible saved dependencies into one coherent universe.
+  // Inspect the graph owners even when a view already replaced their ranges.
+  if (indexes.length > 1) {
+    const savedOwners = new Map<DocumentId, string>();
+    for (const index of indexes) {
+      for (const node of index.graph.nodes.values()) {
+        const source = node.artifact.source;
+        if (source.kind !== "dependency-saved") continue;
+        const key = sourceSnapshotKey(source);
+        const previous = savedOwners.get(source.documentId);
+        if (previous !== undefined && previous !== key) return null;
+        savedOwners.set(source.documentId, key);
+      }
+    }
+  }
   const candidatesByDocument = new Map<DocumentId, MultiDocumentSourceSnapshot[]>();
   for (const index of indexes) {
     for (const [documentId, source] of index.sourceByDocument) {
