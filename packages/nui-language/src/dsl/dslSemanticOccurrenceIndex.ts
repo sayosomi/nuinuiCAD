@@ -372,7 +372,7 @@ const addTypedOccurrences = (
   // runtime too. Their typed spans still belong to the authored statement.
   for (const { elementId, binding } of compiled.materializedNumericBindings ?? []) {
     const statementIndex = compiled.statementMap?.byElementId.get(elementId)?.statementIndex;
-    if (statementIndex !== undefined && binding.typedExpression) addCollectionReferences(statementIndex, binding.typedExpression);
+    if (statementIndex !== undefined && binding.typedExpression) addExpression(statementIndex, binding.typedExpression);
   }
 };
 
@@ -1225,7 +1225,7 @@ const addGeometryArrayConsumerOccurrences = (compiled: CompiledDslDocument, add:
 const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence) => {
   const analysis = compiled.moduleSemanticAnalysis ?? compiled.sourceSemanticAnalysis;
   if (!analysis) return;
-  const addGeometry = (statementIndex: number, reference: { nameSpan?: { start: number; end: number }; elementNameSpan?: { start: number; end: number }; propertySpan?: { start: number; end: number }; target: unknown }) => {
+  const addGeometry = (statementIndex: number, reference: { span?: { start: number; end: number }; nameSpan?: { start: number; end: number }; elementNameSpan?: { start: number; end: number }; propertySpan?: { start: number; end: number }; target: unknown }) => {
     const nameSpan = reference.nameSpan ?? reference.elementNameSpan;
     if (!nameSpan || !reference.target) return;
     const target = reference.target as ModuleSourceTarget;
@@ -1312,6 +1312,12 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
           : null;
     }
     addQualifiedPathOccurrences(compiled, add, statementIndex, nameSpan, finalTarget);
+    // Geometry value consumers retain the compiler-resolved checkpoint path
+    // beside the base owner. Project its tokens as well as the owner token.
+    if (finalTarget?.kind === "element" && "stagePath" in target && target.stagePath?.length && reference.span) {
+      addTransformationPropertyOccurrences(compiled, add, statementIndex, reference.span,
+        finalTarget.elementId, undefined, target.stagePath);
+    }
   };
   const addRecordFieldReference = (
     statementIndex: number,
