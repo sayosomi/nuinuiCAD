@@ -13,7 +13,7 @@ import { applyLineSplices } from "./textPatch";
 import { compileDslDocument } from "../dsl/dslDocument";
 import { moduleSemanticStableFingerprint } from "./moduleSemanticRenameAnalysis";
 import type { ModuleScalarExpressionSemantic, ModuleGeometryReferenceSemantic } from "../dsl/moduleSemanticTypes";
-import { isDslArrayValueType, isDslGeometryValueType } from "../dsl/dslValueTypes";
+import { isDslGeometryValueType } from "../dsl/dslValueTypes";
 import type { DslArraySemanticValue, GeometryArraySemanticValue } from "../dsl/geometryArraySemantics";
 import { createDslSemanticOccurrenceIndex } from "../dsl/dslSemanticOccurrenceIndex";
 import { physicalToLogicalOffset } from "../dsl/logicalStatementSourceMap";
@@ -49,9 +49,10 @@ export const analyzeTypedBindingRenameInDocument = ({
   const moduleOccurrences = moduleBindingOccurrences(compiled, targetBindingId, newName);
   const target = compiled.bindingAnalysis.catalog.bindingsById.get(targetBindingId);
   const occurrences = [...analysis.occurrences, ...moduleOccurrences];
-  // Scalar dependency references do not include the source collection name of
-  // an indexed read. Reuse the source occurrence owner for those identities.
-  if (target && isDslArrayValueType(target.declaredType)) {
+  // Lowered numeric inputs can carry both collection names and scalar index
+  // references outside the ordinary dependency occurrences. Reuse the source
+  // occurrence owner, retaining any existing shorthand expansion as a whole.
+  if (target) {
     const seen = new Set(occurrences.map((entry) => `${entry.statementIndex}:${entry.span.start}:${entry.span.end}`));
     for (const occurrence of createDslSemanticOccurrenceIndex(compiled).occurrences) {
       if (occurrence.kind !== "reference" || occurrence.identity.kind !== "typed" || occurrence.identity.bindingId !== targetBindingId) continue;
@@ -65,7 +66,8 @@ export const analyzeTypedBindingRenameInDocument = ({
         return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: target.nameSpan!, name: target.name } };
       }
       const key = `${statementIndex}:${start}:${end}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key) || occurrences.some((entry) => entry.statementIndex === statementIndex &&
+        entry.span.start <= start && end <= entry.span.end)) continue;
       seen.add(key);
       occurrences.push({ kind: "module-semantic", statementIndex, span: { start, end }, oldName: target.name, newName });
     }
@@ -86,12 +88,14 @@ export const analyzeTypedBindingRenameInDocument = ({
     return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: combined.declarationSpan, name: target.name } };
   }
   const after = compileDslDocument(candidateSource, { assignedStatementIds: compiled.statementMap?.statementIdByStatementIndex });
-  const collectionReferences = (document: CompiledDslDocument) => createDslSemanticOccurrenceIndex(document).occurrences
-    .filter((occurrence) => occurrence.identity.kind === "typed" &&
-      isDslArrayValueType(compiled.bindingAnalysis!.catalog.bindingsById.get(occurrence.identity.bindingId)?.declaredType))
+  // A newly collected index reference can be captured even when the Module
+  // fingerprint keeps the same collection target. Preserve every typed source
+  // identity, including unrelated references, across the physical candidate.
+  const typedReferences = (document: CompiledDslDocument) => createDslSemanticOccurrenceIndex(document).occurrences
+    .filter((occurrence) => occurrence.identity.kind === "typed")
     .map((occurrence) => occurrence.identity.kind === "typed" ? `${occurrence.kind}:${occurrence.identity.bindingId}` : "");
   if (after.diagnostics.length > 0 || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled) ||
-      (target && isDslArrayValueType(target.declaredType) && JSON.stringify(collectionReferences(after)) !== JSON.stringify(collectionReferences(compiled)))) {
+      JSON.stringify(typedReferences(after)) !== JSON.stringify(typedReferences(compiled))) {
     return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: combined.declarationSpan, name: target.name } };
   }
   return combined;

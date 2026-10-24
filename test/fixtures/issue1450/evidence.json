@@ -1,0 +1,959 @@
+{
+  "issue": 1450,
+  "base": "a4db8b4cac3f1354471bc6b8c3694bb7732de51c",
+  "budget": {
+    "primary": 12,
+    "additional": 8,
+    "acceptedTotal": 20,
+    "ceiling": 20,
+    "distinctSources": 17,
+    "prevalidationRejected": 1,
+    "focusedRegressionControls": 1
+  },
+  "oracleProvenance": "Sources, UTF-16 ranges, declaration identities, full reference/edit footprints, afterSource and numbers authored offline before production comparisons. Canonical compile legality precedes each query. No queried index or plan generated expected ranges. The hash covers normalized UTF-8 source; offsets are UTF-16.",
+  "oracleCorrections": [
+    "D1 move(point) prototype rejected by canonical compiler before query execution; replaced with legal unique-point source. Retained in prevalidation.json.",
+    "B3 output iteration order was not semantic; compare complete name/coordinate multiset. D3 generated display prefix is removed only for display-name comparison; exact source ranges, counts, coordinates and runtime origins remain checked.",
+    "X3 root final remains after first reverse; second reverse extends the named branch, not root. Corrected Control=(17,23) from normative branch ownership. No evaluator change.",
+    "Transformation Hover is null for stage value references outside transformation statements (X7 reference); declaration and branch-target positions are supported.",
+    "Initial harness assertion compared dummy assigned IDs on version/end/recipe statements. Canonical reconciliation guarantees are checked on actual lexical declarations, runtime element IDs and Module origins instead."
+  ],
+  "familyCounting": {
+    "novelEarliestOwnerGroups": 1,
+    "independentReducedLossMechanisms": 2,
+    "downstreamRenameProjectionRepairs": 1,
+    "explanation": "Both newly discovered failures first lose source occurrences in dslSemanticOccurrenceIndex.ts. Group by earliest semantic owner, rather than count failing providers/positions. Scalar index Rename additionally needs its already-authorized document adapter to consume the repaired index. Historical #1448 container-name fixes are regression controls, not discoveries."
+  },
+  "family": {
+    "owner": "packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts",
+    "losses": [
+      {
+        "id": "index-operand",
+        "cases": [
+          "X4",
+          "X6"
+        ],
+        "minimal": "X6",
+        "earliestFunction": "addTypedOccurrences",
+        "compilerInput": {
+          "elementId": "identity:X6:3",
+          "typedExpression": {
+            "kind": "collectionIndex",
+            "span": {
+              "start": 24,
+              "end": 35
+            },
+            "nameSpan": {
+              "start": 25,
+              "end": 31
+            },
+            "name": "values",
+            "collectionValueId": "identity:X6:1",
+            "collectionLength": 2,
+            "targetSourceOrder": 0,
+            "index": {
+              "kind": "reference",
+              "span": {
+                "start": 32,
+                "end": 34
+              },
+              "nameSpan": {
+                "start": 33,
+                "end": 34
+              },
+              "name": "i",
+              "bindingId": "binding:identity:X6:2",
+              "type": {
+                "kind": "number"
+              }
+            },
+            "type": {
+              "kind": "number"
+            }
+          },
+          "references": [
+            {
+              "kind": "reference",
+              "span": {
+                "start": 32,
+                "end": 34
+              },
+              "nameSpan": {
+                "start": 33,
+                "end": 34
+              },
+              "name": "i",
+              "bindingId": "binding:identity:X6:2",
+              "type": {
+                "kind": "number"
+              }
+            }
+          ]
+        },
+        "baseIndex": [
+          {
+            "from": 12,
+            "to": 18,
+            "kind": "declaration",
+            "identity": {
+              "kind": "typed",
+              "bindingId": "binding:identity:X6:1"
+            }
+          },
+          {
+            "from": 44,
+            "to": 45,
+            "kind": "declaration",
+            "identity": {
+              "kind": "typed",
+              "bindingId": "binding:identity:X6:2"
+            }
+          },
+          {
+            "from": 64,
+            "to": 65,
+            "kind": "declaration",
+            "identity": {
+              "kind": "element",
+              "elementId": "identity:X6:3"
+            }
+          },
+          {
+            "from": 83,
+            "to": 89,
+            "kind": "reference",
+            "identity": {
+              "kind": "typed",
+              "bindingId": "binding:identity:X6:1"
+            }
+          }
+        ],
+        "baseSelected": {
+          "range": {
+            "from": 91,
+            "to": 92
+          },
+          "definition": null,
+          "references": null,
+          "target": null,
+          "plan": {
+            "status": "rejected",
+            "rejection": {
+              "reason": "unavailable"
+            }
+          },
+          "hover": null,
+          "transformation": null
+        },
+        "indexOnlySelected": {
+          "range": {
+            "from": 91,
+            "to": 92
+          },
+          "definition": {
+            "referenceRange": {
+              "from": 91,
+              "to": 92
+            },
+            "declarationRange": {
+              "from": 44,
+              "to": 45
+            }
+          },
+          "references": {
+            "declarationRange": {
+              "from": 44,
+              "to": 45
+            },
+            "referenceRanges": [
+              {
+                "from": 91,
+                "to": 92
+              }
+            ]
+          },
+          "target": {
+            "sourceRevision": 7,
+            "oldName": "i",
+            "range": {
+              "from": 91,
+              "to": 92
+            }
+          },
+          "plan": {
+            "status": "rejected",
+            "rejection": {
+              "reason": "reference-resolution-change",
+              "family": "typed",
+              "referencedName": "i"
+            }
+          },
+          "hover": null,
+          "transformation": null
+        },
+        "downstreamOwner": "packages/nui-language/src/document/typedRenameAnalysis.ts::analyzeTypedBindingRenameInDocument",
+        "downstreamLoss": "The adapter supplemented source occurrences only for array targets; the scalar index binding was excluded. The compiler reference is already resolved. Supplement all proven typed occurrences, preserving containing shorthand expansions and final canonical recompile/fingerprint validation. Final canonical typed-occurrence identity sequence must also remain equal; collection-only validation allowed an inner scalar to capture a newly collected index reference.",
+        "nearbyBasePass": "X8: same i declaration, ordinary coordinate @i, full Definition/References/Rename PASS; A2 source-collection identity remains PASS.",
+        "fixedSelected": {
+          "range": {
+            "from": 91,
+            "to": 92
+          },
+          "definition": {
+            "referenceRange": {
+              "from": 91,
+              "to": 92
+            },
+            "declarationRange": {
+              "from": 44,
+              "to": 45
+            }
+          },
+          "references": {
+            "declarationRange": {
+              "from": 44,
+              "to": 45
+            },
+            "referenceRanges": [
+              {
+                "from": 91,
+                "to": 92
+              }
+            ]
+          },
+          "target": {
+            "sourceRevision": 7,
+            "oldName": "i",
+            "range": {
+              "from": 91,
+              "to": 92
+            }
+          },
+          "plan": {
+            "status": "ok",
+            "plan": {
+              "sourceRevision": 7,
+              "target": {
+                "sourceRevision": 7,
+                "oldName": "i",
+                "range": {
+                  "from": 91,
+                  "to": 92
+                }
+              },
+              "edits": [
+                {
+                  "from": 44,
+                  "to": 45,
+                  "expectedText": "i",
+                  "newText": "j"
+                },
+                {
+                  "from": 91,
+                  "to": 92,
+                  "expectedText": "i",
+                  "newText": "j"
+                }
+              ]
+            }
+          },
+          "hover": null,
+          "transformation": null
+        }
+      },
+      {
+        "id": "named-stage-value",
+        "cases": [
+          "X3",
+          "X7"
+        ],
+        "minimal": "X7",
+        "earliestFunction": "addModuleSemanticPathOccurrences/addGeometry",
+        "compilerInput": [
+          [
+            "identity:X7:3",
+            [
+              {
+                "parameterKey": "source",
+                "span": {
+                  "start": 23,
+                  "end": 33
+                },
+                "reference": {
+                  "source": "@L.s.start",
+                  "span": {
+                    "start": 23,
+                    "end": 33
+                  },
+                  "expectedGeometryKind": "point",
+                  "role": "derivedPoint",
+                  "target": {
+                    "kind": "sourceGeometry",
+                    "statementId": "identity:X7:1",
+                    "statementIndex": 1,
+                    "category": "line",
+                    "geometryKind": "line",
+                    "pointKey": "start",
+                    "stagePath": [
+                      "s"
+                    ]
+                  },
+                  "coordinate": null,
+                  "nameSpan": {
+                    "start": 24,
+                    "end": 25
+                  },
+                  "resolution": "resolved"
+                }
+              }
+            ]
+          ]
+        ],
+        "baseIndex": [
+          {
+            "from": 11,
+            "to": 12,
+            "kind": "declaration",
+            "identity": {
+              "kind": "element",
+              "elementId": "identity:X7:1"
+            }
+          },
+          {
+            "from": 61,
+            "to": 62,
+            "kind": "reference",
+            "identity": {
+              "kind": "element",
+              "elementId": "identity:X7:1"
+            }
+          },
+          {
+            "from": 66,
+            "to": 67,
+            "kind": "declaration",
+            "identity": {
+              "kind": "transformationStage",
+              "recipeId": "identity:X7:2"
+            }
+          },
+          {
+            "from": 76,
+            "to": 77,
+            "kind": "declaration",
+            "identity": {
+              "kind": "element",
+              "elementId": "identity:X7:3"
+            }
+          },
+          {
+            "from": 94,
+            "to": 95,
+            "kind": "reference",
+            "identity": {
+              "kind": "element",
+              "elementId": "identity:X7:1"
+            }
+          }
+        ],
+        "baseSelected": {
+          "range": {
+            "from": 96,
+            "to": 97
+          },
+          "definition": null,
+          "references": null,
+          "target": null,
+          "plan": {
+            "status": "rejected",
+            "rejection": {
+              "reason": "unavailable"
+            }
+          },
+          "hover": null,
+          "transformation": null
+        },
+        "nearbyBasePass": {
+          "D2": "Unique line identity and reverse target: all providers PASS",
+          "X3branchDefinition": {
+            "referenceRange": {
+              "from": 95,
+              "to": 102
+            },
+            "declarationRange": {
+              "from": 72,
+              "to": 79
+            }
+          },
+          "X3branchTransformationHover": {
+            "kind": "transformationStage",
+            "range": {
+              "from": 95,
+              "to": 102
+            },
+            "markdown": "**Stage** `flipped`\n\nImmutable geometry checkpoint produced by `reverse`."
+          },
+          "X7declarationTransformationHover": {
+            "kind": "transformationStage",
+            "range": {
+              "from": 66,
+              "to": 67
+            },
+            "markdown": "**Stage** `s`\n\nImmutable geometry checkpoint produced by `reverse`."
+          }
+        },
+        "repair": "Use the existing transformation property projector on compiler-resolved geometry reference stagePath and full span. No parser/resolver/index duplication.",
+        "fixedSelected": {
+          "range": {
+            "from": 96,
+            "to": 97
+          },
+          "definition": {
+            "referenceRange": {
+              "from": 96,
+              "to": 97
+            },
+            "declarationRange": {
+              "from": 66,
+              "to": 67
+            }
+          },
+          "references": {
+            "declarationRange": {
+              "from": 66,
+              "to": 67
+            },
+            "referenceRanges": [
+              {
+                "from": 96,
+                "to": 97
+              }
+            ]
+          },
+          "target": {
+            "sourceRevision": 7,
+            "oldName": "s",
+            "range": {
+              "from": 96,
+              "to": 97
+            }
+          },
+          "plan": {
+            "status": "ok",
+            "plan": {
+              "sourceRevision": 7,
+              "target": {
+                "sourceRevision": 7,
+                "oldName": "s",
+                "range": {
+                  "from": 96,
+                  "to": 97
+                }
+              },
+              "edits": [
+                {
+                  "from": 66,
+                  "to": 67,
+                  "expectedText": "s",
+                  "newText": "t"
+                },
+                {
+                  "from": 96,
+                  "to": 97,
+                  "expectedText": "s",
+                  "newText": "t"
+                }
+              ]
+            }
+          },
+          "hover": null,
+          "transformation": null
+        }
+      }
+    ]
+  },
+  "sensitivity": {
+    "omittedReference": "Exact complete reference ranges reject omission in every case. Exact physical plan and afterSource reject a deliberately omitted returned edit.",
+    "wrongSameTextOwner": "B1/B3/C3 replace a reference range with a frozen same-text distractor; oracle rejects it.",
+    "wrongIndexedMember": "Independent coordinates distinguish each selected member; corrupting a coordinate is rejected while original complete observation passes.",
+    "capture": "X5 outer -> inner rejects reference-resolution-change atomically; occupied rejects same-scope-collision. X4/X6 index -> array name rejects collision.",
+    "stale": "All cases reject mismatched source/revision across all query providers and return no Rename plan.",
+    "invalidUnavailable": "Empty names rejected, version token unavailable, shorthand ambiguous token rejected.",
+    "moduleIsolation": "Asymmetric instance numbers, exact untouched source, stable declaration/runtime IDs and origin paths checked before/after physical Rename."
+  },
+  "cases": [
+    {
+      "id": "A1",
+      "sourceHash": "6e4cc74e9506a3e21cbf1e47322232350fd25766d99eec01c5d9a677031f7220",
+      "offset": 127,
+      "identity": {
+        "name": "widths",
+        "declaration": {
+          "from": 33,
+          "to": 39
+        }
+      },
+      "purpose": "Numeric collection in immutable scalar; two different indexed members",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "A2",
+      "sourceHash": "51b7735fb80dd7e9229ee865f92becb7f00a4960ae89510153efa98d13e14764",
+      "offset": 98,
+      "identity": {
+        "name": "steps",
+        "declaration": {
+          "from": 12,
+          "to": 17
+        }
+      },
+      "purpose": "Indexed numeric collection lowered directly into both drawable coordinates",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "A3",
+      "sourceHash": "9465f1877a361ece8d4ce5d3c66d307d903285787535d8e77b34ff851c03deae",
+      "offset": 120,
+      "identity": {
+        "name": "Points",
+        "declaration": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "purpose": "Point collection indexed consumer and independently selected similarly named collection",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "B1",
+      "sourceHash": "12c4bb56f76f4e1bd67ae3e5aae51ff33946a33126060b506e7e1e64e362189b",
+      "offset": 88,
+      "identity": {
+        "name": "Anchor",
+        "declaration": {
+          "from": 27,
+          "to": 33
+        }
+      },
+      "purpose": "Same-name drawable in sibling lexical groups; local and qualified consumers",
+      "disposition": "PASS",
+      "runtimeHover": "SUPPORTED",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "B2",
+      "sourceHash": "164ef4a93a3cd6ea1a85604822a7382aba607a4c528bd991389736fe83fab127",
+      "offset": 69,
+      "identity": {
+        "name": "size",
+        "declaration": {
+          "from": 85,
+          "to": 89
+        }
+      },
+      "purpose": "Inner typed binding declared later owns its references without capturing outer binding",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "B3",
+      "sourceHash": "dbf760d42ae9f7d5413076a84975e5a35270fa14fdfcab168ca37e64c83c8505",
+      "offset": 130,
+      "identity": {
+        "name": "Anchor",
+        "declaration": {
+          "from": 67,
+          "to": 73
+        }
+      },
+      "purpose": "Qualified geometry in alias and property consumer with same-text root distractor",
+      "disposition": "PASS",
+      "runtimeHover": "SUPPORTED",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "C1",
+      "sourceHash": "e7c172c160931e0eccf2ba7d9949a938fd7c658097343a3699705474519f356b",
+      "offset": 112,
+      "identity": {
+        "name": "Draft",
+        "declaration": {
+          "from": 13,
+          "to": 18
+        }
+      },
+      "purpose": "Module declaration/callees distinct from instance path and exported source",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "C2",
+      "sourceHash": "fa80d8cd3c76e499229f98a8f01a32f7dd5994acd7a576614e7e386418ce4c25",
+      "offset": 142,
+      "identity": {
+        "name": "seed",
+        "declaration": {
+          "from": 12,
+          "to": 16
+        }
+      },
+      "purpose": "Shorthand dual identity: Definition value; generic References/Rename ambiguous",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS",
+      "selectionFeatureDisposition": {
+        "Definition": "PASS (caller value)",
+        "References": "NOT_SUPPORTED (dual identity)",
+        "Rename": "NOT_SUPPORTED (dual identity; atomic unavailable)",
+        "declarationRenameControl": "PASS (expands shorthand)"
+      }
+    },
+    {
+      "id": "C3",
+      "sourceHash": "4894838effcdb9301e377309a9a1e66000b10db0b828b554fa52274a8c39e8ea",
+      "offset": 234,
+      "identity": {
+        "name": "Tip",
+        "declaration": {
+          "from": 86,
+          "to": 89
+        }
+      },
+      "purpose": "One authored Module export through two asymmetric instance consumers and same-text root distractor",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "D1",
+      "sourceHash": "66142a67507584460f0dd9845cb8a84f862e135cb5d0a7417c440d0f9d99eb51",
+      "offset": 112,
+      "identity": {
+        "name": "Pin",
+        "declaration": {
+          "to": 55,
+          "from": 52
+        }
+      },
+      "purpose": "Unique point declaration and multiple references after surrogate-pair comment",
+      "disposition": "PASS",
+      "runtimeHover": "SUPPORTED",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "D2",
+      "sourceHash": "f12a1aca1333620325e93efcb11b3ca0b165790929681c5a0c77a3f80586a44f",
+      "offset": 64,
+      "identity": {
+        "name": "Edge",
+        "declaration": {
+          "from": 11,
+          "to": 15
+        }
+      },
+      "purpose": "Unique line with reverse stage; endpoint consumers distinguish final/base",
+      "disposition": "PASS",
+      "runtimeHover": "SUPPORTED",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "D3",
+      "sourceHash": "3c0df16a0c41f4ea1047569ba412164c40a6f3f55700c196dc123a6d0e36ce7f",
+      "offset": 58,
+      "identity": {
+        "name": "Pin",
+        "declaration": {
+          "from": 58,
+          "to": 61
+        }
+      },
+      "purpose": "Generated geometry retains authored identity but runtime Hover must remain null",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS",
+      "selectionFeatureDisposition": {
+        "Definition": "PASS (reference navigation; declaration null by contract)",
+        "References": "PASS",
+        "Rename": "PASS",
+        "geometryHover": "NOT_SUPPORTED (generated runtime)"
+      }
+    },
+    {
+      "id": "X1",
+      "sourceHash": "e7c172c160931e0eccf2ba7d9949a938fd7c658097343a3699705474519f356b",
+      "offset": 191,
+      "identity": {
+        "name": "Left",
+        "declaration": {
+          "from": 105,
+          "to": 109
+        }
+      },
+      "purpose": "Instance segment control: Left changes without changing Right, Draft or export identity",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "X2",
+      "sourceHash": "fa80d8cd3c76e499229f98a8f01a32f7dd5994acd7a576614e7e386418ce4c25",
+      "offset": 42,
+      "identity": {
+        "name": "seed",
+        "declaration": {
+          "from": 42,
+          "to": 46
+        }
+      },
+      "purpose": "Module parameter label rename expands shorthand while retaining caller value",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "X3",
+      "sourceHash": "9b1b4286209ca24602971d2562a85ed478bd2a3347dd239ddf94da168ea555c8",
+      "offset": 95,
+      "identity": {
+        "name": "flipped",
+        "declaration": {
+          "from": 72,
+          "to": 79
+        }
+      },
+      "purpose": "Named checkpoint declaration, branch target and value reference share one stage identity",
+      "disposition": "BUG→FIXED→REPASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "X4",
+      "sourceHash": "51b7735fb80dd7e9229ee865f92becb7f00a4960ae89510153efa98d13e14764",
+      "offset": 105,
+      "identity": {
+        "name": "index",
+        "declaration": {
+          "from": 48,
+          "to": 53
+        }
+      },
+      "purpose": "Index binding control: scalar identity inside lowered indexed coordinate argument",
+      "disposition": "BUG→FIXED→REPASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "X5",
+      "sourceHash": "9a4ecc72deb4b17e0a033c3814a735acdaead795070b328e5ea89335982c0805",
+      "offset": 131,
+      "identity": {
+        "name": "outer",
+        "declaration": {
+          "from": 12,
+          "to": 17
+        }
+      },
+      "purpose": "Root typed rename accepted safely; collision/capture alternatives reject atomically",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "X6",
+      "sourceHash": "af141df529298451a3f8b0118b9c3aad4d541a4a68408c8fbdf48894b6b7d87f",
+      "offset": 91,
+      "identity": {
+        "name": "i",
+        "declaration": {
+          "from": 44,
+          "to": 45
+        }
+      },
+      "purpose": "Minimal lowered numeric index identity reproducer",
+      "disposition": "BUG→FIXED→REPASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "X7",
+      "sourceHash": "8b879709f30adef379685e89e95f68d794d7ced2a796ca56089417151e85f41d",
+      "offset": 96,
+      "identity": {
+        "name": "s",
+        "declaration": {
+          "from": 66,
+          "to": 67
+        }
+      },
+      "purpose": "Minimal named stage point accessor identity reproducer",
+      "disposition": "BUG→FIXED→REPASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    },
+    {
+      "id": "X8",
+      "sourceHash": "0cd6934f044a9ba65ecfa7c949e08d1995388b811c7b5e9893619ed088fb259b",
+      "offset": 83,
+      "identity": {
+        "name": "i",
+        "declaration": {
+          "from": 44,
+          "to": 45
+        }
+      },
+      "purpose": "Nearby PASS: ordinary numeric coordinate reference without indexed lowering",
+      "disposition": "PASS",
+      "runtimeHover": "NOT_SUPPORTED (expected null)",
+      "rustEligible": true,
+      "beforeAfterIndependentTSRust": "PASS",
+      "physicalRenameRecompileRequery": "PASS"
+    }
+  ],
+  "verification": {
+    "prevalidation": {
+      "first": "11 PASS, D1 CONTRACT_INVALID",
+      "legalReplacement": "12 PASS"
+    },
+    "baseComparison": "20 exploration units: 16 PASS, X3/X4/X6/X7 FAIL (31 assertions; includes corrected unsupported-Hover harness assertion)",
+    "indexOnlyComparison": "Stage source occurrences and Rename repaired; scalar-index Definition/References repaired; X4/X6 Rename still rejected by adapter. One remaining X7 harness Hover-support expectation corrected.",
+    "initialFocused": "Required eight files: 164 PASS before adding RC1",
+    "initialBuild": "PASS",
+    "initialLint": "PASS",
+    "initialFull": "684 files PASS, 2 skipped; 10947 tests PASS, 183 skipped; 282.97s. Superseded by relevant Rename validation change after RC1 safety failure.",
+    "postCaptureFocused": "Nine files (required eight plus transformationRecipeLanguageIntegration): 173 PASS",
+    "finalFocused": "Required eight files: 165 PASS; all 20 exploration units plus RC1 PASS",
+    "finalBuild": "PASS",
+    "finalLint": "PASS",
+    "finalFull": "PASS: 684 files passed, 2 skipped; 10948 tests passed, 183 skipped; 283.00s. Rerun required by the intervening typed Rename capture-safety source change.",
+    "diffCheck": "PASS",
+    "persistentRust": "All 21 final case/regression sources normally eligible; 42 before/after production stdio requests compared to independent observations in the required focused run, plus TypeScript reference. No eligibility forcing.",
+    "parity": "NOT RUN: no evaluator or payload changes",
+    "manualGUI": "NOT REQUIRED by #1450; not run",
+    "planPercentages": "UNAVAILABLE (Human supplied no readings)",
+    "commands": {
+      "focused": "npx vitest run src/dsl/dslDefinitionQuery.test.ts src/dsl/dslReferencesQuery.test.ts src/dsl/dslRenameQuery.test.ts src/dsl/dslHoverQuery.test.ts src/dsl/moduleArgumentShorthand.test.ts src/dsl/geometryArrayLanguageQueries.integration.test.ts test/issue1448RenameSemanticPreservation.integration.test.ts test/issue1450LanguageServiceCrossFeature.integration.test.ts --maxWorkers=2",
+      "additionalFocused": "npx vitest run src/dsl/dslDefinitionQuery.test.ts src/dsl/dslReferencesQuery.test.ts src/dsl/dslRenameQuery.test.ts src/dsl/dslHoverQuery.test.ts src/dsl/moduleArgumentShorthand.test.ts src/dsl/geometryArrayLanguageQueries.integration.test.ts test/issue1448RenameSemanticPreservation.integration.test.ts test/issue1450LanguageServiceCrossFeature.integration.test.ts src/dsl/transformationRecipeLanguageIntegration.test.ts --maxWorkers=2",
+      "build": "npm run build",
+      "lint": "npm run lint",
+      "full": "npm test -- --maxWorkers=2",
+      "diff": "git diff --check"
+    },
+    "independentFixtureAudit": "All 21 hashes, UTF-16 edit ranges, expectedText and afterSource replayed independently: PASS"
+  },
+  "focusedRegressionControls": [
+    {
+      "id": "RC1",
+      "classification": "focused-regression; exempt from new exploration by Issue/user contract",
+      "fixture": "regression-controls.json",
+      "purpose": "Prevent capture introduced by enabling scalar-index Rename; derived from X6",
+      "initialHarnessTrial": "Missing assigned stable statement IDs (harness error, corrected before comparing providers)",
+      "candidateFailure": "Rename i -> j returned an OK plan despite a nested const j=0 capturing the index; original P.x=7, captured P.x=2",
+      "unsafeCandidatePlan": {
+        "edits": [
+          {
+            "from": 44,
+            "to": 45,
+            "expectedText": "i",
+            "newText": "j"
+          },
+          {
+            "from": 128,
+            "to": 129,
+            "expectedText": "i",
+            "newText": "j"
+          }
+        ]
+      },
+      "failingRegression": "RC1 targeted Vitest: 1 failed, 20 skipped by name filter; exit 1",
+      "fixedRejections": [
+        {
+          "newName": "j",
+          "result": {
+            "status": "rejected",
+            "rejection": {
+              "reason": "reference-resolution-change",
+              "family": "typed",
+              "referencedName": "i"
+            }
+          }
+        },
+        {
+          "newName": "values",
+          "result": {
+            "status": "rejected",
+            "rejection": {
+              "reason": "same-scope-collision",
+              "conflictingName": "values",
+              "conflictingLine": 2
+            }
+          }
+        }
+      ],
+      "finalDisposition": "PASS",
+      "safeRenameTSRust": "PASS before/after, P=(7,0)",
+      "novelBaseFinding": false
+    }
+  ],
+  "sourceOwnerBlobs": {
+    "packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts": {
+      "base": "19e7a3a57d4abf7a909f53368fb67477c0df82a7",
+      "repaired": "319cb87e64638af17258dc7fe32af6e825de094d"
+    },
+    "packages/nui-language/src/document/typedRenameAnalysis.ts": {
+      "base": "23d19a1a14eee186fef09d958c80deebe29c7221",
+      "repaired": "61a436d84a6ef13f2f899907b38649fbc56c5bb0"
+    }
+  },
+  "remaining": {
+    "unresolved": [],
+    "notCovered": [],
+    "unsupported": "General scalar/Module Hover, generated/multiply materialized runtime Hover, and dual-identity shorthand generic References/Rename are intentionally unavailable as exercised. No cross-document or VS Code host claim.",
+    "blockers": []
+  }
+}
