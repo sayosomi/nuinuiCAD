@@ -1,0 +1,59 @@
+[
+  {
+    "id": "B3",
+    "source": "nui 1\nprofile Paper\nprofile Canvas\nstyle Ink {\n width: 2px,\n color: #123456,\n for @Paper { width: 4px, lineType: dashed, color: #aabbcc, }\n for @Canvas { width: 3px, color: #334455, }\n}\nstyle Suppress { for @Paper { visible: false, } }\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line Edge [Ink] = segment(start: (5, 2), end: (22, 14))\n line Hidden [Suppress] = segment(start: (-19, 31), end: (43, -11))\n}\nlayout L { place @G(at: (11, -7), scale: 2) }\nsvg S(layout: @L, profile: @Paper, margin: 0)\n",
+    "sha256": "e186396fa5121477fe530153a2ad6a1a633feea5ff2beff3c227df7a9312705b",
+    "disposition": "CONTRACT_INVALID intended one-line blocks; nearest same-discriminator multiline spelling"
+  },
+  {
+    "id": "B4",
+    "source": "nui 1\nstyle Ink { width: 2px, color: #123456, }\nstyle Hidden { visible: false, }\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line A [Hidden] = segment(start: (5, 2), end: (245, 2))\n line B [Hidden] = segment(start: (245, 2), end: (245, 42))\n line Joined [Ink] = join(paths: [@A, @B], closed: false)\n text Caption = label(text: \"Alpha\\nBeta\", anchor: (12, 18), size: 5, angle: 0)\n}\nlayout L { place @G(at: (31, -23)) }\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "6d94d3058ed05b156b31210d41db7f834a474c160afe1b6287c34f88893b9067",
+    "disposition": "CONTRACT_INVALID intended one-line blocks; nearest same-discriminator multiline spelling"
+  },
+  {
+    "id": "A4",
+    "source": "nui 1\nmodule Marks(width: number = 17) {\n for i in range(min: 0, max: 2, step: 1, showGenerated: true) {\n  point Mark = coordinate(x: @width + @i * 7, y: -@i * 3)\n }\n point Hidden(visible: false) = coordinate(x: 91, y: -13)\n point Off(enabled: false) = coordinate(x: -99, y: 81)\n}\ninstance Left = Marks()\ninstance Right = Marks(width: 32)\n",
+    "sha256": "7f1ead5733a72a58a0a91c3e2c89f1c660fa7978f78d2d576da44265979c4e35",
+    "target": "point Mark",
+    "arguments": [],
+    "expected": {
+      "Mark": [
+        [
+          17,
+          0
+        ],
+        [
+          24,
+          -3
+        ],
+        [
+          31,
+          -6
+        ]
+      ],
+      "Hidden": [
+        91,
+        -13
+      ]
+    },
+    "instance": "Left",
+    "control": {
+      "Mark": [
+        [
+          32,
+          0
+        ],
+        [
+          39,
+          -3
+        ],
+        [
+          46,
+          -6
+        ]
+      ]
+    },
+    "disposition": "NOT_SUPPORTED initial generated-source Preview root returned null before Rust; no claim of a defect; one nearest gated discriminator replacement"
+  }
+]

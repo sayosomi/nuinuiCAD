@@ -1,5 +1,5 @@
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
-import type { BindingId } from "@nuinuicad/nui-language";
+import { analyzeBindings, buildBindingCatalog, type BindingId, type BindingSeed } from "@nuinuicad/nui-language";
 import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
 import { applyStatement } from "@nuinuicad/nui-language";
@@ -195,6 +195,38 @@ const documentScalarBindingsFor = (
     bindings.set(binding.statementIndex, { bindingId: binding.id, statementId });
   }
   return bindings;
+};
+
+/** Reuse source-owned bindings, then lower the Preview's instances afresh.
+ * The compiled aggregate also contains authored instance bindings; ancestor
+ * projection can remove those instances, so their runtime scopes are not a
+ * valid input to the synthetic root's scalar compilation.
+ */
+const sourceBindingAnalysisFor = (compiled: CompiledDslDocument) => {
+  const analysis = compiled.bindingAnalysis;
+  if (!analysis) return undefined;
+  const source = analysis.catalog;
+  const bindings = source.bindings.filter((binding) => source.scopeIndex.scopes.has(binding.effectiveScopeId));
+  const sourceOrders = new Map<number, Map<string, number>>();
+  const seeds: BindingSeed[] = bindings.map((binding) => {
+    const lane = sourceOrders.get(binding.statementIndex) ?? new Map<string, number>();
+    const sourceOrder = lane.get(binding.kind) ?? 0;
+    if (binding.catalogOrder !== "append") lane.set(binding.kind, sourceOrder + 1);
+    sourceOrders.set(binding.statementIndex, lane);
+    return { ...binding, sourceOrder };
+  });
+  const catalog = buildBindingCatalog({
+    scopeIndex: source.scopeIndex,
+    stableStatementIdByIndex: stableIdsFor(compiled),
+    iterationBindings: seeds.filter((binding) => binding.kind === "iteration"),
+    additionalBindings: seeds.filter((binding) => binding.kind === "typed" && binding.resolutionMode === "preResolvedOnly"),
+    containerIndex: source.containerIndex,
+    sourceNamespaceBindingResolver: source.sourceNamespaceBindingResolver
+  });
+  return analyzeBindings({
+    catalog,
+    initializerReferences: analysis.initializerReferences.filter((reference) => catalog.bindingsById.has(reference.fromBindingId))
+  });
 };
 
 const referenceIsResolved = (reference: ModuleGeometryReferenceSemantic): boolean =>
@@ -679,7 +711,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
       stableStatementIdByIndex,
       moduleSemanticAnalysis: previewAnalysis,
       moduleMaterialization,
-      documentBindingAnalysis: compiled.bindingAnalysis,
+      documentBindingAnalysis: sourceBindingAnalysisFor(compiled),
       documentScalarProgram: compiled.scalarProgram,
       reconciledContainers: {
         elementIdByStatementIndex: moduleMaterialization.elementIdBySourceStatementIndex,

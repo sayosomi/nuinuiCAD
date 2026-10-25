@@ -1,0 +1,1485 @@
+{
+  "A3-boundary-base": {
+    "requests": 1,
+    "observations": [
+      {
+        "id": "A3-boundary",
+        "canonicalIndependentOracle": "PASS",
+        "missingControlBindings": [
+          {
+            "id": "module-binding:9:parameter36:statement:moduleInstance:mvnlz28a:1536:statement:moduleInstance:mvnlz28a:1438:statement:moduleDefinition:mvnlz28a:131:0",
+            "kind": "typed",
+            "name": "width",
+            "nameSpan": null,
+            "statementIndex": 9,
+            "sourceOrder": 0,
+            "effectiveScopeId": "module-instance-scope:36:statement:moduleInstance:mvnlz28a:1536:statement:moduleInstance:mvnlz28a:1445:module:statement:moduleDefinition:mvnlz28a:13",
+            "visibility": {
+              "kind": "typed",
+              "scopeId": "module-instance-scope:36:statement:moduleInstance:mvnlz28a:1536:statement:moduleInstance:mvnlz28a:1445:module:statement:moduleDefinition:mvnlz28a:13"
+            },
+            "mutability": "const",
+            "declaredType": {
+              "kind": "number"
+            },
+            "declarationVersionId": "module-declaration:9:parameter36:statement:moduleInstance:mvnlz28a:1536:statement:moduleInstance:mvnlz28a:1438:statement:moduleDefinition:mvnlz28a:131:0",
+            "resolutionMode": "preResolvedOnly",
+            "catalogOrder": "append",
+            "rank": 2
+          },
+          {
+            "id": "module-binding:9:parameter36:statement:moduleInstance:mvnlz28a:1636:statement:moduleInstance:mvnlz28a:1438:statement:moduleDefinition:mvnlz28a:131:0",
+            "kind": "typed",
+            "name": "width",
+            "nameSpan": null,
+            "statementIndex": 9,
+            "sourceOrder": 0,
+            "effectiveScopeId": "module-instance-scope:36:statement:moduleInstance:mvnlz28a:1636:statement:moduleInstance:mvnlz28a:1445:module:statement:moduleDefinition:mvnlz28a:13",
+            "visibility": {
+              "kind": "typed",
+              "scopeId": "module-instance-scope:36:statement:moduleInstance:mvnlz28a:1636:statement:moduleInstance:mvnlz28a:1445:module:statement:moduleDefinition:mvnlz28a:13"
+            },
+            "mutability": "const",
+            "declaredType": {
+              "kind": "number"
+            },
+            "declarationVersionId": "module-declaration:9:parameter36:statement:moduleInstance:mvnlz28a:1636:statement:moduleInstance:mvnlz28a:1438:statement:moduleDefinition:mvnlz28a:131:0",
+            "resolutionMode": "preResolvedOnly",
+            "catalogOrder": "append",
+            "rank": 5
+          }
+        ]
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  },
+  "F1-base": {
+    "requests": 1,
+    "observations": [
+      {
+        "id": "F1",
+        "sourceHash": "2dbc028161a28c1138f414e23420fc8faa222ea6d5f912bfcd4794204d2f4fd0",
+        "canonicalIndependentOracle": "PASS",
+        "missingControlBindings": [
+          {
+            "id": "module-binding:9:parameter36:statement:moduleInstance:mvnm020b:4436:statement:moduleInstance:mvnm020b:4338:statement:moduleDefinition:mvnm020b:421:0",
+            "kind": "typed",
+            "name": "width",
+            "nameSpan": null,
+            "statementIndex": 5,
+            "sourceOrder": 0,
+            "effectiveScopeId": "module-instance-scope:36:statement:moduleInstance:mvnm020b:4436:statement:moduleInstance:mvnm020b:4345:module:statement:moduleDefinition:mvnm020b:42",
+            "visibility": {
+              "kind": "typed",
+              "scopeId": "module-instance-scope:36:statement:moduleInstance:mvnm020b:4436:statement:moduleInstance:mvnm020b:4345:module:statement:moduleDefinition:mvnm020b:42"
+            },
+            "mutability": "const",
+            "declaredType": {
+              "kind": "number"
+            },
+            "declarationVersionId": "module-declaration:9:parameter36:statement:moduleInstance:mvnm020b:4436:statement:moduleInstance:mvnm020b:4338:statement:moduleDefinition:mvnm020b:421:0",
+            "resolutionMode": "preResolvedOnly",
+            "catalogOrder": "append",
+            "rank": 1
+          }
+        ]
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  },
+  "F1-fixed": {
+    "requests": 2,
+    "observations": [
+      {
+        "id": "F1",
+        "sourceHash": "2dbc028161a28c1138f414e23420fc8faa222ea6d5f912bfcd4794204d2f4fd0",
+        "canonicalIndependentOracle": "PASS",
+        "missingControlBindings": []
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  },
+  "A-fixed": {
+    "requests": 9,
+    "observations": [
+      {
+        "id": "A1",
+        "sourceHash": "aa1b6b1d457013abe2d599ec2dd38061cb07dc0b014de59b0d0edc373a0c73ed",
+        "target": "Dart",
+        "preview": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 15,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 26,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 26,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 15,
+              "y": -7
+            }
+          }
+        ],
+        "liveLeft": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 15,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 26,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 26,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 15,
+              "y": -7
+            }
+          }
+        ]
+      },
+      {
+        "id": "A2",
+        "sourceHash": "aa1b6b1d457013abe2d599ec2dd38061cb07dc0b014de59b0d0edc373a0c73ed",
+        "target": "Dart",
+        "preview": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 21,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 38,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 38,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 21,
+              "y": -7
+            }
+          }
+        ],
+        "liveLeft": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 21,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 38,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 38,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 21,
+              "y": -7
+            }
+          }
+        ]
+      },
+      {
+        "id": "A3-boundary",
+        "canonicalIndependentOracle": "PASS",
+        "missingControlBindings": []
+      },
+      {
+        "id": "A3",
+        "sourceHash": "359a931e17e823c714ba3fe5d6b814f54c31f3293cb4128f0b9719705abf4920",
+        "target": "Inner",
+        "preview": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 10,
+            "y": -9
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": -3,
+            "y": 18
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": -3,
+              "y": 18
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 10,
+              "y": -9
+            }
+          }
+        ],
+        "liveLeft": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 10,
+            "y": -9
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": -3,
+            "y": 18
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": -3,
+              "y": 18
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 10,
+              "y": -9
+            }
+          }
+        ]
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  },
+  "A-repass": {
+    "requests": 11,
+    "observations": [
+      {
+        "id": "A1",
+        "sourceHash": "aa1b6b1d457013abe2d599ec2dd38061cb07dc0b014de59b0d0edc373a0c73ed",
+        "target": "Dart",
+        "preview": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 15,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 26,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 26,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 15,
+              "y": -7
+            }
+          }
+        ],
+        "liveLeft": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 15,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 26,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 26,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 15,
+              "y": -7
+            }
+          }
+        ]
+      },
+      {
+        "id": "A2",
+        "sourceHash": "aa1b6b1d457013abe2d599ec2dd38061cb07dc0b014de59b0d0edc373a0c73ed",
+        "target": "Dart",
+        "preview": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 21,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 38,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 38,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 21,
+              "y": -7
+            }
+          }
+        ],
+        "liveLeft": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 21,
+            "y": -7
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": 38,
+            "y": 11
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": 38,
+              "y": 11
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 21,
+              "y": -7
+            }
+          }
+        ]
+      },
+      {
+        "id": "A3-boundary",
+        "canonicalIndependentOracle": "PASS",
+        "missingControlBindings": []
+      },
+      {
+        "id": "A3",
+        "sourceHash": "359a931e17e823c714ba3fe5d6b814f54c31f3293cb4128f0b9719705abf4920",
+        "target": "Inner",
+        "preview": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 10,
+            "y": -9
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": -3,
+            "y": 18
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": -3,
+              "y": 18
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 10,
+              "y": -9
+            }
+          }
+        ],
+        "liveLeft": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 10,
+            "y": -9
+          },
+          {
+            "kind": "point",
+            "name": "Q",
+            "x": -3,
+            "y": 18
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Q",
+              "x": -3,
+              "y": 18
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "P",
+              "x": 10,
+              "y": -9
+            }
+          }
+        ]
+      },
+      {
+        "id": "A4",
+        "sourceHash": "d8ab42e7762c7295002a0dc7dfc1b17c63e0b6065cd2db2b88d3d02ed57a4fc7",
+        "target": "Marks",
+        "preview": [
+          {
+            "kind": "point",
+            "name": "Mark",
+            "x": 24,
+            "y": -3
+          },
+          {
+            "kind": "point",
+            "name": "Hidden(visible: false)",
+            "x": 91,
+            "y": -13
+          },
+          {
+            "kind": "point",
+            "name": "Off(enabled: false)",
+            "x": -99,
+            "y": 81
+          }
+        ],
+        "liveLeft": [
+          {
+            "kind": "point",
+            "name": "Mark",
+            "x": 24,
+            "y": -3
+          },
+          {
+            "kind": "point",
+            "name": "Hidden(visible: false)",
+            "x": 91,
+            "y": -13
+          },
+          {
+            "kind": "point",
+            "name": "Off(enabled: false)",
+            "x": -99,
+            "y": 81
+          }
+        ]
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  },
+  "C-base": {
+    "requests": 13,
+    "observations": [
+      {
+        "id": "C1",
+        "initial": {
+          "sourceIdentity": {
+            "algorithm": "sha256",
+            "hash": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+            "byteLength": 190,
+            "normalizedLength": 190
+          },
+          "compileStatus": "valid",
+          "status": "evaluated",
+          "rustEligible": true,
+          "evaluation": {
+            "errors": [],
+            "warnings": [],
+            "computedGeometry": [
+              {
+                "kind": "point",
+                "name": "P",
+                "x": 15,
+                "y": -7
+              },
+              {
+                "endHandleAngleDeg": 180,
+                "endHandleLength": 5,
+                "kind": "bezierCurve",
+                "name": "Curve",
+                "segments": [
+                  {
+                    "control1": {
+                      "x": 15,
+                      "y": 1
+                    },
+                    "control2": {
+                      "x": 31,
+                      "y": 10.999999999999998
+                    },
+                    "end": {
+                      "kind": "point",
+                      "name": "Curve.end",
+                      "x": 26,
+                      "y": 11
+                    },
+                    "start": {
+                      "kind": "point",
+                      "name": "P",
+                      "x": 15,
+                      "y": -7
+                    }
+                  }
+                ],
+                "startHandleAngleDeg": 90,
+                "startHandleLength": 8
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "C2",
+        "staleStatus": "stale",
+        "oldIdentity": {
+          "algorithm": "sha256",
+          "hash": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+          "byteLength": 190,
+          "normalizedLength": 190
+        },
+        "newIdentity": {
+          "algorithm": "sha256",
+          "hash": "14e625071bae57302ca167e6e3716e5844e8c4d164f52fbd53e01aa296901b62",
+          "byteLength": 190,
+          "normalizedLength": 190
+        },
+        "geometry": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 21,
+            "y": -7
+          },
+          {
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "kind": "bezierCurve",
+            "name": "Curve",
+            "segments": [
+              {
+                "control1": {
+                  "x": 21,
+                  "y": 1
+                },
+                "control2": {
+                  "x": 43,
+                  "y": 10.999999999999998
+                },
+                "end": {
+                  "kind": "point",
+                  "name": "Curve.end",
+                  "x": 38,
+                  "y": 11
+                },
+                "start": {
+                  "kind": "point",
+                  "name": "P",
+                  "x": 21,
+                  "y": -7
+                }
+              }
+            ],
+            "startHandleAngleDeg": 90,
+            "startHandleLength": 8
+          }
+        ]
+      },
+      {
+        "id": "C2",
+        "initial": {
+          "sourceIdentity": {
+            "algorithm": "sha256",
+            "hash": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+            "byteLength": 190,
+            "normalizedLength": 190
+          },
+          "compileStatus": "valid",
+          "status": "evaluated",
+          "rustEligible": true,
+          "evaluation": {
+            "errors": [],
+            "warnings": [],
+            "computedGeometry": [
+              {
+                "kind": "point",
+                "name": "P",
+                "x": 15,
+                "y": -7
+              },
+              {
+                "endHandleAngleDeg": 180,
+                "endHandleLength": 5,
+                "kind": "bezierCurve",
+                "name": "Curve",
+                "segments": [
+                  {
+                    "control1": {
+                      "x": 15,
+                      "y": 1
+                    },
+                    "control2": {
+                      "x": 31,
+                      "y": 10.999999999999998
+                    },
+                    "end": {
+                      "kind": "point",
+                      "name": "Curve.end",
+                      "x": 26,
+                      "y": 11
+                    },
+                    "start": {
+                      "kind": "point",
+                      "name": "P",
+                      "x": 15,
+                      "y": -7
+                    }
+                  }
+                ],
+                "startHandleAngleDeg": 90,
+                "startHandleLength": 8
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "C3",
+        "invalidStatus": "source-unavailable",
+        "compileStatus": "fatal",
+        "repaired": {
+          "sourceIdentity": {
+            "algorithm": "sha256",
+            "hash": "3aa3694584da5f25c11d9c11ac8076db75e6d5be27e6d202740368653b2ebaae",
+            "byteLength": 190,
+            "normalizedLength": 190
+          },
+          "compileStatus": "valid",
+          "status": "evaluated",
+          "rustEligible": true,
+          "evaluation": {
+            "errors": [],
+            "warnings": [],
+            "computedGeometry": [
+              {
+                "kind": "point",
+                "name": "P",
+                "x": 25,
+                "y": -7
+              },
+              {
+                "endHandleAngleDeg": 180,
+                "endHandleLength": 5,
+                "kind": "bezierCurve",
+                "name": "Curve",
+                "segments": [
+                  {
+                    "control1": {
+                      "x": 25,
+                      "y": 1
+                    },
+                    "control2": {
+                      "x": 51,
+                      "y": 10.999999999999998
+                    },
+                    "end": {
+                      "kind": "point",
+                      "name": "Curve.end",
+                      "x": 46,
+                      "y": 11
+                    },
+                    "start": {
+                      "kind": "point",
+                      "name": "P",
+                      "x": 25,
+                      "y": -7
+                    }
+                  }
+                ],
+                "startHandleAngleDeg": 90,
+                "startHandleLength": 8
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "C3",
+        "initial": {
+          "sourceIdentity": {
+            "algorithm": "sha256",
+            "hash": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+            "byteLength": 190,
+            "normalizedLength": 190
+          },
+          "compileStatus": "valid",
+          "status": "evaluated",
+          "rustEligible": true,
+          "evaluation": {
+            "errors": [],
+            "warnings": [],
+            "computedGeometry": [
+              {
+                "kind": "point",
+                "name": "P",
+                "x": 15,
+                "y": -7
+              },
+              {
+                "endHandleAngleDeg": 180,
+                "endHandleLength": 5,
+                "kind": "bezierCurve",
+                "name": "Curve",
+                "segments": [
+                  {
+                    "control1": {
+                      "x": 15,
+                      "y": 1
+                    },
+                    "control2": {
+                      "x": 31,
+                      "y": 10.999999999999998
+                    },
+                    "end": {
+                      "kind": "point",
+                      "name": "Curve.end",
+                      "x": 26,
+                      "y": 11
+                    },
+                    "start": {
+                      "kind": "point",
+                      "name": "P",
+                      "x": 15,
+                      "y": -7
+                    }
+                  }
+                ],
+                "startHandleAngleDeg": 90,
+                "startHandleLength": 8
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "C4",
+        "savedBefore": {
+          "algorithm": "sha256",
+          "hash": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+          "byteLength": 190,
+          "normalizedLength": 190
+        },
+        "unsavedHash": "ed042db41e0860fe75f913edd13d09e836dd30c4a97d404947cee0c95e0eb331",
+        "savedAfter": {
+          "algorithm": "sha256",
+          "hash": "ed042db41e0860fe75f913edd13d09e836dd30c4a97d404947cee0c95e0eb331",
+          "byteLength": 190,
+          "normalizedLength": 190
+        },
+        "geometry": [
+          {
+            "kind": "point",
+            "name": "P",
+            "x": 31,
+            "y": -7
+          },
+          {
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "kind": "bezierCurve",
+            "name": "Curve",
+            "segments": [
+              {
+                "control1": {
+                  "x": 31,
+                  "y": 1
+                },
+                "control2": {
+                  "x": 63,
+                  "y": 10.999999999999998
+                },
+                "end": {
+                  "kind": "point",
+                  "name": "Curve.end",
+                  "x": 58,
+                  "y": 11
+                },
+                "start": {
+                  "kind": "point",
+                  "name": "P",
+                  "x": 31,
+                  "y": -7
+                }
+              }
+            ],
+            "startHandleAngleDeg": 90,
+            "startHandleLength": 8
+          }
+        ]
+      },
+      {
+        "id": "C4",
+        "initial": {
+          "sourceIdentity": {
+            "algorithm": "sha256",
+            "hash": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+            "byteLength": 190,
+            "normalizedLength": 190
+          },
+          "compileStatus": "valid",
+          "status": "evaluated",
+          "rustEligible": true,
+          "evaluation": {
+            "errors": [],
+            "warnings": [],
+            "computedGeometry": [
+              {
+                "kind": "point",
+                "name": "P",
+                "x": 15,
+                "y": -7
+              },
+              {
+                "endHandleAngleDeg": 180,
+                "endHandleLength": 5,
+                "kind": "bezierCurve",
+                "name": "Curve",
+                "segments": [
+                  {
+                    "control1": {
+                      "x": 15,
+                      "y": 1
+                    },
+                    "control2": {
+                      "x": 31,
+                      "y": 10.999999999999998
+                    },
+                    "end": {
+                      "kind": "point",
+                      "name": "Curve.end",
+                      "x": 26,
+                      "y": 11
+                    },
+                    "start": {
+                      "kind": "point",
+                      "name": "P",
+                      "x": 15,
+                      "y": -7
+                    }
+                  }
+                ],
+                "startHandleAngleDeg": 90,
+                "startHandleLength": 8
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  },
+  "B123-base": {
+    "requests": 6,
+    "observations": [
+      {
+        "id": "B1",
+        "sourceHash": "3cfb334db61241b77ac11cab355f13e00eb36ffb05e03a296197754626fa49bb",
+        "canvas": [
+          {
+            "kind": "point",
+            "name": "Origin",
+            "x": 3,
+            "y": -4
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Edge.end",
+              "x": 22,
+              "y": 14
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "Edge.start",
+              "x": 5,
+              "y": 2
+            }
+          },
+          {
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "kind": "bezierCurve",
+            "name": "Curve",
+            "segments": [
+              {
+                "control1": {
+                  "x": 5.000000000000001,
+                  "y": 10
+                },
+                "control2": {
+                  "x": 27,
+                  "y": 13.999999999999998
+                },
+                "end": {
+                  "kind": "point",
+                  "name": "Curve.end",
+                  "x": 22,
+                  "y": 14
+                },
+                "start": {
+                  "kind": "point",
+                  "name": "Curve.start",
+                  "x": 5,
+                  "y": 2
+                }
+              }
+            ],
+            "startHandleAngleDeg": 90,
+            "startHandleLength": 8
+          }
+        ],
+        "drawables": [
+          {
+            "kind": "line",
+            "start": {
+              "x": 5,
+              "y": 2
+            },
+            "end": {
+              "x": 22,
+              "y": 14
+            },
+            "name": "Edge",
+            "stroke": {
+              "widthMm": 0.26458333333333334,
+              "style": "solid",
+              "colorHex": "#31322f"
+            }
+          },
+          {
+            "kind": "bezier",
+            "start": {
+              "x": 5,
+              "y": 2
+            },
+            "control1": {
+              "x": 5.000000000000001,
+              "y": 10
+            },
+            "control2": {
+              "x": 27,
+              "y": 13.999999999999998
+            },
+            "end": {
+              "x": 22,
+              "y": 14
+            },
+            "name": "Curve",
+            "stroke": {
+              "widthMm": 0.26458333333333334,
+              "style": "solid",
+              "colorHex": "#31322f"
+            }
+          }
+        ],
+        "placements": [
+          {
+            "id": "statement:place:mvnm5e4r:21",
+            "groupId": "group-mvnm5e4r-21",
+            "origin": {
+              "x": 0,
+              "y": 0
+            },
+            "at": {
+              "x": 0,
+              "y": 0
+            },
+            "scale": 1,
+            "angleDeg": 0,
+            "mirror": false,
+            "drawables": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": 5,
+                  "y": 2
+                },
+                "end": {
+                  "x": 22,
+                  "y": 14
+                },
+                "name": "Edge",
+                "stroke": {
+                  "widthMm": 0.26458333333333334,
+                  "style": "solid",
+                  "colorHex": "#31322f"
+                }
+              },
+              {
+                "kind": "bezier",
+                "start": {
+                  "x": 5,
+                  "y": 2
+                },
+                "control1": {
+                  "x": 5.000000000000001,
+                  "y": 10
+                },
+                "control2": {
+                  "x": 27,
+                  "y": 13.999999999999998
+                },
+                "end": {
+                  "x": 22,
+                  "y": 14
+                },
+                "name": "Curve",
+                "stroke": {
+                  "widthMm": 0.26458333333333334,
+                  "style": "solid",
+                  "colorHex": "#31322f"
+                }
+              }
+            ]
+          }
+        ],
+        "bounds": {
+          "minX": 4.867708333333334,
+          "minY": 1.8677083333333333,
+          "maxX": 22.871566968624187,
+          "maxY": 14.132291666666667,
+          "width": 18.003858635290854,
+          "height": 12.264583333333334
+        }
+      },
+      {
+        "id": "B2",
+        "sourceHash": "f1c09014e3884635da9bcd8ebf8264f32d54247abd0b407d5a764dd015f435de",
+        "canvas": [
+          {
+            "kind": "point",
+            "name": "Origin",
+            "x": 3,
+            "y": -4
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Edge.end",
+              "x": 22,
+              "y": 14
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "Edge.start",
+              "x": 5,
+              "y": 2
+            }
+          },
+          {
+            "endHandleAngleDeg": 180,
+            "endHandleLength": 5,
+            "kind": "bezierCurve",
+            "name": "Curve",
+            "segments": [
+              {
+                "control1": {
+                  "x": 5.000000000000001,
+                  "y": 10
+                },
+                "control2": {
+                  "x": 27,
+                  "y": 13.999999999999998
+                },
+                "end": {
+                  "kind": "point",
+                  "name": "Curve.end",
+                  "x": 22,
+                  "y": 14
+                },
+                "start": {
+                  "kind": "point",
+                  "name": "Curve.start",
+                  "x": 5,
+                  "y": 2
+                }
+              }
+            ],
+            "startHandleAngleDeg": 90,
+            "startHandleLength": 8
+          }
+        ],
+        "drawables": [
+          {
+            "kind": "line",
+            "start": {
+              "x": 29,
+              "y": -27
+            },
+            "end": {
+              "x": 5,
+              "y": -61
+            },
+            "name": "Edge",
+            "stroke": {
+              "widthMm": 0.26458333333333334,
+              "style": "solid",
+              "colorHex": "#31322f"
+            }
+          },
+          {
+            "kind": "bezier",
+            "start": {
+              "x": 29,
+              "y": -27
+            },
+            "control1": {
+              "x": 13,
+              "y": -27
+            },
+            "control2": {
+              "x": 5,
+              "y": -71
+            },
+            "end": {
+              "x": 5,
+              "y": -61
+            },
+            "name": "Curve",
+            "stroke": {
+              "widthMm": 0.26458333333333334,
+              "style": "solid",
+              "colorHex": "#31322f"
+            }
+          }
+        ],
+        "placements": [
+          {
+            "id": "statement:place:mvnm5e4v:24",
+            "groupId": "group-mvnm5e4v-25",
+            "origin": {
+              "x": 3,
+              "y": -4
+            },
+            "at": {
+              "x": 41,
+              "y": -23
+            },
+            "scale": 2,
+            "angleDeg": 90,
+            "mirror": true,
+            "drawables": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": 29,
+                  "y": -27
+                },
+                "end": {
+                  "x": 5,
+                  "y": -61
+                },
+                "name": "Edge",
+                "stroke": {
+                  "widthMm": 0.26458333333333334,
+                  "style": "solid",
+                  "colorHex": "#31322f"
+                }
+              },
+              {
+                "kind": "bezier",
+                "start": {
+                  "x": 29,
+                  "y": -27
+                },
+                "control1": {
+                  "x": 13,
+                  "y": -27
+                },
+                "control2": {
+                  "x": 5,
+                  "y": -71
+                },
+                "end": {
+                  "x": 5,
+                  "y": -61
+                },
+                "name": "Curve",
+                "stroke": {
+                  "widthMm": 0.26458333333333334,
+                  "style": "solid",
+                  "colorHex": "#31322f"
+                }
+              }
+            ]
+          }
+        ],
+        "bounds": {
+          "minX": 4.867708333333334,
+          "minY": -62.610842270581706,
+          "maxX": 29.132291666666667,
+          "maxY": -26.867708333333333,
+          "width": 24.264583333333334,
+          "height": 35.74313393724837
+        }
+      },
+      {
+        "id": "B3",
+        "sourceHash": "c4cdd78ff3e965f4de2b34b0efbd71345fea1628089a066bfe5fd58941db69fe",
+        "canvas": [
+          {
+            "kind": "point",
+            "name": "Origin",
+            "x": 0,
+            "y": 0
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Edge.end",
+              "x": 22,
+              "y": 14
+            },
+            "kind": "line",
+            "name": "Edge",
+            "start": {
+              "kind": "point",
+              "name": "Edge.start",
+              "x": 5,
+              "y": 2
+            }
+          },
+          {
+            "end": {
+              "kind": "point",
+              "name": "Hidden.end",
+              "x": 43,
+              "y": -11
+            },
+            "kind": "line",
+            "name": "Hidden",
+            "start": {
+              "kind": "point",
+              "name": "Hidden.start",
+              "x": -19,
+              "y": 31
+            }
+          }
+        ],
+        "drawables": [
+          {
+            "kind": "line",
+            "start": {
+              "x": 21,
+              "y": -3
+            },
+            "end": {
+              "x": 55,
+              "y": 21
+            },
+            "name": "Edge",
+            "stroke": {
+              "widthMm": 1.0583333333333333,
+              "style": "dashed",
+              "colorHex": "#aabbcc"
+            }
+          }
+        ],
+        "placements": [
+          {
+            "id": "statement:place:mvnm5e4z:29",
+            "groupId": "group-mvnm5e4z-29",
+            "origin": {
+              "x": 0,
+              "y": 0
+            },
+            "at": {
+              "x": 11,
+              "y": -7
+            },
+            "scale": 2,
+            "angleDeg": 0,
+            "mirror": false,
+            "drawables": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": 21,
+                  "y": -3
+                },
+                "end": {
+                  "x": 55,
+                  "y": 21
+                },
+                "name": "Edge",
+                "stroke": {
+                  "widthMm": 1.0583333333333333,
+                  "style": "dashed",
+                  "colorHex": "#aabbcc"
+                }
+              }
+            ]
+          }
+        ],
+        "bounds": {
+          "minX": 20.470833333333335,
+          "minY": -3.529166666666667,
+          "maxX": 55.52916666666667,
+          "maxY": 21.529166666666665,
+          "width": 35.05833333333333,
+          "height": 25.058333333333334
+        }
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  },
+  "B4-base": {
+    "requests": 1,
+    "observations": [
+      {
+        "id": "B4",
+        "sourceHash": "2bf42e4b26d02ee17f7f3845d80a13e6babe0b1be521ba82ac5ac34d76c5ef7e",
+        "vectorPathPageInverse": "PASS",
+        "caption": {
+          "kind": "text",
+          "name": "Caption",
+          "text": "Alpha\nBeta",
+          "anchor": {
+            "x": 43,
+            "y": -5
+          },
+          "fontSizeMm": 5,
+          "widthMm": 15.5,
+          "lineWidthsMm": [
+            15.5,
+            12.4
+          ],
+          "lineHeightMm": 6,
+          "rotationDeg": 0,
+          "mirrorX": false,
+          "colorHex": "#31322f"
+        },
+        "transform": "translate(403 199) rotate(0) scale(2 -2)",
+        "vectors": {
+          "glyphUp": [
+            0,
+            2
+          ],
+          "secondBaseline": [
+            0,
+            12
+          ]
+        },
+        "expectedGlyphUp": [
+          0,
+          -2
+        ],
+        "expectedSecondBaseline": [
+          0,
+          12
+        ]
+      }
+    ],
+    "childClosed": true,
+    "temporaryDirectoryRemoved": true
+  }
+}

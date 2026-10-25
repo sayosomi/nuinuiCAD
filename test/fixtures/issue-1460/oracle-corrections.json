@@ -1,0 +1,195 @@
+{
+  "reason": "Initial end handle oracle treated endAngle as endpoint-to-control. Existing lineEvaluators.ts:588 uses endAngle+180 and historical independent #1456/#1458 frozen cubic oracles confirm endAngle is forward terminal tangent. Thus C2=end-length*(cos(angle),sin(angle)); for angle180, C2=end+(5,0). No source or product semantics change. C1 first failed numeric assertion is harness error, not product finding; B1/B2 corrected before observation.",
+  "initial": [
+    {
+      "id": "B1",
+      "initialExpected": {
+        "points": [
+          [
+            5,
+            2
+          ],
+          [
+            22,
+            14
+          ],
+          [
+            5,
+            10
+          ],
+          [
+            27,
+            14
+          ]
+        ],
+        "placed": [
+          [
+            5,
+            2
+          ],
+          [
+            22,
+            14
+          ],
+          [
+            5,
+            10
+          ],
+          [
+            27,
+            14
+          ]
+        ],
+        "order": [
+          "Edge",
+          "Curve"
+        ]
+      }
+    },
+    {
+      "id": "B2",
+      "initialExpected": {
+        "points": [
+          [
+            5,
+            2
+          ],
+          [
+            22,
+            14
+          ],
+          [
+            5,
+            10
+          ],
+          [
+            27,
+            14
+          ]
+        ],
+        "placed": [
+          [
+            29,
+            -27
+          ],
+          [
+            5,
+            -61
+          ],
+          [
+            13,
+            -27
+          ],
+          [
+            5,
+            -71
+          ]
+        ],
+        "order": [
+          "Edge",
+          "Curve"
+        ]
+      }
+    },
+    {
+      "id": "C1",
+      "initialExpected": {
+        "point": [
+          15,
+          -7
+        ],
+        "start": [
+          15,
+          -7
+        ],
+        "control1": [
+          15,
+          1
+        ],
+        "control2": [
+          31,
+          11
+        ],
+        "end": [
+          26,
+          11
+        ]
+      }
+    },
+    {
+      "id": "C2",
+      "initialExpected": {
+        "point": [
+          21,
+          -7
+        ],
+        "start": [
+          21,
+          -7
+        ],
+        "control1": [
+          21,
+          1
+        ],
+        "control2": [
+          43,
+          11
+        ],
+        "end": [
+          38,
+          11
+        ]
+      }
+    },
+    {
+      "id": "C3",
+      "initialExpected": {
+        "point": [
+          25,
+          -7
+        ],
+        "start": [
+          25,
+          -7
+        ],
+        "control1": [
+          25,
+          1
+        ],
+        "control2": [
+          51,
+          11
+        ],
+        "end": [
+          46,
+          11
+        ]
+      }
+    },
+    {
+      "id": "C4",
+      "initialExpected": {
+        "point": [
+          31,
+          -7
+        ],
+        "start": [
+          31,
+          -7
+        ],
+        "control1": [
+          31,
+          1
+        ],
+        "control2": [
+          63,
+          11
+        ],
+        "end": [
+          58,
+          11
+        ]
+      }
+    }
+  ]
+}

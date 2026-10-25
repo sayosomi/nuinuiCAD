@@ -1,0 +1,22 @@
+{
+  "src/dsl/modulePreviewRoot.ts": {
+    "baseGitBlob": "f4a5e3eb0ced645d340c93ea2b619ec77fd6407b",
+    "currentGitBlob": "3ef160356eadbd43872e3ff8ef3d3b69c0dbf781"
+  },
+  "src/vscode/modulePreviewEvaluation.ts": {
+    "baseGitBlob": "c186e58ea43d1f362b4233a873511df2b6620e54",
+    "currentGitBlob": "c186e58ea43d1f362b4233a873511df2b6620e54"
+  },
+  "src/vscode/outputPreviewRendering.ts": {
+    "baseGitBlob": "7554b794c9e1f3803e5db362d6fe3a029f4be34e",
+    "currentGitBlob": "7554b794c9e1f3803e5db362d6fe3a029f4be34e"
+  },
+  "src/vscode/OutputPreviewApp.tsx": {
+    "baseGitBlob": "002809c8bb3f28f200ceec7fbdfad8365862583c",
+    "currentGitBlob": "002809c8bb3f28f200ceec7fbdfad8365862583c"
+  },
+  "src/output/outputCore.ts": {
+    "baseGitBlob": "38b50ba49df8804758159ae18f0c6f045c15e6dd",
+    "currentGitBlob": "38b50ba49df8804758159ae18f0c6f045c15e6dd"
+  }
+}
