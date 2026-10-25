@@ -1,0 +1,4794 @@
+{
+  "base": "c3ce5409f4124a1d9600ebf3bfb1b84190eb562a",
+  "baseProductionDiffBeforeRepair": "empty (git diff --name-only returned no tracked files)",
+  "units": 29,
+  "variants": 59,
+  "primaryUnits": 24,
+  "conditionalX": [
+    "X2",
+    "X3",
+    "X4",
+    "X8"
+  ],
+  "reducers": [
+    "F1"
+  ],
+  "novelFixedFamilies": 1,
+  "quota": "UNAVAILABLE",
+  "baseObservations": [
+    {
+      "id": "S1",
+      "variant": "dependent",
+      "kind": "svg",
+      "sourceSha256": "49fae988bafc13d3425408844c949f5bce67f485b6dae2e6a399318ec82ac2b6",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S1",
+      "variant": "independent",
+      "kind": "svg",
+      "sourceSha256": "2daf76fb07bed485eba447ae8b75d2d423085b319ab824ccc63f4dcfb9b00942",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S2",
+      "variant": "compound",
+      "kind": "svg",
+      "sourceSha256": "16094ddc63df1fb7cb57d9443ed2f350bc520e160af94b85cbea22197c7a5b12",
+      "artifactSha256": "790bf717606910d3974e0e7c51abeb4aa9a4de970a01e042a02e9d65d9bbcef3",
+      "bytes": 324,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 34.826,
+        "heightMm": 52.359
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S2",
+      "variant": "unmirrored",
+      "kind": "svg",
+      "sourceSha256": "c0cd0142be0283825c2dde984c6a5b2bcd8d989bd92933f0f0b643077d098782",
+      "artifactSha256": "96581e42c11072d0194c9f57e8cca11e3a6a9f09b6e81db1bad79bf0cab2b381",
+      "bytes": 324,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 54.484,
+        "heightMm": 34.504
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S3",
+      "variant": "positive",
+      "kind": "svg",
+      "sourceSha256": "2831a0405db527f2819918bf4549a5428c53328e96501fa3e17fb046ab8e6eca",
+      "artifactSha256": "30513f057ab0edc59c07682feb938cf1e7a0d0c2363bfeee152f7db447b1076e",
+      "bytes": 310,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 42.583,
+        "heightMm": 29.914
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S3",
+      "variant": "negative",
+      "kind": "svg",
+      "sourceSha256": "ac36d9b87b56a3f21dea644a40b21a346331a93bc507103cc0ea9dcc828085c3",
+      "artifactSha256": "61a4cc7538ce31d1484b9e8efd5323b2006ee5e52b853a7fca96a6dd0b7d9474",
+      "bytes": 310,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 42.583,
+        "heightMm": 29.914
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S3",
+      "variant": "wraparound",
+      "kind": "svg",
+      "sourceSha256": "266149b58226e20aa0bf49a84da9c2b6e6f0aaabb27cffb506d998e74bbeadb7",
+      "artifactSha256": "2530668afe6d23bcaf23e6ac1c971dc2b7f035263b0f934610c37d366f7cd8aa",
+      "bytes": 310,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 29.914,
+        "heightMm": 42.583
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S4",
+      "variant": "filled",
+      "kind": "svg",
+      "sourceSha256": "d82ee508da70fb74848044fa97eec8010f36ef3165fb39135d869f235d6e562a",
+      "artifactSha256": "f085ec0078c1c530d7b867760a50ad999efd091c6a27298a82fa5bf4cd6071b9",
+      "bytes": 1470,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 312.181,
+        "heightMm": 113.793
+      },
+      "encodedElementCount": 9
+    },
+    {
+      "id": "S4",
+      "variant": "stroke",
+      "kind": "svg",
+      "sourceSha256": "b8773b79d009852f59df17ffdb638d89945de3909783e3655e34eb1325f1bbd0",
+      "artifactSha256": "d0029ddd953345ab91dfe976f07d5769baa0c831a9832d6c6aea2e7034f2b6a0",
+      "bytes": 1336,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 312.181,
+        "heightMm": 113.793
+      },
+      "encodedElementCount": 8
+    },
+    {
+      "id": "S5",
+      "variant": "repeated",
+      "kind": "svg",
+      "sourceSha256": "beced422fe63a9328e913fc3ff8873631d29190ef9f3d7af18afb78dbf464af1",
+      "artifactSha256": "8ea09600a9269c92f1f0ce2a69a80c75e7db41fd3ff65c0e2e4462406a241909",
+      "bytes": 726,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 94.075,
+        "heightMm": 29.529
+      },
+      "encodedElementCount": 4
+    },
+    {
+      "id": "S5",
+      "variant": "single",
+      "kind": "svg",
+      "sourceSha256": "e64efa59ca182b215fefcb36f37580c901ee568f077fcc1160406af128315d59",
+      "artifactSha256": "892aa7ce7adb7c527f1f75f7099391375159a332573712d90e085901e4eb29ef",
+      "bytes": 435,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 34.529,
+        "heightMm": 9.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S6",
+      "variant": "selected",
+      "kind": "svg",
+      "sourceSha256": "4d17f72b6b45c8399462e1b8c62bd50c3c44c597af9136cf3a3793b336e53b7f",
+      "artifactSha256": "0c03f8160cd51d412545e59e1f12086a8a97ef6386dfa553d8067190c3c2260e",
+      "bytes": 489,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 152.058,
+        "heightMm": 44.558
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S6",
+      "variant": "default",
+      "kind": "svg",
+      "sourceSha256": "a44ab4ec0495d3486efe0179af613f6b7193695e5c69e21710e63dfc657a9f2f",
+      "artifactSha256": "9d4ef4709ff73ffc8ccd5afb4ef3b27829cb67d29ede53c22248f164cde591dc",
+      "bytes": 750,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 2256.265,
+        "heightMm": 106.265
+      },
+      "encodedElementCount": 4
+    },
+    {
+      "id": "S7",
+      "variant": "compound",
+      "kind": "svg",
+      "sourceSha256": "0b3c97e2738090164aba263fa5ee45f606dad670c9df79a3b74df5f75c5ebb1c",
+      "artifactSha256": "cd3a148c990088d3ed8dbd92aa7daded8f780e2822664f6b1da7f5c55265ef2d",
+      "bytes": 505,
+      "result": "FAIL",
+      "error": "AssertionError: 16.281873725947143 != 9.734094620718773: expected 6.54777910522837 to be less than 0.0011",
+      "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"21.737mm\" height=\"26.132mm\" viewBox=\"0 0 21.737 26.132\">\n    <text x=\"0\" y=\"0\" font-size=\"6.8\" fill=\"#31322f\" font-family=\"HeiseiKakuGo-W5\" dominant-baseline=\"alphabetic\" transform=\"translate(13.008 7.345) rotate(-37 0 0) scale(-1 -1)\"><tspan x=\"0\" y=\"0\" textLength=\"8.432\" lengthAdjust=\"spacingAndGlyphs\">AB</tspan><tspan x=\"0\" dy=\"-8.16\" textLength=\"13.6\" lengthAdjust=\"spacingAndGlyphs\">日本</tspan></text>\n</svg>\n"
+    },
+    {
+      "id": "S7",
+      "variant": "compound",
+      "kind": "pdf",
+      "sourceSha256": "0b3c97e2738090164aba263fa5ee45f606dad670c9df79a3b74df5f75c5ebb1c",
+      "artifactSha256": "19e995bdd7cfd959fcbe4d1c28255e10cf1f8aa321ef28d5356c9b2278a273c3",
+      "bytes": 1514,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            12.138157683022396,
+            -42.68778324675266
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "S7",
+      "variant": "upright",
+      "kind": "svg",
+      "sourceSha256": "c61158f7d3ac7831c6ed8f25861ec56b60c3d23b064b33b4a50c9e2d9b36187d",
+      "artifactSha256": "e1152667369cb1cd25b479e05c9023a460e4250770eed19d96262f7c2e82b928",
+      "bytes": 477,
+      "result": "FAIL",
+      "error": "AssertionError: 9.4 != 2.999999999999999: expected 6.400000000000001 to be less than 0.0011",
+      "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14mm\" height=\"14.8mm\" viewBox=\"0 0 14 14.8\">\n    <text x=\"0\" y=\"0\" font-size=\"4\" fill=\"#31322f\" font-family=\"HeiseiKakuGo-W5\" dominant-baseline=\"alphabetic\" transform=\"translate(3 6.2) rotate(-0 0 0) scale(1 -1)\"><tspan x=\"0\" y=\"0\" textLength=\"4.96\" lengthAdjust=\"spacingAndGlyphs\">AB</tspan><tspan x=\"0\" dy=\"-4.8\" textLength=\"8\" lengthAdjust=\"spacingAndGlyphs\">日本</tspan></text>\n</svg>\n"
+    },
+    {
+      "id": "S7",
+      "variant": "upright",
+      "kind": "pdf",
+      "sourceSha256": "c61158f7d3ac7831c6ed8f25861ec56b60c3d23b064b33b4a50c9e2d9b36187d",
+      "artifactSha256": "5bdd67867e84a1a97ffa7532dbb80b099063c387c1afbde88f9c28299c978929",
+      "bytes": 1477,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5,
+            -13.6
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "S8",
+      "variant": "zero",
+      "kind": "svg",
+      "sourceSha256": "6c5ed88d69ab62c383744efc6aae04ad4603025c7ce8d7ad481138358e4c5407",
+      "artifactSha256": "bbf6c9b8c2eabaace385a2790266ea06d591012c3a7ff99b6d6594c96f79957b",
+      "bytes": 306,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 10500.529,
+        "heightMm": 400.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S8",
+      "variant": "positive",
+      "kind": "svg",
+      "sourceSha256": "3b62c9e6cee7ba52d61af1c7269c2623fa274652570fcfc4a4f5358c1b5e50ae",
+      "artifactSha256": "b657bef929f04a2fe14d353ffead1c5809f3c4982893b7a37da21bfd1b872e56",
+      "bytes": 308,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 10522.529,
+        "heightMm": 422.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "P1",
+      "variant": "threshold",
+      "kind": "pdf",
+      "sourceSha256": "970ab138f45b38bfb85049886c1520391732e7efc8756a3ea9ec94a1bbfb7123",
+      "artifactSha256": "88f6320105a1c180c00326db43ffe23f20db94b603b6d36026ce87beb3b68000",
+      "bytes": 1371,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -41.264583333333334,
+            -57.264583333333334
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P1",
+      "variant": "crossing",
+      "kind": "pdf",
+      "sourceSha256": "0d9a8c8d99f692be3af0f347043708d8e87f7547a8ae0777df1d372c7cf52865",
+      "artifactSha256": "c2c2cffe46e90210e77c98a454edb846e683f1c443f014578b4532f929eda173",
+      "bytes": 2165,
+      "result": "PASS",
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -41.264583333333334,
+            -57.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            148.73541666666665,
+            -57.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3
+      ]
+    },
+    {
+      "id": "P2",
+      "variant": "overlap",
+      "kind": "pdf",
+      "sourceSha256": "57b6ef52e54ef35a72f75e53daa6c5561446d30cf86fd22832b2268963539639",
+      "artifactSha256": "1cd98eb56b587e6894aac104feeccb851835572cc78a652f46249613ea2a833b",
+      "bytes": 3933,
+      "result": "PASS",
+      "pageCount": 4,
+      "pages": [
+        {
+          "originMm": [
+            -50.264583333333334,
+            -60.264583333333334
+          ],
+          "labels": [
+            "1",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            139.73541666666665,
+            -60.264583333333334
+          ],
+          "labels": [
+            "1",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -50.264583333333334,
+            216.73541666666665
+          ],
+          "labels": [
+            "2",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            139.73541666666665,
+            216.73541666666665
+          ],
+          "labels": [
+            "2",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "id": "P2",
+      "variant": "zero",
+      "kind": "pdf",
+      "sourceSha256": "3039b6070112c6a6b845ffa46d91df4f146f60ba61d63c07fb0f1a5196de553e",
+      "artifactSha256": "8f523a773bfdc495fdbd26b281726e9ac818525aef76430ea7f8e68c8c401199",
+      "bytes": 2101,
+      "result": "PASS",
+      "pageCount": 4,
+      "pages": [
+        {
+          "originMm": [
+            -40.264583333333334,
+            -50.264583333333334
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            169.73541666666665,
+            -50.264583333333334
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -40.264583333333334,
+            246.73541666666665
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            169.73541666666665,
+            246.73541666666665
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "id": "P3",
+      "variant": "a3",
+      "kind": "pdf",
+      "sourceSha256": "34ee35fa34d8268902a1244601cb843149501881817c726c4b6454fec96cbfb7",
+      "artifactSha256": "c2a4b5a4b2a50ba6217c4ca88702e00976624a5f7cd221013d46df32b1adb002",
+      "bytes": 1396,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -47.264583333333334,
+            -51.264583333333334
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            1190.551,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        4
+      ]
+    },
+    {
+      "id": "P3",
+      "variant": "a4",
+      "kind": "pdf",
+      "sourceSha256": "b597c3104d72aec5a07437c770c563d5521944ad1ebd133f23b5648875d01c94",
+      "artifactSha256": "505ef9a9cdaca3137ee2dd9243c3453604bc62946669985ab1dffadbeb28c140",
+      "bytes": 4009,
+      "result": "PASS",
+      "pageCount": 4,
+      "pages": [
+        {
+          "originMm": [
+            -47.264583333333334,
+            -51.264583333333334
+          ],
+          "labels": [
+            "1",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        },
+        {
+          "originMm": [
+            229.73541666666665,
+            -51.264583333333334
+          ],
+          "labels": [
+            "1",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        },
+        {
+          "originMm": [
+            -47.264583333333334,
+            138.73541666666665
+          ],
+          "labels": [
+            "2",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        },
+        {
+          "originMm": [
+            229.73541666666665,
+            138.73541666666665
+          ],
+          "labels": [
+            "2",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "id": "P4",
+      "variant": "corner",
+      "kind": "pdf",
+      "sourceSha256": "c3782451c0e439a119e97ec023a1f6e22fd46b71ee2771ae7f0ba494b643b05f",
+      "artifactSha256": "331b92370bdc927e046b892d4998633023c7238228c7114440166f0fc815b867",
+      "bytes": 1406,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -96.89074868259662,
+            16.046286850050244
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P4",
+      "variant": "neighbor",
+      "kind": "pdf",
+      "sourceSha256": "88571d2591ed7837a31e43f29ce0e0e11d367a28e146922d10038522530684c1",
+      "artifactSha256": "5503c72890a8b0f97d7ff7748c0623ebe290e828cc994e3e5a7350ccf8f5bbbf",
+      "bytes": 1401,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -31.864583333333336,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P5",
+      "variant": "filled",
+      "kind": "pdf",
+      "sourceSha256": "1b085e248095cebbb5cc341af91a07ab8bf88e195307cb985948a9d009c645dd",
+      "artifactSha256": "7e360ed41ba24814f7717962282309ab178464bbedb9b164f511bb3974046a51",
+      "bytes": 2849,
+      "result": "PASS",
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -75.26458333333333,
+            -30.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            114.73541666666667,
+            -30.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        15,
+        15
+      ]
+    },
+    {
+      "id": "P5",
+      "variant": "stroke",
+      "kind": "pdf",
+      "sourceSha256": "f5bff1895dc1ae44a3beee0dcc3b6f356569ecef58238adfb13e0e52fc544744",
+      "artifactSha256": "fa160a6c1a0164ff172434b921adf2df4052f9377d9af90dd763f585a3650cfc",
+      "bytes": 2482,
+      "result": "PASS",
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -75.26458333333333,
+            -30.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            114.73541666666667,
+            -30.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        9,
+        9
+      ]
+    },
+    {
+      "id": "P6",
+      "variant": "large",
+      "kind": "pdf",
+      "sourceSha256": "abdd9496f1dcee52a3048a976b3a03786b1157a8b0aeb3753523df33d54fd2f5",
+      "artifactSha256": "bc2cfbb2d7b78be84668d0deef1b53690c69e2ac93949ca008e7e3edf39e66aa",
+      "bytes": 10502,
+      "result": "PASS",
+      "pageCount": 11,
+      "pages": [
+        {
+          "originMm": [
+            -0.5968749999999999,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            209.00312499999998,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "1",
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            418.603125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "2",
+            "3"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            628.203125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "3",
+            "4"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            837.803125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "4",
+            "5"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1047.403125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "5",
+            "6"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1257.003125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "6",
+            "7"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1466.603125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "7",
+            "8"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1676.203125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "8",
+            "9"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1885.803125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "9",
+            "10"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            2095.403125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "10"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6
+      ]
+    },
+    {
+      "id": "P6",
+      "variant": "small",
+      "kind": "pdf",
+      "sourceSha256": "f062ba167ead4df9d0378934b218970d35a33fdfd3cac5e8c8a68beadb5833a5",
+      "artifactSha256": "1d06b245f7ab2583b8a1edb8ab3d57edc7f4688026b7d2b6ea67ba012a9c00c9",
+      "bytes": 3250,
+      "result": "PASS",
+      "pageCount": 3,
+      "pages": [
+        {
+          "originMm": [
+            -0.5968749999999999,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            209.00312499999998,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "1",
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            418.603125,
+            -0.5968749999999999
+          ],
+          "labels": [
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6,
+        6,
+        6
+      ]
+    },
+    {
+      "id": "P7",
+      "variant": "hidden",
+      "kind": "pdf",
+      "sourceSha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+      "artifactSha256": "8443b8e0b1812efccb795fa43237a78604007d5958e5c5c1454f39b02eaae48f",
+      "bytes": 1381,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.529166666666667,
+            -10.529166666666667
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P7",
+      "variant": "visible",
+      "kind": "pdf",
+      "sourceSha256": "05988ec8db38316a8d5312decf2b7c893c68d3b6ac976223484651297597bce7",
+      "artifactSha256": "1fdf145fcaf90fd75e96cdc6c97dbe685d81ff6f3ee7bf415af5e493972936fa",
+      "bytes": 4977,
+      "result": "PASS",
+      "pageCount": 5,
+      "pages": [
+        {
+          "originMm": [
+            -410.1322916666667,
+            -30.132291666666667
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -220.13229166666667,
+            -30.132291666666667
+          ],
+          "labels": [
+            "1",
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -30.132291666666674,
+            -30.132291666666667
+          ],
+          "labels": [
+            "2",
+            "3"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            159.86770833333333,
+            -30.132291666666667
+          ],
+          "labels": [
+            "3",
+            "4"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            349.8677083333333,
+            -30.132291666666667
+          ],
+          "labels": [
+            "4"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6,
+        6,
+        6,
+        6,
+        6
+      ]
+    },
+    {
+      "id": "P8",
+      "variant": "invalid",
+      "kind": "pdf",
+      "result": "PASS",
+      "error": "print usable width",
+      "sentinelSha256": "de53aa133b740e24c826e8162f9f1a664ed2bfd6dd25f371813db11479577431"
+    },
+    {
+      "id": "P8",
+      "variant": "valid",
+      "kind": "pdf",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "artifactSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb",
+      "bytes": 1371,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R1",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "e181a2e71f38f727dffd0897710b988c1c34a51eceef416bcfe1115441653178",
+      "artifactSha256": "1e3fe4d8976756f0e30637f78577f977be01eb4e3d78e5932a83ef9f1755f351",
+      "bytes": 324,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 26.826,
+        "heightMm": 44.359
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R1",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "ecbf72c4cad8e0da0746f667b195126e913374f7885b01e726cb816196c239c6",
+      "artifactSha256": "c7f377724bfb758d5daa2bb80aa6f46773e71f933f6b3163dc17f9e27f6a9e2e",
+      "bytes": 323,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 29.045,
+        "heightMm": 57.51
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R2",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "8465cd10a7d01ec8b6525e4ee8d45fa9146e460a41ffccf1971ab8e91ecd6a08",
+      "artifactSha256": "1e3fe4d8976756f0e30637f78577f977be01eb4e3d78e5932a83ef9f1755f351",
+      "bytes": 324,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 26.826,
+        "heightMm": 44.359
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R2",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "8465cd10a7d01ec8b6525e4ee8d45fa9146e460a41ffccf1971ab8e91ecd6a08",
+      "artifactSha256": "d29bdbd61f2799b68820c0edb365002fb98c74059d072640005bd8249610506c",
+      "bytes": 1400,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            12.023884242877543,
+            -28.20705880511913
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R2",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "3fbea1d55f944622d0bc37ac761ec501434dac1817cc891db7d86e904242c537",
+      "artifactSha256": "7fb281315bd83c0f7e8ab6b2e0a076363b404d16f66c16873e7d6174be27734f",
+      "bytes": 321,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 18.642,
+        "heightMm": 25.227
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R2",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "3fbea1d55f944622d0bc37ac761ec501434dac1817cc891db7d86e904242c537",
+      "artifactSha256": "2530618dff59439c87398e1da0c14984612df36b7cb1df54729072b9a63506ad",
+      "bytes": 1399,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            16.614455983093706,
+            -49.62115490846904
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R3",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "e1baa45c5fc38455513c697f07c9fd4bfed13bc20fe5b6e2df492536040e06c2",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "note": "Initial pre-schedule-discrimination source; final R3 revised its non-drawable Scheduling point and is recorded in fixed evidence.",
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "R3",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "e1baa45c5fc38455513c697f07c9fd4bfed13bc20fe5b6e2df492536040e06c2",
+      "artifactSha256": "e540195a549c7809fb1f018bc4ab462e2dc31ae8a388590e68c68bc89ce81d6c",
+      "bytes": 1445,
+      "result": "PASS",
+      "note": "Initial pre-schedule-discrimination source; final R3 revised its non-drawable Scheduling point and is recorded in fixed evidence.",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5.264583333333333,
+            -8.264583333333334
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6
+      ]
+    },
+    {
+      "id": "R3",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "7e99a0c972d1a0857bd3c6bbbed54aecf5d38d983c26be4d43eeb0c23821831a",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "note": "Initial pre-schedule-discrimination source; final R3 revised its non-drawable Scheduling point and is recorded in fixed evidence.",
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "R3",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "7e99a0c972d1a0857bd3c6bbbed54aecf5d38d983c26be4d43eeb0c23821831a",
+      "artifactSha256": "e540195a549c7809fb1f018bc4ab462e2dc31ae8a388590e68c68bc89ce81d6c",
+      "bytes": 1445,
+      "result": "PASS",
+      "note": "Initial pre-schedule-discrimination source; final R3 revised its non-drawable Scheduling point and is recorded in fixed evidence.",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5.264583333333333,
+            -8.264583333333334
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6
+      ]
+    },
+    {
+      "id": "R4",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+      "artifactSha256": "5e830ac67a84d096423cbcf7517c0da2dd758a347cff6a2d80df7d2916d055b1",
+      "bytes": 317,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 37.058,
+        "heightMm": 22.058
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R4",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+      "artifactSha256": "8443b8e0b1812efccb795fa43237a78604007d5958e5c5c1454f39b02eaae48f",
+      "bytes": 1381,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.529166666666667,
+            -10.529166666666667
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R4",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "08b43540e4ece3f80d42b36cf23f9547d2383c3a5834a376d6a30c9399bee7a5",
+      "artifactSha256": "13450355dc3c2270603aef2e38b38ec90a11ae354a9471f0e603c24a515523e0",
+      "bytes": 317,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 37.852,
+        "heightMm": 22.852
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R4",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "08b43540e4ece3f80d42b36cf23f9547d2383c3a5834a376d6a30c9399bee7a5",
+      "artifactSha256": "49e6f3613329d7d7d38192865fa6de331f36e112f251d5325a02d016bbce0bc4",
+      "bytes": 1384,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.926041666666666,
+            -10.926041666666666
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R5",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "2a6485ffaeb28072f5d43b5a8123ca51e767e3193b258aef75325df9cd781174",
+      "artifactSha256": "5fa008c94960bd8edc1fa65f49f55787004b350023a8ba3230d5fbb0cc6c6063",
+      "bytes": 1371,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -60.264583333333334,
+            -30.264583333333334
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R5",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "10837d929c689f88c467904f259e7e0c90827b693d58fe0d526d61e57f7897de",
+      "artifactSha256": "848692690570fd5e8d2e0e9f5873b92b3764864e0a608a569aadeec2a2e814c4",
+      "bytes": 2165,
+      "result": "PASS",
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -60.264583333333334,
+            -30.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            129.73541666666665,
+            -30.264583333333334
+          ],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3
+      ]
+    },
+    {
+      "id": "R6",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "artifactSha256": "ebfa42ea010fe0d01add04134981a250c7e8dbb1a60fbb966b0517d38fef1c22",
+      "bytes": 294,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 36.529,
+        "heightMm": 21.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R6",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "artifactSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb",
+      "bytes": 1371,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R6",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "68a49bed3ea7b98e520aa752045cde4522cc32a6453087b3e91ded11044baadc",
+      "artifactSha256": "f114829d572f7ffba31aea4ccc447d8476ac2de0af84508a6a524e5479285a98",
+      "bytes": 294,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 57.529,
+        "heightMm": 21.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R6",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "68a49bed3ea7b98e520aa752045cde4522cc32a6453087b3e91ded11044baadc",
+      "artifactSha256": "5ecbd63306b89ee9f2e07aab47796d625a5d3e940022cdbb993009c851c1dfbd",
+      "bytes": 1371,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R7",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "artifactSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb",
+      "bytes": 1371,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R7",
+      "variant": "invalid",
+      "kind": "pdf",
+      "result": "PASS",
+      "error": "print usable width",
+      "sentinelSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb"
+    },
+    {
+      "id": "R7",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "e14c9c30ecda88cebf330d6809e73ade2a170c37f2e06cdb35f11e42198fab03",
+      "artifactSha256": "f238217fc15a93463ce5aa2d42a8242d67a8b3a9b1b90abad65fc733e9303dbf",
+      "bytes": 1371,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -7.264583333333333,
+            -7.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R8",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "a9f8b83356f1b7dc90a10d6401b9741d7955f2a719de8081512c2eeac4f9cf8b",
+      "artifactSha256": "31158030b05d3bb35de8c300900c13683a3bd90a94e5014980b95515888bb073",
+      "bytes": 439,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 36.529,
+        "heightMm": 31.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "R8",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "70288db16b09e7c1d928d592e473fd28d8973d2e1a6bde2a84c62346a92252be",
+      "artifactSha256": "ee88b67bab6194fdf8e504116e53aae2b307b1261d9b37528502c3fb4a9e060e",
+      "bytes": 439,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 53.529,
+        "heightMm": 31.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "X2",
+      "variant": "filled",
+      "kind": "svg",
+      "sourceSha256": "0c076bf16dfd572eff289c9a01c621cc96f55cb808c839d9be9afa5b55ca1632",
+      "artifactSha256": "619ab577191b41b7cb8393ed5a5d1775bfafd64e7c19d32470f4b9ce6c98ad31",
+      "bytes": 795,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 61.469,
+        "heightMm": 41.388
+      },
+      "encodedElementCount": 4
+    },
+    {
+      "id": "X2",
+      "variant": "filled",
+      "kind": "pdf",
+      "sourceSha256": "0c076bf16dfd572eff289c9a01c621cc96f55cb808c839d9be9afa5b55ca1632",
+      "artifactSha256": "2736d735ca2bf91d0b19e4b398a2e2ccfb8128a591e9b293f8d71debc2b7f8d5",
+      "bytes": 1953,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -22.166574456153576,
+            -39.648697434505266
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        17
+      ]
+    },
+    {
+      "id": "X2",
+      "variant": "stroke",
+      "kind": "svg",
+      "sourceSha256": "fa4db5afa45115fa87af17a5e608b649c25a3fb50ba97c385edacd05c265df95",
+      "artifactSha256": "dcee7ca4e4fd6e3d8ccbae84004c30c81509b93522af66acd16a3a17987e9013",
+      "bytes": 625,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 61.469,
+        "heightMm": 41.388
+      },
+      "encodedElementCount": 3
+    },
+    {
+      "id": "X2",
+      "variant": "stroke",
+      "kind": "pdf",
+      "sourceSha256": "fa4db5afa45115fa87af17a5e608b649c25a3fb50ba97c385edacd05c265df95",
+      "artifactSha256": "a3124b05f6d00e9e443b2e2a5f717fcbe22341f09bdcb4611ccc7bcdf638b75f",
+      "bytes": 1631,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -22.166574456153576,
+            -39.648697434505266
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        10
+      ]
+    },
+    {
+      "id": "X3",
+      "variant": "nested",
+      "kind": "svg",
+      "sourceSha256": "897dcad86de31c5e6405456687dc72396472f52130ffbf1254b723ba7d460a35",
+      "artifactSha256": "ce96632484579fb8bac7416a06ebae3e8fe41e2a842d860b769d61fa722dc67b",
+      "bytes": 728,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 46.529,
+        "heightMm": 36.529
+      },
+      "encodedElementCount": 3
+    },
+    {
+      "id": "X3",
+      "variant": "nested",
+      "kind": "pdf",
+      "sourceSha256": "897dcad86de31c5e6405456687dc72396472f52130ffbf1254b723ba7d460a35",
+      "artifactSha256": "bb02820a9675d73fd04297577e1f0ccfaf4829d6cc49920f127b9d7ef881f03b",
+      "bytes": 1900,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        17
+      ]
+    },
+    {
+      "id": "X3",
+      "variant": "reversed",
+      "kind": "svg",
+      "sourceSha256": "52a954c0b5643775fa2b9f9c769e1d0710320292f0cb8be5d6f4e571ce31599a",
+      "artifactSha256": "d406d5af6580ceeb07b3463770f153814684c89e72329ea81cc76cdec793cbcf",
+      "bytes": 728,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 46.529,
+        "heightMm": 36.529
+      },
+      "encodedElementCount": 3
+    },
+    {
+      "id": "X3",
+      "variant": "reversed",
+      "kind": "pdf",
+      "sourceSha256": "52a954c0b5643775fa2b9f9c769e1d0710320292f0cb8be5d6f4e571ce31599a",
+      "artifactSha256": "7f4834462ddbf4d92f1849a96109e65f7863418ac4f89718e2316934ad899fba",
+      "bytes": 1900,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        17
+      ]
+    },
+    {
+      "id": "F1",
+      "variant": "text",
+      "kind": "svg",
+      "sourceSha256": "a1a137b04c9d18fdff6c47585f1f924feafe04d2802d0ce21173c87105ee10a9",
+      "artifactSha256": "f9bed63299f4724fc3f9b8a631badc2c46ffcc44814b5692db069523e936b2a6",
+      "bytes": 392,
+      "result": "FAIL",
+      "error": "AssertionError: 9.4 != 3: expected 6.4 to be less than 0.0011",
+      "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8.48mm\" height=\"10mm\" viewBox=\"0 0 8.48 10\">\n    <text x=\"0\" y=\"0\" font-size=\"4\" fill=\"#31322f\" font-family=\"HeiseiKakuGo-W5\" dominant-baseline=\"alphabetic\" transform=\"translate(3 6.2) rotate(-0 0 0) scale(1 -1)\"><tspan x=\"0\" y=\"0\" textLength=\"2.48\" lengthAdjust=\"spacingAndGlyphs\">A</tspan></text>\n</svg>\n"
+    },
+    {
+      "id": "F1",
+      "variant": "text",
+      "kind": "pdf",
+      "sourceSha256": "a1a137b04c9d18fdff6c47585f1f924feafe04d2802d0ce21173c87105ee10a9",
+      "artifactSha256": "cb963e8bda659920917c8f5610a5ccdbc98a4fed1212f33e28f6b463e2592aba",
+      "bytes": 1377,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10,
+            -10.8
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "variant": "vector",
+      "kind": "svg",
+      "sourceSha256": "4ddcce7c2cadf800a5483e7b5c1d93251f328ad78316ef551e1799435ac2aeee",
+      "artifactSha256": "a6d2ed4628eea8a9b83fb7088e3518fbc6432d69e2ac04f915deb094b79723c5",
+      "bytes": 288,
+      "result": "PASS",
+      "svg": {
+        "widthMm": 6.529,
+        "heightMm": 9.729,
+        "children": [
+          {
+            "tag": "path",
+            "attributes": {
+              "d": "M 3.265 6.465 L 3.265 3.265",
+              "fill": "none",
+              "stroke": "#123456",
+              "stroke-width": "0.529",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round"
+            },
+            "text": ""
+          }
+        ]
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "F1",
+      "variant": "vector",
+      "kind": "pdf",
+      "sourceSha256": "4ddcce7c2cadf800a5483e7b5c1d93251f328ad78316ef551e1799435ac2aeee",
+      "artifactSha256": "1cb498388d64f5fdde20435874054aacb94089e3c36d3331e42ac31b62a8c7eb",
+      "bytes": 1370,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "X4",
+      "variant": "blank-row",
+      "kind": "svg",
+      "sourceSha256": "a189c5305795010faae4517fa40a80d0cf4c0cbd53ce3ac92e1a6f414bb7035b",
+      "artifactSha256": "c36a5a4d3800b29d2c0224be0bece329c1f63793d8b88d1ae7208e2cbc0ebebe",
+      "bytes": 584,
+      "result": "FAIL",
+      "error": "AssertionError: 13.015546402781276 != 3: expected 10.015546402781276 to be less than 0.0011",
+      "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32.596mm\" height=\"22.795mm\" viewBox=\"0 0 32.596 22.795\">\n    <text x=\"0\" y=\"0\" font-size=\"6.8\" fill=\"#31322f\" font-family=\"HeiseiKakuGo-W5\" dominant-baseline=\"alphabetic\" transform=\"translate(8.008 9.908) rotate(-113 0 0) scale(-1 -1)\"><tspan x=\"0\" y=\"0\" textLength=\"8.432\" lengthAdjust=\"spacingAndGlyphs\">Wi</tspan><tspan x=\"0\" dy=\"-8.16\" textLength=\"0\" lengthAdjust=\"spacingAndGlyphs\"></tspan><tspan x=\"0\" dy=\"-8.16\" textLength=\"13.6\" lengthAdjust=\"spacingAndGlyphs\">日本</tspan></text>\n</svg>\n"
+    },
+    {
+      "id": "X4",
+      "variant": "blank-row",
+      "kind": "pdf",
+      "sourceSha256": "a189c5305795010faae4517fa40a80d0cf4c0cbd53ce3ac92e1a6f414bb7035b",
+      "artifactSha256": "5b440b305838c795d1524053fa052e7731fe609c4253bd6cf35363cbbcdb92a5",
+      "bytes": 1605,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            17.931789928867364,
+            -50.00244827562152
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "X8",
+      "variant": "unsupported",
+      "kind": "pdf",
+      "result": "PASS",
+      "error": "U+1F600",
+      "sentinelSha256": "de53aa133b740e24c826e8162f9f1a664ed2bfd6dd25f371813db11479577431"
+    },
+    {
+      "id": "X8",
+      "variant": "supported",
+      "kind": "pdf",
+      "sourceSha256": "0cf5871407c031f9151446890b7cce49e50f77ba2dc0727b07eb7c3cb3be78b1",
+      "artifactSha256": "5a965f54d48a39117f11cbf41c42bca3d44adf6233c57ce279d084bba61f98b4",
+      "bytes": 1375,
+      "result": "PASS",
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5,
+            -8.8
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    }
+  ],
+  "fixedObservations": [
+    {
+      "id": "S1",
+      "variant": "dependent",
+      "kind": "svg",
+      "sourceSha256": "49fae988bafc13d3425408844c949f5bce67f485b6dae2e6a399318ec82ac2b6",
+      "payloadSha256": "91b632201d1b61523c66a6fbdb5d758d8977bba37f49628e11fff9032db53553",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "detected": [
+        "reversed overlap order"
+      ],
+      "evaluationOrder": [
+        "Origin",
+        "Later",
+        "First"
+      ],
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S1",
+      "variant": "independent",
+      "kind": "svg",
+      "sourceSha256": "2daf76fb07bed485eba447ae8b75d2d423085b319ab824ccc63f4dcfb9b00942",
+      "payloadSha256": "ac274f28a48e42bfc9746f1811da28db8023f4c97a9adbd5c115cc34c83fc10a",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "detected": [
+        "reversed overlap order"
+      ],
+      "evaluationOrder": [
+        "Origin",
+        "First",
+        "Later"
+      ],
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S2",
+      "variant": "compound",
+      "kind": "svg",
+      "sourceSha256": "16094ddc63df1fb7cb57d9443ed2f350bc520e160af94b85cbea22197c7a5b12",
+      "payloadSha256": "71d598064f820e1c8d7937caeaca4c5c7b5f0b92f4831d69955d7a840d849b0e",
+      "artifactSha256": "790bf717606910d3974e0e7c51abeb4aa9a4de970a01e042a02e9d65d9bbcef3",
+      "bytes": 324,
+      "result": "PASS",
+      "detected": [
+        "wrong transformed cubic control",
+        "pixel rather than mm root units"
+      ],
+      "svg": {
+        "widthMm": 34.826,
+        "heightMm": 52.359
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S2",
+      "variant": "unmirrored",
+      "kind": "svg",
+      "sourceSha256": "c0cd0142be0283825c2dde984c6a5b2bcd8d989bd92933f0f0b643077d098782",
+      "payloadSha256": "bb34370940a1fd38f3c460ba974f0af839e948021ede44796a332ac562231fb7",
+      "artifactSha256": "96581e42c11072d0194c9f57e8cca11e3a6a9f09b6e81db1bad79bf0cab2b381",
+      "bytes": 324,
+      "result": "PASS",
+      "detected": [
+        "wrong transformed cubic control",
+        "pixel rather than mm root units"
+      ],
+      "svg": {
+        "widthMm": 54.484,
+        "heightMm": 34.504
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S3",
+      "variant": "positive",
+      "kind": "svg",
+      "sourceSha256": "2831a0405db527f2819918bf4549a5428c53328e96501fa3e17fb046ab8e6eca",
+      "payloadSha256": "17bf448ff059133469d09aa6a14709d93d018fcfaa8ea92ac786b74f0404c2ca",
+      "artifactSha256": "30513f057ab0edc59c07682feb938cf1e7a0d0c2363bfeee152f7db447b1076e",
+      "bytes": 310,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 42.583,
+        "heightMm": 29.914
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S3",
+      "variant": "negative",
+      "kind": "svg",
+      "sourceSha256": "ac36d9b87b56a3f21dea644a40b21a346331a93bc507103cc0ea9dcc828085c3",
+      "payloadSha256": "f11d1d2bbb8b5d330862c5ec205179269b758853ab9f34b494b7ef12a0d197af",
+      "artifactSha256": "61a4cc7538ce31d1484b9e8efd5323b2006ee5e52b853a7fca96a6dd0b7d9474",
+      "bytes": 310,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 42.583,
+        "heightMm": 29.914
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S3",
+      "variant": "wraparound",
+      "kind": "svg",
+      "sourceSha256": "266149b58226e20aa0bf49a84da9c2b6e6f0aaabb27cffb506d998e74bbeadb7",
+      "payloadSha256": "f94ea243d4e358ae0324637b93a1c5a570bfa3cb502aeccf48051f65473e3b80",
+      "artifactSha256": "2530668afe6d23bcaf23e6ac1c971dc2b7f035263b0f934610c37d366f7cd8aa",
+      "bytes": 310,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 29.914,
+        "heightMm": 42.583
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S4",
+      "variant": "filled",
+      "kind": "svg",
+      "sourceSha256": "d82ee508da70fb74848044fa97eec8010f36ef3165fb39135d869f235d6e562a",
+      "payloadSha256": "3097c6ec7cc97f829261eac930774056d55ae2d4b32a3e62815b766c765aaf2a",
+      "artifactSha256": "f085ec0078c1c530d7b867760a50ad999efd091c6a27298a82fa5bf4cd6071b9",
+      "bytes": 1470,
+      "result": "PASS",
+      "detected": [
+        "false closing stroke"
+      ],
+      "svg": {
+        "widthMm": 312.181,
+        "heightMm": 113.793
+      },
+      "encodedElementCount": 9
+    },
+    {
+      "id": "S4",
+      "variant": "stroke",
+      "kind": "svg",
+      "sourceSha256": "b8773b79d009852f59df17ffdb638d89945de3909783e3655e34eb1325f1bbd0",
+      "payloadSha256": "8fb963085d4ea3903c92b7be7d9582a473248dd5a879a99993acc51713e35860",
+      "artifactSha256": "d0029ddd953345ab91dfe976f07d5769baa0c831a9832d6c6aea2e7034f2b6a0",
+      "bytes": 1336,
+      "result": "PASS",
+      "detected": [
+        "false closing stroke"
+      ],
+      "svg": {
+        "widthMm": 312.181,
+        "heightMm": 113.793
+      },
+      "encodedElementCount": 8
+    },
+    {
+      "id": "S5",
+      "variant": "repeated",
+      "kind": "svg",
+      "sourceSha256": "beced422fe63a9328e913fc3ff8873631d29190ef9f3d7af18afb78dbf464af1",
+      "payloadSha256": "120764b03c5a85c712a10a773e011ed1eb0cad565b9722ff84ce59b455e8557a",
+      "artifactSha256": "8ea09600a9269c92f1f0ce2a69a80c75e7db41fd3ff65c0e2e4462406a241909",
+      "bytes": 726,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 94.075,
+        "heightMm": 29.529
+      },
+      "encodedElementCount": 4
+    },
+    {
+      "id": "S5",
+      "variant": "single",
+      "kind": "svg",
+      "sourceSha256": "e64efa59ca182b215fefcb36f37580c901ee568f077fcc1160406af128315d59",
+      "payloadSha256": "7f94463a27a412a0b347884cdeb09651bfe7175788a56bd9887283bf8190a455",
+      "artifactSha256": "892aa7ce7adb7c527f1f75f7099391375159a332573712d90e085901e4eb29ef",
+      "bytes": 435,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 34.529,
+        "heightMm": 9.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S6",
+      "variant": "selected",
+      "kind": "svg",
+      "sourceSha256": "4d17f72b6b45c8399462e1b8c62bd50c3c44c597af9136cf3a3793b336e53b7f",
+      "payloadSha256": "254ab6775a0792d7719ba680af59d8a43a7118b5a2767fc2fd0679cb3c6a5e34",
+      "artifactSha256": "0c03f8160cd51d412545e59e1f12086a8a97ef6386dfa553d8067190c3c2260e",
+      "bytes": 489,
+      "result": "PASS",
+      "detected": [
+        "physical stroke scaled twice",
+        "wrong Drawing Profile"
+      ],
+      "svg": {
+        "widthMm": 152.058,
+        "heightMm": 44.558
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "S6",
+      "variant": "default",
+      "kind": "svg",
+      "sourceSha256": "a44ab4ec0495d3486efe0179af613f6b7193695e5c69e21710e63dfc657a9f2f",
+      "payloadSha256": "924a37371f7ba3dc4f9e6e7d5453a369516f581db3e60c87f80b5c79f3fda551",
+      "artifactSha256": "9d4ef4709ff73ffc8ccd5afb4ef3b27829cb67d29ede53c22248f164cde591dc",
+      "bytes": 750,
+      "result": "PASS",
+      "detected": [
+        "physical stroke scaled twice",
+        "wrong Drawing Profile"
+      ],
+      "svg": {
+        "widthMm": 2256.265,
+        "heightMm": 106.265
+      },
+      "encodedElementCount": 4
+    },
+    {
+      "id": "S7",
+      "variant": "compound",
+      "kind": "svg",
+      "sourceSha256": "0b3c97e2738090164aba263fa5ee45f606dad670c9df79a3b74df5f75c5ebb1c",
+      "payloadSha256": "38dc97847cef461a1013742157b49c09df168e26361e3c05a92c6814687271ab",
+      "artifactSha256": "c9552077c3336600fa11ee3490f9fc4eabe205837f514b7fbdb2b06d89d745b0",
+      "bytes": 503,
+      "result": "PASS",
+      "detected": [
+        "inverted glyph ascent"
+      ],
+      "svg": {
+        "widthMm": 21.737,
+        "heightMm": 26.132,
+        "children": [
+          {
+            "tag": "text",
+            "attributes": {
+              "x": "0",
+              "y": "0",
+              "font-size": "6.8",
+              "fill": "#31322f",
+              "font-family": "HeiseiKakuGo-W5",
+              "dominant-baseline": "alphabetic",
+              "transform": "translate(13.008 7.345) rotate(-37 0 0) scale(-1 1)"
+            },
+            "text": "AB日本"
+          }
+        ]
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S7",
+      "variant": "compound",
+      "kind": "pdf",
+      "sourceSha256": "0b3c97e2738090164aba263fa5ee45f606dad670c9df79a3b74df5f75c5ebb1c",
+      "payloadSha256": "754aeb42d815e211d81058c23ca9a1b2c4e3f31aaad96b2c0094b2ee913195a7",
+      "artifactSha256": "19e995bdd7cfd959fcbe4d1c28255e10cf1f8aa321ef28d5356c9b2278a273c3",
+      "bytes": 1514,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            12.138157683022396,
+            -42.68778324675266
+          ],
+          "textMatrices": [
+            {
+              "op": "Tm",
+              "args": [
+                -0.799,
+                -0.602,
+                -0.602,
+                0.799,
+                56.716,
+                73.099
+              ]
+            },
+            {
+              "op": "Tm",
+              "args": [
+                -0.799,
+                -0.602,
+                -0.602,
+                0.799,
+                70.636,
+                54.626
+              ]
+            }
+          ],
+          "textArrays": [
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<0041>",
+                  380,
+                  "<0042>",
+                  380
+                ]
+              ]
+            },
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<65E5>",
+                  0,
+                  "<672C>",
+                  0
+                ]
+              ]
+            }
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "S7",
+      "variant": "upright",
+      "kind": "svg",
+      "sourceSha256": "c61158f7d3ac7831c6ed8f25861ec56b60c3d23b064b33b4a50c9e2d9b36187d",
+      "payloadSha256": "d5638465f4b8e53d580a31e12d42083397a915456390102fed96080f0ddcce93",
+      "artifactSha256": "05c041cc72660e5a06b55868471973f70bd947ed85217aeab2bd938c736952d4",
+      "bytes": 475,
+      "result": "PASS",
+      "detected": [
+        "inverted glyph ascent"
+      ],
+      "svg": {
+        "widthMm": 14,
+        "heightMm": 14.8,
+        "children": [
+          {
+            "tag": "text",
+            "attributes": {
+              "x": "0",
+              "y": "0",
+              "font-size": "4",
+              "fill": "#31322f",
+              "font-family": "HeiseiKakuGo-W5",
+              "dominant-baseline": "alphabetic",
+              "transform": "translate(3 6.2) rotate(-0 0 0) scale(1 1)"
+            },
+            "text": "AB日本"
+          }
+        ]
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S7",
+      "variant": "upright",
+      "kind": "pdf",
+      "sourceSha256": "c61158f7d3ac7831c6ed8f25861ec56b60c3d23b064b33b4a50c9e2d9b36187d",
+      "payloadSha256": "d59972321a04a027473e0e22c412ac6628b6dae03c473f2e06498900f81f6755",
+      "artifactSha256": "5bdd67867e84a1a97ffa7532dbb80b099063c387c1afbde88f9c28299c978929",
+      "bytes": 1477,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5,
+            -13.6
+          ],
+          "textMatrices": [
+            {
+              "op": "Tm",
+              "args": [
+                1,
+                0,
+                0,
+                1,
+                28.346,
+                44.22
+              ]
+            },
+            {
+              "op": "Tm",
+              "args": [
+                1,
+                0,
+                0,
+                1,
+                28.346,
+                30.614
+              ]
+            }
+          ],
+          "textArrays": [
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<0041>",
+                  380,
+                  "<0042>",
+                  380
+                ]
+              ]
+            },
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<65E5>",
+                  0,
+                  "<672C>",
+                  0
+                ]
+              ]
+            }
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "S8",
+      "variant": "zero",
+      "kind": "svg",
+      "sourceSha256": "6c5ed88d69ab62c383744efc6aae04ad4603025c7ce8d7ad481138358e4c5407",
+      "payloadSha256": "6e7307aab39055165b34ad6f130ba91170e4f158a4ae222d99553163e951d05e",
+      "artifactSha256": "bbf6c9b8c2eabaace385a2790266ea06d591012c3a7ff99b6d6594c96f79957b",
+      "bytes": 306,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 10500.529,
+        "heightMm": 400.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "S8",
+      "variant": "positive",
+      "kind": "svg",
+      "sourceSha256": "3b62c9e6cee7ba52d61af1c7269c2623fa274652570fcfc4a4f5358c1b5e50ae",
+      "payloadSha256": "f15ad8eda0206a1023495b3c2e3f720885683cafd4e029b7aca4947d122c497f",
+      "artifactSha256": "b657bef929f04a2fe14d353ffead1c5809f3c4982893b7a37da21bfd1b872e56",
+      "bytes": 308,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 10522.529,
+        "heightMm": 422.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "P1",
+      "variant": "threshold",
+      "kind": "pdf",
+      "sourceSha256": "970ab138f45b38bfb85049886c1520391732e7efc8756a3ea9ec94a1bbfb7123",
+      "payloadSha256": "ed1315011e178b45d41f3a073fc564118dcc78b7486815ac0fccca3e40439e2a",
+      "artifactSha256": "88f6320105a1c180c00326db43ffe23f20db94b603b6d36026ce87beb3b68000",
+      "bytes": 1371,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -41.264583333333334,
+            -57.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P1",
+      "variant": "crossing",
+      "kind": "pdf",
+      "sourceSha256": "0d9a8c8d99f692be3af0f347043708d8e87f7547a8ae0777df1d372c7cf52865",
+      "payloadSha256": "5aa2431be9835c5c23c22ec12552f424918c71a2fb8cf74574550f6d3acf5ce8",
+      "artifactSha256": "c2c2cffe46e90210e77c98a454edb846e683f1c443f014578b4532f929eda173",
+      "bytes": 2165,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -41.264583333333334,
+            -57.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            148.73541666666665,
+            -57.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3
+      ]
+    },
+    {
+      "id": "P2",
+      "variant": "overlap",
+      "kind": "pdf",
+      "sourceSha256": "57b6ef52e54ef35a72f75e53daa6c5561446d30cf86fd22832b2268963539639",
+      "payloadSha256": "5d4c94d336ff79e1b6cd1bb6010a646f2c36f9821fa97a45af4ea6616478a171",
+      "artifactSha256": "1cd98eb56b587e6894aac104feeccb851835572cc78a652f46249613ea2a833b",
+      "bytes": 3933,
+      "result": "PASS",
+      "detected": [
+        "missing sheet",
+        "wrong mm to pt conversion",
+        "wrong overlap and tile origin"
+      ],
+      "pageCount": 4,
+      "pages": [
+        {
+          "originMm": [
+            -50.264583333333334,
+            -60.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            139.73541666666665,
+            -60.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -50.264583333333334,
+            216.73541666666665
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "2",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            139.73541666666665,
+            216.73541666666665
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "2",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "id": "P2",
+      "variant": "zero",
+      "kind": "pdf",
+      "sourceSha256": "3039b6070112c6a6b845ffa46d91df4f146f60ba61d63c07fb0f1a5196de553e",
+      "payloadSha256": "cf2cdbc3daa4c516e828a752b3973c2ee2cf9b9298daa437e5693559bdff509b",
+      "artifactSha256": "8f523a773bfdc495fdbd26b281726e9ac818525aef76430ea7f8e68c8c401199",
+      "bytes": 2101,
+      "result": "PASS",
+      "detected": [
+        "missing sheet",
+        "wrong mm to pt conversion",
+        "wrong overlap and tile origin"
+      ],
+      "pageCount": 4,
+      "pages": [
+        {
+          "originMm": [
+            -40.264583333333334,
+            -50.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            169.73541666666665,
+            -50.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -40.264583333333334,
+            246.73541666666665
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            169.73541666666665,
+            246.73541666666665
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "id": "P3",
+      "variant": "a3",
+      "kind": "pdf",
+      "sourceSha256": "34ee35fa34d8268902a1244601cb843149501881817c726c4b6454fec96cbfb7",
+      "payloadSha256": "64d8a691b0df3160c10d7f0ef96ec6f1188aee4ddba738c9adcc85f04df1afbd",
+      "artifactSha256": "c2a4b5a4b2a50ba6217c4ca88702e00976624a5f7cd221013d46df32b1adb002",
+      "bytes": 1396,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -47.264583333333334,
+            -51.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            1190.551,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        4
+      ]
+    },
+    {
+      "id": "P3",
+      "variant": "a4",
+      "kind": "pdf",
+      "sourceSha256": "b597c3104d72aec5a07437c770c563d5521944ad1ebd133f23b5648875d01c94",
+      "payloadSha256": "39c3b8421d82eaccf2ca9d68e4aed182c36957bb18991d1e0f7eeaba01535a95",
+      "artifactSha256": "505ef9a9cdaca3137ee2dd9243c3453604bc62946669985ab1dffadbeb28c140",
+      "bytes": 4009,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 4,
+      "pages": [
+        {
+          "originMm": [
+            -47.264583333333334,
+            -51.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        },
+        {
+          "originMm": [
+            229.73541666666665,
+            -51.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        },
+        {
+          "originMm": [
+            -47.264583333333334,
+            138.73541666666665
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "2",
+            "A"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        },
+        {
+          "originMm": [
+            229.73541666666665,
+            138.73541666666665
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "2",
+            "B"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            841.89,
+            595.276
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "id": "P4",
+      "variant": "corner",
+      "kind": "pdf",
+      "sourceSha256": "c3782451c0e439a119e97ec023a1f6e22fd46b71ee2771ae7f0ba494b643b05f",
+      "payloadSha256": "45613a11fb4f3ee919c7703702112829a1b6d2a3c3ff2fc505edbf7babfbdd4a",
+      "artifactSha256": "331b92370bdc927e046b892d4998633023c7238228c7114440166f0fc815b867",
+      "bytes": 1406,
+      "result": "PASS",
+      "detected": [
+        "lost curve across sheets"
+      ],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -96.89074868259662,
+            16.046286850050244
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P4",
+      "variant": "neighbor",
+      "kind": "pdf",
+      "sourceSha256": "88571d2591ed7837a31e43f29ce0e0e11d367a28e146922d10038522530684c1",
+      "payloadSha256": "bfcb31860b4ae1256f5259342ef387b60eb1d64c19875d8eb9ff7c368aa932b9",
+      "artifactSha256": "5503c72890a8b0f97d7ff7748c0623ebe290e828cc994e3e5a7350ccf8f5bbbf",
+      "bytes": 1401,
+      "result": "PASS",
+      "detected": [
+        "lost curve across sheets"
+      ],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -31.864583333333336,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P5",
+      "variant": "filled",
+      "kind": "pdf",
+      "sourceSha256": "1b085e248095cebbb5cc341af91a07ab8bf88e195307cb985948a9d009c645dd",
+      "payloadSha256": "27a627ecb21e67589c737d15edfb2ef03347f2def4b532c72aa79a6188ffef05",
+      "artifactSha256": "7e360ed41ba24814f7717962282309ab178464bbedb9b164f511bb3974046a51",
+      "bytes": 2849,
+      "result": "PASS",
+      "detected": [
+        "omitted fill contour"
+      ],
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -75.26458333333333,
+            -30.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            114.73541666666667,
+            -30.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        15,
+        15
+      ]
+    },
+    {
+      "id": "P5",
+      "variant": "stroke",
+      "kind": "pdf",
+      "sourceSha256": "f5bff1895dc1ae44a3beee0dcc3b6f356569ecef58238adfb13e0e52fc544744",
+      "payloadSha256": "0ab08dec63e7fe4d41ce775a948962ec75294a8f2ac9d2a2891cc0c8306ecd4c",
+      "artifactSha256": "fa160a6c1a0164ff172434b921adf2df4052f9377d9af90dd763f585a3650cfc",
+      "bytes": 2482,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -75.26458333333333,
+            -30.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            114.73541666666667,
+            -30.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        9,
+        9
+      ]
+    },
+    {
+      "id": "P6",
+      "variant": "large",
+      "kind": "pdf",
+      "sourceSha256": "abdd9496f1dcee52a3048a976b3a03786b1157a8b0aeb3753523df33d54fd2f5",
+      "payloadSha256": "5a9df46f2a8f23bcc081219227f6392b3a7ded384616eabd5ab74be78f78d4b2",
+      "artifactSha256": "bc2cfbb2d7b78be84668d0deef1b53690c69e2ac93949ca008e7e3edf39e66aa",
+      "bytes": 10502,
+      "result": "PASS",
+      "detected": [
+        "wrong physical dash"
+      ],
+      "pageCount": 11,
+      "pages": [
+        {
+          "originMm": [
+            -0.5968749999999999,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            209.00312499999998,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1",
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            418.603125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "2",
+            "3"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            628.203125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "3",
+            "4"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            837.803125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "4",
+            "5"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1047.403125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "5",
+            "6"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1257.003125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "6",
+            "7"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1466.603125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "7",
+            "8"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1676.203125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "8",
+            "9"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            1885.803125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "9",
+            "10"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            2095.403125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "10"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6
+      ]
+    },
+    {
+      "id": "P6",
+      "variant": "small",
+      "kind": "pdf",
+      "sourceSha256": "f062ba167ead4df9d0378934b218970d35a33fdfd3cac5e8c8a68beadb5833a5",
+      "payloadSha256": "b9207b8125433144a823dadbe61b20942d4a48d3d15c0e7353a48faf8b613c58",
+      "artifactSha256": "1d06b245f7ab2583b8a1edb8ab3d57edc7f4688026b7d2b6ea67ba012a9c00c9",
+      "bytes": 3250,
+      "result": "PASS",
+      "detected": [
+        "wrong physical dash"
+      ],
+      "pageCount": 3,
+      "pages": [
+        {
+          "originMm": [
+            -0.5968749999999999,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            209.00312499999998,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1",
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            418.603125,
+            -0.5968749999999999
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6,
+        6,
+        6
+      ]
+    },
+    {
+      "id": "P7",
+      "variant": "hidden",
+      "kind": "pdf",
+      "sourceSha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+      "payloadSha256": "743fe144c2e9de62fd3465c7fa3e3cb4a531b184aa592a97479b18d2c385a31a",
+      "artifactSha256": "8443b8e0b1812efccb795fa43237a78604007d5958e5c5c1454f39b02eaae48f",
+      "bytes": 1381,
+      "result": "PASS",
+      "detected": [
+        "wrong print profile"
+      ],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.529166666666667,
+            -10.529166666666667
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "P7",
+      "variant": "visible",
+      "kind": "pdf",
+      "sourceSha256": "05988ec8db38316a8d5312decf2b7c893c68d3b6ac976223484651297597bce7",
+      "payloadSha256": "552c3b5ed3767dda7664d3e2e705799ce59dd1f0d4f991d14a4ae5ac8907bb3d",
+      "artifactSha256": "1fdf145fcaf90fd75e96cdc6c97dbe685d81ff6f3ee7bf415af5e493972936fa",
+      "bytes": 4977,
+      "result": "PASS",
+      "detected": [
+        "wrong print profile"
+      ],
+      "pageCount": 5,
+      "pages": [
+        {
+          "originMm": [
+            -410.1322916666667,
+            -30.132291666666667
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -220.13229166666667,
+            -30.132291666666667
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1",
+            "2"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            -30.132291666666674,
+            -30.132291666666667
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "2",
+            "3"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            159.86770833333333,
+            -30.132291666666667
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "3",
+            "4"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            349.8677083333333,
+            -30.132291666666667
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "4"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6,
+        6,
+        6,
+        6,
+        6
+      ]
+    },
+    {
+      "id": "P8",
+      "variant": "invalid",
+      "kind": "pdf",
+      "result": "PASS",
+      "error": "print usable width",
+      "sentinelSha256": "de53aa133b740e24c826e8162f9f1a664ed2bfd6dd25f371813db11479577431"
+    },
+    {
+      "id": "P8",
+      "variant": "valid",
+      "kind": "pdf",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "payloadSha256": "f90696c173833cbf729929d62b889d1f959fd24592947ebbffd97f3d6ead23fc",
+      "artifactSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb",
+      "bytes": 1371,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R1",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "e181a2e71f38f727dffd0897710b988c1c34a51eceef416bcfe1115441653178",
+      "payloadSha256": "fcbd1fa2016d7ea3293a047cdabad65696723d1daccf77c1bea2eb4eaafa166c",
+      "artifactSha256": "1e3fe4d8976756f0e30637f78577f977be01eb4e3d78e5932a83ef9f1755f351",
+      "bytes": 324,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 26.826,
+        "heightMm": 44.359
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R1",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "ecbf72c4cad8e0da0746f667b195126e913374f7885b01e726cb816196c239c6",
+      "payloadSha256": "a08573685c848e0bd7846b6a83fe2c6c9b332323cc7986c7215718e283d8b2d2",
+      "artifactSha256": "c7f377724bfb758d5daa2bb80aa6f46773e71f933f6b3163dc17f9e27f6a9e2e",
+      "bytes": 323,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 29.045,
+        "heightMm": 57.51
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R2",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "8465cd10a7d01ec8b6525e4ee8d45fa9146e460a41ffccf1971ab8e91ecd6a08",
+      "payloadSha256": "c72f1dbcad623c9b09ebc520a24d8c46b60085d4cf6c4a04e9f46e6611b2ecef",
+      "artifactSha256": "1e3fe4d8976756f0e30637f78577f977be01eb4e3d78e5932a83ef9f1755f351",
+      "bytes": 324,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 26.826,
+        "heightMm": 44.359
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R2",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "8465cd10a7d01ec8b6525e4ee8d45fa9146e460a41ffccf1971ab8e91ecd6a08",
+      "payloadSha256": "b33321b348d4eb43f5e47d5234956cb9b35290ea9f333fbcc1d36e66ee0470f8",
+      "artifactSha256": "d29bdbd61f2799b68820c0edb365002fb98c74059d072640005bd8249610506c",
+      "bytes": 1400,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            12.023884242877543,
+            -28.20705880511913
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R2",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "3fbea1d55f944622d0bc37ac761ec501434dac1817cc891db7d86e904242c537",
+      "payloadSha256": "de5c03b128d2e5c9be6a07ab2e9481aaf581ca5ae3f924d746ee79aff6fdaa76",
+      "artifactSha256": "7fb281315bd83c0f7e8ab6b2e0a076363b404d16f66c16873e7d6174be27734f",
+      "bytes": 321,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 18.642,
+        "heightMm": 25.227
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R2",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "3fbea1d55f944622d0bc37ac761ec501434dac1817cc891db7d86e904242c537",
+      "payloadSha256": "86527ca37a4fb55ecbd518a2ce54ff53602bca40731a047086ea87e029c01059",
+      "artifactSha256": "2530618dff59439c87398e1da0c14984612df36b7cb1df54729072b9a63506ad",
+      "bytes": 1399,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            16.614455983093706,
+            -49.62115490846904
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R3",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "735010ec47b54ed597feb34b0db5a279c26d4ab32258ef5da8249a8704532a3a",
+      "payloadSha256": "dd528dabb3eb02920b7873cc5758fe7f688705d8261e542454c78b5d06cd2166",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "detected": [],
+      "evaluationOrder": [
+        "Origin",
+        "Anchor",
+        "Later",
+        "First",
+        "Scheduling"
+      ],
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "R3",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "735010ec47b54ed597feb34b0db5a279c26d4ab32258ef5da8249a8704532a3a",
+      "payloadSha256": "754013f42e8581d58e21ac8d8003272b82fa53ab34cb3e05f11a5fd7d99c4709",
+      "artifactSha256": "e540195a549c7809fb1f018bc4ab462e2dc31ae8a388590e68c68bc89ce81d6c",
+      "bytes": 1445,
+      "result": "PASS",
+      "detected": [],
+      "evaluationOrder": [
+        "Origin",
+        "Anchor",
+        "Later",
+        "First",
+        "Scheduling"
+      ],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5.264583333333333,
+            -8.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6
+      ]
+    },
+    {
+      "id": "R3",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "cfaba387ac927070a8915911ba0d6d87584674caa58172e9c4614a37ed8b91c2",
+      "payloadSha256": "bb9b937a5eafe4222c61e07eea33fc520ed78627d1fede5d886d3b315982f375",
+      "artifactSha256": "5b0c255cdf5b3ea1e9db16c56bdba247f23773209fcaf2bbff48683027d05849",
+      "bytes": 439,
+      "result": "PASS",
+      "detected": [],
+      "evaluationOrder": [
+        "Origin",
+        "Scheduling",
+        "Anchor",
+        "Later",
+        "First"
+      ],
+      "svg": {
+        "widthMm": 23.529,
+        "heightMm": 18.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "R3",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "cfaba387ac927070a8915911ba0d6d87584674caa58172e9c4614a37ed8b91c2",
+      "payloadSha256": "61fc40c774632abf9ce0437dbae32c9a6a4756a998c4a212f0fa0d34fa8fdeac",
+      "artifactSha256": "e540195a549c7809fb1f018bc4ab462e2dc31ae8a388590e68c68bc89ce81d6c",
+      "bytes": 1445,
+      "result": "PASS",
+      "detected": [],
+      "evaluationOrder": [
+        "Origin",
+        "Scheduling",
+        "Anchor",
+        "Later",
+        "First"
+      ],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5.264583333333333,
+            -8.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        6
+      ]
+    },
+    {
+      "id": "R4",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+      "payloadSha256": "8902001350c7f32b22446dd17cef16725ff379550e00ad93a5ed5810beab4449",
+      "artifactSha256": "5e830ac67a84d096423cbcf7517c0da2dd758a347cff6a2d80df7d2916d055b1",
+      "bytes": 317,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 37.058,
+        "heightMm": 22.058
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R4",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+      "payloadSha256": "6902d9ff654bd6a1464bb2008005e841bb5328b47ac2c77d6ac30e448351ce27",
+      "artifactSha256": "8443b8e0b1812efccb795fa43237a78604007d5958e5c5c1454f39b02eaae48f",
+      "bytes": 1381,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.529166666666667,
+            -10.529166666666667
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R4",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "08b43540e4ece3f80d42b36cf23f9547d2383c3a5834a376d6a30c9399bee7a5",
+      "payloadSha256": "2f0bbcb0ec49ec8eb8f46bd70eab8debe5a27b5d5c2a51db51f17879d8b4a425",
+      "artifactSha256": "13450355dc3c2270603aef2e38b38ec90a11ae354a9471f0e603c24a515523e0",
+      "bytes": 317,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 37.852,
+        "heightMm": 22.852
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R4",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "08b43540e4ece3f80d42b36cf23f9547d2383c3a5834a376d6a30c9399bee7a5",
+      "payloadSha256": "a13237bf3772abcdca28de10c1f55a4fcaa8736e2f03171f1090da4eac92f4f7",
+      "artifactSha256": "49e6f3613329d7d7d38192865fa6de331f36e112f251d5325a02d016bbce0bc4",
+      "bytes": 1384,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.926041666666666,
+            -10.926041666666666
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R5",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "2a6485ffaeb28072f5d43b5a8123ca51e767e3193b258aef75325df9cd781174",
+      "payloadSha256": "1132aa2318dba1587a271d6c171a70044c17d74c16bcaa221e7b426c87062cfc",
+      "artifactSha256": "5fa008c94960bd8edc1fa65f49f55787004b350023a8ba3230d5fbb0cc6c6063",
+      "bytes": 1371,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -60.264583333333334,
+            -30.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R5",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "10837d929c689f88c467904f259e7e0c90827b693d58fe0d526d61e57f7897de",
+      "payloadSha256": "87d163208de524d59b0fef22a7ba943fefff389538ca38755ed486d862f0ff7e",
+      "artifactSha256": "848692690570fd5e8d2e0e9f5873b92b3764864e0a608a569aadeec2a2e814c4",
+      "bytes": 2165,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 2,
+      "pages": [
+        {
+          "originMm": [
+            -60.264583333333334,
+            -30.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        },
+        {
+          "originMm": [
+            129.73541666666665,
+            -30.264583333333334
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [
+            "1"
+          ],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3,
+        3
+      ]
+    },
+    {
+      "id": "R6",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "payloadSha256": "8f818105513f2df68ae3c7b005d4db00cf94493da2397e3369b63813f6eb5fed",
+      "artifactSha256": "ebfa42ea010fe0d01add04134981a250c7e8dbb1a60fbb966b0517d38fef1c22",
+      "bytes": 294,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 36.529,
+        "heightMm": 21.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R6",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "payloadSha256": "7e7d0b6b00905effb4bfc96cead9db00917512588f641335edb9e8762782473e",
+      "artifactSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb",
+      "bytes": 1371,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R6",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "68a49bed3ea7b98e520aa752045cde4522cc32a6453087b3e91ded11044baadc",
+      "payloadSha256": "d57e086e5595394f2ae826e39cd0ab14b43d48232002ee84b2fb82559299f3e9",
+      "artifactSha256": "f114829d572f7ffba31aea4ccc447d8476ac2de0af84508a6a524e5479285a98",
+      "bytes": 294,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 57.529,
+        "heightMm": 21.529
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "R6",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "68a49bed3ea7b98e520aa752045cde4522cc32a6453087b3e91ded11044baadc",
+      "payloadSha256": "dfb1784761cb249660c7d1b310febd32add0c48c5aaace729b24f499ec57be3f",
+      "artifactSha256": "5ecbd63306b89ee9f2e07aab47796d625a5d3e940022cdbb993009c851c1dfbd",
+      "bytes": 1371,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R7",
+      "variant": "before",
+      "kind": "pdf",
+      "sourceSha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+      "payloadSha256": "d257a75f07c3712458ad8056babaee42df8a9da40a94e530289584acf9854222",
+      "artifactSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb",
+      "bytes": 1371,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R7",
+      "variant": "invalid",
+      "kind": "pdf",
+      "result": "PASS",
+      "error": "print usable width",
+      "sentinelSha256": "20ad43644beadccc76d86898ff6ca302e07a8c87c943f7f886b7f867c5c040cb"
+    },
+    {
+      "id": "R7",
+      "variant": "after",
+      "kind": "pdf",
+      "sourceSha256": "e14c9c30ecda88cebf330d6809e73ade2a170c37f2e06cdb35f11e42198fab03",
+      "payloadSha256": "b3f9b0d0d81bf35279ec938c910ff36eff5acad85a6cc7433bf55da69f0139fd",
+      "artifactSha256": "f238217fc15a93463ce5aa2d42a8242d67a8b3a9b1b90abad65fc733e9303dbf",
+      "bytes": 1371,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -7.264583333333333,
+            -7.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "R8",
+      "variant": "before",
+      "kind": "svg",
+      "sourceSha256": "a9f8b83356f1b7dc90a10d6401b9741d7955f2a719de8081512c2eeac4f9cf8b",
+      "payloadSha256": "bf211f219eb1ad508aef7fcc0eb1e556216edf78d748f6039cf70cb39a315c8c",
+      "artifactSha256": "31158030b05d3bb35de8c300900c13683a3bd90a94e5014980b95515888bb073",
+      "bytes": 439,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 36.529,
+        "heightMm": 31.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "R8",
+      "variant": "after",
+      "kind": "svg",
+      "sourceSha256": "70288db16b09e7c1d928d592e473fd28d8973d2e1a6bde2a84c62346a92252be",
+      "payloadSha256": "f15f4ffd4b1954e1981f28305b549a759b428531046f18d0964de631942bcd6c",
+      "artifactSha256": "ee88b67bab6194fdf8e504116e53aae2b307b1261d9b37528502c3fb4a9e060e",
+      "bytes": 439,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 53.529,
+        "heightMm": 31.529
+      },
+      "encodedElementCount": 2
+    },
+    {
+      "id": "X2",
+      "variant": "filled",
+      "kind": "svg",
+      "sourceSha256": "0c076bf16dfd572eff289c9a01c621cc96f55cb808c839d9be9afa5b55ca1632",
+      "payloadSha256": "6d372861ce624b801f344ed55667b9b1570f7ca95170d88e2060e6dcbffc8cd3",
+      "artifactSha256": "619ab577191b41b7cb8393ed5a5d1775bfafd64e7c19d32470f4b9ce6c98ad31",
+      "bytes": 795,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 61.469,
+        "heightMm": 41.388
+      },
+      "encodedElementCount": 4
+    },
+    {
+      "id": "X2",
+      "variant": "filled",
+      "kind": "pdf",
+      "sourceSha256": "0c076bf16dfd572eff289c9a01c621cc96f55cb808c839d9be9afa5b55ca1632",
+      "payloadSha256": "1ef63ac3b4ff48ec3ad59be8ed46b059fc3adb9b2373779f5352aa34d352fe8d",
+      "artifactSha256": "2736d735ca2bf91d0b19e4b398a2e2ccfb8128a591e9b293f8d71debc2b7f8d5",
+      "bytes": 1953,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -22.166574456153576,
+            -39.648697434505266
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        17
+      ]
+    },
+    {
+      "id": "X2",
+      "variant": "stroke",
+      "kind": "svg",
+      "sourceSha256": "fa4db5afa45115fa87af17a5e608b649c25a3fb50ba97c385edacd05c265df95",
+      "payloadSha256": "4068533ef678dbc49b6059c1b0626b3cdd44232b80eb6ba7bb02b274e6f9ef5e",
+      "artifactSha256": "dcee7ca4e4fd6e3d8ccbae84004c30c81509b93522af66acd16a3a17987e9013",
+      "bytes": 625,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 61.469,
+        "heightMm": 41.388
+      },
+      "encodedElementCount": 3
+    },
+    {
+      "id": "X2",
+      "variant": "stroke",
+      "kind": "pdf",
+      "sourceSha256": "fa4db5afa45115fa87af17a5e608b649c25a3fb50ba97c385edacd05c265df95",
+      "payloadSha256": "6db262bb91a7a978187140f24b0d9c7ee03703b0c6e7b5b960ea9ee185e4db5d",
+      "artifactSha256": "a3124b05f6d00e9e443b2e2a5f717fcbe22341f09bdcb4611ccc7bcdf638b75f",
+      "bytes": 1631,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -22.166574456153576,
+            -39.648697434505266
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        10
+      ]
+    },
+    {
+      "id": "X3",
+      "variant": "nested",
+      "kind": "svg",
+      "sourceSha256": "897dcad86de31c5e6405456687dc72396472f52130ffbf1254b723ba7d460a35",
+      "payloadSha256": "cc2750a4d110698b8927789fd3cfe39462661e16dd4f3f1a4dc6283c65aaf374",
+      "artifactSha256": "ce96632484579fb8bac7416a06ebae3e8fe41e2a842d860b769d61fa722dc67b",
+      "bytes": 728,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 46.529,
+        "heightMm": 36.529
+      },
+      "encodedElementCount": 3
+    },
+    {
+      "id": "X3",
+      "variant": "nested",
+      "kind": "pdf",
+      "sourceSha256": "897dcad86de31c5e6405456687dc72396472f52130ffbf1254b723ba7d460a35",
+      "payloadSha256": "4b538eb7b720f194984d6068714ae918c1cc735d1afae78a5d948fd609c6f175",
+      "artifactSha256": "bb02820a9675d73fd04297577e1f0ccfaf4829d6cc49920f127b9d7ef881f03b",
+      "bytes": 1900,
+      "result": "PASS",
+      "detected": [
+        "opacity resource applied to wrong contour"
+      ],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        17
+      ]
+    },
+    {
+      "id": "X3",
+      "variant": "reversed",
+      "kind": "svg",
+      "sourceSha256": "52a954c0b5643775fa2b9f9c769e1d0710320292f0cb8be5d6f4e571ce31599a",
+      "payloadSha256": "47b30ad32c9397f703a45f83ab5091da965c0f74c6d08d306b6bc5ca1f1e64a7",
+      "artifactSha256": "d406d5af6580ceeb07b3463770f153814684c89e72329ea81cc76cdec793cbcf",
+      "bytes": 728,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 46.529,
+        "heightMm": 36.529
+      },
+      "encodedElementCount": 3
+    },
+    {
+      "id": "X3",
+      "variant": "reversed",
+      "kind": "pdf",
+      "sourceSha256": "52a954c0b5643775fa2b9f9c769e1d0710320292f0cb8be5d6f4e571ce31599a",
+      "payloadSha256": "6687fb51ad003d84a86a286e3b6f6790ea2cf17608450e0b30914218cc4831ea",
+      "artifactSha256": "7f4834462ddbf4d92f1849a96109e65f7863418ac4f89718e2316934ad899fba",
+      "bytes": 1900,
+      "result": "PASS",
+      "detected": [
+        "opacity resource applied to wrong contour"
+      ],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        17
+      ]
+    },
+    {
+      "id": "F1",
+      "variant": "text",
+      "kind": "svg",
+      "sourceSha256": "a1a137b04c9d18fdff6c47585f1f924feafe04d2802d0ce21173c87105ee10a9",
+      "payloadSha256": "885401cb73d7bcfef831de5017a29108bf2ac11ed9c689f9322a55ce1e9e3650",
+      "artifactSha256": "0a3d0d752dc87b9be217e706621ff95c4e90ee0d83c5d95ebb11f00287fb82a5",
+      "bytes": 391,
+      "result": "PASS",
+      "detected": [
+        "inverted glyph ascent"
+      ],
+      "svg": {
+        "widthMm": 8.48,
+        "heightMm": 10,
+        "children": [
+          {
+            "tag": "text",
+            "attributes": {
+              "x": "0",
+              "y": "0",
+              "font-size": "4",
+              "fill": "#31322f",
+              "font-family": "HeiseiKakuGo-W5",
+              "dominant-baseline": "alphabetic",
+              "transform": "translate(3 6.2) rotate(-0 0 0) scale(1 1)"
+            },
+            "text": "A"
+          }
+        ]
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "F1",
+      "variant": "text",
+      "kind": "pdf",
+      "sourceSha256": "a1a137b04c9d18fdff6c47585f1f924feafe04d2802d0ce21173c87105ee10a9",
+      "payloadSha256": "9d5c55dbedb8045807716c0888f8f3bd12edfae79a5dc078fdaa1cdbeb3a2c93",
+      "artifactSha256": "cb963e8bda659920917c8f5610a5ccdbc98a4fed1212f33e28f6b463e2592aba",
+      "bytes": 1377,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10,
+            -10.8
+          ],
+          "textMatrices": [
+            {
+              "op": "Tm",
+              "args": [
+                1,
+                0,
+                0,
+                1,
+                28.346,
+                30.614
+              ]
+            }
+          ],
+          "textArrays": [
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<0041>",
+                  380
+                ]
+              ]
+            }
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "F1",
+      "variant": "vector",
+      "kind": "svg",
+      "sourceSha256": "4ddcce7c2cadf800a5483e7b5c1d93251f328ad78316ef551e1799435ac2aeee",
+      "payloadSha256": "80c11e1d156a58313bcbc45471b5162595e82e0afa524921cd4ef13438eb1651",
+      "artifactSha256": "a6d2ed4628eea8a9b83fb7088e3518fbc6432d69e2ac04f915deb094b79723c5",
+      "bytes": 288,
+      "result": "PASS",
+      "detected": [],
+      "svg": {
+        "widthMm": 6.529,
+        "heightMm": 9.729,
+        "children": [
+          {
+            "tag": "path",
+            "attributes": {
+              "d": "M 3.265 6.465 L 3.265 3.265",
+              "fill": "none",
+              "stroke": "#123456",
+              "stroke-width": "0.529",
+              "stroke-linecap": "round",
+              "stroke-linejoin": "round"
+            },
+            "text": ""
+          }
+        ]
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "F1",
+      "variant": "vector",
+      "kind": "pdf",
+      "sourceSha256": "4ddcce7c2cadf800a5483e7b5c1d93251f328ad78316ef551e1799435ac2aeee",
+      "payloadSha256": "e4ab85df5578d751e9d70221ba78af30cdd9d7fc7be9a973bbe89320c8b09582",
+      "artifactSha256": "1cb498388d64f5fdde20435874054aacb94089e3c36d3331e42ac31b62a8c7eb",
+      "bytes": 1370,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -10.264583333333333,
+            -10.264583333333333
+          ],
+          "textMatrices": [],
+          "textArrays": [],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        3
+      ]
+    },
+    {
+      "id": "X4",
+      "variant": "blank-row",
+      "kind": "svg",
+      "sourceSha256": "a189c5305795010faae4517fa40a80d0cf4c0cbd53ce3ac92e1a6f414bb7035b",
+      "payloadSha256": "04f0bc5268322616d00b5205e5ff4c4e05f2fba424d30c482e2e850bc3be5c8f",
+      "artifactSha256": "b795f392796dea44c91b5fd6e76ef820c86b071d5b6c16474996893d510485ff",
+      "bytes": 581,
+      "result": "PASS",
+      "detected": [
+        "inverted glyph ascent",
+        "lost blank-row baseline advance"
+      ],
+      "svg": {
+        "widthMm": 32.596,
+        "heightMm": 22.795,
+        "children": [
+          {
+            "tag": "text",
+            "attributes": {
+              "x": "0",
+              "y": "0",
+              "font-size": "6.8",
+              "fill": "#31322f",
+              "font-family": "HeiseiKakuGo-W5",
+              "dominant-baseline": "alphabetic",
+              "transform": "translate(8.008 9.908) rotate(-113 0 0) scale(-1 1)"
+            },
+            "text": "Wi日本"
+          }
+        ]
+      },
+      "encodedElementCount": 1
+    },
+    {
+      "id": "X4",
+      "variant": "blank-row",
+      "kind": "pdf",
+      "sourceSha256": "a189c5305795010faae4517fa40a80d0cf4c0cbd53ce3ac92e1a6f414bb7035b",
+      "payloadSha256": "13e2a6ac0053f44ccf19b12e79296566e98a3acf5f2f088cdb16bfe30f7e4cb9",
+      "artifactSha256": "5b440b305838c795d1524053fa052e7731fe609c4253bd6cf35363cbbcdb92a5",
+      "bytes": 1605,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            17.931789928867364,
+            -50.00244827562152
+          ],
+          "textMatrices": [
+            {
+              "op": "Tm",
+              "args": [
+                0.391,
+                -0.921,
+                -0.921,
+                -0.391,
+                42.541,
+                56.373
+              ]
+            },
+            {
+              "op": "Tm",
+              "args": [
+                0.391,
+                -0.921,
+                -0.921,
+                -0.391,
+                63.833,
+                65.411
+              ]
+            },
+            {
+              "op": "Tm",
+              "args": [
+                0.391,
+                -0.921,
+                -0.921,
+                -0.391,
+                85.125,
+                74.449
+              ]
+            }
+          ],
+          "textArrays": [
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<0057>",
+                  380,
+                  "<0069>",
+                  380
+                ]
+              ]
+            },
+            {
+              "op": "TJ",
+              "args": [
+                []
+              ]
+            },
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<65E5>",
+                  0,
+                  "<672C>",
+                  0
+                ]
+              ]
+            }
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    },
+    {
+      "id": "X8",
+      "variant": "unsupported",
+      "kind": "pdf",
+      "result": "PASS",
+      "error": "U+1F600",
+      "sentinelSha256": "de53aa133b740e24c826e8162f9f1a664ed2bfd6dd25f371813db11479577431"
+    },
+    {
+      "id": "X8",
+      "variant": "supported",
+      "kind": "pdf",
+      "sourceSha256": "0cf5871407c031f9151446890b7cce49e50f77ba2dc0727b07eb7c3cb3be78b1",
+      "payloadSha256": "c1b89c55b60e2073466b5d28f1aadcfd93acca2ef58d27f406a3935af8879b25",
+      "artifactSha256": "5a965f54d48a39117f11cbf41c42bca3d44adf6233c57ce279d084bba61f98b4",
+      "bytes": 1375,
+      "result": "PASS",
+      "detected": [],
+      "pageCount": 1,
+      "pages": [
+        {
+          "originMm": [
+            -5,
+            -8.8
+          ],
+          "textMatrices": [
+            {
+              "op": "Tm",
+              "args": [
+                1,
+                0,
+                0,
+                1,
+                28.346,
+                30.614
+              ]
+            }
+          ],
+          "textArrays": [
+            {
+              "op": "TJ",
+              "args": [
+                [
+                  "<65E5>",
+                  0
+                ]
+              ]
+            }
+          ],
+          "labels": [],
+          "mediaBox": [
+            0,
+            0,
+            595.276,
+            841.89
+          ]
+        }
+      ],
+      "pathOperatorsPerPage": [
+        0
+      ]
+    }
+  ]
+}
