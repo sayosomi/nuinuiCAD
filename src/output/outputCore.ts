@@ -739,8 +739,26 @@ const resolvedPlacement = (
   const targetIds = descendants(targetElements, placement.groupId);
   const templateByGeneratedId = new Map((evaluation.forGroupGeneratedRows ?? []).map((row) => [row.generatedElementId, row.templateElementId]));
   const sourceElementsById = new Map(targetElements.map((element) => [element.id, element]));
+  const sourceOrderById = new Map(targetElements.map((element, index) => [element.id, index]));
+  const drawingOrderById = new Map<ElementId, number[]>(targetElements.map((element, index) => [element.id, [index]]));
+  for (const row of evaluation.forGroupGeneratedRows ?? []) {
+    drawingOrderById.set(row.generatedElementId, [
+      ...row.occurrencePath.flatMap((step) => [sourceOrderById.get(step.templateForGroupId) ?? Infinity, step.iterationIndex]),
+      sourceOrderById.get(row.templateElementId) ?? Infinity
+    ]);
+  }
+  // Dependency evaluation order is not presentation order. Keep each generated
+  // occurrence at its authored loop position, with source order inside the row.
+  const orderedGeometry = [...evaluation.computedGeometry.values()].sort((left, right) => {
+    const a = drawingOrderById.get(left.elementId) ?? [Infinity];
+    const b = drawingOrderById.get(right.elementId) ?? [Infinity];
+    for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
+      if (a[index] !== b[index]) return a[index] - b[index];
+    }
+    return a.length - b.length;
+  });
   const drawables: OutputDrawable[] = [];
-  for (const geometry of evaluation.computedGeometry.values()) {
+  for (const geometry of orderedGeometry) {
     const sourceId = templateByGeneratedId.get(geometry.elementId) ?? geometry.elementId;
     if (!targetIds.has(sourceId)) continue;
     if (!evaluation.effectiveVisibleElementIds?.has(geometry.elementId)) continue;
