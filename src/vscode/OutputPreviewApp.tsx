@@ -178,7 +178,7 @@ const outputTextSvg = (
         <tspan
           key={`${index}-${line}`}
           x={0}
-          y={-index * drawable.lineHeightMm}
+          y={index * drawable.lineHeightMm}
           textLength={drawable.lineWidthsMm[index] || undefined}
           lengthAdjust="spacingAndGlyphs"
         >
@@ -238,7 +238,7 @@ const highlightedDrawableSvg = (
           <tspan
             key={`${index}-${line}`}
             x={0}
-            y={-index * drawable.lineHeightMm}
+            y={index * drawable.lineHeightMm}
             textLength={drawable.lineWidthsMm[index] || undefined}
             lengthAdjust="spacingAndGlyphs"
           >

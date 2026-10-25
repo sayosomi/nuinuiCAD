@@ -1,0 +1,82 @@
+INITIAL REQUIRED BLOCK (exit 2; diagnosed test TS18048)
+
+> nuinuicad@0.0.0 test
+> vitest run src/vscode/modulePreviewEvaluation.test.ts src/vscode/useVscodeMultiDocumentRuntimeEvaluation.test.tsx src/vscode/outputPreviewRendering.test.ts src/vscode/outputPreviewViewport.test.ts src/output/outputCore.test.ts --maxWorkers=2
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  5 passed (5)
+      Tests  48 passed (48)
+   Start at  19:11:27
+   Duration  3.39s (transform 2.50s, setup 129ms, import 3.89s, tests 381ms, environment 1.48s)
+
+
+> nuinuicad@0.0.0 build
+> tsc -b && npm run typecheck:nui-language && npm run build:mcp
+
+src/vscode/crossSurfaceProjection.issue1460.test.ts(337,43): error TS18048: 'doc.document.drawingProfiles' is possibly 'undefined'.
+
+FINAL REQUIRED BLOCK (exit 0; all steps ran in the exact required order)
+
+> nuinuicad@0.0.0 test
+> vitest run src/vscode/modulePreviewEvaluation.test.ts src/vscode/useVscodeMultiDocumentRuntimeEvaluation.test.tsx src/vscode/outputPreviewRendering.test.ts src/vscode/outputPreviewViewport.test.ts src/output/outputCore.test.ts --maxWorkers=2
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  5 passed (5)
+      Tests  48 passed (48)
+   Start at  19:12:22
+   Duration  3.37s (transform 2.52s, setup 130ms, import 3.84s, tests 381ms, environment 1.49s)
+
+
+> nuinuicad@0.0.0 build
+> tsc -b && npm run typecheck:nui-language && npm run build:mcp
+
+
+> nuinuicad@0.0.0 typecheck:nui-language
+> tsc -p packages/nui-language/tsconfig.json
+
+
+> nuinuicad@0.0.0 build:mcp
+> tsc -p mcp-server/tsconfig.json && esbuild mcp-server/src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=mcp-server/dist/server.js
+
+
+  mcp-server/dist/server.js  3.4mb ⚠️
+
+⚡ Done in 72ms
+
+> nuinuicad@0.0.0 lint
+> eslint .
+
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  689 passed | 2 skipped (691)
+      Tests  11062 passed | 183 skipped (11245)
+   Start at  19:13:22
+   Duration  289.39s (transform 12.55s, setup 14.99s, import 138.05s, tests 168.83s, environment 204.02s)
+
+
+> nuinuicad@0.0.0 test:parity
+> VITE_RUN_RUST_PARITY=1 vitest run test/evaluationParity.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  1 passed (1)
+      Tests  203 passed (203)
+   Start at  19:18:12
+   Duration  58.89s (transform 1.69s, setup 31ms, import 1.95s, tests 56.55s, environment 284ms)
+
+
+Final required block process exit: 0
