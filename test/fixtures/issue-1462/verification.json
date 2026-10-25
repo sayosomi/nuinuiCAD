@@ -1,0 +1,74 @@
+{
+  "checkpoint_status": "BLOCKED",
+  "product_base": "179718b09eb113d4f4895f56f321657f027c706a",
+  "topic": "sayosomi/issue-1462-bake-source-roundtrip-hunt",
+  "accepted_units": {
+    "B": 16,
+    "X": 0,
+    "R": 1,
+    "total": 17,
+    "ceiling": 32
+  },
+  "production_changes": [],
+  "rust_binary_build": {
+    "command": "cargo build --quiet --manifest-path rust-evaluator/Cargo.toml --bin evaluation_stdio",
+    "exit": 0
+  },
+  "required_final_block": {
+    "exit": 1,
+    "first_command": {
+      "exit": 1,
+      "passed": 43,
+      "failed": 4,
+      "skipped": 0
+    },
+    "later_commands": "NOT_REACHED due to prescribed || exit 1"
+  },
+  "separate_checkpoint_checks": {
+    "npm run build": {
+      "exit": 0
+    },
+    "npm run lint": {
+      "exit": 0
+    },
+    "npm test -- --maxWorkers=2": {
+      "exit": 1,
+      "passed": 11075,
+      "failed": 4,
+      "skipped": 183,
+      "files_passed": 689,
+      "files_failed": 1,
+      "files_skipped": 2
+    },
+    "npm run test:parity": {
+      "exit": 0,
+      "passed": 203,
+      "failed": 0,
+      "skipped": 0
+    },
+    "git diff --check": {
+      "exit": 0
+    },
+    "git diff --cached --check": {
+      "exit": 0
+    }
+  },
+  "failing_units": [
+    "B06",
+    "B12",
+    "B16",
+    "R01"
+  ],
+  "timeouts": [],
+  "rust_eligibility": "Ordinary eligibility asserted for every hunt request; no skip/fallback/eligibility changes. Disabled sandbox explicitly permits only selected IDs.",
+  "quota_weekly_remaining": "UNAVAILABLE",
+  "quota_five_hour_remaining": "UNAVAILABLE",
+  "residuals": [
+    "Unauthorized evaluator owner requires scope decision",
+    "B12 and B16 remain unreduced/unrepaired",
+    "B16 retry/undo/redo not reached",
+    "Direct returned arc endpoint-coordinate assertions not covered",
+    "Independent pushed-HEAD review and PR/CI/merge are deferred to ChatGPT"
+  ],
+  "cleanup": "All owned test/build/Rust child processes exited. Owned scratch generator and initial harness-error log removed. Retained evidence is intentional."
+}
