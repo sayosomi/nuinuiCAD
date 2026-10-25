@@ -295,8 +295,11 @@ fn push_drawable(svg: &mut String, drawable: &OutputDrawable, payload: &Resolved
         } => {
             let (x, y) = svg_point(*anchor, payload);
             let mirror = if *mirror_x { -1 } else { 1 };
+            // SVG glyphs already use Y-down local coordinates. Reflect the
+            // drafting anchor and rotation, but keep glyph ascent above the
+            // baseline and advance subsequent baselines downward.
             svg.push_str(&format!(
-                r##"    <text x="0" y="0" font-size="{}" fill="{}" font-family="{OUTPUT_TEXT_FONT_FAMILY}" dominant-baseline="alphabetic" transform="translate({x} {y}) rotate({} 0 0) scale({mirror} -1)">"##,
+                r##"    <text x="0" y="0" font-size="{}" fill="{}" font-family="{OUTPUT_TEXT_FONT_FAMILY}" dominant-baseline="alphabetic" transform="translate({x} {y}) rotate({} 0 0) scale({mirror} 1)">"##,
                 svg_number(*font_size_mm),
                 escape_xml(color_hex),
                 svg_number(-*rotation_deg)
@@ -307,7 +310,7 @@ fn push_drawable(svg: &mut String, drawable: &OutputDrawable, payload: &Resolved
                     if index == 0 {
                         r#" y="0""#.to_owned()
                     } else {
-                        format!(r#" dy="{}""#, svg_number(-*line_height_mm))
+                        format!(r#" dy="{}""#, svg_number(*line_height_mm))
                     },
                     svg_number(*width),
                     escape_xml(line)
@@ -573,13 +576,13 @@ mod tests {
         };
         let svg = encode_svg(&text_payload).expect("text SVG should build");
         assert!(svg.contains(
-            r##"font-family="HeiseiKakuGo-W5" dominant-baseline="alphabetic" transform="translate(20 50) rotate(-30 0 0) scale(-1 -1)""##
+            r##"font-family="HeiseiKakuGo-W5" dominant-baseline="alphabetic" transform="translate(20 50) rotate(-30 0 0) scale(-1 1)""##
         ));
         assert!(svg.contains(
             r#"<tspan x="0" y="0" textLength="4.96" lengthAdjust="spacingAndGlyphs">AB</tspan>"#
         ));
         assert!(svg.contains(
-            r#"<tspan x="0" dy="-4.8" textLength="8" lengthAdjust="spacingAndGlyphs">日本</tspan>"#
+            r#"<tspan x="0" dy="4.8" textLength="8" lengthAdjust="spacingAndGlyphs">日本</tspan>"#
         ));
         assert!((text_payload.bounds.width - relative.width).abs() < 1e-9);
         assert!((text_payload.bounds.height - relative.height).abs() < 1e-9);
