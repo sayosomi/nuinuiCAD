@@ -417,7 +417,7 @@ const historicalCases: HistoricalCase[] = [
     id: "H-singular-arc-offset",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 10, end: 100)",
-      "const Offset: path = offset(sources: [@Arc], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
+      "const Offset: path = offset(sources: [@Arc], distance: 10, side: left, closed: false, suppressTrimWarnings: false)",
       "const result: number = lineAngle(@Offset.start, @Axis.start)"),
     issueCode: "evaluation-geometry-builtin-unavailable"
   },
@@ -425,7 +425,7 @@ const historicalCases: HistoricalCase[] = [
     id: "H-nearby-valid-arc-offset",
     source: source("line Axis = segment(start: (100, 40), end: (110, 40))",
       "arc Arc = arc(center: (0, 0), radius: 10, start: 10, end: 100)",
-      "const Offset: path = offset(sources: [@Arc], distance: 10, side: left, closed: false, suppressTrimWarnings: false)",
+      "const Offset: path = offset(sources: [@Arc], distance: 10, side: right, closed: false, suppressTrimWarnings: false)",
       "const result: number = lineAngle(@Offset.start, @Axis.start)"),
     expected: 80
   }
