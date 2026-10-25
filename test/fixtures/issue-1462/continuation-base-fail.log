@@ -1,0 +1,161 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2 src/commands/bakeSourceRoundtrip.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+stdout | src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B06: O
+{"id":"B06","mode":"current","source":"nui 1\n// frozen B06; coordinates in mm, Y-up\nline L = segment(start: (0, 0), end: (10, 0))\narc A = arc(center: (10, 5), radius: 5, start: 270, end: 0)\nline O = offset(sources: [@L, @A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\n// untouched tail\n","revision":1,"selected":[{"name":"O","id":"offsetLine-mvodaeyc-71"}],"originalSelected":[{"closed":false,"end":{"kind":"point","x":16,"y":4.999999999999998},"endTangentAngleDeg":270,"kind":"offsetLine","length":19.999054029177383,"offsetDistance":1,"offsetSide":"left","segments":[{"end":{"kind":"point","x":5.52786404500042,"y":1},"kind":"line","length":5.52786404500042,"start":{"kind":"point","x":0,"y":1}},{"center":{"kind":"point","x":10,"y":5},"end":{"kind":"point","x":16,"y":4.999999999999998},"kind":"arc","length":14.471189984176963,"radius":6,"start":{"kind":"point","x":5.52786404500042,"y":1},"startAngleDeg":221.8103148957786,"sweepAngleDeg":138.1896851042214}],"start":{"kind":"point","x":0,"y":1},"startTangentAngleDeg":0}],"secondaryTsSelected":[{"kind":"offsetLine","start":{"kind":"point","x":0,"y":1},"end":{"kind":"point","x":16,"y":4.999999999999998},"startTangentAngleDeg":0,"endTangentAngleDeg":270,"segments":[{"kind":"line","start":{"kind":"point","x":0,"y":1},"end":{"kind":"point","x":5.52786404500042,"y":1},"length":5.52786404500042},{"kind":"arc","center":{"kind":"point","x":10,"y":5},"start":{"kind":"point","x":5.52786404500042,"y":1},"end":{"kind":"point","x":16,"y":4.999999999999998},"radius":6,"startAngleDeg":221.8103148957786,"sweepAngleDeg":138.1896851042214,"length":14.471189984176963}],"closed":false,"length":19.999054029177383,"offsetDistance":1,"offsetSide":"left"}],"patched":"nui 1\n// frozen B06; coordinates in mm, Y-up\nline L = segment(start: (0, 0), end: (10, 0))\narc A = arc(center: (10, 5), radius: 5, start: 270, end: 0)\nline O = offset(sources: [@L, @A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline O_bake_1 = segment(start: (0, 1), end: (5.52786404500042, 1))\narc O_bake_2 = arc(center: (10, 5), radius: 6, start: 221.8103148957786, end: 360, direction: counterclockwise)\n// untouched tail\n","expected":[{"kind":"line","start":{"x":0,"y":1},"end":{"x":10,"y":1}},{"kind":"arcLine","center":{"x":10,"y":5},"radius":4,"startAngleDeg":270,"endAngleDeg":360,"sweepAngleDeg":90,"start":{"x":10,"y":1},"end":{"x":14,"y":4.999999999999999}}],"actual":[{"end":{"kind":"point","x":5.52786404500042,"y":1},"endAngleDeg":180,"endTangentAngleDeg":180,"kind":"line","length":5.52786404500042,"start":{"kind":"point","x":0,"y":1},"startAngleDeg":0,"startTangentAngleDeg":0},{"center":{"kind":"point","x":10,"y":5},"end":{"kind":"point","x":16,"y":4.999999999999998},"endAngleDeg":360,"endTangentAngleDeg":270,"kind":"arcLine","length":14.471189984176963,"radius":6,"start":{"kind":"point","x":5.5278640450004195,"y":1.0000000000000018},"startAngleDeg":221.8103148957786,"startTangentAngleDeg":311.81031489577856,"sweepAngleDeg":138.1896851042214}]}
+
+stdout | src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B12: C
+{"id":"B12","phase":"before canonical recompile","source":"nui 1\n// frozen B12; coordinates in mm, Y-up\nconst C_bake_1: number = 99\npoint C_bake_2 = coordinate(x: -40, y: 80)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\npoint Ref = coordinate(x: @C_bake_1, y: @C_bake_2.y)\n// untouched tail\n","revision":1,"patched":"nui 1\n// frozen B12; coordinates in mm, Y-up\nconst C_bake_1: number = 99\npoint C_bake_2 = coordinate(x: -40, y: 80)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\ncurve C_bake_1 = bezier(start: (1, 2), end: (5, 7), startAngle: 0, startLength: 2, endAngle: 90, endLength: 2)\ncurve C_bake_2 2 = bezier(start: (5, 7), end: (12, 3), startAngle: 90, startLength: 4, endAngle: 90, endLength: 3)\npoint Ref = coordinate(x: @C_bake_1, y: @C_bake_2.y)\n// untouched tail\n","expected":[{"kind":"bezierCurve","segments":[{"start":{"x":1,"y":2},"control1":{"x":3,"y":2},"control2":{"x":5,"y":5},"end":{"x":5,"y":7}}]},{"kind":"bezierCurve","segments":[{"start":{"x":5,"y":7},"control1":{"x":5,"y":11},"control2":{"x":12,"y":0},"end":{"x":12,"y":3}}]}]}
+
+stdout | src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > R01: O
+{"id":"R01","mode":"current","source":"nui 1\n// Frozen reducer: left of a CCW arc points toward its centre.\narc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)\nline O = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline L = segment(start: (0, 0), end: (10, 0))\nline Control = offset(sources: [@L], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\n","revision":1,"selected":[{"name":"O","id":"offsetLine-mvodaf6l-239"}],"originalSelected":[{"closed":false,"end":{"kind":"point","x":3.6739403974420594e-16,"y":6},"endTangentAngleDeg":0,"kind":"offsetLine","length":9.42477796076938,"offsetDistance":1,"offsetSide":"left","segments":[{"center":{"kind":"point","x":0,"y":0},"end":{"kind":"point","x":3.6739403974420594e-16,"y":6},"kind":"arc","length":9.42477796076938,"radius":6,"start":{"kind":"point","x":6,"y":0},"startAngleDeg":0,"sweepAngleDeg":90}],"start":{"kind":"point","x":6,"y":0},"startTangentAngleDeg":90}],"secondaryTsSelected":[{"kind":"offsetLine","start":{"kind":"point","x":6,"y":0},"end":{"kind":"point","x":3.6739403974420594e-16,"y":6},"startTangentAngleDeg":90,"endTangentAngleDeg":0,"segments":[{"kind":"arc","center":{"kind":"point","x":0,"y":0},"start":{"kind":"point","x":6,"y":0},"end":{"kind":"point","x":3.6739403974420594e-16,"y":6},"radius":6,"startAngleDeg":0,"sweepAngleDeg":90,"length":9.42477796076938}],"closed":false,"length":9.42477796076938,"offsetDistance":1,"offsetSide":"left"}],"patched":"nui 1\n// Frozen reducer: left of a CCW arc points toward its centre.\narc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)\nline O = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\narc O_bake = arc(center: (0, 0), radius: 6, start: 0, end: 90, direction: counterclockwise)\nline L = segment(start: (0, 0), end: (10, 0))\nline Control = offset(sources: [@L], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\n","expected":[{"kind":"arcLine","center":{"x":0,"y":0},"radius":4,"startAngleDeg":0,"endAngleDeg":90,"sweepAngleDeg":90,"start":{"x":4,"y":0},"end":{"x":2.4492935982947064e-16,"y":4}}],"actual":[{"center":{"kind":"point","x":0,"y":0},"end":{"kind":"point","x":3.6739403974420594e-16,"y":6},"endAngleDeg":90,"endTangentAngleDeg":0,"kind":"arcLine","length":9.42477796076938,"radius":6,"start":{"kind":"point","x":6,"y":0},"startAngleDeg":0,"startTangentAngleDeg":90,"sweepAngleDeg":90}]}
+
+stdout | src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > X01: PL, PR, ML, MR
+{"id":"X01","mode":"current","source":"nui 1\narc CCW = arc(center: (2, -3), radius: 5, start: 0, end: 90, direction: counterclockwise)\narc CW = arc(center: (2, -3), radius: 5, start: 90, end: 0, direction: clockwise)\nline PL = offset(sources: [@CCW], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline PR = offset(sources: [@CCW], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\nline ML = offset(sources: [@CW], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline MR = offset(sources: [@CW], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\n","revision":1,"selected":[{"name":"PL","id":"offsetLine-mvodaf7f-258"},{"name":"PR","id":"offsetLine-mvodaf7f-259"},{"name":"ML","id":"offsetLine-mvodaf7f-260"},{"name":"MR","id":"offsetLine-mvodaf7f-261"}],"originalSelected":[{"closed":false,"end":{"kind":"point","x":2.0000000000000004,"y":3},"endTangentAngleDeg":0,"kind":"offsetLine","length":9.42477796076938,"offsetDistance":1,"offsetSide":"left","segments":[{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":3},"kind":"arc","length":9.42477796076938,"radius":6,"start":{"kind":"point","x":8,"y":-3},"startAngleDeg":0,"sweepAngleDeg":90}],"start":{"kind":"point","x":8,"y":-3},"startTangentAngleDeg":90},{"closed":false,"end":{"kind":"point","x":2.0000000000000004,"y":1},"endTangentAngleDeg":0,"kind":"offsetLine","length":6.283185307179586,"offsetDistance":1,"offsetSide":"right","segments":[{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":1},"kind":"arc","length":6.283185307179586,"radius":4,"start":{"kind":"point","x":6,"y":-3},"startAngleDeg":0,"sweepAngleDeg":90}],"start":{"kind":"point","x":6,"y":-3},"startTangentAngleDeg":90},{"closed":false,"end":{"kind":"point","x":6,"y":-3},"endTangentAngleDeg":90,"kind":"offsetLine","length":6.283185307179586,"offsetDistance":1,"offsetSide":"left","segments":[{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":6,"y":-3},"kind":"arc","length":6.283185307179586,"radius":4,"start":{"kind":"point","x":2.0000000000000004,"y":1},"startAngleDeg":90,"sweepAngleDeg":-90}],"start":{"kind":"point","x":2.0000000000000004,"y":1},"startTangentAngleDeg":0},{"closed":false,"end":{"kind":"point","x":8,"y":-3},"endTangentAngleDeg":90,"kind":"offsetLine","length":9.42477796076938,"offsetDistance":1,"offsetSide":"right","segments":[{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":8,"y":-3},"kind":"arc","length":9.42477796076938,"radius":6,"start":{"kind":"point","x":2.0000000000000004,"y":3},"startAngleDeg":90,"sweepAngleDeg":-90}],"start":{"kind":"point","x":2.0000000000000004,"y":3},"startTangentAngleDeg":0}],"secondaryTsSelected":[{"kind":"offsetLine","start":{"kind":"point","x":8,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":3},"startTangentAngleDeg":90,"endTangentAngleDeg":0,"segments":[{"kind":"arc","center":{"kind":"point","x":2,"y":-3},"start":{"kind":"point","x":8,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":3},"radius":6,"startAngleDeg":0,"sweepAngleDeg":90,"length":9.42477796076938}],"closed":false,"length":9.42477796076938,"offsetDistance":1,"offsetSide":"left"},{"kind":"offsetLine","start":{"kind":"point","x":6,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":1},"startTangentAngleDeg":90,"endTangentAngleDeg":0,"segments":[{"kind":"arc","center":{"kind":"point","x":2,"y":-3},"start":{"kind":"point","x":6,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":1},"radius":4,"startAngleDeg":0,"sweepAngleDeg":90,"length":6.283185307179586}],"closed":false,"length":6.283185307179586,"offsetDistance":1,"offsetSide":"right"},{"kind":"offsetLine","start":{"kind":"point","x":2.0000000000000004,"y":1},"end":{"kind":"point","x":6,"y":-3},"startTangentAngleDeg":0,"endTangentAngleDeg":90,"segments":[{"kind":"arc","center":{"kind":"point","x":2,"y":-3},"start":{"kind":"point","x":2.0000000000000004,"y":1},"end":{"kind":"point","x":6,"y":-3},"radius":4,"startAngleDeg":90,"sweepAngleDeg":-90,"length":6.283185307179586}],"closed":false,"length":6.283185307179586,"offsetDistance":1,"offsetSide":"left"},{"kind":"offsetLine","start":{"kind":"point","x":2.0000000000000004,"y":3},"end":{"kind":"point","x":8,"y":-3},"startTangentAngleDeg":0,"endTangentAngleDeg":90,"segments":[{"kind":"arc","center":{"kind":"point","x":2,"y":-3},"start":{"kind":"point","x":2.0000000000000004,"y":3},"end":{"kind":"point","x":8,"y":-3},"radius":6,"startAngleDeg":90,"sweepAngleDeg":-90,"length":9.42477796076938}],"closed":false,"length":9.42477796076938,"offsetDistance":1,"offsetSide":"right"}],"patched":"nui 1\narc CCW = arc(center: (2, -3), radius: 5, start: 0, end: 90, direction: counterclockwise)\narc CW = arc(center: (2, -3), radius: 5, start: 90, end: 0, direction: clockwise)\nline PL = offset(sources: [@CCW], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\narc PL_bake = arc(center: (2, -3), radius: 6, start: 0, end: 90, direction: counterclockwise)\nline PR = offset(sources: [@CCW], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\narc PR_bake = arc(center: (2, -3), radius: 4, start: 0, end: 90, direction: counterclockwise)\nline ML = offset(sources: [@CW], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\narc ML_bake = arc(center: (2, -3), radius: 4, start: 90, end: 0, direction: clockwise)\nline MR = offset(sources: [@CW], distance: 1, side: right, closed: false, suppressTrimWarnings: false)\narc MR_bake = arc(center: (2, -3), radius: 6, start: 90, end: 0, direction: clockwise)\n","expected":[{"kind":"arcLine","center":{"x":2,"y":-3},"radius":4,"startAngleDeg":0,"endAngleDeg":90,"sweepAngleDeg":90,"start":{"x":6,"y":-3},"end":{"x":2.0000000000000004,"y":1}},{"kind":"arcLine","center":{"x":2,"y":-3},"radius":6,"startAngleDeg":0,"endAngleDeg":90,"sweepAngleDeg":90,"start":{"x":8,"y":-3},"end":{"x":2.0000000000000004,"y":3}},{"kind":"arcLine","center":{"x":2,"y":-3},"radius":6,"startAngleDeg":90,"endAngleDeg":0,"sweepAngleDeg":-90,"start":{"x":2.0000000000000004,"y":3},"end":{"x":8,"y":-3}},{"kind":"arcLine","center":{"x":2,"y":-3},"radius":4,"startAngleDeg":90,"endAngleDeg":0,"sweepAngleDeg":-90,"start":{"x":2.0000000000000004,"y":1},"end":{"x":6,"y":-3}}],"actual":[{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":3},"endAngleDeg":90,"endTangentAngleDeg":0,"kind":"arcLine","length":9.42477796076938,"radius":6,"start":{"kind":"point","x":8,"y":-3},"startAngleDeg":0,"startTangentAngleDeg":90,"sweepAngleDeg":90},{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":2.0000000000000004,"y":1},"endAngleDeg":90,"endTangentAngleDeg":0,"kind":"arcLine","length":6.283185307179586,"radius":4,"start":{"kind":"point","x":6,"y":-3},"startAngleDeg":0,"startTangentAngleDeg":90,"sweepAngleDeg":90},{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":6,"y":-3},"endAngleDeg":0,"endTangentAngleDeg":90,"kind":"arcLine","length":6.283185307179586,"radius":4,"start":{"kind":"point","x":2.0000000000000004,"y":1},"startAngleDeg":90,"startTangentAngleDeg":0,"sweepAngleDeg":-90},{"center":{"kind":"point","x":2,"y":-3},"end":{"kind":"point","x":8,"y":-3},"endAngleDeg":0,"endTangentAngleDeg":90,"kind":"arcLine","length":9.42477796076938,"radius":6,"start":{"kind":"point","x":2.0000000000000004,"y":3},"startAngleDeg":90,"startTangentAngleDeg":0,"sweepAngleDeg":-90}]}
+
+stdout | src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B16: stale plan rejection, current retry and atomic host-neutral undo/redo
+{"id":"B16","phase":"stale apply","plannedSource":"nui 1\n// frozen B16; coordinates in mm, Y-up\npoint P = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: 33, y: 55)\n// untouched tail\n","plannedRevision":1,"currentSource":"nui 1\n// frozen B16; coordinates in mm, Y-up\npoint P = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: 33, y: 55)\n// untouched tail\n// newer source revision\n","currentRevision":3,"expected":"rejected with source/history unchanged","actual":{"status":"applied"},"actualSource":"nui 1\n// frozen B16; coordinates in mm, Y-up\npoint P = coordinate(x: 7, y: -11)\npoint P_bake = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: 33, y: 55)\n// untouched tail\n// newer source revision\n","historyBefore":1,"historyAfter":2}
+
+stdout | src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > R03: stale plan rejection, current retry and atomic host-neutral undo/redo
+{"id":"R03","phase":"stale apply","plannedSource":"nui 1\npoint P = coordinate(x: 7, y: -11)\n","plannedRevision":1,"currentSource":"nui 1\npoint P = coordinate(x: 7, y: -11)\n// newer source revision\n","currentRevision":3,"expected":"rejected with source/history unchanged","actual":{"status":"applied"},"actualSource":"nui 1\npoint P = coordinate(x: 7, y: -11)\npoint P_bake = coordinate(x: 7, y: -11)\n// newer source revision\n","historyBefore":1,"historyAfter":2}
+
+ ❯ src/commands/bakeSourceRoundtrip.test.ts (22 tests | 9 failed) 537ms
+     × B06: O 22ms
+     × B12: C 21ms
+     × R01: O 19ms
+     × R02: P 12ms
+     × X01: PL, PR, ML, MR 24ms
+     × X02: PN, PZ, PB, MN, MZ, MB 12ms
+     × X03: P, P 16ms
+     × B16: stale plan rejection, current retry and atomic host-neutral undo/redo 12ms
+     × R03: stale plan rejection, current retry and atomic host-neutral undo/redo 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B06: O
+AssertionError: x: expected 4.47213595499958 to be less than 1e-8
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:51:34
+     49|     const error = key === "startAngleDeg" || key === "endAngleDeg"
+     50|       ? ((delta + 180) % 360 + 360) % 360 - 180 : delta;
+     51|     expect(Math.abs(error), key).toBeLessThan(1e-8);
+       |                                  ^
+     52|   } else if (Array.isArray(expected)) {
+     53|     expect(Array.isArray(actual), key).toBe(true);
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:58:52
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:58:52
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:174:28
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:174:10
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:204:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B12: C
+Error: [{"severity":"error","line":6,"column":7,"message":"同じlexical scopeで名前「C_bake_1」が衝突しています: typedDeclaration(行 3) と geometry。","code":"source-namespace-collision","presentation":{"key":"diagnostic.source-namespace-collision","parameters":{"name":"C_bake_1","firstKind":"typedDeclaration","secondKind":"geometry","firstLine":3}},"physicalSpan":{"segments":[{"from":259,"to":267}],"sourceRevision":1}}]
+ ❯ compile src/commands/bakeSourceRoundtrip.test.ts:27:40
+     25| const compile = (source: string) => {
+     26|   const result = compileFreshCanonicalText(source);
+     27|   if (result.status === "fatal") throw new Error(JSON.stringify(result…
+       |                                        ^
+     28|   expect(result.diagnostics.filter((d) => d.severity === "error")).toE…
+     29|   expect(result.bindingIssueDiagnostics.filter((d) => d.severity === "…
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:145:17
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:204:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > R01: O
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > X01: PL, PR, ML, MR
+AssertionError: radius: expected 2 to be less than 1e-8
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:51:34
+     49|     const error = key === "startAngleDeg" || key === "endAngleDeg"
+     50|       ? ((delta + 180) % 360 + 360) % 360 - 180 : delta;
+     51|     expect(Math.abs(error), key).toBeLessThan(1e-8);
+       |                                  ^
+     52|   } else if (Array.isArray(expected)) {
+     53|     expect(Array.isArray(actual), key).toBe(true);
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:58:52
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:174:28
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:174:10
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:204:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > R02: P
+Error: [{"severity":"error","line":4,"column":7,"message":"同じlexical scopeで名前「P_bake」が衝突しています: typedDeclaration(行 2) と geometry。","code":"source-namespace-collision","presentation":{"key":"diagnostic.source-namespace-collision","parameters":{"name":"P_bake","firstKind":"typedDeclaration","secondKind":"geometry","firstLine":2}},"physicalSpan":{"segments":[{"from":73,"to":79}],"sourceRevision":1}}]
+ ❯ compile src/commands/bakeSourceRoundtrip.test.ts:27:40
+     25| const compile = (source: string) => {
+     26|   const result = compileFreshCanonicalText(source);
+     27|   if (result.status === "fatal") throw new Error(JSON.stringify(result…
+       |                                        ^
+     28|   expect(result.diagnostics.filter((d) => d.severity === "error")).toE…
+     29|   expect(result.bindingIssueDiagnostics.filter((d) => d.severity === "…
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:145:17
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:204:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > X02: PN, PZ, PB, MN, MZ, MB
+AssertionError: expected [] to deeply equal [ 'offsetLine-mvodaf83-283', …(3) ]
+
+- Expected
++ Received
+
+- [
+-   "offsetLine-mvodaf83-283",
+-   "offsetLine-mvodaf83-284",
+-   "offsetLine-mvodaf83-286",
+-   "offsetLine-mvodaf83-287",
+- ]
++ []
+
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:107:64
+    105|   const before = rust(elements, options);
+    106|   const rejectedIds = elements.filter((e) => f.rejectedNames?.includes…
+    107|   expect(before.errors.map((error) => error.elementId).sort()).toEqual…
+       |                                                                ^
+    108|   const originalEvaluation = rust(original.doc.document.elements, opti…
+    109|   const allowed = f.includeDisabledGeometry ? selected.map((e) => e.id…
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:204:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > X03: P, P
+Error: [{"severity":"error","line":6,"column":7,"message":"同じlexical scopeで名前「P_bake」が衝突しています: typedDeclaration(行 2) と geometry。","code":"source-namespace-collision","presentation":{"key":"diagnostic.source-namespace-collision","parameters":{"name":"P_bake","firstKind":"typedDeclaration","secondKind":"geometry","firstLine":2}},"physicalSpan":{"segments":[{"from":142,"to":148}],"sourceRevision":1}}]
+ ❯ compile src/commands/bakeSourceRoundtrip.test.ts:27:40
+     25| const compile = (source: string) => {
+     26|   const result = compileFreshCanonicalText(source);
+     27|   if (result.status === "fatal") throw new Error(JSON.stringify(result…
+       |                                        ^
+     28|   expect(result.diagnostics.filter((d) => d.severity === "error")).toE…
+     29|   expect(result.bindingIssueDiagnostics.filter((d) => d.severity === "…
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:145:17
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:204:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B16: stale plan rejection, current retry and atomic host-neutral undo/redo
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > R03: stale plan rejection, current retry and atomic host-neutral undo/redo
+AssertionError: expected 'applied' to be 'rejected' // Object.is equality
+
+Expected: "rejected"
+Received: "applied"
+
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:227:32
+    225|       historyBefore: history, historyAfter: useCadDocumentStore.getSta…
+    226|     }));
+    227|     expect(staleResult.status).toBe("rejected");
+       |                                ^
+    228|     expect(useCadDocumentStore.getState().sourceText).toBe(changed);
+    229|     expect(useCadDocumentStore.getState().past).toHaveLength(history);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  9 failed | 13 passed (22)
+   Start at  06:56:09
+   Duration  2.74s (transform 1.50s, setup 34ms, import 1.78s, tests 537ms, environment 301ms)

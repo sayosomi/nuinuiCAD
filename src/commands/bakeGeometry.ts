@@ -21,7 +21,8 @@ import type {
   PointAnchor
 } from "../types/geometry";
 import type { LineSplice } from "@nuinuicad/nui-language/document";
-import { makeUniqueElementName as uniqueNameInNamespace } from "@nuinuicad/nui-language";
+import { scopeChain } from "@nuinuicad/nui-language";
+import type { SourceSnapshot } from "@nuinuicad/nui-language";
 import { constructionForElementType, MUTATION_CATEGORY } from "@nuinuicad/nui-language";
 import { directedSweepDegrees } from "../geometry/evaluateGeometryPrimitives";
 
@@ -67,6 +68,7 @@ export type BakeSkippedTarget = {
 };
 
 export type BakePlan = {
+  sourceSnapshot: SourceSnapshot;
   splices: LineSplice[];
   createdElementIds: ElementId[];
   generatedElementIds: ElementId[];
@@ -595,7 +597,26 @@ export const planBakeGeometry = ({
   if (includeDisabledGeometry && disabledTargetIds.length > 0 && !bakeDisabledEvaluation) return null;
 
   const linesByInsertion = new Map<number, string[]>();
-  const plannedElements: CadElement[] = [...elements];
+  const namespace = compiled.sourceLexicalNamespace;
+  if (!namespace) return null;
+  // Insertion scopes belong to authored source, including Module Preview bodies.
+  // Runtime parent groups and drawable names do not describe that namespace.
+  const usedNamesByScope = new Map([...namespace.declarationsByScope].map(([scopeId, declarations]) =>
+    [scopeId, new Set(declarations.map((declaration) => declaration.name))]));
+  for (const definition of compiled.moduleSemanticAnalysis?.definitions ?? []) {
+    const names = usedNamesByScope.get(definition.bodyScopeId) ?? new Set<string>();
+    definition.parameters.forEach((parameter) => names.add(parameter.name));
+    usedNamesByScope.set(definition.bodyScopeId, names);
+  }
+  for (const slot of namespace.scopeIndex.forGroupIterationSlots.values()) {
+    const names = usedNamesByScope.get(slot.scopeId) ?? new Set<string>();
+    if (slot.name) names.add(slot.name);
+    usedNamesByScope.set(slot.scopeId, names);
+  }
+  const sourceSnapshot: SourceSnapshot = {
+    normalizedSource: compiled.spans.sourceMap.source,
+    sourceRevision: compiled.statementMap.sourceRevision
+  };
   const generatedElementIds: ElementId[] = [];
   const skippedTargets: BakeSkippedTarget[] = [];
   let primaryGeneratedElementId: ElementId | null = null;
@@ -687,6 +708,10 @@ export const planBakeGeometry = ({
 
     successfulTargetCount += 1;
     const namingSourceElement = sourceElementForRuntimeId(elementsById, target.sourceElementId) ?? targetElements[0];
+    const scopeId = namespace.scopeIndex.scopeOfStatement.get(target.insertionStatementIndex);
+    if (!scopeId) return null;
+    const usedNames = usedNamesByScope.get(scopeId) ?? new Set<string>();
+    usedNamesByScope.set(scopeId, usedNames);
     const baseName = namingSourceElement?.name.trim() ? `${namingSourceElement.name.trim()}_bake` : "_bake";
     const indent = sourceIndent(compiled, statementInfoForTarget(compiled, target)?.line ?? 1);
     const lines = linesByInsertion.get(target.insertionStatementIndex) ?? [];
@@ -698,15 +723,15 @@ export const planBakeGeometry = ({
         : `${baseName}_${nameState.nextSuffix++}`;
       nameState.usedBaseName ||= isSinglePrimitive;
       const id = createCadElementId(primitive.kind === "point" ? "freePoint" : primitive.kind === "line" ? "line" : primitive.kind === "arc" ? "arcLine" : "bezierCurve");
-      const name = uniqueNameInNamespace({
-        elements: plannedElements,
-        elementId: id,
-        requestedName,
-        fallbackBaseName: requestedName,
-        parentGroupId: target.insertionParentGroupId
-      });
+      let name = requestedName;
+      let suffix = 2;
+      // Avoid capturing an existing reference to an ancestor binding as well as
+      // colliding with a declaration/parameter in the insertion scope itself.
+      while (scopeChain(namespace.scopeIndex, scopeId).some((scope) => usedNamesByScope.get(scope)?.has(name))) {
+        name = `${requestedName}_${suffix++}`;
+      }
+      usedNames.add(name);
       const generated = primitiveToElement(primitive, id, name, primitiveSource ?? namingSourceElement, target.insertionParentGroupId);
-      plannedElements.push(generated);
       generatedElementIds.push(id);
       if (!primaryGeneratedElementId) primaryGeneratedElementId = id;
       lines.push(...serializedPrimitiveLines(generated, indent));
@@ -717,6 +742,7 @@ export const planBakeGeometry = ({
 
   if (linesByInsertion.size === 0) {
     return {
+      sourceSnapshot,
       splices: [],
       createdElementIds: [],
       generatedElementIds: [],
@@ -728,6 +754,7 @@ export const planBakeGeometry = ({
     };
   }
   return {
+    sourceSnapshot,
     splices: planInsertionSplices(compiled, linesByInsertion),
     createdElementIds: generatedElementIds,
     generatedElementIds,
@@ -740,6 +767,13 @@ export const planBakeGeometry = ({
 };
 
 export const applyBakePlan = (plan: BakePlan): DocumentMutationResult => {
+  const document = useCadDocumentStore.getState();
+  if (document.docText !== document.sourceText ||
+    plan.sourceSnapshot.sourceRevision !== document.doc.statementMap.sourceRevision ||
+    plan.sourceSnapshot.normalizedSource !== document.sourceText.replace(/\r\n/g, "\n")) {
+    useCadUiStore.getState().setCommandErrorMessage("Bakeの元ソースが古くなったため、Bakeを中止しました。");
+    return { status: "rejected", reason: "invalid-change" };
+  }
   if (plan.splices.length === 0) return { status: "noop" };
   const result = useCadDocumentStore.getState().commitLineSplices(plan.splices, {
     createdElementIds: plan.createdElementIds

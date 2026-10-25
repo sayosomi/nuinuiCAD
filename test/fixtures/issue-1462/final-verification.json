@@ -1,0 +1,239 @@
+{
+  "status": "BLOCKED",
+  "reason": "Only full-suite historical regression fixture requires a test-file scope expansion",
+  "base": "179718b09eb113d4f4895f56f321657f027c706a",
+  "starting_checkpoint": "1ee2679564993ee0d23d13878b0e818d99747c46",
+  "topic": "sayosomi/issue-1462-bake-source-roundtrip-hunt",
+  "repaired_families": [
+    "Directed arc-offset radius polarity",
+    "Bake lexical naming/reference capture",
+    "Bake stale source plan application"
+  ],
+  "accepted_units": {
+    "B": 16,
+    "X": 8,
+    "R": 3,
+    "total": 27,
+    "ceiling": 32
+  },
+  "ledger": [
+    {
+      "id": "B01",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B02",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B03",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B04",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B05",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B06",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "B07",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B08",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B09",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B10",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B11",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B12",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "B13",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B14",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B15",
+      "disposition": "PASS"
+    },
+    {
+      "id": "B16",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "X01",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "X02",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "X03",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "X04",
+      "disposition": "PASS"
+    },
+    {
+      "id": "X05",
+      "disposition": "PASS"
+    },
+    {
+      "id": "X06",
+      "disposition": "PASS"
+    },
+    {
+      "id": "X07",
+      "disposition": "PASS"
+    },
+    {
+      "id": "X08",
+      "disposition": "PASS"
+    },
+    {
+      "id": "R01",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "R02",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "R03",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "R04",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "R05",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "R06",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "R07",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "R08",
+      "disposition": "NOT_TRIGGERED"
+    }
+  ],
+  "checks": {
+    "production Rust binary rebuild": {
+      "exit": 0
+    },
+    "focused Bake/offset/canonical source tests": {
+      "exit": 0,
+      "passed": 152,
+      "failed": 0
+    },
+    "focused Rust offset_line_tests": {
+      "exit": 0,
+      "passed": 11
+    },
+    "cargo fmt --manifest-path rust-evaluator/Cargo.toml --check": {
+      "exit": 0
+    },
+    "cargo check --manifest-path rust-evaluator/Cargo.toml": {
+      "exit": 0
+    },
+    "cargo test --manifest-path rust-evaluator/Cargo.toml": {
+      "exit": 0,
+      "library_passed": 618,
+      "library_ignored": 9,
+      "stdio_passed": 6,
+      "integration_passed": 1
+    },
+    "cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings": {
+      "exit": 0
+    },
+    "npm run build": {
+      "exit": 0
+    },
+    "npm run lint": {
+      "exit": 0
+    },
+    "npm test -- --maxWorkers=2": {
+      "exit": 1,
+      "passed": 11100,
+      "failed": 1,
+      "skipped": 187,
+      "files_passed": 690,
+      "files_failed": 1,
+      "files_skipped": 2
+    },
+    "npm run test:parity": {
+      "exit": 0,
+      "passed": 207,
+      "failed": 0,
+      "skipped": 0,
+      "initial_exit_before_authorized_offset_expectation_correction": 1
+    },
+    "npm run docs:dsl:check": {
+      "exit": 0
+    },
+    "git diff --check": {
+      "exit": 0
+    },
+    "git diff --cached --check": {
+      "exit": 0
+    }
+  },
+  "additional_evidence": {
+    "all_frozen_hunt_units": {
+      "exit": 0,
+      "passed": 27,
+      "command": "ISSUE1462_EVIDENCE=1 npm test -- --maxWorkers=1 src/commands/bakeSourceRoundtrip.test.ts --disableConsoleIntercept"
+    },
+    "historical_regression_replay": {
+      "exit": 1,
+      "passed": 3,
+      "failed": 1
+    }
+  },
+  "blocker": {
+    "path": "test/issue1406LineAngleResidualRust.integration.test.ts",
+    "modified": false,
+    "failed_fixture": "H-singular-arc-offset",
+    "minimal_requested_scope": {
+      "H-singular-arc-offset": "side right → left",
+      "H-nearby-valid-arc-offset": "side left → right"
+    },
+    "product_special_cases": false
+  },
+  "rust_eligibility": "Ordinary eligibility asserted for every hunt request. No fallback or eligibility change. Only selected disabled IDs are explicitly allowed in the authorized sandbox.",
+  "initial_checkpoint_evidence": "11 initial fixture/report/log files verified byte-identical to starting checkpoint",
+  "timeouts": [],
+  "cleanup": "No owned children or temporary directories remain. Scratch generator/status and duplicate intermediate passing logs were removed. Retained evidence and ordinary ignored build outputs are intentional.",
+  "weekly_remaining_quota": "UNAVAILABLE",
+  "five_hour_remaining_quota": "UNAVAILABLE",
+  "remaining": "Narrow historical test-fixture scope decision, passing full gate, independent exact-pushed-HEAD review and ChatGPT-owned PR/CI/merge/closure; no GUI E2E performed."
+}
