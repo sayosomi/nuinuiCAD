@@ -334,7 +334,8 @@ const checkPath = (plan: OutputPlan, expected: Point[]) => {
 describe("Issue 1460 Canvas/OutputPlan/Output Preview", () => {
   for (const c of cases.filter(c => ["B1", "B2", "B3"].includes(c.id))) it(c.id, async () => {
     const doc = compiled.get(c.id)!;
-    const canvasProfile = c.id === "B3" ? doc.document.drawingProfiles.find(p => p.name === "Canvas")!.id : undefined;
+    const canvasProfile = c.id === "B3" ? doc.document.drawingProfiles?.find(p => p.name === "Canvas")?.id : undefined;
+    if (c.id === "B3") expect(canvasProfile).toBeDefined();
     const canvas = await canonical(doc, canvasProfile);
     const reference = evaluateElementsReference(doc.document.elements, buildEvaluationOptions({ compiledDocument: doc, evaluationLimitIndex: doc.document.evaluationLimitIndex, selectedDrawingProfileId: canvasProfile }));
     expect(reference.errors).toEqual([]);
@@ -422,9 +423,9 @@ it("B4: real print path/page/inverse and upright multiline glyph projection", as
   const textProjection = (text: OutputText) => {
     const [tx, ty, angle, sx, sy] = nums(outputPreviewTextTransformFor(text, size, viewport));
     near(angle, 0); numbers([tx, ty], screen(c.expected.anchor as Point));
-    // SVG font glyph ascent is negative local Y. The current App uses -lineHeight
-    // for tspan line 2. Apply the real returned affine scale to both probes.
-    return { glyphUp: [0 * sx, -1 * sy], secondBaseline: [0 * sx, -caption.lineHeightMm * sy] };
+    // SVG glyph ascent is negative local Y; multiline advance is positive local
+    // Y. The App DOM regression covers both actual tspan render paths.
+    return { glyphUp: [0 * sx, -1 * sy], secondBaseline: [0 * sx, caption.lineHeightMm * sy] };
   };
   const vectors = textProjection(caption);
   observations.push({ id: c.id, sourceHash: c.sha256, vectorPathPageInverse: "PASS", caption, transform: outputPreviewTextTransformFor(caption, size, viewport), vectors, expectedGlyphUp: c.expected.glyphUpScreenVector, expectedSecondBaseline: c.expected.secondBaselineScreenVector });
