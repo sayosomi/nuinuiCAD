@@ -25,7 +25,8 @@ import { resolveTransformationStageSelection } from "./transformationRecipes";
 import {
   buildRootScalarExecutionOrder,
   lowerScalarProgram,
-  remapTypedExpressionSourceOrders
+  remapTypedExpressionSourceOrders,
+  remapGeometryInputTargetSourceOrders
 } from "../scalars/scalarProgram";
 import { analyzeTypedDeclarations } from "../scalars/typedDeclarationAnalysis";
 import { resolveReferencesAtSites } from "../scalars/bindingResolution";
@@ -4977,13 +4978,7 @@ export const compileDslDocument = (
       const remappedTargets = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
       for (const [parameterKey, target] of targets) {
         const remapTarget = (candidate: GeometryInputTarget): GeometryInputTarget =>
-          candidate.kind === "forGroupOccurrence"
-            ? {
-                ...candidate,
-                targetSourceOrder: sourceOrderFor(candidate.targetSourceOrder),
-                index: candidate.index ? remapTypedExpressionSourceOrders(candidate.index, sourceOrderFor) : null
-              }
-            : candidate;
+          remapGeometryInputTargetSourceOrders(candidate, sourceOrderFor);
         remappedTargets.set(parameterKey, Array.isArray(target)
           ? target.map((candidate) => remapTarget(candidate as GeometryInputTarget))
           : remapTarget(target as GeometryInputTarget));

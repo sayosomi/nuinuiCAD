@@ -1,0 +1,23 @@
+[
+  {
+    "family": "F1",
+    "removedOwnerCorrection": "src/vscode/modulePreviewEvaluation.ts",
+    "selection": "R1 source-scope",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "family": "F2",
+    "removedOwnerCorrection": "src/dsl/modulePreviewRoot.ts",
+    "selection": "'R2'",
+    "exitCode": 1,
+    "detected": true
+  },
+  {
+    "family": "F3",
+    "removedOwnerCorrection": "packages/nui-language/src/dsl/dslCompiler.ts",
+    "selection": "'R3'",
+    "exitCode": 1,
+    "detected": true
+  }
+]

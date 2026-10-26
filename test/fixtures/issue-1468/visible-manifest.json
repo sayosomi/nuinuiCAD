@@ -1,0 +1,4710 @@
+{
+  "issue": 1468,
+  "base": "c7ae3500f16d6e17dfb7bffd57365c967e1c4e5c",
+  "sealedBeforeExploration": true,
+  "series": "A1\u2192A4, B1\u2192B4, C1\u2192C4; cumulative within each fixture",
+  "tolerances": {
+    "geometryMm": 1e-07,
+    "encodedSvgMm": 0.00051,
+    "encodedPdfPt": 0.00051
+  },
+  "independentDerivation": "Cartesian endpoint/handle vector arithmetic; mirror local X before rotation then translation; reversal swaps controls/endpoints. Curves chosen coordinate-monotonic so endpoint bounds exact. Stroke halfwidth=25.4/96 mm. SVG x=x-bounds.minX+3; y=bounds.maxY+3-y. PDF x=(x-page.origin.x)*72/25.4; y=(y-page.origin.y)*72/25.4. Page counts ceil stroke-inclusive extent/(paper-2*overlap), row-major origins. Text strictly inside bounds; labels BODICE/SLEEVE/FRONT/BACK must encode. No approximate curve-length oracle claimed.",
+  "sourceInvariants": [
+    "every untouched physical line/comment byte identical",
+    "every existing statement/element identity retained through edits and source history",
+    "new Bake declaration independent from original live source",
+    "new source and request revisions cannot accept stale results",
+    "fresh reopen resets document identities; compare source-qualified geometry not generated ID strings"
+  ],
+  "negativeControls": [
+    "wrong nonzero dimension delta must fail numeric oracle",
+    "swap Left/Right or leak sibling edit must fail",
+    "wrong generated index/count must fail",
+    "omit mirror or reverse must fail endpoints/controls",
+    "stale source hash/revision or prior valid geometry must not count as new success",
+    "remove Bake must fail declaration/geometry check",
+    "use CSS pixels as mm or omit72/25.4 must fail encoded reference/page measures",
+    "floor tile count or single-inset stride must fail page origins/count"
+  ],
+  "operationSupport": "existing production source-command planners and store commitText/commitLineSplices/undo; no GUI or TS evaluator substitute",
+  "artifactAssertions": [
+    "parse actual SVG paths/mm dimensions/viewBox; cubic control geometry and lines in authored order",
+    "parse actual PDF pages, MediaBox points, content m/l/c operators, physical reference geometry on each tile, text operators and guide positions",
+    "both encoders through the same persistent Rust stdio process as evaluation"
+  ],
+  "units": [
+    {
+      "id": "A1",
+      "fixture": "F1",
+      "checkpoints": [
+        {
+          "action": "commitText initial; compile; production Rust; plan and encode SVG/PDF",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst width: number = 80 // editable bust\nconst height: number = 140 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @width, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@width - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "5e442372fed831a45fe3f9e5ecdf9c1834d78ed318548c8e0b07efe7921d1e11",
+          "sourceRevision": 1,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 80,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 80,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 80,
+                "y": 0
+              },
+              "end": {
+                "x": 70,
+                "y": 130
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 140
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 140
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 130
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 120
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 133.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 93,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 93,
+                  "y": -7
+                },
+                "end": {
+                  "x": 83,
+                  "y": 123
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 133
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 133
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 123
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 113
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              166.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "A2",
+      "fixture": "F1",
+      "checkpoints": [
+        {
+          "action": "commitLineSplices width 80\u219283",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst width: number = 83 // editable bust\nconst height: number = 140 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @width, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@width - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "a6bfb68ca6165e173df7d0c1b62c9b86ea9bc8ed52a6ec947bed6ab2ef7eeb0e",
+          "sourceRevision": 2,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 83,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 83,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 83,
+                "y": 0
+              },
+              "end": {
+                "x": 73,
+                "y": 130
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 140
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 140
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 130
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 120
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 133.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 96,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 96,
+                  "y": -7
+                },
+                "end": {
+                  "x": 86,
+                  "y": 123
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 133
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 133
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 123
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 113
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              166.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "A3",
+      "fixture": "F1",
+      "checkpoints": [
+        {
+          "action": "commit width 83\u219287",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst width: number = 87 // editable bust\nconst height: number = 140 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @width, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@width - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "efc9a763e94ddefdd78cbff3e1fab9362135109eaacb0aa94917199afe2b7d02",
+          "sourceRevision": 3,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 87,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 87,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 87,
+                "y": 0
+              },
+              "end": {
+                "x": 77,
+                "y": 130
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 140
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 140
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 130
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 120
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 133.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 100,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 100,
+                  "y": -7
+                },
+                "end": {
+                  "x": 90,
+                  "y": 123
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 133
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 133
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 123
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 113
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              166.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "commit height 140\u2192144",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst width: number = 87 // editable bust\nconst height: number = 144 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @width, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@width - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "0ffca787acf6a5ec78f6d9ada29c478afb989953baf1f12b239972189e437c50",
+          "sourceRevision": 4,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 87,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 87,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 87,
+                "y": 0
+              },
+              "end": {
+                "x": 77,
+                "y": 134
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 144
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 144
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 134
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 124
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 137.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 100,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 100,
+                  "y": -7
+                },
+                "end": {
+                  "x": 90,
+                  "y": 127
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 137
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 137
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 127
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 117
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              170.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "source history undo",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst width: number = 87 // editable bust\nconst height: number = 140 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @width, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@width - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "efc9a763e94ddefdd78cbff3e1fab9362135109eaacb0aa94917199afe2b7d02",
+          "sourceRevision": 5,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 87,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 87,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 87,
+                "y": 0
+              },
+              "end": {
+                "x": 77,
+                "y": 130
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 140
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 140
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 130
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 120
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 133.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 100,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 100,
+                  "y": -7
+                },
+                "end": {
+                  "x": 90,
+                  "y": 123
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 133
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 133
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 123
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 113
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              166.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "source history undo",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst width: number = 83 // editable bust\nconst height: number = 140 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @width, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@width - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "a6bfb68ca6165e173df7d0c1b62c9b86ea9bc8ed52a6ec947bed6ab2ef7eeb0e",
+          "sourceRevision": 6,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 83,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 83,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 83,
+                "y": 0
+              },
+              "end": {
+                "x": 73,
+                "y": 130
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 140
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 140
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 130
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 120
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 133.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 96,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 96,
+                  "y": -7
+                },
+                "end": {
+                  "x": 86,
+                  "y": 123
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 133
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 133
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 123
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 113
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              166.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "A4",
+      "fixture": "F1",
+      "checkpoints": [
+        {
+          "action": "planDslRenameEditsResult + canonical semantic rename splices width\u2192bustWidth",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst bustWidth: number = 83 // editable bust\nconst height: number = 140 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @bustWidth, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@bustWidth - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "04c1b4933f4742fff9d5bf574559f1db89cc3b7d86156373902516ebf5c487e3",
+          "sourceRevision": 7,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 83,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 83,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 83,
+                "y": 0
+              },
+              "end": {
+                "x": 73,
+                "y": 130
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 140
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 140
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 130
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 120
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 133.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 96,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 96,
+                  "y": -7
+                },
+                "end": {
+                  "x": 86,
+                  "y": 123
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 133
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 133
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 123
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 113
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              166.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "queryDslSourceValueStep 83\u219284; editor commitText",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nconst bustWidth: number = 84 // editable bust\nconst height: number = 140 // independent length\n\ngroup Bodice [Ink] {\n  point Origin = coordinate(x: 0, y: 0)\n  point Waist = coordinate(x: @bustWidth, y: 0)\n  line Bottom = segment(start: @Origin, end: @Waist)\n  line Side = segment(start: @Waist, end: (@bustWidth - 10, @height - 10))\n  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)\n  line Reference = segment(start: (0, -20), end: (100, -20))\n  text Caption = label(text: \"BODICE\", anchor: (5, 5), size: 3)\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (0, 0), end: (13, 7))\n}\nlayout Sheet {\n  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)\n  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "eb48bc28df3bf9f97358f8c467f1d3bf5bc48d4ed049dfd1a312bb235444467a",
+          "sourceRevision": 8,
+          "geometry": {
+            "Bodice::Origin": {
+              "kind": "point",
+              "x": 0,
+              "y": 0
+            },
+            "Bodice::Waist": {
+              "kind": "point",
+              "x": 84,
+              "y": 0
+            },
+            "Bodice::Bottom": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 84,
+                "y": 0
+              }
+            },
+            "Bodice::Side": {
+              "kind": "line",
+              "start": {
+                "x": 84,
+                "y": 0
+              },
+              "end": {
+                "x": 74,
+                "y": 130
+              }
+            },
+            "Bodice::Neck": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 140
+                  },
+                  "control1": {
+                    "x": 20,
+                    "y": 140
+                  },
+                  "control2": {
+                    "x": 40,
+                    "y": 130
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 120
+                  }
+                }
+              ]
+            },
+            "Bodice::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 100,
+                "y": -20
+              }
+            },
+            "Control::Edge": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 13,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 12.735416666666667,
+              "minY": -27.264583333333334,
+              "maxX": 173.26458333333332,
+              "maxY": 133.26458333333332
+            },
+            "drawables": {
+              "Bodice::Bottom": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -7
+                },
+                "end": {
+                  "x": 97,
+                  "y": -7
+                }
+              },
+              "Bodice::Side": {
+                "kind": "line",
+                "start": {
+                  "x": 97,
+                  "y": -7
+                },
+                "end": {
+                  "x": 87,
+                  "y": 123
+                }
+              },
+              "Bodice::Neck": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 13,
+                      "y": 133
+                    },
+                    "control1": {
+                      "x": 33,
+                      "y": 133
+                    },
+                    "control2": {
+                      "x": 53,
+                      "y": 123
+                    },
+                    "end": {
+                      "x": 53,
+                      "y": 113
+                    }
+                  }
+                ]
+              },
+              "Bodice::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 13,
+                  "y": -27
+                },
+                "end": {
+                  "x": 113,
+                  "y": -27
+                }
+              },
+              "Control::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 160,
+                  "y": -10
+                },
+                "end": {
+                  "x": 173,
+                  "y": -3
+                }
+              }
+            },
+            "svgMm": [
+              166.52916666666664,
+              166.52916666666664
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 1,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                2.7354166666666675,
+                -37.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "fixture": "F2",
+      "checkpoints": [
+        {
+          "action": "initial production Rust + Module Preview arguments span60 lift40",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nmodule Sleeve(span: number = 60, lift: number = 40) {\n  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)\n  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)\n  reverse Cap as turned()\n  export line Hem = segment(start: (0, -20), end: (@span, -20))\n}\ngroup Sleeves [Ink] {\n  instance Left = Sleeve(span: 60, lift: 40)\n  instance Right = Sleeve(span: 85, lift: 25)\n  move [Right::Cap, Right::Hem](from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n  const count: number = 2\n  const chosen: number = 1\n  for i in range(min: 0, max: @count, step: 1, showGenerated: true) {\n    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))\n  }\n  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)\n  line Probe = segment(start: (0, -32), end: @Pick)\n  path Stage = from(source: @Left::Cap.turned)\n  text Caption = label(text: \"SLEEVE\", anchor: (3, -10), size: 3)\n}\nlayout Sheet {\n  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "f4dc871169833024ee886a9df7be6b61b4b8d6f3bea1cfe49fcc81c0fa924871",
+          "sourceRevision": 1,
+          "geometry": {
+            "Sleeves::Left::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 67,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 52,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Left::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 60,
+                "y": -20
+              }
+            },
+            "Sleeves::Right::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 212,
+                    "y": 12
+                  },
+                  "control1": {
+                    "x": 197,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 127,
+                    "y": 7
+                  },
+                  "end": {
+                    "x": 127,
+                    "y": -13
+                  }
+                }
+              ]
+            },
+            "Sleeves::Right::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 120,
+                "y": -30
+              },
+              "end": {
+                "x": 205,
+                "y": -30
+              }
+            },
+            "Sleeves::Stage": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 67,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 52,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Pick": {
+              "kind": "point",
+              "x": 12,
+              "y": -32
+            },
+            "Sleeves::Probe": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -32
+              },
+              "end": {
+                "x": 12,
+                "y": -32
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 10.735416666666667,
+              "minY": -35.264583333333334,
+              "maxX": 223.26458333333332,
+              "maxY": 42.264583333333334
+            },
+            "drawables": {
+              "Sleeves::Left::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 78,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 63,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Left::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -15
+                },
+                "end": {
+                  "x": 71,
+                  "y": -15
+                }
+              },
+              "Sleeves::Right::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 223,
+                      "y": 17
+                    },
+                    "control1": {
+                      "x": 208,
+                      "y": 17
+                    },
+                    "control2": {
+                      "x": 138,
+                      "y": 12
+                    },
+                    "end": {
+                      "x": 138,
+                      "y": -8
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Right::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 131,
+                  "y": -25
+                },
+                "end": {
+                  "x": 216,
+                  "y": -25
+                }
+              },
+              "Tick[0]": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -35
+                },
+                "end": {
+                  "x": 11,
+                  "y": -30
+                }
+              },
+              "Tick[1]": {
+                "kind": "line",
+                "start": {
+                  "x": 21,
+                  "y": -35
+                },
+                "end": {
+                  "x": 21,
+                  "y": -30
+                }
+              },
+              "Tick[2]": {
+                "kind": "line",
+                "start": {
+                  "x": 31,
+                  "y": -35
+                },
+                "end": {
+                  "x": 31,
+                  "y": -30
+                }
+              },
+              "Sleeves::Probe": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -27
+                },
+                "end": {
+                  "x": 23,
+                  "y": -27
+                }
+              },
+              "Sleeves::Stage": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 78,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 63,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              }
+            },
+            "svgMm": [
+              218.52916666666664,
+              83.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                0.7354166666666675,
+                -45.264583333333334
+              ],
+              [
+                190.73541666666668,
+                -45.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "single Left argument patch; independent Right at offset120,-10; preview ephemeral root span63 lift40",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nmodule Sleeve(span: number = 60, lift: number = 40) {\n  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)\n  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)\n  reverse Cap as turned()\n  export line Hem = segment(start: (0, -20), end: (@span, -20))\n}\ngroup Sleeves [Ink] {\n  instance Left = Sleeve(span: 63, lift: 40)\n  instance Right = Sleeve(span: 85, lift: 25)\n  move [Right::Cap, Right::Hem](from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n  const count: number = 2\n  const chosen: number = 1\n  for i in range(min: 0, max: @count, step: 1, showGenerated: true) {\n    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))\n  }\n  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)\n  line Probe = segment(start: (0, -32), end: @Pick)\n  path Stage = from(source: @Left::Cap.turned)\n  text Caption = label(text: \"SLEEVE\", anchor: (3, -10), size: 3)\n}\nlayout Sheet {\n  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "905ea6246c72e8393d602573c0ebe4b70d648a01ec35ff9e98f47f1acfcbbc55",
+          "sourceRevision": 2,
+          "geometry": {
+            "Sleeves::Left::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 70,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 55,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Left::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 63,
+                "y": -20
+              }
+            },
+            "Sleeves::Right::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 212,
+                    "y": 12
+                  },
+                  "control1": {
+                    "x": 197,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 127,
+                    "y": 7
+                  },
+                  "end": {
+                    "x": 127,
+                    "y": -13
+                  }
+                }
+              ]
+            },
+            "Sleeves::Right::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 120,
+                "y": -30
+              },
+              "end": {
+                "x": 205,
+                "y": -30
+              }
+            },
+            "Sleeves::Stage": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 70,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 55,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Pick": {
+              "kind": "point",
+              "x": 12,
+              "y": -32
+            },
+            "Sleeves::Probe": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -32
+              },
+              "end": {
+                "x": 12,
+                "y": -32
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 10.735416666666667,
+              "minY": -35.264583333333334,
+              "maxX": 223.26458333333332,
+              "maxY": 42.264583333333334
+            },
+            "drawables": {
+              "Sleeves::Left::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 81,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 66,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Left::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -15
+                },
+                "end": {
+                  "x": 74,
+                  "y": -15
+                }
+              },
+              "Sleeves::Right::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 223,
+                      "y": 17
+                    },
+                    "control1": {
+                      "x": 208,
+                      "y": 17
+                    },
+                    "control2": {
+                      "x": 138,
+                      "y": 12
+                    },
+                    "end": {
+                      "x": 138,
+                      "y": -8
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Right::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 131,
+                  "y": -25
+                },
+                "end": {
+                  "x": 216,
+                  "y": -25
+                }
+              },
+              "Tick[0]": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -35
+                },
+                "end": {
+                  "x": 11,
+                  "y": -30
+                }
+              },
+              "Tick[1]": {
+                "kind": "line",
+                "start": {
+                  "x": 21,
+                  "y": -35
+                },
+                "end": {
+                  "x": 21,
+                  "y": -30
+                }
+              },
+              "Tick[2]": {
+                "kind": "line",
+                "start": {
+                  "x": 31,
+                  "y": -35
+                },
+                "end": {
+                  "x": 31,
+                  "y": -30
+                }
+              },
+              "Sleeves::Probe": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -27
+                },
+                "end": {
+                  "x": 23,
+                  "y": -27
+                }
+              },
+              "Sleeves::Stage": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 81,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 66,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              }
+            },
+            "svgMm": [
+              218.52916666666664,
+              83.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                0.7354166666666675,
+                -45.264583333333334
+              ],
+              [
+                190.73541666666668,
+                -45.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "fixture": "F2",
+      "checkpoints": [
+        {
+          "action": "count 2\u21923; inclusive occurrences 0..3",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nmodule Sleeve(span: number = 60, lift: number = 40) {\n  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)\n  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)\n  reverse Cap as turned()\n  export line Hem = segment(start: (0, -20), end: (@span, -20))\n}\ngroup Sleeves [Ink] {\n  instance Left = Sleeve(span: 63, lift: 40)\n  instance Right = Sleeve(span: 85, lift: 25)\n  move [Right::Cap, Right::Hem](from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n  const count: number = 3\n  const chosen: number = 1\n  for i in range(min: 0, max: @count, step: 1, showGenerated: true) {\n    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))\n  }\n  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)\n  line Probe = segment(start: (0, -32), end: @Pick)\n  path Stage = from(source: @Left::Cap.turned)\n  text Caption = label(text: \"SLEEVE\", anchor: (3, -10), size: 3)\n}\nlayout Sheet {\n  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "c212860f5cf9cd3662e9b9f0f89d29820272093a1e756223897bc25f9b84ed11",
+          "sourceRevision": 3,
+          "geometry": {
+            "Sleeves::Left::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 70,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 55,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Left::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 63,
+                "y": -20
+              }
+            },
+            "Sleeves::Right::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 212,
+                    "y": 12
+                  },
+                  "control1": {
+                    "x": 197,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 127,
+                    "y": 7
+                  },
+                  "end": {
+                    "x": 127,
+                    "y": -13
+                  }
+                }
+              ]
+            },
+            "Sleeves::Right::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 120,
+                "y": -30
+              },
+              "end": {
+                "x": 205,
+                "y": -30
+              }
+            },
+            "Sleeves::Stage": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 70,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 55,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Pick": {
+              "kind": "point",
+              "x": 12,
+              "y": -32
+            },
+            "Sleeves::Probe": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -32
+              },
+              "end": {
+                "x": 12,
+                "y": -32
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 10.735416666666667,
+              "minY": -35.264583333333334,
+              "maxX": 223.26458333333332,
+              "maxY": 42.264583333333334
+            },
+            "drawables": {
+              "Sleeves::Left::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 81,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 66,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Left::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -15
+                },
+                "end": {
+                  "x": 74,
+                  "y": -15
+                }
+              },
+              "Sleeves::Right::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 223,
+                      "y": 17
+                    },
+                    "control1": {
+                      "x": 208,
+                      "y": 17
+                    },
+                    "control2": {
+                      "x": 138,
+                      "y": 12
+                    },
+                    "end": {
+                      "x": 138,
+                      "y": -8
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Right::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 131,
+                  "y": -25
+                },
+                "end": {
+                  "x": 216,
+                  "y": -25
+                }
+              },
+              "Tick[0]": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -35
+                },
+                "end": {
+                  "x": 11,
+                  "y": -30
+                }
+              },
+              "Tick[1]": {
+                "kind": "line",
+                "start": {
+                  "x": 21,
+                  "y": -35
+                },
+                "end": {
+                  "x": 21,
+                  "y": -30
+                }
+              },
+              "Tick[2]": {
+                "kind": "line",
+                "start": {
+                  "x": 31,
+                  "y": -35
+                },
+                "end": {
+                  "x": 31,
+                  "y": -30
+                }
+              },
+              "Tick[3]": {
+                "kind": "line",
+                "start": {
+                  "x": 41,
+                  "y": -35
+                },
+                "end": {
+                  "x": 41,
+                  "y": -30
+                }
+              },
+              "Sleeves::Probe": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -27
+                },
+                "end": {
+                  "x": 23,
+                  "y": -27
+                }
+              },
+              "Sleeves::Stage": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 81,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 66,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              }
+            },
+            "svgMm": [
+              218.52916666666664,
+              83.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                0.7354166666666675,
+                -45.264583333333334
+              ],
+              [
+                190.73541666666668,
+                -45.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "selector 1\u21922; Pick22,-32; Probe length22",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nmodule Sleeve(span: number = 60, lift: number = 40) {\n  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)\n  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)\n  reverse Cap as turned()\n  export line Hem = segment(start: (0, -20), end: (@span, -20))\n}\ngroup Sleeves [Ink] {\n  instance Left = Sleeve(span: 63, lift: 40)\n  instance Right = Sleeve(span: 85, lift: 25)\n  move [Right::Cap, Right::Hem](from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n  const count: number = 3\n  const chosen: number = 2\n  for i in range(min: 0, max: @count, step: 1, showGenerated: true) {\n    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))\n  }\n  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)\n  line Probe = segment(start: (0, -32), end: @Pick)\n  path Stage = from(source: @Left::Cap.turned)\n  text Caption = label(text: \"SLEEVE\", anchor: (3, -10), size: 3)\n}\nlayout Sheet {\n  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "36205ac9e797aed9f3c8d1c266df8a197d9bb4a41836aeabac81aaa23b3a474d",
+          "sourceRevision": 4,
+          "geometry": {
+            "Sleeves::Left::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 70,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 55,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Left::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 63,
+                "y": -20
+              }
+            },
+            "Sleeves::Right::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 212,
+                    "y": 12
+                  },
+                  "control1": {
+                    "x": 197,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 127,
+                    "y": 7
+                  },
+                  "end": {
+                    "x": 127,
+                    "y": -13
+                  }
+                }
+              ]
+            },
+            "Sleeves::Right::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 120,
+                "y": -30
+              },
+              "end": {
+                "x": 205,
+                "y": -30
+              }
+            },
+            "Sleeves::Stage": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 70,
+                    "y": 37
+                  },
+                  "control1": {
+                    "x": 55,
+                    "y": 37
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 17
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Pick": {
+              "kind": "point",
+              "x": 22,
+              "y": -32
+            },
+            "Sleeves::Probe": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -32
+              },
+              "end": {
+                "x": 22,
+                "y": -32
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 10.735416666666667,
+              "minY": -35.264583333333334,
+              "maxX": 223.26458333333332,
+              "maxY": 42.264583333333334
+            },
+            "drawables": {
+              "Sleeves::Left::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 81,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 66,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Left::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -15
+                },
+                "end": {
+                  "x": 74,
+                  "y": -15
+                }
+              },
+              "Sleeves::Right::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 223,
+                      "y": 17
+                    },
+                    "control1": {
+                      "x": 208,
+                      "y": 17
+                    },
+                    "control2": {
+                      "x": 138,
+                      "y": 12
+                    },
+                    "end": {
+                      "x": 138,
+                      "y": -8
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Right::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 131,
+                  "y": -25
+                },
+                "end": {
+                  "x": 216,
+                  "y": -25
+                }
+              },
+              "Tick[0]": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -35
+                },
+                "end": {
+                  "x": 11,
+                  "y": -30
+                }
+              },
+              "Tick[1]": {
+                "kind": "line",
+                "start": {
+                  "x": 21,
+                  "y": -35
+                },
+                "end": {
+                  "x": 21,
+                  "y": -30
+                }
+              },
+              "Tick[2]": {
+                "kind": "line",
+                "start": {
+                  "x": 31,
+                  "y": -35
+                },
+                "end": {
+                  "x": 31,
+                  "y": -30
+                }
+              },
+              "Tick[3]": {
+                "kind": "line",
+                "start": {
+                  "x": 41,
+                  "y": -35
+                },
+                "end": {
+                  "x": 41,
+                  "y": -30
+                }
+              },
+              "Sleeves::Probe": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -27
+                },
+                "end": {
+                  "x": 33,
+                  "y": -27
+                }
+              },
+              "Sleeves::Stage": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 81,
+                      "y": 42
+                    },
+                    "control1": {
+                      "x": 66,
+                      "y": 42
+                    },
+                    "control2": {
+                      "x": 18,
+                      "y": 22
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              }
+            },
+            "svgMm": [
+              218.52916666666664,
+              83.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                0.7354166666666675,
+                -45.264583333333334
+              ],
+              [
+                190.73541666666668,
+                -45.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "fixture": "F2",
+      "checkpoints": [
+        {
+          "action": "change Module stage: mirror X then rotate90 then shift7,-3 then reverse",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nmodule Sleeve(span: number = 60, lift: number = 40) {\n  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)\n  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse Cap as turned()\n  export line Hem = segment(start: (0, -20), end: (@span, -20))\n}\ngroup Sleeves [Ink] {\n  instance Left = Sleeve(span: 63, lift: 40)\n  instance Right = Sleeve(span: 85, lift: 25)\n  move [Right::Cap, Right::Hem](from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n  const count: number = 3\n  const chosen: number = 2\n  for i in range(min: 0, max: @count, step: 1, showGenerated: true) {\n    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))\n  }\n  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)\n  line Probe = segment(start: (0, -32), end: @Pick)\n  path Stage = from(source: @Left::Cap.turned)\n  text Caption = label(text: \"SLEEVE\", anchor: (3, -10), size: 3)\n}\nlayout Sheet {\n  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "ed43df269235abbce1137f766195efc2e5c832f222e2674c4dd5d5dd1daca936",
+          "sourceRevision": 5,
+          "geometry": {
+            "Sleeves::Left::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": -33,
+                    "y": -66
+                  },
+                  "control1": {
+                    "x": -33,
+                    "y": -51
+                  },
+                  "control2": {
+                    "x": -13,
+                    "y": -3
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Left::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 63,
+                "y": -20
+              }
+            },
+            "Sleeves::Right::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 102,
+                    "y": -98
+                  },
+                  "control1": {
+                    "x": 102,
+                    "y": -83
+                  },
+                  "control2": {
+                    "x": 107,
+                    "y": -13
+                  },
+                  "end": {
+                    "x": 127,
+                    "y": -13
+                  }
+                }
+              ]
+            },
+            "Sleeves::Right::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 120,
+                "y": -30
+              },
+              "end": {
+                "x": 205,
+                "y": -30
+              }
+            },
+            "Sleeves::Stage": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": -33,
+                    "y": -66
+                  },
+                  "control1": {
+                    "x": -33,
+                    "y": -51
+                  },
+                  "control2": {
+                    "x": -13,
+                    "y": -3
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Pick": {
+              "kind": "point",
+              "x": 22,
+              "y": -32
+            },
+            "Sleeves::Probe": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -32
+              },
+              "end": {
+                "x": 22,
+                "y": -32
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": -22.264583333333334,
+              "minY": -93.26458333333333,
+              "maxX": 216.26458333333332,
+              "maxY": 2.2645833333333334
+            },
+            "drawables": {
+              "Sleeves::Left::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": -22,
+                      "y": -61
+                    },
+                    "control1": {
+                      "x": -22,
+                      "y": -46
+                    },
+                    "control2": {
+                      "x": -2,
+                      "y": 2
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Left::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -15
+                },
+                "end": {
+                  "x": 74,
+                  "y": -15
+                }
+              },
+              "Sleeves::Right::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 113,
+                      "y": -93
+                    },
+                    "control1": {
+                      "x": 113,
+                      "y": -78
+                    },
+                    "control2": {
+                      "x": 118,
+                      "y": -8
+                    },
+                    "end": {
+                      "x": 138,
+                      "y": -8
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Right::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 131,
+                  "y": -25
+                },
+                "end": {
+                  "x": 216,
+                  "y": -25
+                }
+              },
+              "Tick[0]": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -35
+                },
+                "end": {
+                  "x": 11,
+                  "y": -30
+                }
+              },
+              "Tick[1]": {
+                "kind": "line",
+                "start": {
+                  "x": 21,
+                  "y": -35
+                },
+                "end": {
+                  "x": 21,
+                  "y": -30
+                }
+              },
+              "Tick[2]": {
+                "kind": "line",
+                "start": {
+                  "x": 31,
+                  "y": -35
+                },
+                "end": {
+                  "x": 31,
+                  "y": -30
+                }
+              },
+              "Tick[3]": {
+                "kind": "line",
+                "start": {
+                  "x": 41,
+                  "y": -35
+                },
+                "end": {
+                  "x": 41,
+                  "y": -30
+                }
+              },
+              "Sleeves::Probe": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -27
+                },
+                "end": {
+                  "x": 33,
+                  "y": -27
+                }
+              },
+              "Sleeves::Stage": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": -22,
+                      "y": -61
+                    },
+                    "control1": {
+                      "x": -22,
+                      "y": -46
+                    },
+                    "control2": {
+                      "x": -2,
+                      "y": 2
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              }
+            },
+            "svgMm": [
+              244.52916666666664,
+              101.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                -32.264583333333334,
+                -103.26458333333333
+              ],
+              [
+                157.73541666666665,
+                -103.26458333333333
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "fixture": "F2",
+      "checkpoints": [
+        {
+          "action": "invalid dependency; diagnostics; MCP must not return evaluated/current success",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nmodule Sleeve(span: number = 60, lift: number = 40) {\n  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)\n  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse Cap as turned()\n  export line Hem = segment(start: (0, -20), end: (@span, -20))\n}\ngroup Sleeves [Ink] {\n  instance Left = Sleeve(span: 63, lift: @MissingLift)\n  instance Right = Sleeve(span: 85, lift: 25)\n  move [Right::Cap, Right::Hem](from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n  const count: number = 3\n  const chosen: number = 2\n  for i in range(min: 0, max: @count, step: 1, showGenerated: true) {\n    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))\n  }\n  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)\n  line Probe = segment(start: (0, -32), end: @Pick)\n  path Stage = from(source: @Left::Cap.turned)\n  text Caption = label(text: \"SLEEVE\", anchor: (3, -10), size: 3)\n}\nlayout Sheet {\n  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "f3eb3591c752d3e4ccbdab9a51a845ff478f2e0ffb5e8a5dacfa4d889c646524",
+          "sourceRevision": 6,
+          "geometry": {},
+          "output": null,
+          "expectedStatus": "source-unavailable-or-ineligible"
+        },
+        {
+          "action": "correct newer source; reject any result/projection for earlier revision; persistent Rust + encode",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\nmodule Sleeve(span: number = 60, lift: number = 40) {\n  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)\n  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse Cap as turned()\n  export line Hem = segment(start: (0, -20), end: (@span, -20))\n}\ngroup Sleeves [Ink] {\n  instance Left = Sleeve(span: 63, lift: 44)\n  instance Right = Sleeve(span: 85, lift: 25)\n  move [Right::Cap, Right::Hem](from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n  const count: number = 3\n  const chosen: number = 2\n  for i in range(min: 0, max: @count, step: 1, showGenerated: true) {\n    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))\n  }\n  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)\n  line Probe = segment(start: (0, -32), end: @Pick)\n  path Stage = from(source: @Left::Cap.turned)\n  text Caption = label(text: \"SLEEVE\", anchor: (3, -10), size: 3)\n}\nlayout Sheet {\n  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "816d14fb69a795ffe810ac4f7ffe4bcc7b2f1f77c0647e85b7c43bd0cea547ca",
+          "sourceRevision": 7,
+          "geometry": {
+            "Sleeves::Left::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": -37,
+                    "y": -66
+                  },
+                  "control1": {
+                    "x": -37,
+                    "y": -51
+                  },
+                  "control2": {
+                    "x": -13,
+                    "y": -3
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Left::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -20
+              },
+              "end": {
+                "x": 63,
+                "y": -20
+              }
+            },
+            "Sleeves::Right::Cap": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 102,
+                    "y": -98
+                  },
+                  "control1": {
+                    "x": 102,
+                    "y": -83
+                  },
+                  "control2": {
+                    "x": 107,
+                    "y": -13
+                  },
+                  "end": {
+                    "x": 127,
+                    "y": -13
+                  }
+                }
+              ]
+            },
+            "Sleeves::Right::Hem": {
+              "kind": "line",
+              "start": {
+                "x": 120,
+                "y": -30
+              },
+              "end": {
+                "x": 205,
+                "y": -30
+              }
+            },
+            "Sleeves::Stage": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": -37,
+                    "y": -66
+                  },
+                  "control1": {
+                    "x": -37,
+                    "y": -51
+                  },
+                  "control2": {
+                    "x": -13,
+                    "y": -3
+                  },
+                  "end": {
+                    "x": 7,
+                    "y": -3
+                  }
+                }
+              ]
+            },
+            "Sleeves::Pick": {
+              "kind": "point",
+              "x": 22,
+              "y": -32
+            },
+            "Sleeves::Probe": {
+              "kind": "line",
+              "start": {
+                "x": 0,
+                "y": -32
+              },
+              "end": {
+                "x": 22,
+                "y": -32
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": -26.264583333333334,
+              "minY": -93.26458333333333,
+              "maxX": 216.26458333333332,
+              "maxY": 2.2645833333333334
+            },
+            "drawables": {
+              "Sleeves::Left::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": -26,
+                      "y": -61
+                    },
+                    "control1": {
+                      "x": -26,
+                      "y": -46
+                    },
+                    "control2": {
+                      "x": -2,
+                      "y": 2
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Left::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -15
+                },
+                "end": {
+                  "x": 74,
+                  "y": -15
+                }
+              },
+              "Sleeves::Right::Cap": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": 113,
+                      "y": -93
+                    },
+                    "control1": {
+                      "x": 113,
+                      "y": -78
+                    },
+                    "control2": {
+                      "x": 118,
+                      "y": -8
+                    },
+                    "end": {
+                      "x": 138,
+                      "y": -8
+                    }
+                  }
+                ]
+              },
+              "Sleeves::Right::Hem": {
+                "kind": "line",
+                "start": {
+                  "x": 131,
+                  "y": -25
+                },
+                "end": {
+                  "x": 216,
+                  "y": -25
+                }
+              },
+              "Tick[0]": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -35
+                },
+                "end": {
+                  "x": 11,
+                  "y": -30
+                }
+              },
+              "Tick[1]": {
+                "kind": "line",
+                "start": {
+                  "x": 21,
+                  "y": -35
+                },
+                "end": {
+                  "x": 21,
+                  "y": -30
+                }
+              },
+              "Tick[2]": {
+                "kind": "line",
+                "start": {
+                  "x": 31,
+                  "y": -35
+                },
+                "end": {
+                  "x": 31,
+                  "y": -30
+                }
+              },
+              "Tick[3]": {
+                "kind": "line",
+                "start": {
+                  "x": 41,
+                  "y": -35
+                },
+                "end": {
+                  "x": 41,
+                  "y": -30
+                }
+              },
+              "Sleeves::Probe": {
+                "kind": "line",
+                "start": {
+                  "x": 11,
+                  "y": -27
+                },
+                "end": {
+                  "x": 33,
+                  "y": -27
+                }
+              },
+              "Sleeves::Stage": {
+                "kind": "bezierCurve",
+                "segments": [
+                  {
+                    "start": {
+                      "x": -26,
+                      "y": -61
+                    },
+                    "control1": {
+                      "x": -26,
+                      "y": -46
+                    },
+                    "control2": {
+                      "x": -2,
+                      "y": 2
+                    },
+                    "end": {
+                      "x": 18,
+                      "y": 2
+                    }
+                  }
+                ]
+              }
+            },
+            "svgMm": [
+              248.52916666666664,
+              101.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                -36.264583333333334,
+                -103.26458333333333
+              ],
+              [
+                153.73541666666665,
+                -103.26458333333333
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "fixture": "F3",
+      "checkpoints": [
+        {
+          "action": "initial production pipeline",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = coordinate(x: 103, y: -4)\n  line Reference = segment(start: @Base, end: @Tip)\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1) {\n  place @Front(origin: @Front::Base, at: (20, -30), scale: 1, angle: 0, mirror: false)\n  place @Back(origin: @Back::Base, at: (240, 50), angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "ee9a9c24efcc050e872db39a5f8e85d6a6252118689ea52ab906241d73064fd7",
+          "sourceRevision": 1,
+          "geometry": {
+            "Front::Base": {
+              "kind": "point",
+              "x": 3,
+              "y": -4
+            },
+            "Front::Tip": {
+              "kind": "point",
+              "x": 103,
+              "y": -4
+            },
+            "Front::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            },
+            "Front::Outline": {
+              "kind": "polyline",
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 3,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 33,
+                    "y": -4
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 33,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 23,
+                    "y": 46
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 23,
+                    "y": 46
+                  },
+                  "end": {
+                    "x": 3,
+                    "y": 66
+                  }
+                }
+              ]
+            },
+            "Back::Edge": {
+              "kind": "line",
+              "start": {
+                "x": -5,
+                "y": 2
+              },
+              "end": {
+                "x": 45,
+                "y": 22
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 19.735416666666666,
+              "minY": -30.264583333333334,
+              "maxX": 290.26458333333335,
+              "maxY": 70.26458333333333
+            },
+            "drawables": {
+              "Front::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 27,
+                  "y": -19
+                },
+                "end": {
+                  "x": 127,
+                  "y": -19
+                }
+              },
+              "Front::Outline": {
+                "kind": "polyline",
+                "segments": [
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 20,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 50,
+                      "y": -30
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 50,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 40,
+                      "y": 20
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 40,
+                      "y": 20
+                    },
+                    "end": {
+                      "x": 20,
+                      "y": 40
+                    }
+                  }
+                ]
+              },
+              "Back::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 240,
+                  "y": 50
+                },
+                "end": {
+                  "x": 290,
+                  "y": 70
+                }
+              }
+            },
+            "svgMm": [
+              276.5291666666667,
+              106.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                9.735416666666666,
+                -40.264583333333334
+              ],
+              [
+                199.73541666666665,
+                -40.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "planBakeGeometry current Front::Reference; applyBakePlan source insertion; preserve original recipe",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = coordinate(x: 103, y: -4)\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1) {\n  place @Front(origin: @Front::Base, at: (20, -30), scale: 1, angle: 0, mirror: false)\n  place @Back(origin: @Back::Base, at: (240, 50), angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "e5e7e698b7751091a047e8e555857b5a2d6e7d0ad517958f72f68467135f0d13",
+          "sourceRevision": 2,
+          "geometry": {
+            "Front::Base": {
+              "kind": "point",
+              "x": 3,
+              "y": -4
+            },
+            "Front::Tip": {
+              "kind": "point",
+              "x": 103,
+              "y": -4
+            },
+            "Front::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            },
+            "Front::Outline": {
+              "kind": "polyline",
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 3,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 33,
+                    "y": -4
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 33,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 23,
+                    "y": 46
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 23,
+                    "y": 46
+                  },
+                  "end": {
+                    "x": 3,
+                    "y": 66
+                  }
+                }
+              ]
+            },
+            "Back::Edge": {
+              "kind": "line",
+              "start": {
+                "x": -5,
+                "y": 2
+              },
+              "end": {
+                "x": 45,
+                "y": 22
+              }
+            },
+            "Front::Reference_bake": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 19.735416666666666,
+              "minY": -30.264583333333334,
+              "maxX": 290.26458333333335,
+              "maxY": 70.26458333333333
+            },
+            "drawables": {
+              "Front::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 27,
+                  "y": -19
+                },
+                "end": {
+                  "x": 127,
+                  "y": -19
+                }
+              },
+              "Front::Reference_bake": {
+                "kind": "line",
+                "start": {
+                  "x": 27,
+                  "y": -19
+                },
+                "end": {
+                  "x": 127,
+                  "y": -19
+                }
+              },
+              "Front::Outline": {
+                "kind": "polyline",
+                "segments": [
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 20,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 50,
+                      "y": -30
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 50,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 40,
+                      "y": 20
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 40,
+                      "y": 20
+                    },
+                    "end": {
+                      "x": 20,
+                      "y": 40
+                    }
+                  }
+                ]
+              },
+              "Back::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 240,
+                  "y": 50
+                },
+                "end": {
+                  "x": 290,
+                  "y": 70
+                }
+              }
+            },
+            "svgMm": [
+              276.5291666666667,
+              106.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                9.735416666666666,
+                -40.264583333333334
+              ],
+              [
+                199.73541666666665,
+                -40.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "fixture": "F3",
+      "checkpoints": [
+        {
+          "action": "coordinate conversion Tip relative Base xy100,0; canonical splice",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 100,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1) {\n  place @Front(origin: @Front::Base, at: (20, -30), scale: 1, angle: 0, mirror: false)\n  place @Back(origin: @Back::Base, at: (240, 50), angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "a755c04ad6bc67a7e3e5218962927a4f3d712e525728e69147da0d7a15200e7a",
+          "sourceRevision": 3,
+          "geometry": {
+            "Front::Base": {
+              "kind": "point",
+              "x": 3,
+              "y": -4
+            },
+            "Front::Tip": {
+              "kind": "point",
+              "x": 103,
+              "y": -4
+            },
+            "Front::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            },
+            "Front::Outline": {
+              "kind": "polyline",
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 3,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 33,
+                    "y": -4
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 33,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 23,
+                    "y": 46
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 23,
+                    "y": 46
+                  },
+                  "end": {
+                    "x": 3,
+                    "y": 66
+                  }
+                }
+              ]
+            },
+            "Back::Edge": {
+              "kind": "line",
+              "start": {
+                "x": -5,
+                "y": 2
+              },
+              "end": {
+                "x": 45,
+                "y": 22
+              }
+            },
+            "Front::Reference_bake": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 19.735416666666666,
+              "minY": -30.264583333333334,
+              "maxX": 290.26458333333335,
+              "maxY": 70.26458333333333
+            },
+            "drawables": {
+              "Front::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 27,
+                  "y": -19
+                },
+                "end": {
+                  "x": 127,
+                  "y": -19
+                }
+              },
+              "Front::Reference_bake": {
+                "kind": "line",
+                "start": {
+                  "x": 27,
+                  "y": -19
+                },
+                "end": {
+                  "x": 127,
+                  "y": -19
+                }
+              },
+              "Front::Outline": {
+                "kind": "polyline",
+                "segments": [
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 20,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 50,
+                      "y": -30
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 50,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 40,
+                      "y": 20
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 40,
+                      "y": 20
+                    },
+                    "end": {
+                      "x": 20,
+                      "y": 40
+                    }
+                  }
+                ]
+              },
+              "Back::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 240,
+                  "y": 50
+                },
+                "end": {
+                  "x": 290,
+                  "y": 70
+                }
+              }
+            },
+            "svgMm": [
+              276.5291666666667,
+              106.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                9.735416666666666,
+                -40.264583333333334
+              ],
+              [
+                199.73541666666665,
+                -40.264583333333334
+              ]
+            ]
+          }
+        },
+        {
+          "action": "Source Value Step dx100\u2192101; baked100 reference and Back unaffected",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 101,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1) {\n  place @Front(origin: @Front::Base, at: (20, -30), scale: 1, angle: 0, mirror: false)\n  place @Back(origin: @Back::Base, at: (240, 50), angle: 0, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)\n\n// end sentinel\n",
+          "sha256": "12cfd946e9a288ae9cab36389a3ff6ee163f4581dbab2b8894c252820d52d5f2",
+          "sourceRevision": 4,
+          "geometry": {
+            "Front::Base": {
+              "kind": "point",
+              "x": 3,
+              "y": -4
+            },
+            "Front::Tip": {
+              "kind": "point",
+              "x": 104,
+              "y": -4
+            },
+            "Front::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 111,
+                "y": 7
+              }
+            },
+            "Front::Outline": {
+              "kind": "polyline",
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 3,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 33,
+                    "y": -4
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 33,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 23,
+                    "y": 46
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 23,
+                    "y": 46
+                  },
+                  "end": {
+                    "x": 3,
+                    "y": 66
+                  }
+                }
+              ]
+            },
+            "Back::Edge": {
+              "kind": "line",
+              "start": {
+                "x": -5,
+                "y": 2
+              },
+              "end": {
+                "x": 45,
+                "y": 22
+              }
+            },
+            "Front::Reference_bake": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": 19.735416666666666,
+              "minY": -30.264583333333334,
+              "maxX": 290.26458333333335,
+              "maxY": 70.26458333333333
+            },
+            "drawables": {
+              "Front::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": 27,
+                  "y": -19
+                },
+                "end": {
+                  "x": 128,
+                  "y": -19
+                }
+              },
+              "Front::Reference_bake": {
+                "kind": "line",
+                "start": {
+                  "x": 27,
+                  "y": -19
+                },
+                "end": {
+                  "x": 127,
+                  "y": -19
+                }
+              },
+              "Front::Outline": {
+                "kind": "polyline",
+                "segments": [
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 20,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 50,
+                      "y": -30
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 50,
+                      "y": -30
+                    },
+                    "end": {
+                      "x": 40,
+                      "y": 20
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": 40,
+                      "y": 20
+                    },
+                    "end": {
+                      "x": 20,
+                      "y": 40
+                    }
+                  }
+                ]
+              },
+              "Back::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 240,
+                  "y": 50
+                },
+                "end": {
+                  "x": 290,
+                  "y": 70
+                }
+              }
+            },
+            "svgMm": [
+              276.5291666666667,
+              106.52916666666667
+            ],
+            "paperMm": [
+              210,
+              297
+            ],
+            "overlap": 10,
+            "stride": [
+              190,
+              277
+            ],
+            "columns": 2,
+            "rows": 1,
+            "pageOrigins": [
+              [
+                9.735416666666666,
+                -40.264583333333334
+              ],
+              [
+                199.73541666666665,
+                -40.264583333333334
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "fixture": "F3",
+      "checkpoints": [
+        {
+          "action": "one supported source-splice commit: profile widths remain2px, layout fallback scale1.5, Front explicit2 mirror/rotate90, Back rotate180, asymmetric placement, A4 landscape overlap12",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 101,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
+          "sha256": "606fe19a38174c0ee6838e2bae451a937237f985e2555203c35ccf5886ba3500",
+          "sourceRevision": 5,
+          "geometry": {
+            "Front::Base": {
+              "kind": "point",
+              "x": 3,
+              "y": -4
+            },
+            "Front::Tip": {
+              "kind": "point",
+              "x": 104,
+              "y": -4
+            },
+            "Front::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 111,
+                "y": 7
+              }
+            },
+            "Front::Outline": {
+              "kind": "polyline",
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 3,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 33,
+                    "y": -4
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 33,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 23,
+                    "y": 46
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 23,
+                    "y": 46
+                  },
+                  "end": {
+                    "x": 3,
+                    "y": 66
+                  }
+                }
+              ]
+            },
+            "Back::Edge": {
+              "kind": "line",
+              "start": {
+                "x": -5,
+                "y": 2
+              },
+              "end": {
+                "x": 45,
+                "y": 22
+              }
+            },
+            "Front::Reference_bake": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": -160.26458333333332,
+              "minY": -176.26458333333332,
+              "maxX": 260.26458333333335,
+              "maxY": 40.264583333333334
+            },
+            "drawables": {
+              "Front::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": -42,
+                  "y": 26
+                },
+                "end": {
+                  "x": -42,
+                  "y": -176
+                }
+              },
+              "Front::Reference_bake": {
+                "kind": "line",
+                "start": {
+                  "x": -42,
+                  "y": 26
+                },
+                "end": {
+                  "x": -42,
+                  "y": -174
+                }
+              },
+              "Front::Outline": {
+                "kind": "polyline",
+                "segments": [
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -20,
+                      "y": 40
+                    },
+                    "end": {
+                      "x": -20,
+                      "y": -20
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -20,
+                      "y": -20
+                    },
+                    "end": {
+                      "x": -120,
+                      "y": 0
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -120,
+                      "y": 0
+                    },
+                    "end": {
+                      "x": -160,
+                      "y": 40
+                    }
+                  }
+                ]
+              },
+              "Back::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 260.0,
+                  "y": -50.0
+                },
+                "end": {
+                  "x": 185.0,
+                  "y": -80.0
+                }
+              }
+            },
+            "svgMm": [
+              426.5291666666667,
+              222.52916666666664
+            ],
+            "paperMm": [
+              297,
+              210
+            ],
+            "overlap": 12,
+            "stride": [
+              273,
+              186
+            ],
+            "columns": 2,
+            "rows": 2,
+            "pageOrigins": [
+              [
+                -172.26458333333332,
+                -188.26458333333332
+              ],
+              [
+                100.73541666666668,
+                -188.26458333333332
+              ],
+              [
+                -172.26458333333332,
+                -2.26458333333332
+              ],
+              [
+                100.73541666666668,
+                -2.26458333333332
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "fixture": "F3",
+      "checkpoints": [
+        {
+          "action": "save exact single-file bytes; fresh canonical store reopen starts sourceRevision1; MCP saved-source hash matches",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 101,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
+          "sha256": "606fe19a38174c0ee6838e2bae451a937237f985e2555203c35ccf5886ba3500",
+          "sourceRevision": 1,
+          "geometry": {
+            "Front::Base": {
+              "kind": "point",
+              "x": 3,
+              "y": -4
+            },
+            "Front::Tip": {
+              "kind": "point",
+              "x": 104,
+              "y": -4
+            },
+            "Front::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 111,
+                "y": 7
+              }
+            },
+            "Front::Outline": {
+              "kind": "polyline",
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 3,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 33,
+                    "y": -4
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 33,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 23,
+                    "y": 46
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 23,
+                    "y": 46
+                  },
+                  "end": {
+                    "x": 3,
+                    "y": 66
+                  }
+                }
+              ]
+            },
+            "Back::Edge": {
+              "kind": "line",
+              "start": {
+                "x": -5,
+                "y": 2
+              },
+              "end": {
+                "x": 45,
+                "y": 22
+              }
+            },
+            "Front::Reference_bake": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": -160.26458333333332,
+              "minY": -176.26458333333332,
+              "maxX": 260.26458333333335,
+              "maxY": 40.264583333333334
+            },
+            "drawables": {
+              "Front::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": -42,
+                  "y": 26
+                },
+                "end": {
+                  "x": -42,
+                  "y": -176
+                }
+              },
+              "Front::Reference_bake": {
+                "kind": "line",
+                "start": {
+                  "x": -42,
+                  "y": 26
+                },
+                "end": {
+                  "x": -42,
+                  "y": -174
+                }
+              },
+              "Front::Outline": {
+                "kind": "polyline",
+                "segments": [
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -20,
+                      "y": 40
+                    },
+                    "end": {
+                      "x": -20,
+                      "y": -20
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -20,
+                      "y": -20
+                    },
+                    "end": {
+                      "x": -120,
+                      "y": 0
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -120,
+                      "y": 0
+                    },
+                    "end": {
+                      "x": -160,
+                      "y": 40
+                    }
+                  }
+                ]
+              },
+              "Back::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 260.0,
+                  "y": -50.0
+                },
+                "end": {
+                  "x": 185.0,
+                  "y": -80.0
+                }
+              }
+            },
+            "svgMm": [
+              426.5291666666667,
+              222.52916666666664
+            ],
+            "paperMm": [
+              297,
+              210
+            ],
+            "overlap": 12,
+            "stride": [
+              273,
+              186
+            ],
+            "columns": 2,
+            "rows": 2,
+            "pageOrigins": [
+              [
+                -172.26458333333332,
+                -188.26458333333332
+              ],
+              [
+                100.73541666666668,
+                -188.26458333333332
+              ],
+              [
+                -172.26458333333332,
+                -2.26458333333332
+              ],
+              [
+                100.73541666666668,
+                -2.26458333333332
+              ]
+            ]
+          }
+        },
+        {
+          "action": "Source Value Step reopened dx101\u2192102; save; Rust; exact-current projections; SVG/PDF",
+          "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 102,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
+          "sha256": "11a140f2d861b5b0769a00b042d7ff6d506c4304215f51278db6067879d98738",
+          "sourceRevision": 2,
+          "geometry": {
+            "Front::Base": {
+              "kind": "point",
+              "x": 3,
+              "y": -4
+            },
+            "Front::Tip": {
+              "kind": "point",
+              "x": 105,
+              "y": -4
+            },
+            "Front::Reference": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 112,
+                "y": 7
+              }
+            },
+            "Front::Outline": {
+              "kind": "polyline",
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 3,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 33,
+                    "y": -4
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 33,
+                    "y": -4
+                  },
+                  "end": {
+                    "x": 23,
+                    "y": 46
+                  }
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 23,
+                    "y": 46
+                  },
+                  "end": {
+                    "x": 3,
+                    "y": 66
+                  }
+                }
+              ]
+            },
+            "Back::Edge": {
+              "kind": "line",
+              "start": {
+                "x": -5,
+                "y": 2
+              },
+              "end": {
+                "x": 45,
+                "y": 22
+              }
+            },
+            "Front::Reference_bake": {
+              "kind": "line",
+              "start": {
+                "x": 10,
+                "y": 7
+              },
+              "end": {
+                "x": 110,
+                "y": 7
+              }
+            }
+          },
+          "output": {
+            "bounds": {
+              "minX": -160.26458333333332,
+              "minY": -178.26458333333332,
+              "maxX": 260.26458333333335,
+              "maxY": 40.264583333333334
+            },
+            "drawables": {
+              "Front::Reference": {
+                "kind": "line",
+                "start": {
+                  "x": -42,
+                  "y": 26
+                },
+                "end": {
+                  "x": -42,
+                  "y": -178
+                }
+              },
+              "Front::Reference_bake": {
+                "kind": "line",
+                "start": {
+                  "x": -42,
+                  "y": 26
+                },
+                "end": {
+                  "x": -42,
+                  "y": -174
+                }
+              },
+              "Front::Outline": {
+                "kind": "polyline",
+                "segments": [
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -20,
+                      "y": 40
+                    },
+                    "end": {
+                      "x": -20,
+                      "y": -20
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -20,
+                      "y": -20
+                    },
+                    "end": {
+                      "x": -120,
+                      "y": 0
+                    }
+                  },
+                  {
+                    "kind": "line",
+                    "start": {
+                      "x": -120,
+                      "y": 0
+                    },
+                    "end": {
+                      "x": -160,
+                      "y": 40
+                    }
+                  }
+                ]
+              },
+              "Back::Edge": {
+                "kind": "line",
+                "start": {
+                  "x": 260.0,
+                  "y": -50.0
+                },
+                "end": {
+                  "x": 185.0,
+                  "y": -80.0
+                }
+              }
+            },
+            "svgMm": [
+              426.5291666666667,
+              224.52916666666664
+            ],
+            "paperMm": [
+              297,
+              210
+            ],
+            "overlap": 12,
+            "stride": [
+              273,
+              186
+            ],
+            "columns": 2,
+            "rows": 2,
+            "pageOrigins": [
+              [
+                -172.26458333333332,
+                -190.26458333333332
+              ],
+              [
+                100.73541666666668,
+                -190.26458333333332
+              ],
+              [
+                -172.26458333333332,
+                -4.26458333333332
+              ],
+              [
+                100.73541666666668,
+                -4.26458333333332
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "limits": {
+    "primary": 12,
+    "X": 8,
+    "R": 8
+  },
+  "quota": "UNAVAILABLE",
+  "sealDisposition": "F2 explicit generated presentation opt-in: existing forGroup control defaults hidden. Original seals retained. Numeric oracles unchanged; no evaluator/encoder correction inferred."
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "originalName": "base.json",
+    "file": "base.json.gz",
+    "bytes": 532718,
+    "sha256": "f23d834b54714bb15ec86fc249d4d3b62c63c61b92c3e25ff5da56037dc18e60"
+  },
+  {
+    "originalName": "focused-1.json",
+    "file": "focused-1.json.gz",
+    "bytes": 1767724,
+    "sha256": "66aecc283876af22f6e495365366e20a34a06bafa1cbe174caf8be0c5b73aa81"
+  },
+  {
+    "originalName": "focused-2.json",
+    "file": "focused-2.json.gz",
+    "bytes": 1767724,
+    "sha256": "425dc3600775e0147e068f363e8839670aef3bc02ccf14026e576dda2890dd55"
+  },
+  {
+    "originalName": "focused-3.json",
+    "file": "focused-3.json.gz",
+    "bytes": 1767724,
+    "sha256": "61dfd50d380a2ad0370cb4f58d367c56f7a77ff572943bbe8523b0da81b1a3ae"
+  },
+  {
+    "originalName": "full-fixed.json",
+    "file": "full-fixed.json.gz",
+    "bytes": 1767724,
+    "sha256": "93f25c8da5b9c73d54c74c98f362dde29bdedc7393ef6e87c0a85174d2c0dee3"
+  },
+  {
+    "originalName": "harness-unstable-options.json",
+    "file": "harness-unstable-options.json.gz",
+    "bytes": 1222046,
+    "sha256": "961b59571af9bfa9f90c032d1bee894285503b1c069f88e3f02699ff17b8ddf0"
+  },
+  {
+    "originalName": "mutation-F1.json",
+    "file": "mutation-F1.json.gz",
+    "bytes": 1931,
+    "sha256": "15f49b4fb2fd5dc420425831ea5108cc2bccdd61c75329f0d1c26b0cb8b7f963"
+  },
+  {
+    "originalName": "mutation-F2.json",
+    "file": "mutation-F2.json.gz",
+    "bytes": 10243,
+    "sha256": "3c19542ce3f36892902ace1987bc2b685ce9cb18256e96bd1a764349a8a55428"
+  },
+  {
+    "originalName": "mutation-F3.json",
+    "file": "mutation-F3.json.gz",
+    "bytes": 14402,
+    "sha256": "4d5632680c84362658623e7dc1a5d13ed73c3fd1c3b77ffd57a5590212f9e08a"
+  }
+]

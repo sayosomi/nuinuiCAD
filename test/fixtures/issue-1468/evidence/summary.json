@@ -1,0 +1,38 @@
+{
+  "base": "c7ae3500f16d6e17dfb7bffd57365c967e1c4e5c",
+  "verifiedImplementationHead": "82064ad1b10fbdd282d5fcb01c07d8e7b043d6db",
+  "branch": "sayosomi/issue-1468-pattern-workflow-hunt",
+  "primary": 12,
+  "triggeredX": [
+    "X1"
+  ],
+  "independentReductions": [
+    "R1",
+    "R2",
+    "R3"
+  ],
+  "acceptedUnits": 16,
+  "unusedX": 7,
+  "unusedR": 5,
+  "novelFamilies": 3,
+  "allRequiredGatesPassed": true,
+  "focusedRepetitions": 3,
+  "focusedTestsEach": 42,
+  "fullTestFilesPassed": 694,
+  "fullTestFilesSkipped": 2,
+  "fullTestsPassed": 11183,
+  "fullTestsSkipped": 187,
+  "campaignRustProcesses": 1,
+  "campaignRustRequests": 89,
+  "campaignEncodedArtifacts": 44,
+  "manualE2E": "Not Required; no host-only path changed; no GUI PASS asserted",
+  "humanObservedWeeklyRemaining": "UNAVAILABLE",
+  "humanObservedFiveHourRemaining": "UNAVAILABLE",
+  "productionFileBlobs": {
+    "packages/nui-language/src/dsl/dslCompiler.ts": "f26f5a00b96c09e09e9d04404bd220d863d872be",
+    "packages/nui-language/src/dsl/dslDocument.ts": "c8769fbf636e503d6985da7e104a006d9ba162ec",
+    "packages/nui-language/src/scalars/scalarProgram.ts": "ff5d8259384a613de4201bb4bd40e6f27270640d",
+    "src/dsl/modulePreviewRoot.ts": "a07b903d2ac2ecb51efbe5ff67e6960eae5bb200",
+    "src/vscode/modulePreviewEvaluation.ts": "b4efd1cbd16457aa8b5e6f50e6131bc23ffcdd42"
+  }
+}
