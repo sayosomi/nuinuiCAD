@@ -479,6 +479,9 @@ export const createModuleSemanticRangeIndex = (compiled: CompiledDslDocument): M
       if (target?.kind === "moduleParameter") add(statementIndex, reference.nameSpan, target);
       else addSourceTarget(statementIndex, reference.target, reference.nameSpan);
     }
+    for (const reference of site.expression.geometryProperties) {
+      addGeometryPropertyReference(compiled, statementIndex, reference, add, addSourceTarget);
+    }
   }
   tokens.sort((a, b) => a.from - b.from || b.to - a.to);
   return {

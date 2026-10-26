@@ -1,0 +1,513 @@
+{
+  "base": "30e376a1efdb00c1645bab9a0f17a622e3e11a14",
+  "branch": "sayosomi/issue-1464-composite-source-transform-hunt",
+  "distinctInputsAttempted": 34,
+  "primary": 24,
+  "extensions": 5,
+  "reducers": 5,
+  "max": 40,
+  "repairedFirstOwnerFamilies": 5,
+  "finalFocusedRustRequests": 117,
+  "ordinaryRustEligibility": true,
+  "positiveReferenceFallbacks": 0,
+  "units": [
+    {
+      "id": "E01",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "0ff9868e0a5fb3711ca48fb9b666c3b36cb4a833f6b16357312e9a24aa46acda"
+    },
+    {
+      "id": "E02",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F2",
+        "F4"
+      ],
+      "sourceSha256": "2e724107329a661c064c717c726376819c0744d797f00d5c07df6b0f346f533a"
+    },
+    {
+      "id": "E03",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F4"
+      ],
+      "sourceSha256": "132e646f6bb0e4414e77532b4fb89039246df56c7d3363c30fe217a0b313de03"
+    },
+    {
+      "id": "E04",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "f98f26dbafad56ff226e22811e45e4ad7dfb349cf531d08806b025e425d6c516"
+    },
+    {
+      "id": "E05",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F3"
+      ],
+      "sourceSha256": "8eea55ff6c4eafff14e4d04fcf650bfea9f2ab49f8627f069ef76d9836cd36e0"
+    },
+    {
+      "id": "E06",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F3"
+      ],
+      "sourceSha256": "a4eb6f29c64e4f00448369b36be0c7d0896084ab5301e74dedbf4178079ecedf"
+    },
+    {
+      "id": "I01",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "28f53a04463cadd837e6b48d29d8ed6f68c5df04f441b0cbef08639ff3dd9501"
+    },
+    {
+      "id": "I02",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "f10b458165fa118c0ef5f1d27889617068035818a12fddd7e5471f0ddf6d4ca9"
+    },
+    {
+      "id": "I03",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "77bdc0609077ecc8bcc7b460ac55a1999761e098ad2d4ec6ac1acb448b0b1af6"
+    },
+    {
+      "id": "I04",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "f18e2becc1bf1030245cbb59af2b0ff8ceafc98e812572a0d89b29dc7f493644"
+    },
+    {
+      "id": "I05",
+      "disposition": "SUPPORTED_REJECTION",
+      "guards": true,
+      "families": [],
+      "sourceSha256": "383b0498e20cabc5a440fb1428fdd4779fb0caa9bc1abd9c19aa5bdb4db3e413"
+    },
+    {
+      "id": "I06",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "68ab120671fe241ce14531b490b14051b9a71373804c74521ca90ce460ff79df"
+    },
+    {
+      "id": "C01",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "9f6205c4961bfaf57ffaa2b09b1593bb632216701753843a8c27cc7e8b4a9a9e"
+    },
+    {
+      "id": "C02",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "fdb8d34073d562c741bdcf9a412f79a3c7c15f3d247bd1d53c74a08c2cf92d27"
+    },
+    {
+      "id": "C03",
+      "disposition": "PASS",
+      "guards": true,
+      "families": [],
+      "sourceSha256": "e681c9540b72736fe744a917bdae7697dbfcb95b40458ea7f8ca906d2bce4906"
+    },
+    {
+      "id": "C04",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "86bcb33f1366cbac53189d8a23e36ce529f3d3b8648c2ee844fd36ea8b4e329d"
+    },
+    {
+      "id": "C05",
+      "disposition": "SUPPORTED_REJECTION",
+      "guards": true,
+      "families": [],
+      "sourceSha256": "ef99de73a062db49a7237ee50238338be82df28426427e84314bf1a746e5c0fa"
+    },
+    {
+      "id": "C06",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "b8593e4dc593a0086c414a32588a85ee8986a07891de0b80a4852b3beff6b21d"
+    },
+    {
+      "id": "S01",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F3",
+        "F4"
+      ],
+      "sourceSha256": "4fefc54b623ce4a8a8054175360ab731e689e1b1ee8da043abe3ea59a25882e2"
+    },
+    {
+      "id": "S02",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "de327e4cc6636a1eb74336f75e0ef45fb62bfb1333e20392c91f1bdb8db99815"
+    },
+    {
+      "id": "S03",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "659c3f335195b8443ce30b7c9e963dc395c50db3ca074eb4054abacf63326db3"
+    },
+    {
+      "id": "S04",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "553b30a730a88a8a59ec2500ab95214c9423cde204a57c9373398fc25fb7c595"
+    },
+    {
+      "id": "S05",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "68533b97563e77d1a15fd59825c16a59afa4e16c176ab468e52dec20aa8964b0"
+    },
+    {
+      "id": "S06",
+      "disposition": "PASS",
+      "guards": false,
+      "families": [],
+      "sourceSha256": "bfbaa51814ee7c55a1e2151f8cfff9c752548f0f81e382ab6fa004235ff3d9d6"
+    },
+    {
+      "id": "X01",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": true,
+      "families": [
+        "F2",
+        "F5"
+      ],
+      "sourceSha256": "b387a2f4115cef7cc2335cc80f1dcec2b7c83db7c8ebd125ce2606655959be6b"
+    },
+    {
+      "id": "X02",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F1",
+        "F3"
+      ],
+      "sourceSha256": "c59988c457dce1969a7a90da78683bd2279d453b00204d80ec716ea56eb20686"
+    },
+    {
+      "id": "X03",
+      "disposition": "SUPPORTED_REJECTION",
+      "guards": true,
+      "families": [],
+      "sourceSha256": "44bc541c934f05b19a155523856a1c8609de3d0eee6a7f6cf2f535f546c1f341"
+    },
+    {
+      "id": "X04",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F2",
+        "F4"
+      ],
+      "sourceSha256": "5a12142a6a11e0e420d6cc2b42d4f7ec489118fcde3af59a878ab5c23122f643"
+    },
+    {
+      "id": "X05",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F2",
+        "F3"
+      ],
+      "sourceSha256": "a08c1bfef1569af7747a63fa4a04bebeefc0b7d8dea6fa28ef1ce38b00606ce5"
+    },
+    {
+      "id": "R01",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "14d7bd34e3a99ac3d968423b283aebfac3c2f4fa222b9a02a1477d78058701b2"
+    },
+    {
+      "id": "R02",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F2"
+      ],
+      "sourceSha256": "69e6230b48f2a801524d91266d96bf5d4da59e28fcfbb9fd1335bfca807275db"
+    },
+    {
+      "id": "R03",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F3"
+      ],
+      "sourceSha256": "e43e2130da858daee61231802ed4a861da2a240accb217c17c5f62c2bd97e48f"
+    },
+    {
+      "id": "R04",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F4"
+      ],
+      "sourceSha256": "be3edf4509e53046ccd755c97e634e1ef700583f8b00ce0d68059f4128f29d6c"
+    },
+    {
+      "id": "R05",
+      "disposition": "BUG→FIXED→REPASS",
+      "guards": false,
+      "families": [
+        "F5"
+      ],
+      "sourceSha256": "d3faf07d94fa2e1817a2e03164d41eb86dda06ac44f4fa6f18402b8c7d943e36"
+    },
+    {
+      "id": "X06",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "X07",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "X08",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "R06",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "R07",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "id": "R08",
+      "disposition": "NOT_TRIGGERED"
+    }
+  ],
+  "requiredGates": [
+    {
+      "label": "corrected-focused",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1464CompositeSourceTransform.integration.test.ts",
+        "src/dsl/dslDefinitionQuery.test.ts",
+        "src/dsl/dslReferencesQuery.test.ts",
+        "src/dsl/dslRenameQuery.test.ts",
+        "src/document/inlineModulePlanner.test.ts",
+        "src/document/extractModulePlanner",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 12.78
+    },
+    {
+      "label": "focused-existing-final",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "src/document/extractModulePlanner",
+        "src/document/inlineModulePlanner.test.ts",
+        "src/document/textPatch",
+        "src/document/typedRenameAnalysis",
+        "src/scalars/typedRenameAnalysis",
+        "src/commands/rename",
+        "src/commands/coordinatePointConversion",
+        "src/dsl/dslSourceValueStepQuery.test.ts",
+        "src/dsl/dslRenameQuery.test.ts",
+        "src/dsl/dslSemanticOccurrenceIndex.test.ts",
+        "src/dsl/moduleSemanticEditor.test.ts",
+        "src/commands/bakeGeometry.test.ts",
+        "test/issue1448RenameSemanticPreservation.integration.test.ts",
+        "test/issue1450LanguageServiceCrossFeature.integration.test.ts",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 12.358
+    },
+    {
+      "label": "corrected-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 300.0,
+      "seconds": 37.318
+    },
+    {
+      "label": "corrected-lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 180.0,
+      "seconds": 38.934
+    },
+    {
+      "label": "corrected-full-suite",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 1800.0,
+      "seconds": 316.09
+    },
+    {
+      "label": "parity-final",
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 600.0,
+      "seconds": 66.798
+    },
+    {
+      "label": "rust-binary-final",
+      "command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--bin",
+        "evaluation_stdio"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 120.0,
+      "seconds": 0.042
+    },
+    {
+      "label": "dsl-reference-final",
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 120.0,
+      "seconds": 0.825
+    },
+    {
+      "label": "final-replay",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1464CompositeSourceTransform.integration.test.ts",
+        "src/dsl/dslDefinitionQuery.test.ts",
+        "--maxWorkers=1"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 120.0,
+      "seconds": 4.747
+    },
+    {
+      "label": "diff-staged-corrected",
+      "command": [
+        "git",
+        "diff",
+        "--cached",
+        "--check"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 30.0,
+      "seconds": 0.037
+    },
+    {
+      "label": "diff-final",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 30.0,
+      "seconds": 0.02
+    }
+  ],
+  "productionSourceSha256": {
+    "packages/nui-language/src/document/inlineModulePlanner.ts": "990b4fce4ab38a3744f23ecd9041796a03075d1ed135bd344b6d9183d1363b27",
+    "packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts": "0eb9f8d31b06e34bec066be0f365fef5651b11121b83dfe7d8497bd1e4952e56",
+    "packages/nui-language/src/dsl/moduleSemanticEditor.ts": "3f3142c2fb42e3ed06a818d81951ee312e5207da6e7bef3b3e74eaf75fde8694",
+    "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts": "bf60d837028149722fe03a69b24c2b30fd50730e7cea28334d434792fff1369c",
+    "packages/nui-language/src/document/extractModulePlanner.ts": "08ffac136e750581133a072ec36af0c73252c46eac0abc3f85fafb13161d8432"
+  },
+  "rustSourceChanges": false,
+  "fullRustGates": "NOT_RUN: no Rust source change; binary rebuild and production eligibility proof exercised",
+  "priorEvidenceUnchanged": true,
+  "historyArchivesVerified": 24,
+  "cleanup": {
+    "activeOwnedEvaluationOrVitestProcesses": [],
+    "temporaryDirectoriesCreated": 0,
+    "extraWorktreesCreated": 0,
+    "humanTestHead": "938b30ff9319106badef883a09f7292c707d821f",
+    "humanTestCleanDetached": true
+  },
+  "quota": {
+    "weeklyBefore": "UNAVAILABLE",
+    "weeklyAfter": "UNAVAILABLE",
+    "fiveHourBefore": "UNAVAILABLE",
+    "fiveHourAfter": "UNAVAILABLE"
+  },
+  "residuals": [
+    "X03 collision guard stops before Inline",
+    "X01 qualified scalar member Rename safety rejection; generated parameter retry passes",
+    "Initial I04 standalone nested scalar geometry read failure retained, out of mission"
+  ],
+  "manualGuiE2E": "NOT_RUN: not required for this host-neutral scope; #1460 separate",
+  "prCreated": false,
+  "issueClosed": false,
+  "historyRecordsVerified": 63,
+  "noTimeouts": true,
+  "remainingBlockers": [],
+  "reviewRequired": "Independent review of exact pushed HEAD by ChatGPT"
+}

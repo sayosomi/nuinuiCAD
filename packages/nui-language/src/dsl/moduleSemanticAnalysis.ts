@@ -974,7 +974,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return { target: null, type: null, resolution: record.resolution === "outerCapture" ? "outerCapture" : record.resolution === "ambiguous" ? "invalid" : record.resolution, diagnostic: record.diagnostic };
     }
     const path = parseDslReferenceToken(name);
-    const lookup = path.segments.length > 1
+    const lookup = path.absolute || path.segments.length > 1
       ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
       : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
     if (lookup.kind === "parameter") {

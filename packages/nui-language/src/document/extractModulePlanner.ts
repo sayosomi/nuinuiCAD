@@ -1390,7 +1390,7 @@ export const planExtractModule = (input: ExtractModulePlanInput): ExtractModuleP
     return reject("stale-semantic-snapshot", "選択statementの source range が current revision と一致しません。");
   }
   const selectedStartLine = firstInfo.range.startLine;
-  const selectedEndLine = lastInfo.range.endLine;
+  const selectedEndLine = Math.max(lastInfo.range.endLine, lastInfo.endLine);
   const selectedFrom = starts[selectedStartLine - 1];
   const selectedTo = lineEndOffset(source, starts, selectedEndLine);
   if (selectedFrom === undefined || selectedFrom > selectedTo) {

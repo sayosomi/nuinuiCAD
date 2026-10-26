@@ -241,6 +241,17 @@ const addTypedOccurrences = (
 ) => {
   const analysis = bindingAnalysis;
   if (!analysis) return;
+  const addScalarReference = (statementIndex: number, nameSpan: { start: number; end: number }, bindingId: string) => {
+    // Materialized Module bindings are runtime slots, not authored owners.
+    // Module semantic occurrences below project their call-site/member tokens.
+    if (isSyntheticRecordBinding(bindingId) || bindingId.startsWith("module-binding:")) return;
+    const physical = physicalRange(compiled, statementIndex, nameSpan);
+    if (!physical) return;
+    const path = parseDslReferenceToken(compiled.spans.sourceMap.source.slice(physical.from, physical.to));
+    const identity: DslSemanticIdentity = { kind: "typed", bindingId };
+    if (path.absolute || path.segments.length > 1) addQualifiedPathOccurrences(statementIndex, nameSpan, identity);
+    else add("reference", physical.from, physical.to, identity);
+  };
   for (const binding of analysis.catalog.bindings) {
     const isNonGeometryArray = isDslArrayValueType(binding.declaredType) && !isDslGeometryValueType(binding.declaredType.elementType);
     if (binding.kind !== "typed" || !binding.nameSpan ||
@@ -278,11 +289,7 @@ const addTypedOccurrences = (
   const addExpression = (statementIndex: number, expression: TypedScalarExpression) => {
     for (const reference of referencesIn(expression)) {
       if (!reference.bindingId) continue;
-      if (isSyntheticRecordBinding(reference.bindingId)) continue;
-      addPhysicalOccurrence(add, compiled, statementIndex, reference.nameSpan, {
-        kind: "typed",
-        bindingId: reference.bindingId
-      }, "reference");
+      addScalarReference(statementIndex, reference.nameSpan, reference.bindingId);
     }
     addCollectionReferences(statementIndex, expression);
     addTypedGeometryPropertyOccurrences(compiled, add, statementIndex, expression, addQualifiedPathOccurrences);
@@ -331,17 +338,17 @@ const addTypedOccurrences = (
     if (isSyntheticRecordBinding(reference.resolution.binding.id)) continue;
     const statementIndex = analysis.catalog.bindingsById.get(reference.fromBindingId)?.statementIndex;
     if (statementIndex === undefined) continue;
-    addPhysicalOccurrence(add, compiled, statementIndex, {
+    addScalarReference(statementIndex, {
       start: reference.span.start + 1,
       end: reference.span.end
-    }, { kind: "typed", bindingId: reference.resolution.binding.id }, "reference");
+    }, reference.resolution.binding.id);
   }
   for (const [occurrenceKey, source] of compiled.propertyBindings ?? []) {
     const statementIndex = Number(occurrenceKey.slice(0, occurrenceKey.indexOf(":")));
     if (!Number.isInteger(statementIndex)) continue;
     if (source.kind === "binding") {
       if (isSyntheticRecordBinding(source.bindingId)) continue;
-      addPhysicalOccurrence(add, compiled, statementIndex, source.nameSpan, { kind: "typed", bindingId: source.bindingId }, "reference");
+      addScalarReference(statementIndex, source.nameSpan, source.bindingId);
     } else if (source.kind === "expression") {
       addExpression(statementIndex, source.expression);
     }
@@ -459,7 +466,9 @@ const addQualifiedPathOccurrences = (
   const ranges = readDslReferencePathSegments(source, physical.from, physical.to);
   if (ranges.kind !== "valid" || ranges.segments.length !== resolved.segments.length) return;
   resolved.segments.forEach((declaration, index) => {
-    const identity = declarationIdentity(compiled, declaration) ?? (index === resolved.segments.length - 1 ? finalTarget : null);
+    const identity = index === resolved.segments.length - 1 && finalTarget?.kind === "typed"
+      ? finalTarget
+      : declarationIdentity(compiled, declaration) ?? (index === resolved.segments.length - 1 ? finalTarget : null);
     const range = ranges.segments[index];
     if (range) add("reference", range.start, range.end, identity);
   });
