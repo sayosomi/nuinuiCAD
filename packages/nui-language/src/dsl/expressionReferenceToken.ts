@@ -59,10 +59,11 @@ export type ExpressionReferenceTokenMatch =
 // no existing boundary behavior changes.
 const BOUNDARY_PREFIX = "(?:^|[\\s()+*/<>=!&|,-])";
 
-// Character classes mirror numericExpressionParser.ts's tokenizer exactly:
+// A new @ starts a source reference even after unary minus.
+// Character classes otherwise mirror numericExpressionParser.ts's tokenizer:
 // the element/binding head excludes `.`, the member/query run allows further
 // `.` (so a nested path like `startPoint.` still matches as one query).
-const HEAD_CHAR_CLASS = "[^\\s()+*/.<>!=&|?]";
+const HEAD_CHAR_CLASS = "[^@\\s()+*/.<>!=&|?]";
 const QUERY_CHAR_CLASS = "[^\\s()+*/<>!=&|?]";
 
 const referenceTokenPattern = new RegExp(

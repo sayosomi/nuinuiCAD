@@ -1,0 +1,250 @@
+{
+  "base": "17591f7c5aa61d9d227f4096c75e48138eaf4528",
+  "implementationSha256": {
+    "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+    "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+    "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+    "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+    "packages/nui-language/src/scalars/typedDependencyGraph.ts": "56a13effb76d65d20e05bd24e1519ee2ea00c34ea3c3399d31574e2b82aa0859",
+    "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "b2a4655800aae8fe35721a1c3dfbf4f96b5f92f7b4af5a9e689d94507ab3ae3f",
+    "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+    "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+    "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+    "src/geometry/evaluate.ts": "c8d49ae0533b2a4e3f765aa29bd6d89813886ababee529f5cf6f74d715624303",
+    "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+    "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+  },
+  "requiredGates": [
+    {
+      "label": "focused-complete",
+      "command": [
+        "env",
+        "ISSUE1466_RECORD=test/fixtures/issue-1466/focused-complete.json.gz",
+        "npm",
+        "test",
+        "--",
+        "test/issue1466NestedScalarGeometry.integration.test.ts",
+        "src/dsl/moduleScalarRuntime.integration.test.ts",
+        "src/document/inlineModulePlanner.test.ts",
+        "src/dsl/dslDocument.test.ts",
+        "test/issue1464CompositeSourceTransform.integration.test.ts",
+        "src/dsl/expressionReferenceToken.test.ts",
+        "src/scalars/bindingResolution.test.ts",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 10.776
+    },
+    {
+      "label": "sealed-fixed-after-mutations",
+      "command": [
+        "env",
+        "ISSUE1466_RECORD=/Users/yosomi/Code/nuinuiCAD/test/fixtures/issue-1466/sealed-fixed-after-mutations.json.gz",
+        "npm",
+        "test",
+        "--",
+        "test/issue1466NestedScalarGeometry.integration.test.ts",
+        "--maxWorkers=1"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 180.0,
+      "seconds": 7.557
+    },
+    {
+      "label": "full-js-final",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 900.0,
+      "seconds": 324.776
+    },
+    {
+      "label": "parity-final",
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 600.0,
+      "seconds": 73.045
+    },
+    {
+      "label": "build-final",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 30.469
+    },
+    {
+      "label": "lint-first",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 33.849
+    },
+    {
+      "label": "dsl-final",
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 120.0,
+      "seconds": 0.989
+    },
+    {
+      "label": "rust-fmt-final",
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--check"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 60.0,
+      "seconds": 1.403
+    },
+    {
+      "label": "rust-check-final",
+      "command": [
+        "cargo",
+        "check",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 1.837
+    },
+    {
+      "label": "rust-focused-final",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "conditional_dependency_runtime",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 12.251
+    },
+    {
+      "label": "rust-full-final",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--",
+        "--test-threads=2"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 600.0,
+      "seconds": 17.121
+    },
+    {
+      "label": "rust-clippy-final",
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 300.0,
+      "seconds": 6.108
+    },
+    {
+      "label": "rust-binary-final",
+      "command": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--bin",
+        "evaluation_stdio"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 240.0,
+      "seconds": 0.082
+    },
+    {
+      "label": "diff-unstaged-final",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 60.0,
+      "seconds": 0.041
+    },
+    {
+      "label": "diff-staged-final",
+      "command": [
+        "git",
+        "diff",
+        "--cached",
+        "--check"
+      ],
+      "exit": 0,
+      "timeout": false,
+      "bound_seconds": 60.0,
+      "seconds": 0.04
+    }
+  ],
+  "counts": {
+    "focused": 393,
+    "primaryAndConditional": 37,
+    "fullJsPassed": 11172,
+    "fullJsSkipped": 187,
+    "parityPassed": 207,
+    "rustPassed": 625,
+    "rustIgnored": 9
+  },
+  "humanObservedQuota": "UNAVAILABLE",
+  "scopeResiduals": [
+    "No unresolved in-scope defect within the closed matrix",
+    "D06 original unsupported end.y and B06 atomicity expectation retained",
+    "Independent exact-pushed-HEAD blocking review/integration remain with ChatGPT; no PR/merge/closure/GUI E2E performed"
+  ],
+  "processStatus": "All task-owned Rust/test/build processes completed; no task-owned process retained.",
+  "humanTestCheckout": "Inspected read-only: clean detached 938b30ff9319106badef883a09f7292c707d821f; no task mutation."
+}

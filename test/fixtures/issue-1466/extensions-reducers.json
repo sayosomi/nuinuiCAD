@@ -1,0 +1,236 @@
+[
+  {
+    "id": "R01",
+    "hypothesis": "Minimal F1: one nested exported number and one direct numeric geometry input",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  point P = coordinate(x: @Kid::n, y: 5)\n}\ninstance Copy = Parent()\n",
+    "sourceSha256": "e0751731c2e08b47251859540a3fedc78679d91e5f34ca91bb983bfcb6b985ab",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 5
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "R02",
+    "hypothesis": "Minimal F2: unary minus on typed nested-export alias must retain binding",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  const alias: number = @Kid::n\n  point P = coordinate(x: -@alias, y: 0)\n}\ninstance Copy = Parent()\n",
+    "sourceSha256": "64862e4b8741fc7bccfb58b410dbff39a07312a788ad2556f6bdb58cba44f941",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": -3,
+          "y": 0
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "R03",
+    "hypothesis": "Minimal F3: absolute instance-export numeric reference inside root group",
+    "source": "nui 1\nmodule Child() {\n  export const n: number = 3\n}\ninstance Copy = Child()\ngroup G {\n  point P = coordinate(x: @::Copy::n, y: 0)\n}\n",
+    "sourceSha256": "45eae3862e16310b7cb4fe640a10a1b8d0a840c222cccb7c835af3e4b06e676e",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "G::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 0
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "X01",
+    "hypothesis": "D01 signed-axis counterfactual uses unary plus, minus, grouped and magnitude alias controls",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = -7\n  }\n  instance Kid = Child()\n  const alias: number = @Kid::n\n  point Unary = coordinate(x: +@alias, y: -@alias)\n  point Grouped = coordinate(x: -(@alias), y: @alias * -1)\n}\ninstance Copy = Parent()\n",
+    "sourceSha256": "adebd5b8b5b00992fbb7ddf88bc7ff4b9248beea14365fe542919ff9c5d88453",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "Copy::Unary": {
+          "kind": "point",
+          "x": -7,
+          "y": 7
+        },
+        "Copy::Grouped": {
+          "kind": "point",
+          "x": 7,
+          "y": 7
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "X02",
+    "hypothesis": "C05 absolute typed scalar initializer control isolates common resolver from geometry compiler",
+    "source": "nui 1\nmodule Child() {\n  export const n: number = 7\n}\ninstance Copy = Child()\ngroup G {\n  const alias: number = @::Copy::n\n  point P = coordinate(x: @alias, y: 0)\n}\n",
+    "sourceSha256": "af788597a24344b865ed012a45762f157b5f7f09b4087caff155ccd717a7c86d",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "G::P": {
+          "kind": "point",
+          "x": 7,
+          "y": 0
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "X03",
+    "hypothesis": "C03/B03 forward nested export plus signed magnitude in independent parent instances",
+    "source": "nui 1\nmodule Parent(seed: number) {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  export point P = coordinate(x: @Kid::n + 1, y: 4)\n  instance Kid = Child(v: @seed)\n}\ninstance Left = Parent(seed: -4)\ninstance Right = Parent(seed: 9)\n",
+    "sourceSha256": "68154002692da897e8755377d5e2801eeac07630fef9b958641d11dde183e62f",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "Left::P": {
+          "kind": "point",
+          "x": -7,
+          "y": 4
+        },
+        "Right::P": {
+          "kind": "point",
+          "x": 19,
+          "y": 4
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "X04",
+    "hypothesis": "F1 public versus private scalar export diagnostic guard",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    const privateN: number = 3\n    export const n: number = 4\n  }\n  instance Kid = Child()\n  point P = coordinate(x: @Kid::privateN, y: 0)\n}\ninstance Copy = Parent()\n",
+    "sourceSha256": "b94f5a353f2407d3e5508889094cddf2bb5725e765fb6d5d825b9ff60ac6545c",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {},
+      "scalars": {}
+    },
+    "rejectCode": "module-private-member"
+  },
+  {
+    "id": "X05",
+    "hypothesis": "F3 absolute lexical path cannot bypass closed Module capture boundary",
+    "source": "nui 1\nmodule Child() {\n  export const n: number = 3\n}\ninstance Copy = Child()\nmodule Parent() {\n  point P = coordinate(x: @::Copy::n, y: 0)\n}\ninstance Other = Parent()\n",
+    "sourceSha256": "f2ec6878da885c9170b8b74d91fe6fa32ddd1c42ed1908a3ac032759733cc286",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {},
+      "scalars": {}
+    },
+    "rejectCode": "module-outer-capture"
+  },
+  {
+    "id": "R04",
+    "hypothesis": "Minimal F4: absolute exported scalar uses root instance despite nearer same-name instance",
+    "source": "nui 1\nmodule Child(v: number) {\n  export const n: number = @v\n}\ninstance Copy = Child(v: 3)\ngroup G {\n  instance Copy = Child(v: 17)\n  point P = coordinate(x: @::Copy::n, y: @Copy::n)\n}\n",
+    "sourceSha256": "ed132cd45ca4c60b80c71e059b2de92f3af785ca174671d12685dc2051c6d3c1",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "G::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 17
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "R05",
+    "hypothesis": "Minimal F5: a forward child numeric input must reach the canonical dependency graph",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  point P = coordinate(x: @Kid::n, y: 0)\n  instance Kid = Child()\n}\ninstance Copy = Parent()\n",
+    "sourceSha256": "6fde3dcefd72bdd428599f03b7cc9a4561bf467094300f28bdbaeb7abfe7b854",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 0
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "X06",
+    "hypothesis": "C05 absolute Module path must ignore a nearer non-Module declaration as well",
+    "source": "nui 1\nmodule Child() {\n  export const n: number = 3\n}\ninstance Copy = Child()\ngroup G {\n  const Copy: number = 17\n  point P = coordinate(x: @::Copy::n, y: @Copy)\n}\n",
+    "sourceSha256": "2ea59395b63f23bb4e20b35e4ffd4b6cdd443c31215dcf605f28d1f875b600fe",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "G::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 17
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "X07",
+    "hypothesis": "R03 root-vs-group counterfactual removes the last unnecessary group for minimal absolute-export failure",
+    "source": "nui 1\nmodule Child() {\n  export const n: number = 3\n}\ninstance Copy = Child()\npoint P = coordinate(x: @::Copy::n, y: 0)\n",
+    "sourceSha256": "9bbbc17a7d58d9757f612b7bce70f4804a4f9ae7ba26f3ea1dc94e89db12c365",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "P": {
+          "kind": "point",
+          "x": 3,
+          "y": 0
+        }
+      },
+      "scalars": {}
+    }
+  },
+  {
+    "id": "X08",
+    "hypothesis": "F5 forward scalar alias before child isolates event staging independently of F1 direct numeric lowering on exact Base",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  const alias: number = @Kid::n\n  point P = coordinate(x: @alias, y: 0)\n  instance Kid = Child()\n}\ninstance Copy = Parent()\n",
+    "sourceSha256": "8345711bf65d29e53a684ae3ff98f874a76da9f69240332b6715ca6bc20850e4",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 0
+        }
+      },
+      "scalars": {}
+    }
+  }
+]

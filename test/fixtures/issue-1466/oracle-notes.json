@@ -1,0 +1,14 @@
+{
+  "authoredUTC": "2026-10-26T06:06:35.403611+00:00",
+  "independentIdentityOracle": "Literal authored consumer/instance/export paths, not inferred from evaluator outputs",
+  "D04": "Quarter circle center (4,-2), r=10, clockwise 0\u2192-90: extrema x=[4,14], y=[-12,-2], length=10*pi/2; sweep=-90",
+  "D05": "Cubic endpoints (0,0),(10,0), controls (0,10),(10,10): B(1/2)=(5,7.5), max y=7.5",
+  "corrections": [
+    "Initial D04/D05 frozen payload kind keywords arc/bezier normalized to actual arcLine/bezierCurve; numeric oracle unchanged",
+    "Scalar payload value tag corrected type\u2192kind; numeric oracle unchanged",
+    "C06 harness now supplies CanonicalDocumentValue correctly",
+    "X05 diagnostic code corrected to existing module-outer-capture; original mismatched assertion failure retained",
+    "B06 original partial Good expectation superseded by normative instance atomicity; legal neighbor frozen separately",
+    "D06 original end.y is CONTRACT_INVALID, exact norm endPoint.y variant retained separately"
+  ]
+}

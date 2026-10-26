@@ -1,0 +1,72 @@
+[
+  {
+    "id": "D06",
+    "hypothesis": "Legal D06 correction: normative endPoint.y property; retain original invalid input and rejection unchanged",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  line L = segment(start: (0, 0), end: (@Kid::n, 4))\n  export const length: number = @L.length\n  export point P = coordinate(x: @length, y: @L.endPoint.y)\n}\ninstance Copy = Parent()\nconst length: number = @Copy::length\npoint Root = coordinate(x: @length * 2, y: 1)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::L": {
+          "kind": "line",
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 3,
+            "y": 4
+          },
+          "length": 5
+        },
+        "Copy::P": {
+          "kind": "point",
+          "x": 5,
+          "y": 4
+        },
+        "Root": {
+          "kind": "point",
+          "x": 10,
+          "y": 1
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {
+        "length": 5
+      },
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "ceae3193290774ae3791166e4706bb228f3b9d60ebbd2aad025fa1aa4389a2b8",
+    "variantOf": "D06"
+  },
+  {
+    "id": "B06",
+    "hypothesis": "Normative instance atomicity suppresses partial Copy output; independent enabled nested sibling Safe remains (14,2)",
+    "source": "nui 1\nmodule Parent() {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  instance Off(enabled: false) = Child(v: 3)\n  instance On = Child(v: 7)\n  export point Bad = coordinate(x: @Off::n, y: 1)\n  export point Good = coordinate(x: @On::n, y: 2)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\nmodule Independent() {\n  module Child() {\n    export const n: number = 14\n  }\n  instance On = Child()\n  export point Good = coordinate(x: @On::n, y: 2)\n}\ninstance Safe = Independent()\n",
+    "expected": {
+      "geometry": {
+        "Safe::Good": {
+          "kind": "point",
+          "x": 14,
+          "y": 2
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "blocked": [
+      "Copy::Bad"
+    ],
+    "sourceSha256": "65c4e0ee89534e21db8b2b416e59a306e89bcfe1e8df63076c088bda6fd5248b",
+    "variantOf": "B06"
+  }
+]

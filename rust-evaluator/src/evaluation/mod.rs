@@ -2733,6 +2733,28 @@ fn evaluate_document_input_with_scalar_program(
             )
         })
         .unwrap_or_default();
+    let project_early_binding_ids = |selections: &HashMap<String, String>| {
+        let Some(versions) = binding_versions.as_ref() else {
+            return HashSet::new();
+        };
+        let linear_bindings = versions
+            .versions
+            .iter()
+            .filter(|version| ScalarMutationResolver::is_dependency_scheduled_version(version))
+            .map(|version| version.binding_id.clone())
+            .collect();
+        conditional_dependency_graph
+            .as_ref()
+            .map(|graph| {
+                graph.early_geometry_input_bindings(
+                    selections,
+                    &binding_source_order_by_id,
+                    &versions.element_source_orders,
+                    &linear_bindings,
+                )
+            })
+            .unwrap_or_default()
+    };
     let project_binding_execution_positions =
         |dependency_ranks: &HashMap<String, usize>, branch_selections: &HashMap<String, String>| {
             binding_versions
@@ -2760,6 +2782,7 @@ fn evaluate_document_input_with_scalar_program(
                             ),
                         );
                     }
+                    scheduled_binding_ids.extend(project_early_binding_ids(branch_selections));
                     versions
                         .versions
                         .iter()
@@ -2786,6 +2809,7 @@ fn evaluate_document_input_with_scalar_program(
             let scheduled_binding_ids = execution_positions.keys().cloned().collect::<HashSet<_>>();
             graph.active_scheduled_binding_prerequisites(branch_selections, &scheduled_binding_ids)
         };
+    let mut early_binding_ids = project_early_binding_ids(&conditional_branch_selections);
     let mut binding_execution_positions = project_binding_execution_positions(
         &dependency_rank_by_endpoint_id,
         &conditional_branch_selections,
@@ -2803,12 +2827,13 @@ fn evaluate_document_input_with_scalar_program(
             let Some(resolver) = resolver else {
                 return HashSet::new();
             };
+            let early = project_early_binding_ids(branch_selections);
             let candidate_binding_ids = binding_versions
                 .as_ref()
                 .into_iter()
                 .flat_map(|versions| &versions.versions)
                 .filter(|version| {
-                    version.source_order < source_order
+                    (version.source_order < source_order || early.contains(&version.binding_id))
                         && execution_positions.contains_key(&version.binding_id)
                 })
                 .map(|version| version.binding_id.clone())
@@ -2960,6 +2985,7 @@ fn evaluate_document_input_with_scalar_program(
                         selector_binding_ids_by_index:
                             &geometry_value_selector_binding_ids_by_index,
                         binding_schedule: &DependencyBindingSchedule {
+                            early_binding_ids: &early_binding_ids,
                             execution_positions: &binding_execution_positions,
                             prerequisites: &binding_prerequisites_by_id,
                         },
@@ -3057,6 +3083,7 @@ fn evaluate_document_input_with_scalar_program(
                                 source_order,
                                 dependency_execution_position,
                                 &DependencyBindingSchedule {
+                                    early_binding_ids: &early_binding_ids,
                                     execution_positions: &binding_execution_positions,
                                     prerequisites: &binding_prerequisites_by_id,
                                 },
@@ -3155,6 +3182,7 @@ fn evaluate_document_input_with_scalar_program(
                     .enumerate()
                     .map(|(rank, endpoint_id)| (endpoint_id, rank))
                     .collect();
+                early_binding_ids = project_early_binding_ids(&conditional_branch_selections);
                 binding_execution_positions = project_binding_execution_positions(
                     &dependency_rank_by_endpoint_id,
                     &conditional_branch_selections,
@@ -3276,6 +3304,7 @@ fn evaluate_document_input_with_scalar_program(
                         selector_binding_ids_by_index:
                             &geometry_value_selector_binding_ids_by_index,
                         binding_schedule: &DependencyBindingSchedule {
+                            early_binding_ids: &early_binding_ids,
                             execution_positions: &binding_execution_positions,
                             prerequisites: &binding_prerequisites_by_id,
                         },
@@ -3821,6 +3850,7 @@ fn evaluate_document_input_with_scalar_program(
                     execution_positions: &geometry_value_execution_positions,
                     selector_binding_ids_by_index: &geometry_value_selector_binding_ids_by_index,
                     binding_schedule: &DependencyBindingSchedule {
+                        early_binding_ids: &early_binding_ids,
                         execution_positions: &binding_execution_positions,
                         prerequisites: &binding_prerequisites_by_id,
                     },
@@ -3899,6 +3929,7 @@ fn evaluate_document_input_with_scalar_program(
                         selector_binding_ids_by_index:
                             &geometry_value_selector_binding_ids_by_index,
                         binding_schedule: &DependencyBindingSchedule {
+                            early_binding_ids: &early_binding_ids,
                             execution_positions: &binding_execution_positions,
                             prerequisites: &binding_prerequisites_by_id,
                         },
@@ -3969,6 +4000,7 @@ fn evaluate_document_input_with_scalar_program(
             resolver.finalize(
                 &mut state,
                 &DependencyBindingSchedule {
+                    early_binding_ids: &early_binding_ids,
                     execution_positions: &binding_execution_positions,
                     prerequisites: &binding_prerequisites_by_id,
                 },

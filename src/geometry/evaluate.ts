@@ -482,6 +482,7 @@ export const evaluateElements = (
       return conditionalBranchSelections.get(guard.controllerId) === guard.branch;
     });
   };
+  let earlyNumericDependencyVersionIds = new Set<string>();
   const setTypedDependencyEndpointRanks = (dependencyOrder: readonly string[]) => {
     typedDependencyEndpointRankById = new Map(dependencyOrder.map((id, index) => [id, index] as const));
     const executionPositions = new Map<string, number>();
@@ -515,6 +516,37 @@ export const evaluateElements = (
           typedDependencyEndpointRankById.has(typedDependencyEndpointId(edge.to))) {
           dependencyScheduledVersionIds.add(targetVersion.id);
         }
+      }
+    }
+    // A numeric geometry consumer may precede a nested scalar-only instance.
+    // Project its already-resolved binding prerequisites into the existing
+    // schedule; do not advance unrelated authored events or control owners.
+    earlyNumericDependencyVersionIds = new Set<string>();
+    const numericInputs = (options.typedDependencyGraph?.edges ?? []).flatMap(edge => {
+      if (edge.from.kind !== "element" || edge.to.kind !== "binding" || !graphEdgeIsActive(edge)) return [];
+      const sourceOrder = options.scalarExecutionPositionByElementId?.get(edge.from.id) ?? options.statementInfoByElementId?.get(edge.from.id)?.statementIndex;
+      return sourceOrder === undefined ? [] : [{ bindingId: edge.to.id, sourceOrder }];
+    });
+    for (const input of numericInputs) {
+      const pending = [input.bindingId];
+      const closure = new Set<string>();
+      let hasForwardPrerequisite = false;
+      while (pending.length) {
+        const bindingId = pending.pop()!;
+        const versionId = options.bindingVersions?.versionIdsByBindingId.get(bindingId)?.at(-1);
+        const version = versionId ? options.bindingVersions?.versionsById.get(versionId) : undefined;
+        if (!version || version.control.kind !== "linear" || closure.has(version.id)) continue;
+        closure.add(version.id);
+        hasForwardPrerequisite ||= version.sourceOrder > input.sourceOrder;
+        for (const edge of activePrerequisitesByVersionId.get(version.id) ?? []) {
+          if (edge.to.kind === "binding") pending.push(edge.to.id);
+        }
+      }
+      // Keep the whole prerequisite closure together, including earlier
+      // parameters: source progression may not have reached them on entry.
+      if (hasForwardPrerequisite) for (const versionId of closure) {
+        earlyNumericDependencyVersionIds.add(versionId);
+        dependencyScheduledVersionIds.add(versionId);
       }
     }
     // A scalar consumer also has to join the dependency schedule when one of
@@ -581,7 +613,8 @@ export const evaluateElements = (
         options.bindingVersions!,
         geometryRuntime,
         options.scalarProgram?.collectionValues,
-        options.typedDependencyGraph ? () => bindingVersionDependencyExecutionPositionById : undefined
+        options.typedDependencyGraph ? () => bindingVersionDependencyExecutionPositionById : undefined,
+        () => earlyNumericDependencyVersionIds
     )
     : undefined;
   const knownConditionalMutationOwnerIds = new Set(
@@ -3541,7 +3574,7 @@ export const evaluateElements = (
   };
   dependencyReadyVersionIdsForSourceOrder = (sourceOrder: number) => {
     const candidateVersions = (options.bindingVersions?.versions ?? []).filter((version) =>
-      version.sourceOrder < sourceOrder && bindingVersionDependencyExecutionPositionById.has(version.id)
+      (version.sourceOrder < sourceOrder || earlyNumericDependencyVersionIds.has(version.id)) && bindingVersionDependencyExecutionPositionById.has(version.id)
     );
     const readyVersionIds = new Set<string>();
     let progressed = true;
