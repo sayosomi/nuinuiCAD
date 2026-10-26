@@ -1,0 +1,658 @@
+[
+  {
+    "id": "B01",
+    "source": "nui 1\n// frozen B01; coordinates in mm, Y-up\npoint P = coordinate(x: 2.25, y: -3.5)\nline L = segment(start: @P, end: (13.5, 7.25))\n// untouched tail\n",
+    "select": [
+      "P",
+      "L"
+    ],
+    "expected": [
+      {
+        "kind": "point",
+        "x": 2.25,
+        "y": -3.5
+      },
+      {
+        "kind": "line",
+        "start": {
+          "x": 2.25,
+          "y": -3.5
+        },
+        "end": {
+          "x": 13.5,
+          "y": 7.25
+        }
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      4,
+      5
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B02",
+    "source": "nui 1\n// frozen B02; coordinates in mm, Y-up\narc A = arc(center: (3, -4), radius: 12, start: 30, end: 150, direction: counterclockwise)\n// untouched tail\n",
+    "select": [
+      "A"
+    ],
+    "expected": [
+      {
+        "kind": "arcLine",
+        "center": {
+          "x": 3,
+          "y": -4
+        },
+        "radius": 12,
+        "startAngleDeg": 30,
+        "endAngleDeg": 150,
+        "sweepAngleDeg": 120
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      4
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B03",
+    "source": "nui 1\n// frozen B03; coordinates in mm, Y-up\narc A = arc(center: (-2, 5), radius: 7, start: 30, end: 300, direction: clockwise)\n// untouched tail\n",
+    "select": [
+      "A"
+    ],
+    "expected": [
+      {
+        "kind": "arcLine",
+        "center": {
+          "x": -2,
+          "y": 5
+        },
+        "radius": 7,
+        "startAngleDeg": 30,
+        "endAngleDeg": 300,
+        "sweepAngleDeg": -90
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      4
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B04",
+    "source": "nui 1\n// frozen B04; coordinates in mm, Y-up\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\n// untouched tail\n",
+    "select": [
+      "C"
+    ],
+    "expected": [
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": 1,
+              "y": 2
+            },
+            "control1": {
+              "x": 3,
+              "y": 2
+            },
+            "control2": {
+              "x": 5,
+              "y": 5
+            },
+            "end": {
+              "x": 5,
+              "y": 7
+            }
+          }
+        ]
+      },
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": 5,
+              "y": 7
+            },
+            "control1": {
+              "x": 5,
+              "y": 11
+            },
+            "control2": {
+              "x": 12,
+              "y": 0
+            },
+            "end": {
+              "x": 12,
+              "y": 3
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      4
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B05",
+    "source": "nui 1\n// frozen B05; coordinates in mm, Y-up\nline L = segment(start: (-2, -2), end: (1, 2))\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\nline J = join(paths: [@L, @C], closed: false)\n// untouched tail\n",
+    "select": [
+      "J"
+    ],
+    "expected": [
+      {
+        "kind": "line",
+        "start": {
+          "x": -2,
+          "y": -2
+        },
+        "end": {
+          "x": 1,
+          "y": 2
+        }
+      },
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": 1,
+              "y": 2
+            },
+            "control1": {
+              "x": 3,
+              "y": 2
+            },
+            "control2": {
+              "x": 5,
+              "y": 5
+            },
+            "end": {
+              "x": 5,
+              "y": 7
+            }
+          }
+        ]
+      },
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": 5,
+              "y": 7
+            },
+            "control1": {
+              "x": 5,
+              "y": 11
+            },
+            "control2": {
+              "x": 12,
+              "y": 0
+            },
+            "end": {
+              "x": 12,
+              "y": 3
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      6
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B06",
+    "source": "nui 1\n// frozen B06; coordinates in mm, Y-up\nline L = segment(start: (0, 0), end: (10, 0))\narc A = arc(center: (10, 5), radius: 5, start: 270, end: 0)\nline O = offset(sources: [@L, @A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\n// untouched tail\n",
+    "select": [
+      "O"
+    ],
+    "expected": [
+      {
+        "kind": "line",
+        "start": {
+          "x": 0,
+          "y": 1
+        },
+        "end": {
+          "x": 10,
+          "y": 1
+        }
+      },
+      {
+        "kind": "arcLine",
+        "center": {
+          "x": 10,
+          "y": 5
+        },
+        "radius": 4,
+        "startAngleDeg": 270,
+        "endAngleDeg": 360,
+        "sweepAngleDeg": 90
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      6
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B07",
+    "source": "nui 1\n// frozen B07; coordinates in mm, Y-up\nline L = segment(start: (1, 2), end: (11, 5))\nmove L (from: (0, 0), to: (10, -7), scale: 1, angleDeg: 30, mirrorX: false)\n// untouched tail\n",
+    "select": [
+      "L"
+    ],
+    "expected": [
+      {
+        "kind": "line",
+        "start": {
+          "x": 9.86602540378444,
+          "y": -4.767949192431122
+        },
+        "end": {
+          "x": 17.026279441628827,
+          "y": 2.8301270189221928
+        }
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      4
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B08",
+    "source": "nui 1\n// frozen B08; coordinates in mm, Y-up\narc A = arc(center: (2, 3), radius: 5, start: 20, end: 100)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\nmirrorMove [A, C] (axis1: (0, 0), axis2: (0, 10))\n// untouched tail\n",
+    "select": [
+      "A",
+      "C"
+    ],
+    "expected": [
+      {
+        "kind": "arcLine",
+        "center": {
+          "x": -2,
+          "y": 3
+        },
+        "radius": 5,
+        "startAngleDeg": 160,
+        "endAngleDeg": 80,
+        "sweepAngleDeg": -80
+      },
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": -1,
+              "y": 2
+            },
+            "control1": {
+              "x": -3,
+              "y": 2
+            },
+            "control2": {
+              "x": -5,
+              "y": 5
+            },
+            "end": {
+              "x": -5,
+              "y": 7
+            }
+          }
+        ]
+      },
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": -5,
+              "y": 7
+            },
+            "control1": {
+              "x": -5,
+              "y": 11
+            },
+            "control2": {
+              "x": -12,
+              "y": 0
+            },
+            "end": {
+              "x": -12,
+              "y": 3
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      4,
+      5
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B09",
+    "source": "nui 1\n// frozen B09; coordinates in mm, Y-up\nmodule M(value: number) {\n  point P = coordinate(x: @value, y: -2)\n  line L = segment(start: (@value, -2), end: (@value + 3, 5))\n}\ninstance First = M(value: 4)\ninstance Second = M(value: 19)\n// untouched tail\n",
+    "select": [
+      "First",
+      "Second"
+    ],
+    "expected": [
+      {
+        "kind": "point",
+        "x": 4,
+        "y": -2
+      },
+      {
+        "kind": "line",
+        "start": {
+          "x": 4,
+          "y": -2
+        },
+        "end": {
+          "x": 7,
+          "y": 5
+        }
+      },
+      {
+        "kind": "point",
+        "x": 19,
+        "y": -2
+      },
+      {
+        "kind": "line",
+        "start": {
+          "x": 19,
+          "y": -2
+        },
+        "end": {
+          "x": 22,
+          "y": 5
+        }
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      8,
+      9
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B10",
+    "source": "nui 1\n// frozen B10; coordinates in mm, Y-up\nmodule Inner() {\n  line L = segment(start: (2, 3), end: (9, -4))\n}\nmodule Outer() {\n  instance Nested = Inner()\n}\ninstance Root = Outer()\n// untouched tail\n",
+    "select": [
+      "L"
+    ],
+    "expected": [
+      {
+        "kind": "line",
+        "start": {
+          "x": 2,
+          "y": 3
+        },
+        "end": {
+          "x": 9,
+          "y": -4
+        }
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "preview": "Outer",
+    "insertionStartLines": [
+      5
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B11",
+    "source": "nui 1\n// frozen B11; coordinates in mm, Y-up\npoint P = coordinate(x: -3, y: 8)\n// between selections\nline L = segment(start: @P, end: (6, -1))\npoint Control = coordinate(x: 101, y: 203)\n// untouched tail\n",
+    "select": [
+      "L",
+      "P"
+    ],
+    "expected": [
+      {
+        "kind": "point",
+        "x": -3,
+        "y": 8
+      },
+      {
+        "kind": "line",
+        "start": {
+          "x": -3,
+          "y": 8
+        },
+        "end": {
+          "x": 6,
+          "y": -1
+        }
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "insertionStartLines": [
+      4,
+      6
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B12",
+    "source": "nui 1\n// frozen B12; coordinates in mm, Y-up\nconst C_bake_1: number = 99\npoint C_bake_2 = coordinate(x: -40, y: 80)\ncurve C = bezier(start: (1, 2), end: (12, 3), startAngle: 0, startLength: 2, endAngle: 90, endLength: 3, intermediates: [(5, 7):90:2:4])\npoint Ref = coordinate(x: @C_bake_1, y: @C_bake_2.y)\n// untouched tail\n",
+    "select": [
+      "C"
+    ],
+    "expected": [
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": 1,
+              "y": 2
+            },
+            "control1": {
+              "x": 3,
+              "y": 2
+            },
+            "control2": {
+              "x": 5,
+              "y": 5
+            },
+            "end": {
+              "x": 5,
+              "y": 7
+            }
+          }
+        ]
+      },
+      {
+        "kind": "bezierCurve",
+        "segments": [
+          {
+            "start": {
+              "x": 5,
+              "y": 7
+            },
+            "control1": {
+              "x": 5,
+              "y": 11
+            },
+            "control2": {
+              "x": 12,
+              "y": 0
+            },
+            "end": {
+              "x": 12,
+              "y": 3
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "existingBakeNames": [
+      "C_bake_2"
+    ],
+    "insertionStartLines": [
+      6
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B13",
+    "source": "nui 1\n// frozen B13; coordinates in mm, Y-up\nline L = segment(start: (2, -3), end: (11, 4))\nmove L as shifted (from: (0, 0), to: (7, 5), scale: 1, angleDeg: 0, mirrorX: false)\nreverse L ()\n// untouched tail\n",
+    "select": [
+      "L"
+    ],
+    "expected": [
+      {
+        "kind": "line",
+        "start": {
+          "x": 18,
+          "y": 9
+        },
+        "end": {
+          "x": 9,
+          "y": 2
+        }
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "baseExpected": [
+      {
+        "kind": "line",
+        "start": {
+          "x": 2,
+          "y": -3
+        },
+        "end": {
+          "x": 11,
+          "y": 4
+        }
+      }
+    ],
+    "insertionStartLines": [
+      4
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B14",
+    "source": "nui 1\n// frozen B14; coordinates in mm, Y-up\nstyle Hide {\n  visible: false,\n  color: #123456,\n}\ngroup G {\n  point P [Hide] = coordinate(x: 4, y: -8, visible: false)\n  point Control = coordinate(x: 33, y: 55)\n}\n// untouched tail\n",
+    "select": [
+      "P"
+    ],
+    "expected": [
+      {
+        "kind": "point",
+        "x": 4,
+        "y": -8
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "includeHiddenGeometry": true,
+    "insertionStartLines": [
+      9
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B15",
+    "source": "nui 1\n// frozen B15; coordinates in mm, Y-up\npoint P = coordinate(x: 6, y: -9, enabled: false)\npoint Control = coordinate(x: 33, y: 55)\n// untouched tail\n",
+    "select": [
+      "P"
+    ],
+    "expected": [
+      {
+        "kind": "point",
+        "x": 6,
+        "y": -9
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "includeDisabledGeometry": true,
+    "insertionStartLines": [
+      4
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "B16",
+    "source": "nui 1\n// frozen B16; coordinates in mm, Y-up\npoint P = coordinate(x: 7, y: -11)\npoint Control = coordinate(x: 33, y: 55)\n// untouched tail\n",
+    "select": [
+      "P"
+    ],
+    "expected": [
+      {
+        "kind": "point",
+        "x": 7,
+        "y": -11
+      }
+    ],
+    "mode": "current",
+    "revision": 1,
+    "lifecycle": true,
+    "insertionStartLines": [
+      4
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  },
+  {
+    "id": "R01",
+    "source": "nui 1\n// Frozen reducer: left of a CCW arc points toward its centre.\narc A = arc(center: (0, 0), radius: 5, start: 0, end: 90)\nline O = offset(sources: [@A], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\nline L = segment(start: (0, 0), end: (10, 0))\nline Control = offset(sources: [@L], distance: 1, side: left, closed: false, suppressTrimWarnings: false)\n",
+    "select": [
+      "O"
+    ],
+    "expected": [
+      {
+        "kind": "arcLine",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 4,
+        "startAngleDeg": 0,
+        "endAngleDeg": 90,
+        "sweepAngleDeg": 90
+      }
+    ],
+    "revision": 1,
+    "mode": "current",
+    "insertionStartLines": [
+      5
+    ],
+    "snapshot": "final/current and base/preMutation when explicitly selected"
+  }
+]

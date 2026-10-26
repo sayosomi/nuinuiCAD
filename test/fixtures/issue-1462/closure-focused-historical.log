@@ -1,0 +1,12 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=1 test/issue1406LineAngleResidualRust.integration.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  07:32:02
+   Duration  4.48s (transform 1.53s, setup 55ms, import 1.77s, tests 2.11s, environment 463ms)

@@ -1,0 +1,86 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2 src/commands/bakeSourceRoundtrip.test.ts src/commands/bakeGeometry.test.ts src/commands/bakeFailureResults.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+ ❯ src/commands/bakeSourceRoundtrip.test.ts (17 tests | 4 failed) 505ms
+     × B06: O 24ms
+     × B12: C 22ms
+     × R01: O 21ms
+     × B16: stale plan rejection, current retry and atomic host-neutral undo/redo 11ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B06: O
+AssertionError: x: expected 4.47213595499958 to be less than 1e-8
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:50:34
+     48|     const error = key === "startAngleDeg" || key === "endAngleDeg"
+     49|       ? ((delta + 180) % 360 + 360) % 360 - 180 : delta;
+     50|     expect(Math.abs(error), key).toBeLessThan(1e-8);
+       |                                  ^
+     51|   } else if (Array.isArray(expected)) {
+     52|     expect(Array.isArray(actual), key).toBe(true);
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:57:52
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:57:52
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:162:28
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:162:10
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:191:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B12: C
+Error: [{"severity":"error","line":6,"column":7,"message":"同じlexical scopeで名前「C_bake_1」が衝突しています: typedDeclaration(行 3) と geometry。","code":"source-namespace-collision","presentation":{"key":"diagnostic.source-namespace-collision","parameters":{"name":"C_bake_1","firstKind":"typedDeclaration","secondKind":"geometry","firstLine":3}},"physicalSpan":{"segments":[{"from":259,"to":267}],"sourceRevision":1}}]
+ ❯ compile src/commands/bakeSourceRoundtrip.test.ts:26:40
+     24| const compile = (source: string) => {
+     25|   const result = compileFreshCanonicalText(source);
+     26|   if (result.status === "fatal") throw new Error(JSON.stringify(result…
+       |                                        ^
+     27|   expect(result.diagnostics.filter((d) => d.severity === "error")).toE…
+     28|   expect(result.bindingIssueDiagnostics.filter((d) => d.severity === "…
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:134:17
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:191:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > R01: O
+AssertionError: radius: expected 2 to be less than 1e-8
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:50:34
+     48|     const error = key === "startAngleDeg" || key === "endAngleDeg"
+     49|       ? ((delta + 180) % 360 + 360) % 360 - 180 : delta;
+     50|     expect(Math.abs(error), key).toBeLessThan(1e-8);
+       |                                  ^
+     51|   } else if (Array.isArray(expected)) {
+     52|     expect(Array.isArray(actual), key).toBe(true);
+ ❯ assertFields src/commands/bakeSourceRoundtrip.test.ts:57:52
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:162:28
+ ❯ roundtrip src/commands/bakeSourceRoundtrip.test.ts:162:10
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:191:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/commands/bakeSourceRoundtrip.test.ts > Issue 1462 committed Bake source roundtrips > B16: stale plan rejection, current retry and atomic host-neutral undo/redo
+AssertionError: expected 'applied' to be 'rejected' // Object.is equality
+
+Expected: "rejected"
+Received: "applied"
+
+ ❯ src/commands/bakeSourceRoundtrip.test.ts:215:32
+    213|       historyBefore: history, historyAfter: useCadDocumentStore.getSta…
+    214|     }));
+    215|     expect(staleResult.status).toBe("rejected");
+       |                                ^
+    216|     expect(useCadDocumentStore.getState().sourceText).toBe(changed);
+    217|     expect(useCadDocumentStore.getState().past).toHaveLength(history);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  4 failed | 43 passed (47)
+   Start at  00:28:15
+   Duration  2.94s (transform 2.95s, setup 89ms, import 3.81s, tests 616ms, environment 898ms)
+
+
+REQUIRED FINAL BLOCK EXIT=1

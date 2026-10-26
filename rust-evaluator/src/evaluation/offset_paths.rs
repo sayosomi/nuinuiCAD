@@ -52,11 +52,12 @@ fn offset_arc_segment(
     else {
         return Ok(None);
     };
+    // Positive offset is right of the directed path: outward for a CCW arc.
     let next_radius = radius
         + if *sweep_angle_deg >= 0.0 {
-            -offset
-        } else {
             offset
+        } else {
+            -offset
         };
     if next_radius <= EPSILON {
         return Err(format!(

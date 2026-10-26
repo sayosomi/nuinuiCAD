@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -292,6 +293,47 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
   afterAll(() => {
     rustStdio?.dispose();
   });
+
+  for (const file of ["cases.json", "continuation-cases.json"]) {
+    const cases = JSON.parse(readFileSync(join(repoRoot, "test/fixtures/issue-1462", file), "utf8")) as Array<{
+      id: string; source: string; select: string[]; rejectedNames?: string[];
+      expected: Array<{ kind: string; center?: { x: number; y: number }; radius?: number; startAngleDeg?: number; sweepAngleDeg?: number }>;
+    }>;
+    for (const frozen of cases.filter((candidate) => ["B06", "R01", "X01", "X02"].includes(candidate.id))) {
+      it(`Issue 1462 ${frozen.id}: directed arc offsets and radius limits`, async () => {
+        const fixture = fixtureFromSource(frozen.source);
+        expect(isRustEligibleFixture(fixture)).toBe(true);
+        const options = optionsFor(fixture);
+        const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
+        const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
+        expect(normalizeParityPayload(rustPayload)).toEqual(normalizeParityPayload(tsPayload));
+        const selected = fixture.elements.filter((e) => frozen.select.includes(e.name) && !frozen.rejectedNames?.includes(e.name));
+        const predictedArcs = frozen.expected.filter((g) => g.kind === "arcLine");
+        for (const result of [evaluationPayloadToResult(tsPayload), evaluationPayloadToResult(rustPayload)]) {
+          const rejected = fixture.elements.filter((e) => frozen.rejectedNames?.includes(e.name));
+          expect(result.errors.map((error) => error.elementId).sort()).toEqual(rejected.map((e) => e.id).sort());
+          const arcs = selected.flatMap((e) => {
+            const geometry = result.computedGeometry.get(e.id);
+            if (geometry?.kind !== "offsetLine") throw new Error("expected offset path");
+            return geometry.segments.filter((segment) => segment.kind === "arc");
+          });
+          expect(arcs).toHaveLength(predictedArcs.length);
+          arcs.forEach((arc, i) => {
+            const predicted = predictedArcs[i];
+            expect(arc.center.x).toBeCloseTo(predicted.center!.x, 9);
+            expect(arc.center.y).toBeCloseTo(predicted.center!.y, 9);
+            expect(arc.radius).toBeCloseTo(predicted.radius!, 9);
+            expect(arc.startAngleDeg).toBeCloseTo(predicted.startAngleDeg!, 9);
+            expect(arc.sweepAngleDeg).toBeCloseTo(predicted.sweepAngleDeg!, 9);
+            for (const [endpoint, angle] of [[arc.start, predicted.startAngleDeg!], [arc.end, predicted.startAngleDeg! + predicted.sweepAngleDeg!]] as const) {
+              expect(endpoint.x).toBeCloseTo(predicted.center!.x + predicted.radius! * Math.cos(angle * Math.PI / 180), 9);
+              expect(endpoint.y).toBeCloseTo(predicted.center!.y + predicted.radius! * Math.sin(angle * Math.PI / 180), 9);
+            }
+          });
+        }
+      }, 30_000);
+    }
+  }
 
   it("reverses both exact c21 generated Bezier occurrences through persistent Rust stdio", async () => {
     const source = [
@@ -4650,8 +4692,9 @@ describe.skipIf(!runRustParity)("TypeScript/Rust evaluation parity fixtures", ()
         startTangentAngleDeg: expect.any(Number), endTangentAngleDeg: expect.any(Number)
       });
       expect(values[7]).toMatchObject({
-        kind: "offsetLine", closed: false, start: { x: 8, y: 0 }, end: { x: expect.closeTo(0, 10), y: 8 },
-        segments: [{ kind: "arc", radius: 8, startAngleDeg: 0, sweepAngleDeg: 90 }],
+        // Right of this CCW radius10 arc is outward by2: radius12.
+        kind: "offsetLine", closed: false, start: { x: 12, y: 0 }, end: { x: expect.closeTo(0, 10), y: 12 },
+        segments: [{ kind: "arc", radius: 12, startAngleDeg: 0, sweepAngleDeg: 90 }],
         startTangentAngleDeg: expect.any(Number), endTangentAngleDeg: expect.any(Number)
       });
       expect((values[7] as { length: number }).length).toBeGreaterThan(0);
