@@ -1600,7 +1600,7 @@
               }
             },
             "Sleeves::Stage": {
-              "kind": "joinedPath",
+              "kind": "bezierCurve",
               "segments": [
                 {
                   "start": {
@@ -1716,7 +1716,7 @@
                 }
               },
               "Sleeves::Stage": {
-                "kind": "joinedPath",
+                "kind": "bezierCurve",
                 "segments": [
                   {
                     "start": {
@@ -1885,7 +1885,7 @@
               }
             },
             "Sleeves::Stage": {
-              "kind": "joinedPath",
+              "kind": "bezierCurve",
               "segments": [
                 {
                   "start": {
@@ -2001,7 +2001,7 @@
                 }
               },
               "Sleeves::Stage": {
-                "kind": "joinedPath",
+                "kind": "bezierCurve",
                 "segments": [
                   {
                     "start": {
@@ -2176,7 +2176,7 @@
               }
             },
             "Sleeves::Stage": {
-              "kind": "joinedPath",
+              "kind": "bezierCurve",
               "segments": [
                 {
                   "start": {
@@ -2292,7 +2292,7 @@
                 }
               },
               "Sleeves::Stage": {
-                "kind": "joinedPath",
+                "kind": "bezierCurve",
                 "segments": [
                   {
                     "start": {
@@ -2472,7 +2472,7 @@
               }
             },
             "Sleeves::Stage": {
-              "kind": "joinedPath",
+              "kind": "bezierCurve",
               "segments": [
                 {
                   "start": {
@@ -2588,7 +2588,7 @@
                 }
               },
               "Sleeves::Stage": {
-                "kind": "joinedPath",
+                "kind": "bezierCurve",
                 "segments": [
                   {
                     "start": {
@@ -2774,7 +2774,7 @@
               }
             },
             "Sleeves::Stage": {
-              "kind": "joinedPath",
+              "kind": "bezierCurve",
               "segments": [
                 {
                   "start": {
@@ -2890,7 +2890,7 @@
                 }
               },
               "Sleeves::Stage": {
-                "kind": "joinedPath",
+                "kind": "bezierCurve",
                 "segments": [
                   {
                     "start": {
@@ -3085,7 +3085,7 @@
               }
             },
             "Sleeves::Stage": {
-              "kind": "joinedPath",
+              "kind": "bezierCurve",
               "segments": [
                 {
                   "start": {
@@ -3201,7 +3201,7 @@
                 }
               },
               "Sleeves::Stage": {
-                "kind": "joinedPath",
+                "kind": "bezierCurve",
                 "segments": [
                   {
                     "start": {

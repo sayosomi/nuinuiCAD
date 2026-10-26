@@ -113,7 +113,7 @@ def b(span=60,lift=40,count=2,chosen=1,turned=False):
   cap=mapped(curve(list(reversed(pts))),lambda x,y:tuple(sum(p) for p in zip(fn(x,y),(dx,dy))))
   g['Sleeves::'+name+'::Cap']=cap
   g['Sleeves::'+name+'::Hem']=line((dx,-20+dy),(w+dx,-20+dy))
- g['Sleeves::Stage']={**g['Sleeves::Left::Cap'],'kind':'joinedPath'} # path from preserves concrete runtime kind; checked by segments below.
+ g['Sleeves::Stage']={**g['Sleeves::Left::Cap']} # materializedPath preserves the concrete source geometry kind.
  g['Sleeves::Pick']={'kind':'point',**point(10*chosen+2,-32)}
  g['Sleeves::Probe']=line((0,-32),(10*chosen+2,-32))
  bounds=[7-lift,-98,205,-3] if turned else [0,-40,212,max(lift-3,12)]
