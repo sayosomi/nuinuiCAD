@@ -15,3 +15,8 @@ No campaign execution has occurred at sealing time. Unsupported spellings or
 operations must be recorded as CONTRACT_INVALID; any legal equivalent requires
 explicit documentation and a separately frozen source before execution.
 Historical #1450–#1466 repairs are controls and cannot count as novel families.
+
+Execution is recorded in [result.md](result.md). The executable admitted seal is
+`visible-manifest.json`; `support-disposition.json` records the explicit legal
+F2 equivalents and retains the original unsupported/hidden controls. Original
+seals remain historical evidence, not silently rewritten executable fixtures.

@@ -1,5 +1,6 @@
 // Task 19 lowering only. Parsing, name resolution, graph analysis, &&
 // typechecking happen once in typedDeclarationAnalysis before this boundary.
+import type { GeometryInputTarget } from "../types/geometry";
 import { selectCompiledProgramBindings } from "./bindingAnalysis";
 import { scalarExpressionTypeOfDslValueType } from "../dsl/dslValueTypes";
 import type { BindingCatalog, BindingId } from "./bindingCatalog";
@@ -351,3 +352,15 @@ export const lowerScalarProgram = ({
     } : {})
   };
 };
+
+/** Lower an occurrence's authored statement clock to its execution clock. */
+export const remapGeometryInputTargetSourceOrders = (
+  target: GeometryInputTarget,
+  sourceOrderFor: (sourceOrder: number) => number
+): GeometryInputTarget => target.kind === "forGroupOccurrence"
+  ? {
+      ...target,
+      targetSourceOrder: sourceOrderFor(target.targetSourceOrder),
+      index: target.index ? remapTypedExpressionSourceOrders(target.index, sourceOrderFor) : null
+    }
+  : target;

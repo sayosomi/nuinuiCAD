@@ -1890,7 +1890,10 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       runtimeTransformationRecipes: [
         ...runtimeRootTransformationRecipes,
         ...moduleTransformationCompilation.runtimeRecipes
-      ],
+      ].sort((left, right) =>
+        (left.runtimeSourceOrder ?? left.sourceStatementIndex) -
+        (right.runtimeSourceOrder ?? right.sourceStatementIndex)
+      ),
       modifiers,
       drawingProfiles
     };
