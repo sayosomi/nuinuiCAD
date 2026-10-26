@@ -151,7 +151,7 @@ export const numericSourceForModuleValue = (
     const match = matches[matchIndex];
     if (!match) return undefined;
     const target = reference.target;
-    if (!target || (target.kind !== "parameter" && target.kind !== "moduleLocal" && target.kind !== "documentBinding" && target.kind !== "iteration")) {
+    if (!target || (target.kind !== "parameter" && target.kind !== "moduleLocal" && target.kind !== "documentBinding" && target.kind !== "iteration" && target.kind !== "deferredModuleScalarExport")) {
       runtimeReady = false;
       continue;
     }

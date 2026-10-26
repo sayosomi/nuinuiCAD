@@ -1,0 +1,59 @@
+{
+  "archive": "test/fixtures/issue-1464/history/base-first.json.gz",
+  "archiveSha256": "86d251bfd7e45fd2df32008bf2885c9629e113ad6d7fff1014bfe489db6d6a5c",
+  "rawSha256": "d3bb55a6140d41b2f699e414805a9a7a7826c4e7856b88571578dbeed9a6640f",
+  "originalRecord": {
+    "id": "I04",
+    "source": "nui 1\n// untouched mission sentinel\nmodule Outer(width: number) {\n  module Inner(v: number) {\n    export point P = coordinate(x: @v, y: 2)\n    export const n: number = @v + 1\n  }\n  instance Kid = Inner(v: @width)\n  export point P = offset(from: @Kid::P, dx: @Kid::n, dy: 1)\n}\ninstance Copy = Outer(width: 5)\nline L = segment(start: @Copy::P, end: (20, 9))\n// untouched final sentinel",
+    "sourceSha256": "9878af3f9ecdd8e9ad3947fa815fc7effdd4b251800d84600dd343d5045fe2a9",
+    "hypothesis": "Inlining nested module preserves exported scalar alias and geometry chain for dependent Bake",
+    "frozenOracle": {
+      "Copy::Kid::P": {
+        "kind": "point",
+        "x": 5,
+        "y": 2
+      },
+      "Copy::P": {
+        "kind": "point",
+        "x": 11,
+        "y": 3
+      },
+      "L": {
+        "kind": "line",
+        "start": {
+          "x": 11,
+          "y": 3
+        },
+        "end": {
+          "x": 20,
+          "y": 9
+        }
+      }
+    },
+    "frozenActions": [
+      {
+        "kind": "inline",
+        "target": "Copy"
+      },
+      {
+        "kind": "bake",
+        "target": "L",
+        "expected": {
+          "kind": "line",
+          "start": {
+            "x": 11,
+            "y": 3
+          },
+          "end": {
+            "x": 20,
+            "y": 9
+          }
+        }
+      }
+    ],
+    "steps": [],
+    "disposition": "BLOCKED",
+    "failure": "expected [ { …(4) } ] to deeply equal []"
+  },
+  "note": "Original historical record contains no initial compile/payload snapshot; retained base-first.log supplies exact initial Rust error. Current Base reproduction records complete snapshots."
+}

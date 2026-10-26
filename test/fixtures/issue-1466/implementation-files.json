@@ -1,0 +1,14 @@
+[
+  "packages/nui-language/src/dsl/dslDocument.ts",
+  "packages/nui-language/src/dsl/expressionReferenceToken.ts",
+  "packages/nui-language/src/scalars/bindingResolution.ts",
+  "packages/nui-language/src/scalars/moduleNumericRuntime.ts",
+  "packages/nui-language/src/scalars/typedDependencyGraph.ts",
+  "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs",
+  "rust-evaluator/src/evaluation/mod.rs",
+  "rust-evaluator/src/evaluation/scalars/mutation.rs",
+  "rust-evaluator/src/evaluation/scalars/mutation_tests.rs",
+  "src/geometry/evaluate.ts",
+  "src/geometry/scalarProgramEvaluation.ts",
+  "src/scalars/linearMutationEvaluator.ts"
+]

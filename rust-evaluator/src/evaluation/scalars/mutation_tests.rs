@@ -1004,6 +1004,7 @@ fn dependency_scheduled_module_exports_remain_available_through_nested_forwardin
         .collect::<HashSet<_>>();
     let no_scheduled_prerequisites = HashMap::new();
     let binding_schedule = DependencyBindingSchedule {
+        early_binding_ids: &HashSet::new(),
         execution_positions: &execution_positions,
         prerequisites: &no_scheduled_prerequisites,
     };

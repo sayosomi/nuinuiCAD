@@ -68,6 +68,7 @@ pub(crate) struct ScalarMutationResolver<'a> {
 }
 
 pub(crate) struct DependencyBindingSchedule<'a> {
+    pub(crate) early_binding_ids: &'a HashSet<String>,
     pub(crate) execution_positions: &'a HashMap<String, f64>,
     pub(crate) prerequisites: &'a HashMap<String, HashSet<String>>,
 }
@@ -146,7 +147,9 @@ impl<'a> ScalarMutationResolver<'a> {
                     .execution_positions
                     .contains_key(&version.binding_id)
             {
-                self.pending_dependency_versions.push(version_index);
+                if !self.pending_dependency_versions.contains(&version_index) {
+                    self.pending_dependency_versions.push(version_index);
+                }
             } else {
                 self.advance_pending_dependency_versions_through(
                     dependency_execution_position,
@@ -203,7 +206,9 @@ impl<'a> ScalarMutationResolver<'a> {
                         .execution_positions
                         .contains_key(&version.binding_id)
                 {
-                    self.pending_dependency_versions.push(version_index);
+                    if !self.pending_dependency_versions.contains(&version_index) {
+                        self.pending_dependency_versions.push(version_index);
+                    }
                 } else {
                     let version_geometry_execution_position = geometry_values
                         .binding_schedule
@@ -435,6 +440,20 @@ impl<'a> ScalarMutationResolver<'a> {
         dependency_ready_binding_ids: &HashSet<String>,
         flush_unranked: bool,
     ) {
+        // Queue only the graph-proven forward-input prerequisite closure.
+        for (index, version) in self.program.versions.iter().enumerate() {
+            if binding_schedule
+                .early_binding_ids
+                .contains(&version.binding_id)
+                && !self.pending_dependency_versions.contains(&index)
+                && !self.history.iter().any(|entry| {
+                    entry.get("versionId").and_then(Value::as_str)
+                        == Some(version.version_id.as_str())
+                })
+            {
+                self.pending_dependency_versions.push(index);
+            }
+        }
         let mut ready = self
             .pending_dependency_versions
             .iter()

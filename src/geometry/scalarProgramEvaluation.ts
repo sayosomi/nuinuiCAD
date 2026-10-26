@@ -612,7 +612,8 @@ export const createDocumentLinearScalarBindingResolver = (
   graph: BindingVersionGraph,
   geometry?: DocumentGeometryRuntime,
   collectionValues?: readonly ScalarProgramCollection[],
-  getDependencyExecutionPositionByVersionId?: () => ReadonlyMap<string, number>
+  getDependencyExecutionPositionByVersionId?: () => ReadonlyMap<string, number>,
+  getEarlyDependencyVersionIds?: () => ReadonlySet<string>
 ): LinearScalarBindingResolver => {
   const resolveGeometryCollectionLength = geometry
     ? (collectionValueId: string): number | undefined => {
@@ -660,7 +661,8 @@ export const createDocumentLinearScalarBindingResolver = (
     resolveGeometryTarget,
     collectionValues,
     resolveGeometryCollectionLength,
-    resolveGeometryCollectionEndpoint
+    resolveGeometryCollectionEndpoint,
+    getEarlyDependencyVersionIds
   );
   const collectionResolver = createScalarProgramCollectionResolver(
     { collectionValues },

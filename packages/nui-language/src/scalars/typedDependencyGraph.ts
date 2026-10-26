@@ -149,6 +149,8 @@ export type TypedDependencyGraphInput = {
   bindingVersions?: BindingVersionGraph;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  /** Already-materialized numeric occurrences keep their exact runtime owner. */
+  materializedNumericBindings?: readonly { elementId: ElementId; binding: CompiledNumericBinding }[];
   transformationNumericBindings?: readonly CompiledTransformationNumericBinding[];
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   scalarProgram?: ScalarProgram;
@@ -1070,6 +1072,7 @@ export const buildTypedDependencyGraph = ({
   bindingVersions,
   propertyBindings,
   numericBindings,
+  materializedNumericBindings,
   transformationNumericBindings,
   textTemplates,
   scalarProgram,
@@ -1237,30 +1240,42 @@ export const buildTypedDependencyGraph = ({
   }
   const scalarOwnedParameterKeysByElementId = new Map<ElementId, ReadonlySet<string>>();
   const typedScalarGeometryDependencyIdsByElementId = new Map<ElementId, Set<ElementId>>();
-  const addTypedScalarGeometryDependencies = (key: string, expression: TypedScalarExpression | undefined) => {
+  const numericOccurrences = new Map<string, { elementId: ElementId; source: CompiledNumericBinding; namespace: string; materialized: boolean }>();
+  for (const [key, source] of numericBindings ?? []) {
+    const elementId = elementIdByStatementIndex.get(Number(key.slice(0, key.indexOf(":"))));
+    if (elementId) numericOccurrences.set(`${elementId}\0${source.parameterKey}`, { elementId, source, namespace: key, materialized: false });
+  }
+  for (const { elementId, binding: source } of materializedNumericBindings ?? []) {
+    if (elementsById.has(elementId)) {
+      const occurrenceKey = `${elementId}\0${source.parameterKey}`;
+      numericOccurrences.set(occurrenceKey, { elementId, source,
+        namespace: numericOccurrences.get(occurrenceKey)?.namespace ?? occurrenceKey, materialized: true });
+    }
+  }
+  const addTypedScalarGeometryDependenciesForElement = (elementId: ElementId, parameterKey: string, expression: TypedScalarExpression | undefined) => {
     if (!expression) return;
-    const separator = key.indexOf(":");
-    if (separator < 0) return;
-    const statementIndex = Number(key.slice(0, separator));
-    const elementId = elementIdByStatementIndex.get(statementIndex);
-    if (!elementId) return;
     const dependencyIds = typedScalarGeometryDependencyIdsByElementId.get(elementId) ?? new Set<ElementId>();
     for (const reference of geometryPropertiesIn(expression)) {
       if (reference.elementId) dependencyIds.add(reference.elementId);
     }
     if (dependencyIds.size > 0) {
-      const parameterKey = key.slice(separator + 1);
       const owned = new Set(scalarOwnedParameterKeysByElementId.get(elementId) ?? []);
       owned.add(parameterKey);
       scalarOwnedParameterKeysByElementId.set(elementId, owned);
     }
     typedScalarGeometryDependencyIdsByElementId.set(elementId, dependencyIds);
   };
+  const addTypedScalarGeometryDependencies = (key: string, expression: TypedScalarExpression | undefined) => {
+    const separator = key.indexOf(":");
+    if (separator < 0) return;
+    const elementId = elementIdByStatementIndex.get(Number(key.slice(0, separator)));
+    if (elementId) addTypedScalarGeometryDependenciesForElement(elementId, key.slice(separator + 1), expression);
+  };
   for (const [key, source] of propertyBindings ?? []) {
     if (source.kind === "expression") addTypedScalarGeometryDependencies(key, source.expression);
   }
-  for (const [key, source] of numericBindings ?? []) {
-    addTypedScalarGeometryDependencies(key, source.typedExpression);
+  for (const { elementId, source } of numericOccurrences.values()) {
+    addTypedScalarGeometryDependenciesForElement(elementId, source.parameterKey, source.typedExpression);
   }
   for (const [key, expression] of conditionalGroupConditions ?? []) {
     addTypedScalarGeometryDependencies(key, expression);
@@ -1405,13 +1420,17 @@ export const buildTypedDependencyGraph = ({
       });
     }
   }
-  if (bindingAnalysis) for (const [key, source] of numericBindings ?? []) {
-    const statementIndex = Number(key.slice(0, key.indexOf(":")));
-    const elementId = elementIdByStatementIndex.get(statementIndex);
-    if (!elementId) continue;
-    const references = source.typedExpression
-      ? typedNumericBindingReferences(source)
-      : source.references.map((reference) => ({ typed: undefined, source: reference }));
+  if (bindingAnalysis) for (const { elementId, source, namespace: key, materialized } of numericOccurrences.values()) {
+    const statementIndex = elementStatementIndex.get(elementId) ?? 0;
+    // Module lowering has already projected field/property occurrences into
+    // typed binding nodes. They need no legacy source-splice occurrence join;
+    // the resolved typed nodes retain the original statement-relative spans.
+    const references = source.typedExpression && materialized
+      ? referencesIn(source.typedExpression).filter(reference => reference.bindingId !== null)
+        .map(typed => ({ typed, source: { bindingId: typed.bindingId!, span: typed.span } }))
+      : source.typedExpression
+        ? typedNumericBindingReferences(source)
+        : source.references.map((reference) => ({ typed: undefined, source: reference }));
     for (const reference of references) {
       const typed = reference.typed;
       const sourceReference = reference.source;

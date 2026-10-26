@@ -508,6 +508,57 @@ impl ConditionalDependencyGraph {
         scheduled_binding_ids
     }
 
+    /// Immutable binding prerequisites of forward geometry inputs. Follow only
+    /// canonical active edges; control-owned declarations keep their event fence.
+    pub(crate) fn early_geometry_input_bindings(
+        &self,
+        branch_selections: &HashMap<String, String>,
+        binding_orders: &HashMap<String, usize>,
+        element_orders: &HashMap<String, usize>,
+        linear_bindings: &HashSet<String>,
+    ) -> HashSet<String> {
+        let mut prerequisites = HashMap::<&str, Vec<&str>>::new();
+        for edge in &self.edges {
+            if edge.from.kind == "binding"
+                && edge.to.kind == "binding"
+                && edge_is_active(edge, branch_selections)
+            {
+                prerequisites
+                    .entry(&edge.from.id)
+                    .or_default()
+                    .push(&edge.to.id);
+            }
+        }
+        let mut early = HashSet::new();
+        for edge in &self.edges {
+            if edge.from.kind != "element"
+                || edge.to.kind != "binding"
+                || !edge_is_active(edge, branch_selections)
+            {
+                continue;
+            }
+            let Some(consumer_order) = element_orders.get(&edge.from.id) else {
+                continue;
+            };
+            let mut pending = vec![edge.to.id.as_str()];
+            let mut closure = HashSet::new();
+            let mut has_forward = false;
+            while let Some(binding_id) = pending.pop() {
+                if !linear_bindings.contains(binding_id) || !closure.insert(binding_id) {
+                    continue;
+                }
+                has_forward |= binding_orders
+                    .get(binding_id)
+                    .is_some_and(|order| order > consumer_order);
+                pending.extend(prerequisites.get(binding_id).into_iter().flatten().copied());
+            }
+            if has_forward {
+                early.extend(closure.into_iter().map(str::to_owned));
+            }
+        }
+        early
+    }
+
     /// Scalar bindings referenced by if/match selectors in immutable geometry
     /// values. Source ranges associate the selector expressions with existing
     /// canonical graph edges; binding identities are never resolved here.

@@ -3853,7 +3853,7 @@ export const compileDslDocument = (
       const seedById = new Map(usableExportBindingSeeds.map((seed) => [seed.id, seed] as const));
       const qualifiedModuleExportFor = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
         if (path.segments.length !== 2) return null;
-        const instanceLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]!);
+        const instanceLookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, { ...path, segments: path.segments.slice(0, 1) });
         if (instanceLookup.kind !== "resolved" || instanceLookup.declaration.kind !== "moduleInstance") return null;
         const instance = moduleSemanticCompilation.instancesByStatementId.get(instanceLookup.declaration.statementId);
         const definition = instance?.callee
@@ -3905,7 +3905,7 @@ export const compileDslDocument = (
         const path = parsedSource.kind === "valid" ? parsedSource.reference.path : parseDslReferenceToken(name);
         const property = parsedSource.kind === "valid" ? parsedSource.reference.property : null;
         if (path.segments.length !== 2) return null;
-        const instanceLookup = resolveSourceLexicalDeclaration(sourceLexicalNamespace, statementIndex, path.segments[0]);
+        const instanceLookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, { ...path, segments: path.segments.slice(0, 1) });
         if (instanceLookup.kind === "forward" || instanceLookup.kind === "ambiguous") {
           return instanceLookup.declarations.every((declaration) => declaration.kind === "moduleInstance")
             ? {
@@ -5866,6 +5866,7 @@ export const compileDslDocument = (
     bindingVersions,
     propertyBindings: propertyBindingCompilation?.sourcesByOccurrenceKey,
     numericBindings: graphNumericBindings,
+    materializedNumericBindings: moduleScalarCompilation?.materializedNumericBindings,
     transformationNumericBindings,
     textTemplates: textTemplateCompilation?.templatesByOccurrenceKey,
     conditionalGroupConditions: conditionalGroupConditionCompilation?.sourcesByOccurrenceKey,

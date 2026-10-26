@@ -1,0 +1,714 @@
+[
+  {
+    "id": "A01",
+    "hypothesis": "Exact original pre-transform I04 source is legal; child n=6 drives parent dx; no source operation",
+    "source": "nui 1\n// untouched mission sentinel\nmodule Outer(width: number) {\n  module Inner(v: number) {\n    export point P = coordinate(x: @v, y: 2)\n    export const n: number = @v + 1\n  }\n  instance Kid = Inner(v: @width)\n  export point P = offset(from: @Kid::P, dx: @Kid::n, dy: 1)\n}\ninstance Copy = Outer(width: 5)\nline L = segment(start: @Copy::P, end: (20, 9))\n// untouched final sentinel",
+    "expected": {
+      "compile": "ACCEPT",
+      "rustEligible": true,
+      "geometry": {
+        "Copy::Kid::P": {
+          "kind": "point",
+          "x": 5,
+          "y": 2
+        },
+        "Copy::P": {
+          "kind": "point",
+          "x": 11,
+          "y": 3
+        },
+        "L": {
+          "kind": "line",
+          "start": {
+            "x": 11,
+            "y": 3
+          },
+          "end": {
+            "x": 20,
+            "y": 9
+          },
+          "length": 10.816653826391969
+        }
+      },
+      "scalars": {}
+    },
+    "sourceSha256": "9878af3f9ecdd8e9ad3947fa815fc7effdd4b251800d84600dd343d5045fe2a9"
+  },
+  {
+    "id": "A02",
+    "hypothesis": "Constant child export directly drives parent coordinate, root sibling reads public point",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  export point P = coordinate(x: @Kid::n, y: 5)\n}\ninstance Copy = Parent()\npoint Root = offset(from: @Copy::P, dx: 2, dy: 1)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 5
+        },
+        "Root": {
+          "kind": "point",
+          "x": 5,
+          "y": 6
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "425e18fe3f41775dc9503314feade72b768e9d18b60c76be92f3e1cbe8160c31"
+  },
+  {
+    "id": "A03",
+    "hypothesis": "Typed alias isolates same scalar/geometry semantics as A02",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  const alias: number = @Kid::n\n  export point P = coordinate(x: @alias, y: 5)\n}\ninstance Copy = Parent()\npoint Root = offset(from: @Copy::P, dx: 2, dy: 1)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 5
+        },
+        "Root": {
+          "kind": "point",
+          "x": 5,
+          "y": 6
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "a048deac50fabb12016777a8b356195f836d46b2e93052b19133bc68c62b91fa"
+  },
+  {
+    "id": "A04",
+    "hypothesis": "Child numeric argument evaluated in parent caller context from unrelated literal",
+    "source": "nui 1\nmodule Parent() {\n  module Child(v: number) {\n    export const n: number = @v\n  }\n  instance Kid = Child(v: 7)\n  export point P = coordinate(x: @Kid::n, y: -2)\n}\ninstance Copy = Parent()\npoint Root = from(source: @Copy::P)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 7,
+          "y": -2
+        },
+        "Root": {
+          "kind": "point",
+          "x": 7,
+          "y": -2
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "2e92d3e2e328229a4b2b87ec97ddd6ec9c4b3a07610972a66c09b6b2bcfb0605"
+  },
+  {
+    "id": "A05",
+    "hypothesis": "Child-local immutable calculation and direct local geometry agree with parent qualified consumer",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    const base: number = 4\n    export const n: number = @base * 2 + 1\n    export point Local = coordinate(x: @n, y: 9)\n  }\n  instance Kid = Child()\n  export point P = coordinate(x: @Kid::n, y: 9)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::Kid::Local": {
+          "kind": "point",
+          "x": 9,
+          "y": 9
+        },
+        "Copy::P": {
+          "kind": "point",
+          "x": 9,
+          "y": 9
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "a0ef9928ff13da3e3648782d265ea7f54f48c3e4f14d05ac43e8999e656ce283"
+  },
+  {
+    "id": "A06",
+    "hypothesis": "Root scalar export forwarding and parent direct child consumer agree",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  export const value: number = @Kid::n\n  export point P = coordinate(x: @Kid::n, y: 4)\n}\ninstance Copy = Parent()\nconst value: number = @Copy::value\npoint Root = coordinate(x: @value, y: 4)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        },
+        "Root": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {
+        "value": 3
+      },
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "fc16654febb2c58bc059b0956353a4f2c1946c6646413c7ac8817a8e5c2eca7c"
+  },
+  {
+    "id": "B01",
+    "hypothesis": "Three-level scalar forwarding consumed by grandparent geometry",
+    "source": "nui 1\nmodule Grand() {\n  module Parent() {\n    module Child() {\n      export const n: number = 8\n    }\n    instance Kid = Child()\n    export const value: number = @Kid::n\n  }\n  instance Mid = Parent()\n  export point P = coordinate(x: @Mid::value, y: 6)\n}\ninstance Copy = Grand()\npoint Root = from(source: @Copy::P)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 8,
+          "y": 6
+        },
+        "Root": {
+          "kind": "point",
+          "x": 8,
+          "y": 6
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "9ba36f6fa2b0645a487d670b5fbb9304a7cbf6df311be570a3def2ba2d1f1ab3"
+  },
+  {
+    "id": "B02",
+    "hypothesis": "Same-spelled exports from sibling child occurrences remain distinct",
+    "source": "nui 1\nmodule Parent() {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  instance Left = Child(v: 3)\n  instance Right = Child(v: 7)\n  export point P = coordinate(x: @Left::n, y: @Right::n)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 6,
+          "y": 14
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "b8332b40754cb4b08b17811e8c905da0c6b443e854d916aaf52ec0ef965a0cce"
+  },
+  {
+    "id": "B03",
+    "hypothesis": "Repeated parent calls isolate nested scalar runtime IDs and geometry",
+    "source": "nui 1\nmodule Parent(seed: number) {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  instance Kid = Child(v: @seed)\n  export point P = coordinate(x: @Kid::n, y: @seed)\n}\ninstance Copy = Parent(seed: 3)\ninstance Other = Parent(seed: 11)\npoint Root = offset(from: @Other::P, dx: -1, dy: 2)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 6,
+          "y": 3
+        },
+        "Other::P": {
+          "kind": "point",
+          "x": 22,
+          "y": 11
+        },
+        "Root": {
+          "kind": "point",
+          "x": 21,
+          "y": 13
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "15464739d026a109280c1e7c928d5ae679d0da817fc73011b92ec6c03785a7c9"
+  },
+  {
+    "id": "B04",
+    "hypothesis": "Same child name in separate legal Module scopes never captures other definition",
+    "source": "nui 1\nmodule Left() {\n  module Child() {\n    export const n: number = 2\n  }\n  instance Kid = Child()\n  export point P = coordinate(x: @Kid::n, y: 1)\n}\nmodule Right() {\n  module Child() {\n    export const n: number = 13\n  }\n  instance Kid = Child()\n  export point P = coordinate(x: @Kid::n, y: 1)\n}\ninstance A = Left()\ninstance B = Right()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "A::P": {
+          "kind": "point",
+          "x": 2,
+          "y": 1
+        },
+        "B::P": {
+          "kind": "point",
+          "x": 13,
+          "y": 1
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "0816b0707d8c481858cc3a64ae18d4f6da61b30650145da29a0b428510b3d562"
+  },
+  {
+    "id": "B05",
+    "hypothesis": "Hidden enabled child exports evaluate; presentation alone is hidden",
+    "source": "nui 1\nmodule Parent() {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  instance Seen = Child(v: 3)\n  instance Hidden(visible: false) = Child(v: 7)\n  export point P = coordinate(x: @Seen::n, y: @Hidden::n)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 6,
+          "y": 14
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "d059669eb66bf87ee6cd57bb07ea824e7e379d4ef5505973bbeb20c384d06651"
+  },
+  {
+    "id": "B06",
+    "hypothesis": "Disabled nested export blocks only dependent geometry; enabled sibling remains correct",
+    "source": "nui 1\nmodule Parent() {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  instance Off(enabled: false) = Child(v: 3)\n  instance On = Child(v: 7)\n  export point Bad = coordinate(x: @Off::n, y: 1)\n  export point Good = coordinate(x: @On::n, y: 2)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::Good": {
+          "kind": "point",
+          "x": 14,
+          "y": 2
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "blocked": [
+      "Copy::Bad"
+    ],
+    "sourceSha256": "c218f793e9535eea71ba2fa4229b90e6fb7cef5b2f95c97203291164ccd48083"
+  },
+  {
+    "id": "C01",
+    "hypothesis": "Computed parent local is argument caller value before child export realization",
+    "source": "nui 1\nmodule Parent(seed: number) {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  const input: number = @seed * 3 - 1\n  instance Kid = Child(v: @input)\n  export point P = coordinate(x: @Kid::n, y: 4)\n}\ninstance Copy = Parent(seed: 5)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 28,
+          "y": 4
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "03787bd5b7a7c8509ab23c19c37ba738973976082457bf5df7e993e71ba61321"
+  },
+  {
+    "id": "C02",
+    "hypothesis": "Child default and explicit override isolate parameter contexts",
+    "source": "nui 1\nmodule Parent() {\n  module Child(v: number = 4) {\n    export const n: number = @v + 2\n  }\n  instance Default = Child()\n  instance Override = Child(v: 9)\n  export point P = coordinate(x: @Default::n, y: @Override::n)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 6,
+          "y": 11
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "7b0758be7eafc28352269d449b393f878e5123624074e0d909bfd89c98c85997"
+  },
+  {
+    "id": "C03",
+    "hypothesis": "Forward child declaration is scheduled by canonical dependency graph",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  export point P = coordinate(x: @Kid::n, y: 5)\n  instance Kid = Child()\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 5
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "03dd75b36628989bd63eb351bb2ce840266495428e0ec5e97ec90d32c9099933"
+  },
+  {
+    "id": "C04",
+    "hypothesis": "Noninterfering declaration reorder and padding preserve C03 values",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  // padding before consumer\n  instance Kid = Child()\n\n  // no change in lexical ownership\n  export point P = coordinate(x: @Kid::n, y: 5)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 5
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "c5c06ac8e306157fd160ce77647629a907706f1fa25747f24525eeeacc6a478f"
+  },
+  {
+    "id": "C05",
+    "hypothesis": "Root absolute versus relative lexical routes stay distinct under nearer same-spelled instance shadowing",
+    "source": "nui 1\nmodule Parent(seed: number) {\n  module Child(v: number) {\n    export const n: number = @v\n  }\n  instance Kid = Child(v: @seed)\n  export const n: number = @Kid::n\n  export point P = coordinate(x: @Kid::n, y: 0)\n}\ninstance Copy = Parent(seed: 3)\ngroup Local {\n  instance Copy = Parent(seed: 17)\n  point P = coordinate(x: @Copy::n, y: @::Copy::n)\n}\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 3,
+          "y": 0
+        },
+        "Local::Copy::P": {
+          "kind": "point",
+          "x": 17,
+          "y": 0
+        },
+        "Local::P": {
+          "kind": "point",
+          "x": 17,
+          "y": 3
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "a0db6450572ead262d1a4e49827d90420017579788b06c707a9c2c37325a53ee"
+  },
+  {
+    "id": "C06",
+    "hypothesis": "Canonical revision updates only one child argument; retains unrelated IDs and values",
+    "source": "nui 1\nmodule Parent(seed: number) {\n  module Child(v: number) {\n    export const n: number = @v * 2\n  }\n  instance Kid = Child(v: @seed)\n  export point P = coordinate(x: @Kid::n, y: 4)\n}\ninstance Copy = Parent(seed: 3)\ninstance Neighbor = Parent(seed: 19)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 6,
+          "y": 4
+        },
+        "Neighbor::P": {
+          "kind": "point",
+          "x": 38,
+          "y": 4
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "revision": {
+      "from": "Parent(seed: 3)",
+      "to": "Parent(seed: 8)",
+      "geometry": {
+        "Copy::P": {
+          "kind": "point",
+          "x": 16,
+          "y": 4
+        },
+        "Neighbor::P": {
+          "kind": "point",
+          "x": 38,
+          "y": 4
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      }
+    },
+    "sourceSha256": "4e8e424c919f0fd3147afb56747748efba3be63084feb064f3ad9cd816e101de"
+  },
+  {
+    "id": "D01",
+    "hypothesis": "Both coordinate inputs use nested number exports with literal and alias controls",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  const alias: number = @Kid::n\n  export point Direct = coordinate(x: @Kid::n, y: -@Kid::n)\n  point Literal = coordinate(x: 3, y: -3)\n  point Alias = coordinate(x: @alias, y: -@alias)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::Direct": {
+          "kind": "point",
+          "x": 3,
+          "y": -3
+        },
+        "Copy::Literal": {
+          "kind": "point",
+          "x": 3,
+          "y": -3
+        },
+        "Copy::Alias": {
+          "kind": "point",
+          "x": 3,
+          "y": -3
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "1d512ca0efa0a9c89090db45bb8bd44652ea643aee3335ad648607e21c1ed828"
+  },
+  {
+    "id": "D02",
+    "hypothesis": "Two exported numbers drive offset of named parent point",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const dx: number = 3\n    export const dy: number = -4\n  }\n  instance Kid = Child()\n  point Origin = coordinate(x: 10, y: -2)\n  export point P = offset(from: @Origin, dx: @Kid::dx, dy: @Kid::dy)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::Origin": {
+          "kind": "point",
+          "x": 10,
+          "y": -2
+        },
+        "Copy::P": {
+          "kind": "point",
+          "x": 13,
+          "y": -6
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "d349acf23b860db4b5785bd4e3327b5aad6edaacf3ae88925856b3ede89e0dc6"
+  },
+  {
+    "id": "D03",
+    "hypothesis": "Nested export in segment endpoint preserves ordered endpoints and exact 3-4-5 length",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  export line L = segment(start: (1, 2), end: (@Kid::n + 1, 6))\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::L": {
+          "kind": "line",
+          "start": {
+            "x": 1,
+            "y": 2
+          },
+          "end": {
+            "x": 4,
+            "y": 6
+          },
+          "length": 5
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "e4fcc2957b2a1157b100c749e974c073950fbbe6d8850cdd2749d8e5f66f9d73"
+  },
+  {
+    "id": "D04",
+    "hypothesis": "Nested radius and signed clockwise sweep preserve arc orientation and length",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 10\n  }\n  instance Kid = Child()\n  export arc Arc = arc(center: (4, -2), radius: @Kid::n, start: 0, end: -90, direction: clockwise)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::Arc": {
+          "kind": "arc",
+          "radius": 10,
+          "length": 15.707963267948966,
+          "start": {
+            "x": 14,
+            "y": -2
+          },
+          "end": {
+            "x": 4,
+            "y": -12
+          }
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "0d37f722b7b948afcb763f9c1c85e4ecdb986cd6cb4dfa4b7becde65ad379e09"
+  },
+  {
+    "id": "D05",
+    "hypothesis": "Nested handle length drives Bezier control ordinate; bulge has analytic y=7.5",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 10\n  }\n  instance Kid = Child()\n  point A = coordinate(x: 0, y: 0)\n  point B = coordinate(x: 10, y: 0)\n  export curve Curve = bezier(start: @A, end: @B, startAngle: 90, startLength: @Kid::n, endAngle: -90, endLength: @Kid::n)\n  export point Bulge = bezierBulgePoint(source: @Curve, segmentIndex: 0)\n}\ninstance Copy = Parent()\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::A": {
+          "kind": "point",
+          "x": 0,
+          "y": 0
+        },
+        "Copy::B": {
+          "kind": "point",
+          "x": 10,
+          "y": 0
+        },
+        "Copy::Curve": {
+          "kind": "bezier"
+        },
+        "Copy::Bulge": {
+          "kind": "point",
+          "x": 5,
+          "y": 7.5
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {},
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "d805e8f2a58eda2b141bbf81495aece4e59bc4ef0fa12bd214d693209ba9e2d9"
+  },
+  {
+    "id": "D06",
+    "hypothesis": "Geometry-derived length scalar and second downstream geometry preserve dependency stages",
+    "source": "nui 1\nmodule Parent() {\n  module Child() {\n    export const n: number = 3\n  }\n  instance Kid = Child()\n  line L = segment(start: (0, 0), end: (@Kid::n, 4))\n  export const length: number = @L.length\n  export point P = coordinate(x: @length, y: @L.end.y)\n}\ninstance Copy = Parent()\nconst length: number = @Copy::length\npoint Root = coordinate(x: @length * 2, y: 1)\npoint Sentinel = coordinate(x: -101, y: 103)\n",
+    "expected": {
+      "geometry": {
+        "Copy::L": {
+          "kind": "line",
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 3,
+            "y": 4
+          },
+          "length": 5
+        },
+        "Copy::P": {
+          "kind": "point",
+          "x": 5,
+          "y": 4
+        },
+        "Root": {
+          "kind": "point",
+          "x": 10,
+          "y": 1
+        },
+        "Sentinel": {
+          "kind": "point",
+          "x": -101,
+          "y": 103
+        }
+      },
+      "scalars": {
+        "length": 5
+      },
+      "compile": "ACCEPT",
+      "rustEligible": true
+    },
+    "sourceSha256": "3e493f3b60b29d9dadc7b386658b281a79a160768ffd80c9eced1a7efd6432c0"
+  }
+]
