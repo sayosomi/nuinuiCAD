@@ -1,0 +1,10 @@
+{
+  "originalSeal": "7664cd39",
+  "firstRun": "/tmp/issue1468-first.json",
+  "originalF2Disposition": "CONTRACT_INVALID",
+  "reason": "move bare Module instance Right is rejected as non-geometry; public member multi-target move is legal under normative transformation recipes.",
+  "equivalent": "move [Right::Cap, Right::Hem](...)",
+  "independentProof": "same translation applied to the two explicitly exported geometry owners; numeric oracles unchanged",
+  "preOutputErrata": "Output paths ordered by literal authored declarations: loop ticks before Probe and Stage; Bake insertion before Outline. Original initial identity check erroneously compared fixture to replaced default sample.",
+  "novelFamilies": 0
+}
