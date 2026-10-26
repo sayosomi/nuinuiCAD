@@ -271,6 +271,8 @@ type OwnerMapping = {
 };
 
 type OccurrenceSlot = {
+  from: number;
+  to: number;
   kind: DslSemanticOccurrence["kind"];
   token: string;
   ordinal: number;
@@ -2221,7 +2223,7 @@ const occurrenceSlotsForStatement = (
 ): OccurrenceSlot[] => {
   const statement = compiled.statements[statementIndex];
   if (!statement) return [];
-  const slots = new Map<string, { kind: DslSemanticOccurrence["kind"]; token: string; ordinal: number; owners: Set<string> }>();
+  const slots = new Map<string, { from: number; to: number; kind: DslSemanticOccurrence["kind"]; token: string; ordinal: number; owners: Set<string> }>();
   const ordinalByToken = new Map<string, number>();
   const occurrences = [...index.occurrences, ...extraOccurrences].sort((left, right) =>
     left.from - right.from || left.to - right.to || left.kind.localeCompare(right.kind)
@@ -2250,6 +2252,8 @@ const occurrenceSlotsForStatement = (
       const ordinal = ordinalByToken.get(tokenKey) ?? 0;
       ordinalByToken.set(tokenKey, ordinal + 1);
       slots.set(key, {
+        from: occurrence.from,
+        to: occurrence.to,
         kind: occurrence.kind,
         token: source.slice(occurrence.from, occurrence.to),
         ordinal,
@@ -2258,6 +2262,8 @@ const occurrenceSlotsForStatement = (
     }
   }
   return [...slots.values()].map((slot) => ({
+    from: slot.from,
+    to: slot.to,
     kind: slot.kind,
     token: slot.token,
     ordinal: slot.ordinal,
@@ -2410,11 +2416,11 @@ const verifyPreservedSemanticOwners = (
     ).map((slot) => {
       const owners = new Set<string>();
       const candidates = statementOccurrences.filter((candidate) =>
-        candidate.kind === slot.kind && source.slice(candidate.from, candidate.to) === slot.token
+        candidate.kind === slot.kind && candidate.from === slot.from && candidate.to === slot.to
       );
       // Module semantic occurrences are authoritative when binding analysis
       // also reports a synthetic typed occurrence at the same source span.
-      const candidate = candidates.find((occurrence) => occurrence.identity.kind === "module") ?? candidates[slot.ordinal];
+      const candidate = candidates.find((occurrence) => occurrence.identity.kind === "module") ?? candidates[0];
       if (candidate) owners.add(expectedOwnerToken(source, compiled, candidate, statementOccurrences, mappingsByTarget));
       return { ...slot, owners: [...owners].sort() };
     });
