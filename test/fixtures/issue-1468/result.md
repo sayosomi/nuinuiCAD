@@ -136,11 +136,43 @@ claimed. Broader unknown combinations remain outside this bounded campaign.
 Human-observed weekly and five-hour quota readings: **UNAVAILABLE**.
 
 The first full-suite attempt was stopped after its B-series failure and is
-retained as `first-full-test.log` / `first-verification.json` (exit130, incomplete;
+retained as `first-full-test.log.gz` / `first-verification.json` (exit130, incomplete;
 not PASS). Its final detailed assertion was not emitted on interruption. A
 separate deterministic harness negative control proves that rebuilding options
 on every React render sends8 gated requests rather than the intended2
-(`harness-unstable-options.log`). Options are now stable per document and the
+(`harness-unstable-options.log.gz`). Options are now stable per document and the
 assertion requires exactly2 requests. Three predeclared complete focused runs
 must all pass before the final full-gate rerun. This is a test-input lifecycle
 correction, not a product defect/fourth finding, and no assertion was weakened.
+
+## Final gate result
+
+All ten required serial commands passed for implementation commit
+`82064ad1b10fbdd282d5fcb01c07d8e7b043d6db`; the final evidence-only commit retains
+these exact production blobs in `evidence/summary.json`.
+
+- `npm run build`: PASS.
+- `npm run lint`: PASS.
+- `npm test -- --maxWorkers=2 --no-file-parallelism`: PASS;
+  694 files / 11,183 tests passed, 2 files / 187 tests skipped.
+- Rust fmt, check, test, clippy with `-D warnings`, and `evaluation_stdio` build:
+  PASS; tests625 passed / 9 ignored, zero failures.
+- `npm run test:parity`: PASS, 207 tests.
+- `git diff --check`: PASS; staged evidence also checked before commit.
+
+The fixed campaign uses one persistent Rust process,89 evaluation requests and44
+actual encoded files. `evidence/fixed-artifacts.tar.gz` retains those exact bytes;
+`artifact-manifest.json` records every file's hash. Base, candidate and removal
+observations are retained losslessly in `.json.gz` records with uncompressed
+hashes in `record-manifest.json`; preliminary failed/admission runs remain in
+`preliminary-records.tar.gz` with an independent index. No unexecuted Base B
+checkpoint is converted to PASS and no old failed record is rewritten.
+
+No required check remains blocked. Independent exact-pushed-HEAD blocking review,
+PR/protected CI/merge and final Issue completion remain ChatGPT's next steps.
+This implementation creates no PR and leaves the Issue open. Review, CI and merge
+are not claimed as completed.
+
+Raw logs are retained as `.log.gz` without changing even trailing blank lines;
+`log-manifest.json` records their original byte hashes. This preserves exact
+execution evidence while satisfying repository whitespace checks.
