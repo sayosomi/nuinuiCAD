@@ -1,0 +1,6 @@
+nui 1
+// Frozen #1470 E4
+curve Curve = bezier(start: (0, -0.040000000000000001), end: (30, -96.039999999999992), startAngle: 7.594643368591445, startLength: 10.088497300281038, endAngle: -81.2977762100532, endLength: 66.094208857088546)
+point Result = bezierExtremePoint(source: @Curve, direction: 90)
+curve ControlCurve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+point Control = bezierExtremePoint(source: @ControlCurve, direction: 90)

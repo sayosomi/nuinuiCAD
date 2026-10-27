@@ -1,0 +1,5174 @@
+{
+  "base": "b1f9a32c1b18890729895c1157884e3a72f70cb3",
+  "frozenBeforeProductExecution": true,
+  "units": [
+    {
+      "id": "E1",
+      "checkpoints": [
+        {
+          "file": "E1-0.nui",
+          "sha256": "de30d7b64b86fbc1b90fae7b720aea76d58d3133db2416427232322d9e114b17",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              216,
+              -360,
+              108
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 0,
+                "point": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "t": 0.3923747814892349,
+                "score": 19.01350611830142,
+                "point": [
+                  12.420214841414154,
+                  19.01350611830142
+                ]
+              },
+              {
+                "t": 1,
+                "score": 0,
+                "point": [
+                  40,
+                  0
+                ]
+              }
+            ],
+            "t": 0.3923747814892349,
+            "score": 19.01350611830142,
+            "point": [
+              12.420214841414154,
+              19.01350611830142
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 0
+          },
+          "note": ""
+        },
+        {
+          "file": "E1-1.nui",
+          "sha256": "33b7cb4060380dd0c3f07b37e8856013f4e754c6c9701725609bc61dc75efb2d",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 48
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.70257139412694,
+              "y": 24.258419727713143
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                48
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              324,
+              -504,
+              144
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 0,
+                "point": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "t": 0.3771609693928901,
+                "score": 24.258419727713143,
+                "point": [
+                  11.70257139412694,
+                  24.258419727713143
+                ]
+              },
+              {
+                "t": 1,
+                "score": 0,
+                "point": [
+                  40,
+                  0
+                ]
+              }
+            ],
+            "t": 0.3771609693928901,
+            "score": 24.258419727713143,
+            "point": [
+              11.70257139412694,
+              24.258419727713143
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 0
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "checkpoints": [
+        {
+          "file": "E2-0.nui",
+          "sha256": "b01ff96597c4b99ddcf59673155478db08679583d2d6719ac341263cd853d098",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 8,
+                    "y": -12
+                  },
+                  "control2": {
+                    "x": 27,
+                    "y": 24
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 2
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 4.277476879535422,
+              "y": -2.517755255658134
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                8,
+                -12
+              ],
+              [
+                27,
+                24
+              ],
+              [
+                40,
+                2
+              ]
+            ],
+            "coefficients": [
+              318,
+              -288,
+              36
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 0,
+                "point": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "t": 0.14976644520360358,
+                "score": 2.517755255658134,
+                "point": [
+                  4.277476879535422,
+                  -2.517755255658134
+                ]
+              },
+              {
+                "t": 0.755893932154887,
+                "score": -9.284576188374404,
+                "point": [
+                  29.65456097721881,
+                  9.284576188374404
+                ]
+              },
+              {
+                "t": 1,
+                "score": -2,
+                "point": [
+                  40,
+                  2
+                ]
+              }
+            ],
+            "t": 0.14976644520360358,
+            "score": 2.517755255658134,
+            "point": [
+              4.277476879535422,
+              -2.517755255658134
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 2
+          },
+          "note": ""
+        },
+        {
+          "file": "E2-1.nui",
+          "sha256": "94fadcdb136a6c0c40d7f21a86aba92bc564844d3842f73f9f69e91d85962c95",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 8,
+                    "y": -12
+                  },
+                  "control2": {
+                    "x": 27,
+                    "y": 24
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 2
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 29.65456097721881,
+              "y": 9.284576188374404
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                8,
+                -12
+              ],
+              [
+                27,
+                24
+              ],
+              [
+                40,
+                2
+              ]
+            ],
+            "coefficients": [
+              -318,
+              288,
+              -36
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 0,
+                "point": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "t": 0.14976644520360358,
+                "score": -2.517755255658134,
+                "point": [
+                  4.277476879535422,
+                  -2.517755255658134
+                ]
+              },
+              {
+                "t": 0.755893932154887,
+                "score": 9.284576188374404,
+                "point": [
+                  29.65456097721881,
+                  9.284576188374404
+                ]
+              },
+              {
+                "t": 1,
+                "score": 2,
+                "point": [
+                  40,
+                  2
+                ]
+              }
+            ],
+            "t": 0.755893932154887,
+            "score": 9.284576188374404,
+            "point": [
+              29.65456097721881,
+              9.284576188374404
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 2
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "checkpoints": [
+        {
+          "file": "E3-0.nui",
+          "sha256": "213dbff2998f2314d588046ebff4b512abf95866e2728cbbf34b8f2df2c4d7de",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              216,
+              -360,
+              108
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 0,
+                "point": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "t": 0.3923747814892349,
+                "score": 19.01350611830142,
+                "point": [
+                  12.420214841414154,
+                  19.01350611830142
+                ]
+              },
+              {
+                "t": 1,
+                "score": 0,
+                "point": [
+                  40,
+                  0
+                ]
+              }
+            ],
+            "t": 0.3923747814892349,
+            "score": 19.01350611830142,
+            "point": [
+              12.420214841414154,
+              19.01350611830142
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 0
+          },
+          "note": ""
+        },
+        {
+          "file": "E3-1.nui",
+          "sha256": "a218327b2a4fb3411ec01135346cd691e7883ba9e1cd7e418e1a7cb7d2cb6d3f",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              216,
+              -360,
+              108
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 0,
+                "point": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "t": 0.3923747814892349,
+                "score": 19.01350611830142,
+                "point": [
+                  12.420214841414154,
+                  19.01350611830142
+                ]
+              },
+              {
+                "t": 1,
+                "score": 0,
+                "point": [
+                  40,
+                  0
+                ]
+              }
+            ],
+            "t": 0.3923747814892349,
+            "score": 19.01350611830142,
+            "point": [
+              12.420214841414154,
+              19.01350611830142
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 0
+          },
+          "note": ""
+        },
+        {
+          "file": "E3-2.nui",
+          "sha256": "54601b45c55ebc65c47ad8bcab2738a25ef9574617d55ffeb9b982aa1662c8be",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              216,
+              -360,
+              108
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 0,
+                "point": [
+                  0,
+                  0
+                ]
+              },
+              {
+                "t": 0.3923747814892349,
+                "score": 19.01350611830142,
+                "point": [
+                  12.420214841414154,
+                  19.01350611830142
+                ]
+              },
+              {
+                "t": 1,
+                "score": 0,
+                "point": [
+                  40,
+                  0
+                ]
+              }
+            ],
+            "t": 0.3923747814892349,
+            "score": 19.01350611830142,
+            "point": [
+              12.420214841414154,
+              19.01350611830142
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 0
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "checkpoints": [
+        {
+          "file": "E4-0.nui",
+          "sha256": "79989f59d3dd86ce5444a01a2d7972e8338730bdfd0eb3c739c838c9a3caa117",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": -0.01
+                  },
+                  "control1": {
+                    "x": 10,
+                    "y": 0.6566666666666666
+                  },
+                  "control2": {
+                    "x": 20,
+                    "y": -32.010000000000005
+                  },
+                  "end": {
+                    "x": 30,
+                    "y": -98.00999999999999
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 0.29999999999999993,
+              "y": -4.404571325722362e-18
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                -0.01
+              ],
+              [
+                10,
+                0.6566666666666666
+              ],
+              [
+                20,
+                -32.010000000000005
+              ],
+              [
+                30,
+                -98.00999999999999
+              ]
+            ],
+            "coefficients": [
+              8.526512829121202e-14,
+              -200.0,
+              2.0
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": -0.01,
+                "point": [
+                  0,
+                  -0.01
+                ]
+              },
+              {
+                "t": 0.01,
+                "score": -4.404571325722362e-18,
+                "point": [
+                  0.29999999999999993,
+                  -4.404571325722362e-18
+                ]
+              },
+              {
+                "t": 1,
+                "score": -98.00999999999999,
+                "point": [
+                  30,
+                  -98.00999999999999
+                ]
+              }
+            ],
+            "t": 0.01,
+            "score": -4.404571325722362e-18,
+            "point": [
+              0.29999999999999993,
+              -4.404571325722362e-18
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 30,
+            "y": -98.00999999999999
+          },
+          "note": ""
+        },
+        {
+          "file": "E4-1.nui",
+          "sha256": "b57542be5f0cdb726ab2999334ab5b9653e9dbc7a454b27f0a538ab8287ecb8c",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": -0.04
+                  },
+                  "control1": {
+                    "x": 10,
+                    "y": 1.2933333333333332
+                  },
+                  "control2": {
+                    "x": 20,
+                    "y": -30.70666666666667
+                  },
+                  "end": {
+                    "x": 30,
+                    "y": -96.03999999999999
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 0.6,
+              "y": 2.8189256484623115e-18
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                -0.04
+              ],
+              [
+                10,
+                1.2933333333333332
+              ],
+              [
+                20,
+                -30.70666666666667
+              ],
+              [
+                30,
+                -96.03999999999999
+              ]
+            ],
+            "coefficients": [
+              4.263256414560601e-14,
+              -200.0,
+              4.0
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": -0.04,
+                "point": [
+                  0,
+                  -0.04
+                ]
+              },
+              {
+                "t": 0.02,
+                "score": 2.8189256484623115e-18,
+                "point": [
+                  0.6,
+                  2.8189256484623115e-18
+                ]
+              },
+              {
+                "t": 1,
+                "score": -96.03999999999999,
+                "point": [
+                  30,
+                  -96.03999999999999
+                ]
+              }
+            ],
+            "t": 0.02,
+            "score": 2.8189256484623115e-18,
+            "point": [
+              0.6,
+              2.8189256484623115e-18
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 30,
+            "y": -96.03999999999999
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "checkpoints": [
+        {
+          "file": "E5-0.nui",
+          "sha256": "9d15d58414b5a7edac05436e2dec58c324ea5d26b4731e26ac3aa72794bacb5c",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 5
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 5
+                  },
+                  "control2": {
+                    "x": 8,
+                    "y": 5
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 5
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 8.0,
+              "y": 5.0
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                5
+              ],
+              [
+                0,
+                5
+              ],
+              [
+                8,
+                5
+              ],
+              [
+                40,
+                5
+              ]
+            ],
+            "coefficients": [
+              0,
+              0,
+              0
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 5,
+                "point": [
+                  0,
+                  5
+                ]
+              },
+              {
+                "t": 0.5,
+                "score": 5.0,
+                "point": [
+                  8.0,
+                  5.0
+                ]
+              },
+              {
+                "t": 1,
+                "score": 5,
+                "point": [
+                  40,
+                  5
+                ]
+              }
+            ],
+            "t": 0.5,
+            "score": 5.0,
+            "point": [
+              8.0,
+              5.0
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 40,
+            "y": 5
+          },
+          "note": ""
+        },
+        {
+          "file": "E5-1.nui",
+          "sha256": "55169741ed3a94dbf18b74a53b07284a7e0cfec85e8f3b2ddd338a516cb73cc5",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 5
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 5
+                  },
+                  "control2": {
+                    "x": 8,
+                    "y": 5
+                  },
+                  "end": {
+                    "x": 48,
+                    "y": 5
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 9.0,
+              "y": 5.0
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                5
+              ],
+              [
+                0,
+                5
+              ],
+              [
+                8,
+                5
+              ],
+              [
+                48,
+                5
+              ]
+            ],
+            "coefficients": [
+              0,
+              0,
+              0
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 5,
+                "point": [
+                  0,
+                  5
+                ]
+              },
+              {
+                "t": 0.5,
+                "score": 5.0,
+                "point": [
+                  9.0,
+                  5.0
+                ]
+              },
+              {
+                "t": 1,
+                "score": 5,
+                "point": [
+                  48,
+                  5
+                ]
+              }
+            ],
+            "t": 0.5,
+            "score": 5.0,
+            "point": [
+              9.0,
+              5.0
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 48,
+            "y": 5
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "checkpoints": [
+        {
+          "file": "E6-0.nui",
+          "sha256": "c8990af4c1022e46002cdf51f32ee7b575a22f3b07be0c62756ca25d08e0522a",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Tail": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 15.125,
+                    "y": 13.5
+                  },
+                  "control1": {
+                    "x": 19.5,
+                    "y": 12.0
+                  },
+                  "control2": {
+                    "x": 24.5,
+                    "y": 9.0
+                  },
+                  "end": {
+                    "x": 27,
+                    "y": 9
+                  }
+                },
+                {
+                  "start": {
+                    "x": 27,
+                    "y": 9
+                  },
+                  "control1": {
+                    "x": 36,
+                    "y": 9
+                  },
+                  "control2": {
+                    "x": 67,
+                    "y": 35
+                  },
+                  "end": {
+                    "x": 67,
+                    "y": 19
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 15.125,
+              "y": 13.5
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "stage": "split",
+            "segmentIndex": 0,
+            "controlPoints": [
+              [
+                [
+                  15.125,
+                  13.5
+                ],
+                [
+                  19.5,
+                  12.0
+                ],
+                [
+                  24.5,
+                  9.0
+                ],
+                [
+                  27,
+                  9
+                ]
+              ],
+              [
+                [
+                  27,
+                  9
+                ],
+                [
+                  36,
+                  9
+                ],
+                [
+                  67,
+                  35
+                ],
+                [
+                  67,
+                  19
+                ]
+              ]
+            ],
+            "coefficients": [
+              13.5,
+              -9.0,
+              -4.5
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 13.5,
+                "point": [
+                  15.125,
+                  13.5
+                ]
+              },
+              {
+                "t": 1,
+                "score": 9.0,
+                "point": [
+                  27.0,
+                  9.0
+                ]
+              }
+            ],
+            "t": 0,
+            "score": 13.5,
+            "point": [
+              15.125,
+              13.5
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "E6-1.nui",
+          "sha256": "94420588af3a0969bfc7ea7900dfea7f5351ef7d9fecb8356028f0d6950497d5",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Tail": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 15.125,
+                    "y": 13.5
+                  },
+                  "control1": {
+                    "x": 19.5,
+                    "y": 12.0
+                  },
+                  "control2": {
+                    "x": 24.5,
+                    "y": 9.0
+                  },
+                  "end": {
+                    "x": 27,
+                    "y": 9
+                  }
+                },
+                {
+                  "start": {
+                    "x": 27,
+                    "y": 9
+                  },
+                  "control1": {
+                    "x": 36,
+                    "y": 9
+                  },
+                  "control2": {
+                    "x": 67,
+                    "y": 35
+                  },
+                  "end": {
+                    "x": 67,
+                    "y": 19
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 62.541624262161605,
+              "y": 24.20415224913495
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "stage": "split",
+            "segmentIndex": 1,
+            "controlPoints": [
+              [
+                [
+                  15.125,
+                  13.5
+                ],
+                [
+                  19.5,
+                  12.0
+                ],
+                [
+                  24.5,
+                  9.0
+                ],
+                [
+                  27,
+                  9
+                ]
+              ],
+              [
+                [
+                  27,
+                  9
+                ],
+                [
+                  36,
+                  9
+                ],
+                [
+                  67,
+                  35
+                ],
+                [
+                  67,
+                  19
+                ]
+              ]
+            ],
+            "coefficients": [
+              -204,
+              156,
+              0
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 9,
+                "point": [
+                  27,
+                  9
+                ]
+              },
+              {
+                "t": 0.7647058823529411,
+                "score": 24.20415224913495,
+                "point": [
+                  62.541624262161605,
+                  24.20415224913495
+                ]
+              },
+              {
+                "t": 1,
+                "score": 19,
+                "point": [
+                  67,
+                  19
+                ]
+              }
+            ],
+            "t": 0.7647058823529411,
+            "score": 24.20415224913495,
+            "point": [
+              62.541624262161605,
+              24.20415224913495
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "E6-2.nui",
+          "sha256": "e77da2e01a9cf9516c59d84380b069ae48bb014e669ce479b6568073d8abd44e",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Tail": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 15.125,
+                    "y": 13.5
+                  },
+                  "control1": {
+                    "x": 19.5,
+                    "y": 12.0
+                  },
+                  "control2": {
+                    "x": 24.5,
+                    "y": 9.0
+                  },
+                  "end": {
+                    "x": 27,
+                    "y": 9
+                  }
+                },
+                {
+                  "start": {
+                    "x": 27,
+                    "y": 9
+                  },
+                  "control1": {
+                    "x": 34.2,
+                    "y": 9.0
+                  },
+                  "control2": {
+                    "x": 55.48,
+                    "y": 25.64
+                  },
+                  "end": {
+                    "x": 63.704,
+                    "y": 24.104
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 62.54162426216161,
+              "y": 24.204152249134946
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "stage": "trim",
+            "segmentIndex": 1,
+            "controlPoints": [
+              [
+                [
+                  15.125,
+                  13.5
+                ],
+                [
+                  19.5,
+                  12.0
+                ],
+                [
+                  24.5,
+                  9.0
+                ],
+                [
+                  27,
+                  9
+                ]
+              ],
+              [
+                [
+                  27,
+                  9
+                ],
+                [
+                  34.2,
+                  9.0
+                ],
+                [
+                  55.48,
+                  25.64
+                ],
+                [
+                  63.704,
+                  24.104
+                ]
+              ]
+            ],
+            "coefficients": [
+              -104.44800000000001,
+              99.84,
+              0.0
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 9.0,
+                "point": [
+                  27.0,
+                  9.0
+                ]
+              },
+              {
+                "t": 0.9558823529411764,
+                "score": 24.204152249134946,
+                "point": [
+                  62.54162426216161,
+                  24.204152249134946
+                ]
+              },
+              {
+                "t": 1,
+                "score": 24.104,
+                "point": [
+                  63.704,
+                  24.104
+                ]
+              }
+            ],
+            "t": 0.9558823529411764,
+            "score": 24.204152249134946,
+            "point": [
+              62.54162426216161,
+              24.204152249134946
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "E6-3.nui",
+          "sha256": "a885a65f9cd90d44bb2636ea324507cf545bdd222dedbbb715876c242e4cac60",
+          "sourceRevisionBefore": 4,
+          "sourceRevisionAfter": 5,
+          "tolerance": 1e-07,
+          "expected": {
+            "Tail": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 15.125,
+                    "y": 13.5
+                  },
+                  "control1": {
+                    "x": 19.5,
+                    "y": 12.0
+                  },
+                  "control2": {
+                    "x": 24.5,
+                    "y": 9.0
+                  },
+                  "end": {
+                    "x": 27,
+                    "y": 9
+                  }
+                },
+                {
+                  "start": {
+                    "x": 27,
+                    "y": 9
+                  },
+                  "control1": {
+                    "x": 36,
+                    "y": 9
+                  },
+                  "control2": {
+                    "x": 67,
+                    "y": 27
+                  },
+                  "end": {
+                    "x": 67,
+                    "y": 11
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 59.73918980427856,
+              "y": 17.62721893491124
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.420214841414154,
+              "y": 19.01350611830142
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "stage": "extend",
+            "segmentIndex": 1,
+            "controlPoints": [
+              [
+                [
+                  15.125,
+                  13.5
+                ],
+                [
+                  19.5,
+                  12.0
+                ],
+                [
+                  24.5,
+                  9.0
+                ],
+                [
+                  27,
+                  9
+                ]
+              ],
+              [
+                [
+                  27,
+                  9
+                ],
+                [
+                  36,
+                  9
+                ],
+                [
+                  67,
+                  27
+                ],
+                [
+                  67,
+                  11
+                ]
+              ]
+            ],
+            "coefficients": [
+              -156,
+              108,
+              0
+            ],
+            "candidates": [
+              {
+                "t": 0,
+                "score": 9,
+                "point": [
+                  27,
+                  9
+                ]
+              },
+              {
+                "t": 0.6923076923076923,
+                "score": 17.62721893491124,
+                "point": [
+                  59.73918980427856,
+                  17.62721893491124
+                ]
+              },
+              {
+                "t": 1,
+                "score": 11,
+                "point": [
+                  67,
+                  11
+                ]
+              }
+            ],
+            "t": 0.6923076923076923,
+            "score": 17.62721893491124,
+            "point": [
+              59.73918980427856,
+              17.62721893491124
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "checkpoints": [
+        {
+          "file": "B1-0.nui",
+          "sha256": "514edadb1a1caa587740c9ad38555375d063c6fbca5ddaacf9155e2e4999e220",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              8640,
+              -14400,
+              4320
+            ],
+            "candidates": [
+              {
+                "t": 0.39237478148923494,
+                "score": 19.01350611830143,
+                "point": [
+                  12.42021484141416,
+                  19.01350611830143
+                ]
+              }
+            ],
+            "t": 0.39237478148923494,
+            "score": 19.01350611830143,
+            "point": [
+              12.42021484141416,
+              19.01350611830143
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 17.75,
+            "y": 18.0
+          },
+          "note": ""
+        },
+        {
+          "file": "B1-1.nui",
+          "sha256": "031de8d64e9253d3919d811df4eae6abdb92b010b83c6e19c37c8b0f5d717a59",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 13,
+                    "y": -7
+                  },
+                  "control1": {
+                    "x": 16,
+                    "y": 29
+                  },
+                  "control2": {
+                    "x": 44,
+                    "y": 5
+                  },
+                  "end": {
+                    "x": 53,
+                    "y": -7
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 25.420214841414165,
+              "y": 12.013506118301427
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                13,
+                -7
+              ],
+              [
+                16,
+                29
+              ],
+              [
+                44,
+                5
+              ],
+              [
+                53,
+                -7
+              ]
+            ],
+            "coefficients": [
+              8640,
+              -14400,
+              4320
+            ],
+            "candidates": [
+              {
+                "t": 0.39237478148923494,
+                "score": 19.01350611830143,
+                "point": [
+                  25.420214841414165,
+                  12.013506118301427
+                ]
+              }
+            ],
+            "t": 0.39237478148923494,
+            "score": 19.01350611830143,
+            "point": [
+              25.420214841414165,
+              12.013506118301427
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 30.75,
+            "y": 11.0
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "checkpoints": [
+        {
+          "file": "B2-0.nui",
+          "sha256": "54d1674b684261abb32305007034c68829e16632c9083dc96208c5fa8eaa3f5e",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 7,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 29,
+                    "y": -30
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 29.013175368930703,
+              "y": -11.035508079932995
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                7,
+                12
+              ],
+              [
+                29,
+                -30
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              15120,
+              -12960,
+              1440
+            ],
+            "candidates": [
+              {
+                "t": 0.1311905715048382,
+                "score": 2.2191815493207487,
+                "point": [
+                  3.4707896456465543,
+                  2.2191815493207487
+                ]
+              },
+              {
+                "t": 0.725952285638019,
+                "score": 11.035508079932995,
+                "point": [
+                  29.013175368930703,
+                  -11.035508079932995
+                ]
+              }
+            ],
+            "t": 0.725952285638019,
+            "score": 11.035508079932995,
+            "point": [
+              29.013175368930703,
+              -11.035508079932995
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 18.5,
+            "y": -6.75
+          },
+          "note": ""
+        },
+        {
+          "file": "B2-1.nui",
+          "sha256": "d335c0e0d777c4d363587c5cefa22e33fce2fba7c66b93d7301903f92b0a1989",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 40,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 29,
+                    "y": -30
+                  },
+                  "control2": {
+                    "x": 7,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 29.013175368930707,
+              "y": -11.035508079932995
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                40,
+                0
+              ],
+              [
+                29,
+                -30
+              ],
+              [
+                7,
+                12
+              ],
+              [
+                0,
+                0
+              ]
+            ],
+            "coefficients": [
+              15120,
+              -17280,
+              3600
+            ],
+            "candidates": [
+              {
+                "t": 0.27404771436198105,
+                "score": 11.035508079932995,
+                "point": [
+                  29.013175368930707,
+                  -11.035508079932995
+                ]
+              },
+              {
+                "t": 0.8688094284951617,
+                "score": 2.2191815493207487,
+                "point": [
+                  3.4707896456465566,
+                  2.2191815493207487
+                ]
+              }
+            ],
+            "t": 0.27404771436198105,
+            "score": 11.035508079932995,
+            "point": [
+              29.013175368930707,
+              -11.035508079932995
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 18.5,
+            "y": -6.75
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "checkpoints": [
+        {
+          "file": "B3-0.nui",
+          "sha256": "b510ebb06c7f746d9c1b97fa64d8e83655bdfe98777d57873d65d5f6724df1bd",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 4,
+                    "y": 24
+                  },
+                  "control2": {
+                    "x": 26,
+                    "y": -24
+                  },
+                  "end": {
+                    "x": 30,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 4.607695154586736,
+              "y": 6.9282032302755105
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                4,
+                24
+              ],
+              [
+                26,
+                -24
+              ],
+              [
+                30,
+                0
+              ]
+            ],
+            "coefficients": [
+              12960,
+              -12960,
+              2160
+            ],
+            "candidates": [
+              {
+                "t": 0.2113248654051871,
+                "score": 6.9282032302755105,
+                "point": [
+                  4.607695154586736,
+                  6.9282032302755105
+                ]
+              },
+              {
+                "t": 0.7886751345948129,
+                "score": 6.92820323027551,
+                "point": [
+                  25.392304845413264,
+                  -6.92820323027551
+                ]
+              }
+            ],
+            "t": 0.2113248654051871,
+            "score": 6.9282032302755105,
+            "point": [
+              4.607695154586736,
+              6.9282032302755105
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 15.0,
+            "y": 0.0
+          },
+          "note": ""
+        },
+        {
+          "file": "B3-1.nui",
+          "sha256": "9cddd816d177135bdbd665a3475dd479d2d0d395e82f677a6b69e96df115aa6f",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 30,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 26,
+                    "y": -24
+                  },
+                  "control2": {
+                    "x": 4,
+                    "y": 24
+                  },
+                  "end": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 25.39230484541326,
+              "y": -6.9282032302755105
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                30,
+                0
+              ],
+              [
+                26,
+                -24
+              ],
+              [
+                4,
+                24
+              ],
+              [
+                0,
+                0
+              ]
+            ],
+            "coefficients": [
+              12960,
+              -12960,
+              2160
+            ],
+            "candidates": [
+              {
+                "t": 0.2113248654051871,
+                "score": 6.9282032302755105,
+                "point": [
+                  25.39230484541326,
+                  -6.9282032302755105
+                ]
+              },
+              {
+                "t": 0.7886751345948129,
+                "score": 6.92820323027551,
+                "point": [
+                  4.607695154586737,
+                  6.92820323027551
+                ]
+              }
+            ],
+            "t": 0.2113248654051871,
+            "score": 6.9282032302755105,
+            "point": [
+              25.39230484541326,
+              -6.9282032302755105
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 15.0,
+            "y": 0.0
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "checkpoints": [
+        {
+          "file": "B4-0.nui",
+          "sha256": "9dcaea3f4d1b7e2c0c1aae0654bf1aba3a867095708802e1babed1b86cffaa87",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control2": {
+                    "x": 8,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 8.0,
+              "y": 0.0
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                8,
+                0
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "coefficients": [
+              0,
+              0,
+              0
+            ],
+            "candidates": [
+              {
+                "t": 0.5,
+                "score": 0.0,
+                "point": [
+                  8.0,
+                  0.0
+                ]
+              }
+            ],
+            "t": 0.5,
+            "score": 0.0,
+            "point": [
+              8.0,
+              0.0
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 8.0,
+            "y": 0.0
+          },
+          "note": ""
+        },
+        {
+          "file": "B4-1.nui",
+          "sha256": "1ceea6c06a10ec532520088161ced08c1e724a37828eca6652332f10d13d6d87",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control2": {
+                    "x": 8,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 48,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 9.0,
+              "y": 0.0
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                8,
+                0
+              ],
+              [
+                48,
+                0
+              ]
+            ],
+            "coefficients": [
+              0,
+              0,
+              0
+            ],
+            "candidates": [
+              {
+                "t": 0.5,
+                "score": 0.0,
+                "point": [
+                  9.0,
+                  0.0
+                ]
+              }
+            ],
+            "t": 0.5,
+            "score": 0.0,
+            "point": [
+              9.0,
+              0.0
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 9.0,
+            "y": 0.0
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "checkpoints": [
+        {
+          "file": "B5-0.nui",
+          "sha256": "25c8a0b06ba2587d271a237369d9e1874d432466100f8a9d61745e514ca0353f",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 15,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 20,
+                    "y": 0
+                  }
+                },
+                {
+                  "start": {
+                    "x": 20,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 29,
+                    "y": 0
+                  },
+                  "control2": {
+                    "x": 60,
+                    "y": 26
+                  },
+                  "end": {
+                    "x": 60,
+                    "y": 10
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 52.6090874339219,
+              "y": 14.789084559670592
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "segmentIndex": 1,
+            "controlPoints": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  12
+                ],
+                [
+                  15,
+                  0
+                ],
+                [
+                  20,
+                  0
+                ]
+              ],
+              [
+                [
+                  20,
+                  0
+                ],
+                [
+                  29,
+                  0
+                ],
+                [
+                  60,
+                  26
+                ],
+                [
+                  60,
+                  10
+                ]
+              ]
+            ],
+            "diagnosticClass": null
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "B5-1.nui",
+          "sha256": "f274295a3fa10e278c70ed5ab9dddcebe546261afc5e394dde7692ed985bb6b4",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 15,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 20,
+                    "y": 0
+                  }
+                },
+                {
+                  "start": {
+                    "x": 20,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 29,
+                    "y": 0
+                  },
+                  "control2": {
+                    "x": 60,
+                    "y": 26
+                  },
+                  "end": {
+                    "x": 60,
+                    "y": 10
+                  }
+                }
+              ]
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {
+            "Result": "区間"
+          },
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "segmentIndex": 2,
+            "controlPoints": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  12
+                ],
+                [
+                  15,
+                  0
+                ],
+                [
+                  20,
+                  0
+                ]
+              ],
+              [
+                [
+                  20,
+                  0
+                ],
+                [
+                  29,
+                  0
+                ],
+                [
+                  60,
+                  26
+                ],
+                [
+                  60,
+                  10
+                ]
+              ]
+            ],
+            "diagnosticClass": "geometry"
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "B5-2.nui",
+          "sha256": "9d795c39598b8b08c1146e4597abadcda0093ede444e47704c7b1042c5664d41",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 15,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 20,
+                    "y": 0
+                  }
+                },
+                {
+                  "start": {
+                    "x": 20,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 29,
+                    "y": 0
+                  },
+                  "control2": {
+                    "x": 60,
+                    "y": 26
+                  },
+                  "end": {
+                    "x": 60,
+                    "y": 10
+                  }
+                }
+              ]
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {
+            "Result": "区間"
+          },
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "segmentIndex": 0.5,
+            "controlPoints": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  12
+                ],
+                [
+                  15,
+                  0
+                ],
+                [
+                  20,
+                  0
+                ]
+              ],
+              [
+                [
+                  20,
+                  0
+                ],
+                [
+                  29,
+                  0
+                ],
+                [
+                  60,
+                  26
+                ],
+                [
+                  60,
+                  10
+                ]
+              ]
+            ],
+            "diagnosticClass": "geometry"
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "B5-3.nui",
+          "sha256": "25c8a0b06ba2587d271a237369d9e1874d432466100f8a9d61745e514ca0353f",
+          "sourceRevisionBefore": 4,
+          "sourceRevisionAfter": 5,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 15,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 20,
+                    "y": 0
+                  }
+                },
+                {
+                  "start": {
+                    "x": 20,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 29,
+                    "y": 0
+                  },
+                  "control2": {
+                    "x": 60,
+                    "y": 26
+                  },
+                  "end": {
+                    "x": 60,
+                    "y": 10
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 52.6090874339219,
+              "y": 14.789084559670592
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "segmentIndex": 1,
+            "controlPoints": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  12
+                ],
+                [
+                  15,
+                  0
+                ],
+                [
+                  20,
+                  0
+                ]
+              ],
+              [
+                [
+                  20,
+                  0
+                ],
+                [
+                  29,
+                  0
+                ],
+                [
+                  60,
+                  26
+                ],
+                [
+                  60,
+                  10
+                ]
+              ]
+            ],
+            "diagnosticClass": null
+          },
+          "wrongOracle": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "B6",
+      "checkpoints": [
+        {
+          "file": "B6-0.nui",
+          "sha256": "51739914d9b01d0ff0adf155b9e31b07dbb73d4ed0e6438f936f6f62ea25f8fd",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Material": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Drawable": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "LeftResult": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 24.01350611830143
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 99.01350611830142
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "instanceArguments": {
+              "Left": 5,
+              "Right": 80
+            },
+            "coefficients": [
+              8640,
+              -14400,
+              4320
+            ],
+            "candidates": [
+              {
+                "t": 0.39237478148923494,
+                "score": 19.01350611830143,
+                "point": [
+                  12.42021484141416,
+                  19.01350611830143
+                ]
+              }
+            ],
+            "t": 0.39237478148923494,
+            "score": 19.01350611830143,
+            "point": [
+              12.42021484141416,
+              19.01350611830143
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "B6-1.nui",
+          "sha256": "334b47b6b6e63516526af8c88642ad40f7863ddbe772055be8f7c46efed5a826",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Material": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Drawable": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "LeftResult": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 36.01350611830143
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 99.01350611830142
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "instanceArguments": {
+              "Left": 17,
+              "Right": 80
+            },
+            "coefficients": [
+              8640,
+              -14400,
+              4320
+            ],
+            "candidates": [
+              {
+                "t": 0.39237478148923494,
+                "score": 19.01350611830143,
+                "point": [
+                  12.42021484141416,
+                  19.01350611830143
+                ]
+              }
+            ],
+            "t": 0.39237478148923494,
+            "score": 19.01350611830143,
+            "point": [
+              12.42021484141416,
+              19.01350611830143
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "checkpoints": [
+        {
+          "file": "C1-0.nui",
+          "sha256": "cbf8583c5f73e70cd8b41bee79fe9b64ad0cf39a90b9e5ba296553efa328a13a",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.649916437843995,
+            "y": 15.97821912778089
+          },
+          "note": ""
+        },
+        {
+          "file": "C1-1.nui",
+          "sha256": "a6c49df596d067bf56e3eda944fc26eb5af42bc6998c98a5e8f1f85aac2749a5",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.649916437843995,
+              "y": 15.97821912778089
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "concave",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              0.09371614594799851,
+              -0.9955989574063713
+            ],
+            "point": [
+              11.649916437843995,
+              15.97821912778089
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.087619562156004,
+            "y": 21.951812872219115
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "checkpoints": [
+        {
+          "file": "C2-0.nui",
+          "sha256": "ead4f2cd8c601cfdd4d71f3ff839b5b298533c527db84ffb3a9190c5861aeee3",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.649916437843995,
+            "y": 15.97821912778089
+          },
+          "note": ""
+        },
+        {
+          "file": "C2-1.nui",
+          "sha256": "bd8275a0e7b328033618d8683cd94d8c667d5a081af13a64df0bc2499d5a5ce1",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 40,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "end": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": true,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.649916437843995,
+            "y": 15.97821912778089
+          },
+          "note": ""
+        },
+        {
+          "file": "C2-2.nui",
+          "sha256": "a582a0d58c771ffce6e9e3592a7ef0d34d25a6a3e90aaf2e5d813d29f3348a39",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 40,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "control2": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "end": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.649916437843995,
+              "y": 15.97821912778089
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": true,
+            "side": "concave",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              0.09371614594799851,
+              -0.9955989574063713
+            ],
+            "point": [
+              11.649916437843995,
+              15.97821912778089
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.087619562156004,
+            "y": 21.951812872219115
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "checkpoints": [
+        {
+          "file": "C3-0.nui",
+          "sha256": "8914a2a1bb4a284cf1290474b343b298acf52a5bb06810461034e9734d03b280",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Base": {
+              "kind": "point",
+              "x": 20.05589372879863,
+              "y": 17.052310220127378
+            },
+            "Result": {
+              "kind": "point",
+              "x": 21.32374851402073,
+              "y": 19.77123358123733
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "feature": {
+              "coefficients": [
+                139.97687145014413,
+                -262.8780640720891,
+                101.68480535562449
+              ],
+              "candidates": [
+                {
+                  "t": 0,
+                  "score": 0.0,
+                  "point": [
+                    0,
+                    0
+                  ]
+                },
+                {
+                  "t": 0.5449355527761897,
+                  "score": 23.930628484787164,
+                  "point": [
+                    20.05589372879863,
+                    17.052310220127378
+                  ]
+                },
+                {
+                  "t": 1,
+                  "score": 16.904730469627978,
+                  "point": [
+                    40,
+                    0
+                  ]
+                }
+              ],
+              "t": 0.5449355527761897,
+              "score": 23.930628484787164,
+              "point": [
+                20.05589372879863,
+                17.052310220127378
+              ]
+            },
+            "frame": {
+              "t": 0.5449355527761897,
+              "first": [
+                51.542305034735584,
+                -24.03457155665814
+              ],
+              "second": [
+                6.137014067085925,
+                -124.58784120068609
+              ],
+              "speed": 56.87064126775651,
+              "curvature": -0.03411011509607249,
+              "tangent": [
+                0.90630778703665,
+                -0.4226182617406994
+              ],
+              "normal": [
+                0.4226182617406994,
+                0.90630778703665
+              ],
+              "point": [
+                21.32374851402073,
+                19.77123358123733
+              ]
+            },
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "C3-1.nui",
+          "sha256": "551b3c82eb902e53f3c62220127f0a63418b2eb62ade33e816801a1c5ae3d967",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Base": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "Result": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 22.01350611830143
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "feature": {
+              "coefficients": [
+                8640,
+                -14400,
+                4320
+              ],
+              "candidates": [
+                {
+                  "t": 0.39237478148923494,
+                  "score": 19.01350611830143,
+                  "point": [
+                    12.42021484141416,
+                    19.01350611830143
+                  ]
+                }
+              ],
+              "t": 0.39237478148923494,
+              "score": 19.01350611830143,
+              "point": [
+                12.42021484141416,
+                19.01350611830143
+              ]
+            },
+            "frame": {
+              "t": 0.39237478148923494,
+              "first": [
+                47.53376529575356,
+                -2.6645352591003757e-15
+              ],
+              "second": [
+                46.41305768684199,
+                -190.4940943966505
+              ],
+              "speed": 47.53376529575356,
+              "curvature": -0.08430961022841747,
+              "tangent": [
+                0.9999999999999999,
+                -5.605563208640685e-17
+              ],
+              "normal": [
+                5.605563208640685e-17,
+                0.9999999999999999
+              ],
+              "point": [
+                12.42021484141416,
+                22.01350611830143
+              ]
+            },
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ]
+          },
+          "wrongOracle": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "checkpoints": [
+        {
+          "file": "C4-0.nui",
+          "sha256": "3f5ebf1fad6a0924ef9a4bf1558f803ef2e011b9b049bb878a01cfd3dce6997b",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.649916437843995,
+            "y": 15.97821912778089
+          },
+          "note": ""
+        },
+        {
+          "file": "C4-1.nui",
+          "sha256": "68b6ddf2031616786aac4e727ecdabba70c7a5e6e9887e45fb2f58c9e9334738",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {
+            "Result": "曲線上にありません"
+          },
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              19.065016000000004
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.649916437843995,
+            "y": 15.97821912778089
+          },
+          "note": ""
+        },
+        {
+          "file": "C4-2.nui",
+          "sha256": "3f5ebf1fad6a0924ef9a4bf1558f803ef2e011b9b049bb878a01cfd3dce6997b",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.649916437843995,
+            "y": 15.97821912778089
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "C5",
+      "checkpoints": [
+        {
+          "file": "C5-0.nui",
+          "sha256": "92527f7954223ba778a4a6b55af2fd92a6c9fd89f23e5863ba444b5fafbeee5d",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 10,
+                    "y": 20
+                  },
+                  "control2": {
+                    "x": 20,
+                    "y": -20
+                  },
+                  "end": {
+                    "x": 30,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 13.981883684676076,
+              "y": 5.132140550768265
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                10,
+                20
+              ],
+              [
+                20,
+                -20
+              ],
+              [
+                30,
+                0
+              ]
+            ],
+            "base": [
+              12.000000000000002,
+              2.88
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.4,
+            "first": [
+              29.999999999999993,
+              -26.4
+            ],
+            "second": [
+              0.0,
+              -72.0
+            ],
+            "speed": 39.9619819328321,
+            "curvature": -0.033846416452784286,
+            "tangent": [
+              0.7507135169227552,
+              -0.6606278948920247
+            ],
+            "normal": [
+              0.6606278948920247,
+              0.7507135169227552
+            ],
+            "point": [
+              13.981883684676076,
+              5.132140550768265
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 10.018116315323928,
+            "y": 0.6278594492317344
+          },
+          "note": ""
+        },
+        {
+          "file": "C5-1.nui",
+          "sha256": "52a3e8792eb18654a75b4bbf02a6f72c58e4936f848857ae96749435e52383ff",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 10,
+                    "y": 20
+                  },
+                  "control2": {
+                    "x": 20,
+                    "y": -20
+                  },
+                  "end": {
+                    "x": 30,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {
+            "Result": "不定義"
+          },
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                10,
+                20
+              ],
+              [
+                20,
+                -20
+              ],
+              [
+                30,
+                0
+              ]
+            ],
+            "base": [
+              15.0,
+              0.0
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.5,
+            "first": [
+              30.0,
+              -30.0
+            ],
+            "second": [
+              0.0,
+              0.0
+            ],
+            "speed": 42.42640687119285,
+            "curvature": 0.0,
+            "tangent": [
+              0.7071067811865475,
+              -0.7071067811865475
+            ],
+            "normal": null,
+            "point": null
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "C5-2.nui",
+          "sha256": "010acef59e57b7bc5530665817aa7a06a63ad996e332670c740236e7dc9f28bd",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control2": {
+                    "x": 25,
+                    "y": 20
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {
+            "Result": "不定義"
+          },
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                25,
+                20
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              0,
+              0
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0,
+            "first": [
+              0,
+              0
+            ],
+            "second": [
+              150,
+              120
+            ],
+            "speed": 0.0,
+            "curvature": null,
+            "tangent": null,
+            "normal": null,
+            "point": null
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "C5-3.nui",
+          "sha256": "973bb9943f482b28b8589c30c90d8dc23328b70a1c4765893b6981071797a96a",
+          "sourceRevisionBefore": 4,
+          "sourceRevisionAfter": 5,
+          "tolerance": 1e-07,
+          "expected": {
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {
+            "Result": "内部 join"
+          },
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  12
+                ],
+                [
+                  15,
+                  0
+                ],
+                [
+                  20,
+                  0
+                ]
+              ],
+              [
+                [
+                  20,
+                  0
+                ],
+                [
+                  25,
+                  0
+                ],
+                [
+                  40,
+                  -12
+                ],
+                [
+                  40,
+                  0
+                ]
+              ]
+            ],
+            "diagnosticClass": "geometry",
+            "reason": "opposite nonzero curvature sides at common tangent"
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "C5-4.nui",
+          "sha256": "0e4db0aeaf89d082e7633a1e66ea1eb0ed72518be71ea2cae668a5a9007232f0",
+          "sourceRevisionBefore": 5,
+          "sourceRevisionAfter": 6,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {
+            "Result": "0以上"
+          },
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": -3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.649916437843995,
+              15.97821912778089
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.087619562156004,
+            "y": 21.951812872219115
+          },
+          "note": ""
+        },
+        {
+          "file": "C5-5.nui",
+          "sha256": "7cca7e16c8aa3e4d2f526d9e84c7e9fd67378d48e69da1e37517e9b62f57fea9",
+          "sourceRevisionBefore": 6,
+          "sourceRevisionAfter": 7,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.368768,
+              "y": 18.965016000000002
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 0,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.368768,
+              18.965016000000002
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.368768,
+            "y": 18.965016000000002
+          },
+          "note": ""
+        },
+        {
+          "file": "C5-6.nui",
+          "sha256": "b03bbb4e175c9ffd05a224d14507522ea656eafd23ea4633bc13c7018493ef13",
+          "sourceRevisionBefore": 7,
+          "sourceRevisionAfter": 8,
+          "tolerance": 1e-07,
+          "expected": {
+            "Curve": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          },
+          "wrongOracle": {
+            "kind": "point",
+            "x": 11.649916437843995,
+            "y": 15.97821912778089
+          },
+          "note": ""
+        }
+      ]
+    },
+    {
+      "id": "C6",
+      "checkpoints": [
+        {
+          "file": "C6-0.nui",
+          "sha256": "29cf333fa614e598b5f7df441ff120944aa068700c390c9d15e6e435a5fc7f5a",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "LeftPath": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 42,
+                    "y": 7
+                  },
+                  "control1": {
+                    "x": 35.25,
+                    "y": 16.0
+                  },
+                  "control2": {
+                    "x": 17.8125,
+                    "y": 31.75
+                  },
+                  "end": {
+                    "x": 8.25,
+                    "y": 23.875
+                  }
+                }
+              ]
+            },
+            "LeftResult": {
+              "kind": "point",
+              "x": 31.793820877323746,
+              "y": 21.46871188861654
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 109.79382087732375,
+              "y": 21.46871188861654
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "originalControlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "selectedControlPoints": [
+              [
+                42,
+                7
+              ],
+              [
+                35.25,
+                16.0
+              ],
+              [
+                17.8125,
+                31.75
+              ],
+              [
+                8.25,
+                23.875
+              ]
+            ],
+            "selectedLocalT": 0.4000000000000001,
+            "originalFrame": {
+              "t": 0.7,
+              "first": [
+                49.31999999999999,
+                -38.16
+              ],
+              "second": [
+                -34.79999999999999,
+                -57.60000000000003
+              ],
+              "speed": 62.35902500841397,
+              "curvature": -0.01719147385888182,
+              "tangent": [
+                0.7909039628721801,
+                -0.6119402924412489
+              ],
+              "normal": [
+                0.6119402924412489,
+                0.7909039628721801
+              ],
+              "point": [
+                29.793820877323746,
+                14.46871188861654
+              ]
+            },
+            "instanceArguments": {
+              "Left": 2,
+              "Right": 80
+            },
+            "stage": "Tail.flipped after Raw.shifted split at original t=.25"
+          },
+          "wrongOracle": null,
+          "note": ""
+        },
+        {
+          "file": "C6-1.nui",
+          "sha256": "9bddfa0c410edc7c08eac22f8ac12601aae07b6f282387d357877dee4eb1f53b",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "LeftPath": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 51,
+                    "y": 7
+                  },
+                  "control1": {
+                    "x": 44.25,
+                    "y": 16.0
+                  },
+                  "control2": {
+                    "x": 26.8125,
+                    "y": 31.75
+                  },
+                  "end": {
+                    "x": 17.25,
+                    "y": 23.875
+                  }
+                }
+              ]
+            },
+            "LeftResult": {
+              "kind": "point",
+              "x": 40.793820877323746,
+              "y": 21.46871188861654
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 109.79382087732375,
+              "y": 21.46871188861654
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "originalControlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "selectedControlPoints": [
+              [
+                51,
+                7
+              ],
+              [
+                44.25,
+                16.0
+              ],
+              [
+                26.8125,
+                31.75
+              ],
+              [
+                17.25,
+                23.875
+              ]
+            ],
+            "selectedLocalT": 0.4000000000000001,
+            "originalFrame": {
+              "t": 0.7,
+              "first": [
+                49.31999999999999,
+                -38.16
+              ],
+              "second": [
+                -34.79999999999999,
+                -57.60000000000003
+              ],
+              "speed": 62.35902500841397,
+              "curvature": -0.01719147385888182,
+              "tangent": [
+                0.7909039628721801,
+                -0.6119402924412489
+              ],
+              "normal": [
+                0.6119402924412489,
+                0.7909039628721801
+              ],
+              "point": [
+                29.793820877323746,
+                14.46871188861654
+              ]
+            },
+            "instanceArguments": {
+              "Left": 11,
+              "Right": 80
+            },
+            "stage": "Tail.flipped after Raw.shifted split at original t=.25"
+          },
+          "wrongOracle": null,
+          "note": ""
+        }
+      ]
+    }
+  ],
+  "X": {
+    "X1": "NOT_TRIGGERED",
+    "X2": "NOT_TRIGGERED",
+    "X3": "NOT_TRIGGERED",
+    "X4": "NOT_TRIGGERED",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED",
+    "X7": "NOT_TRIGGERED",
+    "X8": "NOT_TRIGGERED"
+  },
+  "R": {
+    "R1": "NOT_TRIGGERED",
+    "R2": "NOT_TRIGGERED",
+    "R3": "NOT_TRIGGERED",
+    "R4": "NOT_TRIGGERED",
+    "R5": "NOT_TRIGGERED",
+    "R6": "NOT_TRIGGERED",
+    "R7": "NOT_TRIGGERED",
+    "R8": "NOT_TRIGGERED"
+  }
+}

@@ -1,0 +1,6 @@
+nui 1
+// Frozen #1470 C5
+curve Curve = bezier(start: (0, 0), end: (40, 0), startAngle: 0, startLength: 0, endAngle: -53.13010235415598, endLength: 25)
+point Result = tangentOffset(line: @Curve, base: (0, 0), curveSide: convex, distance: 3)
+curve ControlCurve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+point Control = tangentOffset(line: @ControlCurve, base: (12.784000000000001, 19.007999999999999), curveSide: convex, distance: 3)

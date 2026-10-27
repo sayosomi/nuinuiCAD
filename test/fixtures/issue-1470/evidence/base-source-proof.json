@@ -1,0 +1,34 @@
+{
+  "base": "b1f9a32c1b18890729895c1157884e3a72f70cb3",
+  "productionSourcesUnchanged": true,
+  "objectIds": {
+    "src": [
+      "9c514ef561f9afc5e1cec616a310af6c736e9c91",
+      "9c514ef561f9afc5e1cec616a310af6c736e9c91"
+    ],
+    "packages": [
+      "ab467d59c7d1765d16a558713bc39536df2d8247",
+      "ab467d59c7d1765d16a558713bc39536df2d8247"
+    ],
+    "rust-evaluator": [
+      "b2874bbcc3fb46ccce2c4ca95f9cc9dc4c0986aa",
+      "b2874bbcc3fb46ccce2c4ca95f9cc9dc4c0986aa"
+    ],
+    "mcp-server": [
+      "66e20edaacdfb79b0b318647954220b2362a9d6d",
+      "66e20edaacdfb79b0b318647954220b2362a9d6d"
+    ],
+    "vscode-extension": [
+      "93704fc05536feed11ab42643ef109e015b1d741",
+      "93704fc05536feed11ab42643ef109e015b1d741"
+    ],
+    "package.json": [
+      "23690087b3f277c2dfab0ea2e2d68f729eadbbf9",
+      "23690087b3f277c2dfab0ea2e2d68f729eadbbf9"
+    ],
+    "package-lock.json": [
+      "5795f9b656803884b98313c20b5921dcb90b7a0c",
+      "5795f9b656803884b98313c20b5921dcb90b7a0c"
+    ]
+  }
+}

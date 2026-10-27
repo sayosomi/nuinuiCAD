@@ -1,0 +1,17 @@
+nui 1
+// Frozen #1470 C6
+module M(dx: number) {
+  curve Raw = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+  move Raw as shifted(from: (0, 0), to: (@dx, 7))
+  line Tail = split(source: @Raw, at: (6.25 + @dx, 23.875))
+  reverse Tail as flipped()
+  export const Path: path = @Tail.flipped
+  export const Out: point = tangentOffset(line: @Path, base: (27.957999999999998 + @dx, 19.096), curveSide: convex, distance: 3)
+}
+instance Left = M(dx: 2)
+instance Right = M(dx: 80)
+path LeftPath = from(source: @Left::Path)
+point LeftResult = offset(from: @Left::Out, dx: 0, dy: 0)
+point RightResult = offset(from: @Right::Out, dx: 0, dy: 0)
+curve ControlCurve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+point Control = tangentOffset(line: @ControlCurve, base: (12.784000000000001, 19.007999999999999), curveSide: convex, distance: 3)
