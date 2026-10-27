@@ -24,7 +24,8 @@ controls unchanged. Drawable count is 3*size+2 including ControlPoint.
 
 Sources intentionally put consumers before prerequisites. Canonical compilation
 must accept them and runtime must use resolved dependency order. Source revisions
-begin from regenerateCanonicalFromModel(emptyDocument(),0), each distinct source
+begin at source revision 0 from regenerateCanonicalFromModel(emptyDocument(),1)
+(the second argument is language major version), each distinct source
 transition adds one. Restoration has the original hash and a new revision.
 Stable identity is checked across edits by declaration name, never raw array order.
 Semantic V/E are independently generated; canonical endpoint V/E (including
