@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "phase": "Stage4 final selected exploration and repair",
+  "startingPushedHead": "357bd93c26e5a424d5679668bec4f0d75874f498",
+  "base": "bab8313ae08f5e354a6cfd9d7b2ffb8177a15bc2",
+  "issueState": "OPEN",
+  "methods": {
+    "E": "B",
+    "C": "B",
+    "D": "C"
+  },
+  "selectionComment": "https://github.com/sayosomi/nuinuiCAD/issues/1421#issuecomment-6261130615",
+  "previousConfirmedFixedFamilies": 3,
+  "newConfirmedFixedFamilies": 3,
+  "totalDistinctStage4Families": 6,
+  "seededNewFamilies": 0,
+  "newAdaptivePrimaryFamilies": 1,
+  "newReductionFamilies": 2,
+  "exploration": {
+    "startingAccepted": 61,
+    "selectedAdaptive": 12,
+    "runtimeReductionsControls": 12,
+    "incorrectlyAcceptedTypeControls": 2,
+    "outOfScopeInvestigation": 1,
+    "finalAccepted": 88,
+    "ceiling": 200,
+    "remaining": 112
+  },
+  "cellDispositions": {
+    "PASS": 15,
+    "repaired-then-PASS": 9,
+    "NOT_SELECTED": 12
+  },
+  "gates": {
+    "calibration": {
+      "passed": 3,
+      "compiler": 3,
+      "reference": 6,
+      "persistentRust": 6
+    },
+    "F01": {
+      "status": "PASS boundary negative/positive and literal controls",
+      "mechanism": "cfg(test) actual nested frames; no production injection"
+    },
+    "F04": {
+      "boundary": "DETECTED",
+      "output": "NOT_DETECTED; masked by remaining gates",
+      "pilotArms": "NOT_COVERED"
+    },
+    "stage4": {
+      "testsPassed": 45,
+      "pilotSources": 36,
+      "selectedAdaptiveSources": 12,
+      "precedingRepairCases": 7,
+      "newReductionControlCases": 12,
+      "requests": {
+        "compiler": 67,
+        "reference": 147,
+        "persistentRust": 147
+      }
+    },
+    "focused": {
+      "filesPassed": 10,
+      "testsPassed": 2232,
+      "vitestSeconds": 50.41
+    },
+    "numericAndSensitivity": {
+      "filesPassed": 2,
+      "testsPassed": 24
+    },
+    "build": "PASS final frozen tree",
+    "lint": "PASS final frozen tree",
+    "parity": {
+      "passed": 203,
+      "vitestSeconds": 62.42
+    },
+    "fullNpm": {
+      "status": "PASS",
+      "filesPassed": 665,
+      "filesSkipped": 2,
+      "testsPassed": 10354,
+      "testsSkipped": 157,
+      "vitestSeconds": 520.14,
+      "command": "npm test -- --maxWorkers=1 --no-file-parallelism",
+      "started": 1792393621.897742,
+      "ended": 1792394142.7061539,
+      "elapsedSeconds": 520.808413028717,
+      "exitCode": 0
+    },
+    "rustFmt": "PASS",
+    "rustCheck": "PASS",
+    "rustFocused": {
+      "passed": 2
+    },
+    "rustTest": {
+      "passed": 621,
+      "ignored": 9,
+      "libraryPassed": 614,
+      "stdioPassed": 6,
+      "integrationPassed": 1
+    },
+    "rustClippy": "PASS all-targets -D warnings",
+    "dslReference": "PASS",
+    "diffCheck": "PASS",
+    "typeErrorControls": {
+      "testsPassed": 3,
+      "beforeIncorrectlyAccepted": 2,
+      "afterRejected": 3,
+      "proof": "error-control-proof.json"
+    },
+    "combinedStage4SensitivityStage3": {
+      "filesPassed": 3,
+      "testsPassed": 125,
+      "vitestSeconds": 9.76
+    }
+  },
+  "verifiedChangedTrackedSourceSha256": {
+    "packages/nui-language/src/dsl/dslDocument.ts": "bd60994cd6034efd8add0a7bf5fb11c3230cf30d6f4ab60f6006f4d0acc006e1",
+    "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts": "a14f25a2ec348331ab879a08af7d1415f7654620d481dbf9a4827936d0f509db",
+    "test/fixtures/issue-stage4/accepted.sha256": "14027e5981a7c1757a6e24da6d3b381be2615b7b9309cc0196d22601c0224a77",
+    "test/fixtures/issue-stage4/adaptive.json": "2b39c2b979e2ea38ae1c726d97fe8ebee5247660551554a1238c55f36bc1f9a9",
+    "test/fixtures/issue-stage4/finalRepairs.ts": "cde6f7c13d60f1a42aaa79b705fd3e58c23b6bc74ccc2f4c307b6bf98dad2de4",
+    "test/fixtures/issue-stage4/pilot.json": "008a55cfd0732f03ce8d891623b1421a80ca8554bff3b58bdc220073611db7b1",
+    "test/fixtures/issue-stage4/selection.json": "11b4461830fd9bc5ee20ef69f827e3e41b9ec8d09d8a8cb321b05629ce579971",
+    "test/issue1421EvaluatorStrategyRust.integration.test.ts": "3c80928ac79ede5ceb6772d9d61994306b9373857b038e945b086782af8e6179",
+    "test/issue1421SensitivityRust.integration.test.ts": "790135ac580643fa2c9a05c96a6244fba92d8a6e82f80c99de303eeb82d0ad1f"
+  },
+  "verificationNote": "Final source/executable-input hashes match the tree used for final focused/build/lint/parity/full-suite gates. Historical failed/interrupted/superseded checks are retained separately. Rust gates passed on byte-identical Rust code.",
+  "humanManualE2E": "Not Required",
+  "architectureChanged": false,
+  "normativeSemanticsChanged": false,
+  "platformBlockedOperations": [],
+  "independentExactHeadReview": "pending after push",
+  "pullRequestCreated": false,
+  "merged": false,
+  "remainingLimits": [
+    "F04 absent from all pilot arms; output mutation masked",
+    "No arm-wide F01 mutation score",
+    "Historical end-to-end effort and per-method diagnosis allocation unavailable",
+    "Provisional method choice; no universal optimum",
+    "One out-of-scope forward-dependent source-order suspect retained; separate scope review required."
+  ],
+  "rawEvidenceDirectories": [
+    "/tmp/issue1421-final-exploration",
+    "/tmp/issue1421-final-calibration",
+    "/tmp/issue1421-final-sensitivity-final",
+    "/tmp/issue1421-final-error-before",
+    "/tmp/issue1421-final-error-after-scoped",
+    "/tmp/issue1421-final-graph-wiring",
+    "/tmp/issue1421-final-final-gate"
+  ],
+  "reports": [
+    "comparison-report.md",
+    "final-proof.json",
+    "final-results.json",
+    "effort.json",
+    "source-ledger.json",
+    "sensitivity.json",
+    "preserved-evidence.json",
+    "error-control-proof.json",
+    "graph-wiring-proof.json",
+    "out-of-scope-suspect.json",
+    "verification-history.json"
+  ],
+  "unresolvedObservedInScopeProductFailures": 0,
+  "outOfScopeSuspects": [
+    {
+      "status": "UNRESOLVED; outside frozen matrix",
+      "proof": "out-of-scope-suspect.json",
+      "confirmedNewFamilyCredit": 0
+    }
+  ]
+}

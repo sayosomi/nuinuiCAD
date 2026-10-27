@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "phase": "Product repair checkpoint; stop before independent review/PR/merge",
+  "startingPushedHead": "612cde2981a8bc99af14c624c96450eabb0876c8",
+  "originalProductBase": "bab8313ae08f5e354a6cfd9d7b2ffb8177a15bc2",
+  "confirmedBaselineFamilies": 3,
+  "fixedBaselineFamilies": 3,
+  "requiredRepairFollowOns": 1,
+  "newBaselineFamiliesFromFollowOns": 0,
+  "unresolvedObservedProductFailures": [],
+  "acceptedSourceAccounting": {
+    "previous": 48,
+    "newReductionsAndControls": 13,
+    "global": 61,
+    "ceiling": 200,
+    "adaptive": 0,
+    "compilerRejected": 0
+  },
+  "frozenArtifactsUnchanged": {
+    "model.ts": "bdf20336ad203d5d0a2d53507d965ef86843fb0736f97dd37dff051383c979d7",
+    "oracles.ts": "cf6676de58a4460da677099ead43000fecc23d5439ba78f4c16b1e0dc292881d",
+    "pilot.json": "008a55cfd0732f03ce8d891623b1421a80ca8554bff3b58bdc220073611db7b1",
+    "pilot-results.json": "428b2075059ec60441beae7ec808bb22fde074d50f3ef84b1972805fd40c8756"
+  },
+  "verifiedSourceSha256": {
+    "packages/nui-language/src/dsl/dslDocument.ts": "bef4372d2e6626f6da9860311ecb0d89d88ed7c8770abec12f7c235aadb763be",
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "25d047b1bb4305904fcd1c81adbe831fb1dcd3575109ef0173dcc8e186cf8c8b",
+    "packages/nui-language/src/scalars/typedDependencyGraph.ts": "e7f25a11f711d58daf2c380a3866791571f66e3d12a66eb0b53d9445d2be4a82",
+    "src/geometry/evaluate.ts": "733ff3c029cdce80655785e0b4fc6a3c084e25830ce1570b31fda76441411b2b",
+    "rust-evaluator/src/evaluation/mod.rs": "0f3d9ca6571f83d6050eb66bc72523a8fb99d16ae54a61bbf274b1b9103a42e8",
+    "test/issue1421EvaluatorStrategyRust.integration.test.ts": "229b63485f8dbfffaab1c7aff5d4a0f0e7a68ef2a883681fc64a706bf65cd6d0",
+    "test/fixtures/issue-stage4/repairs.ts": "95c8c669272271d7fcbfe249ec725b90d0a214bc87075e73da1b659cf76ea98c"
+  },
+  "gates": [
+    {
+      "name": "Stage 4 pilot plus reduced regressions",
+      "result": "PASS",
+      "tests": 26,
+      "pilotCells": 18,
+      "pilotSources": 36,
+      "reducedCases": 7,
+      "log": "/tmp/issue1421-product-verified.log"
+    },
+    {
+      "name": "Focused evaluator/compiler regressions",
+      "result": "PASS",
+      "files": 9,
+      "tests": 2210,
+      "log": "/tmp/issue1421-focused.log"
+    },
+    {
+      "name": "Build",
+      "result": "PASS",
+      "log": "/tmp/issue1421-build.log"
+    },
+    {
+      "name": "Lint",
+      "result": "PASS",
+      "log": "/tmp/issue1421-lint.log"
+    },
+    {
+      "name": "Parity",
+      "result": "PASS",
+      "tests": 203,
+      "log": "/tmp/issue1421-parity.log"
+    },
+    {
+      "name": "Rust fmt/check and focused Module tests",
+      "result": "PASS",
+      "focusedTests": 6,
+      "log": "/tmp/issue1421-rust-focused.log"
+    },
+    {
+      "name": "Rust full tests",
+      "result": "PASS",
+      "tests": 619,
+      "ignored": 9,
+      "log": "/tmp/issue1421-rust-test.log"
+    },
+    {
+      "name": "Rust clippy all targets, warnings denied",
+      "result": "PASS",
+      "log": "/tmp/issue1421-clippy.log"
+    },
+    {
+      "name": "DSL reference check",
+      "result": "PASS",
+      "log": "/tmp/issue1421-docs-check.log"
+    },
+    {
+      "name": "Full serial npm test",
+      "result": "PASS",
+      "log": "/tmp/issue1421-full-test.log",
+      "tests": 10330,
+      "skippedTests": 157,
+      "passedFiles": 664,
+      "skippedFiles": 2,
+      "elapsedMs": 521530
+    },
+    {
+      "name": "Diff check",
+      "result": "PASS"
+    }
+  ],
+  "humanManualE2E": "Not Required: compiler/evaluator-only contract",
+  "architectureImpact": "Existing owners and data flow retained; no new abstraction or schema.",
+  "originalPilotComparisonPreserved": true,
+  "adaptiveExplorationRun": false,
+  "platformBlockedOperations": [],
+  "independentReviewComplete": false,
+  "pullRequestCreated": false,
+  "merged": false,
+  "measurementLimits": [
+    "Request counts and bounded test durations are retained.",
+    "Complete diagnosis/editing/verification effort and token usage were not observed.",
+    "No causal method ranking or optimality is inferred."
+  ],
+  "rawEvidenceDirectories": [
+    "/tmp/issue1421-product-before",
+    "/tmp/issue1421-product-repair",
+    "/tmp/issue1421-product-pilot-after",
+    "/tmp/issue1421-product-verified"
+  ]
+}

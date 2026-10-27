@@ -1,0 +1,191 @@
+{
+  "base": "e65f1030e1c93743ac650ee999bdc77d8a5142a5",
+  "independentFirstOwnerFamilies": 1,
+  "acceptedExplorationUnits": 19,
+  "eventCheckpoints": 121,
+  "livePublicationCheckpoints": 116,
+  "sourceApplicationCheckpoints": 43,
+  "verificationRustSourceControls": 3,
+  "dispositions": [
+    {
+      "id": "A1",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        3
+      ],
+      "finalLiveCheckpoints": 4
+    },
+    {
+      "id": "A2",
+      "disposition": "BASE_PASS",
+      "baseFailedCheckpoints": [],
+      "finalLiveCheckpoints": 4
+    },
+    {
+      "id": "A3",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        4,
+        5
+      ],
+      "finalLiveCheckpoints": 6
+    },
+    {
+      "id": "A4",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        6
+      ],
+      "finalLiveCheckpoints": 6
+    },
+    {
+      "id": "A5",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        6
+      ],
+      "finalLiveCheckpoints": 6
+    },
+    {
+      "id": "A6",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        4
+      ],
+      "finalLiveCheckpoints": 5
+    },
+    {
+      "id": "B1",
+      "disposition": "BASE_PASS",
+      "baseFailedCheckpoints": [],
+      "finalLiveCheckpoints": 4
+    },
+    {
+      "id": "B2",
+      "disposition": "BASE_PASS",
+      "baseFailedCheckpoints": [],
+      "finalLiveCheckpoints": 4
+    },
+    {
+      "id": "B3",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        3
+      ],
+      "finalLiveCheckpoints": 4
+    },
+    {
+      "id": "B4",
+      "disposition": "BASE_PASS",
+      "baseFailedCheckpoints": [],
+      "finalLiveCheckpoints": 4
+    },
+    {
+      "id": "B5",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "finalLiveCheckpoints": 6
+    },
+    {
+      "id": "B6",
+      "disposition": "BASE_PASS",
+      "baseFailedCheckpoints": [],
+      "finalLiveCheckpoints": 5
+    },
+    {
+      "id": "C1",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "finalLiveCheckpoints": 8
+    },
+    {
+      "id": "C2",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        3,
+        10
+      ],
+      "finalLiveCheckpoints": 12
+    },
+    {
+      "id": "C3",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        13,
+        14,
+        15,
+        16,
+        17
+      ],
+      "finalLiveCheckpoints": 16
+    },
+    {
+      "id": "C4",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        6,
+        7
+      ],
+      "finalLiveCheckpoints": 8
+    },
+    {
+      "id": "X1",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        3,
+        4,
+        5
+      ],
+      "finalLiveCheckpoints": 5
+    },
+    {
+      "id": "X2",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        4,
+        5,
+        6
+      ],
+      "finalLiveCheckpoints": 6
+    },
+    {
+      "id": "R1",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseFailedCheckpoints": [
+        3
+      ],
+      "finalLiveCheckpoints": 3
+    }
+  ],
+  "notTriggered": [
+    "X3",
+    "X4",
+    "X5",
+    "X6",
+    "X7",
+    "X8",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "R6",
+    "R7",
+    "R8"
+  ]
+}

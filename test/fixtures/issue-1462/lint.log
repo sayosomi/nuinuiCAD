@@ -1,0 +1,6 @@
+
+> nuinuicad@0.0.0 lint
+> eslint .
+
+
+LINT EXIT=0

@@ -1,0 +1,29 @@
+{
+  "commandFile": "gate-command.sh",
+  "exitCode": 0,
+  "startedUnix": 1793073961.689641,
+  "finishedUnix": 1793074621.8201458,
+  "timeoutSeconds": 2400,
+  "orderedStages": [
+    "build",
+    "lint",
+    "test",
+    "test:parity",
+    "diff-check"
+  ],
+  "stageExitCodes": {
+    "build": 0,
+    "lint": 0,
+    "test": 0,
+    "test:parity": 0,
+    "diff-check": 0
+  },
+  "fullTestFilesPassed": 696,
+  "fullTestsPassed": 11225,
+  "existingFilesSkipped": 2,
+  "existingTestsSkipped": 187,
+  "parityTestsPassed": 207,
+  "newTestsPassed": 21,
+  "candidateOwnerSha256": "007835c6222aea9a74bfc5e7cfcddd6f2d09009ae84e3f8484eee203c7a9f80e",
+  "candidateTestSha256": "7c172199d784374e22f9a818046f0d13e6c2fe3b6c7c257a89efc35e80127c7c"
+}

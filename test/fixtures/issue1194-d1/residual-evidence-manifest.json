@@ -1,0 +1,69 @@
+{
+  "files": [
+    {
+      "path": "/tmp/nuinuicad-1194-residual-20261021/transport.ndjson",
+      "bytes": 1921977,
+      "sha256": "2ed4e5d2aa3e7ffe5d94e1e02cdcda5de85eb1d024fb2b3a2c0f745d32ab6764"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-20261021/accepted.sha256",
+      "bytes": 7150,
+      "sha256": "040deccb8f3d7b7c8526595cdabd74ee64b19eda691d582ce0b5868ae454b857"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-20261021/compiler.ndjson",
+      "bytes": 178259644,
+      "sha256": "27e075d4d04bd4d154b38cf0a9fcd10044a7b56cbcb52d029cc3ac7e73c3cfd9"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-20261021/runs.ndjson",
+      "bytes": 155322,
+      "sha256": "611dc4a53ac5631f81ff188deb09a86c2aec77881bd7dfa5610271a6902f65f1"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-20261021/raw.ndjson",
+      "bytes": 9046784,
+      "sha256": "004ac7240ae31444b12c380a58cc6b029b2eff81966428a0d8d75f1680f4d46d"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-controls-20261021/transport.ndjson",
+      "bytes": 1285093,
+      "sha256": "77d214b70fa77fe70ff1b398d90cc94ce6045df06f0a2d6bc44b79bb7206d2fb"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-controls-20261021/accepted.sha256",
+      "bytes": 4810,
+      "sha256": "289fcd46b55976a6ae58b2025bcedc7b5fe9ef486d2f32241ef34f2f4606e4ad"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-controls-20261021/compiler.ndjson",
+      "bytes": 70450195,
+      "sha256": "5924bde6f7a604804855f574f7fe5dabc43abc26485ad2e2dfa10320991d46c8"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-controls-20261021/runs.ndjson",
+      "bytes": 58419,
+      "sha256": "212bab231cba9876269f9a5e79139f1866085d67496ecc179e30501884e695ec"
+    },
+    {
+      "path": "/tmp/nuinuicad-1194-residual-controls-20261021/raw.ndjson",
+      "bytes": 5638236,
+      "sha256": "1443ab5d6bf8b859590bd03da2ef525ac6b8d42c3310e1eb0626abcce1433ff3"
+    },
+    {
+      "path": "/tmp/1194-final-gates.log",
+      "bytes": 902,
+      "sha256": "3cb3459382d365258a687cc6b4dc9ca78da6dc49c9787beedad3250fe3b775d3"
+    },
+    {
+      "path": "/tmp/1194-final-gates2.log",
+      "bytes": 2657,
+      "sha256": "091976b4a5076c4e84a336cd74ea33c0a85dcd9395e8eb6d8dbfdac1dce08863"
+    },
+    {
+      "path": "/tmp/1194-final-gates3.log",
+      "bytes": 1412,
+      "sha256": "7a5804af36c5e03d3b86e52698b78925b7bf7281c8ab1dceae6f8a89df41f8e8"
+    }
+  ]
+}

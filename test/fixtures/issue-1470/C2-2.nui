@@ -1,0 +1,7 @@
+nui 1
+// Frozen #1470 C2
+curve Curve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+reverse Curve as flipped()
+point Result = tangentOffset(line: @Curve, base: (11.368767999999999, 18.965016000000002), curveSide: concave, distance: 3)
+curve ControlCurve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+point Control = tangentOffset(line: @ControlCurve, base: (12.784000000000001, 19.007999999999999), curveSide: convex, distance: 3)

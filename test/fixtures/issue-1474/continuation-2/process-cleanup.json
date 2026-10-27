@@ -1,0 +1,71 @@
+{
+  "ownedStdioProcesses": [
+    {
+      "pid": 3835,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 55808,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 55994,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 56185,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 60118,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 63249,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 65201,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 66698,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 68932,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 85034,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 85910,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 96910,
+      "state": "absent",
+      "currentCommand": null
+    },
+    {
+      "pid": 98145,
+      "state": "absent",
+      "currentCommand": null
+    }
+  ],
+  "allKnownOwnedStdioChildrenClosed": true,
+  "notes": "Campaign hooks dispose and await close; watchdog groups are owned only. The intentional failing npm stop is documented separately. No unrelated process was signaled."
+}

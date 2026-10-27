@@ -1,0 +1,128 @@
+[
+  {
+    "originalName": "base.log",
+    "file": "base.log.gz",
+    "bytes": 5289,
+    "sha256": "29c536e34ff05b08043e70b00f916adb7f11406c97129d7530eef6b88ef28195"
+  },
+  {
+    "originalName": "build.log",
+    "file": "build.log.gz",
+    "bytes": 429,
+    "sha256": "85c4761e4bc3957212f8ad0041df70e9bb4d7b02fdad1b0a040bd419062c7dd1"
+  },
+  {
+    "originalName": "diff-check.log",
+    "file": "diff-check.log.gz",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalName": "first-build.log",
+    "file": "first-build.log.gz",
+    "bytes": 429,
+    "sha256": "0c82799deba29e01526ef739b4e764a3952e616367693884f9da5dbffe35bb29"
+  },
+  {
+    "originalName": "first-full-test.log",
+    "file": "first-full-test.log.gz",
+    "bytes": 239,
+    "sha256": "7d4bfe213ef0d22f9adf4440f0a953a036e58b24b60708e439fd33c8b9fe55ab"
+  },
+  {
+    "originalName": "first-lint.log",
+    "file": "first-lint.log.gz",
+    "bytes": 36,
+    "sha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+  },
+  {
+    "originalName": "focused-1.log",
+    "file": "focused-1.log.gz",
+    "bytes": 458,
+    "sha256": "eeab77235400f19c7bef5f2c093f5cd27eccd3ebca49281fa5d983117108d279"
+  },
+  {
+    "originalName": "focused-2.log",
+    "file": "focused-2.log.gz",
+    "bytes": 458,
+    "sha256": "c82e8a77ed8722776baf83d2761c8ff86e20959e4945cfd12c01dde175e41bf3"
+  },
+  {
+    "originalName": "focused-3.log",
+    "file": "focused-3.log.gz",
+    "bytes": 458,
+    "sha256": "ccb271d13398933cecec2ae8599d155e2a43120dd1e6f9b823d72523a455a84b"
+  },
+  {
+    "originalName": "full-test.log",
+    "file": "full-test.log.gz",
+    "bytes": 339,
+    "sha256": "af79a6d146a1c6dbea01b172df1a9201f19060d8a2111578b03471b60ddcfd95"
+  },
+  {
+    "originalName": "harness-unstable-options.log",
+    "file": "harness-unstable-options.log.gz",
+    "bytes": 1370,
+    "sha256": "0df02b50263e3424868600b83dae301fe8854ca4db00945b1b9ff65b2656418a"
+  },
+  {
+    "originalName": "lint.log",
+    "file": "lint.log.gz",
+    "bytes": 36,
+    "sha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+  },
+  {
+    "originalName": "mutation-F1.log",
+    "file": "mutation-F1.log.gz",
+    "bytes": 2341,
+    "sha256": "206263c6379a6720459ec1d945bd8b5e5eda3513553c7eeba3d6917e826370cb"
+  },
+  {
+    "originalName": "mutation-F2.log",
+    "file": "mutation-F2.log.gz",
+    "bytes": 1502,
+    "sha256": "0983b83a1851bd72581ade33fa44060ba5f51fe38a89b5a870900205305a88f5"
+  },
+  {
+    "originalName": "mutation-F3.log",
+    "file": "mutation-F3.log.gz",
+    "bytes": 1520,
+    "sha256": "7e2d0a12fad1ae800ead935817050f4842394bdbaf827049b0f506ea99a70ba3"
+  },
+  {
+    "originalName": "parity.log",
+    "file": "parity.log.gz",
+    "bytes": 319,
+    "sha256": "06a71a2112ff6b4abbf96a4720412e9d8ca6ab6b6f484fbbbac0ef5d7d802a41"
+  },
+  {
+    "originalName": "rust-check.log",
+    "file": "rust-check.log.gz",
+    "bytes": 422,
+    "sha256": "45fece65986040b8c0c5e10e51d2f2d44e996e80744c186e0b36d313ffa454ba"
+  },
+  {
+    "originalName": "rust-clippy.log",
+    "file": "rust-clippy.log.gz",
+    "bytes": 163,
+    "sha256": "6d1594fbe37b8084b53f0f27f5f3fe997b790108d171d9cd31559a165d5c090a"
+  },
+  {
+    "originalName": "rust-fmt.log",
+    "file": "rust-fmt.log.gz",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "originalName": "rust-stdio-build.log",
+    "file": "rust-stdio-build.log.gz",
+    "bytes": 72,
+    "sha256": "ee1d3fffa2022e962e63e0dbe4d35c9c198450a20c29fc09030f635dbb38bfcd"
+  },
+  {
+    "originalName": "rust-test.log",
+    "file": "rust-test.log.gz",
+    "bytes": 71473,
+    "sha256": "89b2a8e43655c561872cfa1fe52a7b67be6b285dcc6374199d6f654f7c5dc2d0"
+  }
+]

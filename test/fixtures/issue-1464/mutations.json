@@ -1,0 +1,237 @@
+{
+  "base": "30e376a1efdb00c1645bab9a0f17a622e3e11a14",
+  "results": [
+    {
+      "label": "base-confirmed",
+      "exit": 1,
+      "outcomes": {
+        "E01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "E02": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "E03": {
+          "disposition": "BLOCKED",
+          "failure": "scalar-payload-literal-type-mismatch: declaration initializer type must match declaredType"
+        },
+        "E04": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "E05": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "E06": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "I01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "I02": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "I03": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "I04": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "I05": {
+          "disposition": "SUPPORTED_REJECTION",
+          "failure": null
+        },
+        "I06": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "C01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "C02": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "C03": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "C04": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "C05": {
+          "disposition": "SUPPORTED_REJECTION",
+          "failure": null
+        },
+        "C06": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "S01": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "S02": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "S03": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "S04": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "S05": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "S06": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "X01": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "X02": {
+          "disposition": "BLOCKED",
+          "failure": "reference read -> M::P: expected [] to not have a length of +0"
+        },
+        "X03": {
+          "disposition": "SUPPORTED_REJECTION",
+          "failure": null
+        },
+        "X04": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "X05": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "R01": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "R02": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "R03": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "R04": {
+          "disposition": "BLOCKED",
+          "failure": "scalar-payload-literal-type-mismatch: declaration initializer type must match declaredType"
+        },
+        "R05": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        }
+      }
+    },
+    {
+      "label": "mutation-F1",
+      "exit": 1,
+      "outcomes": {
+        "I01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "X02": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "R01": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        }
+      }
+    },
+    {
+      "label": "mutation-F2",
+      "exit": 1,
+      "outcomes": {
+        "I01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "X01": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        },
+        "R02": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        }
+      }
+    },
+    {
+      "label": "mutation-F3",
+      "exit": 1,
+      "outcomes": {
+        "E01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "R03": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        }
+      }
+    },
+    {
+      "label": "mutation-F4",
+      "exit": 1,
+      "outcomes": {
+        "I01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "X03": {
+          "disposition": "SUPPORTED_REJECTION",
+          "failure": null
+        },
+        "R04": {
+          "disposition": "BLOCKED",
+          "failure": "scalar-payload-literal-type-mismatch: declaration initializer type must match declaredType"
+        }
+      }
+    },
+    {
+      "label": "mutation-F5",
+      "exit": 1,
+      "outcomes": {
+        "E01": {
+          "disposition": "PASS",
+          "failure": null
+        },
+        "R05": {
+          "disposition": "BLOCKED",
+          "failure": "expected 'rejected' to be 'planned' // Object.is equality"
+        }
+      }
+    }
+  ],
+  "restored": true,
+  "candidateSha256": {
+    "packages/nui-language/src/document/inlineModulePlanner.ts": "990b4fce4ab38a3744f23ecd9041796a03075d1ed135bd344b6d9183d1363b27",
+    "packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts": "c8fd09d7415f34f196a3e19e6780c2e8bf95541bc87380b99cfb555e6db8dfc8",
+    "packages/nui-language/src/dsl/moduleSemanticEditor.ts": "3f3142c2fb42e3ed06a818d81951ee312e5207da6e7bef3b3e74eaf75fde8694",
+    "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts": "bf60d837028149722fe03a69b24c2b30fd50730e7cea28334d434792fff1369c",
+    "packages/nui-language/src/document/extractModulePlanner.ts": "08ffac136e750581133a072ec36af0c73252c46eac0abc3f85fafb13161d8432"
+  }
+}

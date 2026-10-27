@@ -1,0 +1,656 @@
+{
+  "edges": [
+    {
+      "kind": "numeric-expression",
+      "from": {
+        "kind": "element",
+        "id": "freePoint-mvqeb3yq-10",
+        "name": "Producer",
+        "statementIndex": 9
+      },
+      "to": {
+        "kind": "binding",
+        "id": "binding:statement:typedDeclaration:mvqeb3yq:2",
+        "name": "Root",
+        "statementIndex": 10,
+        "span": {
+          "start": 6,
+          "end": 10
+        }
+      },
+      "span": {
+        "start": 31,
+        "end": 36
+      },
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-2",
+        "name": "Fan7",
+        "statementIndex": 1
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-3",
+        "name": "Fan6",
+        "statementIndex": 2
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-4",
+        "name": "Fan5",
+        "statementIndex": 3
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-5",
+        "name": "Fan4",
+        "statementIndex": 4
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-6",
+        "name": "Fan3",
+        "statementIndex": 5
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-7",
+        "name": "Fan2",
+        "statementIndex": 6
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-8",
+        "name": "Fan1",
+        "statementIndex": 7
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-9",
+        "name": "Fan0",
+        "statementIndex": 8
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-2\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-2",
+        "name": "Fan7.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 1
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-2",
+        "name": "Fan7",
+        "statementIndex": 1
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-2\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-2",
+        "name": "Fan7.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 1
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-2\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-2",
+        "name": "Fan7.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 1
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-3\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-3",
+        "name": "Fan6.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 2
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-3",
+        "name": "Fan6",
+        "statementIndex": 2
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-3\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-3",
+        "name": "Fan6.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 2
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-3\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-3",
+        "name": "Fan6.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 2
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-4\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-4",
+        "name": "Fan5.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 3
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-4",
+        "name": "Fan5",
+        "statementIndex": 3
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-4\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-4",
+        "name": "Fan5.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 3
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-4\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-4",
+        "name": "Fan5.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 3
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-5\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-5",
+        "name": "Fan4.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 4
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-5",
+        "name": "Fan4",
+        "statementIndex": 4
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-5\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-5",
+        "name": "Fan4.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 4
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-5\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-5",
+        "name": "Fan4.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 4
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-6\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-6",
+        "name": "Fan3.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 5
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-6",
+        "name": "Fan3",
+        "statementIndex": 5
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-6\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-6",
+        "name": "Fan3.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 5
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-6\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-6",
+        "name": "Fan3.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 5
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-7\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-7",
+        "name": "Fan2.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 6
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-7",
+        "name": "Fan2",
+        "statementIndex": 6
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-7\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-7",
+        "name": "Fan2.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 6
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-7\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-7",
+        "name": "Fan2.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 6
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-8\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-8",
+        "name": "Fan1.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 7
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-8",
+        "name": "Fan1",
+        "statementIndex": 7
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-8\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-8",
+        "name": "Fan1.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 7
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-8\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-8",
+        "name": "Fan1.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 7
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-9\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-9",
+        "name": "Fan0.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 8
+      },
+      "to": {
+        "kind": "element",
+        "id": "line-mvqeb3yq-9",
+        "name": "Fan0",
+        "statementIndex": 8
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-9\u0000*\u0000final",
+        "ownerId": "line-mvqeb3yq-9",
+        "name": "Fan0.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 8
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "line-mvqeb3yq-9\u0000*\u0000base",
+        "ownerId": "line-mvqeb3yq-9",
+        "name": "Fan0.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 8
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000base",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 9
+      },
+      "to": {
+        "kind": "element",
+        "id": "freePoint-mvqeb3yq-10",
+        "name": "Producer",
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 9
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-10\u0000*\u0000base",
+        "ownerId": "freePoint-mvqeb3yq-10",
+        "name": "Producer.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 9
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-11\u0000*\u0000base",
+        "ownerId": "freePoint-mvqeb3yq-11",
+        "name": "ControlPoint.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 12
+      },
+      "to": {
+        "kind": "element",
+        "id": "freePoint-mvqeb3yq-11",
+        "name": "ControlPoint",
+        "statementIndex": 12
+      },
+      "span": null,
+      "requiredness": "required"
+    },
+    {
+      "kind": "geometry",
+      "from": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-11\u0000*\u0000final",
+        "ownerId": "freePoint-mvqeb3yq-11",
+        "name": "ControlPoint.final",
+        "stagePath": [
+          "final"
+        ],
+        "statementIndex": 12
+      },
+      "to": {
+        "kind": "geometry-stage",
+        "id": "freePoint-mvqeb3yq-11\u0000*\u0000base",
+        "ownerId": "freePoint-mvqeb3yq-11",
+        "name": "ControlPoint.base",
+        "stagePath": [
+          "base"
+        ],
+        "statementIndex": 12
+      },
+      "span": null,
+      "requiredness": "required"
+    }
+  ]
+}

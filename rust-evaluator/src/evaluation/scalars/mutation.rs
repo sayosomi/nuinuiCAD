@@ -68,6 +68,7 @@ pub(crate) struct ScalarMutationResolver<'a> {
 }
 
 pub(crate) struct DependencyBindingSchedule<'a> {
+    pub(crate) early_binding_ids: &'a HashSet<String>,
     pub(crate) execution_positions: &'a HashMap<String, f64>,
     pub(crate) prerequisites: &'a HashMap<String, HashSet<String>>,
 }
@@ -82,6 +83,8 @@ pub(crate) struct GeometryValueReleaseContext<'a> {
     pub(crate) dependency_execution_position: Option<f64>,
     pub(crate) release_allowed: &'a [bool],
     pub(crate) source_position_fence: bool,
+    pub(crate) prerequisites_ready:
+        &'a dyn Fn(&GeometryValueProgramEntry, &EvaluationState, &[bool]) -> bool,
     pub(crate) evaluated: &'a mut [bool],
 }
 
@@ -144,7 +147,9 @@ impl<'a> ScalarMutationResolver<'a> {
                     .execution_positions
                     .contains_key(&version.binding_id)
             {
-                self.pending_dependency_versions.push(version_index);
+                if !self.pending_dependency_versions.contains(&version_index) {
+                    self.pending_dependency_versions.push(version_index);
+                }
             } else {
                 self.advance_pending_dependency_versions_through(
                     dependency_execution_position,
@@ -201,7 +206,9 @@ impl<'a> ScalarMutationResolver<'a> {
                         .execution_positions
                         .contains_key(&version.binding_id)
                 {
-                    self.pending_dependency_versions.push(version_index);
+                    if !self.pending_dependency_versions.contains(&version_index) {
+                        self.pending_dependency_versions.push(version_index);
+                    }
                 } else {
                     let version_geometry_execution_position = geometry_values
                         .binding_schedule
@@ -370,13 +377,14 @@ impl<'a> ScalarMutationResolver<'a> {
                 || release_position > geometry_execution_position
                 || (geometry_values.source_position_fence
                     && entry.source_execution_position > source_order as f64)
+                || !(geometry_values.prerequisites_ready)(entry, state, geometry_values.evaluated)
             {
                 continue;
             }
             // Root selectors retain the established SAY-501 schedule. A
             // Module occurrence can reach this release pass before its local
-            // selector binding has become visible, so defer only that
-            // instance-owned value until the canonical binding is available.
+            // scalar input bindings have become visible, so defer only that
+            // instance-owned value until the canonical bindings are available.
             if geometry_values
                 .selector_binding_ids_by_index
                 .get(index)
@@ -432,6 +440,20 @@ impl<'a> ScalarMutationResolver<'a> {
         dependency_ready_binding_ids: &HashSet<String>,
         flush_unranked: bool,
     ) {
+        // Queue only the graph-proven forward-input prerequisite closure.
+        for (index, version) in self.program.versions.iter().enumerate() {
+            if binding_schedule
+                .early_binding_ids
+                .contains(&version.binding_id)
+                && !self.pending_dependency_versions.contains(&index)
+                && !self.history.iter().any(|entry| {
+                    entry.get("versionId").and_then(Value::as_str)
+                        == Some(version.version_id.as_str())
+                })
+            {
+                self.pending_dependency_versions.push(index);
+            }
+        }
         let mut ready = self
             .pending_dependency_versions
             .iter()
@@ -701,18 +723,11 @@ impl<'a> ScalarMutationResolver<'a> {
             None => self.resolve_collection_carry_snapshot(value_id),
         };
         let mut merged = local_bindings.clone();
-        if inherited_snapshots.is_some() {
-            // Entering a captured generation also enters that generation's
-            // scalar closure. Its lexical bindings shadow the enclosing
-            // generation when the stable binding identity is shared.
-            merged.extend(snapshot.local_bindings);
-        } else {
-            // Preserve the established SAY-481 merge order for the current
-            // traversal.
-            for (binding_id, value) in snapshot.local_bindings {
-                merged.entry(binding_id).or_insert(value);
-            }
-        }
+        // A carried value owns its captured scalar closure on the first read
+        // as well as when traversing an inherited collection generation.
+        // Stable body binding IDs may already name the consuming iteration;
+        // they must not overwrite the values captured by the previous one.
+        merged.extend(snapshot.local_bindings);
         CollectionCarrySnapshot {
             value_id: snapshot.value_id,
             local_bindings: merged,
@@ -833,6 +848,14 @@ impl<'a> ScalarMutationResolver<'a> {
             .or_else(|| self.conditional_results.get(owner_id))
     }
     fn execute(&mut self, version: &ValidatedBindingVersion, state: &EvaluationState) {
+        // A frame may have executed this version before the document cursor
+        // reaches its source position. Preserve that execution and do not
+        // append a second, skipped-control record during the later drain.
+        if self.history.iter().any(|entry| {
+            entry.get("versionId").and_then(Value::as_str) == Some(version.version_id.as_str())
+        }) {
+            return;
+        }
         if let Some(status) = self.inactive_control_status(version) {
             self.history.push(json!({"versionId": version.version_id, "statementId": version.statement_id, "bindingId": version.binding_id, "status": status}));
             return;

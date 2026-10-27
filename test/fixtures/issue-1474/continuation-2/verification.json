@@ -1,0 +1,253 @@
+{
+  "status": "IMPLEMENTATION_VERIFICATION_PASS_PENDING_INDEPENDENT_REVIEW",
+  "base": "60f54f3ccec505821bc615e516bab8192bd20533",
+  "previousCheckpoint": "6c1d56b3e72c1acd1013b1f6c23d0e85aec9d50b",
+  "branch": "sayosomi/issue-1474-dependency-topology-hunt",
+  "primaryUnits": 16,
+  "reducerSlots": 4,
+  "conservativeAcceptedUnits": 20,
+  "ceiling": 32,
+  "primarySourceRevisions": 24,
+  "finalMatrixSourceRevisionExecutions": 28,
+  "uniqueSourceHashes": 19,
+  "firstIncorrectOwners": 5,
+  "mechanisms": 4,
+  "commands": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--check"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 1.0373399579984834,
+      "peakOwnedRssKiB": 82544,
+      "stopReason": null,
+      "rootPid": 3926,
+      "ownedTreeTransitions": 2,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-01.log.gz"
+    },
+    {
+      "command": [
+        "cargo",
+        "check",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 0.5222231249936158,
+      "peakOwnedRssKiB": 4080,
+      "stopReason": null,
+      "rootPid": 3943,
+      "ownedTreeTransitions": 1,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-02.log.gz"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 6.238858499986236,
+      "peakOwnedRssKiB": 328944,
+      "stopReason": null,
+      "rootPid": 3963,
+      "ownedTreeTransitions": 2,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-03.log.gz"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 0.5232608750084182,
+      "peakOwnedRssKiB": 3104,
+      "stopReason": null,
+      "rootPid": 4007,
+      "ownedTreeTransitions": 1,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-04.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 27.758245916993474,
+      "peakOwnedRssKiB": 2162496,
+      "stopReason": null,
+      "rootPid": 4014,
+      "ownedTreeTransitions": 4,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-05.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 27.629042291999212,
+      "peakOwnedRssKiB": 1855200,
+      "stopReason": null,
+      "rootPid": 4216,
+      "ownedTreeTransitions": 2,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-06.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 599.8204787499999,
+      "peakOwnedRssKiB": 1254832,
+      "stopReason": null,
+      "rootPid": 4362,
+      "ownedTreeTransitions": 772,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-07.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 56.554458750004414,
+      "peakOwnedRssKiB": 988016,
+      "stopReason": null,
+      "rootPid": 13554,
+      "ownedTreeTransitions": 101,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-08.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:performance:binding-analysis"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 38.64566658400872,
+      "peakOwnedRssKiB": 1283968,
+      "stopReason": null,
+      "rootPid": 19103,
+      "ownedTreeTransitions": 4,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-09.log.gz"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "60f54f3ccec505821bc615e516bab8192bd20533"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 0.5246524169924669,
+      "peakOwnedRssKiB": 1856,
+      "stopReason": null,
+      "rootPid": 19329,
+      "ownedTreeTransitions": 1,
+      "progressDefinition": "stdout/stderr bytes or owned worker tree transition; absolute wall/per-test bounds still apply",
+      "log": "evidence/gate-accepted-10.log.gz"
+    }
+  ],
+  "summaries": {
+    "3": [
+      "test result: ok. 624 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 5.70s",
+      "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+      "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+    ],
+    "7": [
+      "Test Files  698 passed | 2 skipped (700)",
+      "Tests  11235 passed | 187 skipped (11422)"
+    ],
+    "8": [
+      "Test Files  1 passed (1)",
+      "Tests  207 passed (207)"
+    ],
+    "9": [
+      "Test Files  3 passed (3)",
+      "Tests  4 passed (4)"
+    ]
+  },
+  "priorGateStops": [
+    {
+      "file": "evidence/gate-results.json.gz",
+      "reason": "clippy err_expect, corrected with expect_err"
+    },
+    {
+      "file": "evidence/gate-final-results.json.gz",
+      "reason": "host-import-boundary failure in new R3 test; known failing owned npm group intentionally stopped"
+    },
+    {
+      "file": "evidence/gate-complete-results.json.gz",
+      "reason": "Node-only test types after relocation; corrected without changing package configuration"
+    }
+  ],
+  "performance": {
+    "pairs": 18,
+    "warmups": 5,
+    "alternatingTrials": 21,
+    "requests": 937,
+    "spawns": 1,
+    "peakRustRssKiB": 102240,
+    "watchdog": {
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1474DependencyTopologyTiming.performance.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--bail=1",
+        "--disableConsoleIntercept"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 487.517993292,
+      "peakOwnedRssKiB": 1426560,
+      "stopReason": null
+    },
+    "normalization": "performance-normalized.json",
+    "summary": "performance-summary.md",
+    "residuals": "SUSPECT/INCONCLUSIVE remaining B/D scaling and historical for-group control; no additional fix claimed"
+  },
+  "safety": {
+    "noDestructiveBaseReplay": true,
+    "noNewCheckout": true,
+    "noHeapOrStackLimitIncrease": true,
+    "ownedProcessCleanup": true
+  },
+  "quota": {
+    "fiveHour": "UNAVAILABLE",
+    "weekly": "UNAVAILABLE"
+  },
+  "integration": "No PR, merge, Issue close, roadmap write or main restoration. Exact pushed HEAD is in the Issue checkpoint."
+}

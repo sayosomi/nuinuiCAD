@@ -1,0 +1,53 @@
+[
+  {
+    "id": "RC1",
+    "classification": "focused-regression (exploration-exempt)",
+    "parent": "X6",
+    "purpose": "Reject newly exposed capture of a scalar index by a nested binding; verify safe alternative",
+    "source": "nui 1\nconst values: number[] = [2, 7]\nconst i: number = 1\ngroup Nested {\n const j: number = 0\n point P = coordinate(x: @values[@i], y: 0)\n}\n",
+    "sourceRevision": 7,
+    "sha256": "848de9e351e59441c18165c8896f916da3ccbc491b91190ee10c757dc6c7443c",
+    "selection": 128,
+    "identity": "RC1:root i",
+    "name": "i",
+    "newName": "position",
+    "declaration": {
+      "from": 44,
+      "to": 45
+    },
+    "references": [
+      {
+        "from": 128,
+        "to": 129
+      }
+    ],
+    "edits": [
+      {
+        "from": 44,
+        "to": 45,
+        "expectedText": "i",
+        "newText": "position"
+      },
+      {
+        "from": 128,
+        "to": 129,
+        "expectedText": "i",
+        "newText": "position"
+      }
+    ],
+    "points": [
+      [
+        "P",
+        7,
+        0
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "rejections": {
+      "j": "reference-resolution-change",
+      "values": "same-scope-collision"
+    },
+    "afterSource": "nui 1\nconst values: number[] = [2, 7]\nconst position: number = 1\ngroup Nested {\n const j: number = 0\n point P = coordinate(x: @values[@position], y: 0)\n}\n"
+  }
+]

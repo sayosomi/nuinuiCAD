@@ -1,0 +1,2944 @@
+[
+  {
+    "id": "S1",
+    "variant": "dependent",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (22, 14))\n line Later [Ink] = segment(start: (5, 2), end: (12, 7))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "49fae988bafc13d3425408844c949f5bce67f485b6dae2e6a399318ec82ac2b6",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            22.0,
+            14.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            12.0,
+            7.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      4.735416666666667,
+      1.7354166666666666,
+      22.264583333333334,
+      14.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S1",
+    "variant": "independent",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: (5, 2), end: (22, 14))\n line Later [Ink] = segment(start: (5, 2), end: (12, 7))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "2daf76fb07bed485eba447ae8b75d2d423085b319ab824ccc63f4dcfb9b00942",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            22.0,
+            14.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            12.0,
+            7.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      4.735416666666667,
+      1.7354166666666666,
+      22.264583333333334,
+      14.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S2",
+    "variant": "compound",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 37, mirror: true)\n}\nsvg S(layout: @L, margin: 7)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "16094ddc63df1fb7cb57d9443ed2f350bc520e160af94b85cbea22197c7a5b12",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            40.98069894380726,
+            -14.500021913602962
+          ],
+          [
+            0.05727736946798956,
+            39.80719276961295
+          ],
+          [
+            76.5956822594268,
+            22.98094610255349
+          ],
+          [
+            22.288467576210877,
+            -17.942475471785794
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      22.023884242877543,
+      -18.20705880511913,
+      42.85015336131415,
+      20.15243556611361
+    ],
+    "margin": 7,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S2",
+    "variant": "unmirrored",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 37, mirror: false)\n}\nsvg S(layout: @L, margin: 7)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "c0cd0142be0283825c2dde984c6a5b2bcd8d989bd92933f0f0b643077d098782",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            32.83461674132488,
+            -20.638535149753857
+          ],
+          [
+            -8.0888048330144,
+            33.668679533462054
+          ],
+          [
+            -13.011221967879465,
+            -44.54269949510633
+          ],
+          [
+            41.295992715336446,
+            -3.619277920767047
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      1.0768846037172484,
+      -20.90311848308719,
+      41.56057604866978,
+      -0.3996059826796066
+    ],
+    "margin": 7,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S3",
+    "variant": "positive",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 17, start: 30, end: 150, direction: counterclockwise)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.4, angle: 29, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "2831a0405db527f2819918bf4549a5428c53328e96501fa3e17fb046ab8e6eca",
+    "shapes": [
+      {
+        "type": "arc",
+        "center": [
+          41.67873346834487,
+          -24.224467589995154
+        ],
+        "radius": 23.799999999999997,
+        "start": 179,
+        "sweep": -120,
+        "points": [],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      17.61777499028943,
+      -24.073683650121144,
+      54.201222984537495,
+      -0.15988425666182332
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S3",
+    "variant": "negative",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 17, start: 150, end: 30, direction: clockwise)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.4, angle: 29, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "ac36d9b87b56a3f21dea644a40b21a346331a93bc507103cc0ea9dcc828085c3",
+    "shapes": [
+      {
+        "type": "arc",
+        "center": [
+          41.67873346834487,
+          -24.224467589995154
+        ],
+        "radius": 23.799999999999997,
+        "start": 59,
+        "sweep": 120,
+        "points": [],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      17.61777499028943,
+      -24.073683650121144,
+      54.201222984537495,
+      -0.15988425666182332
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S3",
+    "variant": "wraparound",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 17, start: -60, end: 60, direction: counterclockwise)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.4, angle: 29, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "266149b58226e20aa0bf49a84da9c2b6e6f0aaabb27cffb506d998e74bbeadb7",
+    "shapes": [
+      {
+        "type": "arc",
+        "center": [
+          41.67873346834487,
+          -24.224467589995154
+        ],
+        "radius": 23.799999999999997,
+        "start": 269,
+        "sweep": -120,
+        "points": [],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      17.614150135011542,
+      -48.2854260680506,
+      41.52794952847086,
+      -11.701978073802529
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S4",
+    "variant": "filled",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line A [Hidden] = segment(start: (0, 0), end: (250, 0))\n line B [Hidden] = segment(start: (250, 0), end: (0, 40))\n line C [Hidden] = segment(start: (0, 40), end: (0, 0))\n line Joined [Fill] = join(paths: [@A, @B, @C], closed: true)\n line Base [Hidden] = polyline(points: [(280, 0), (310, 0), (310, 20), (280, 20)], closed: true)\n line Offset [Fill] = offset(sources: [@Base], distance: 2, side: left, closed: true, suppressTrimWarnings: false)\n}\nlayout L {\n place @G(at: (-51, -22), scale: 1, angle: 17, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "d82ee508da70fb74848044fa97eec8010f36ef3165fb39135d869f235d6e562a",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            -51.0,
+            -22.0
+          ],
+          [
+            188.07618899075885,
+            51.09292618068419
+          ],
+          [
+            -62.69486818890947,
+            16.252190238521415
+          ],
+          [
+            -51.0,
+            -22.0
+          ]
+        ],
+        "fill": "#eebb99",
+        "opacity": 0.35,
+        "segmented": true,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "contour",
+        "points": [
+          [
+            218.0931977721305,
+            62.36143024373783
+          ],
+          [
+            242.95712142716945,
+            69.963094566529
+          ],
+          [
+            238.27917415160567,
+            85.26397066193756
+          ],
+          [
+            213.41525049656673,
+            77.6623063391464
+          ],
+          [
+            218.0931977721305,
+            62.36143024373783
+          ]
+        ],
+        "fill": "#eebb99",
+        "opacity": 0.35,
+        "segmented": true,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -62.9594515222428,
+      -22.264583333333334,
+      243.22170476050277,
+      85.5285539952709
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 1
+  },
+  {
+    "id": "S4",
+    "variant": "stroke",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line A [Hidden] = segment(start: (0, 0), end: (250, 0))\n line B [Hidden] = segment(start: (250, 0), end: (0, 40))\n line C [Hidden] = segment(start: (0, 40), end: (0, 0))\n line Joined [Ink] = join(paths: [@A, @B, @C], closed: true)\n line Base [Hidden] = polyline(points: [(280, 0), (310, 0), (310, 20), (280, 20)], closed: true)\n line Offset [Fill] = offset(sources: [@Base], distance: 2, side: left, closed: true, suppressTrimWarnings: false)\n}\nlayout L {\n place @G(at: (-51, -22), scale: 1, angle: 17, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "b8773b79d009852f59df17ffdb638d89945de3909783e3655e34eb1325f1bbd0",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            -51.0,
+            -22.0
+          ],
+          [
+            188.07618899075885,
+            51.09292618068419
+          ],
+          [
+            -62.69486818890947,
+            16.252190238521415
+          ],
+          [
+            -51.0,
+            -22.0
+          ]
+        ],
+        "opacity": 0.35,
+        "segmented": true,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "contour",
+        "points": [
+          [
+            218.0931977721305,
+            62.36143024373783
+          ],
+          [
+            242.95712142716945,
+            69.963094566529
+          ],
+          [
+            238.27917415160567,
+            85.26397066193756
+          ],
+          [
+            213.41525049656673,
+            77.6623063391464
+          ],
+          [
+            218.0931977721305,
+            62.36143024373783
+          ]
+        ],
+        "fill": "#eebb99",
+        "opacity": 0.35,
+        "segmented": true,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -62.9594515222428,
+      -22.264583333333334,
+      243.22170476050277,
+      85.5285539952709
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 1
+  },
+  {
+    "id": "S5",
+    "variant": "repeated",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n for i in range(min: 0, max: 1, step: 1, showGenerated: true) {\n line Edge [Ink] = segment(start: (@i * 20, 0), end: (@i * 20 + 8, 3))\n }\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @G(at: (70, -20), scale: 0.7, angle: 21, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "beced422fe63a9328e913fc3ff8873631d29190ef9f3d7af18afb78dbf464af1",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            8.0,
+            3.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            20.0,
+            0.0
+          ],
+          [
+            28.0,
+            3.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            70.0,
+            -20.0
+          ],
+          [
+            74.4754776943392,
+            -16.032620586902194
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            83.07012597096082,
+            -14.982848706365797
+          ],
+          [
+            87.54560366530002,
+            -11.015469293267993
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -20.264583333333334,
+      87.81018699863336,
+      3.2645833333333334
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S5",
+    "variant": "single",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n for i in range(min: 0, max: 1, step: 1, showGenerated: true) {\n line Edge [Ink] = segment(start: (@i * 20, 0), end: (@i * 20 + 8, 3))\n }\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "e64efa59ca182b215fefcb36f37580c901ee568f077fcc1160406af128315d59",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            8.0,
+            3.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            20.0,
+            0.0
+          ],
+          [
+            28.0,
+            3.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      28.264583333333334,
+      3.2645833333333334
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S6",
+    "variant": "selected",
+    "source": "nui 1\nprofile Print\nstyle ProfileInk {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n lineType: dashed,\n }\n}\nstyle Far {\n for @Print {\n visible: false,\n }\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [ProfileInk] = segment(start: (0, 0), end: (30, 15))\n line FarEdge [Far] = segment(start: (-400, -20), end: (500, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @G(at: (70, 0), scale: 2.5, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3, profile: @Print)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10, profile: @Print)\n",
+    "sha256": "4d17f72b6b45c8399462e1b8c62bd50c3c44c597af9136cf3a3793b336e53b7f",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 1.0583333333333333,
+        "dash": "dashed",
+        "color": "#123456"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            70.0,
+            0.0
+          ],
+          [
+            145.0,
+            37.5
+          ]
+        ],
+        "width": 1.0583333333333333,
+        "dash": "dashed",
+        "color": "#123456"
+      }
+    ],
+    "bounds": [
+      -0.5291666666666667,
+      -0.5291666666666667,
+      145.52916666666667,
+      38.02916666666667
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S6",
+    "variant": "default",
+    "source": "nui 1\nprofile Print\nstyle ProfileInk {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n lineType: dashed,\n }\n}\nstyle Far {\n for @Print {\n visible: false,\n }\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [ProfileInk] = segment(start: (0, 0), end: (30, 15))\n line FarEdge [Far] = segment(start: (-400, -20), end: (500, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @G(at: (70, 0), scale: 2.5, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "a44ab4ec0495d3486efe0179af613f6b7193695e5c69e21710e63dfc657a9f2f",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "dash": "solid",
+        "color": "#123456"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            -400.0,
+            -20.0
+          ],
+          [
+            500.0,
+            20.0
+          ]
+        ],
+        "width": 0.26458333333333334,
+        "color": "#31322f",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            70.0,
+            0.0
+          ],
+          [
+            145.0,
+            37.5
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "dash": "solid",
+        "color": "#123456"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            -930.0,
+            -50.0
+          ],
+          [
+            1320.0,
+            50.0
+          ]
+        ],
+        "width": 0.26458333333333334,
+        "color": "#31322f",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -930.1322916666667,
+      -50.13229166666667,
+      1320.1322916666666,
+      50.13229166666667
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 12,
+    "rows": 1
+  },
+  {
+    "id": "S7",
+    "variant": "compound",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"AB\\n日本\", anchor: (5, 2), size: 4)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 37, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "0b3c97e2738090164aba263fa5ee45f606dad670c9df79a3b74df5f75c5ebb1c",
+    "shapes": [
+      {
+        "type": "text",
+        "value": "AB\n日本",
+        "points": [
+          [
+            32.14612602968831,
+            -16.900088876234577
+          ]
+        ],
+        "size": 6.8,
+        "color": "#31322f",
+        "width": 0.26458333333333334,
+        "dash": "solid",
+        "angle": 37,
+        "mirror": true,
+        "widths": [
+          8.432,
+          13.6
+        ]
+      }
+    ],
+    "bounds": [
+      22.138157683022396,
+      -32.68778324675266,
+      37.87540505009581,
+      -12.555511701577302
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S7",
+    "variant": "upright",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"AB\\n日本\", anchor: (5, 2), size: 4)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "c61158f7d3ac7831c6ed8f25861ec56b60c3d23b064b33b4a50c9e2d9b36187d",
+    "shapes": [
+      {
+        "type": "text",
+        "value": "AB\n日本",
+        "points": [
+          [
+            5.0,
+            2.0
+          ]
+        ],
+        "size": 4,
+        "color": "#31322f",
+        "width": 0.26458333333333334,
+        "dash": "solid",
+        "angle": 0,
+        "mirror": false,
+        "widths": [
+          4.96,
+          8
+        ]
+      }
+    ],
+    "bounds": [
+      5.0,
+      -3.5999999999999996,
+      13.0,
+      5.2
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "S8",
+    "variant": "zero",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-10000, -700), end: (500, -300))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "6c5ed88d69ab62c383744efc6aae04ad4603025c7ce8d7ad481138358e4c5407",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -10000.0,
+            -700.0
+          ],
+          [
+            500.0,
+            -300.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -10000.264583333334,
+      -700.2645833333333,
+      500.26458333333335,
+      -299.73541666666665
+    ],
+    "margin": 0,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 56,
+    "rows": 2
+  },
+  {
+    "id": "S8",
+    "variant": "positive",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-10000, -700), end: (500, -300))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 11)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "3b62c9e6cee7ba52d61af1c7269c2623fa274652570fcfc4a4f5358c1b5e50ae",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -10000.0,
+            -700.0
+          ],
+          [
+            500.0,
+            -300.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -10000.264583333334,
+      -700.2645833333333,
+      500.26458333333335,
+      -299.73541666666665
+    ],
+    "margin": 11,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 56,
+    "rows": 2
+  },
+  {
+    "id": "P1",
+    "variant": "threshold",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-31, -47), end: (158.47083333333333, -47))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "970ab138f45b38bfb85049886c1520391732e7efc8756a3ea9ec94a1bbfb7123",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -31.0,
+            -47.0
+          ],
+          [
+            158.47083333333333,
+            -47.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -31.264583333333334,
+      -47.264583333333334,
+      158.73541666666665,
+      -46.735416666666666
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "P1",
+    "variant": "crossing",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-31, -47), end: (158.47283333333334, -47))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "0d9a8c8d99f692be3af0f347043708d8e87f7547a8ae0777df1d372c7cf52865",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -31.0,
+            -47.0
+          ],
+          [
+            158.47283333333334,
+            -47.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -31.264583333333334,
+      -47.264583333333334,
+      158.73741666666666,
+      -46.735416666666666
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 1
+  },
+  {
+    "id": "P2",
+    "variant": "overlap",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-40, -50), end: (260, 350))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "57b6ef52e54ef35a72f75e53daa6c5561446d30cf86fd22832b2268963539639",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -40.0,
+            -50.0
+          ],
+          [
+            260.0,
+            350.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -40.264583333333334,
+      -50.264583333333334,
+      260.26458333333335,
+      350.26458333333335
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 2
+  },
+  {
+    "id": "P2",
+    "variant": "zero",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-40, -50), end: (260, 350))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 0)\n",
+    "sha256": "3039b6070112c6a6b845ffa46d91df4f146f60ba61d63c07fb0f1a5196de553e",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -40.0,
+            -50.0
+          ],
+          [
+            260.0,
+            350.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -40.264583333333334,
+      -50.264583333333334,
+      260.26458333333335,
+      350.26458333333335
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 0,
+    "columns": 2,
+    "rows": 2
+  },
+  {
+    "id": "P3",
+    "variant": "a3",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = polyline(points: [(-37, -41), (313, -21), (73, 209)], closed: false)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 10)\n",
+    "sha256": "34ee35fa34d8268902a1244601cb843149501881817c726c4b6454fec96cbfb7",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            -37.0,
+            -41.0
+          ],
+          [
+            313.0,
+            -21.0
+          ],
+          [
+            73.0,
+            209.0
+          ]
+        ],
+        "closed": false,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -37.264583333333334,
+      -41.264583333333334,
+      313.26458333333335,
+      209.26458333333332
+    ],
+    "margin": 3,
+    "paper": [
+      420,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "P3",
+    "variant": "a4",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = polyline(points: [(-37, -41), (313, -21), (73, 209)], closed: false)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: landscape, overlap: 10)\n",
+    "sha256": "b597c3104d72aec5a07437c770c563d5521944ad1ebd133f23b5648875d01c94",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            -37.0,
+            -41.0
+          ],
+          [
+            313.0,
+            -21.0
+          ],
+          [
+            73.0,
+            209.0
+          ]
+        ],
+        "closed": false,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -37.264583333333334,
+      -41.264583333333334,
+      313.26458333333335,
+      209.26458333333332
+    ],
+    "margin": 3,
+    "paper": [
+      297,
+      210
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 2
+  },
+  {
+    "id": "P4",
+    "variant": "corner",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 12, angle: 31, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "c3782451c0e439a119e97ec023a1f6e22fd46b71ee2771ae7f0ba494b643b05f",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            47.13619522959345,
+            36.68540113046333
+          ],
+          [
+            -200.08208072723258,
+            448.12570546747725
+          ],
+          [
+            324.81413898775065,
+            273.52914614020955
+          ],
+          [
+            -86.62616534926329,
+            26.310870183383578
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -86.89074868259662,
+      26.046286850050244,
+      77.27256490769734,
+      283.46506613647034
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "P4",
+    "variant": "neighbor",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(at: (0, 0), scale: 2, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "88571d2591ed7837a31e43f29ce0e0e11d367a28e146922d10038522530684c1",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            80.0
+          ],
+          [
+            -60.0,
+            10.0
+          ],
+          [
+            20.0,
+            10.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -21.864583333333336,
+      -0.26458333333333334,
+      20.264583333333334,
+      38.61169077134987
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "P5",
+    "variant": "filled",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line A [Hidden] = segment(start: (0, 0), end: (250, 0))\n line B [Hidden] = segment(start: (250, 0), end: (0, 40))\n line C [Hidden] = segment(start: (0, 40), end: (0, 0))\n line Joined [Fill] = join(paths: [@A, @B, @C], closed: true)\n}\nlayout L {\n place @G(at: (-65, -20), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "1b085e248095cebbb5cc341af91a07ab8bf88e195307cb985948a9d009c645dd",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            -65.0,
+            -20.0
+          ],
+          [
+            185.0,
+            -20.0
+          ],
+          [
+            -65.0,
+            20.0
+          ],
+          [
+            -65.0,
+            -20.0
+          ]
+        ],
+        "fill": "#eebb99",
+        "opacity": 0.35,
+        "segmented": true,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -65.26458333333333,
+      -20.264583333333334,
+      185.26458333333332,
+      20.264583333333334
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 1
+  },
+  {
+    "id": "P5",
+    "variant": "stroke",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line A [Hidden] = segment(start: (0, 0), end: (250, 0))\n line B [Hidden] = segment(start: (250, 0), end: (0, 40))\n line C [Hidden] = segment(start: (0, 40), end: (0, 0))\n line Joined [Ink] = join(paths: [@A, @B, @C], closed: true)\n}\nlayout L {\n place @G(at: (-65, -20), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "f5bff1895dc1ae44a3beee0dcc3b6f356569ecef58238adfb13e0e52fc544744",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            -65.0,
+            -20.0
+          ],
+          [
+            185.0,
+            -20.0
+          ],
+          [
+            -65.0,
+            20.0
+          ],
+          [
+            -65.0,
+            -20.0
+          ]
+        ],
+        "opacity": 0.35,
+        "segmented": true,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -65.26458333333333,
+      -20.264583333333334,
+      185.26458333333332,
+      20.264583333333334
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 1
+  },
+  {
+    "id": "P6",
+    "variant": "large",
+    "source": "nui 1\nstyle Dash {\n width: 3px,\n lineType: dashed,\n color: #123456,\n}\nstyle Dot {\n width: 3px,\n lineType: dotted,\n color: #123456,\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Dash [Dash] = segment(start: (0, 0), end: (1100, 0))\n line Dot [Dot] = segment(start: (0, 12), end: (50, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 2, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 0.2)\n",
+    "sha256": "abdd9496f1dcee52a3048a976b3a03786b1157a8b0aeb3753523df33d54fd2f5",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            2200.0,
+            0.0
+          ]
+        ],
+        "dash": "dashed",
+        "width": 0.7937499999999998,
+        "color": "#123456"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            24.0
+          ],
+          [
+            100.0,
+            40.0
+          ]
+        ],
+        "dash": "dotted",
+        "width": 0.7937499999999998,
+        "color": "#123456"
+      }
+    ],
+    "bounds": [
+      -0.3968749999999999,
+      -0.3968749999999999,
+      2200.396875,
+      40.396875
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 0.2,
+    "columns": 11,
+    "rows": 1
+  },
+  {
+    "id": "P6",
+    "variant": "small",
+    "source": "nui 1\nstyle Dash {\n width: 3px,\n lineType: dashed,\n color: #123456,\n}\nstyle Dot {\n width: 3px,\n lineType: dotted,\n color: #123456,\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Dash [Dash] = segment(start: (0, 0), end: (1100, 0))\n line Dot [Dot] = segment(start: (0, 12), end: (50, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 0.5, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 0.2)\n",
+    "sha256": "f062ba167ead4df9d0378934b218970d35a33fdfd3cac5e8c8a68beadb5833a5",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            550.0,
+            0.0
+          ]
+        ],
+        "dash": "dashed",
+        "width": 0.7937499999999998,
+        "color": "#123456"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            6.0
+          ],
+          [
+            25.0,
+            10.0
+          ]
+        ],
+        "dash": "dotted",
+        "width": 0.7937499999999998,
+        "color": "#123456"
+      }
+    ],
+    "bounds": [
+      -0.3968749999999999,
+      -0.3968749999999999,
+      550.396875,
+      10.396875
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 0.2,
+    "columns": 3,
+    "rows": 1
+  },
+  {
+    "id": "P7",
+    "variant": "hidden",
+    "source": "nui 1\nprofile Print\nstyle ProfileInk {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n lineType: dashed,\n }\n}\nstyle Far {\n for @Print {\n visible: false,\n }\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [ProfileInk] = segment(start: (0, 0), end: (30, 15))\n line FarEdge [Far] = segment(start: (-400, -20), end: (500, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3, profile: @Print)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10, profile: @Print)\n",
+    "sha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 1.0583333333333333,
+        "dash": "dashed",
+        "color": "#123456"
+      }
+    ],
+    "bounds": [
+      -0.5291666666666667,
+      -0.5291666666666667,
+      30.529166666666665,
+      15.529166666666667
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "P7",
+    "variant": "visible",
+    "source": "nui 1\nprofile Print\nstyle ProfileInk {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n lineType: dashed,\n }\n}\nstyle Far {\n for @Print {\n visible: false,\n }\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [ProfileInk] = segment(start: (0, 0), end: (30, 15))\n line FarEdge [Far] = segment(start: (-400, -20), end: (500, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "05988ec8db38316a8d5312decf2b7c893c68d3b6ac976223484651297597bce7",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "dash": "solid",
+        "color": "#123456"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            -400.0,
+            -20.0
+          ],
+          [
+            500.0,
+            20.0
+          ]
+        ],
+        "width": 0.26458333333333334,
+        "color": "#31322f",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -400.1322916666667,
+      -20.132291666666667,
+      500.1322916666667,
+      20.132291666666667
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 5,
+    "rows": 1
+  },
+  {
+    "id": "P8",
+    "variant": "invalid",
+    "source": "nui 1\nconst Overlap: number = 105\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (30, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: @Overlap)\n",
+    "sha256": "54dd6346fa107f9bc5826469e7682189d7ce6a237bf93baedc3719a16432d6b5",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      30.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 105,
+    "columns": 0,
+    "rows": 1,
+    "error": "print usable width"
+  },
+  {
+    "id": "P8",
+    "variant": "valid",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (30, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      30.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R1",
+    "variant": "before",
+    "source": "nui 1\nconst Reach: number = 40\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: @Reach, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 37, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "e181a2e71f38f727dffd0897710b988c1c34a51eceef416bcfe1115441653178",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            40.98069894380726,
+            -14.500021913602962
+          ],
+          [
+            0.05727736946798956,
+            39.80719276961295
+          ],
+          [
+            76.5956822594268,
+            22.98094610255349
+          ],
+          [
+            22.288467576210877,
+            -17.942475471785794
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      22.023884242877543,
+      -18.20705880511913,
+      42.85015336131415,
+      20.15243556611361
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R1",
+    "variant": "after",
+    "source": "nui 1\nconst Reach: number = 63\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: @Reach, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 37, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "ecbf72c4cad8e0da0746f667b195126e913374f7885b01e726cb816196c239c6",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            40.98069894380726,
+            -14.500021913602962
+          ],
+          [
+            -23.47369003577711,
+            71.0338412124621
+          ],
+          [
+            76.5956822594268,
+            22.98094610255349
+          ],
+          [
+            22.288467576210877,
+            -17.942475471785794
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      18.200169229460837,
+      -18.20705880511913,
+      41.245282277140596,
+      33.30294312332028
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R2",
+    "variant": "before",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 37, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "8465cd10a7d01ec8b6525e4ee8d45fa9146e460a41ffccf1971ab8e91ecd6a08",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            40.98069894380726,
+            -14.500021913602962
+          ],
+          [
+            0.05727736946798956,
+            39.80719276961295
+          ],
+          [
+            76.5956822594268,
+            22.98094610255349
+          ],
+          [
+            22.288467576210877,
+            -17.942475471785794
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      22.023884242877543,
+      -18.20705880511913,
+      42.85015336131415,
+      20.15243556611361
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R2",
+    "variant": "after",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 0.8, angle: 113, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "3fbea1d55f944622d0bc37ac761ec501434dac1817cc891db7d86e904242c537",
+    "shapes": [
+      {
+        "type": "cubic",
+        "points": [
+          [
+            38.99213917732645,
+            -26.459551259451533
+          ],
+          [
+            9.535983866848355,
+            -38.96294737110829
+          ],
+          [
+            44.68766684725926,
+            -50.1145922562672
+          ],
+          [
+            32.184270735602496,
+            -20.658436945789106
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      26.614455983093706,
+      -39.62115490846904,
+      39.256722510659785,
+      -20.39385361245577
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R3",
+    "variant": "before",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (22, 14))\n line Later [Ink] = segment(start: @Anchor, end: (12, 7))\n point Anchor = coordinate(x: 5, y: 2)\n point Scheduling = coordinate(x: 0, y: 0)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "735010ec47b54ed597feb34b0db5a279c26d4ab32258ef5da8249a8704532a3a",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            22.0,
+            14.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            12.0,
+            7.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      4.735416666666667,
+      1.7354166666666666,
+      22.264583333333334,
+      14.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R3",
+    "variant": "after",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n point Scheduling = coordinate(x: 0, y: 0)\n line First [Ink] = segment(start: @Later.start, end: (22, 14))\n line Later [Ink] = segment(start: @Anchor, end: (12, 7))\n point Anchor = coordinate(x: 5, y: 2)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "cfaba387ac927070a8915911ba0d6d87584674caa58172e9c4614a37ed8b91c2",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            22.0,
+            14.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            5.0,
+            2.0
+          ],
+          [
+            12.0,
+            7.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      4.735416666666667,
+      1.7354166666666666,
+      22.264583333333334,
+      14.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R4",
+    "variant": "before",
+    "source": "nui 1\nprofile Print\nstyle ProfileInk {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n lineType: dashed,\n }\n}\nstyle Far {\n for @Print {\n visible: false,\n }\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [ProfileInk] = segment(start: (0, 0), end: (30, 15))\n line FarEdge [Far] = segment(start: (-400, -20), end: (500, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3, profile: @Print)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10, profile: @Print)\n",
+    "sha256": "e04562e39bbcba01a687816068e69a9399b805715f09fa8e5a8d510aad84ebff",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 1.0583333333333333,
+        "dash": "dashed",
+        "color": "#123456"
+      }
+    ],
+    "bounds": [
+      -0.5291666666666667,
+      -0.5291666666666667,
+      30.529166666666665,
+      15.529166666666667
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R4",
+    "variant": "after",
+    "source": "nui 1\nprofile Print\nstyle ProfileInk {\n width: 2px,\n color: #123456,\n for @Print {\n width: 7px,\n lineType: dashed,\n }\n}\nstyle Far {\n for @Print {\n visible: false,\n }\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [ProfileInk] = segment(start: (0, 0), end: (30, 15))\n line FarEdge [Far] = segment(start: (-400, -20), end: (500, 20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3, profile: @Print)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10, profile: @Print)\n",
+    "sha256": "08b43540e4ece3f80d42b36cf23f9547d2383c3a5834a376d6a30c9399bee7a5",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 1.852083333333333,
+        "dash": "dashed",
+        "color": "#123456"
+      }
+    ],
+    "bounds": [
+      -0.9260416666666665,
+      -0.9260416666666665,
+      30.926041666666666,
+      15.926041666666666
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R5",
+    "variant": "before",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-50, -20), end: (139, -20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "2a6485ffaeb28072f5d43b5a8123ca51e767e3193b258aef75325df9cd781174",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -50.0,
+            -20.0
+          ],
+          [
+            139.0,
+            -20.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -50.264583333333334,
+      -20.264583333333334,
+      139.26458333333332,
+      -19.735416666666666
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R5",
+    "variant": "after",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-50, -20), end: (141, -20))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "10837d929c689f88c467904f259e7e0c90827b693d58fe0d526d61e57f7897de",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            -50.0,
+            -20.0
+          ],
+          [
+            141.0,
+            -20.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -50.264583333333334,
+      -20.264583333333334,
+      141.26458333333332,
+      -19.735416666666666
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 2,
+    "rows": 1
+  },
+  {
+    "id": "R6",
+    "variant": "before",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (30, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      30.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R6",
+    "variant": "after",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (51, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "68a49bed3ea7b98e520aa752045cde4522cc32a6453087b3e91ded11044baadc",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            51.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      51.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R7",
+    "variant": "before",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (30, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "51f99039d952df324a278127cad6155fe701b9a62c90c5ded9639edc8ad8aa9c",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      30.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R7",
+    "variant": "invalid",
+    "source": "nui 1\nconst Overlap: number = 105\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (30, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: @Overlap)\n",
+    "sha256": "54dd6346fa107f9bc5826469e7682189d7ce6a237bf93baedc3719a16432d6b5",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      30.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 105,
+    "columns": 0,
+    "rows": 1,
+    "error": "print usable width"
+  },
+  {
+    "id": "R7",
+    "variant": "after",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (30, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 7)\n",
+    "sha256": "e14c9c30ecda88cebf330d6809e73ade2a170c37f2e06cdb35f11e42198fab03",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      30.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 7,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R8",
+    "variant": "before",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n // preserve this comment\n line Edge [Ink] = segment(start: (0, 0), end: (30, 15))\n\n line Control [Ink] = segment(start: (0, -10), end: (10, -10))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "a9f8b83356f1b7dc90a10d6401b9741d7955f2a719de8081512c2eeac4f9cf8b",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            30.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            -10.0
+          ],
+          [
+            10.0,
+            -10.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -10.264583333333333,
+      30.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "R8",
+    "variant": "after",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n // preserve this comment\n line Edge [Ink] = segment(start: (0, 0), end: (47, 15))\n\n line Control [Ink] = segment(start: (0, -10), end: (10, -10))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "70288db16b09e7c1d928d592e473fd28d8973d2e1a6bde2a84c62346a92252be",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            47.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            -10.0
+          ],
+          [
+            10.0,
+            -10.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -10.264583333333333,
+      47.264583333333334,
+      15.264583333333333
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "X2",
+    "variant": "filled",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line A [Hidden] = segment(start: (0, 0), end: (20, 0))\n arc B [Hidden] = arc(center: (20, 10), radius: 10, start: -90, end: 90)\n curve C [Hidden] = bezier(start: (20, 20), end: (0, 0), startAngle: 180, startLength: 10, endAngle: 270, endLength: 10)\n line Joined [Fill] = join(paths: [@A, @B, @C], closed: true)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 23, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "0c076bf16dfd572eff289c9a01c621cc96f55cb808c839d9be9afa5b55ca1632",
+    "shapes": [
+      {
+        "type": "mixed",
+        "segments": [
+          {
+            "type": "line",
+            "points": [
+              [
+                43.03760307888039,
+                -14.74783824122811
+              ],
+              [
+                11.740438061497414,
+                -28.032696609863414
+              ]
+            ],
+            "width": 0.5291666666666667,
+            "color": "#123456",
+            "dash": "solid"
+          },
+          {
+            "type": "arc",
+            "center": [
+              5.098008877179758,
+              -12.38411410117193
+            ],
+            "radius": 17.0,
+            "start": 293,
+            "sweep": -180,
+            "points": [],
+            "width": 0.5291666666666667,
+            "color": "#123456",
+            "dash": "solid"
+          },
+          {
+            "type": "cubic",
+            "points": [
+              [
+                -1.544420307137898,
+                3.2644684075195585
+              ],
+              [
+                14.104162201553592,
+                9.906897591837208
+              ],
+              [
+                36.39517389456273,
+                0.9007442674633772
+              ],
+              [
+                43.03760307888039,
+                -14.74783824122811
+              ]
+            ],
+            "width": 0.5291666666666667,
+            "color": "#123456",
+            "dash": "solid"
+          }
+        ],
+        "fill": "#eebb99",
+        "opacity": 0.35,
+        "closed": true,
+        "segmented": true,
+        "points": [],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -12.166574456153574,
+      -29.648697434505266,
+      43.30218641221372,
+      5.738824545916981
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "X2",
+    "variant": "stroke",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line A [Hidden] = segment(start: (0, 0), end: (20, 0))\n arc B [Hidden] = arc(center: (20, 10), radius: 10, start: -90, end: 90)\n curve C [Hidden] = bezier(start: (20, 20), end: (0, 0), startAngle: 180, startLength: 10, endAngle: 270, endLength: 10)\n line Joined [Ink] = join(paths: [@A, @B, @C], closed: true)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 23, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "fa4db5afa45115fa87af17a5e608b649c25a3fb50ba97c385edacd05c265df95",
+    "shapes": [
+      {
+        "type": "mixed",
+        "segments": [
+          {
+            "type": "line",
+            "points": [
+              [
+                43.03760307888039,
+                -14.74783824122811
+              ],
+              [
+                11.740438061497414,
+                -28.032696609863414
+              ]
+            ],
+            "width": 0.5291666666666667,
+            "color": "#123456",
+            "dash": "solid"
+          },
+          {
+            "type": "arc",
+            "center": [
+              5.098008877179758,
+              -12.38411410117193
+            ],
+            "radius": 17.0,
+            "start": 293,
+            "sweep": -180,
+            "points": [],
+            "width": 0.5291666666666667,
+            "color": "#123456",
+            "dash": "solid"
+          },
+          {
+            "type": "cubic",
+            "points": [
+              [
+                -1.544420307137898,
+                3.2644684075195585
+              ],
+              [
+                14.104162201553592,
+                9.906897591837208
+              ],
+              [
+                36.39517389456273,
+                0.9007442674633772
+              ],
+              [
+                43.03760307888039,
+                -14.74783824122811
+              ]
+            ],
+            "width": 0.5291666666666667,
+            "color": "#123456",
+            "dash": "solid"
+          }
+        ],
+        "opacity": 0.35,
+        "closed": true,
+        "segmented": true,
+        "points": [],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -12.166574456153574,
+      -29.648697434505266,
+      43.30218641221372,
+      5.738824545916981
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "X3",
+    "variant": "nested",
+    "source": "nui 1\nstyle Blue {\n width: 2px,\n color: #123456,\n fill: #3366cc,\n fillOpacity: 0.75,\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Outer [Fill] = polyline(points: [(0, 0), (40, 0), (40, 30), (0, 30)], closed: true)\n line Inner [Blue] = polyline(points: [(10, 10), (30, 10), (30, 20), (10, 20)], closed: true)\n line Edge [Ink] = segment(start: (0, 15), end: (40, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "897dcad86de31c5e6405456687dc72396472f52130ffbf1254b723ba7d460a35",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            40.0,
+            0.0
+          ],
+          [
+            40.0,
+            30.0
+          ],
+          [
+            0.0,
+            30.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "fill": "#eebb99",
+        "opacity": 0.35,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "contour",
+        "points": [
+          [
+            10.0,
+            10.0
+          ],
+          [
+            30.0,
+            10.0
+          ],
+          [
+            30.0,
+            20.0
+          ],
+          [
+            10.0,
+            20.0
+          ],
+          [
+            10.0,
+            10.0
+          ]
+        ],
+        "fill": "#3366cc",
+        "opacity": 0.75,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            15.0
+          ],
+          [
+            40.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      40.264583333333334,
+      30.264583333333334
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "X3",
+    "variant": "reversed",
+    "source": "nui 1\nstyle Blue {\n width: 2px,\n color: #123456,\n fill: #3366cc,\n fillOpacity: 0.75,\n}\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Inner [Blue] = polyline(points: [(10, 10), (30, 10), (30, 20), (10, 20)], closed: true)\n line Outer [Fill] = polyline(points: [(0, 0), (40, 0), (40, 30), (0, 30)], closed: true)\n line Edge [Ink] = segment(start: (0, 15), end: (40, 15))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "52a954c0b5643775fa2b9f9c769e1d0710320292f0cb8be5d6f4e571ce31599a",
+    "shapes": [
+      {
+        "type": "contour",
+        "points": [
+          [
+            10.0,
+            10.0
+          ],
+          [
+            30.0,
+            10.0
+          ],
+          [
+            30.0,
+            20.0
+          ],
+          [
+            10.0,
+            20.0
+          ],
+          [
+            10.0,
+            10.0
+          ]
+        ],
+        "fill": "#3366cc",
+        "opacity": 0.75,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "contour",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            40.0,
+            0.0
+          ],
+          [
+            40.0,
+            30.0
+          ],
+          [
+            0.0,
+            30.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "fill": "#eebb99",
+        "opacity": 0.35,
+        "closed": true,
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      },
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            15.0
+          ],
+          [
+            40.0,
+            15.0
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      40.264583333333334,
+      30.264583333333334
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "F1",
+    "variant": "text",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"A\", anchor: (0, 0), size: 4)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "a1a137b04c9d18fdff6c47585f1f924feafe04d2802d0ce21173c87105ee10a9",
+    "shapes": [
+      {
+        "type": "text",
+        "value": "A",
+        "points": [
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "size": 4,
+        "color": "#31322f",
+        "width": 0.26458333333333334,
+        "dash": "solid",
+        "angle": 0,
+        "mirror": false,
+        "widths": [
+          2.48
+        ]
+      }
+    ],
+    "bounds": [
+      0.0,
+      -0.8,
+      2.48,
+      3.2
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "F1",
+    "variant": "vector",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (0, 3.2))\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "4ddcce7c2cadf800a5483e7b5c1d93251f328ad78316ef551e1799435ac2aeee",
+    "shapes": [
+      {
+        "type": "line",
+        "points": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            3.2
+          ]
+        ],
+        "width": 0.5291666666666667,
+        "color": "#123456",
+        "dash": "solid"
+      }
+    ],
+    "bounds": [
+      -0.26458333333333334,
+      -0.26458333333333334,
+      0.26458333333333334,
+      3.4645833333333336
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "X4",
+    "variant": "blank-row",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"Wi\\n\\n日本\", anchor: (5, 2), size: 4)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 1.7, angle: 113, mirror: true)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "a189c5305795010faae4517fa40a80d0cf4c0cbd53ce3ac92e1a6f414bb7035b",
+    "shapes": [
+      {
+        "type": "text",
+        "value": "Wi\n\n日本",
+        "points": [
+          [
+            32.93933633164864,
+            -30.11517401232889
+          ]
+        ],
+        "size": 6.8,
+        "color": "#31322f",
+        "width": 0.26458333333333334,
+        "dash": "solid",
+        "angle": 113,
+        "mirror": true,
+        "widths": [
+          8.432,
+          0.0,
+          13.6
+        ]
+      }
+    ],
+    "bounds": [
+      27.931789928867364,
+      -40.00244827562152,
+      54.52780548814191,
+      -23.20704766063853
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  },
+  {
+    "id": "X8",
+    "variant": "unsupported",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"😀\", anchor: (5, 2), size: 4)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "055df875625a360b45100c7191f3a16e7f1ef476ab05a4c67ef4da6f31952aa0",
+    "shapes": [
+      {
+        "type": "text",
+        "value": "😀",
+        "points": [
+          [
+            5.0,
+            2.0
+          ]
+        ],
+        "size": 4,
+        "color": "#31322f",
+        "width": 0.26458333333333334,
+        "dash": "solid",
+        "angle": 0,
+        "mirror": false,
+        "widths": [
+          4
+        ]
+      }
+    ],
+    "bounds": [
+      5.0,
+      1.2,
+      9.0,
+      5.2
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1,
+    "encodeError": "U+1F600"
+  },
+  {
+    "id": "X8",
+    "variant": "supported",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\nstyle Fill {\n width: 2px,\n color: #123456,\n fill: #eebb99,\n fillOpacity: 0.35,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"日\", anchor: (5, 2), size: 4)\n}\nlayout L {\n place @G(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 3)\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "0cf5871407c031f9151446890b7cce49e50f77ba2dc0727b07eb7c3cb3be78b1",
+    "shapes": [
+      {
+        "type": "text",
+        "value": "日",
+        "points": [
+          [
+            5.0,
+            2.0
+          ]
+        ],
+        "size": 4,
+        "color": "#31322f",
+        "width": 0.26458333333333334,
+        "dash": "solid",
+        "angle": 0,
+        "mirror": false,
+        "widths": [
+          4
+        ]
+      }
+    ],
+    "bounds": [
+      5.0,
+      1.2,
+      9.0,
+      5.2
+    ],
+    "margin": 3,
+    "paper": [
+      210,
+      297
+    ],
+    "overlap": 10,
+    "columns": 1,
+    "rows": 1
+  }
+]

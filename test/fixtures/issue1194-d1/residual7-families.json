@@ -1,0 +1,758 @@
+[
+  {
+    "id": "F42",
+    "title": "Deep nested geometry collection field alias runtime transport",
+    "status": "REPAIRED_THEN_PASS",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleGeometryArrayRuntime.ts: lowerValueById; shared canonical recordFieldValueSourceFor in moduleGeometryRuntimeLowering.ts",
+    "firstLossAndRepair": "The typed alias and scalar cardinality producers are already valid, but runtime rejects field paths deeper than one. The existing typed record-field traversal is extracted unchanged and reused for collection geometry, retaining defining path/caller context.",
+    "independentFamilyJustification": "F40 rejected geometry collection lookup at semantic admission; F41 repaired a flat field. This legal two-record field path is admitted by Base and loses geometry only at runtime.",
+    "normativeOracle": "docs/nui1/spec.md: Records; Modules; Multi-document imports; immutable collection for/index/control-flow semantics. Nominal declaration identity, selected source occurrence, authored order/cardinality, caller/definition scope and lazy unselected arms are preserved.",
+    "failBefore": {
+      "id": "A-min-alias",
+      "sha256": "1401adcb53d3c712229ab7a590eb28f81129119f342da5e16f13f1348226c4d3",
+      "classification": "REPAIRED_THEN_PASS",
+      "families": [
+        "F42"
+      ],
+      "oracle": {
+        "expected": {
+          "L": 5
+        }
+      },
+      "before": {
+        "runId": "base-exact-1792632496170",
+        "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+        "status": "UNRESOLVED",
+        "failures": [
+          "TS: AssertionError: expected [ { occurrence: { \u2026(2) }, \u2026(1) } ] to deeply equal []",
+          "Rust: AssertionError: expected [ { occurrence: { \u2026(2) }, \u2026(1) } ] to deeply equal []"
+        ],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "error",
+              "type": {
+                "kind": "number"
+              },
+              "issueCode": "evaluation-geometry-property-unavailable"
+            }
+          },
+          "geometryErrors": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3qwu:72",
+                "instancePath": []
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            }
+          ],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "issueCode": "evaluation-geometry-property-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            }
+          },
+          "geometryErrors": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3qwu:72",
+                "instancePath": []
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            }
+          ],
+          "errors": []
+        },
+        "recordGeometryPrograms": [],
+        "collectionProducerCount": 5
+      },
+      "after": {
+        "runId": "required-1792633012289",
+        "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [],
+        "collectionProducerCount": 5
+      }
+    },
+    "genuineAdjacentBasePass": {
+      "id": "A-min-direct",
+      "sha256": "b090f385f879d7709257e0f728c81e5f8e0636eaac0aec215c9d446eaee57bce",
+      "classification": "PASS",
+      "families": [],
+      "oracle": {
+        "expected": {
+          "L": 5
+        }
+      },
+      "before": {
+        "runId": "base-exact-1792632496170",
+        "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [],
+        "collectionProducerCount": 4
+      },
+      "after": {
+        "runId": "required-1792633012289",
+        "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [],
+        "collectionProducerCount": 4
+      }
+    },
+    "regressions": [
+      "A-alias",
+      "A-line-alias",
+      "A-point-alias",
+      "A-record-parameter",
+      "A-saved-reexport"
+    ]
+  },
+  {
+    "id": "F43",
+    "title": "Selected mapped constructor behind a whole-collection alias",
+    "status": "REPAIRED_THEN_PASS",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordGeometryValuePrograms",
+    "firstLossAndRepair": "Map geometry emission assumes the selected collection is directly a map. Follow canonical alias products in their defining context and use the canonical mapped collection identity for the emitted occurrence.",
+    "independentFamilyJustification": "F39 direct mapped constructor is Base PASS. Introducing a whole-collection alias makes Base omit the otherwise valid construction program.",
+    "normativeOracle": "docs/nui1/spec.md: Records; Modules; Multi-document imports; immutable collection for/index/control-flow semantics. Nominal declaration identity, selected source occurrence, authored order/cardinality, caller/definition scope and lazy unselected arms are preserved.",
+    "failBefore": {
+      "id": "B-min-alias",
+      "sha256": "cf601bb7e6914e72788910502d763ce803dd5f7a1b2f061942a7e20759379aac",
+      "classification": "REPAIRED_THEN_PASS",
+      "families": [
+        "F43"
+      ],
+      "oracle": {
+        "expected": {
+          "L": 5
+        }
+      },
+      "before": {
+        "runId": "base-exact-1792632496170",
+        "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+        "status": "UNRESOLVED",
+        "failures": [
+          "TS: AssertionError: expected [ Array(2) ] to deeply equal []",
+          "Rust: AssertionError: expected [ Array(2) ] to deeply equal []"
+        ],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "error",
+              "type": {
+                "kind": "number"
+              },
+              "issueCode": "evaluation-geometry-property-unavailable"
+            }
+          },
+          "geometryErrors": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r67:471",
+                "instancePath": [
+                  "statement:moduleInstance:mviv3r67:472"
+                ]
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r67:473",
+                "instancePath": []
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            }
+          ],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "issueCode": "evaluation-geometry-property-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            }
+          },
+          "geometryErrors": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r67:471",
+                "instancePath": [
+                  "statement:moduleInstance:mviv3r67:472"
+                ]
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r67:473",
+                "instancePath": []
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            }
+          ],
+          "errors": []
+        },
+        "recordGeometryPrograms": [],
+        "collectionProducerCount": 5
+      },
+      "after": {
+        "runId": "required-1792633012289",
+        "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [
+          {
+            "occurrence": {
+              "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mviveten:4071:72:292:3039:statement:recordDefinition:mviveten:40339:statement:recordDefinition:mviveten:4031:0",
+              "instancePath": [
+                "statement:moduleInstance:mviveten:411"
+              ]
+            },
+            "kind": "segment"
+          }
+        ],
+        "collectionProducerCount": 5
+      }
+    },
+    "genuineAdjacentBasePass": {
+      "id": "B-min-direct",
+      "sha256": "6e6cac96f644b9fdac2b8e53fc5fba52c5c36eaec1cf83712f15e7b3d5f03fab",
+      "classification": "PASS",
+      "families": [],
+      "oracle": {
+        "expected": {
+          "L": 5
+        }
+      },
+      "before": {
+        "runId": "base-exact-1792632496170",
+        "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [
+          {
+            "occurrence": {
+              "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mviv3r60:4571:62:302:3139:statement:recordDefinition:mviv3r60:45339:statement:recordDefinition:mviv3r60:4531:0",
+              "instancePath": [
+                "statement:moduleInstance:mviv3r60:460"
+              ]
+            },
+            "kind": "segment"
+          }
+        ],
+        "collectionProducerCount": 4
+      },
+      "after": {
+        "runId": "required-1792633012289",
+        "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [
+          {
+            "occurrence": {
+              "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mviveteh:3961:62:302:3139:statement:recordDefinition:mviveteh:39239:statement:recordDefinition:mviveteh:3921:0",
+              "instancePath": [
+                "statement:moduleInstance:mviveteh:399"
+              ]
+            },
+            "kind": "segment"
+          }
+        ],
+        "collectionProducerCount": 4
+      }
+    },
+    "regressions": [
+      "B-control"
+    ]
+  },
+  {
+    "id": "F44",
+    "title": "Constructor-map source occurrence through a second map",
+    "status": "REPAIRED_THEN_PASS",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordGeometryValuePrograms; lowerRecordPropertyAst and existing appendRecordFieldProjection",
+    "firstLossAndRepair": "A constructor-map source is not a concrete recordValue. Preserve its canonical selected recordCollectionIndex identity, bind the second map to that source, emit its required source geometry program once, and use the existing field projection producer for selected scalar fields.",
+    "independentFamilyJustification": "The alias-free two-map reducer fails Base while its one-map adjacent control passes; after the alias-only repair B-forward-chain still fails. This is a later source-member identity loss, distinct from F31 geometry field forwarding and F39 direct construction.",
+    "normativeOracle": "docs/nui1/spec.md: Records; Modules; Multi-document imports; immutable collection for/index/control-flow semantics. Nominal declaration identity, selected source occurrence, authored order/cardinality, caller/definition scope and lazy unselected arms are preserved.",
+    "failBefore": {
+      "id": "B-min-source",
+      "sha256": "033526e7fda43a3d88c801f99e4d8ef8391e70979c703fc11eeaa6de55ad1391",
+      "classification": "REPAIRED_THEN_PASS",
+      "families": [
+        "F44"
+      ],
+      "oracle": {
+        "expected": {
+          "L": 5
+        }
+      },
+      "before": {
+        "runId": "base-exact-1792632496170",
+        "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+        "status": "UNRESOLVED",
+        "failures": [
+          "TS: AssertionError: expected [ Array(2) ] to deeply equal []",
+          "Rust: AssertionError: expected [ Array(2) ] to deeply equal []"
+        ],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "error",
+              "type": {
+                "kind": "number"
+              },
+              "issueCode": "evaluation-geometry-property-unavailable"
+            }
+          },
+          "geometryErrors": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r6d:483",
+                "instancePath": [
+                  "statement:moduleInstance:mviv3r6d:484"
+                ]
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r6d:485",
+                "instancePath": []
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            }
+          ],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "issueCode": "evaluation-geometry-property-unavailable",
+              "status": "error",
+              "type": {
+                "kind": "number"
+              }
+            }
+          },
+          "geometryErrors": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r6d:483",
+                "instancePath": [
+                  "statement:moduleInstance:mviv3r6d:484"
+                ]
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mviv3r6d:485",
+                "instancePath": []
+              },
+              "message": "Geometry value reference is unavailable at runtime."
+            }
+          ],
+          "errors": []
+        },
+        "recordGeometryPrograms": [],
+        "collectionProducerCount": 5
+      },
+      "after": {
+        "runId": "required-1792633012289",
+        "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [
+          {
+            "occurrence": {
+              "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvivetet:4191:72:312:3239:statement:recordDefinition:mvivetet:41539:statement:recordDefinition:mvivetet:4151:0",
+              "instancePath": [
+                "statement:moduleInstance:mvivetet:423"
+              ]
+            },
+            "kind": "segment"
+          }
+        ],
+        "collectionProducerCount": 5
+      }
+    },
+    "genuineAdjacentBasePass": {
+      "id": "B-min-direct",
+      "sha256": "6e6cac96f644b9fdac2b8e53fc5fba52c5c36eaec1cf83712f15e7b3d5f03fab",
+      "classification": "PASS",
+      "families": [],
+      "oracle": {
+        "expected": {
+          "L": 5
+        }
+      },
+      "before": {
+        "runId": "base-exact-1792632496170",
+        "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [
+          {
+            "occurrence": {
+              "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mviv3r60:4571:62:302:3139:statement:recordDefinition:mviv3r60:45339:statement:recordDefinition:mviv3r60:4531:0",
+              "instancePath": [
+                "statement:moduleInstance:mviv3r60:460"
+              ]
+            },
+            "kind": "segment"
+          }
+        ],
+        "collectionProducerCount": 4
+      },
+      "after": {
+        "runId": "required-1792633012289",
+        "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+        "status": "PASS",
+        "failures": [],
+        "diagnostics": [],
+        "rustEligible": true,
+        "reference": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "production": {
+          "observed": {
+            "L": {
+              "status": "ok",
+              "type": {
+                "kind": "number"
+              },
+              "value": {
+                "kind": "number",
+                "value": 5
+              }
+            }
+          },
+          "geometryErrors": [],
+          "errors": []
+        },
+        "recordGeometryPrograms": [
+          {
+            "occurrence": {
+              "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mviveteh:3961:62:302:3139:statement:recordDefinition:mviveteh:39239:statement:recordDefinition:mviveteh:3921:0",
+              "instancePath": [
+                "statement:moduleInstance:mviveteh:399"
+              ]
+            },
+            "kind": "segment"
+          }
+        ],
+        "collectionProducerCount": 4
+      }
+    },
+    "regressions": [
+      "B-forward-noalias",
+      "B-forward-chain",
+      "B-selected-chain",
+      "B-match-chain",
+      "B-indexed-chain",
+      "B-saved-reexport"
+    ]
+  }
+]

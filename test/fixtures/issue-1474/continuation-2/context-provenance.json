@@ -1,0 +1,66 @@
+{
+  "router": {
+    "sha": "2e27610f8fd56476c55b6ac8f6204052fed6ff2a",
+    "url": "https://github.com/sayosomi/dev-context/blob/main/projects/nuinuiCAD/README.md"
+  },
+  "routes": [
+    {
+      "path": "shared/DEVELOPMENT.md",
+      "sha": "89dce37bcf1bd9e61c1378f49be956348209aa46"
+    },
+    {
+      "path": "projects/nuinuiCAD/CHECKOUTS.md",
+      "sha": "e04c67d502ef97f29c0c6287f25cf043a58cea6a"
+    },
+    {
+      "path": "projects/nuinuiCAD/EXECUTION-HANDOFF.md",
+      "sha": "5d9bb7eebd03dab990bbbe586b83b5ac9b4074bc"
+    },
+    {
+      "path": "projects/nuinuiCAD/CODING-AGENT.md",
+      "sha": "98e6d57e552c65f5f441ca245f503456e4acd391"
+    },
+    {
+      "path": "projects/nuinuiCAD/IMPLEMENTATION-SLICING.md",
+      "sha": "8cd274d22886a67f05042a489cdb2071f2497d28"
+    },
+    {
+      "path": "projects/nuinuiCAD/LANES.conf",
+      "sha": "b7b494eb1c4fcf37d06ffab4af11b261c80387b6"
+    }
+  ],
+  "issue": 1474,
+  "issueState": "open",
+  "materialComments": [
+    {
+      "id": 6435446667,
+      "url": "https://github.com/sayosomi/nuinuiCAD/issues/1474#issuecomment-6435446667"
+    },
+    {
+      "id": 6435648462,
+      "url": "https://github.com/sayosomi/nuinuiCAD/issues/1474#issuecomment-6435648462"
+    },
+    {
+      "id": 6435758252,
+      "url": "https://github.com/sayosomi/nuinuiCAD/issues/1474#issuecomment-6435758252"
+    },
+    {
+      "id": 6435808249,
+      "url": "https://github.com/sayosomi/nuinuiCAD/issues/1474#issuecomment-6435808249"
+    },
+    {
+      "id": 6436156611,
+      "url": "https://github.com/sayosomi/nuinuiCAD/issues/1474#issuecomment-6436156611"
+    },
+    {
+      "id": 6436234888,
+      "url": "https://github.com/sayosomi/nuinuiCAD/issues/1474#issuecomment-6436234888"
+    },
+    {
+      "id": 6436279987,
+      "url": "https://github.com/sayosomi/nuinuiCAD/issues/1474#issuecomment-6436279987"
+    }
+  ],
+  "humanProof": "LOCAL CHECK PASS mode=continue issue=sayosomi/nuinuiCAD#1474 branch=sayosomi/issue-1474-dependency-topology-hunt checkpoint=6c1d56b3e72c1acd1013b1f6c23d0e85aec9d50b state=exact human_clear=yes",
+  "startup": "Immediate fetch/prune and bounded volatile recheck passed before this continuation's source mutation; earlier tool evidence is retained in this task. No full Human inventory or second Human command was required."
+}

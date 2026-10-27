@@ -48,6 +48,7 @@ fn state_with_geometry(
     }
     EvaluationState {
         completed_transformation_recipe_indices: std::collections::HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
@@ -67,6 +68,7 @@ fn state_with_geometry(
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         computed_geometry_values: HashMap::new(),
+        lazy_geometry_value_programs: HashMap::new(),
         computed_geometry_order: vec![id.to_owned()],
         pre_mutation_geometry: HashMap::new(),
         geometry_mutation_executions: Vec::new(),

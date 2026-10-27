@@ -1,0 +1,562 @@
+{
+  "measurementScope": "Instrumented campaign runner top-level authored compiler attempts, TS reference calls and persistent Rust requests, including replays. Blank setup compile is separate. Existing/full-suite internals and uninstrumented reruns are not exhaustively counted.",
+  "counts": {
+    "compiler": 975,
+    "reference": 733,
+    "production": 733,
+    "setupCompiler": 13
+  },
+  "runs": [
+    {
+      "runId": "legacy-0",
+      "phase": "prevalidate",
+      "counts": {
+        "compiler": 40,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-1",
+      "phase": "prevalidate",
+      "counts": {
+        "compiler": 40,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-2",
+      "phase": "prevalidate",
+      "counts": {
+        "compiler": 40,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-3",
+      "phase": "prevalidate",
+      "counts": {
+        "compiler": 40,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-4",
+      "phase": "discover",
+      "counts": {
+        "compiler": 40,
+        "reference": 27,
+        "production": 27
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-5",
+      "phase": "discover",
+      "counts": {
+        "compiler": 2,
+        "reference": 2,
+        "production": 2
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-6",
+      "phase": "verify",
+      "counts": {
+        "compiler": 10,
+        "reference": 10,
+        "production": 10
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-7",
+      "phase": "discover",
+      "counts": {
+        "compiler": 12,
+        "reference": 6,
+        "production": 6
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-8",
+      "phase": "verify",
+      "counts": {
+        "compiler": 11,
+        "reference": 11,
+        "production": 11
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-9",
+      "phase": "verify",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-10",
+      "phase": "verify",
+      "counts": {
+        "compiler": 5,
+        "reference": 5,
+        "production": 5
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-11",
+      "phase": "verify",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-12",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 2,
+        "production": 2
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-13",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 1,
+        "production": 1
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-14",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-15",
+      "phase": "discover",
+      "counts": {
+        "compiler": 5,
+        "reference": 5,
+        "production": 5
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-16",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 1,
+        "production": 1
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-17",
+      "phase": "discover",
+      "counts": {
+        "compiler": 6,
+        "reference": 6,
+        "production": 6
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-18",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 3,
+        "production": 3
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-19",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-20",
+      "phase": "discover",
+      "counts": {
+        "compiler": 7,
+        "reference": 6,
+        "production": 6
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-21",
+      "phase": "discover",
+      "counts": {
+        "compiler": 5,
+        "reference": 5,
+        "production": 5
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-22",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-23",
+      "phase": "verify",
+      "counts": {
+        "compiler": 40,
+        "reference": 40,
+        "production": 40
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-24",
+      "phase": "discover",
+      "counts": {
+        "compiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-25",
+      "phase": "discover",
+      "counts": {
+        "compiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-26",
+      "phase": "discover",
+      "counts": {
+        "compiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-27",
+      "phase": "discover",
+      "counts": {
+        "compiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-28",
+      "phase": "discover",
+      "counts": {
+        "compiler": 9,
+        "reference": 6,
+        "production": 6
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-29",
+      "phase": "discover",
+      "counts": {
+        "compiler": 6,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-30",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-31",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 3,
+        "production": 3
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-32",
+      "phase": "discover",
+      "counts": {
+        "compiler": 4,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "legacy-33",
+      "phase": "verify",
+      "counts": {
+        "compiler": 67,
+        "setupCompiler": 1,
+        "reference": 66,
+        "production": 66
+      },
+      "sourceTreeSha256": null,
+      "resourceError": null
+    },
+    {
+      "runId": "base-replay-1792497394243",
+      "phase": "base-replay",
+      "counts": {
+        "compiler": 67,
+        "setupCompiler": 1,
+        "reference": 36,
+        "production": 36
+      },
+      "sourceTreeSha256": "07e85a36ea804bf320d2eeaa43b9bf9d074ddeab7eb35b7c5e6567995ffd559f",
+      "resourceError": null
+    },
+    {
+      "runId": "late-controls-1792497563930",
+      "phase": "late-controls",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 7,
+        "production": 7
+      },
+      "sourceTreeSha256": "50efbf56c95250911e13ee0cd122340798151af97901c7f463e320d91e16720a",
+      "resourceError": null
+    },
+    {
+      "runId": "corrected-control-1792497842703",
+      "phase": "corrected-control",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "sourceTreeSha256": "50efbf56c95250911e13ee0cd122340798151af97901c7f463e320d91e16720a",
+      "resourceError": null
+    },
+    {
+      "runId": "base-late-controls-1792497869048",
+      "phase": "base-late-controls",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 7,
+        "production": 7
+      },
+      "sourceTreeSha256": "07e85a36ea804bf320d2eeaa43b9bf9d074ddeab7eb35b7c5e6567995ffd559f",
+      "resourceError": null
+    },
+    {
+      "runId": "isolate-geometry-forwarding-1792497872784",
+      "phase": "isolate-geometry-forwarding",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "sourceTreeSha256": "eab1e034f4cc25c9e361d45ae1845f0ba902e3b442e3479cebe5dda867b15743",
+      "resourceError": null
+    },
+    {
+      "runId": "settled-candidate-1792497900342",
+      "phase": "settled-candidate",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "sourceTreeSha256": "50efbf56c95250911e13ee0cd122340798151af97901c7f463e320d91e16720a",
+      "resourceError": null
+    },
+    {
+      "runId": "final-gates-1792498010126",
+      "phase": "final-gates",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "sourceTreeSha256": "b23573bccf15a11a342fbd7076fdb210662da80cacd40d8c41de7f50f486beb2",
+      "resourceError": null
+    },
+    {
+      "runId": "final-gates-1792498174970",
+      "phase": "final-gates",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "sourceTreeSha256": "b23573bccf15a11a342fbd7076fdb210662da80cacd40d8c41de7f50f486beb2",
+      "resourceError": null
+    },
+    {
+      "runId": "geometry-routing-regression-1792515039498",
+      "phase": "geometry-routing-regression",
+      "counts": {
+        "compiler": 0,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "sourceTreeSha256": "8442493426896a23df49f4ba1fbecda0566abb52401ca8c4cffee333abef6c73",
+      "resourceError": null
+    },
+    {
+      "runId": "geometry-routing-regression2-1792515053328",
+      "phase": "geometry-routing-regression2",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "sourceTreeSha256": "3fcaea92d77fdaa5ef87ac122c24deb2b9a874644c2f4d7c4405400b2851adcf",
+      "resourceError": null
+    },
+    {
+      "runId": "final-repaired-gates-1792515067587",
+      "phase": "final-repaired-gates",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "sourceTreeSha256": "3fcaea92d77fdaa5ef87ac122c24deb2b9a874644c2f4d7c4405400b2851adcf",
+      "resourceError": null
+    },
+    {
+      "runId": "final-repaired-gates-1792515225830",
+      "phase": "final-repaired-gates",
+      "counts": {
+        "compiler": 75,
+        "setupCompiler": 1,
+        "reference": 74,
+        "production": 74
+      },
+      "sourceTreeSha256": "3fcaea92d77fdaa5ef87ac122c24deb2b9a874644c2f4d7c4405400b2851adcf",
+      "resourceError": null
+    }
+  ],
+  "confirmedAdditionalRuns": [
+    {
+      "log": "/tmp/nuinuicad-1194-literal-stack.log",
+      "counts": {
+        "compiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "basis": "Printed failed-run counters; compiler threw before evaluation."
+    },
+    {
+      "log": "/tmp/nuinuicad-1194-focused-all.log",
+      "counts": {
+        "compiler": 67,
+        "setupCompiler": 1,
+        "reference": 66,
+        "production": 66
+      },
+      "basis": "All 67 campaign cases passed within 320 tests; the same source/oracle suite has one intentional compiler rejection and 66 normally eligible runtime cases, confirmed by the instrumented identical rerun."
+    }
+  ],
+  "campaignAuthoredAttemptsAndRuntimeCallsIncludingConfirmedAdditionalRuns": {
+    "compiler": 1043,
+    "reference": 799,
+    "production": 799,
+    "setupCompiler": 14
+  },
+  "quota": {
+    "weeklyRemainingPercent": "UNAVAILABLE",
+    "fiveHourRemainingPercent": "UNAVAILABLE",
+    "reason": "No Human readings/reset identities provided; no estimate from calls or time."
+  }
+}

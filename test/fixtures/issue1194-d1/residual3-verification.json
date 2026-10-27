@@ -1,0 +1,107 @@
+{
+  "verifiedAtJST": "2026-10-21T13:16:12.541376+09:00",
+  "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+  "requiredBlock": {
+    "script": "/tmp/issue1194-r3-final-verification.zsh",
+    "sha256": "15920bd7caf7e9507dfc76e7168fecb3cac072c9cdd84b4c161e30484bc3d833",
+    "order": [
+      "specified 7-file vitest command",
+      "npm run build",
+      "npm run lint",
+      "npm run test:parity",
+      "npm test",
+      "npm run docs:dsl:check",
+      "cargo fmt --check",
+      "cargo check",
+      "cargo test",
+      "cargo clippy --all-targets",
+      "git diff --check"
+    ]
+  },
+  "settledResults": {
+    "targeted": {
+      "files": 7,
+      "passed": 320,
+      "skipped": 4
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "parity": {
+      "passed": 203
+    },
+    "full": {
+      "filesPassed": 672,
+      "filesSkipped": 2,
+      "passed": 10704,
+      "skipped": 161
+    },
+    "dslReference": "PASS",
+    "rustFmt": "PASS",
+    "rustCheck": "PASS",
+    "rustTest": {
+      "passed": 621,
+      "ignored": 9,
+      "details": [
+        "library: 614 passed, 9 ignored",
+        "stdio: 6 passed",
+        "offset hover metadata: 1 passed",
+        "doc tests: 0"
+      ]
+    },
+    "rustClippy": "PASS",
+    "diffCheck": "PASS"
+  },
+  "focusedBeforeSettledBlock": {
+    "files": 5,
+    "passed": 303,
+    "skipped": 4
+  },
+  "supplementaryIdentityAssertions": {
+    "command": "npx vitest run test/issue1194Residual3D1Rust.integration.test.ts",
+    "passed": 36,
+    "skipped": 4,
+    "lint": "PASS",
+    "note": "Only stronger nominal-definition and per-instance dependency-owner assertions were added after the settled production block. No production sources changed."
+  },
+  "rustFocused": {
+    "commands": [
+      "cargo fmt --check --manifest-path rust-evaluator/Cargo.toml",
+      "cargo check --manifest-path rust-evaluator/Cargo.toml",
+      "cargo test --manifest-path rust-evaluator/Cargo.toml geometry_value"
+    ],
+    "passed": 37
+  },
+  "firstBlockAttempt": {
+    "result": "npm test: 1 failed, 10703 passed, 161 skipped; later gates not run",
+    "failingTest": "src/dsl/moduleScalarRuntime.integration.test.ts: evaluates constructed geometry record fields through a Module parameter",
+    "repair": "Separate fieldOccurrencePath from caller-side fieldContextPath for an inline record parameter constructor.",
+    "log": "/tmp/issue1194-r3-final-verification.log",
+    "sha256": "6791bc2c2f2bf16d986fde1cb6af1d146f3fc07708cda5948e67b86ae083e422"
+  },
+  "settledBlockLog": {
+    "path": "/tmp/issue1194-r3-final-verification2.log",
+    "sha256": "42af39bb84fc4e60e45ae79783d9fee6cf780d525db2a5aa680a053414f2fce9"
+  },
+  "quota": {
+    "humanBaselineWeeklyRemainingPercent": 74,
+    "endingWeeklyRemaining": "UNAVAILABLE",
+    "fiveHourRemaining": "UNAVAILABLE",
+    "attributableConsumption": "UNAVAILABLE"
+  },
+  "scope": {
+    "novelFixedFamilies": 8,
+    "newAccepted": 30,
+    "cumulativeAccepted": 140,
+    "ceiling": 144,
+    "unresolved": [
+      "G9",
+      "G10",
+      "G11",
+      "G12"
+    ],
+    "ambiguous": "file-public record definitions and qualified imported record-type spelling",
+    "uncovered": "deeper source/dependency permutations; #1260 domains excluded"
+  },
+  "manualE2E": "Not Required",
+  "handoff": "Independent blocking review of exact pushed HEAD; no PR, merge, issue closure or main switch."
+}

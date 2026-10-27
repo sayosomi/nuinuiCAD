@@ -1,0 +1,254 @@
+{
+  "reason": "CONTRACT_INVALID: Module split at parameter rejects coordinate-form reference; use a Module-local coordinate point and reference it. Exact mathematical geometry, instance arguments and oracle unchanged. Original C6 sources and seal retained.",
+  "originalDisposition": "CONTRACT_INVALID",
+  "unsupportedDiagnostic": "module-geometry-type-mismatch: このgeometry reference parameterではcoordinate形式を指定できません。",
+  "units": [
+    {
+      "id": "C6",
+      "checkpoints": [
+        {
+          "file": "C6-supported-0.nui",
+          "sha256": "3db7f38b07f5aece345253b4a90beb485b33c0b9d008246cdf27d93c01592ae2",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "LeftPath": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 42,
+                    "y": 7
+                  },
+                  "control1": {
+                    "x": 35.25,
+                    "y": 16.0
+                  },
+                  "control2": {
+                    "x": 17.8125,
+                    "y": 31.75
+                  },
+                  "end": {
+                    "x": 8.25,
+                    "y": 23.875
+                  }
+                }
+              ]
+            },
+            "LeftResult": {
+              "kind": "point",
+              "x": 31.793820877323746,
+              "y": 21.46871188861654
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 109.79382087732375,
+              "y": 21.46871188861654
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "originalControlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "selectedControlPoints": [
+              [
+                42,
+                7
+              ],
+              [
+                35.25,
+                16.0
+              ],
+              [
+                17.8125,
+                31.75
+              ],
+              [
+                8.25,
+                23.875
+              ]
+            ],
+            "selectedLocalT": 0.4000000000000001,
+            "originalFrame": {
+              "t": 0.7,
+              "first": [
+                49.31999999999999,
+                -38.16
+              ],
+              "second": [
+                -34.79999999999999,
+                -57.60000000000003
+              ],
+              "speed": 62.35902500841397,
+              "curvature": -0.01719147385888182,
+              "tangent": [
+                0.7909039628721801,
+                -0.6119402924412489
+              ],
+              "normal": [
+                0.6119402924412489,
+                0.7909039628721801
+              ],
+              "point": [
+                29.793820877323746,
+                14.46871188861654
+              ]
+            },
+            "instanceArguments": {
+              "Left": 2,
+              "Right": 80
+            },
+            "stage": "Tail.flipped after Raw.shifted split at original t=.25"
+          },
+          "wrongOracle": null,
+          "note": "",
+          "originalFile": "C6-0.nui"
+        },
+        {
+          "file": "C6-supported-1.nui",
+          "sha256": "82dde92eb8a10e862e12322a56b7ba55661d6250320a11ec0e8ab9631662820d",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "LeftPath": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 51,
+                    "y": 7
+                  },
+                  "control1": {
+                    "x": 44.25,
+                    "y": 16.0
+                  },
+                  "control2": {
+                    "x": 26.8125,
+                    "y": 31.75
+                  },
+                  "end": {
+                    "x": 17.25,
+                    "y": 23.875
+                  }
+                }
+              ]
+            },
+            "LeftResult": {
+              "kind": "point",
+              "x": 40.793820877323746,
+              "y": 21.46871188861654
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 109.79382087732375,
+              "y": 21.46871188861654
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "analytic": {
+            "originalControlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "selectedControlPoints": [
+              [
+                51,
+                7
+              ],
+              [
+                44.25,
+                16.0
+              ],
+              [
+                26.8125,
+                31.75
+              ],
+              [
+                17.25,
+                23.875
+              ]
+            ],
+            "selectedLocalT": 0.4000000000000001,
+            "originalFrame": {
+              "t": 0.7,
+              "first": [
+                49.31999999999999,
+                -38.16
+              ],
+              "second": [
+                -34.79999999999999,
+                -57.60000000000003
+              ],
+              "speed": 62.35902500841397,
+              "curvature": -0.01719147385888182,
+              "tangent": [
+                0.7909039628721801,
+                -0.6119402924412489
+              ],
+              "normal": [
+                0.6119402924412489,
+                0.7909039628721801
+              ],
+              "point": [
+                29.793820877323746,
+                14.46871188861654
+              ]
+            },
+            "instanceArguments": {
+              "Left": 11,
+              "Right": 80
+            },
+            "stage": "Tail.flipped after Raw.shifted split at original t=.25"
+          },
+          "wrongOracle": null,
+          "note": "",
+          "originalFile": "C6-1.nui"
+        }
+      ]
+    }
+  ]
+}

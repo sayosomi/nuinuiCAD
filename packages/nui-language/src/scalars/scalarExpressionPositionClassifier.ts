@@ -91,6 +91,11 @@ type ScalarCallContext = {
   readonly definition: NonNullable<ReturnType<typeof getBuiltinFunctionDefinition>>;
 };
 
+type BuiltinArgumentCompletionExpectation = {
+  readonly expectedType: ScalarType | null;
+  readonly expectedGeometryEndpoint?: true;
+};
+
 const callContextAt = (tokens: readonly ScalarExpressionToken[], anchorIndex: number): ScalarCallContext | null => {
   let nesting = 0;
   for (let index = anchorIndex; index >= 0; index -= 1) {
@@ -160,11 +165,16 @@ const namedArgumentNamesAt = (
  * `anyChoice` constraint intentionally returns null because completion cannot
  * invent a concrete choice option set.
  */
-const builtinArgumentTypeAt = (
+const builtinArgumentCompletionExpectationAt = (
   tokens: readonly ScalarExpressionToken[],
   precedingToken: ScalarExpressionToken,
   rootType: ScalarType | null
-): ScalarType | null => {
+): BuiltinArgumentCompletionExpectation => {
+  const scalarExpectation = (expectedType: ScalarType | null): BuiltinArgumentCompletionExpectation => ({ expectedType });
+  const geometryEndpointExpectation: BuiltinArgumentCompletionExpectation = {
+    expectedType: null,
+    expectedGeometryEndpoint: true
+  };
   const precedingIndex = tokens.lastIndexOf(precedingToken);
   if (precedingToken.kind === "colon") {
     const nameToken = precedingIndex > 0 ? tokens[precedingIndex - 1] : null;
@@ -172,20 +182,25 @@ const builtinArgumentTypeAt = (
     const signature = call?.definition.signatures.find((candidate) => candidate.callingStyle === "named");
     if (nameToken?.kind === "literal" && nameToken.literal.kind === "choice" && signature) {
       const parameter = signature.parameters.find((candidate) => candidate.name === nameToken.literal.raw);
+      if (parameter?.type && typeof parameter.type !== "string" && parameter.type.kind === "geometryEndpoint") {
+        return geometryEndpointExpectation;
+      }
       return parameter && isScalarBuiltinParameterType(parameter.type) && parameter.type.kind !== "anyChoice"
-        ? parameter.type
-        : null;
+        ? scalarExpectation(parameter.type)
+        : scalarExpectation(null);
     }
-    return expectedOperandType(precedingToken, rootType);
+    return scalarExpectation(expectedOperandType(precedingToken, rootType));
   }
-  if (precedingToken.kind !== "leftParen" && precedingToken.kind !== "comma") return expectedOperandType(precedingToken, rootType);
-  if (precedingIndex < 0) return expectedOperandType(precedingToken, rootType);
+  if (precedingToken.kind !== "leftParen" && precedingToken.kind !== "comma") {
+    return scalarExpectation(expectedOperandType(precedingToken, rootType));
+  }
+  if (precedingIndex < 0) return scalarExpectation(expectedOperandType(precedingToken, rootType));
   const call = callContextAt(tokens, precedingIndex);
   if (!call) {
-    return expectedOperandType(precedingToken, rootType);
+    return scalarExpectation(expectedOperandType(precedingToken, rootType));
   }
   const namedSignature = call.definition.signatures.find((signature) => signature.callingStyle === "named");
-  if (namedSignature) return expectedOperandType(precedingToken, rootType);
+  if (namedSignature) return scalarExpectation(expectedOperandType(precedingToken, rootType));
   let nestedDepth = 0;
   let argumentIndex = 0;
   for (let index = call.openingIndex + 1; index <= precedingIndex; index += 1) {
@@ -201,11 +216,14 @@ const builtinArgumentTypeAt = (
   const parameterType = call.definition.signatures
     .filter((signature) => signature.callingStyle === "positional")
     .find((signature) => signature.parameters.length > argumentIndex)?.parameters[argumentIndex]?.type;
+  if (parameterType && typeof parameterType !== "string" && parameterType.kind === "geometryEndpoint") {
+    return geometryEndpointExpectation;
+  }
   return parameterType && isScalarBuiltinParameterType(parameterType) && parameterType.kind !== "anyChoice"
-    ? parameterType
+    ? scalarExpectation(parameterType)
     : parameterType && isScalarBuiltinParameterType(parameterType) && parameterType.kind === "anyChoice"
-      ? null
-      : expectedOperandType(precedingToken, rootType);
+      ? scalarExpectation(null)
+      : scalarExpectation(expectedOperandType(precedingToken, rootType));
 };
 
 export type ScalarOperandWordMatch = { readonly from: number; readonly to: number; readonly kind: "reference" | "bareWord" };
@@ -253,6 +271,8 @@ export type ScalarExpressionCompletionContext =
       /** A bare (non-"@") identifier is already in progress: only literal candidates apply - a bare word can never become a reference. */
       literalOnly: boolean;
       expectedType: ScalarType | null;
+      /** The builtin signature expects a geometry endpoint reference at this positional argument. */
+      expectedGeometryEndpoint?: true;
     }
   | { kind: "operator"; from: number; to: number; precedingToken: ScalarExpressionToken; rootType: ScalarType | null };
 
@@ -305,8 +325,8 @@ export const scalarExpressionCompletionContextAt = (
     to: pos,
     referenceOnly: wordMatch?.kind === "reference",
     literalOnly: wordMatch?.kind === "bareWord",
-    expectedType: classification.precedingToken
-      ? builtinArgumentTypeAt(tokens, classification.precedingToken, rootType)
-      : rootType
+    ...(classification.precedingToken
+      ? builtinArgumentCompletionExpectationAt(tokens, classification.precedingToken, rootType)
+      : { expectedType: rootType })
   };
 };

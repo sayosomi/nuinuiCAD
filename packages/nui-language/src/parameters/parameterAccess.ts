@@ -17,6 +17,9 @@ export const parseAnchorCoordinateParameterKey = (key: string) => {
 };
 
 export const getPointAnchor = (element: CadElement, key: string): PointAnchor | null => {
+  if (element.type === "polyline" && /^points:(0|[1-9]\d*)$/.test(key)) {
+    return element.points[Number(key.slice("points:".length))] ?? null;
+  }
   const parsed = parseIntermediateParameterKey(key);
   if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
     return element.intermediatePoints.find((point) => point.id === parsed.intermediatePointId)?.point ?? null;
@@ -87,6 +90,12 @@ export const setPointAnchor = (
     return { ...element, anchor: null };
   }
   if (!anchor) return element;
+  if (element.type === "polyline" && /^points:(0|[1-9]\d*)$/.test(key)) {
+    const index = Number(key.slice("points:".length));
+    return index < element.points.length
+      ? { ...element, points: element.points.map((point, i) => i === index ? anchor : point) }
+      : element;
+  }
   const parsed = parseIntermediateParameterKey(key);
   if (parsed && element.type === "bezierCurve" && parsed.field === "point") {
     return {

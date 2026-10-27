@@ -1,0 +1,123 @@
+[
+  {
+    "id": "R1",
+    "discriminator": "minimal scalar indexed consumer",
+    "source": "nui 1\nconst Values: number[] = [7, 19]\nconst picked: number = @Values[1]\n",
+    "targetOffset": 12,
+    "newName": "Sizes",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Values",
+        "newText": "Sizes"
+      },
+      {
+        "from": 63,
+        "to": 69,
+        "expectedText": "Values",
+        "newText": "Sizes"
+      }
+    ],
+    "points": [],
+    "scalars": {
+      "picked": 19
+    }
+  },
+  {
+    "id": "R2",
+    "discriminator": "minimal numeric argument indexed consumer",
+    "source": "nui 1\nconst Values: number[] = [7, 19]\npoint Observer = coordinate(x: @Values[1], y: 0)\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 12,
+    "newName": "Sizes",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Values",
+        "newText": "Sizes"
+      },
+      {
+        "from": 71,
+        "to": 77,
+        "expectedText": "Values",
+        "newText": "Sizes"
+      }
+    ],
+    "points": [
+      [
+        "Observer",
+        19,
+        0
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "C1",
+    "discriminator": "valid unreferenced array positive control",
+    "source": "nui 1\nconst Values: number[] = [7, 19]\npoint Observer = coordinate(x: 17, y: 0)\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 12,
+    "newName": "Sizes",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Values",
+        "newText": "Sizes"
+      }
+    ],
+    "points": [
+      [
+        "Observer",
+        17,
+        0
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "C2",
+    "discriminator": "collection collision and nested capture control",
+    "source": "nui 1\nconst Values: number[] = [7, 19]\nconst Other: number[] = [61, 72]\ngroup Nested {\n  const Taken: number[] = [41, 52]\n  point Observer = coordinate(x: @Values[1], y: 0)\n}\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 12,
+    "newName": "Sizes",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Values",
+        "newText": "Sizes"
+      },
+      {
+        "from": 156,
+        "to": 162,
+        "expectedText": "Values",
+        "newText": "Sizes"
+      }
+    ],
+    "points": [
+      [
+        "Observer",
+        19,
+        0
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {}
+  }
+]

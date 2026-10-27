@@ -1,3 +1,4 @@
+import type { ModuleRecordValueExpressionSemantic, ModuleScalarExpressionSemantic, ModuleRecordFieldSourceTarget } from "../dsl/moduleSemanticTypes";
 import { encodeIdentityTuple } from "../document/identityTuple";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import type {
@@ -170,6 +171,26 @@ export const recordScalarBindingIdForPath = (
 export const recordValueCollectionIdFor = (path: readonly string[], statementId: string): string =>
   `record-value:${JSON.stringify([path, statementId])}`;
 
+/** Whole nominal records reuse the existing record-member collection runtime.
+ * The JSON identity keeps the source path and statement identity unambiguous
+ * while allowing semantic nodes to emit a root-form identity that this
+ * compiler resolves for a concrete Module instance. */
+export const recordValueCollectionIdentityFor = (valueId: string): { path: string[]; statementId: string } | null => {
+  if (!valueId.startsWith("record-value:")) return null;
+  try {
+    const encoded = JSON.parse(valueId.slice("record-value:".length)) as unknown;
+    if (!Array.isArray(encoded) || !Array.isArray(encoded[0]) || !encoded[0].every((part) => typeof part === "string") || typeof encoded[1] !== "string") return null;
+    return { path: encoded[0], statementId: encoded[1] };
+  } catch {
+    return null;
+  }
+};
+
+
+/** A selected record owns a singleton, distinct from its source array. */
+export const indexedRecordValueCollectionIdFor = (collectionValueId: string, index: ScalarExpressionAst): string =>
+  recordValueCollectionIdFor([collectionValueId, index.kind === "numberLiteral" ? String(index.value) : `index:${index.span.start}:${index.span.end}`], collectionValueId);
+
 /** Stable collection-runtime identity for a scalar field projected from a
  * whole nominal record value. */
 export const recordFieldCollectionValueIdFor = (
@@ -194,6 +215,17 @@ export const recordFieldContentsCollectionValueIdFor = (
   recordCollectionValueId,
   fieldPath.map((field) => [field.recordStatementId, field.fieldIndex])
 ])}`;
+
+export const recordFieldContentsCollectionIdentityFor = (valueId: string): { recordCollectionValueId: string; fieldPath: RecordFieldIdentity[] } | null => {
+  if (!valueId.startsWith("record-field-contents:")) return null;
+  try {
+    const tuple = JSON.parse(valueId.slice("record-field-contents:".length)) as unknown;
+    if (!Array.isArray(tuple) || tuple.length !== 2 || typeof tuple[0] !== "string" || !Array.isArray(tuple[1])) return null;
+    const fieldPath = tuple[1].flatMap((field): RecordFieldIdentity[] => Array.isArray(field) && field.length === 2 && typeof field[0] === "string" && Number.isInteger(field[1]) && field[1] >= 0
+      ? [{ recordStatementId: field[0], fieldIndex: field[1] }] : []);
+    return fieldPath.length > 0 && fieldPath.length === tuple[1].length ? { recordCollectionValueId: tuple[0], fieldPath } : null;
+  } catch { return null; }
+};
 
 const recordFieldPathKey = (path: readonly RecordFieldIdentity[]) => JSON.stringify(
   path.map((field) => [field.recordStatementId, field.fieldIndex])
@@ -298,6 +330,7 @@ const projectRecordFieldExpression = (
   if (expression.kind === "constructor") {
     const constructorField = expression.constructor.fields.find((candidate) => candidate.field.fieldIndex === field.fieldIndex);
     if (!constructorField) return null;
+    if (constructorField.value === "none") return { kind: "noneLiteral", span: constructorField.valueSpan };
     return parseScalarExpression(
       `${" ".repeat(constructorField.valueSpan.start)}${constructorField.value}`,
       constructorField.valueSpan
@@ -377,6 +410,8 @@ export const planRecordScalarLowering = ({
   additionalRecordValueResolver?: (value: RecordValueSemantic) => ExternalRecordScalarAlias | null;
 }): RecordScalarLoweringPlan => {
   const bindingSeeds: BindingSeed[] = [];
+  const seedOrderByStatement = new Map<number, number>();
+  const nextSeedOrder = (index: number) => { const order = seedOrderByStatement.get(index) ?? 0; seedOrderByStatement.set(index, order + 1); return order; };
   const initializers: RecordScalarFieldInitializer[] = [];
   const fieldBindingIdsByValueStatementId = new Map<RecordValueIdentity, ReadonlyMap<number, BindingId>>();
   const fieldBindingIdsByAccessPathByValueStatementId = new Map<RecordValueIdentity, ReadonlyMap<string, BindingId>>();
@@ -402,7 +437,7 @@ export const planRecordScalarLowering = ({
   const constructorFieldAtPath = (
     constructorFields: readonly { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }[],
     path: readonly RecordFieldIdentity[]
-  ): { field: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }; path: readonly RecordFieldIdentity[] } | null => {
+  ): { field: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType }; path: readonly RecordFieldIdentity[]; ast?: ScalarExpressionAst } | null => {
     let fields = constructorFields;
     let current: { field: RecordFieldIdentity; value: string; valueSpan: DslSpan; expectedType: import("../dsl/dslValueTypes").DslValueType } | null = null;
     for (const [index, wanted] of path.entries()) {
@@ -415,13 +450,29 @@ export const planRecordScalarLowering = ({
         : null;
       if (!definition) return null;
       const nested = parseRecordConstructorFields({ initializer: current.value, initializerSpan: current.valueSpan, definition });
-      if (!nested) return null;
+      if (!nested) {
+        const parsed = parseScalarExpression(current.value, { start: 0, end: current.value.length });
+        if (parsed.ast?.kind !== "reference") return null;
+        const names = path.slice(index + 1).map(identity => analysis.definitionsByStatementId.get(identity.recordStatementId)
+          ?.fields.find(candidate => candidate.fieldIndex === identity.fieldIndex)?.name);
+        if (names.some(name => name === undefined)) return null;
+        // The nested field aliases a whole record. Project its remaining
+        // scalar path through the ordinary record-property binding adapter.
+        return { field: current, path, ast: syntheticRecordField({ name: parsed.ast.name, span: current.valueSpan }, names.join(".")) };
+      }
       fields = nested.fields;
     }
     return current ? { field: current, path } : null;
   };
 
   for (const value of values) {
+    const inlineCollection = value.inlineCollectionMember
+      ? sourceNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementId.get(value.inlineCollectionMember.collectionStatementId)
+      : null;
+    // Optional record members own lazy singleton descriptors. Seeding their
+    // fields as root declarations evaluates unselected collection branches.
+    if (inlineCollection && isDslOptionalValueType(inlineCollection.valueType.elementType)) continue;
+    if (value.inlineCollectionMember && !seedOrderByStatement.has(value.statementIndex)) seedOrderByStatement.set(value.statementIndex, 1);
     const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(value.statementIndex);
     if (!scopeId || !value.typeIdentity) {
       unresolvedValueStatementIds.push(value.statementId);
@@ -444,13 +495,14 @@ export const planRecordScalarLowering = ({
     if (
       value.valueExpression?.kind === "none" ||
       value.valueExpression?.kind === "coalesce" ||
+      value.valueExpression?.kind === "match" && value.valueExpression.optionalRecordMatch ||
       isIndexedCollectionCarry ||
       isDslOptionalValueType(value.valueExpression?.valueType)
     ) {
       continue;
     }
 
-    if (value.valueExpression) {
+    if (value.valueExpression && !value.constructor) {
       const definition = analysis.definitionsByStatementId.get(value.typeIdentity);
       if (!definition) {
         unresolvedValueStatementIds.push(value.statementId);
@@ -460,7 +512,6 @@ export const planRecordScalarLowering = ({
       const pathBindings = new Map<string, BindingId>();
       let complete = true;
       let diagnosticOwnerAssigned = false;
-      let seedOrder = 0;
       for (const { field, path, type: expectedType } of scalarFieldPathsFor(definition)) {
         const bindingId = recordScalarBindingIdForPath(value.statementId, path);
         const ast = projectRecordFieldExpression(value.valueExpression, field, path);
@@ -476,7 +527,7 @@ export const planRecordScalarLowering = ({
           name: `${value.name}.${path.map((candidate) => analysis.definitionsByStatementId.get(candidate.recordStatementId)?.fields.find((field) => field.identity.fieldIndex === candidate.fieldIndex)?.name ?? "").join(".")}`,
           nameSpan: null,
           statementIndex: value.statementIndex,
-          sourceOrder: seedOrder++,
+          sourceOrder: nextSeedOrder(value.statementIndex),
           effectiveScopeId: scopeId,
           visibility: { kind: "typed", scopeId },
           mutability: "const",
@@ -517,7 +568,6 @@ export const planRecordScalarLowering = ({
       const pathBindings = new Map<string, BindingId>();
       const fields = scalarFieldPathsFor(analysis.definitionsByStatementId.get(value.typeIdentity)!);
       let complete = true;
-      let seedOrder = 0;
       for (const { field, path, type: expectedType } of fields) {
         const constructorField = constructorFieldAtPath(value.constructor.fields, path);
         if (!constructorField) {
@@ -533,7 +583,7 @@ export const planRecordScalarLowering = ({
           name: `${value.name}.${path.map((candidate) => analysis.definitionsByStatementId.get(candidate.recordStatementId)?.fields.find((field) => field.identity.fieldIndex === candidate.fieldIndex)?.name ?? "").join(".")}`,
           nameSpan: null,
           statementIndex: value.statementIndex,
-          sourceOrder: seedOrder++,
+          sourceOrder: nextSeedOrder(value.statementIndex),
           effectiveScopeId: scopeId,
           visibility: { kind: "typed", scopeId },
           mutability: "const",
@@ -552,7 +602,11 @@ export const planRecordScalarLowering = ({
           sourceOrder: field.fieldIndex,
           raw: constructorField.field.value,
           span: constructorField.field.valueSpan,
-          expectedType
+          expectedType,
+          // Omitted optional fields have no authored expression span. Keep
+          // the canonical absence AST rather than reparsing the field name.
+          ...(constructorField.ast ? { ast: constructorField.ast }
+            : constructorField.field.value === "none" ? { ast: { kind: "noneLiteral" as const, span: constructorField.field.valueSpan } } : {})
         });
       }
       if (complete) {
@@ -811,7 +865,7 @@ export const resolveRecordScalarProperties = ({
     // scalar fields do not have independent backing bindings. Project the
     // field through the existing record collection runtime so the selected
     // branch remains lazy and no optional record is implicitly unwrapped.
-    if (value.valueExpression?.kind === "coalesce") {
+    if (value.valueExpression?.kind === "coalesce" || value.valueExpression?.kind === "match" && value.valueExpression.optionalRecordMatch) {
       referencesBySpanStart.set(node.span.start, {
         kind: "resolvedCollectionIndex",
         collectionValueId: recordFieldCollectionValueIdFor(
@@ -1306,4 +1360,136 @@ export const prepareRecordScalarExpression = ({
       ...[...additionalPropertiesBySpanStart.values()].flatMap((property) => property.dependency ? [property.dependency] : [])
     ]
   };
+};
+
+/** Shared semantic field projection for Module analysis and lazy constructors.
+ * A nested record reference retains its original owner and remaining field path. */
+export const moduleRecordFieldExpressionFor = (
+  expression: ModuleRecordValueExpressionSemantic,
+  field: { identity: RecordFieldIdentity; name: string; type: ScalarExpressionType; fieldPath?: readonly RecordFieldIdentity[] }
+): ModuleScalarExpressionSemantic | null => {
+  const fieldPath = field.fieldPath ?? [field.identity];
+  if (expression.kind === "constructor") {
+    const current = expression.constructor.fields.find(candidate => candidate.field.fieldIndex === fieldPath[0]?.fieldIndex);
+    if (fieldPath.length === 1) return current?.expression ?? null;
+    const nested = current?.valueExpression;
+    return nested?.kind === "record" && nested.expression
+      ? moduleRecordFieldExpressionFor(nested.expression, { ...field, fieldPath: fieldPath.slice(1) }) : null;
+  }
+  if (expression.kind === "reference" || expression.kind === "collectionIndex") {
+    const reference = expression.reference;
+    if (!reference.target) return null;
+    if (reference.target.kind === "recordCollectionIndex" && !reference.target.members) {
+      const collectionValueId = `record-field-collection:${JSON.stringify(
+        fieldPath.length === 1
+          ? [reference.target.collectionValueId, field.identity.recordStatementId, field.identity.fieldIndex]
+          : [reference.target.collectionValueId, "path", fieldPath.map((candidate) => [candidate.recordStatementId, candidate.fieldIndex])]
+      )}`;
+      const baseName = reference.source.trim().replace(/^@/, "");
+      return {
+        ast: {
+          kind: "collectionIndex",
+          span: reference.span,
+          nameSpan: reference.span,
+          name: baseName,
+          index: reference.target.index.ast
+        },
+        type: field.type,
+        references: [{
+          name: baseName,
+          nameSpan: reference.span,
+          span: reference.span,
+          target: null,
+          resolution: "resolved",
+          collectionValueId,
+          collectionLength: reference.target.collectionLength,
+          targetSourceOrder: reference.target.targetSourceOrder,
+          collectionElementType: field.type
+        }, ...reference.target.index.references],
+        geometryProperties: reference.target.index.geometryProperties,
+        geometryBuiltinArguments: reference.target.index.geometryBuiltinArguments
+      };
+    }
+    const baseName = reference.source.trim().replace(/^@/, "");
+    const target: ModuleRecordFieldSourceTarget = {
+      kind: "recordField",
+      record: reference.target,
+      field: field.identity,
+      fieldName: field.name,
+      valueType: field.type,
+      type: field.type,
+      ...(fieldPath.length > 1 ? { fieldPath } : {})
+    };
+    return {
+      ast: {
+        kind: "geometryProperty",
+        span: reference.span,
+        elementNameSpan: reference.span,
+        propertySpan: reference.span,
+        elementName: baseName,
+        property: field.name
+      },
+      type: field.type,
+      references: [{
+          name: `${baseName}.${field.name}`,
+        nameSpan: reference.span,
+        span: reference.span,
+        target,
+        resolution: "resolved"
+      }],
+      geometryProperties: [{
+        geometryName: baseName,
+        property: field.name,
+        elementNameSpan: reference.span,
+        propertySpan: reference.span,
+        span: reference.span,
+        target,
+        type: field.type,
+        resolution: "resolved"
+      }],
+      geometryBuiltinArguments: []
+    };
+  }
+  if (expression.kind === "if") {
+    const thenBranch = expression.thenBranch ? moduleRecordFieldExpressionFor(expression.thenBranch, field) : null;
+    const elseBranch = expression.elseBranch ? moduleRecordFieldExpressionFor(expression.elseBranch, field) : null;
+    return expression.condition && thenBranch && elseBranch
+      ? {
+          ast: {
+            kind: "valueIf",
+            span: expression.span,
+            condition: expression.condition.ast,
+            thenBranch: thenBranch.ast,
+            elseBranch: elseBranch.ast
+          },
+          type: field.type,
+          references: [expression.condition.references, thenBranch.references, elseBranch.references].flat(),
+          geometryProperties: [expression.condition.geometryProperties, thenBranch.geometryProperties, elseBranch.geometryProperties].flat(),
+          geometryBuiltinArguments: [expression.condition.geometryBuiltinArguments, thenBranch.geometryBuiltinArguments, elseBranch.geometryBuiltinArguments].flat()
+        }
+      : null;
+  }
+  if (expression.kind === "none" || expression.kind === "coalesce") return null;
+  const arms = expression.arms.map((arm) => ({
+    label: arm.label,
+    labelSpan: arm.labelSpan,
+    expression: arm.expression ? moduleRecordFieldExpressionFor(arm.expression, field) : null
+  }));
+  return expression.scrutinee && arms.every((arm) => arm.expression)
+    ? {
+        ast: {
+          kind: "valueMatch",
+          span: expression.span,
+          scrutinee: expression.scrutinee.ast,
+          arms: arms.map((arm, index) => recordScalarMatchArmFor(
+            expression.arms[index]!,
+            arm.expression!.ast
+          ))
+        },
+        type: field.type,
+        references: [expression.scrutinee.references, ...arms.map((arm) => arm.expression!.references)].flat(),
+        geometryProperties: [expression.scrutinee.geometryProperties, ...arms.map((arm) => arm.expression!.geometryProperties)].flat(),
+        geometryBuiltinArguments: [expression.scrutinee.geometryBuiltinArguments, ...arms.map((arm) => arm.expression!.geometryBuiltinArguments)].flat()
+      }
+    : null;
 };

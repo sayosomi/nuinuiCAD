@@ -1,0 +1,6 @@
+{
+  "frozenBeforeExecutionUTC": "2026-10-26T06:02:25.760749+00:00",
+  "unit": "B06",
+  "sourceSha256": "65c4e0ee89534e21db8b2b416e59a306e89bcfe1e8df63076c088bda6fd5248b",
+  "reason": "spec.md instance atomicity settles original Good expectation; move observable enabled neighbor outside failed occurrence"
+}

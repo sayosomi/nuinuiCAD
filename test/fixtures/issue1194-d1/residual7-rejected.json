@@ -1,0 +1,34 @@
+[
+  {
+    "id": "A-min-direct",
+    "domain": "nested-geometry-collection",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Inner(paths: path[])\nrecord Outer(inner: Inner)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nmodule Pick() {\n const I: Inner = Inner(paths: [@P])\n const R: Outer = Outer(inner: @I)\n export const out: path = @R.inner.paths[0]\n}\ninstance One = Pick()\nconst Result: path = @One::out\nconst L: number = @Result.length",
+    "expected": {
+      "L": 5
+    },
+    "classification": "CONTRACT_INVALID",
+    "reason": "Module geometry must be supplied as argument or defined privately; outer geometry capture is forbidden.",
+    "sha256": "76ec69b6f0a4dafcff4aa36cc740e75094840c6f0a80596a3c3fd319d2472785"
+  },
+  {
+    "id": "A-min-alias",
+    "domain": "nested-geometry-collection",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Inner(paths: path[])\nrecord Outer(inner: Inner)\nconst P: path = segment(start: (0, 0), end: (3, 4))\nmodule Pick() {\n const I: Inner = Inner(paths: [@P])\n const R: Outer = Outer(inner: @I)\n const Local: path[] = @R.inner.paths\n export const out: path = @Local[0]\n}\ninstance One = Pick()\nconst Result: path = @One::out\nconst L: number = @Result.length",
+    "expected": {
+      "L": 5
+    },
+    "classification": "CONTRACT_INVALID",
+    "reason": "Module geometry must be supplied as argument or defined privately; outer geometry capture is forbidden.",
+    "sha256": "6985cc19fb431b19ebf889556d498641212a06cffaa557f8778638107ec12e1c"
+  }
+]

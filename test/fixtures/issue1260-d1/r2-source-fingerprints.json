@@ -1,0 +1,34 @@
+{
+  "base": "d8e8ad20a325e2d190561940f6f15a39347d910e",
+  "files": {
+    "packages/nui-language/src/dsl/dslDocument.ts": "3829bd4cd5f3172d6c17bf7c94cd3a3e5e7e905f9eff7658543c7a7861989df7",
+    "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts": "a398829c553c6e5888af52ab31a635b6bda62020ddff13f9f2dcc610ddb3c951",
+    "packages/nui-language/src/dsl/moduleGeometryRuntime.ts": "ca2040fff191e4b823ab8f12be8e5f1ba06f7f2a4b72cf41414d73837fde23a3",
+    "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts": "43e382c46a665db7aa7f7bbd552ff2ffad90c22545068186e81e694696d6c9f0",
+    "packages/nui-language/src/scalars/typedDependencyGraph.ts": "874eaf2b922f8b58e0386b3a868403de36de0129715f1c5fe6c0d4b1584854b6",
+    "rust-evaluator/src/evaluation/mod.rs": "b885be2564e401ab48633a6834a07196a5080d6bcccb1b99239ab76d659346fa",
+    "rust-evaluator/src/evaluation/scalars/mutation/for_group_scheduler.rs": "9fd02e37a1fd79d19ccb8b6f9a1409d55fb48d54c24a5a1c01acd75d8ad10e79",
+    "src/geometry/evaluate.ts": "4e411fb6da1eeef7b50b38548e7bf3ae43e5db37a254fcd1b2313ac5ca6e0e1e"
+  },
+  "scopeDeviations": [],
+  "dslImpact": {
+    "affected": [
+      "canonical lowering",
+      "typed dependencies",
+      "existing TypeScript/Rust runtime consumption",
+      "Module snapshot publication",
+      "focused fixtures/tests"
+    ],
+    "intentionallyUnchanged": [
+      "grammar/parser",
+      "public syntax/types/semantics",
+      "source spans/statement identities",
+      "shared model/schema",
+      "serializer",
+      "completion/rename/navigation",
+      "VS Code/UI/persistence",
+      "transport and process lifecycle"
+    ],
+    "architectureDocumentChangeRequired": false
+  }
+}

@@ -1,0 +1,1014 @@
+[
+  {
+    "id": "F35",
+    "candidate": "C1",
+    "title": "Dynamic optional-record indexed match",
+    "status": "REPAIRED_THEN_PASS",
+    "noveltyVersusMergedControls": "F33 repaired loss of the indexed scrutinee in the early record shell. That exact P4 source passes this Base; the retained numeric expression now reaches a different literal-only selected-identity branch in Module semantics. Dynamic selection is the new Base-independent failure.",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: recordMatchValueId",
+    "firstLossAndRepair": "Only literal indices obtained selected optional-record singleton identities. Canonical lowering now emits indexed selection using the typed index and preserves none/bounds behavior.",
+    "normativeOracle": "T?[] indexing produces T?; optional some binder has exact T and only its selected arm evaluates.",
+    "spec": "docs/nui1/spec.md: Scalar, geometry, and nominal-record value control flow; Records; Modules; Multi-document imports",
+    "failBefore": [
+      {
+        "case": "O-dynamic",
+        "expected": {
+          "X": 19,
+          "Y": 31
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "diagnostics": [
+            {
+              "code": "module-collection-index-type",
+              "line": 7,
+              "column": 27
+            },
+            {
+              "code": "module-collection-index-type",
+              "line": 9,
+              "column": 28
+            }
+          ],
+          "boundary": "compiler",
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "genuineBasePassControls": [
+      {
+        "case": "P4",
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "regressions": [
+      "O-dynamic",
+      "O-dynamic-fields",
+      "O-module",
+      "O-index-errors"
+    ],
+    "caseEvidenceLedger": "residual6-dispositions.json; frozen sources/hashes in residual6-cases.json and residual6-freeze.json"
+  },
+  {
+    "id": "F36",
+    "candidate": "C2",
+    "title": "Selected nonliteral record collection identity",
+    "status": "REPAIRED_THEN_PASS",
+    "noveltyVersusMergedControls": "F33 conditional-member controls choose one optional record member. These cases choose a whole collection; Base incorrectly concatenates branch arrays (four static members), independently of numeric index admission.",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: recordReferenceSemantic / recordMembersFor",
+    "firstLossAndRepair": "if/match alternatives were concatenated into one static member list, so an index used the wrong branch. Conditional collections now retain their canonical selected collection descriptors.",
+    "normativeOracle": "A collection conditional/match recursively resolves both branches, then evaluates only the selected collection in authored order.",
+    "spec": "docs/nui1/spec.md: Scalar, geometry, and nominal-record value control flow; Records; Modules; Multi-document imports",
+    "failBefore": [
+      {
+        "case": "O-if-false",
+        "expected": {
+          "X": 43,
+          "Y": 31
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "rustEligible": true,
+          "reference": {
+            "X": {
+              "error": "evaluation-divide-by-zero"
+            },
+            "Y": 19
+          },
+          "referenceIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "production": {
+            "X": {
+              "error": "evaluation-divide-by-zero"
+            },
+            "Y": 19
+          },
+          "productionIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0,
+          "staticIndexedMemberCounts": [
+            4
+          ]
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 43,
+            "Y": 31
+          },
+          "production": {
+            "X": 43,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0,
+          "staticIndexedMemberCounts": []
+        }
+      },
+      {
+        "case": "O-choice",
+        "expected": {
+          "X": 43,
+          "Y": 31
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "rustEligible": true,
+          "reference": {
+            "X": {
+              "error": "evaluation-divide-by-zero"
+            },
+            "Y": 19
+          },
+          "referenceIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "production": {
+            "X": {
+              "error": "evaluation-divide-by-zero"
+            },
+            "Y": 19
+          },
+          "productionIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0,
+          "staticIndexedMemberCounts": [
+            4
+          ]
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 43,
+            "Y": 31
+          },
+          "production": {
+            "X": 43,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0,
+          "staticIndexedMemberCounts": []
+        }
+      }
+    ],
+    "genuineBasePassControls": [
+      {
+        "case": "P4",
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "regressions": [
+      "O-if-false",
+      "O-choice"
+    ],
+    "caseEvidenceLedger": "residual6-dispositions.json; frozen sources/hashes in residual6-cases.json and residual6-freeze.json"
+  },
+  {
+    "id": "F37",
+    "candidate": "C3",
+    "title": "Lazy inline optional-record constructor fields",
+    "status": "REPAIRED_THEN_PASS",
+    "noveltyVersusMergedControls": "F32 optional constructor admission already succeeds on Base. This failure is eager scalar declaration production from a constructor located only inside an unselected collection arm.",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/recordScalarLowering.ts: planRecordScalarLowering; moduleScalarRuntime.ts: record binding registration",
+    "firstLossAndRepair": "Inline optional-record members became eager root/Module scalar declarations, evaluating unselected division by zero. Existing lazy recordMap constructor lowering now owns those members; static invalid fields/nominal arms still reject.",
+    "normativeOracle": "All arms are statically checked; only the selected record/collection arm executes.",
+    "spec": "docs/nui1/spec.md: Scalar, geometry, and nominal-record value control flow; Records; Modules; Multi-document imports",
+    "failBefore": [
+      {
+        "case": "O-if-inline",
+        "expected": {
+          "X": 19,
+          "Y": 31
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "referenceIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "productionIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "eagerInlineFieldDeclarations": 1,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      },
+      {
+        "case": "O-module-lazy",
+        "expected": {
+          "X": 19
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "rustEligible": true,
+          "reference": {
+            "X": 19
+          },
+          "referenceIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "production": {
+            "X": 19
+          },
+          "productionIssueCodes": [
+            "evaluation-divide-by-zero"
+          ],
+          "eagerInlineFieldDeclarations": 1,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19
+          },
+          "production": {
+            "X": 19
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "genuineBasePassControls": [
+      {
+        "case": "P4",
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "X": 19,
+            "Y": 31
+          },
+          "production": {
+            "X": 19,
+            "Y": 31
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "regressions": [
+      "O-if",
+      "O-if-inline",
+      "O-module-lazy",
+      "O-invalid-inline-type",
+      "O-invalid-arm-type"
+    ],
+    "caseEvidenceLedger": "residual6-dispositions.json; frozen sources/hashes in residual6-cases.json and residual6-freeze.json"
+  },
+  {
+    "id": "F38",
+    "candidate": "C4",
+    "title": "Record scalar properties inside geometry construction",
+    "status": "REPAIRED_THEN_PASS",
+    "noveltyVersusMergedControls": "F31 map alias/geometry forwarding passes on Base (M1). New pure geometry construction with record scalar property coordinates fails earlier in semantic property resolution; direct Module scalar construction also passes.",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: parseGeometryValueConstruction",
+    "firstLossAndRepair": "Pure geometry construction parsing omitted the existing property resolver. It now reuses the canonical resolver when no more-specific binder resolver is supplied.",
+    "normativeOracle": "Record scalar fields use the shared typed numeric expression surface in pure geometry construction fields.",
+    "spec": "docs/nui1/spec.md: Scalar, geometry, and nominal-record value control flow; Records; Modules; Multi-document imports",
+    "failBefore": [
+      {
+        "case": "G-module",
+        "expected": {
+          "L": 5,
+          "M": 5,
+          "X": 22,
+          "Y": 46
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "diagnostics": [
+            {
+              "code": "module-geometry-property-reference",
+              "line": 7,
+              "column": 72
+            },
+            {
+              "code": "module-geometry-property-reference",
+              "line": 7,
+              "column": 91
+            }
+          ],
+          "boundary": "compiler",
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "M": 5,
+            "X": 22,
+            "Y": 46
+          },
+          "production": {
+            "L": 5,
+            "M": 5,
+            "X": 22,
+            "Y": 46
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 2
+        }
+      }
+    ],
+    "genuineBasePassControls": [
+      {
+        "case": "G-module-direct-control",
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "M": 5,
+            "X": 22,
+            "Y": 46
+          },
+          "production": {
+            "L": 5,
+            "M": 5,
+            "X": 22,
+            "Y": 46
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "M": 5,
+            "X": 22,
+            "Y": 46
+          },
+          "production": {
+            "L": 5,
+            "M": 5,
+            "X": 22,
+            "Y": 46
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      },
+      {
+        "case": "M1",
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "N": 21
+          },
+          "production": {
+            "L": 5,
+            "N": 21
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "N": 21
+          },
+          "production": {
+            "L": 5,
+            "N": 21
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "regressions": [
+      "G-module"
+    ],
+    "caseEvidenceLedger": "residual6-dispositions.json; frozen sources/hashes in residual6-cases.json and residual6-freeze.json"
+  },
+  {
+    "id": "F39",
+    "candidate": "C5",
+    "title": "Selected constructor-map geometry field producer",
+    "status": "REPAIRED_THEN_PASS",
+    "noveltyVersusMergedControls": "F31 forwards an existing geometry field and passes on Base (M1). A newly constructed geometry field has no existing alias to forward and loses its own program occurrence in the scalar runtime producer.",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordGeometryValuePrograms",
+    "firstLossAndRepair": "A statically selected mapped constructor retained scalar fields but omitted its geometry program occurrence. Lowering now binds the canonical mapped body to the actual selected source and emits that existing geometry program.",
+    "normativeOracle": "Record fields may be geometry; record value-for preserves exact result nominal identity and selected source dependencies.",
+    "spec": "docs/nui1/spec.md: Scalar, geometry, and nominal-record value control flow; Records; Modules; Multi-document imports",
+    "failBefore": [
+      {
+        "case": "G-constant",
+        "expected": {
+          "L": 5,
+          "X": 22,
+          "Y": 6,
+          "N": 21
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "rustEligible": true,
+          "reference": {
+            "L": {
+              "error": "evaluation-geometry-property-unavailable"
+            },
+            "X": {
+              "error": "evaluation-geometry-property-unavailable"
+            },
+            "Y": {
+              "error": "evaluation-geometry-property-unavailable"
+            },
+            "N": 21
+          },
+          "referenceIssueCodes": [
+            "evaluation-geometry-property-unavailable"
+          ],
+          "referenceGeometryErrors": [
+            "Geometry value reference is unavailable at runtime."
+          ],
+          "production": {
+            "L": {
+              "error": "evaluation-geometry-property-unavailable"
+            },
+            "X": {
+              "error": "evaluation-geometry-property-unavailable"
+            },
+            "Y": {
+              "error": "evaluation-geometry-property-unavailable"
+            },
+            "N": 21
+          },
+          "productionIssueCodes": [
+            "evaluation-geometry-property-unavailable"
+          ],
+          "productionGeometryErrors": [
+            "Geometry value reference is unavailable at runtime."
+          ],
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "X": 22,
+            "Y": 6,
+            "N": 21
+          },
+          "production": {
+            "L": 5,
+            "X": 22,
+            "Y": 6,
+            "N": 21
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 1
+        }
+      }
+    ],
+    "genuineBasePassControls": [
+      {
+        "case": "M1",
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "N": 21
+          },
+          "production": {
+            "L": 5,
+            "N": 21
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 5,
+            "N": 21
+          },
+          "production": {
+            "L": 5,
+            "N": 21
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "regressions": [
+      "G-constant",
+      "G-module",
+      "G-unselected-member"
+    ],
+    "caseEvidenceLedger": "residual6-dispositions.json; frozen sources/hashes in residual6-cases.json and residual6-freeze.json"
+  },
+  {
+    "id": "F40",
+    "candidate": "C6",
+    "title": "Geometry collection references in record fields",
+    "status": "REPAIRED_THEN_PASS",
+    "noveltyVersusMergedControls": "Existing direct geometry-array Module parameters and literal geometry record fields pass Base. The generic-only record-field collection reference adapter drops existing geometry array products/parameter types.",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: arrayValueReferenceForRecordField",
+    "firstLossAndRepair": "The record-field lookup admitted generic collection values/parameters but omitted the canonical geometry collection namespace. It now converts existing geometry type metadata and retains canonical alias/lazy collection forwarding.",
+    "normativeOracle": "Geometry-array parameters are immutable ordered values; argument references resolve in caller namespace and field values preserve their type/owner.",
+    "spec": "docs/nui1/spec.md: Scalar, geometry, and nominal-record value control flow; Records; Modules; Multi-document imports",
+    "failBefore": [
+      {
+        "case": "C-record-field",
+        "expected": {
+          "L": 13,
+          "M": 5,
+          "X": 5,
+          "Y": 3,
+          "N": 2,
+          "O": 2
+        },
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "diagnostics": [
+            {
+              "code": "scalar-namespace-type-mismatch",
+              "line": 20,
+              "column": 19
+            },
+            {
+              "code": "scalar-namespace-type-mismatch",
+              "line": 21,
+              "column": 19
+            },
+            {
+              "code": "array-reference-invalid",
+              "line": 8,
+              "column": 29
+            },
+            {
+              "code": "array-reference-invalid",
+              "line": 8,
+              "column": 29
+            }
+          ],
+          "boundary": "compiler",
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "M": 5,
+            "X": 5,
+            "Y": 3,
+            "N": 2,
+            "O": 2
+          },
+          "production": {
+            "L": 13,
+            "M": 5,
+            "X": 5,
+            "Y": 3,
+            "N": 2,
+            "O": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      },
+      {
+        "case": "C-record-direct-control",
+        "expected": {
+          "L": 13,
+          "X": 5,
+          "Y": 12,
+          "N": 2
+        },
+        "base": {
+          "runId": "base-c7-reduced-1792595540994",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "diagnostics": [
+            {
+              "code": "array-reference-invalid",
+              "line": 6,
+              "column": 29
+            }
+          ],
+          "boundary": "compiler",
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "production": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "genuineBasePassControls": [
+      {
+        "case": "C-parameter",
+        "base": {
+          "runId": "base-exact-1792595434724",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "M": 5,
+            "X": 5,
+            "Y": 3,
+            "N": 2,
+            "O": 2
+          },
+          "production": {
+            "L": 13,
+            "M": 5,
+            "X": 5,
+            "Y": 3,
+            "N": 2,
+            "O": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "M": 5,
+            "X": 5,
+            "Y": 3,
+            "N": 2,
+            "O": 2
+          },
+          "production": {
+            "L": 13,
+            "M": 5,
+            "X": 5,
+            "Y": 3,
+            "N": 2,
+            "O": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      },
+      {
+        "case": "C-record-literal-control",
+        "base": {
+          "runId": "base-c7-literal-1792595610626",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "production": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "production": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "regressions": [
+      "C-record-field",
+      "C-document-field-direct",
+      "C-lazy-parameter",
+      "C-record-direct-control"
+    ],
+    "caseEvidenceLedger": "residual6-dispositions.json; frozen sources/hashes in residual6-cases.json and residual6-freeze.json"
+  },
+  {
+    "id": "F41",
+    "candidate": "C7",
+    "title": "Named geometry-array alias of a record field",
+    "status": "REPAIRED_THEN_PASS",
+    "noveltyVersusMergedControls": "The literal-field direct-index control passes exact Base, eliminating C6. Only introduction of the named geometry-array field alias triggers geometry-array-invalid-reference in the separate geometry alias semantic owner.",
+    "firstIncorrectOwner": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts: recordCollectionReferenceFor; moduleGeometryArrayRuntime.ts: lowerValueById",
+    "firstLossAndRepair": "The geometry alias resolver rejected a legal nominal record field. It now reuses the existing record member accessor and defining content identity; runtime follows the existing alias/literal field targets in the defining context.",
+    "normativeOracle": "Record geometry collection fields preserve defining nominal identity and ordered contents through a named array alias.",
+    "spec": "docs/nui1/spec.md: Scalar, geometry, and nominal-record value control flow; Records; Modules; Multi-document imports",
+    "failBefore": [
+      {
+        "case": "C-record-literal-alias",
+        "expected": {
+          "L": 13,
+          "X": 5,
+          "Y": 12,
+          "N": 2
+        },
+        "base": {
+          "runId": "base-c7-literal-1792595610626",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "UNRESOLVED",
+          "diagnostics": [
+            {
+              "code": "geometry-array-invalid-reference",
+              "line": 7,
+              "column": 23
+            }
+          ],
+          "boundary": "compiler",
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "production": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "genuineBasePassControls": [
+      {
+        "case": "C-record-literal-control",
+        "base": {
+          "runId": "base-c7-literal-1792595610626",
+          "sourceTreeSha256": "1796765e888ec3e4a30ed8039870dceb17c244a8ae5f8188d15e9b2d5b4db13b",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "production": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        },
+        "after": {
+          "runId": "required-full-1792597512287",
+          "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+          "status": "PASS",
+          "rustEligible": true,
+          "reference": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "production": {
+            "L": 13,
+            "X": 5,
+            "Y": 12,
+            "N": 2
+          },
+          "eagerInlineFieldDeclarations": 0,
+          "recordGeometryProgramCount": 0
+        }
+      }
+    ],
+    "regressions": [
+      "C-record-literal-alias",
+      "C-record-alias-reduced",
+      "C-document-field"
+    ],
+    "caseEvidenceLedger": "residual6-dispositions.json; frozen sources/hashes in residual6-cases.json and residual6-freeze.json"
+  }
+]

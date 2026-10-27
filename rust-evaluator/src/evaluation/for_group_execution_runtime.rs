@@ -14,6 +14,7 @@ use crate::evaluation::types::element_name;
 
 pub(super) struct ForGroupExecutionRuntime<'a> {
     original_elements: &'a [Value],
+    transformation_recipes: &'a [Value],
     base_effective_enabled_ids: &'a HashSet<ElementId>,
     entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedPropertyBinding>>,
     numeric_entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedNumericBinding>>,
@@ -32,6 +33,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         original_elements: &'a [Value],
+        transformation_recipes: &'a [Value],
         base_effective_enabled_ids: &'a HashSet<ElementId>,
         entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedPropertyBinding>>,
         numeric_entries_by_element_id: &'a HashMap<ElementId, Vec<ValidatedNumericBinding>>,
@@ -47,6 +49,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
     ) -> Self {
         Self {
             original_elements,
+            transformation_recipes,
             base_effective_enabled_ids,
             entries_by_element_id,
             numeric_entries_by_element_id,
@@ -151,7 +154,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
                         }
                     }
                 }
-                self.run_generated_statement(
+                let outcome = self.run_generated_statement(
                     resolver,
                     environment,
                     template_element_id,
@@ -164,7 +167,20 @@ impl<'a> ForGroupExecutionRuntime<'a> {
                     &current_iteration_variable,
                     &current_occurrence_path,
                     state,
-                )
+                )?;
+                let loop_resolver = resolver.for_group_binding_resolver(environment);
+                execute_transformation_recipes_through(
+                    self.transformation_recipes,
+                    self.numeric_entries_by_element_id,
+                    Some(&loop_resolver),
+                    &ElementCompletionFacts {
+                        completed: &HashSet::new(),
+                        failed: &HashSet::new(),
+                    },
+                    state,
+                    Some(&current_child_ancestor_element_id_map),
+                );
+                Ok(outcome)
             },
         )
     }
@@ -263,6 +279,7 @@ impl<'a> ForGroupExecutionRuntime<'a> {
             resolver
                 .source_order_for_element(&template_id)
                 .map(|source_order| source_order as f64),
+            Some(ancestor_element_id_map),
         ) {
             state.errors.push(geometry_error(
                 &generated_element,

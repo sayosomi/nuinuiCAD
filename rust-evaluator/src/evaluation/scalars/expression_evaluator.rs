@@ -51,6 +51,11 @@ use crate::evaluation::types::GeometryValueOccurrence;
 /// already-computed geometry without re-parsing or re-resolving source.
 pub(crate) trait ScalarEvaluationEnvironment {
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation;
+    /// A document resolver can defer a reached, uncached binding to its own
+    /// heap stack. Ordinary expression callers never suspend.
+    fn has_deferred_binding(&self) -> bool {
+        false
+    }
     fn lookup_geometry_property(
         &self,
         _element_id: &str,
@@ -358,6 +363,7 @@ pub(super) enum CollectionIndexLookupContext {
     GeometryEndpoint,
 }
 
+#[derive(Clone)]
 pub(super) enum EvalWork<'a> {
     Eval(&'a TypedScalarExpression),
     Record(&'a TypedScalarExpression),
@@ -481,190 +487,268 @@ pub(super) fn evaluate_typed_expression_with_local_binding(
 fn evaluate_typed_expression_internal<F>(
     node: &TypedScalarExpression,
     environment: &dyn ScalarEvaluationEnvironment,
-    mut observer: Option<&mut F>,
+    observer: Option<&mut F>,
 ) -> ScalarEvaluation
 where
     F: FnMut(&TypedScalarExpression, &ScalarEvaluation),
 {
-    let mut work: Vec<EvalWork> = vec![EvalWork::Eval(node)];
-    let mut output: Vec<ScalarEvaluation> = Vec::new();
-    let mut collection_index_lookup_context = CollectionIndexLookupContext::SourceOrdered;
+    ExpressionEvaluation::new(node)
+        .run(environment, observer, false)
+        .expect("ordinary expression evaluation does not suspend")
+}
 
-    while let Some(item) = work.pop() {
-        match item {
-            EvalWork::Eval(node) => {
-                if observer.is_some() {
-                    work.push(EvalWork::Record(node));
-                }
-                eval_node(
-                    node,
-                    environment,
-                    collection_index_lookup_context,
-                    &mut work,
-                    &mut output,
-                );
-            }
-            EvalWork::Record(node) => {
-                if let Some(observer) = observer.as_deref_mut() {
-                    observer(
-                        node,
-                        output.last().expect("recorded node result must be present"),
-                    );
-                }
-            }
-            EvalWork::FinishUnary { operator, r#type } => {
-                finish_unary(operator, r#type, &mut output)
-            }
-            EvalWork::SetCollectionIndexLookupContext(context) => {
-                collection_index_lookup_context = context;
-            }
-            EvalWork::FinishCollectionIndex {
-                collection_value_id,
-                collection_length,
-                target_source_order,
-                r#type,
-            } => {
-                let index = output
-                    .pop()
-                    .expect("collection index expression result must be present");
-                let result = match index {
-                    ScalarEvaluation::Error {
-                        issue_code,
-                        binding_id,
-                        context,
-                        ..
-                    } => ScalarEvaluation::Error {
-                        r#type: r#type.clone(),
-                        issue_code,
-                        binding_id,
-                        context,
-                    },
-                    ScalarEvaluation::Ok {
-                        value: ScalarValue::Number(index),
-                        ..
-                    } if index.is_finite()
-                        && index.fract() == 0.0
-                        && index >= 0.0
-                        && collection_length.map_or(true, |length| index < length) =>
-                    {
-                        match collection_index_lookup_context {
-                            CollectionIndexLookupContext::SourceOrdered => environment
-                                .lookup_collection_index(
-                                    &collection_value_id,
-                                    index,
-                                    &r#type,
-                                    collection_length,
-                                    target_source_order,
-                                ),
-                            CollectionIndexLookupContext::GeometryEndpoint => environment
-                                .lookup_geometry_endpoint_collection_index(
-                                    &collection_value_id,
-                                    index,
-                                    &r#type,
-                                    collection_length,
-                                    target_source_order,
-                                ),
-                        }
-                    }
-                    _ => ScalarEvaluation::Error {
-                        r#type: r#type.clone(),
-                        issue_code: "evaluation-collection-index-invalid".to_owned(),
-                        binding_id: None,
-                        context: None,
-                    },
-                };
-                output.push(match result {
-                    ScalarEvaluation::Ok {
-                        r#type: result_type,
-                        value,
-                    } if result_type == r#type
-                        && scalar_value_matches_type(&result_type, &value) =>
-                    {
-                        ScalarEvaluation::Ok {
-                            r#type: result_type,
-                            value,
-                        }
-                    }
-                    ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
-                        r#type,
-                        issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
-                        binding_id: None,
-                        context: None,
-                    },
-                    error @ ScalarEvaluation::Error { .. } => error,
-                });
-            }
-            EvalWork::ContinueLogical {
-                operator,
-                r#type,
-                right,
-            } => continue_logical(operator, r#type, right, &mut work, &mut output),
-            EvalWork::ContinueValueIf {
-                r#type,
-                then_branch,
-                else_branch,
-            } => continue_value_if(r#type, then_branch, else_branch, &mut work, &mut output),
-            EvalWork::FinishValueIf { r#type } => finish_value_if(r#type, &mut output),
-            EvalWork::ContinueValueMatch {
-                r#type,
-                scrutinee_type,
-                arms,
-            } => continue_value_match(
-                r#type,
-                scrutinee_type,
-                arms,
-                environment,
-                &mut work,
-                &mut output,
-            ),
-            EvalWork::FinishValueMatch { r#type } => finish_value_match(r#type, &mut output),
-            EvalWork::FinishLogicalRight { r#type } => finish_logical_right(r#type, &mut output),
-            EvalWork::ContinueCoalesce { r#type, right } => {
-                continue_coalesce(r#type, right, &mut work, &mut output)
-            }
-            EvalWork::FinishCoalesce { r#type } => finish_coalesce(r#type, &mut output),
-            EvalWork::FinishEagerBinary { operator, r#type } => {
-                finish_eager_binary(operator, r#type, &mut output)
-            }
-            EvalWork::ContinueBuiltinCall {
-                target,
-                r#type,
-                args,
-                next_index,
-                values,
-            } => continue_builtin_call(
-                target,
-                r#type,
-                args,
-                next_index,
-                values,
-                &mut work,
-                &mut output,
-            ),
-            EvalWork::ContinueGeometryBuiltin {
-                name,
-                r#type,
-                args,
-                pending_argument_index,
-                dynamic_endpoint_targets,
-                restore_collection_index_context,
-            } => continue_geometry_builtin(
-                name,
-                r#type,
-                args,
-                pending_argument_index,
-                dynamic_endpoint_targets,
-                restore_collection_index_context,
-                environment,
-                &mut work,
-                &mut output,
-            ),
+/// The existing AST work stack, retained while the document resolver supplies
+/// a demanded binding. This is execution state, not a dependency resolver.
+pub(super) struct ExpressionEvaluation<'a> {
+    work: Vec<EvalWork<'a>>,
+    output: Vec<ScalarEvaluation>,
+    collection_index_lookup_context: CollectionIndexLookupContext,
+}
+
+impl<'a> ExpressionEvaluation<'a> {
+    pub(super) fn new(node: &'a TypedScalarExpression) -> Self {
+        Self {
+            work: vec![EvalWork::Eval(node)],
+            output: Vec::new(),
+            collection_index_lookup_context: CollectionIndexLookupContext::SourceOrdered,
         }
     }
 
-    output
-        .pop()
-        .expect("root result must be present when the work stack empties")
+    pub(super) fn resume(
+        &mut self,
+        environment: &impl ScalarEvaluationEnvironment,
+    ) -> Option<ScalarEvaluation> {
+        self.run::<fn(&TypedScalarExpression, &ScalarEvaluation)>(environment, None, true)
+    }
+
+    fn run<F>(
+        &mut self,
+        environment: &dyn ScalarEvaluationEnvironment,
+        mut observer: Option<&mut F>,
+        suspend: bool,
+    ) -> Option<ScalarEvaluation>
+    where
+        F: FnMut(&TypedScalarExpression, &ScalarEvaluation),
+    {
+        let mut work = std::mem::take(&mut self.work);
+        let mut output = std::mem::take(&mut self.output);
+        let mut collection_index_lookup_context = self.collection_index_lookup_context;
+
+        while let Some(item) = work.pop() {
+            // Environment-calling work items consume at most one prior result.
+            // Retain just that slot, not the whole expression stack. Nested local /
+            // record-map helpers may also request a document binding; replay only
+            // this item after that binding is available, preserving lazy selection.
+            let checkpoint = (suspend
+                && matches!(
+                    &item,
+                    EvalWork::Eval(_)
+                        | EvalWork::FinishCollectionIndex { .. }
+                        | EvalWork::ContinueValueMatch { .. }
+                        | EvalWork::ContinueGeometryBuiltin { .. }
+                ))
+            .then(|| {
+                (
+                    item.clone(),
+                    work.len(),
+                    output.len(),
+                    output.last().cloned(),
+                    collection_index_lookup_context,
+                )
+            });
+            match item {
+                EvalWork::Eval(node) => {
+                    if observer.is_some() {
+                        work.push(EvalWork::Record(node));
+                    }
+                    eval_node(
+                        node,
+                        environment,
+                        collection_index_lookup_context,
+                        &mut work,
+                        &mut output,
+                    );
+                }
+                EvalWork::Record(node) => {
+                    if let Some(observer) = observer.as_deref_mut() {
+                        observer(
+                            node,
+                            output.last().expect("recorded node result must be present"),
+                        );
+                    }
+                }
+                EvalWork::FinishUnary { operator, r#type } => {
+                    finish_unary(operator, r#type, &mut output)
+                }
+                EvalWork::SetCollectionIndexLookupContext(context) => {
+                    collection_index_lookup_context = context;
+                }
+                EvalWork::FinishCollectionIndex {
+                    collection_value_id,
+                    collection_length,
+                    target_source_order,
+                    r#type,
+                } => {
+                    let index = output
+                        .pop()
+                        .expect("collection index expression result must be present");
+                    let result = match index {
+                        ScalarEvaluation::Error {
+                            issue_code,
+                            binding_id,
+                            context,
+                            ..
+                        } => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code,
+                            binding_id,
+                            context,
+                        },
+                        ScalarEvaluation::Ok {
+                            value: ScalarValue::Number(index),
+                            ..
+                        } if index.is_finite()
+                            && index.fract() == 0.0
+                            && index >= 0.0
+                            && collection_length.map_or(true, |length| index < length) =>
+                        {
+                            match collection_index_lookup_context {
+                                CollectionIndexLookupContext::SourceOrdered => environment
+                                    .lookup_collection_index(
+                                        &collection_value_id,
+                                        index,
+                                        &r#type,
+                                        collection_length,
+                                        target_source_order,
+                                    ),
+                                CollectionIndexLookupContext::GeometryEndpoint => environment
+                                    .lookup_geometry_endpoint_collection_index(
+                                        &collection_value_id,
+                                        index,
+                                        &r#type,
+                                        collection_length,
+                                        target_source_order,
+                                    ),
+                            }
+                        }
+                        _ => ScalarEvaluation::Error {
+                            r#type: r#type.clone(),
+                            issue_code: "evaluation-collection-index-invalid".to_owned(),
+                            binding_id: None,
+                            context: None,
+                        },
+                    };
+                    output.push(match result {
+                        ScalarEvaluation::Ok {
+                            r#type: result_type,
+                            value,
+                        } if result_type == r#type
+                            && scalar_value_matches_type(&result_type, &value) =>
+                        {
+                            ScalarEvaluation::Ok {
+                                r#type: result_type,
+                                value,
+                            }
+                        }
+                        ScalarEvaluation::Ok { .. } => ScalarEvaluation::Error {
+                            r#type,
+                            issue_code: "evaluation-runtime-value-type-mismatch".to_owned(),
+                            binding_id: None,
+                            context: None,
+                        },
+                        error @ ScalarEvaluation::Error { .. } => error,
+                    });
+                }
+                EvalWork::ContinueLogical {
+                    operator,
+                    r#type,
+                    right,
+                } => continue_logical(operator, r#type, right, &mut work, &mut output),
+                EvalWork::ContinueValueIf {
+                    r#type,
+                    then_branch,
+                    else_branch,
+                } => continue_value_if(r#type, then_branch, else_branch, &mut work, &mut output),
+                EvalWork::FinishValueIf { r#type } => finish_value_if(r#type, &mut output),
+                EvalWork::ContinueValueMatch {
+                    r#type,
+                    scrutinee_type,
+                    arms,
+                } => continue_value_match(
+                    r#type,
+                    scrutinee_type,
+                    arms,
+                    environment,
+                    &mut work,
+                    &mut output,
+                ),
+                EvalWork::FinishValueMatch { r#type } => finish_value_match(r#type, &mut output),
+                EvalWork::FinishLogicalRight { r#type } => {
+                    finish_logical_right(r#type, &mut output)
+                }
+                EvalWork::ContinueCoalesce { r#type, right } => {
+                    continue_coalesce(r#type, right, &mut work, &mut output)
+                }
+                EvalWork::FinishCoalesce { r#type } => finish_coalesce(r#type, &mut output),
+                EvalWork::FinishEagerBinary { operator, r#type } => {
+                    finish_eager_binary(operator, r#type, &mut output)
+                }
+                EvalWork::ContinueBuiltinCall {
+                    target,
+                    r#type,
+                    args,
+                    next_index,
+                    values,
+                } => continue_builtin_call(
+                    target,
+                    r#type,
+                    args,
+                    next_index,
+                    values,
+                    &mut work,
+                    &mut output,
+                ),
+                EvalWork::ContinueGeometryBuiltin {
+                    name,
+                    r#type,
+                    args,
+                    pending_argument_index,
+                    dynamic_endpoint_targets,
+                    restore_collection_index_context,
+                } => continue_geometry_builtin(
+                    name,
+                    r#type,
+                    args,
+                    pending_argument_index,
+                    dynamic_endpoint_targets,
+                    restore_collection_index_context,
+                    environment,
+                    &mut work,
+                    &mut output,
+                ),
+            }
+            if let Some((item, work_len, output_len, last, context)) = checkpoint {
+                if environment.has_deferred_binding() {
+                    work.truncate(work_len);
+                    work.push(item);
+                    output.truncate(output_len.saturating_sub(1));
+                    if let Some(last) = last {
+                        output.push(last);
+                    }
+                    self.work = work;
+                    self.output = output;
+                    self.collection_index_lookup_context = context;
+                    return None;
+                }
+            }
+        }
+
+        Some(
+            output
+                .pop()
+                .expect("root result must be present when the work stack empties"),
+        )
+    }
 }
 
 /// Processes one `Eval` work item: literals/`reference` push a fully-resolved

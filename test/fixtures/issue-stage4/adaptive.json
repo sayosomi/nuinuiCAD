@@ -1,0 +1,2388 @@
+[
+  {
+    "id": "E-B-02",
+    "stratum": "E",
+    "method": "B",
+    "variant": 2,
+    "seed": 1421102,
+    "member": "S",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 8\nconst Delta: number = 32\nmodule Box(Origin: number, Fail: boolean) {\nconst FirstChoice: number = @Origin + 2\nconst Choices: number[] = if (@Origin > 0) { [@FirstChoice, 7] } else { [] }\nconst Chosen: point = coordinate(x: @Choices[0], y: @Choices[1])\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance One = Box(Origin: 8, Fail: false)\npoint UseOne = from(source: @One::Mark)\ninstance Two = Box(Origin: 53, Fail: false)\npoint UseTwo = from(source: @Two::Mark)\ninstance Failed = Box(Origin: 101, Fail: true)\npoint UseFailed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 40, y: -32)\n",
+      "scalars": {},
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "asymmetric-Module-exports",
+      "four-limit-placements",
+      "failed-instance-atomicity",
+      "Module-collection-selector-readiness"
+    ],
+    "oracleInputs": {
+      "unit": 8,
+      "delta": 32,
+      "factor": 4
+    },
+    "limits": [
+      {
+        "placement": "before-first",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": []
+      },
+      {
+        "placement": "first-only",
+        "through": "UseOne",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One"
+        ]
+      },
+      {
+        "placement": "both",
+        "through": "UseTwo",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "Two::Mark",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseTwo",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One",
+          "Two"
+        ]
+      },
+      {
+        "placement": "failed-and-independent",
+        "through": "Independent",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "Two::Mark",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseTwo",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            },
+            {
+              "name": "Independent",
+              "value": {
+                "x": 40,
+                "y": -32
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [
+            "Failed::Fault"
+          ],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One",
+          "Two"
+        ]
+      }
+    ],
+    "independentOracle": [
+      {
+        "scalars": {},
+        "geometry": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": []
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "Two::Mark",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseTwo",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One",
+          "Two"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "Two::Mark",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseTwo",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          },
+          {
+            "name": "Independent",
+            "value": {
+              "x": 40,
+              "y": -32
+            }
+          }
+        ],
+        "errors": [
+          "Failed::Fault"
+        ],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One",
+          "Two"
+        ]
+      }
+    ],
+    "sha256": "1aceb8ac2dfa41a39a2bb86c9c7e322f22a8c4550e4a0673525d877080b45ddb"
+  },
+  {
+    "id": "E-B-02",
+    "stratum": "E",
+    "method": "B",
+    "variant": 2,
+    "seed": 1421102,
+    "member": "T",
+    "program": {
+      "source": "nui 1\nconst RenamedDelta: number = 32\nconst RenamedUnit: number = 8\nmodule RenamedBox(RenamedOrigin: number, RenamedFail: boolean) {\nconst RenamedFirstChoice: number = @RenamedOrigin + 2\nconst RenamedChoices: number[] = if (@RenamedOrigin > 0) { [@RenamedFirstChoice, 7] } else { [] }\nconst RenamedChosen: point = coordinate(x: @RenamedChoices[0], y: @RenamedChoices[1])\nexport point RenamedMark = from(source: @RenamedChosen)\nif (@RenamedFail) {\npoint RenamedFault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance RenamedOne = RenamedBox(RenamedOrigin: 8, RenamedFail: false)\npoint RenamedUseOne = from(source: @RenamedOne::RenamedMark)\ninstance RenamedTwo = RenamedBox(RenamedOrigin: 53, RenamedFail: false)\npoint RenamedUseTwo = from(source: @RenamedTwo::RenamedMark)\ninstance RenamedFailed = RenamedBox(RenamedOrigin: 101, RenamedFail: true)\npoint RenamedUseFailed = from(source: @RenamedFailed::RenamedMark)\npoint RenamedIndependent = coordinate(x: 40, y: -32)\n",
+      "scalars": {},
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "asymmetric-Module-exports",
+      "four-limit-placements",
+      "failed-instance-atomicity",
+      "Module-collection-selector-readiness"
+    ],
+    "oracleInputs": {
+      "unit": 8,
+      "delta": 32,
+      "factor": 4
+    },
+    "limits": [
+      {
+        "placement": "before-first",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": []
+      },
+      {
+        "placement": "first-only",
+        "through": "RenamedUseOne",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "RenamedOne::RenamedMark",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedUseOne",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "RenamedOne"
+        ]
+      },
+      {
+        "placement": "both",
+        "through": "RenamedUseTwo",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "RenamedOne::RenamedMark",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedUseOne",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedTwo::RenamedMark",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedUseTwo",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "RenamedOne",
+          "RenamedTwo"
+        ]
+      },
+      {
+        "placement": "failed-and-independent",
+        "through": "RenamedIndependent",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "RenamedOne::RenamedMark",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedUseOne",
+              "value": {
+                "x": 10,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedTwo::RenamedMark",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedUseTwo",
+              "value": {
+                "x": 55,
+                "y": 7
+              }
+            },
+            {
+              "name": "RenamedIndependent",
+              "value": {
+                "x": 40,
+                "y": -32
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [
+            "RenamedFailed::RenamedFault"
+          ],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "RenamedOne",
+          "RenamedTwo"
+        ]
+      }
+    ],
+    "independentOracle": [
+      {
+        "scalars": {},
+        "geometry": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": []
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "RenamedOne::RenamedMark",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedUseOne",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "RenamedOne"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "RenamedOne::RenamedMark",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedUseOne",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedTwo::RenamedMark",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedUseTwo",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "RenamedOne",
+          "RenamedTwo"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "RenamedOne::RenamedMark",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedUseOne",
+            "value": {
+              "x": 10,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedTwo::RenamedMark",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedUseTwo",
+            "value": {
+              "x": 55,
+              "y": 7
+            }
+          },
+          {
+            "name": "RenamedIndependent",
+            "value": {
+              "x": 40,
+              "y": -32
+            }
+          }
+        ],
+        "errors": [
+          "RenamedFailed::RenamedFault"
+        ],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "RenamedOne",
+          "RenamedTwo"
+        ]
+      }
+    ],
+    "sha256": "c1908e6898049cac9c0ae3cb76f18d0d8f791365075f3da374648b4ab2c3eee1"
+  },
+  {
+    "id": "E-B-03",
+    "stratum": "E",
+    "method": "B",
+    "variant": 3,
+    "seed": 1421103,
+    "member": "S",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 13\nconst Delta: number = 13\nmodule Box(Origin: number, Fail: boolean) {\nconst FirstChoice: number = @Origin + 2\nconst Choices: number[] = if (@Origin > 0) { [@FirstChoice, 7] } else { [] }\nconst Chosen: point = coordinate(x: @Choices[0], y: @Choices[1])\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance One = Box(Origin: 13, Fail: false)\npoint UseOne = from(source: @One::Mark)\ninstance Two = Box(Origin: 39, Fail: false)\npoint UseTwo = from(source: @Two::Mark)\ninstance Failed = Box(Origin: 101, Fail: true)\npoint UseFailed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 26, y: -13)\n",
+      "scalars": {},
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "asymmetric-Module-exports",
+      "four-limit-placements",
+      "failed-instance-atomicity",
+      "Module-collection-selector-readiness"
+    ],
+    "oracleInputs": {
+      "unit": 13,
+      "delta": 13,
+      "factor": 2
+    },
+    "limits": [
+      {
+        "placement": "before-first",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": []
+      },
+      {
+        "placement": "first-only",
+        "through": "UseOne",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One"
+        ]
+      },
+      {
+        "placement": "both",
+        "through": "UseTwo",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "Two::Mark",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseTwo",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One",
+          "Two"
+        ]
+      },
+      {
+        "placement": "failed-and-independent",
+        "through": "Independent",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "Two::Mark",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseTwo",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            },
+            {
+              "name": "Independent",
+              "value": {
+                "x": 26,
+                "y": -13
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [
+            "Failed::Fault"
+          ],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One",
+          "Two"
+        ]
+      }
+    ],
+    "independentOracle": [
+      {
+        "scalars": {},
+        "geometry": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": []
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "Two::Mark",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseTwo",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One",
+          "Two"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "Two::Mark",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseTwo",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          },
+          {
+            "name": "Independent",
+            "value": {
+              "x": 26,
+              "y": -13
+            }
+          }
+        ],
+        "errors": [
+          "Failed::Fault"
+        ],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One",
+          "Two"
+        ]
+      }
+    ],
+    "sha256": "1f65eb2b3142d48c2b90818ef7c3df28781368207dcd1dfef03d05b384b63c34"
+  },
+  {
+    "id": "E-B-03",
+    "stratum": "E",
+    "method": "B",
+    "variant": 3,
+    "seed": 1421103,
+    "member": "T",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 13\nconst Delta: number = 13\nconst Padding: number = @Unit + @Delta\nmodule Box(Origin: number, Fail: boolean) {\nconst FirstChoice: number = @Origin + 2\nconst Choices: number[] = if (@Origin > 0) { [@FirstChoice, 7] } else { [] }\nconst Chosen: point = coordinate(x: @Choices[0], y: @Choices[1])\nconst Send: point = @Chosen\nexport point Mark = from(source: @Send)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance One = Box(Origin: 13, Fail: false)\nconst ExportOne: point = @One::Mark\npoint UseOne = from(source: @ExportOne)\ninstance Two = Box(Origin: 39, Fail: false)\nconst ExportTwo: point = @Two::Mark\npoint UseTwo = from(source: @ExportTwo)\ninstance Failed = Box(Origin: 101, Fail: true)\npoint UseFailed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 26, y: -13)\n",
+      "scalars": {},
+      "geometry": [],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "asymmetric-Module-exports",
+      "four-limit-placements",
+      "failed-instance-atomicity",
+      "Module-collection-selector-readiness"
+    ],
+    "oracleInputs": {
+      "unit": 13,
+      "delta": 13,
+      "factor": 2
+    },
+    "limits": [
+      {
+        "placement": "before-first",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": []
+      },
+      {
+        "placement": "first-only",
+        "through": "UseOne",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One"
+        ]
+      },
+      {
+        "placement": "both",
+        "through": "UseTwo",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "Two::Mark",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseTwo",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One",
+          "Two"
+        ]
+      },
+      {
+        "placement": "failed-and-independent",
+        "through": "Independent",
+        "expected": {
+          "source": "",
+          "scalars": {},
+          "geometry": [
+            {
+              "name": "One::Mark",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseOne",
+              "value": {
+                "x": 15,
+                "y": 7
+              }
+            },
+            {
+              "name": "Two::Mark",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            },
+            {
+              "name": "UseTwo",
+              "value": {
+                "x": 41,
+                "y": 7
+              }
+            },
+            {
+              "name": "Independent",
+              "value": {
+                "x": 26,
+                "y": -13
+              }
+            }
+          ],
+          "failedGeometry": [],
+          "templates": [],
+          "trace": [],
+          "carries": [],
+          "errors": [
+            "Failed::Fault"
+          ],
+          "diagnosticBindings": {},
+          "absent": [],
+          "valueErrors": [],
+          "errorInstances": {},
+          "paths": []
+        },
+        "instances": [
+          "One",
+          "Two"
+        ]
+      }
+    ],
+    "independentOracle": [
+      {
+        "scalars": {},
+        "geometry": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": []
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "Two::Mark",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseTwo",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          }
+        ],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One",
+          "Two"
+        ]
+      },
+      {
+        "scalars": {},
+        "geometry": [
+          {
+            "name": "One::Mark",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseOne",
+            "value": {
+              "x": 15,
+              "y": 7
+            }
+          },
+          {
+            "name": "Two::Mark",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          },
+          {
+            "name": "UseTwo",
+            "value": {
+              "x": 41,
+              "y": 7
+            }
+          },
+          {
+            "name": "Independent",
+            "value": {
+              "x": 26,
+              "y": -13
+            }
+          }
+        ],
+        "errors": [
+          "Failed::Fault"
+        ],
+        "diagnosticBindings": {},
+        "absent": [],
+        "instances": [
+          "One",
+          "Two"
+        ]
+      }
+    ],
+    "sha256": "0df4966ba754311db250aad5b97c1e075c742b4d50ca1a0b0a583ad33d1ce247"
+  },
+  {
+    "id": "C-B-02",
+    "stratum": "C",
+    "method": "B",
+    "variant": 2,
+    "seed": 1431102,
+    "member": "S",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 26\nconst Delta: number = 36\nconst Ticks: number[] = [1,2]\nfor Tick in @Ticks carry Values: number[] = [26, 62] carry Total: number = 36 {\nconst Mapped: number[] = for Item in @Values { if (@Tick > 0) { @Item + @Tick } else { 1 / 0 } }\nconst Before: number = @Values[0]\npoint Incoming = coordinate(x: @Before, y: @Total)\nnext Values = @Mapped\nnext Total = @Total + @Values[1]\n}\nconst Final0: number = @Values[0]\nconst Final1: number = @Values[1]\nconst Final2: number = @Total\n",
+      "scalars": {
+        "Final0": 29,
+        "Final1": 65,
+        "Final2": 161
+      },
+      "geometry": [
+        {
+          "name": "Incoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 26,
+            "y": 36
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 27,
+            "y": 98
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [
+        "Incoming"
+      ],
+      "trace": [
+        {
+          "loop": "Tick",
+          "at": [
+            0
+          ],
+          "incoming": {
+            "Values": [
+              26,
+              62
+            ],
+            "Total": 36
+          },
+          "next": {
+            "Values": [
+              27,
+              63
+            ],
+            "Total": 98
+          },
+          "final": {}
+        },
+        {
+          "loop": "Tick",
+          "at": [
+            1
+          ],
+          "incoming": {
+            "Values": [
+              27,
+              63
+            ],
+            "Total": 98
+          },
+          "next": {
+            "Values": [
+              29,
+              65
+            ],
+            "Total": 161
+          },
+          "final": {}
+        }
+      ],
+      "carries": [
+        "Values",
+        "Total"
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "collection-for-frame-capture",
+      "lazy-if",
+      "simultaneous-scalar-array-carry",
+      "outer-count:2"
+    ],
+    "oracleInputs": {
+      "unit": 26,
+      "delta": 36,
+      "factor": 3
+    },
+    "independentOracle": {
+      "scalars": {
+        "Final0": 29,
+        "Final1": 65,
+        "Final2": 161
+      },
+      "geometry": [
+        {
+          "name": "Incoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 26,
+            "y": 36
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 27,
+            "y": 98
+          }
+        }
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": []
+    },
+    "sha256": "e5574d5ef870753e0ddf4c1faed89729ca546178783149a1f6c2278a973ff762"
+  },
+  {
+    "id": "C-B-02",
+    "stratum": "C",
+    "method": "B",
+    "variant": 2,
+    "seed": 1431102,
+    "member": "T",
+    "program": {
+      "source": "nui 1\nconst RenamedDelta: number = 36\nconst RenamedUnit: number = 26\nconst RenamedTicks: number[] = [1,2]\nfor RenamedTick in @RenamedTicks carry RenamedValues: number[] = [26, 62] carry RenamedTotal: number = 36 {\nconst RenamedMapped: number[] = for RenamedItem in @RenamedValues { if (@RenamedTick > 0) { @RenamedItem + @RenamedTick } else { 1 / 0 } }\nconst RenamedBefore: number = @RenamedValues[0]\npoint RenamedIncoming = coordinate(x: @RenamedBefore, y: @RenamedTotal)\nnext RenamedValues = @RenamedMapped\nnext RenamedTotal = @RenamedTotal + @RenamedValues[1]\n}\nconst RenamedFinal0: number = @RenamedValues[0]\nconst RenamedFinal1: number = @RenamedValues[1]\nconst RenamedFinal2: number = @RenamedTotal\n",
+      "scalars": {
+        "RenamedFinal0": 29,
+        "RenamedFinal1": 65,
+        "RenamedFinal2": 161
+      },
+      "geometry": [
+        {
+          "name": "RenamedIncoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 26,
+            "y": 36
+          }
+        },
+        {
+          "name": "RenamedIncoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 27,
+            "y": 98
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [
+        "RenamedIncoming"
+      ],
+      "trace": [
+        {
+          "loop": "RenamedTick",
+          "at": [
+            0
+          ],
+          "incoming": {
+            "RenamedValues": [
+              26,
+              62
+            ],
+            "RenamedTotal": 36
+          },
+          "next": {
+            "RenamedValues": [
+              27,
+              63
+            ],
+            "RenamedTotal": 98
+          },
+          "final": {}
+        },
+        {
+          "loop": "RenamedTick",
+          "at": [
+            1
+          ],
+          "incoming": {
+            "RenamedValues": [
+              27,
+              63
+            ],
+            "RenamedTotal": 98
+          },
+          "next": {
+            "RenamedValues": [
+              29,
+              65
+            ],
+            "RenamedTotal": 161
+          },
+          "final": {}
+        }
+      ],
+      "carries": [
+        "RenamedValues",
+        "RenamedTotal"
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "collection-for-frame-capture",
+      "lazy-if",
+      "simultaneous-scalar-array-carry",
+      "outer-count:2"
+    ],
+    "oracleInputs": {
+      "unit": 26,
+      "delta": 36,
+      "factor": 3
+    },
+    "independentOracle": {
+      "scalars": {
+        "RenamedFinal0": 29,
+        "RenamedFinal1": 65,
+        "RenamedFinal2": 161
+      },
+      "geometry": [
+        {
+          "name": "RenamedIncoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 26,
+            "y": 36
+          }
+        },
+        {
+          "name": "RenamedIncoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 27,
+            "y": 98
+          }
+        }
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": []
+    },
+    "sha256": "7e3111cf731ac12459a703063cc90f77f5e0bcf4e0f75af0c47cf9ade61e465f"
+  },
+  {
+    "id": "C-B-03",
+    "stratum": "C",
+    "method": "B",
+    "variant": 3,
+    "seed": 1431103,
+    "member": "S",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 78\nconst Delta: number = 40\nconst Ticks: number[] = [1,2,3,4]\nfor Tick in @Ticks carry Values: number[] = [78, 118] carry Total: number = 40 {\nconst Mapped: number[] = for Item in @Values { if (@Tick > 0) { @Item + @Tick } else { 1 / 0 } }\nconst Before: number = @Values[0]\npoint Incoming = coordinate(x: @Before, y: @Total)\nnext Values = @Mapped\nnext Total = @Total + @Values[1]\n}\nconst Final0: number = @Values[0]\nconst Final1: number = @Values[1]\nconst Final2: number = @Total\n",
+      "scalars": {
+        "Final0": 88,
+        "Final1": 128,
+        "Final2": 522
+      },
+      "geometry": [
+        {
+          "name": "Incoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 78,
+            "y": 40
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 79,
+            "y": 158
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            2
+          ],
+          "value": {
+            "x": 81,
+            "y": 277
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            3
+          ],
+          "value": {
+            "x": 84,
+            "y": 398
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [
+        "Incoming"
+      ],
+      "trace": [
+        {
+          "loop": "Tick",
+          "at": [
+            0
+          ],
+          "incoming": {
+            "Values": [
+              78,
+              118
+            ],
+            "Total": 40
+          },
+          "next": {
+            "Values": [
+              79,
+              119
+            ],
+            "Total": 158
+          },
+          "final": {}
+        },
+        {
+          "loop": "Tick",
+          "at": [
+            1
+          ],
+          "incoming": {
+            "Values": [
+              79,
+              119
+            ],
+            "Total": 158
+          },
+          "next": {
+            "Values": [
+              81,
+              121
+            ],
+            "Total": 277
+          },
+          "final": {}
+        },
+        {
+          "loop": "Tick",
+          "at": [
+            2
+          ],
+          "incoming": {
+            "Values": [
+              81,
+              121
+            ],
+            "Total": 277
+          },
+          "next": {
+            "Values": [
+              84,
+              124
+            ],
+            "Total": 398
+          },
+          "final": {}
+        },
+        {
+          "loop": "Tick",
+          "at": [
+            3
+          ],
+          "incoming": {
+            "Values": [
+              84,
+              124
+            ],
+            "Total": 398
+          },
+          "next": {
+            "Values": [
+              88,
+              128
+            ],
+            "Total": 522
+          },
+          "final": {}
+        }
+      ],
+      "carries": [
+        "Values",
+        "Total"
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "collection-for-frame-capture",
+      "lazy-if",
+      "simultaneous-scalar-array-carry",
+      "outer-count:4"
+    ],
+    "oracleInputs": {
+      "unit": 78,
+      "delta": 40,
+      "factor": 4
+    },
+    "independentOracle": {
+      "scalars": {
+        "Final0": 88,
+        "Final1": 128,
+        "Final2": 522
+      },
+      "geometry": [
+        {
+          "name": "Incoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 78,
+            "y": 40
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 79,
+            "y": 158
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            2
+          ],
+          "value": {
+            "x": 81,
+            "y": 277
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            3
+          ],
+          "value": {
+            "x": 84,
+            "y": 398
+          }
+        }
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": []
+    },
+    "sha256": "283f8cb3882858df07cf0486a4a108c4248862597217cdae4ebe66aad690be70"
+  },
+  {
+    "id": "C-B-03",
+    "stratum": "C",
+    "method": "B",
+    "variant": 3,
+    "seed": 1431103,
+    "member": "T",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 78\nconst Delta: number = 40\nconst Padding: number = @Unit + @Delta\nconst Ticks: number[] = [1,2,3,4]\nfor Tick in @Ticks carry Values: number[] = [78, 118] carry Total: number = 40 {\nconst Mapped: number[] = for Item in @Values { if (@Tick > 0) { @Item + @Tick } else { 1 / 0 } }\nconst Before: number = @Values[0]\npoint Incoming = coordinate(x: @Before, y: @Total)\nconst Send: number[] = @Mapped\nnext Values = @Send\nnext Total = @Total + @Values[1]\n}\nconst Final0: number = @Values[0]\nconst Final1: number = @Values[1]\nconst Final2: number = @Total\n",
+      "scalars": {
+        "Final0": 88,
+        "Final1": 128,
+        "Final2": 522
+      },
+      "geometry": [
+        {
+          "name": "Incoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 78,
+            "y": 40
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 79,
+            "y": 158
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            2
+          ],
+          "value": {
+            "x": 81,
+            "y": 277
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            3
+          ],
+          "value": {
+            "x": 84,
+            "y": 398
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [
+        "Incoming"
+      ],
+      "trace": [
+        {
+          "loop": "Tick",
+          "at": [
+            0
+          ],
+          "incoming": {
+            "Values": [
+              78,
+              118
+            ],
+            "Total": 40
+          },
+          "next": {
+            "Values": [
+              79,
+              119
+            ],
+            "Total": 158
+          },
+          "final": {}
+        },
+        {
+          "loop": "Tick",
+          "at": [
+            1
+          ],
+          "incoming": {
+            "Values": [
+              79,
+              119
+            ],
+            "Total": 158
+          },
+          "next": {
+            "Values": [
+              81,
+              121
+            ],
+            "Total": 277
+          },
+          "final": {}
+        },
+        {
+          "loop": "Tick",
+          "at": [
+            2
+          ],
+          "incoming": {
+            "Values": [
+              81,
+              121
+            ],
+            "Total": 277
+          },
+          "next": {
+            "Values": [
+              84,
+              124
+            ],
+            "Total": 398
+          },
+          "final": {}
+        },
+        {
+          "loop": "Tick",
+          "at": [
+            3
+          ],
+          "incoming": {
+            "Values": [
+              84,
+              124
+            ],
+            "Total": 398
+          },
+          "next": {
+            "Values": [
+              88,
+              128
+            ],
+            "Total": 522
+          },
+          "final": {}
+        }
+      ],
+      "carries": [
+        "Values",
+        "Total"
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": [],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "collection-for-frame-capture",
+      "lazy-if",
+      "simultaneous-scalar-array-carry",
+      "outer-count:4"
+    ],
+    "oracleInputs": {
+      "unit": 78,
+      "delta": 40,
+      "factor": 4
+    },
+    "independentOracle": {
+      "scalars": {
+        "Final0": 88,
+        "Final1": 128,
+        "Final2": 522
+      },
+      "geometry": [
+        {
+          "name": "Incoming",
+          "at": [
+            0
+          ],
+          "value": {
+            "x": 78,
+            "y": 40
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            1
+          ],
+          "value": {
+            "x": 79,
+            "y": 158
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            2
+          ],
+          "value": {
+            "x": 81,
+            "y": 277
+          }
+        },
+        {
+          "name": "Incoming",
+          "at": [
+            3
+          ],
+          "value": {
+            "x": 84,
+            "y": 398
+          }
+        }
+      ],
+      "errors": [],
+      "diagnosticBindings": {},
+      "absent": []
+    },
+    "sha256": "995f592b4b7218fe24954196779eb26b89d6a84bad3de7fa474842534af216f0"
+  },
+  {
+    "id": "D-C-02",
+    "stratum": "D",
+    "method": "C",
+    "variant": 2,
+    "seed": 1441202,
+    "member": "S",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 38\nconst Delta: number = 26\nconst Zero: number = 0\nconst Flag: boolean = true\nmodule Guard(Divisor: number) {\nconst Selected: point = if (@Divisor > 0) { coordinate(x: @Divisor, y: 3) } else { coordinate(x: 1 / 0, y: 0) }\nexport point Mark = from(source: @Selected)\n}\ninstance Dormant(enabled: false) = Guard(Divisor: 0)\nconst Chosen: number = if (@Flag) { (@Unit + @Delta) / @Zero } else { @Unit + @Delta }\npoint IndependentErrorPoint = coordinate(x: @Delta / @Zero, y: 0)\nconst IndependentError: number = @Delta / @Zero\npoint Dependent = coordinate(x: @Chosen, y: 5)\npoint Surviving = coordinate(x: @Unit, y: @Delta)\n",
+      "scalars": {
+        "Chosen": "evaluation-divide-by-zero",
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "geometry": [
+        {
+          "name": "Surviving",
+          "value": {
+            "x": 38,
+            "y": 26
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [
+        "IndependentErrorPoint",
+        "Dependent"
+      ],
+      "diagnosticBindings": {
+        "IndependentError": "evaluation-divide-by-zero",
+        "Chosen": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "Mark"
+      ],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "selected-failure",
+      "independent-scalar-geometry-errors",
+      "disabled-Module",
+      "diagnostic-owner-routing"
+    ],
+    "oracleInputs": {
+      "unit": 38,
+      "delta": 26,
+      "factor": 2
+    },
+    "independentOracle": {
+      "scalars": {
+        "Chosen": "evaluation-divide-by-zero",
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "geometry": [
+        {
+          "name": "Surviving",
+          "value": {
+            "x": 38,
+            "y": 26
+          }
+        }
+      ],
+      "errors": [
+        "IndependentErrorPoint",
+        "Dependent"
+      ],
+      "diagnosticBindings": {
+        "IndependentError": "evaluation-divide-by-zero",
+        "Chosen": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "Mark"
+      ]
+    },
+    "sha256": "c071712e9694f56a967e81c202cec932ac965758299c45e845d790c9243341ae"
+  },
+  {
+    "id": "D-C-02",
+    "stratum": "D",
+    "method": "C",
+    "variant": 2,
+    "seed": 1441202,
+    "member": "T",
+    "program": {
+      "source": "nui 1\nconst RenamedDelta: number = 26\nconst RenamedUnit: number = 38\nconst RenamedZero: number = 0\nconst RenamedFlag: boolean = true\nmodule RenamedGuard(RenamedDivisor: number) {\nconst RenamedSelected: point = if (@RenamedDivisor > 0) { coordinate(x: @RenamedDivisor, y: 3) } else { coordinate(x: 1 / 0, y: 0) }\nexport point RenamedMark = from(source: @RenamedSelected)\n}\ninstance RenamedDormant(enabled: false) = RenamedGuard(RenamedDivisor: 0)\nconst RenamedChosen: number = if (@RenamedFlag) { (@RenamedUnit + @RenamedDelta) / @RenamedZero } else { @RenamedUnit + @RenamedDelta }\npoint RenamedIndependentErrorPoint = coordinate(x: @RenamedDelta / @RenamedZero, y: 0)\nconst RenamedIndependentError: number = @RenamedDelta / @RenamedZero\npoint RenamedDependent = coordinate(x: @RenamedChosen, y: 5)\npoint RenamedSurviving = coordinate(x: @RenamedUnit, y: @RenamedDelta)\n",
+      "scalars": {
+        "RenamedChosen": "evaluation-divide-by-zero",
+        "RenamedIndependentError": "evaluation-divide-by-zero"
+      },
+      "geometry": [
+        {
+          "name": "RenamedSurviving",
+          "value": {
+            "x": 38,
+            "y": 26
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [
+        "RenamedIndependentErrorPoint",
+        "RenamedDependent"
+      ],
+      "diagnosticBindings": {
+        "RenamedIndependentError": "evaluation-divide-by-zero",
+        "RenamedChosen": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "RenamedMark"
+      ],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "selected-failure",
+      "independent-scalar-geometry-errors",
+      "disabled-Module",
+      "diagnostic-owner-routing"
+    ],
+    "oracleInputs": {
+      "unit": 38,
+      "delta": 26,
+      "factor": 2
+    },
+    "independentOracle": {
+      "scalars": {
+        "RenamedChosen": "evaluation-divide-by-zero",
+        "RenamedIndependentError": "evaluation-divide-by-zero"
+      },
+      "geometry": [
+        {
+          "name": "RenamedSurviving",
+          "value": {
+            "x": 38,
+            "y": 26
+          }
+        }
+      ],
+      "errors": [
+        "RenamedIndependentErrorPoint",
+        "RenamedDependent"
+      ],
+      "diagnosticBindings": {
+        "RenamedIndependentError": "evaluation-divide-by-zero",
+        "RenamedChosen": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "RenamedMark"
+      ]
+    },
+    "sha256": "4dd0e3542ec55370ebc56f2972f2ccc9335a2e5d99ce81cf39d7dc725d354621"
+  },
+  {
+    "id": "D-C-03",
+    "stratum": "D",
+    "method": "C",
+    "variant": 3,
+    "seed": 1441203,
+    "member": "S",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 49\nconst Delta: number = 15\nconst Zero: number = 0\nconst Flag: boolean = false\nmodule Guard(Divisor: number) {\nconst Selected: point = if (@Divisor > 0) { coordinate(x: @Divisor, y: 3) } else { coordinate(x: 1 / 0, y: 0) }\nexport point Mark = from(source: @Selected)\n}\ngroup Sleeping(enabled: false) {\ninstance Dormant = Guard(Divisor: 0)\n}\nconst Chosen: number = if (@Flag) { (@Unit + @Delta) / @Zero } else { @Unit + @Delta }\npoint IndependentErrorPoint = coordinate(x: @Delta / @Zero, y: 0)\nconst IndependentError: number = @Delta / @Zero\npoint Dependent = coordinate(x: @Chosen, y: 5)\npoint Surviving = coordinate(x: @Unit, y: @Delta)\n",
+      "scalars": {
+        "Chosen": 64,
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "geometry": [
+        {
+          "name": "Surviving",
+          "value": {
+            "x": 49,
+            "y": 15
+          }
+        },
+        {
+          "name": "Dependent",
+          "value": {
+            "x": 64,
+            "y": 5
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [
+        "IndependentErrorPoint"
+      ],
+      "diagnosticBindings": {
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "Mark"
+      ],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "unselected-failure-control",
+      "independent-scalar-geometry-errors",
+      "disabled-ancestor",
+      "diagnostic-owner-routing"
+    ],
+    "oracleInputs": {
+      "unit": 49,
+      "delta": 15,
+      "factor": 3
+    },
+    "independentOracle": {
+      "scalars": {
+        "Chosen": 64,
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "geometry": [
+        {
+          "name": "Surviving",
+          "value": {
+            "x": 49,
+            "y": 15
+          }
+        },
+        {
+          "name": "Dependent",
+          "value": {
+            "x": 64,
+            "y": 5
+          }
+        }
+      ],
+      "errors": [
+        "IndependentErrorPoint"
+      ],
+      "diagnosticBindings": {
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "Mark"
+      ]
+    },
+    "sha256": "310a1c6489d12f34857d84e277748231ebd663e76ae6cacf92e771c0a1ce2bb5"
+  },
+  {
+    "id": "D-C-03",
+    "stratum": "D",
+    "method": "C",
+    "variant": 3,
+    "seed": 1441203,
+    "member": "T",
+    "program": {
+      "source": "nui 1\nconst Unit: number = 49\nconst Delta: number = 15\nconst Padding: number = @Unit + @Delta\nconst Zero: number = 0\nconst Flag: boolean = false\nmodule Guard(Divisor: number) {\nconst Selected: point = if (@Divisor > 0) { coordinate(x: @Divisor, y: 3) } else { coordinate(x: 1 / 0, y: 0) }\nexport point Mark = from(source: @Selected)\n}\ngroup Sleeping(enabled: false) {\ninstance Dormant = Guard(Divisor: 0)\n}\nconst Chosen: number = if (@Flag) { (@Unit + @Delta) / @Zero } else { @Unit + @Delta }\nconst Forwarded: number = @Chosen\npoint IndependentErrorPoint = coordinate(x: @Delta / @Zero, y: 0)\nconst IndependentError: number = @Delta / @Zero\npoint Dependent = coordinate(x: @Forwarded, y: 5)\npoint Surviving = coordinate(x: @Unit, y: @Delta)\n",
+      "scalars": {
+        "Chosen": 64,
+        "IndependentError": "evaluation-divide-by-zero",
+        "Forwarded": 64
+      },
+      "geometry": [
+        {
+          "name": "Surviving",
+          "value": {
+            "x": 49,
+            "y": 15
+          }
+        },
+        {
+          "name": "Dependent",
+          "value": {
+            "x": 64,
+            "y": 5
+          }
+        }
+      ],
+      "failedGeometry": [],
+      "templates": [],
+      "trace": [],
+      "carries": [],
+      "errors": [
+        "IndependentErrorPoint"
+      ],
+      "diagnosticBindings": {
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "Mark"
+      ],
+      "valueErrors": [],
+      "errorInstances": {},
+      "paths": []
+    },
+    "activation": [
+      "unselected-failure-control",
+      "independent-scalar-geometry-errors",
+      "disabled-ancestor",
+      "diagnostic-owner-routing"
+    ],
+    "oracleInputs": {
+      "unit": 49,
+      "delta": 15,
+      "factor": 3
+    },
+    "independentOracle": {
+      "scalars": {
+        "Chosen": 64,
+        "IndependentError": "evaluation-divide-by-zero",
+        "Forwarded": 64
+      },
+      "geometry": [
+        {
+          "name": "Surviving",
+          "value": {
+            "x": 49,
+            "y": 15
+          }
+        },
+        {
+          "name": "Dependent",
+          "value": {
+            "x": 64,
+            "y": 5
+          }
+        }
+      ],
+      "errors": [
+        "IndependentErrorPoint"
+      ],
+      "diagnosticBindings": {
+        "IndependentError": "evaluation-divide-by-zero"
+      },
+      "absent": [
+        "Mark"
+      ]
+    },
+    "sha256": "f070fd07fa6a1c100cab69ca3ebba6be9cc5ffdc66d786038460c1c97d641c89"
+  }
+]

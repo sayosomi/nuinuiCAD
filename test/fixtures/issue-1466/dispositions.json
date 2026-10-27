@@ -1,0 +1,352 @@
+{
+  "base": "17591f7c5aa61d9d227f4096c75e48138eaf4528",
+  "attemptedLabeledUnits": 37,
+  "conservativeDistinctSourceRevisions": 40,
+  "limit": 40,
+  "independentFamilies": 5,
+  "ledger": [
+    {
+      "id": "A01",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "9878af3f9ecdd8e9ad3947fa815fc7effdd4b251800d84600dd343d5045fe2a9",
+      "note": ""
+    },
+    {
+      "id": "A02",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "425e18fe3f41775dc9503314feade72b768e9d18b60c76be92f3e1cbe8160c31",
+      "note": ""
+    },
+    {
+      "id": "A03",
+      "disposition": "PASS",
+      "families": [],
+      "sourceSha256": "a048deac50fabb12016777a8b356195f836d46b2e93052b19133bc68c62b91fa",
+      "note": ""
+    },
+    {
+      "id": "A04",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "2e92d3e2e328229a4b2b87ec97ddd6ec9c4b3a07610972a66c09b6b2bcfb0605",
+      "note": ""
+    },
+    {
+      "id": "A05",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "a0ef9928ff13da3e3648782d265ea7f54f48c3e4f14d05ac43e8999e656ce283",
+      "note": ""
+    },
+    {
+      "id": "A06",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "fc16654febb2c58bc059b0956353a4f2c1946c6646413c7ac8817a8e5c2eca7c",
+      "note": ""
+    },
+    {
+      "id": "B01",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "9ba36f6fa2b0645a487d670b5fbb9304a7cbf6df311be570a3def2ba2d1f1ab3",
+      "note": ""
+    },
+    {
+      "id": "B02",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "b8332b40754cb4b08b17811e8c905da0c6b443e854d916aaf52ec0ef965a0cce",
+      "note": ""
+    },
+    {
+      "id": "B03",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "15464739d026a109280c1e7c928d5ae679d0da817fc73011b92ec6c03785a7c9",
+      "note": ""
+    },
+    {
+      "id": "B04",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "0816b0707d8c481858cc3a64ae18d4f6da61b30650145da29a0b428510b3d562",
+      "note": ""
+    },
+    {
+      "id": "B05",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "d059669eb66bf87ee6cd57bb07ea824e7e379d4ef5505973bbeb20c384d06651",
+      "note": ""
+    },
+    {
+      "id": "B06",
+      "disposition": "SUPPORTED_REJECTION",
+      "families": [],
+      "sourceSha256": "c218f793e9535eea71ba2fa4229b90e6fb7cef5b2f95c97203291164ccd48083",
+      "note": "Failed parent is atomic; legal independent nested sibling passes. Original partial-output assumption is invalid."
+    },
+    {
+      "id": "C01",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "03787bd5b7a7c8509ab23c19c37ba738973976082457bf5df7e993e71ba61321",
+      "note": ""
+    },
+    {
+      "id": "C02",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "7b0758be7eafc28352269d449b393f878e5123624074e0d909bfd89c98c85997",
+      "note": ""
+    },
+    {
+      "id": "C03",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1",
+        "F5"
+      ],
+      "sourceSha256": "03dd75b36628989bd63eb351bb2ce840266495428e0ec5e97ec90d32c9099933",
+      "note": ""
+    },
+    {
+      "id": "C04",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "c5c06ac8e306157fd160ce77647629a907706f1fa25747f24525eeeacc6a478f",
+      "note": ""
+    },
+    {
+      "id": "C05",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F3",
+        "F4"
+      ],
+      "sourceSha256": "a0db6450572ead262d1a4e49827d90420017579788b06c707a9c2c37325a53ee",
+      "note": ""
+    },
+    {
+      "id": "C06",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "4e8e424c919f0fd3147afb56747748efba3be63084feb064f3ad9cd816e101de",
+      "note": ""
+    },
+    {
+      "id": "D01",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1",
+        "F2"
+      ],
+      "sourceSha256": "1d512ca0efa0a9c89090db45bb8bd44652ea643aee3335ad648607e21c1ed828",
+      "note": ""
+    },
+    {
+      "id": "D02",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "d349acf23b860db4b5785bd4e3327b5aad6edaacf3ae88925856b3ede89e0dc6",
+      "note": ""
+    },
+    {
+      "id": "D03",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "e4fcc2957b2a1157b100c749e974c073950fbbe6d8850cdd2749d8e5f66f9d73",
+      "note": ""
+    },
+    {
+      "id": "D04",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "0d37f722b7b948afcb763f9c1c85e4ecdb986cd6cb4dfa4b7becde65ad379e09",
+      "note": ""
+    },
+    {
+      "id": "D05",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "d805e8f2a58eda2b141bbf81495aece4e59bc4ef0fa12bd214d693209ba9e2d9",
+      "note": ""
+    },
+    {
+      "id": "D06",
+      "disposition": "CONTRACT_INVALID",
+      "families": [],
+      "sourceSha256": "3e493f3b60b29d9dadc7b386658b281a79a160768ffd80c9eced1a7efd6432c0",
+      "note": "Original @L.end.y rejected. Nearest legal @L.endPoint.y variant: F1 BUG→FIXED→REPASS; line length=5, downstream point=(10,1)."
+    },
+    {
+      "id": "R01",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1"
+      ],
+      "sourceSha256": "e0751731c2e08b47251859540a3fedc78679d91e5f34ca91bb983bfcb6b985ab",
+      "note": ""
+    },
+    {
+      "id": "R02",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2"
+      ],
+      "sourceSha256": "64862e4b8741fc7bccfb58b410dbff39a07312a788ad2556f6bdb58cba44f941",
+      "note": ""
+    },
+    {
+      "id": "R03",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F3"
+      ],
+      "sourceSha256": "45eae3862e16310b7cb4fe640a10a1b8d0a840c222cccb7c835af3e4b06e676e",
+      "note": ""
+    },
+    {
+      "id": "R04",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F4"
+      ],
+      "sourceSha256": "ed132cd45ca4c60b80c71e059b2de92f3af785ca174671d12685dc2051c6d3c1",
+      "note": ""
+    },
+    {
+      "id": "R05",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1",
+        "F5"
+      ],
+      "sourceSha256": "6fde3dcefd72bdd428599f03b7cc9a4561bf467094300f28bdbaeb7abfe7b854",
+      "note": ""
+    },
+    {
+      "id": "R06",
+      "disposition": "NOT_TRIGGERED",
+      "families": []
+    },
+    {
+      "id": "R07",
+      "disposition": "NOT_TRIGGERED",
+      "families": []
+    },
+    {
+      "id": "R08",
+      "disposition": "NOT_TRIGGERED",
+      "families": []
+    },
+    {
+      "id": "X01",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2"
+      ],
+      "sourceSha256": "adebd5b8b5b00992fbb7ddf88bc7ff4b9248beea14365fe542919ff9c5d88453",
+      "note": ""
+    },
+    {
+      "id": "X02",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F3"
+      ],
+      "sourceSha256": "af788597a24344b865ed012a45762f157b5f7f09b4087caff155ccd717a7c86d",
+      "note": ""
+    },
+    {
+      "id": "X03",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1",
+        "F5"
+      ],
+      "sourceSha256": "68154002692da897e8755377d5e2801eeac07630fef9b958641d11dde183e62f",
+      "note": ""
+    },
+    {
+      "id": "X04",
+      "disposition": "SUPPORTED_REJECTION",
+      "families": [],
+      "sourceSha256": "b94f5a353f2407d3e5508889094cddf2bb5725e765fb6d5d825b9ff60ac6545c",
+      "note": "Private child scalar rejected: module-private-member."
+    },
+    {
+      "id": "X05",
+      "disposition": "SUPPORTED_REJECTION",
+      "families": [],
+      "sourceSha256": "f2ec6878da885c9170b8b74d91fe6fa32ddd1c42ed1908a3ac032759733cc286",
+      "note": "Absolute path cannot capture outer instance in closed Module: module-outer-capture."
+    },
+    {
+      "id": "X06",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F4"
+      ],
+      "sourceSha256": "2ea59395b63f23bb4e20b35e4ffd4b6cdd443c31215dcf605f28d1f875b600fe",
+      "note": ""
+    },
+    {
+      "id": "X07",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F3"
+      ],
+      "sourceSha256": "9bbbc17a7d58d9757f612b7bce70f4804a4f9ae7ba26f3ea1dc94e89db12c365",
+      "note": ""
+    },
+    {
+      "id": "X08",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F5"
+      ],
+      "sourceSha256": "8345711bf65d29e53a684ae3ff98f874a76da9f69240332b6715ca6bc20850e4",
+      "note": ""
+    }
+  ]
+}

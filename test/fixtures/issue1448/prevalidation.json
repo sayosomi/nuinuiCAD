@@ -1,0 +1,39 @@
+{
+  "rejectedDuringPrevalidation": [
+    {
+      "id": "G4",
+      "sha256": "2214399a9b3de16ad4d14f9c8ac0dc13e7f4071fea1604e168db226380d73f50",
+      "target": null,
+      "identities": [],
+      "errors": [
+        {
+          "severity": "error",
+          "line": 3,
+          "column": 1,
+          "code": "transformation-target-kind-incompatible",
+          "message": "transformation target「Anchor」は線 / path geometry ではありません。",
+          "presentation": {
+            "key": "diagnostic.transformation-target-kind-incompatible",
+            "parameters": {
+              "operation": "move",
+              "target": "Anchor"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 49,
+                "to": 55
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ],
+      "source": "nui 1\npoint Anchor = coordinate(x: 3, y: 4)\nmove Anchor as shifted(from: (0, 0), to: (10, -2))\npoint Observer = coordinate(x: @Anchor.base.x, y: @Anchor.shifted.y)\npoint Control = from(source: @Anchor.shifted)\n",
+      "disposition": "CONTRACT_INVALID"
+    }
+  ],
+  "reason": "CONTRACT_INVALID: move requires line/path. Replaced by legal geometry-property discriminator in G4; no plan or evaluator comparison performed."
+}

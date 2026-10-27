@@ -1,0 +1,50 @@
+[
+  {
+    "id": "D-map",
+    "domain": "document",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance One = left::Make(x: 11, n: 19)\ninstance Two = right::Make(x: 29, n: 43)\nconst P: path = @One::out.p\nconst Q: path = @Two::out.p\nconst L: number = @P.length\nconst M: number = @Q.length\nconst X: number = @P.endPoint.x\nconst Y: number = @Q.endPoint.x\nconst N: number = @One::out.n\nconst O: number = @Two::out.n",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Shape(p: path, n: number)\npublic module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (@x + 1, 2))\n const Values: Shape[] = [Shape(p: @P, n: @n)]\n const Mapped: Shape[] = for item in @Values { Shape(p: @item.p, n: @item.n + 2) }\n export const out: Shape = @Mapped[0]\n}\n",
+      "right/library.nui": "nui 1\nrecord Shape(p: path, n: number)\npublic module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (@x + 1, 2))\n const Values: Shape[] = [Shape(p: @P, n: @n)]\n const Mapped: Shape[] = for item in @Values { Shape(p: @item.p, n: @item.n + 2) }\n export const out: Shape = @Mapped[0]\n}\n"
+    },
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 12,
+      "Y": 30,
+      "N": 21,
+      "O": 45
+    },
+    "status": "CONTRACT_INVALID",
+    "reason": "Authored prototype used public module; normative form is export module. Rejected inputs consume no accepted hash."
+  },
+  {
+    "id": "D-identity-control",
+    "domain": "document",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nimport \"./left/library.nui\" as left\nimport \"./right/library.nui\" as right\ninstance One = left::Make(x: 11, n: 19)\ninstance Two = right::Make(x: 29, n: 43)\nconst P: path = @One::out.p\nconst Q: path = @Two::out.p\nconst L: number = @P.length\nconst M: number = @Q.length\nconst X: number = @P.endPoint.x\nconst Y: number = @Q.endPoint.x\nconst N: number = @One::out.n\nconst O: number = @Two::out.n",
+    "saved": {
+      "left/library.nui": "nui 1\nrecord Shape(p: path, n: number)\npublic module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (@x + 1, 2))\n const Values: Shape[] = [Shape(p: @P, n: @n)]\n const Mapped: Shape[] = for item in @Values { @item }\n export const out: Shape = @Mapped[0]\n}\n",
+      "right/library.nui": "nui 1\nrecord Shape(p: path, n: number)\npublic module Make(x: number, n: number) {\n const P: path = segment(start: (1, 2), end: (@x + 1, 2))\n const Values: Shape[] = [Shape(p: @P, n: @n)]\n const Mapped: Shape[] = for item in @Values { @item }\n export const out: Shape = @Mapped[0]\n}\n"
+    },
+    "expected": {
+      "L": 11,
+      "M": 29,
+      "X": 12,
+      "Y": 30,
+      "N": 19,
+      "O": 43
+    },
+    "status": "CONTRACT_INVALID",
+    "reason": "Authored prototype used public module; normative form is export module. Rejected inputs consume no accepted hash."
+  }
+]

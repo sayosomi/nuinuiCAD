@@ -1,0 +1,456 @@
+{
+  "status": "REVIEWABLE_CHECKPOINT; #1260 OPEN",
+  "transferred": [
+    {
+      "id": "G-map-free-dynamic",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1"
+      ]
+    },
+    {
+      "id": "B-min-forward-dynamic",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1"
+      ]
+    },
+    {
+      "id": "A-map-free-optional-control",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1",
+        "1260-D1-F2"
+      ]
+    },
+    {
+      "id": "A-min-optional-forward",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1"
+      ]
+    },
+    {
+      "id": "A-optional-source-constructor",
+      "status": "BUG→FIXED→REPASS",
+      "families": [
+        "1260-D1-F1",
+        "1260-D1-F2"
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "domain": "R1",
+      "status": "BUG→FIXED→REPASS",
+      "cells": [
+        {
+          "id": "R1-01",
+          "sha256": "10d93b50d62f6ed7f2fcca249eb0b4d0ad49c86b79d37e8c9f1e4953e3dbfe65",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R1-02",
+          "sha256": "62ac5ac0fc993e732f7ed903340b99045a97bac448e08f6591fc0ad83a781386",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R1-03",
+          "sha256": "00a874b6f404205154b41451842cff07ec89823b093d75aba1949a67867ac6e4",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R1-04",
+          "sha256": "00efeb602a12a277343653c2c938c514867607c44a2f4024b0ccbcb5b14d313d",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Frozen oracle passed through the canonical compiler, TypeScript reference and normally eligible persistent Rust after the already merged #1442 repair; this is not a new #1260 defect family.",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four primary cells dispositioned; R1-04 passed after the already merged #1442 repair, not as a new #1260 defect family.",
+      "semanticOracle": "Settled; the R1-04 repair was merged under #1442 / PR #1444 and was reverified here against unchanged frozen sources and oracles."
+    },
+    {
+      "domain": "R2",
+      "status": "BUG→FIXED→REPASS",
+      "cells": [
+        {
+          "id": "R2-01",
+          "sha256": "b4551966b85217dc4302bb6f3072099e1c0e4accb5031fd321c4e3f985997adb",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R2-02",
+          "sha256": "86d86f729bd0c2027aa294345b93d821874ff576469b4e38e34b95ad5d3e9aed",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R2-03",
+          "sha256": "0b94a57ff707f275bbc045be701c53e0b9c8db4c4f3975c0755ef5ed97aa9b8e",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R2-04",
+          "sha256": "ac436ebcef0be39fb1bd13dbdcdab5ef647ea9ed9900a004050db0913cdfc624",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four declared primary cells dispositioned; finite matrix, not exhaustive conformance.",
+      "semanticOracle": "Settled; blocked implementation/representation scope, not a claimed normative ambiguity."
+    },
+    {
+      "domain": "R3",
+      "status": "PASS",
+      "cells": [
+        {
+          "id": "R3-01",
+          "sha256": "585666aa98bea5895eb775258e4ea77840605d1fba4683579b2fa07215453b2c",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R3-02",
+          "sha256": "9b23a90c34dd084f7b4ee3a07baafc953b23e33e116288625b352aa21ebd4259",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R3-03",
+          "sha256": "b71fadaa504d3c48ef61961d65ca6e2e9caf0d45e5fdced90b1ee548c598cc92",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R3-04",
+          "sha256": "52ddda28749c50ed5cf5356943d24211351b480d81b32950086a24dda1434600",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four declared primary cells dispositioned; finite matrix, not exhaustive conformance."
+    },
+    {
+      "domain": "R4",
+      "status": "BUG→FIXED→REPASS",
+      "cells": [
+        {
+          "id": "R4-01",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "6c79f16df2bfbc33b8a82be9dff94774d8069f599b14550ad029999c0586a3e0",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R4-02",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "82e258c94dd038467d2410ebdd977eee19809c0d935c0c5a50f1261c2503e6ea",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R4-03",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "6bf3512ce27ce69aafa83871a1510e0b0224e1e673b4780c6cc03fdf9b6d0746",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R4-04",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "97f4b55f76432fdb4df61a28d8b63790c0732bb42388bd9517b56ca8b92ea00a",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four declared primary cells dispositioned; finite matrix, not exhaustive conformance."
+    },
+    {
+      "domain": "R5",
+      "status": "PASS",
+      "cells": [
+        {
+          "id": "R5-01",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "595aa70593fa4880a698c6ffa3302bf8c7b3b1143deed9963a644fc244aa1a10",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R5-02",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "d949a7083203ceece98490503e73caf3cfd41c2d3fc64fb4cc8fd082641e7fcd",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R5-03",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "ba3aa4c324a0058821c5a396a44f6dcdccc0477063e5d5feabdbd105d9b59773",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R5-04",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "515e8aa47adb2ecf5e383c112dd80e160d6a96f1ba560c607674786957b0a308",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four declared primary cells dispositioned; finite matrix, not exhaustive conformance."
+    },
+    {
+      "domain": "R6",
+      "status": "BUG→FIXED→REPASS",
+      "cells": [
+        {
+          "id": "R6-01",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "2879b4cd69ce952417b089f0d1e8aa060a155782dc407b2a1f060540500079d6",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R6-02",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "7b6e566efc49a0dfed70df5222cf3dd2852b654f32928251ecdf5d6160343caf",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R6-03",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "68162d379eacf45f2926b4d7844343d3b0238d929cd4bd93e0ce84684cec17b3",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R6-04",
+          "status": "BUG→FIXED→REPASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "6eb57a6193fcddbea1beebaca5efe2febc36a34b5de7be5d58d5a672135701d4",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four declared primary cells dispositioned; finite matrix, not exhaustive conformance."
+    },
+    {
+      "domain": "R7",
+      "status": "PASS",
+      "cells": [
+        {
+          "id": "R7-01",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "c012d90f96b5bdb843f978d072c88c58d9ad47ff4fe0c03dc9e9291ea3019ada",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R7-02",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "9c36a1895317cd5119e927870c86768b0d94d01a728be746968df213bf822cc5",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R7-03",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "dad7ae7222d88837acbe9e53ce4a193f4242909fccee6c3ced7904edd9a4f2a8",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R7-04",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "sha256": "f0e6cd45a77cfb7f31c936153b1eed1d7b33ea8224ad0c1a08ad5552858339f3",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four declared primary cells dispositioned; finite matrix, not exhaustive conformance."
+    },
+    {
+      "domain": "R8",
+      "status": "PASS",
+      "cells": [
+        {
+          "id": "R8-01",
+          "sha256": "9cdaef37a213851d4d54c1682dc3f0c353bfea32c7a13159d6ee7329b7ef6b78",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R8-02",
+          "sha256": "b2c4dc104e80d69b29e7568539d1760748c43358e0ecff080b15c995dc6ba445",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R8-03",
+          "sha256": "c410a1962a88d0862e28230d8de6c845ddaa0778615c0f3ec55656f7bf0e92af",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        },
+        {
+          "id": "R8-04",
+          "sha256": "007c800b52fcbb7dee4c38702caa66be52a5c2c3cedc0440f55e7b9dff18a7c4",
+          "status": "PASS",
+          "reason": "Independent frozen oracle passed in TypeScript and normally eligible real persistent Rust.",
+          "boundary": null,
+          "failures": []
+        }
+      ],
+      "boundedConclusion": "All four declared primary cells dispositioned; finite matrix, not exhaustive conformance."
+    }
+  ],
+  "primarySummary": {
+    "PASS": 24,
+    "UNRESOLVED": 0,
+    "BUG→FIXED→REPASS": 8
+  },
+  "additionalCases": [
+    {
+      "id": "C-lazy-index",
+      "sha256": "c0913473406587852c8a3c206a3c61d434fc6d259f76f81ada4323e3f5c137bb",
+      "status": "PASS",
+      "reason": null
+    },
+    {
+      "id": "C-lazy-map",
+      "sha256": "7c9e4557ad5dc75d2bb67990ed8ba1a3fee433db8ad972b2e7fb96b0c4f75ccc",
+      "status": "PASS",
+      "reason": null
+    },
+    {
+      "id": "C-carry-if",
+      "sha256": "68cbeea1c8bd370366d75a682230a39026959e774f8d2d1aa1d992e2bf3d29cb",
+      "status": "BUG→FIXED→REPASS",
+      "reason": "Frozen TypeScript and normally eligible persistent-Rust oracles passed after the already merged #1442 repair; this control is not a new #1260 defect family."
+    },
+    {
+      "id": "C-carry-if-control",
+      "sha256": "3198f44aae23c7bc33901fd38ee09a054394609e22cd98938096d7ba2c0056c2",
+      "status": "PASS",
+      "reason": null
+    },
+    {
+      "id": "C-coordinate",
+      "sha256": "306311f4de9be9a6331a39e6dc2ff03c946e411a7f282df6436eda157a0ee504",
+      "status": "PASS",
+      "reason": "Frozen TypeScript and ordinarily eligible persistent Rust both produce independent Observed = (3,4); repaired under #1446."
+    },
+    {
+      "id": "C-coordinate-control",
+      "sha256": "e77f13db40523a7dc7f91c0a6c6dada8697d746d776e63f96c260db8dd1766aa",
+      "status": "PASS",
+      "reason": "Frozen TypeScript and ordinarily eligible persistent Rust both preserve the selected named point and produce independent Observed = (3,4); repaired under #1446."
+    },
+    {
+      "id": "C-R7-01",
+      "sha256": "f63e5febbcebfb5a4b98d8f528d01f330bed2337d9223adeba49ff6d0fdaea96",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "C-R7-03",
+      "sha256": "6d49807b18320de1bbf007232b396e07c9fcb175eb38628168fc07341aa87ec2",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "C-R7-04",
+      "sha256": "a8632007192ce5c37a170775e86059e19b37b9116af598429167977ea7cc1fd2",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "C-R2-selected",
+      "sha256": "57c7db6e6439e99ca1d0c4aa84113e7efc1f8d5455da5d78cef34100bf28235c",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "C-R4-arithmetic",
+      "sha256": "aa1d649856410004b73dcac571ba28f621b6937ac445bab81817b39183d8f539",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "C-R4-literal",
+      "sha256": "11ccbb88b23185cf6526ec9b1ebfc4f48dd563ddc153cfe769cbb825d4899cd1",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "D-R4-literal",
+      "sha256": "bb4cddc4ced815c02846c0f15b36af29569ad9ce2b020bc362e213b1b1f73a15",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "C-R6-complete-failed",
+      "sha256": "fa2daee9697123e2b9a9d047cdefe75b99b756732067a1a5287097c1f7591d79",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    },
+    {
+      "id": "C-R6-generated-failure",
+      "sha256": "045eee0ce42b65198b092ffa55d58c5279d1c710095ec682e1e49dcb34d56e33",
+      "status": "PASS",
+      "reason": "Frozen reduction/control verified; no extra family count."
+    }
+  ],
+  "slice2Evidence": "r2-proofs.json"
+}

@@ -1,0 +1,63 @@
+
+> nuinuicad@0.0.0 test:parity
+> VITE_RUN_RUST_PARITY=1 vitest run test/evaluationParity.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+ ❯ test/evaluationParity.test.ts (207 tests | 1 failed) 56710ms
+     × projects drawable and materialized geometry references to canonical identity-free values through Rust stdio 34ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/evaluationParity.test.ts > TypeScript/Rust evaluation parity fixtures > projects drawable and materialized geometry references to canonical identity-free values through Rust stdio
+AssertionError: expected { kind: 'offsetLine', …(7) } to match object { kind: 'offsetLine', …(6) }
+(11 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "closed": false,
+    "end": {
+      "x": 7.347880794884119e-16,
+-     "y": 8,
++     "y": 12,
+    },
+    "endTangentAngleDeg": 0,
+    "kind": "offsetLine",
+    "segments": [
+      {
+        "kind": "arc",
+-       "radius": 8,
++       "radius": 12,
+        "startAngleDeg": 0,
+        "sweepAngleDeg": 90,
+      },
+    ],
+    "start": {
+-     "x": 8,
++     "x": 12,
+      "y": 0,
+    },
+    "startTangentAngleDeg": 90,
+  }
+
+ ❯ test/evaluationParity.test.ts:4694:25
+    4692|         startTangentAngleDeg: expect.any(Number), endTangentAngleDeg: …
+    4693|       });
+    4694|       expect(values[7]).toMatchObject({
+       |                         ^
+    4695|         kind: "offsetLine", closed: false, start: { x: 8, y: 0 }, end:…
+    4696|         segments: [{ kind: "arc", radius: 8, startAngleDeg: 0, sweepAn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 206 passed (207)
+   Start at  07:05:00
+   Duration  59.55s (transform 2.06s, setup 34ms, import 2.38s, tests 56.71s, environment 319ms)
+
+
+parity EXIT=1

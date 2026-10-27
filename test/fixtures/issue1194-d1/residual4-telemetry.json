@@ -1,0 +1,274 @@
+{
+  "scope": "Only instrumented fourth-slice runner executions in runs.ndjson; not total npm/CI requests or Codex quota consumption.",
+  "counts": {
+    "compiler": 152,
+    "setupCompiler": 20,
+    "reference": 132,
+    "production": 132
+  },
+  "runs": [
+    {
+      "runId": "base-initial-1792558418473",
+      "phase": "base-initial",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "acceptedCumulative": 146,
+      "resourceError": null
+    },
+    {
+      "runId": "base-reduce1-1792558467556",
+      "phase": "base-reduce1",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "acceptedCumulative": 149,
+      "resourceError": null
+    },
+    {
+      "runId": "base-controls-1792558535905",
+      "phase": "base-controls",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "acceptedCumulative": 152,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-optional-fields-1792558617039",
+      "phase": "fix-optional-fields",
+      "sourceTreeSha256": "57c1417af5f2b7a1a3c0db5bd896fa1aa086beb527a3ffc16e542ef87b968303",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "acceptedCumulative": 155,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-map-chain-1792558754174",
+      "phase": "fix-map-chain",
+      "sourceTreeSha256": "92e7c9fc4b79a8e0ffe3a513ae8d4e473a827c3c0463f0db9f7eddd40b095c69",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "acceptedCumulative": 155,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-map-fields-1792558785027",
+      "phase": "fix-map-fields",
+      "sourceTreeSha256": "23e43eb466f1977b9ea1a398908b5c71ba9d6971ae0302c1d727acf842a5826f",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "acceptedCumulative": 155,
+      "resourceError": null
+    },
+    {
+      "runId": "adjacent-module-document-1792558893879",
+      "phase": "adjacent-module-document",
+      "sourceTreeSha256": "23e43eb466f1977b9ea1a398908b5c71ba9d6971ae0302c1d727acf842a5826f",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "acceptedCumulative": 159,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-module-omission-1792558909464",
+      "phase": "fix-module-omission",
+      "sourceTreeSha256": "c494d675fedf32fe5bee84da726f3b26dc4b6a204f2a8c31cae7e2da5d36b80b",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "acceptedCumulative": 160,
+      "resourceError": null
+    },
+    {
+      "runId": "nested-map-1792558973941",
+      "phase": "nested-map",
+      "sourceTreeSha256": "48e9a162b7f33af4234d84fe39a96be95146b2522c76b633cf7067ace0c86bd8",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "acceptedCumulative": 161,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-nested-alias-1792559049299",
+      "phase": "fix-nested-alias",
+      "sourceTreeSha256": "339b16b23a9735e07b3b4bd29438d35a160c6bf49abdbbc9f9bffb1e5bcd9fd8",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "acceptedCumulative": 162,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-nested-contents-1792559105227",
+      "phase": "fix-nested-contents",
+      "sourceTreeSha256": "581254b8f950af5742b37e7f88a098727fb6a90c0e5a467f0932a2782c04464b",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "acceptedCumulative": 162,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-identity-map-1792559130169",
+      "phase": "fix-identity-map",
+      "sourceTreeSha256": "a7e94007f2a227f024cc255afa7d1ec07570175d543766791ecfc803a0a972de",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "acceptedCumulative": 162,
+      "resourceError": null
+    },
+    {
+      "runId": "nested-document-depth-1792559178290",
+      "phase": "nested-document-depth",
+      "sourceTreeSha256": "a7e94007f2a227f024cc255afa7d1ec07570175d543766791ecfc803a0a972de",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "acceptedCumulative": 165,
+      "resourceError": null
+    },
+    {
+      "runId": "fix-nested-module-1792559272131",
+      "phase": "fix-nested-module",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "acceptedCumulative": 166,
+      "resourceError": null
+    },
+    {
+      "runId": "affected-parameter-geometry-1792559324494",
+      "phase": "affected-parameter-geometry",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "acceptedCumulative": 168,
+      "resourceError": null
+    },
+    {
+      "runId": "candidate-all-1792559362949",
+      "phase": "candidate-all",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "counts": {
+        "compiler": 30,
+        "setupCompiler": 1,
+        "reference": 28,
+        "production": 28
+      },
+      "acceptedCumulative": 168,
+      "resourceError": null
+    },
+    {
+      "runId": "base-exact-1792559394714",
+      "phase": "base-exact",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "counts": {
+        "compiler": 30,
+        "setupCompiler": 1,
+        "reference": 21,
+        "production": 21
+      },
+      "acceptedCumulative": 168,
+      "resourceError": null
+    },
+    {
+      "runId": "final-adjacent-control-1792559446867",
+      "phase": "final-adjacent-control",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "acceptedCumulative": 171,
+      "resourceError": null
+    },
+    {
+      "runId": "base-exact-extra-1792559468915",
+      "phase": "base-exact-extra",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "acceptedCumulative": 171,
+      "resourceError": null
+    },
+    {
+      "runId": "focused-final-1792559506456",
+      "phase": "focused-final",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "counts": {
+        "compiler": 30,
+        "setupCompiler": 1,
+        "reference": 30,
+        "production": 30
+      },
+      "acceptedCumulative": 171,
+      "resourceError": null
+    }
+  ],
+  "accepted": 171,
+  "newAccepted": 31,
+  "processCleanup": "Each owned persistent Rust child disposed, close awaited, timeout/error monitored; no resourceError in recorded runs."
+}

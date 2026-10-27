@@ -199,31 +199,32 @@ const scalarValuesEqual = (a: ScalarValue, b: ScalarValue): boolean => {
  * top-level reference, a reference under a no-op `group`, an operand of
  * unary/binary, && an equality operand are all covered by the same check.
  */
-const evaluateReference = (node: TypedScalarReferenceNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
+function* evaluateReference(node: TypedScalarReferenceNode, environment: ScalarEvaluationEnvironment): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null || node.bindingId === null) {
     return staticTypeNullError(node.bindingId ?? undefined);
   }
 
-  const result = environment.lookupBinding(node.bindingId);
+  const bindingId = node.bindingId;
+  const result = yield* readBindingDependency(() => environment.lookupBinding(bindingId));
   if (result.status === "error") return result;
 
   if (!scalarExpressionTypesEqual(type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch", bindingId: node.bindingId };
   }
   return result;
-};
+}
 
-const evaluateGeometryProperty = (
+function* evaluateGeometryProperty(
   node: Extract<TypedScalarExpression, { kind: "geometryProperty" }>,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   if (node.type === null) return staticTypeNullError();
   if (isDslOptionalValueType(node.type)) return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   if (node.collectionValueId !== undefined) {
-    const resolvedLength = node.collectionLength ??
-      environment.lookupCollectionLengthEvaluation?.(node.collectionValueId) ??
-      environment.lookupCollectionLength?.(node.collectionValueId);
+    const resolvedLength = yield* readBindingDependency(() => node.collectionLength ??
+      environment.lookupCollectionLengthEvaluation?.(node.collectionValueId!) ??
+      environment.lookupCollectionLength?.(node.collectionValueId!));
     if (typeof resolvedLength === "object") return propagateError(node.type, resolvedLength);
     const length = resolvedLength;
     if (length === undefined) {
@@ -240,32 +241,32 @@ const evaluateGeometryProperty = (
   if ((!node.elementId && !node.geometryValueOccurrence && !node.geometryValueBinderId && !node.forGroupOccurrenceTemplateElementId && !node.geometryCarryBindingId) || node.targetSourceOrder === null || !environment.lookupGeometryProperty) {
     return { status: "error", type: node.type, issueCode: "evaluation-geometry-property-unavailable" };
   }
-  const result = environment.lookupGeometryProperty(node);
+  const result = yield* readBindingDependency(() => environment.lookupGeometryProperty!(node));
   if (result.status === "error") return result;
   if (!scalarExpressionTypesEqual(node.type, result.type) || !scalarValueMatchesType(result.type, result.value)) {
     return { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return result;
-};
+}
 
-const evaluateOptionalMember = (
+function* evaluateOptionalMember(
   node: Extract<TypedScalarExpression, { kind: "optionalMember" }>,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   if (node.type === null || !node.target || !environment.lookupOptionalMember) return staticTypeNullError();
-  const result = environment.lookupOptionalMember(node.target, node.type);
+  const result = yield* readBindingDependency(() => environment.lookupOptionalMember!(node.target!, node.type!));
   if (result.status === "error") return result;
   return scalarExpressionTypesEqual(result.type, node.type) && scalarValueMatchesType(node.type, result.value)
     ? result
     : { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
-};
+}
 
-const evaluateCollectionIndex = (
+function* evaluateCollectionIndex(
   node: Extract<TypedScalarExpression, { kind: "collectionIndex" }>,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   if (node.type === null || node.collectionValueId === null || node.targetSourceOrder === null) return staticTypeNullError();
-  const index = evaluateTypedExpression(node.index, environment);
+  const index = yield* evaluateTypedExpressionSteps(node.index, environment);
   if (index.status === "error") return propagateError(node.type, index);
   if (
     index.value.kind !== "number" ||
@@ -277,24 +278,27 @@ const evaluateCollectionIndex = (
     return { status: "error", type: node.type, issueCode: "evaluation-collection-index-invalid" };
   }
   if (!environment.lookupCollectionIndex) return { status: "error", type: node.type, issueCode: "evaluation-collection-index-unavailable" };
-  const result = environment.lookupCollectionIndex(
-    node.collectionValueId,
-    index.value.value,
-    node.type,
+  const collectionValueId = node.collectionValueId;
+  const indexValue = index.value.value;
+  const elementType = node.type;
+  const result = yield* readBindingDependency(() => environment.lookupCollectionIndex!(
+    collectionValueId,
+    indexValue,
+    elementType,
     node.collectionLength,
-    node.targetSourceOrder
-  );
+    node.targetSourceOrder!
+  ));
   if (result.status === "error") return result;
   return scalarExpressionTypesEqual(node.type, result.type) && scalarValueMatchesType(result.type, result.value)
     ? result
     : { status: "error", type: node.type, issueCode: "evaluation-runtime-value-type-mismatch" };
-};
+}
 
-const evaluateUnary = (node: TypedScalarUnaryExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
+function* evaluateUnary(node: TypedScalarUnaryExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null) return staticTypeNullError();
 
-  const operand = evaluateTypedExpression(node.operand, environment);
+  const operand = yield* evaluateTypedExpressionSteps(node.operand, environment);
   if (operand.status === "error") return propagateError(type, operand);
 
   if (node.operator === "!") {
@@ -302,52 +306,52 @@ const evaluateUnary = (node: TypedScalarUnaryExpressionNode, environment: Scalar
   }
   const numeric = numberValueOf(operand.value);
   return { status: "ok", type, value: { kind: "number", value: node.operator === "-" ? -numeric : numeric } };
-};
+}
 
 /** ` && `/` || `: the only short-circuiting operators. Left is always evaluated
  * first; right is evaluated only when it can still affect the result. */
-const evaluateLogicalOperator = (
+function* evaluateLogicalOperator(
   operator: "&&" | "||",
   leftNode: TypedScalarExpression,
   rightNode: TypedScalarExpression,
   type: ScalarType,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
-  const left = evaluateTypedExpression(leftNode, environment);
+): ScalarEvaluationSteps {
+  const left = yield* evaluateTypedExpressionSteps(leftNode, environment);
   if (left.status === "error") return propagateError(type, left);
 
   const leftValue = booleanValueOf(left.value);
   if (operator === "&&" && leftValue === false) return { status: "ok", type, value: { kind: "boolean", value: false } };
   if (operator === "||" && leftValue === true) return { status: "ok", type, value: { kind: "boolean", value: true } };
 
-  const right = evaluateTypedExpression(rightNode, environment);
+  const right = yield* evaluateTypedExpressionSteps(rightNode, environment);
   if (right.status === "error") return propagateError(type, right);
   return { status: "ok", type, value: { kind: "boolean", value: booleanValueOf(right.value) } };
-};
+}
 
-const evaluateEqualityOperator = (
+function* evaluateEqualityOperator(
   operator: "==" | "!=",
   leftNode: TypedScalarExpression,
   rightNode: TypedScalarExpression,
   type: ScalarType,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
-  const left = evaluateTypedExpression(leftNode, environment);
-  const right = evaluateTypedExpression(rightNode, environment);
+): ScalarEvaluationSteps {
+  const left = yield* evaluateTypedExpressionSteps(leftNode, environment);
+  const right = yield* evaluateTypedExpressionSteps(rightNode, environment);
   if (left.status === "error") return propagateError(type, left);
   if (right.status === "error") return propagateError(type, right);
 
   const equal = scalarValuesEqual(left.value, right.value);
   return { status: "ok", type, value: { kind: "boolean", value: operator === "==" ? equal : !equal } };
-};
+}
 
-const evaluateCoalesceOperator = (
+function* evaluateCoalesceOperator(
   node: TypedScalarBinaryExpressionNode,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null || isDslOptionalValueType(type)) return staticTypeNullError();
-  const left = evaluateTypedExpression(node.left, environment);
+  const left = yield* evaluateTypedExpressionSteps(node.left, environment);
   if (left.status === "error") return propagateError(type, left);
   const optionalType = { kind: "optional", valueType: type } as const;
   if (!scalarExpressionTypesEqual(left.type, optionalType) || !scalarValueMatchesType(optionalType, left.value)) {
@@ -356,23 +360,23 @@ const evaluateCoalesceOperator = (
   if (left.value.kind !== "none") {
     return { status: "ok", type, value: left.value };
   }
-  const right = evaluateTypedExpression(node.right, environment);
+  const right = yield* evaluateTypedExpressionSteps(node.right, environment);
   if (right.status === "error") return propagateError(type, right);
   if (!scalarExpressionTypesEqual(type, right.type) || !scalarValueMatchesType(type, right.value)) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return right;
-};
+}
 
-const evaluateArithmeticOrComparisonOperator = (
+function* evaluateArithmeticOrComparisonOperator(
   operator: "+" | "-" | "*" | "/" | "%" | "^" | "<" | "<=" | ">" | ">=",
   leftNode: TypedScalarExpression,
   rightNode: TypedScalarExpression,
   type: ScalarType,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
-  const left = evaluateTypedExpression(leftNode, environment);
-  const right = evaluateTypedExpression(rightNode, environment);
+): ScalarEvaluationSteps {
+  const left = yield* evaluateTypedExpressionSteps(leftNode, environment);
+  const right = yield* evaluateTypedExpressionSteps(rightNode, environment);
   if (left.status === "error") return propagateError(type, left);
   if (right.status === "error") return propagateError(type, right);
 
@@ -407,28 +411,28 @@ const evaluateArithmeticOrComparisonOperator = (
     case ">=":
       return { status: "ok", type, value: { kind: "boolean", value: leftNumber >= rightNumber } };
   }
-};
+}
 
-const evaluateBinary = (node: TypedScalarBinaryExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
+function* evaluateBinary(node: TypedScalarBinaryExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null) return staticTypeNullError();
   if (isDslOptionalValueType(type)) return staticTypeNullError();
 
   if (node.operator === "&&" || node.operator === "||") {
-    return evaluateLogicalOperator(node.operator, node.left, node.right, type, environment);
+    return yield* evaluateLogicalOperator(node.operator, node.left, node.right, type, environment);
   }
   if (node.operator === "==" || node.operator === "!=") {
-    return evaluateEqualityOperator(node.operator, node.left, node.right, type, environment);
+    return yield* evaluateEqualityOperator(node.operator, node.left, node.right, type, environment);
   }
-  if (node.operator === "??") return evaluateCoalesceOperator(node, environment);
-  return evaluateArithmeticOrComparisonOperator(node.operator, node.left, node.right, type, environment);
-};
+  if (node.operator === "??") return yield* evaluateCoalesceOperator(node, environment);
+  return yield* evaluateArithmeticOrComparisonOperator(node.operator, node.left, node.right, type, environment);
+}
 
-const evaluateGeometryBuiltin = (
+function* evaluateGeometryBuiltin(
   node: TypedScalarCallExpressionNode,
   environment: ScalarEvaluationEnvironment,
   name: GeometryBuiltinName
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null || isDslOptionalValueType(type)) return staticTypeNullError();
   if (name === "lineAngle") {
@@ -440,7 +444,7 @@ const evaluateGeometryBuiltin = (
       let target = argument.target;
       if (target.kind === "geometryCollectionIndex") {
         if (!target.index) return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
-        const indexResult = evaluateTypedExpression(target.index, environment);
+        const indexResult = yield* evaluateTypedExpressionSteps(target.index, environment);
         if (indexResult.status === "error") return propagateError(type, indexResult);
         if (indexResult.value.kind !== "number") {
           return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
@@ -449,14 +453,14 @@ const evaluateGeometryBuiltin = (
         if (!Number.isFinite(index) || !Number.isInteger(index) || index < 0) {
           return { status: "error", type, issueCode: "evaluation-collection-index-invalid" };
         }
-        const selected = environment.lookupGeometryCollectionEndpoint?.(target, index) ?? {
+        const selected = (yield* readBindingDependency(() => environment.lookupGeometryCollectionEndpoint?.(target as Extract<ScalarExpressionResolvedGeometryTarget, { kind: "geometryCollectionIndex" }>, index))) ?? {
           kind: "error" as const,
           issueCode: "evaluation-collection-index-unavailable" as const
         };
         if (selected.kind === "error") return { status: "error", type, issueCode: selected.issueCode };
         target = selected.target;
       }
-      const geometry = environment.lookupGeometryTarget?.(target);
+      const geometry = yield* readBindingDependency(() => environment.lookupGeometryTarget?.(target));
       if (geometry?.kind === "unavailable") {
         return {
           status: "error",
@@ -488,7 +492,7 @@ const evaluateGeometryBuiltin = (
     : ["point", "point"];
   const argumentsByPosition: (ComputedGeometry | ComputedGeometryValue)[] = [];
   for (const [index, argument] of node.args.entries()) {
-    const geometry = geometryArgument(argument, expectedTypes[index]!, environment);
+    const geometry = yield* readBindingDependency(() => geometryArgument(argument, expectedTypes[index]!, environment));
     if (geometry?.kind === "unavailable") {
       const target = argument.kind === "geometryReference" ? argument.target : null;
       return {
@@ -527,7 +531,7 @@ const evaluateGeometryBuiltin = (
   return result === null
     ? { status: "error", type, issueCode: "evaluation-zero-length-line" }
     : finiteNumberResult(type, result);
-};
+}
 
 const builtinFunctionIssueCode = (reason: Exclude<ReturnType<typeof evaluateBuiltinFunction>, { status: "ok" }>['reason']): string => {
   switch (reason) {
@@ -542,36 +546,36 @@ const builtinFunctionIssueCode = (reason: Exclude<ReturnType<typeof evaluateBuil
   }
 };
 
-const evaluateStringBuiltin = (
+function* evaluateStringBuiltin(
   node: TypedScalarCallExpressionNode,
   environment: ScalarEvaluationEnvironment,
   type: ScalarType
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   if (node.args.length !== 1 || node.args[0]?.kind !== "scalar") {
     return { status: "error", type, issueCode: "evaluation-invalid-builtin-argument" };
   }
-  const argument = evaluateTypedExpression(node.args[0].expression, environment);
+  const argument = yield* evaluateTypedExpressionSteps(node.args[0].expression, environment);
   if (argument.status === "error") return propagateError(type, argument);
   if (argument.value.kind !== "choice") {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
   return { status: "ok", type, value: { kind: "string", value: argument.value.value } };
-};
+}
 
-const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluation => {
+function* evaluateCall(node: TypedScalarCallExpressionNode, environment: ScalarEvaluationEnvironment): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null || node.target === null) return staticTypeNullError();
   if (isDslOptionalValueType(type)) return staticTypeNullError();
 
-  if (isGeometryBuiltin(node.target.name)) return evaluateGeometryBuiltin(node, environment, node.target.name);
-  if (node.target.name === "string") return evaluateStringBuiltin(node, environment, type);
+  if (isGeometryBuiltin(node.target.name)) return yield* evaluateGeometryBuiltin(node, environment, node.target.name);
+  if (node.target.name === "string") return yield* evaluateStringBuiltin(node, environment, type);
 
   const args: number[] = [];
   for (const argumentNode of node.args) {
     if (argumentNode.kind === "geometryReference" || argumentNode.kind === "geometryEndpoint") {
       return { status: "error", type, issueCode: "evaluation-geometry-builtin-unavailable" };
     }
-    const argument = evaluateTypedExpression(argumentNode.expression, environment);
+    const argument = yield* evaluateTypedExpressionSteps(argumentNode.expression, environment);
     if (argument.status === "error") return propagateError(type, argument);
     args.push(numberValueOf(argument.value));
   }
@@ -588,37 +592,37 @@ const evaluateCall = (node: TypedScalarCallExpressionNode, environment: ScalarEv
     return { status: "ok", type, value: { kind: "boolean", value: result.value } };
   }
   return finiteNumberResult(type, result.value);
-};
+}
 
-const evaluateValueIf = (
+function* evaluateValueIf(
   node: Extract<TypedScalarExpression, { kind: "valueIf" }>,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null) return staticTypeNullError();
-  const condition = evaluateTypedExpression(node.condition, environment);
+  const condition = yield* evaluateTypedExpressionSteps(node.condition, environment);
   if (condition.status === "error") return propagateError(type, condition);
   if (condition.type.kind !== "boolean" || condition.value.kind !== "boolean") {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
-  const selected = evaluateTypedExpression(condition.value.value ? node.thenBranch : node.elseBranch, environment);
+  const selected = yield* evaluateTypedExpressionSteps(condition.value.value ? node.thenBranch : node.elseBranch, environment);
   if (selected.status === "error") return propagateError(type, selected);
   return isScalarExpressionTypeAssignable(selected.type, type) && scalarValueMatchesType(type, selected.value)
     ? { ...selected, type }
     : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
-};
+}
 
-const evaluateValueMatch = (
+function* evaluateValueMatch(
   node: Extract<TypedScalarExpression, { kind: "valueMatch" }>,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   const type = node.type;
   if (type === null) return staticTypeNullError();
   const scrutineeType = node.scrutinee.type;
   if (scrutineeType === null || (scrutineeType.kind !== "choice" && scrutineeType.kind !== "optional")) {
     return { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
   }
-  const scrutinee = evaluateTypedExpression(node.scrutinee, environment);
+  const scrutinee = yield* evaluateTypedExpressionSteps(node.scrutinee, environment);
   if (scrutinee.status === "error") return propagateError(type, scrutinee);
   if (
     !scalarExpressionTypesEqual(scrutineeType, scrutinee.type) ||
@@ -639,17 +643,17 @@ const evaluateValueMatch = (
           : environment.lookupBinding(bindingId)
       }
     : environment;
-  const result = evaluateTypedExpression(selected.expression, selectedEnvironment);
+  const result = yield* evaluateTypedExpressionSteps(selected.expression, selectedEnvironment);
   if (result.status === "error") return propagateError(type, result);
   return isScalarExpressionTypeAssignable(result.type, type) && scalarValueMatchesType(type, result.value)
     ? { ...result, type }
     : { status: "error", type, issueCode: "evaluation-runtime-value-type-mismatch" };
-};
+}
 
-const evaluateTypedExpressionNode = (
+function* evaluateTypedExpressionNode(
   node: TypedScalarExpression,
   environment: ScalarEvaluationEnvironment
-): ScalarEvaluation => {
+): ScalarEvaluationSteps {
   switch (node.kind) {
     case "numberLiteral":
       return { status: "ok", type: node.type, value: { kind: "number", value: node.value } };
@@ -666,36 +670,72 @@ const evaluateTypedExpressionNode = (
       return { status: "ok", type, value: { kind: "choice", value: node.value, options: type.options } };
     }
     case "reference":
-      return evaluateReference(node, environment);
+      return yield* evaluateReference(node, environment);
     case "collectionIndex":
-      return evaluateCollectionIndex(node, environment);
+      return yield* evaluateCollectionIndex(node, environment);
     case "geometryProperty":
-      return evaluateGeometryProperty(node, environment);
+      return yield* evaluateGeometryProperty(node, environment);
     case "optionalMember":
-      return evaluateOptionalMember(node, environment);
+      return yield* evaluateOptionalMember(node, environment);
     case "unary":
-      return evaluateUnary(node, environment);
+      return yield* evaluateUnary(node, environment);
     case "binary":
-      return evaluateBinary(node, environment);
+      return yield* evaluateBinary(node, environment);
     case "group": {
       const type = node.type;
       if (type === null) return staticTypeNullError();
-      return evaluateTypedExpression(node.expression, environment);
+      return yield* evaluateTypedExpressionSteps(node.expression, environment);
     }
     case "valueIf":
-      return evaluateValueIf(node, environment);
+      return yield* evaluateValueIf(node, environment);
     case "valueMatch":
-      return evaluateValueMatch(node, environment);
+      return yield* evaluateValueMatch(node, environment);
     case "call":
-      return evaluateCall(node, environment);
+      return yield* evaluateCall(node, environment);
   }
-};
+}
+
+/** Internal suspension raised only by the on-demand document resolver. */
+export class ScalarBindingDemand {
+  constructor(readonly bindingId: BindingId) {}
+}
+
+type ScalarEvaluationSteps = Generator<ScalarBindingDemand, ScalarEvaluation, void>;
+
+// Keep environment calls at their original evaluation point. In particular an
+// index or selected condition is not re-evaluated when its lookup must wait.
+function* readBindingDependency<T>(read: () => T): Generator<ScalarBindingDemand, T, void> {
+  for (;;) {
+    try { return read(); }
+    catch (error) {
+      if (!(error instanceof ScalarBindingDemand)) throw error;
+      yield error;
+    }
+  }
+}
+
+function* evaluateTypedExpressionSteps(
+  node: TypedScalarExpression,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluationSteps {
+  const evaluation = yield* evaluateTypedExpressionNode(node, environment);
+  environment.onExpressionEvaluated?.(node, evaluation);
+  return evaluation;
+}
+
+/** Retains the existing reached-expression execution while its owner supplies a binding. */
+export const createTypedExpressionEvaluation = (
+  node: TypedScalarExpression,
+  environment: ScalarEvaluationEnvironment
+): ScalarEvaluationSteps => evaluateTypedExpressionSteps(node, environment);
 
 export const evaluateTypedExpression = (
   node: TypedScalarExpression,
   environment: ScalarEvaluationEnvironment
 ): ScalarEvaluation => {
-  const evaluation = evaluateTypedExpressionNode(node, environment);
-  environment.onExpressionEvaluated?.(node, evaluation);
-  return evaluation;
+  const step = createTypedExpressionEvaluation(node, environment).next();
+  // A nested collection/local helper returns control to its document owner;
+  // ordinary expression environments never produce a demand.
+  if (!step.done) throw step.value;
+  return step.value;
 };

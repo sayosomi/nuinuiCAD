@@ -1,0 +1,13 @@
+nui 1
+const result: number = lineAngle(@RenamedAlias[@pick].end, @Axis.start)
+module Provider(turn: number, x: number) {
+  export curve Edge = bezier(start: (@x, 7), end: (@x + 75, 43), startAngle: 34 + @turn, startLength: 23, endAngle: 137 + @turn, endLength: 27)
+  move Edge as tilted (from: (0, 0), to: (0, 0), angleDeg: 17)
+  move Edge as later (from: (0, 0), to: (0, 0), angleDeg: 29)
+}
+instance One = Provider(turn: 0, x: 0)
+instance RenamedUse = Provider(turn: 21, x: 170)
+line Axis = polar(start: (430, -70), angle: 7, length: 33)
+const RenamedPaths: path[] = [@One::Edge.final, @RenamedUse::Edge.tilted, @RenamedUse::Edge.base]
+const RenamedAlias: path[] = @RenamedPaths
+const pick: number = 1

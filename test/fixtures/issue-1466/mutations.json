@@ -1,0 +1,192 @@
+[
+  {
+    "label": "base-confirmed",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "571980354dc87b7b1cd210490c9797ceffe492213ce96b92816b55a256665ccd",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "4e98e0d8a5e2b2e160d3f21ba2741e6549c13b992ff2ca8331f4ee2696e5b77d",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "caec5d55ba51342cad188e35b59b94daa6ae89f35be29e29c982d0f6d3531788",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "698534e0bfdbda779cd2e0214654bd12690794807d4b47a7c231b8c178f5f1c6",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "af37fb0adbe44143b2885f6c3d1b2a893c7168aa232aa179c3f5190ed89656d9",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "bea1948a29fe1f8b5f7c322242bed6cd244d3dbfad0a20b9a3a291ba688df448",
+      "rust-evaluator/src/evaluation/mod.rs": "15b4e59b1f48035c2084e7cda29fd90ea33de084802078df78bec6943ea8b60d",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "c000f392269081b2d6b68a071ae0d1b516ea2e00562d793d8baa3ac57e984bec",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "bc601586df1905263be36950f2813438cca68519d17937ea0b183794411cd481",
+      "src/geometry/evaluate.ts": "6a0596eede07a38d3d9d41472d61e82028de3570081c1fccf4d43ce734b6eabb",
+      "src/geometry/scalarProgramEvaluation.ts": "c5a8200757a6957f0caab1060a2a96c2089320332ad1402f79a544ec87cad42c",
+      "src/scalars/linearMutationEvaluator.ts": "6c81a861ed097d99085d2dc73a870325d5c91e41ab47fd8792d2786e909eb843"
+    }
+  },
+  {
+    "label": "fixed-before-mutations",
+    "expectedExit": 0,
+    "exit": 0,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  },
+  {
+    "label": "mutation-F1",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "698534e0bfdbda779cd2e0214654bd12690794807d4b47a7c231b8c178f5f1c6",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  },
+  {
+    "label": "mutation-F2",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "4e98e0d8a5e2b2e160d3f21ba2741e6549c13b992ff2ca8331f4ee2696e5b77d",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  },
+  {
+    "label": "mutation-F3",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "caec5d55ba51342cad188e35b59b94daa6ae89f35be29e29c982d0f6d3531788",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  },
+  {
+    "label": "mutation-F4",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "913454c4ca8a4a63e9607168321ee01c772ff6c043c1cb1f7491b5b93eadbe08",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  },
+  {
+    "label": "mutation-F5-graph",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "a396a3035d6f5ab0f0f191a8706438a691ff90ffda7999381fdace0a9797018a",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  },
+  {
+    "label": "mutation-F5-reference",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "6a0596eede07a38d3d9d41472d61e82028de3570081c1fccf4d43ce734b6eabb",
+      "src/geometry/scalarProgramEvaluation.ts": "c5a8200757a6957f0caab1060a2a96c2089320332ad1402f79a544ec87cad42c",
+      "src/scalars/linearMutationEvaluator.ts": "6c81a861ed097d99085d2dc73a870325d5c91e41ab47fd8792d2786e909eb843"
+    }
+  },
+  {
+    "label": "mutation-F5-production",
+    "expectedExit": 1,
+    "exit": 1,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "bea1948a29fe1f8b5f7c322242bed6cd244d3dbfad0a20b9a3a291ba688df448",
+      "rust-evaluator/src/evaluation/mod.rs": "15b4e59b1f48035c2084e7cda29fd90ea33de084802078df78bec6943ea8b60d",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "c000f392269081b2d6b68a071ae0d1b516ea2e00562d793d8baa3ac57e984bec",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "bc601586df1905263be36950f2813438cca68519d17937ea0b183794411cd481",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  },
+  {
+    "label": "fixed-after-mutations",
+    "expectedExit": 0,
+    "exit": 0,
+    "implementationSha256": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "d3849267541dd2d5e7fc95fa30ca8f3ca18fc7279891fde11c9d8b8f2c4fc1eb",
+      "packages/nui-language/src/dsl/expressionReferenceToken.ts": "828edd66dd4d489ee89fc16548e40e6b8c323cc745c098d68a0eed4209ead08e",
+      "packages/nui-language/src/scalars/bindingResolution.ts": "1b418705cc9ece2ecae39fe98295b71152ea11abc6c3d25efc0960f8d5f3847a",
+      "packages/nui-language/src/scalars/moduleNumericRuntime.ts": "508c72086cb3162398b351c8e7975ec8b5c9bb8c97f1d6a97aeb011ae733b6d2",
+      "packages/nui-language/src/scalars/typedDependencyGraph.ts": "06cbcad840b6dbd1df5458c53ce518d27c779bbc786ca3b22406d45eac13059f",
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "703bdf75d3f84ab20347ff0dc09d3538136d1d0bd6a7cf288760977885e79a19",
+      "rust-evaluator/src/evaluation/mod.rs": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e",
+      "rust-evaluator/src/evaluation/scalars/mutation.rs": "ad99388dd2190bc707d5ff087e8034795d4e53e7891c0d9d9643eda0c996c53b",
+      "rust-evaluator/src/evaluation/scalars/mutation_tests.rs": "e9e3966683b5f96b27cd503f87e67b2f32ece1a372e3c4adf37fe314d065197f",
+      "src/geometry/evaluate.ts": "9c91c42ea223021b17411f84c101a5f5df1c88dfccc972f2763943035f205196",
+      "src/geometry/scalarProgramEvaluation.ts": "738a506a1b6537a3c8cf53f31897d6322e0a28fc5ad51af7a8ae2aefdf1c5455",
+      "src/scalars/linearMutationEvaluator.ts": "a6a932219f84ab4f46092c2607e94310aa452aa80e28f52d039ae9015ec15740"
+    }
+  }
+]

@@ -1,0 +1,18 @@
+
+> nuinuicad@0.0.0 build
+> tsc -b && npm run typecheck:nui-language && npm run build:mcp
+
+
+> nuinuicad@0.0.0 typecheck:nui-language
+> tsc -p packages/nui-language/tsconfig.json
+
+
+> nuinuicad@0.0.0 build:mcp
+> tsc -p mcp-server/tsconfig.json && esbuild mcp-server/src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=mcp-server/dist/server.js
+
+
+  mcp-server/dist/server.js  3.4mb ⚠️
+
+⚡ Done in 72ms
+
+build EXIT=0

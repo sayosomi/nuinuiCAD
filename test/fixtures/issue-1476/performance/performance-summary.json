@@ -1,0 +1,1373 @@
+{
+  "executionBase": "ca970adbad4ccd7eb28cdc528bb747d3b64d2f33",
+  "candidate": "sayosomi/issue-1476-module-prerequisite-scaling working tree before commit",
+  "harness": "test/issue1474DependencyTopologyTiming.performance.test.ts unchanged",
+  "protocol": "three independent invocations per side; each invocation uses five warmups and 21 alternating B2:B3 paired trials; one owned persistent Rust child",
+  "note": "The originalBase field inside the unchanged harness records the historical #1474 campaign base, not the execution checkout SHA. Execution checkout identity is recorded above.",
+  "measurement": {
+    "base": {
+      "blocks": [
+        {
+          "block": 1,
+          "spawns": 1,
+          "requests": 53,
+          "pid": 45458,
+          "setupWallMs": 146.87345800000003,
+          "peakRustRssKiB": 74336,
+          "parentProcessResourceUsage": {
+            "userCPUTime": 10103223,
+            "systemCPUTime": 320127,
+            "maxRSS": 712416,
+            "sharedMemorySize": 0,
+            "unsharedDataSize": 0,
+            "unsharedStackSize": 0,
+            "minorPageFault": 54443,
+            "majorPageFault": 106,
+            "swappedOut": 0,
+            "fsRead": 0,
+            "fsWrite": 0,
+            "ipcSent": 2303,
+            "ipcReceived": 1038,
+            "signalsCount": 0,
+            "voluntaryContextSwitches": 2053,
+            "involuntaryContextSwitches": 15890
+          },
+          "rustChild": {
+            "before": {
+              "cpuSeconds": 4.37,
+              "rssKiB": 73904
+            },
+            "after": {
+              "cpuSeconds": 22.65,
+              "rssKiB": 74336
+            },
+            "batchCpuSeconds": 18.279999999999998,
+            "cpuResolutionSeconds": 0.01
+          }
+        },
+        {
+          "block": 2,
+          "spawns": 1,
+          "requests": 53,
+          "pid": 46108,
+          "setupWallMs": 109.0555830000003,
+          "peakRustRssKiB": 74096,
+          "parentProcessResourceUsage": {
+            "userCPUTime": 9674669,
+            "systemCPUTime": 278142,
+            "maxRSS": 712096,
+            "sharedMemorySize": 0,
+            "unsharedDataSize": 0,
+            "unsharedStackSize": 0,
+            "minorPageFault": 54444,
+            "majorPageFault": 89,
+            "swappedOut": 0,
+            "fsRead": 0,
+            "fsWrite": 0,
+            "ipcSent": 2297,
+            "ipcReceived": 1045,
+            "signalsCount": 0,
+            "voluntaryContextSwitches": 2167,
+            "involuntaryContextSwitches": 8953
+          },
+          "rustChild": {
+            "before": {
+              "cpuSeconds": 4.26,
+              "rssKiB": 73664
+            },
+            "after": {
+              "cpuSeconds": 21.85,
+              "rssKiB": 74096
+            },
+            "batchCpuSeconds": 17.590000000000003,
+            "cpuResolutionSeconds": 0.01
+          }
+        },
+        {
+          "block": 3,
+          "spawns": 1,
+          "requests": 53,
+          "pid": 46704,
+          "setupWallMs": 41.984709000000066,
+          "peakRustRssKiB": 74112,
+          "parentProcessResourceUsage": {
+            "userCPUTime": 9835779,
+            "systemCPUTime": 273789,
+            "maxRSS": 712912,
+            "sharedMemorySize": 0,
+            "unsharedDataSize": 0,
+            "unsharedStackSize": 0,
+            "minorPageFault": 54440,
+            "majorPageFault": 88,
+            "swappedOut": 0,
+            "fsRead": 0,
+            "fsWrite": 0,
+            "ipcSent": 2258,
+            "ipcReceived": 1038,
+            "signalsCount": 0,
+            "voluntaryContextSwitches": 3,
+            "involuntaryContextSwitches": 10145
+          },
+          "rustChild": {
+            "before": {
+              "cpuSeconds": 4.25,
+              "rssKiB": 73808
+            },
+            "after": {
+              "cpuSeconds": 22.15,
+              "rssKiB": 74112
+            },
+            "batchCpuSeconds": 17.9,
+            "cpuResolutionSeconds": 0.01
+          }
+        }
+      ],
+      "cases": {
+        "B2-r1": {
+          "sourceBytes": 14513,
+          "payloadBytes": 348087,
+          "graph": {
+            "V": 775,
+            "E": 773,
+            "edgeRecords": 773,
+            "maxPrerequisites": 1,
+            "maxDependents": 256,
+            "outputCount": 258,
+            "bindingCount": 2,
+            "evaluationOrderCount": 258
+          },
+          "stages": {
+            "compile": {
+              "wallMs": {
+                "p50": 35.19724999999744,
+                "p95": 45.19508300000234,
+                "max": 47.72375000000102
+              },
+              "workerCpuMs": {
+                "p50": 43.491,
+                "p95": 81.481,
+                "max": 102.339
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 36.491416999999274,
+                    "p95": 46.14487499999814,
+                    "max": 47.72375000000102
+                  },
+                  "workerCpuMs": {
+                    "p50": 45.61,
+                    "p95": 81.481,
+                    "max": 102.339
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 34.283792000001995,
+                    "p95": 39.17291699999987,
+                    "max": 41.17170800000167
+                  },
+                  "workerCpuMs": {
+                    "p50": 43.491,
+                    "p95": 69.669,
+                    "max": 91.924
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 34.26375000000189,
+                    "p95": 39.405125000001135,
+                    "max": 47.21716599999854
+                  },
+                  "workerCpuMs": {
+                    "p50": 42.88,
+                    "p95": 79.412,
+                    "max": 91.63
+                  }
+                }
+              ]
+            },
+            "lowering": {
+              "wallMs": {
+                "p50": 0.3050829999992857,
+                "p95": 0.41066599999612663,
+                "max": 0.4415000000008149
+              },
+              "workerCpuMs": {
+                "p50": 0.307,
+                "p95": 0.575,
+                "max": 0.648
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.3097909999996773,
+                    "p95": 0.42637500000273576,
+                    "max": 0.4415000000008149
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.311,
+                    "p95": 0.557,
+                    "max": 0.648
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.29695799999899464,
+                    "p95": 0.34829199999876437,
+                    "max": 0.40887500000098953
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.305,
+                    "p95": 0.575,
+                    "max": 0.609
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.2955419999998412,
+                    "p95": 0.38062499999796273,
+                    "max": 0.418708000001061
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.298,
+                    "p95": 0.471,
+                    "max": 0.6
+                  }
+                }
+              ]
+            },
+            "encodingProbe": {
+              "wallMs": {
+                "p50": 0.5424170000005688,
+                "p95": 0.6380410000019765,
+                "max": 0.6955409999973199
+              },
+              "workerCpuMs": {
+                "p50": 0.553,
+                "p95": 2.083,
+                "max": 6.615
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.5762500000000728,
+                    "p95": 0.6589579999999842,
+                    "max": 0.6955409999973199
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.588,
+                    "p95": 1.9,
+                    "max": 2.269
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.5270419999997102,
+                    "p95": 0.5681659999972908,
+                    "max": 0.6296670000010636
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.529,
+                    "p95": 2.083,
+                    "max": 6.615
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.5241249999999127,
+                    "p95": 0.5626249999986612,
+                    "max": 0.613999999997759
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.525,
+                    "p95": 1.501,
+                    "max": 3.046
+                  }
+                }
+              ]
+            },
+            "rustTransport": {
+              "wallMs": {
+                "p50": 102.35541699999885,
+                "p95": 114.54608299999745,
+                "max": 124.23254099999758
+              },
+              "workerCpuMs": {
+                "p50": 2.647,
+                "p95": 18.976,
+                "max": 66.799
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 105.44129199999952,
+                    "p95": 119.81037500000093,
+                    "max": 124.23254099999758
+                  },
+                  "workerCpuMs": {
+                    "p50": 3.599,
+                    "p95": 18.754,
+                    "max": 66.799
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 101.54204200000095,
+                    "p95": 104.65925000000061,
+                    "max": 107.49954200000138
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.594,
+                    "p95": 18.476,
+                    "max": 57.149
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 101.5069169999988,
+                    "p95": 106.60312499999782,
+                    "max": 109.9129580000008
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.526,
+                    "p95": 18.976,
+                    "max": 66.043
+                  }
+                }
+              ]
+            },
+            "decode": {
+              "wallMs": {
+                "p50": 0.23229199999877892,
+                "p95": 0.26541699999870616,
+                "max": 0.35199999999895226
+              },
+              "workerCpuMs": {
+                "p50": 0.231,
+                "p95": 0.264,
+                "max": 0.298
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.23695799999950395,
+                    "p95": 0.29424999999901047,
+                    "max": 0.35199999999895226
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.237,
+                    "p95": 0.276,
+                    "max": 0.298
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.21520899999813992,
+                    "p95": 0.258957999998529,
+                    "max": 0.26033300000017334
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.216,
+                    "p95": 0.26,
+                    "max": 0.261
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.23395800000071176,
+                    "p95": 0.257832999999664,
+                    "max": 0.26541699999870616
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.235,
+                    "p95": 0.258,
+                    "max": 0.266
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "B3-r1": {
+          "sourceBytes": 56991,
+          "payloadBytes": 1352833,
+          "graph": {
+            "V": 3007,
+            "E": 3005,
+            "edgeRecords": 3005,
+            "maxPrerequisites": 1,
+            "maxDependents": 1000,
+            "outputCount": 1002,
+            "bindingCount": 2,
+            "evaluationOrderCount": 1002
+          },
+          "stages": {
+            "compile": {
+              "wallMs": {
+                "p50": 220.4091669999998,
+                "p95": 243.4965000000011,
+                "max": 491.6377089999987
+              },
+              "workerCpuMs": {
+                "p50": 251.693,
+                "p95": 300.584,
+                "max": 343.31
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 223.91066599999976,
+                    "p95": 252.38300000000163,
+                    "max": 491.6377089999987
+                  },
+                  "workerCpuMs": {
+                    "p50": 255.687,
+                    "p95": 307.771,
+                    "max": 311.167
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 214.22112500000003,
+                    "p95": 228.68166699999892,
+                    "max": 229.40541699999812
+                  },
+                  "workerCpuMs": {
+                    "p50": 238.347,
+                    "p95": 290.956,
+                    "max": 299.842
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 221.70570800000132,
+                    "p95": 234.17962500000067,
+                    "max": 468.6504159999986
+                  },
+                  "workerCpuMs": {
+                    "p50": 249.107,
+                    "p95": 300.584,
+                    "max": 343.31
+                  }
+                }
+              ]
+            },
+            "lowering": {
+              "wallMs": {
+                "p50": 1.0055830000001151,
+                "p95": 1.3011249999981374,
+                "max": 1.9105000000017753
+              },
+              "workerCpuMs": {
+                "p50": 1.021,
+                "p95": 2.582,
+                "max": 3.998
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 1.0090829999971902,
+                    "p95": 1.2663749999992433,
+                    "max": 1.882540999999037
+                  },
+                  "workerCpuMs": {
+                    "p50": 1.021,
+                    "p95": 2.501,
+                    "max": 3.998
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.9750000000003638,
+                    "p95": 1.3011249999981374,
+                    "max": 1.9105000000017753
+                  },
+                  "workerCpuMs": {
+                    "p50": 1.027,
+                    "p95": 2.438,
+                    "max": 3.803
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 1.0005830000009155,
+                    "p95": 1.2608340000006137,
+                    "max": 1.7696670000004815
+                  },
+                  "workerCpuMs": {
+                    "p50": 1.007,
+                    "p95": 2.582,
+                    "max": 3.931
+                  }
+                }
+              ]
+            },
+            "encodingProbe": {
+              "wallMs": {
+                "p50": 2.001749999999447,
+                "p95": 2.3302499999990687,
+                "max": 2.7515829999974812
+              },
+              "workerCpuMs": {
+                "p50": 2.092,
+                "p95": 4.477,
+                "max": 8.473
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 2.1268749999981083,
+                    "p95": 2.3302499999990687,
+                    "max": 2.5252089999994496
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.217,
+                    "p95": 4.477,
+                    "max": 6.966
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 1.9652920000007725,
+                    "p95": 2.1033749999987776,
+                    "max": 2.7515829999974812
+                  },
+                  "workerCpuMs": {
+                    "p50": 1.979,
+                    "p95": 3.851,
+                    "max": 5.274
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 1.9738750000014988,
+                    "p95": 2.2370000000009895,
+                    "max": 2.69945799999914
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.074,
+                    "p95": 4.056,
+                    "max": 8.473
+                  }
+                }
+              ]
+            },
+            "rustTransport": {
+              "wallMs": {
+                "p50": 757.2239169999993,
+                "p95": 838.8160000000025,
+                "max": 1035.8150419999984
+              },
+              "workerCpuMs": {
+                "p50": 7.666,
+                "p95": 18.544,
+                "max": 85.308
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 775.1294999999991,
+                    "p95": 844.3556250000001,
+                    "max": 1035.8150419999984
+                  },
+                  "workerCpuMs": {
+                    "p50": 8.458,
+                    "p95": 16.449,
+                    "max": 85.308
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 744.1807499999995,
+                    "p95": 754.1989169999979,
+                    "max": 758.2214170000007
+                  },
+                  "workerCpuMs": {
+                    "p50": 7.394,
+                    "p95": 17.843,
+                    "max": 69.595
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 758.4852919999994,
+                    "p95": 772.2041669999999,
+                    "max": 977.0374589999992
+                  },
+                  "workerCpuMs": {
+                    "p50": 7.526,
+                    "p95": 18.544,
+                    "max": 70.378
+                  }
+                }
+              ]
+            },
+            "decode": {
+              "wallMs": {
+                "p50": 0.7657079999989946,
+                "p95": 0.9459160000005795,
+                "max": 1.3777079999999842
+              },
+              "workerCpuMs": {
+                "p50": 0.774,
+                "p95": 1.657,
+                "max": 1.952
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.7752919999984442,
+                    "p95": 0.971084000000701,
+                    "max": 1.011041000001569
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.776,
+                    "p95": 1.357,
+                    "max": 1.684
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.7657079999989946,
+                    "p95": 0.9454580000001442,
+                    "max": 0.9459160000005795
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.785,
+                    "p95": 1.115,
+                    "max": 1.657
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.7617499999978463,
+                    "p95": 0.9181250000001455,
+                    "max": 1.3777079999999842
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.762,
+                    "p95": 1.703,
+                    "max": 1.952
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "fixed": {
+      "blocks": [
+        {
+          "block": 1,
+          "spawns": 1,
+          "requests": 53,
+          "pid": 56755,
+          "setupWallMs": 42.467833000000155,
+          "peakRustRssKiB": 74144,
+          "parentProcessResourceUsage": {
+            "userCPUTime": 9807305,
+            "systemCPUTime": 324570,
+            "maxRSS": 711936,
+            "sharedMemorySize": 0,
+            "unsharedDataSize": 0,
+            "unsharedStackSize": 0,
+            "minorPageFault": 54400,
+            "majorPageFault": 110,
+            "swappedOut": 0,
+            "fsRead": 0,
+            "fsWrite": 0,
+            "ipcSent": 2262,
+            "ipcReceived": 1039,
+            "signalsCount": 0,
+            "voluntaryContextSwitches": 1508,
+            "involuntaryContextSwitches": 12811
+          },
+          "rustChild": {
+            "before": {
+              "cpuSeconds": 1.98,
+              "rssKiB": 73856
+            },
+            "after": {
+              "cpuSeconds": 10.06,
+              "rssKiB": 74144
+            },
+            "batchCpuSeconds": 8.08,
+            "cpuResolutionSeconds": 0.01
+          }
+        },
+        {
+          "block": 2,
+          "spawns": 1,
+          "requests": 53,
+          "pid": 57335,
+          "setupWallMs": 47.3762499999998,
+          "peakRustRssKiB": 74224,
+          "parentProcessResourceUsage": {
+            "userCPUTime": 9788158,
+            "systemCPUTime": 292012,
+            "maxRSS": 712736,
+            "sharedMemorySize": 0,
+            "unsharedDataSize": 0,
+            "unsharedStackSize": 0,
+            "minorPageFault": 54433,
+            "majorPageFault": 89,
+            "swappedOut": 0,
+            "fsRead": 0,
+            "fsWrite": 0,
+            "ipcSent": 2177,
+            "ipcReceived": 1040,
+            "signalsCount": 0,
+            "voluntaryContextSwitches": 2181,
+            "involuntaryContextSwitches": 10451
+          },
+          "rustChild": {
+            "before": {
+              "cpuSeconds": 1.95,
+              "rssKiB": 74128
+            },
+            "after": {
+              "cpuSeconds": 10.05,
+              "rssKiB": 74224
+            },
+            "batchCpuSeconds": 8.100000000000001,
+            "cpuResolutionSeconds": 0.01
+          }
+        },
+        {
+          "block": 3,
+          "spawns": 1,
+          "requests": 53,
+          "pid": 57906,
+          "setupWallMs": 42.908292000000074,
+          "peakRustRssKiB": 74512,
+          "parentProcessResourceUsage": {
+            "userCPUTime": 9785114,
+            "systemCPUTime": 280691,
+            "maxRSS": 712448,
+            "sharedMemorySize": 0,
+            "unsharedDataSize": 0,
+            "unsharedStackSize": 0,
+            "minorPageFault": 54434,
+            "majorPageFault": 88,
+            "swappedOut": 0,
+            "fsRead": 0,
+            "fsWrite": 0,
+            "ipcSent": 2060,
+            "ipcReceived": 1042,
+            "signalsCount": 0,
+            "voluntaryContextSwitches": 4,
+            "involuntaryContextSwitches": 11421
+          },
+          "rustChild": {
+            "before": {
+              "cpuSeconds": 1.95,
+              "rssKiB": 74160
+            },
+            "after": {
+              "cpuSeconds": 10.07,
+              "rssKiB": 74512
+            },
+            "batchCpuSeconds": 8.120000000000001,
+            "cpuResolutionSeconds": 0.01
+          }
+        }
+      ],
+      "cases": {
+        "B2-r1": {
+          "sourceBytes": 14513,
+          "payloadBytes": 348087,
+          "graph": {
+            "V": 775,
+            "E": 773,
+            "edgeRecords": 773,
+            "maxPrerequisites": 1,
+            "maxDependents": 256,
+            "outputCount": 258,
+            "bindingCount": 2,
+            "evaluationOrderCount": 258
+          },
+          "stages": {
+            "compile": {
+              "wallMs": {
+                "p50": 34.185583999998926,
+                "p95": 40.552999999999884,
+                "max": 45.0825420000001
+              },
+              "workerCpuMs": {
+                "p50": 42.45,
+                "p95": 79.875,
+                "max": 93.228
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 33.721457999999984,
+                    "p95": 39.28429200000028,
+                    "max": 40.552999999999884
+                  },
+                  "workerCpuMs": {
+                    "p50": 42.45,
+                    "p95": 69.043,
+                    "max": 91.456
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 34.314125000000786,
+                    "p95": 40.12166600000273,
+                    "max": 45.0825420000001
+                  },
+                  "workerCpuMs": {
+                    "p50": 42.696,
+                    "p95": 79.875,
+                    "max": 93.228
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 34.185583999998926,
+                    "p95": 42.091958000000886,
+                    "max": 42.62525000000096
+                  },
+                  "workerCpuMs": {
+                    "p50": 42.31,
+                    "p95": 74.419,
+                    "max": 92.444
+                  }
+                }
+              ]
+            },
+            "lowering": {
+              "wallMs": {
+                "p50": 0.296582999999373,
+                "p95": 0.396708000000217,
+                "max": 0.6705839999995078
+              },
+              "workerCpuMs": {
+                "p50": 0.299,
+                "p95": 0.58,
+                "max": 5.03
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.29729199999928824,
+                    "p95": 0.35183300000062445,
+                    "max": 0.41166700000030687
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.305,
+                    "p95": 0.421,
+                    "max": 0.573
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.30125000000043656,
+                    "p95": 0.36824999999953434,
+                    "max": 0.43091699999786215
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.304,
+                    "p95": 0.442,
+                    "max": 0.589
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.2925829999985581,
+                    "p95": 0.396708000000217,
+                    "max": 0.6705839999995078
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.296,
+                    "p95": 0.585,
+                    "max": 5.03
+                  }
+                }
+              ]
+            },
+            "encodingProbe": {
+              "wallMs": {
+                "p50": 0.5343329999996058,
+                "p95": 0.5855840000003809,
+                "max": 1.7662080000009155
+              },
+              "workerCpuMs": {
+                "p50": 0.536,
+                "p95": 1.872,
+                "max": 5.595
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.5288749999999709,
+                    "p95": 0.5915840000006938,
+                    "max": 0.5976670000018203
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.53,
+                    "p95": 1.138,
+                    "max": 1.872
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.5170000000034634,
+                    "p95": 0.5834580000009737,
+                    "max": 0.5855840000003809
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.518,
+                    "p95": 2.205,
+                    "max": 2.869
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.5465420000000449,
+                    "p95": 0.5721250000005966,
+                    "max": 1.7662080000009155
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.548,
+                    "p95": 1.857,
+                    "max": 5.595
+                  }
+                }
+              ]
+            },
+            "rustTransport": {
+              "wallMs": {
+                "p50": 72.92299999999977,
+                "p95": 76.87383300000147,
+                "max": 78.35658400000102
+              },
+              "workerCpuMs": {
+                "p50": 2.483,
+                "p95": 18.976,
+                "max": 63.4
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 72.75266699999975,
+                    "p95": 75.13808300000164,
+                    "max": 75.796875
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.458,
+                    "p95": 18.565,
+                    "max": 62.854
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 73.03341700000055,
+                    "p95": 75.53637499999968,
+                    "max": 76.87383300000147
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.417,
+                    "p95": 18.976,
+                    "max": 63.4
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 72.949208,
+                    "p95": 78.343541000002,
+                    "max": 78.35658400000102
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.535,
+                    "p95": 18.677,
+                    "max": 54.473
+                  }
+                }
+              ]
+            },
+            "decode": {
+              "wallMs": {
+                "p50": 0.2189169999983278,
+                "p95": 0.2608749999999418,
+                "max": 0.2630829999998241
+              },
+              "workerCpuMs": {
+                "p50": 0.219,
+                "p95": 0.261,
+                "max": 0.264
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.2208329999994021,
+                    "p95": 0.2608749999999418,
+                    "max": 0.2630829999998241
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.222,
+                    "p95": 0.261,
+                    "max": 0.264
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.2189169999983278,
+                    "p95": 0.2556249999997817,
+                    "max": 0.26208299999962037
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.219,
+                    "p95": 0.256,
+                    "max": 0.262
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.21120800000062445,
+                    "p95": 0.2534160000004704,
+                    "max": 0.2611670000005688
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.212,
+                    "p95": 0.254,
+                    "max": 0.263
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "B3-r1": {
+          "sourceBytes": 56991,
+          "payloadBytes": 1352833,
+          "graph": {
+            "V": 3007,
+            "E": 3005,
+            "edgeRecords": 3005,
+            "maxPrerequisites": 1,
+            "maxDependents": 1000,
+            "outputCount": 1002,
+            "bindingCount": 2,
+            "evaluationOrderCount": 1002
+          },
+          "stages": {
+            "compile": {
+              "wallMs": {
+                "p50": 215.2097079999985,
+                "p95": 232.03695799999696,
+                "max": 240.99812500000007
+              },
+              "workerCpuMs": {
+                "p50": 240.661,
+                "p95": 296.923,
+                "max": 307.449
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 213.9692500000001,
+                    "p95": 229.371083,
+                    "max": 232.58633400000326
+                  },
+                  "workerCpuMs": {
+                    "p50": 244.299,
+                    "p95": 293.194,
+                    "max": 296.923
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 216.62654199999997,
+                    "p95": 229.18654199999946,
+                    "max": 232.03695799999696
+                  },
+                  "workerCpuMs": {
+                    "p50": 240.661,
+                    "p95": 293.407,
+                    "max": 307.449
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 215.28624999999738,
+                    "p95": 238.40570800000205,
+                    "max": 240.99812500000007
+                  },
+                  "workerCpuMs": {
+                    "p50": 239.959,
+                    "p95": 300.206,
+                    "max": 300.995
+                  }
+                }
+              ]
+            },
+            "lowering": {
+              "wallMs": {
+                "p50": 1.00316599999951,
+                "p95": 1.4041250000009313,
+                "max": 2.022541000000274
+              },
+              "workerCpuMs": {
+                "p50": 1.049,
+                "p95": 4.12,
+                "max": 5.844
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.9961670000011509,
+                    "p95": 1.4041250000009313,
+                    "max": 1.729208999999173
+                  },
+                  "workerCpuMs": {
+                    "p50": 1.044,
+                    "p95": 3.988,
+                    "max": 4.15
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.9902920000004087,
+                    "p95": 1.2735419999989972,
+                    "max": 2.022541000000274
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.998,
+                    "p95": 2.578,
+                    "max": 4.226
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 1.0393749999993815,
+                    "p95": 1.2590420000015001,
+                    "max": 1.8005419999990409
+                  },
+                  "workerCpuMs": {
+                    "p50": 1.056,
+                    "p95": 4.12,
+                    "max": 5.844
+                  }
+                }
+              ]
+            },
+            "encodingProbe": {
+              "wallMs": {
+                "p50": 2.011916999999812,
+                "p95": 2.2124170000006416,
+                "max": 2.3385830000006536
+              },
+              "workerCpuMs": {
+                "p50": 2.046,
+                "p95": 4.866,
+                "max": 8.45
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 1.9808330000014394,
+                    "p95": 2.08758300000045,
+                    "max": 2.096000000001368
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.029,
+                    "p95": 3.875,
+                    "max": 8.417
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 2.0065410000024713,
+                    "p95": 2.1146669999998267,
+                    "max": 2.1170840000013413
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.013,
+                    "p95": 4.866,
+                    "max": 8.45
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 2.0740830000013375,
+                    "p95": 2.2348330000004353,
+                    "max": 2.3385830000006536
+                  },
+                  "workerCpuMs": {
+                    "p50": 2.084,
+                    "p95": 4.113,
+                    "max": 4.909
+                  }
+                }
+              ]
+            },
+            "rustTransport": {
+              "wallMs": {
+                "p50": 321.1447910000006,
+                "p95": 340.0507920000018,
+                "max": 362.0167079999992
+              },
+              "workerCpuMs": {
+                "p50": 8.004,
+                "p95": 18.758,
+                "max": 73.753
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 320.6313339999997,
+                    "p95": 329.6568750000006,
+                    "max": 362.0167079999992
+                  },
+                  "workerCpuMs": {
+                    "p50": 7.567,
+                    "p95": 17.999,
+                    "max": 67.086
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 321.9356250000001,
+                    "p95": 331.4381250000006,
+                    "max": 359.35041699999783
+                  },
+                  "workerCpuMs": {
+                    "p50": 8.004,
+                    "p95": 17.913,
+                    "max": 63.118
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 321.3662499999991,
+                    "p95": 340.0507920000018,
+                    "max": 345.032459
+                  },
+                  "workerCpuMs": {
+                    "p50": 8.088,
+                    "p95": 18.758,
+                    "max": 73.753
+                  }
+                }
+              ]
+            },
+            "decode": {
+              "wallMs": {
+                "p50": 0.760415999997349,
+                "p95": 0.9322080000001733,
+                "max": 0.9573749999999563
+              },
+              "workerCpuMs": {
+                "p50": 0.764,
+                "p95": 1.237,
+                "max": 1.687
+              },
+              "perBlock": [
+                {
+                  "block": 1,
+                  "wallMs": {
+                    "p50": 0.7414160000007541,
+                    "p95": 0.9388340000004973,
+                    "max": 0.9573749999999563
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.742,
+                    "p95": 1.019,
+                    "max": 1.687
+                  }
+                },
+                {
+                  "block": 2,
+                  "wallMs": {
+                    "p50": 0.769125000002532,
+                    "p95": 0.9302090000001044,
+                    "max": 0.9322080000001733
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.806,
+                    "p95": 1.237,
+                    "max": 1.673
+                  }
+                },
+                {
+                  "block": 3,
+                  "wallMs": {
+                    "p50": 0.7507079999995767,
+                    "p95": 0.9259579999998095,
+                    "max": 0.9414170000000013
+                  },
+                  "workerCpuMs": {
+                    "p50": 0.757,
+                    "p95": 1.023,
+                    "max": 1.617
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "base": "c595241dd5974aa643cae707eb7ac849beefb344",
+  "branch": "sayosomi/issue-1260-residual-d1",
+  "owners": {
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts": {
+      "baseGitBlob": "9b24597b87f854a033e08832d8cc13c3a50301b8",
+      "baseSha256": "6991385a56ff194b68b72133d26f7c165e6d0838115ae0c619390e81213d50e4",
+      "candidateSha256": "31534ec05ad73e835210f23a3ada84a0ca7536e83228a4cec72c80e89bf238db"
+    },
+    "packages/nui-language/src/scalars/typedDependencyGraph.ts": {
+      "baseGitBlob": "e45e106f96c6c4fb9ae8d56ef38c7a14d9eac225",
+      "baseSha256": "d512de72276ed5255146e39c50a5b9febf323603f489eead1140869c97e2c629",
+      "candidateSha256": "daa9640bfe7be9a830d60cdd573fb9e3a6367704563fb2a42425ae5481360175"
+    },
+    "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": {
+      "baseGitBlob": "3bc9b5e2fe267f5e1e8cf2c0e61f757bb1702055",
+      "baseSha256": "6df0e7f9bc3306082439dd4c4480de759cca32f1913c0bc80e2537de7d2904c9",
+      "candidateSha256": "bea1948a29fe1f8b5f7c322242bed6cd244d3dbfad0a20b9a3a291ba688df448"
+    }
+  },
+  "historicalRegistrySha256": "d5a5dfc7488540847fca365a9135664149b3bffe19e251a292b80a407299e690",
+  "historicalRegistryGitBlob": "61f4d706668f5b6900914377441de805456499c3"
+}

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "cargo",
+    "check",
+    "--manifest-path",
+    "rust-evaluator/Cargo.toml"
+  ],
+  "exit": 0,
+  "elapsedSeconds": 2.610354832999292,
+  "peakOwnedRssKiB": 427200,
+  "stopReason": null
+}

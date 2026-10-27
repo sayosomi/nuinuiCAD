@@ -1,0 +1,11 @@
+[
+  {
+    "id": "D1-prototype",
+    "source": "nui 1\n// 📐 Pin is preserved in this comment.\npoint Pin = coordinate(x: 3, y: 8)\nmove Pin as shifted(from: (0, 0), to: (4, 5), scale: 1, angleDeg: 0, mirrorX: false)\npoint Observer = from(source: @Pin)\npoint Control = from(source: @Pin.base)\n",
+    "sha256": "0e583057d6c98213f64b72cfe167973350ffb72094f38bda3910b5669d97bddf",
+    "selection": 86,
+    "disposition": "CONTRACT_INVALID",
+    "diagnostic": "transformation-target-kind-incompatible: move requires line/path",
+    "replacement": "D1"
+  }
+]

@@ -1,0 +1,1477 @@
+[
+  {
+    "id": "P4",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "cluster": "optional-members",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "P4",
+      "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "base-initial-1792587747531",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "P4",
+      "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "Rust request: Error: evaluation_stdio disposed"
+      ],
+      "runId": "focused-owners-1792589971190",
+      "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "PASS",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "M1",
+    "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+    "cluster": "map",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "N": 21
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "M1",
+      "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "base-initial-1792587747531",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "M1",
+      "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-geometry-owner-1792589062844",
+      "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "PASS",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-dynamic",
+    "sha256": "73bd0e6214f7bfc6a2ec3c407ef4cb82aaa444843a34b8e75faf94b8f3711e39",
+    "cluster": "optional-index",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "O-dynamic",
+      "sha256": "73bd0e6214f7bfc6a2ec3c407ef4cb82aaa444843a34b8e75faf94b8f3711e39",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 7,
+          "column": 27,
+          "code": "module-collection-index-type",
+          "message": "collection「Values」の element 型は scalar ではありません。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 158,
+                "to": 166
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-collection-index-type"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 9,
+          "column": 28,
+          "code": "module-collection-index-type",
+          "message": "collection「Values」の element 型は scalar ではありません。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 274,
+                "to": 282
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-collection-index-type"
+          }
+        }
+      ],
+      "runId": "base-initial-1792587747531",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "O-dynamic",
+      "sha256": "73bd0e6214f7bfc6a2ec3c407ef4cb82aaa444843a34b8e75faf94b8f3711e39",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-lazy-members-1792588445404",
+      "sourceTreeSha256": "c0f9fd7959fca15b89e81cd55ee8092398be1873fa48a9755b02a6fe42eb7f10"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-collection-index-type"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-if",
+    "sha256": "ab4b76600cb5b5fd43401fdbc3a641a0f9fde46a1410f8c4e0411d0297c67249",
+    "cluster": "optional-lazy",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "O-if",
+      "sha256": "ab4b76600cb5b5fd43401fdbc3a641a0f9fde46a1410f8c4e0411d0297c67249",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: unexpected scalar diagnostic record-field-binding:67:record-array-member:38:statement:typedDeclaration:mvi4gn1e:321:01:038:statement:recordDefinition:mvi4gn1e:281:0: {\"status\":\"error\",\"type\":{\"kind\":\"number\"},\"issueCode\":\"evaluation-divide-by-zero\"}: expected undefined to be 'evaluation-divide-by-zero' // Object.is equality",
+        "Rust: AssertionError: unexpected scalar diagnostic record-field-binding:67:record-array-member:38:statement:typedDeclaration:mvi4gn1e:321:01:038:statement:recordDefinition:mvi4gn1e:281:0: {\"status\":\"error\",\"type\":{\"kind\":\"number\"},\"issueCode\":\"evaluation-divide-by-zero\"}: expected undefined to be 'evaluation-divide-by-zero' // Object.is equality"
+      ],
+      "runId": "base-initial-1792587747531",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "O-if",
+      "sha256": "ab4b76600cb5b5fd43401fdbc3a641a0f9fde46a1410f8c4e0411d0297c67249",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-lazy-members-1792588445404",
+      "sourceTreeSha256": "c0f9fd7959fca15b89e81cd55ee8092398be1873fa48a9755b02a6fe42eb7f10"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "G-construct",
+    "sha256": "475925e365d8dcce7f4df3b7dd13f6b986f1ec1b7c123e472c20720f3358befc",
+    "cluster": "geometry-construction",
+    "disposition": "UNRESOLVED",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "X": 22,
+        "Y": 6,
+        "N": 21
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "G-construct",
+      "sha256": "475925e365d8dcce7f4df3b7dd13f6b986f1ec1b7c123e472c20720f3358befc",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 6,
+          "column": 72,
+          "code": "module-geometry-property-reference",
+          "message": "module の scalar expression では geometry property を解決できません。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 228,
+                "to": 235
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-geometry-property-reference"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 6,
+          "column": 91,
+          "code": "module-geometry-property-reference",
+          "message": "module の scalar expression では geometry property を解決できません。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 247,
+                "to": 254
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-geometry-property-reference"
+          }
+        }
+      ],
+      "runId": "base-initial-1792587747531",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "G-construct",
+      "sha256": "475925e365d8dcce7f4df3b7dd13f6b986f1ec1b7c123e472c20720f3358befc",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], …(12) } to deeply equal { computedGeometry: [], …(11) }"
+      ],
+      "runId": "fix-selected-geometry-owner-1792589062844",
+      "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
+    },
+    "finalVerification": "NOT_EXECUTED in final verify: generic root record-scalar geometry scheduling remains outside this slice under #1260; prior observations and new Base compiler failures retained.",
+    "scopeNote": "UNRESOLVED: map-free root record-scalar geometry control also fails production Rust; general root dependency/scheduling is #1260-owned. Preserve the source and actual results; do not count that remaining loss as repaired here.",
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-geometry-property-reference"
+    ]
+  },
+  {
+    "id": "C-root-control",
+    "sha256": "8de05279051079e710f4ddd1eb460f23ae2b775cef048ed8f4dc7d13d0ba2278",
+    "cluster": "geometry-parameter",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "X": 5,
+        "Y": 12,
+        "N": 2
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "C-root-control",
+      "sha256": "8de05279051079e710f4ddd1eb460f23ae2b775cef048ed8f4dc7d13d0ba2278",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "base-initial-1792587747531",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "C-root-control",
+      "sha256": "8de05279051079e710f4ddd1eb460f23ae2b775cef048ed8f4dc7d13d0ba2278",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-projections-1792588873699",
+      "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "PASS",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-parameter",
+    "sha256": "28ddba31ecb9c7073df811241ceba8bc309e5d004162eeb6877a42f0ce8f1c1e",
+    "cluster": "geometry-parameter",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "M": 5,
+        "X": 5,
+        "Y": 3,
+        "N": 2,
+        "O": 2
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "C-parameter",
+      "sha256": "28ddba31ecb9c7073df811241ceba8bc309e5d004162eeb6877a42f0ce8f1c1e",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "base-initial-1792587747531",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "C-parameter",
+      "sha256": "28ddba31ecb9c7073df811241ceba8bc309e5d004162eeb6877a42f0ce8f1c1e",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-projections-1792588873699",
+      "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "PASS",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-if-inline",
+    "sha256": "61c8fe1d62984cfa0feff6dbd0419805c8ba9273e4149c88072f21e145b2dc2f",
+    "cluster": "optional-lazy",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "O-if-inline",
+      "sha256": "61c8fe1d62984cfa0feff6dbd0419805c8ba9273e4149c88072f21e145b2dc2f",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: unexpected scalar diagnostic record-field-binding:66:record-array-member:37:statement:typedDeclaration:mvi4i6lp:61:01:037:statement:recordDefinition:mvi4i6lp:21:0: {\"status\":\"error\",\"type\":{\"kind\":\"number\"},\"issueCode\":\"evaluation-divide-by-zero\"}: expected undefined to be 'evaluation-divide-by-zero' // Object.is equality",
+        "Rust: AssertionError: unexpected scalar diagnostic record-field-binding:66:record-array-member:37:statement:typedDeclaration:mvi4i6lp:61:01:037:statement:recordDefinition:mvi4i6lp:21:0: {\"status\":\"error\",\"type\":{\"kind\":\"number\"},\"issueCode\":\"evaluation-divide-by-zero\"}: expected undefined to be 'evaluation-divide-by-zero' // Object.is equality"
+      ],
+      "runId": "base-adjacent-1792587820467",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "O-if-inline",
+      "sha256": "61c8fe1d62984cfa0feff6dbd0419805c8ba9273e4149c88072f21e145b2dc2f",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "static-validation-gate-1792589892529",
+      "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "G-constant",
+    "sha256": "9395700c41010eef82813dd77c665e266769bd43f7392ce7b42ab08264299e2c",
+    "cluster": "geometry-construction",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "X": 22,
+        "Y": 6,
+        "N": 21
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "G-constant",
+      "sha256": "9395700c41010eef82813dd77c665e266769bd43f7392ce7b42ab08264299e2c",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []"
+      ],
+      "runId": "base-adjacent-1792587820467",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "G-constant",
+      "sha256": "9395700c41010eef82813dd77c665e266769bd43f7392ce7b42ab08264299e2c",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-geometry-owner-1792589062844",
+      "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-record-field",
+    "sha256": "014ccab1870034e0471fc9f0593501258750b28e6739ab7ba0db14d79c80898f",
+    "cluster": "geometry-parameter",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "M": 5,
+        "X": 5,
+        "Y": 3,
+        "N": 2,
+        "O": 2
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": {
+      "id": "C-record-field",
+      "sha256": "014ccab1870034e0471fc9f0593501258750b28e6739ab7ba0db14d79c80898f",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 20,
+          "column": 19,
+          "code": "scalar-namespace-type-mismatch",
+          "message": "\"One::count\" はmoduleInstanceのため、scalar expressionでは参照できません。",
+          "presentation": {
+            "key": "diagnostic.scalar-namespace-type-mismatch"
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 643,
+                "to": 654
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "bindingId": "binding:statement:typedDeclaration:mvi4i6y4:39",
+          "navigationTarget": {
+            "kind": "binding",
+            "bindingId": "binding:statement:typedDeclaration:mvi4i6y4:39"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 21,
+          "column": 19,
+          "code": "scalar-namespace-type-mismatch",
+          "message": "\"Two::count\" はmoduleInstanceのため、scalar expressionでは参照できません。",
+          "presentation": {
+            "key": "diagnostic.scalar-namespace-type-mismatch"
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 673,
+                "to": 684
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "bindingId": "binding:statement:typedDeclaration:mvi4i6y4:40",
+          "navigationTarget": {
+            "kind": "binding",
+            "bindingId": "binding:statement:typedDeclaration:mvi4i6y4:40"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 8,
+          "column": 29,
+          "code": "array-reference-invalid",
+          "message": "未解決の array 参照です: @items",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 261,
+                "to": 267
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.array-reference-invalid"
+          }
+        },
+        {
+          "severity": "error",
+          "line": 8,
+          "column": 29,
+          "code": "array-reference-invalid",
+          "message": "未解決の array 参照です: @items",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 261,
+                "to": 267
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.array-reference-invalid"
+          }
+        }
+      ],
+      "runId": "base-adjacent-1792587820467",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "C-record-field",
+      "sha256": "014ccab1870034e0471fc9f0593501258750b28e6739ab7ba0db14d79c80898f",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-record-geometry-alias-1792589440280",
+      "sourceTreeSha256": "723e3025a91596fa7300a91a01cddda629c45931bdabb0aacc5dcce67a130216"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "array-reference-invalid",
+      "scalar-namespace-type-mismatch"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-document-nested",
+    "sha256": "c72e80d05aab7edfeec67c5b1932341ee4a6a0d140f5b98206cc97e9eed2ffe8",
+    "cluster": "geometry-parameter",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "M": 5,
+        "X": 5,
+        "Y": 3,
+        "N": 2,
+        "O": 2
+      },
+      "savedDocumentPaths": [
+        "lib.nui"
+      ]
+    },
+    "exactBaseObservation": {
+      "id": "C-document-nested",
+      "sha256": "c72e80d05aab7edfeec67c5b1932341ee4a6a0d140f5b98206cc97e9eed2ffe8",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "base-adjacent-1792587820467",
+      "sourceTreeSha256": "485e9fb23ba18b96f763919d720ef8d8f2e3b0f89eace69fa2adbfa5e35afd57"
+    },
+    "lastIsolatedCandidateObservation": {
+      "id": "C-document-nested",
+      "sha256": "c72e80d05aab7edfeec67c5b1932341ee4a6a0d140f5b98206cc97e9eed2ffe8",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-record-geometry-alias-1792589440280",
+      "sourceTreeSha256": "723e3025a91596fa7300a91a01cddda629c45931bdabb0aacc5dcce67a130216"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "PASS",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-dynamic-fields",
+    "sha256": "177e92981df606093770804a1b58ba2347481d1797a505ccf2da4d74f8f36262",
+    "cluster": "optional-index",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 21,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-dynamic-fields",
+      "sha256": "177e92981df606093770804a1b58ba2347481d1797a505ccf2da4d74f8f36262",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-projections-1792588873699",
+      "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-collection-index-type"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-if-false",
+    "sha256": "7cc5017925372c7d7e08c7e2ddf8fb2029c8921337971ee734f589cb1bef2378",
+    "cluster": "optional-lazy",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 43,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-if-false",
+      "sha256": "7cc5017925372c7d7e08c7e2ddf8fb2029c8921337971ee734f589cb1bef2378",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-projections-1792588873699",
+      "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-choice",
+    "sha256": "db944b692dc234b3951b3aa35a2dd6edcad818a8d16a752bd34b70739bb04b3e",
+    "cluster": "optional-lazy",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 43,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-choice",
+      "sha256": "db944b692dc234b3951b3aa35a2dd6edcad818a8d16a752bd34b70739bb04b3e",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-projections-1792588873699",
+      "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-module",
+    "sha256": "e96c0458e0d068ad9481b3372563fa3837876a25584cec772db5fdac6631b22d",
+    "cluster": "optional-index",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 21,
+        "Y": 31
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-module",
+      "sha256": "e96c0458e0d068ad9481b3372563fa3837876a25584cec772db5fdac6631b22d",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-selected-projections-1792588873699",
+      "sourceTreeSha256": "188ef8afd4a87596fbe79cb88c7c5d97c940e71633a939db8010bdb76dd93e04"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-collection-index-type"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-document-field",
+    "sha256": "c33ae85eb83473fd3fe15f6f35b7e1aa060315182d4a4f45816c7a697c234428",
+    "cluster": "geometry-parameter",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "M": 5,
+        "X": 5,
+        "Y": 3,
+        "N": 2,
+        "O": 2
+      },
+      "savedDocumentPaths": [
+        "lib.nui"
+      ]
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "C-document-field",
+      "sha256": "c33ae85eb83473fd3fe15f6f35b7e1aa060315182d4a4f45816c7a697c234428",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-context-boundaries-1792589644192",
+      "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-unresolved-callee",
+      "scalar-namespace-type-mismatch"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "G-scalar-source",
+    "sha256": "1fe587437fc5817b28d06d943f67dcea5f085652d41d1bb101f935329c16369c",
+    "cluster": "geometry-construction",
+    "disposition": "UNRESOLVED",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "X": 22,
+        "Y": 6,
+        "N": 21
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "G-scalar-source",
+      "sha256": "1fe587437fc5817b28d06d943f67dcea5f085652d41d1bb101f935329c16369c",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "Rust: AssertionError: expected [ { occurrence: { …(2) }, …(1) } ] to deeply equal []",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], …(11) } to deeply equal { computedGeometry: [], …(11) }"
+      ],
+      "runId": "geometry-reduce-1792589190916",
+      "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
+    },
+    "finalVerification": "NOT_EXECUTED in final verify: generic root record-scalar geometry scheduling remains outside this slice under #1260; prior observations and new Base compiler failures retained.",
+    "scopeNote": "UNRESOLVED: map-free root record-scalar geometry control also fails production Rust; general root dependency/scheduling is #1260-owned. Preserve the source and actual results; do not count that remaining loss as repaired here.",
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-geometry-property-reference"
+    ]
+  },
+  {
+    "id": "G-direct-control",
+    "sha256": "8d11d42d53c05427fe677c9bce6c34ae263307d85c74afc240864b6863df58bd",
+    "cluster": "geometry-construction",
+    "disposition": "UNRESOLVED",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "X": 22,
+        "Y": 6
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "G-direct-control",
+      "sha256": "8d11d42d53c05427fe677c9bce6c34ae263307d85c74afc240864b6863df58bd",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "Rust: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "TS/Rust parity: AssertionError: expected { computedGeometry: [], …(10) } to deeply equal { computedGeometry: [], …(11) }"
+      ],
+      "runId": "geometry-reduce-1792589190916",
+      "sourceTreeSha256": "133c114c9731812bbd938ea8740f9afcc979ff6fa3f96ba29350bcfca736ca40"
+    },
+    "finalVerification": "NOT_EXECUTED in final verify: generic root record-scalar geometry scheduling remains outside this slice under #1260; prior observations and new Base compiler failures retained.",
+    "scopeNote": "UNRESOLVED: map-free root record-scalar geometry control also fails production Rust; general root dependency/scheduling is #1260-owned. Preserve the source and actual results; do not count that remaining loss as repaired here.",
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-geometry-property-reference"
+    ]
+  },
+  {
+    "id": "C-document-field-direct",
+    "sha256": "f5a24b5a1d2ca5f36e36f51c83f9818c40b7aec3f275209677471fab73a3d749",
+    "cluster": "geometry-parameter",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "M": 5,
+        "X": 5,
+        "Y": 3,
+        "N": 2,
+        "O": 2
+      },
+      "savedDocumentPaths": [
+        "lib.nui"
+      ]
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "C-document-field-direct",
+      "sha256": "f5a24b5a1d2ca5f36e36f51c83f9818c40b7aec3f275209677471fab73a3d749",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-record-geometry-alias-1792589440280",
+      "sourceTreeSha256": "723e3025a91596fa7300a91a01cddda629c45931bdabb0aacc5dcce67a130216"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-unresolved-callee",
+      "scalar-namespace-type-mismatch"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "G-module",
+    "sha256": "5c321af7af7a8516bb8441c4053f7823aa9ba5c7af000cc2701e93f953ffec18",
+    "cluster": "geometry-construction",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "M": 5,
+        "X": 22,
+        "Y": 46
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "G-module",
+      "sha256": "5c321af7af7a8516bb8441c4053f7823aa9ba5c7af000cc2701e93f953ffec18",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-context-boundaries-1792589644192",
+      "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-geometry-property-reference"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "G-module-direct-control",
+    "sha256": "291c09f4e340e7b38cb7b25c04c7567e575f23f0f2b1252e63dcc93f2823c2e0",
+    "cluster": "geometry-construction",
+    "disposition": "PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "M": 5,
+        "X": 22,
+        "Y": 46
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "G-module-direct-control",
+      "sha256": "291c09f4e340e7b38cb7b25c04c7567e575f23f0f2b1252e63dcc93f2823c2e0",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "module-geometry-alias-1792589309045",
+      "sourceTreeSha256": "e8c808b213f0735b9091a39d3e6a537e51a03dd24dff4840ae8f2dca0cc41eee"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "PASS",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-index-errors",
+    "sha256": "2b2ceef1359f3083c75f01f1afdcaea51e3a5f1cd598b2e5486eb6c473deadaa",
+    "cluster": "optional-index",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {},
+      "expectedIssues": {
+        "X": "evaluation-collection-index-invalid",
+        "Y": "evaluation-collection-index-invalid"
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-index-errors",
+      "sha256": "2b2ceef1359f3083c75f01f1afdcaea51e3a5f1cd598b2e5486eb6c473deadaa",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-context-boundaries-1792589644192",
+      "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-collection-index-type"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-module-lazy",
+    "sha256": "741dab2a92e8271fc3ed5d0a1f1cbd4b8a6f3ae0a794bc7b68aa7964dea93c36",
+    "cluster": "optional-lazy",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "X": 19
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-module-lazy",
+      "sha256": "741dab2a92e8271fc3ed5d0a1f1cbd4b8a6f3ae0a794bc7b68aa7964dea93c36",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-static-validation-1792589827250",
+      "sourceTreeSha256": "d359db4f9b785da93372259a79a618c602530557f3bb3aaa5f5088adbd26e554"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "G-unselected-member",
+    "sha256": "75555553022a659cacd8c371368b79567dd1c8a4ee63a118ef5a854af3005340",
+    "cluster": "geometry-construction",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "X": 4
+      },
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "G-unselected-member",
+      "sha256": "75555553022a659cacd8c371368b79567dd1c8a4ee63a118ef5a854af3005340",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-context-boundaries-1792589644192",
+      "sourceTreeSha256": "b527242506601f5889b48bc5d3805c76342ddd143de299dfd59df962a1fb5204"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-geometry-property-reference"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-lazy-parameter",
+    "sha256": "192403364a27fbdf79511adc1e1155af8950531c44befbf03ce3bddb9bb67f39",
+    "cluster": "geometry-parameter",
+    "disposition": "REPAIRED_THEN_PASS",
+    "oracle": {
+      "expected": {
+        "L": 5,
+        "M": 13,
+        "X": 3,
+        "Y": 5,
+        "N": 2,
+        "O": 2
+      },
+      "savedDocumentPaths": [
+        "lib.nui"
+      ]
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "C-lazy-parameter",
+      "sha256": "192403364a27fbdf79511adc1e1155af8950531c44befbf03ce3bddb9bb67f39",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": [],
+      "runId": "fix-static-validation-1792589827250",
+      "sourceTreeSha256": "d359db4f9b785da93372259a79a618c602530557f3bb3aaa5f5088adbd26e554"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "PASS",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "rustEligible": true,
+      "failures": []
+    },
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "module-unresolved-callee",
+      "scalar-namespace-type-mismatch"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "O-invalid-inline-type",
+    "sha256": "5be2319bdb8e79c3f6c6aa02d6443234efef2bc08d49efc6f3711631031e8b07",
+    "cluster": "invalid-control",
+    "disposition": "CONTRACT_INVALID",
+    "oracle": {
+      "expected": {},
+      "expectedCompilerError": "*",
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-invalid-inline-type",
+      "sha256": "5be2319bdb8e79c3f6c6aa02d6443234efef2bc08d49efc6f3711631031e8b07",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 3,
+          "column": 32,
+          "code": "module-scalar-type-mismatch",
+          "message": "宣言された型と一致しません(期待: number, 実際: string)。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 59,
+                "to": 64
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.scalar-type-mismatch",
+            "parameters": {
+              "expected": "number",
+              "actual": "string"
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Expected type declared here",
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 42,
+                    "to": 48
+                  }
+                ],
+                "sourceRevision": 1
+              }
+            }
+          ],
+          "expectedType": {
+            "kind": "number"
+          },
+          "actualType": {
+            "kind": "string"
+          }
+        }
+      ],
+      "runId": "static-validation-gate-1792589892529",
+      "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "CONTRACT_INVALID",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "diagnosticCodes": [
+        "module-scalar-type-mismatch"
+      ]
+    },
+    "completeExactBaseStatus": "CONTRACT_INVALID",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "scalar-type-mismatch"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "CONTRACT_INVALID"
+  },
+  {
+    "id": "O-invalid-arm-type",
+    "sha256": "7ec1711207a16f0cc9b7a6a004c60aa5140a98c429a492a0c95f13382a1885e4",
+    "cluster": "invalid-control",
+    "disposition": "CONTRACT_INVALID",
+    "oracle": {
+      "expected": {},
+      "expectedCompilerError": "*",
+      "savedDocumentPaths": []
+    },
+    "exactBaseObservation": null,
+    "lastIsolatedCandidateObservation": {
+      "id": "O-invalid-arm-type",
+      "sha256": "7ec1711207a16f0cc9b7a6a004c60aa5140a98c429a492a0c95f13382a1885e4",
+      "status": "CONTRACT_INVALID",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 4,
+          "column": 53,
+          "code": "record-nominal-type-mismatch",
+          "message": "constructor「Other」の nominal record 型は宣言された型「Box」と一致しません。",
+          "presentation": {
+            "key": "diagnostic.record-nominal-type-mismatch",
+            "parameters": {
+              "name": "Other",
+              "expected": "Box"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 104,
+                "to": 109
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ],
+      "runId": "static-validation-gate-1792589892529",
+      "sourceTreeSha256": "8309069c24287254d555754e68fa27c4cb086fd864bbfcb291536476ac7a3029"
+    },
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "scopeNote": null,
+    "resumeFocusedObservation": {
+      "status": "CONTRACT_INVALID",
+      "runId": "resume-focused-1792592926589",
+      "sourceTreeSha256": "2742d0ddecedcd3e3eca857f0c8cf9f2c13b6386fc524fa18294e9b187ffb1c1",
+      "diagnosticCodes": [
+        "record-nominal-type-mismatch"
+      ]
+    },
+    "completeExactBaseStatus": "CONTRACT_INVALID",
+    "completeExactBaseRunId": "base-exact-1792595434724",
+    "completeExactBaseDiagnosticCodes": [
+      "record-nominal-type-mismatch"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "CONTRACT_INVALID"
+  },
+  {
+    "id": "C-record-direct-control",
+    "sha256": "30a01f86fc21def2b62a17d9085cca50cc5392c5340b545ec4c4979cb596424c",
+    "cluster": "geometry-record-alias-reduction",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "X": 5,
+        "Y": 12,
+        "N": 2
+      },
+      "savedDocumentPaths": []
+    },
+    "disposition": "REPAIRED_THEN_PASS",
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-c7-reduced-1792595540994",
+    "completeExactBaseDiagnosticCodes": [
+      "array-reference-invalid"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-record-alias-reduced",
+    "sha256": "c8e3d08eb287deb292b6e8d7a44abde06577e4c67e633517c5264548cb4e562a",
+    "cluster": "geometry-record-alias-reduction",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "X": 5,
+        "Y": 12,
+        "N": 2
+      },
+      "savedDocumentPaths": []
+    },
+    "disposition": "REPAIRED_THEN_PASS",
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-c7-reduced-1792595540994",
+    "completeExactBaseDiagnosticCodes": [
+      "geometry-array-invalid-reference"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-record-literal-control",
+    "sha256": "ce6b5853ab7ff833b90ad7ed59144b0b84a93154ef727c9be35361d835295506",
+    "cluster": "geometry-record-alias-reduction",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "X": 5,
+        "Y": 12,
+        "N": 2
+      },
+      "savedDocumentPaths": []
+    },
+    "disposition": "PASS",
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "completeExactBaseStatus": "PASS",
+    "completeExactBaseRunId": "base-c7-literal-1792595610626",
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  },
+  {
+    "id": "C-record-literal-alias",
+    "sha256": "6aee980c62a2fa9e346e3c79ecd1a9bd9d4ea63b0da47c3db187cfb3c02d2dfc",
+    "cluster": "geometry-record-alias-reduction",
+    "oracle": {
+      "expected": {
+        "L": 13,
+        "X": 5,
+        "Y": 12,
+        "N": 2
+      },
+      "savedDocumentPaths": []
+    },
+    "disposition": "REPAIRED_THEN_PASS",
+    "finalVerification": "PASS: verified-focused and ordered full gates; raw reference/production payload decoded by existing evaluationPayloadToResult assertions.",
+    "completeExactBaseStatus": "UNRESOLVED",
+    "completeExactBaseRunId": "base-c7-literal-1792595610626",
+    "completeExactBaseDiagnosticCodes": [
+      "geometry-array-invalid-reference"
+    ],
+    "finalRunId": "required-full-1792597512287",
+    "finalStatus": "PASS"
+  }
+]

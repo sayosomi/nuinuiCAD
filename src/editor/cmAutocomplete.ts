@@ -899,6 +899,10 @@ export const createDslCompletionSource = (options: DslAutocompleteOptions): Comp
   ) {
     completions = neutralCompletions;
     usesNeutralQuery = neutralQuery !== null;
+  } else if (completionContext.kind === "elementParameter" && completionContext.expectedGeometryEndpoint) {
+    completions = neutralCompletions;
+    usesNeutralQuery = neutralQuery !== null;
+    disablesCompletionFiltering = true;
   } else if (completionContext.kind === "elementParameter") {
     // Rust evaluation is asynchronous (useEvaluationEngine.ts): while it
     // hasn't caught up with the live document, computedGeometry/

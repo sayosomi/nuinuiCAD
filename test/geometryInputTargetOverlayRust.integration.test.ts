@@ -69,7 +69,7 @@ describe("SAY-509 geometry input target overlays through persistent Rust stdio",
     expect(fixture.compiled?.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
 
     const options = optionsFor(fixture);
-    expect(isRustEligibleFixture(fixture)).toBe(false);
+    expect(isRustEligibleFixture(fixture)).toBe(true);
 
     const rootTargetsByElementId = fixture.compiled?.doc.geometryInputTargetsByElementId;
     const runtimeTargetsByElementId =
@@ -91,7 +91,7 @@ describe("SAY-509 geometry input target overlays through persistent Rust stdio",
     expect([...mergedTargets?.keys() ?? []]).toEqual([...expectedParameterKeys]);
 
     const tsPayload = evaluateElementsReferencePayload(fixture.elements, options);
-    // This directly exercises production stdio even though normal host dispatch rejects the fixture.
+    // Verify the production stdio path admitted by the canonical occurrence targets.
     const rustPayload = await rustStdio!.evaluate(fixture.elements, options);
     const observables = [tsPayload, rustPayload].map((payload) => {
       const result = evaluationPayloadToResult(payload);

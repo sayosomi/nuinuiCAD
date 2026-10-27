@@ -213,7 +213,9 @@ export const analyzeMultiDocumentModuleSemantics = (
       documentId: node.documentId,
       source: sourceIdentityOf(node.artifact.source),
       externalNamespaceResolver,
-      externalModuleResolver
+      externalModuleResolver,
+      externalRecordDefinitionResolver: (documentId, identity) => graph.nodes.get(documentId)
+        ?.artifact.sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(identity)
     });
     analysesByDocument.set(node.documentId, analysis);
   }

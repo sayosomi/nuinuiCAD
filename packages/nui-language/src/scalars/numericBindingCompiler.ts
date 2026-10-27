@@ -462,7 +462,7 @@ const attributeValueSpan = (statement: DslStatement, attrKey: string): DslSpan |
 export const compileNumericBindings = ({
   statements, elementIdByStatementIndex, elements, bindingAnalysis, spans,
   layouts, layoutIdsByStatementIndex, includeStatement, additionalGeometryPropertyResolver,
-  resolveGeometryStageSelection, transformationRecipes
+  resolveGeometryStageSelection, transformationRecipes, materializedNumericBindings
 }: {
   statements: readonly DslStatement[];
   elementIdByStatementIndex: ReadonlyMap<number, ElementId>;
@@ -482,7 +482,12 @@ export const compileNumericBindings = ({
    * stable ids and operation paths. Module recipes use per-instance semantic
    * targets from the Module scalar runtime. */
   transformationRecipes?: readonly TransformationRecipe[];
+  /** Already lowered by the canonical Module/source semantic owner. */
+  materializedNumericBindings?: readonly { elementId: ElementId; binding: CompiledNumericBinding }[];
 }): NumericBindingCompilation => {
+  const materializedKeys = new Set((materializedNumericBindings ?? [])
+    .filter(entry => entry.binding.typedExpression)
+    .map(entry => JSON.stringify([entry.elementId, entry.binding.parameterKey])));
   const byId = new Map(elements.map((element) => [element.id, element]));
   const sourceOrderByElementId = new Map<ElementId, number>();
   for (const [sourceOrder, elementId] of elementIdByStatementIndex) sourceOrderByElementId.set(elementId, sourceOrder);
@@ -565,6 +570,7 @@ export const compileNumericBindings = ({
       if (!element || !logical) return;
       for (const definition of getParameterDefinitions(element)) {
         if (definition.kind !== "number" || (element.type === "conditionalGroup" && definition.key === "condition")) continue;
+        if (materializedKeys.has(JSON.stringify([element.id, definition.key]))) continue;
         const value = getParameterValue(element, definition.key) as NumericValue | undefined;
         const valueSpan = resolveParameterValueSpan(logical.logicalText, element, definition.key);
         // Geometry properties are evaluated after this element's local

@@ -52,7 +52,7 @@ export type ModuleRecordSourceTarget =
       nameSpan: DslSpan;
       /** Statically known record members are retained for field-backing
        * resolution. Dynamic indexes are evaluated by the runtime owner. */
-      members?: readonly Extract<ModuleRecordSourceTarget, { kind: "recordValue" }>[];
+      members?: readonly (Extract<ModuleRecordSourceTarget, { kind: "recordValue" }> | null)[];
     }
   | {
       kind: "recordValue";
@@ -62,7 +62,7 @@ export type ModuleRecordSourceTarget =
       identity?: DocumentQualifiedSemanticIdentity<StatementIdentity>;
       /** Keeps the established whole-record target aware of the one
        * coalescing shape that needs collection-backed field projection. */
-      valueExpressionKind?: "coalesce";
+      valueExpressionKind?: "coalesce" | "match";
     }
   | {
       /** Immutable nominal-record binder owned by a record collection map. */
@@ -550,6 +550,8 @@ export type ModuleRecordValueExpressionSemantic =
       kind: "match";
       span: DslSpan;
       scrutinee: ModuleScalarExpressionSemantic | null;
+      optionalRecordMatch?: true;
+      recordScrutinee?: ModuleRecordSourceTarget;
       arms: readonly {
         label: string;
         labelSpan: DslSpan;
@@ -922,6 +924,7 @@ export type ResolvedModuleScalarExport = ResolvedModuleExportBase & {
 
 export type ResolvedModuleRecordExport = ResolvedModuleExportBase & {
   kind: "record";
+  valueType?: DslValueType;
   typeIdentity: RecordTypeIdentity;
   definition: RecordDefinitionSemantic;
   backingTarget: ModuleRecordSourceTarget;
@@ -1003,6 +1006,7 @@ export type ModuleImmutableCarrySemantic = {
   /** Geometry carries reuse the existing Module geometry reference/runtime path. */
   geometryInitializer?: ModuleGeometryReferenceSemantic;
   geometryNext?: ModuleGeometryReferenceSemantic;
+  geometryNextExpression?: ModuleGeometryValueExpressionSemantic;
   nextStatementIndex: number;
 };
 
@@ -1173,7 +1177,7 @@ export type ModuleSemanticAnalysisInput = {
   spans: import("./dslDiagnosticSpan").DiagnosticSpanContext;
   logicalTextByStatementIndex?: ReadonlyMap<number, string>;
   documentScalarBindings?: ReadonlyMap<number, { bindingId: BindingId; statementId: StatementIdentity }>;
-  /** Geometry-valued carry-next constructor leaves discovered by the root
+  /** Geometry-valued carry-next construction and indexed/qualified reference leaves discovered by the root
    * compiler. They reuse this semantic pass's construction and reference
    * resolution without becoming declarations in the source namespace. */
   geometryCarryNextConstructions?: readonly {
@@ -1196,6 +1200,8 @@ export type ModuleSemanticAnalysisInput = {
   externalNamespaceResolver?: SourceLexicalExternalNamespaceResolver;
   /** Resolves an external public Module entry to its defining semantic data. */
   externalModuleResolver?: (member: SourceLexicalExternalNamespaceMember) => ExternalModuleSemanticTarget | null;
+  /** Nested exported record fields retain their defining document's catalog. */
+  externalRecordDefinitionResolver?: (documentId: DocumentId, identity: RecordTypeIdentity) => RecordDefinitionSemantic | undefined;
   /** Construction metadata is compiler-owned. The semantic pass asks this
    * narrow adapter for the source argument and its canonical runtime key; it
    * never reparses a declaration to discover the construction interface. */

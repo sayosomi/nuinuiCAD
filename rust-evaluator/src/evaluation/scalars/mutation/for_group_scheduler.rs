@@ -110,6 +110,8 @@ impl ScalarMutationResolver<'_> {
         source: &ValidatedImmutableGeometryCollectionSource,
         nodes: &HashMap<String, std::sync::Arc<GeometryInputCollectionNode>>,
         runtime_generation: Option<usize>,
+        state: &EvaluationState,
+        resolver: &dyn ScalarDocumentBindingResolver,
     ) -> Option<GeometryInputCollectionNode> {
         let mut seen = HashSet::new();
         let node = match source {
@@ -119,7 +121,14 @@ impl ScalarMutationResolver<'_> {
             }
             ValidatedImmutableGeometryCollectionSource::Node(node) => node.as_ref(),
         };
-        capture_geometry_collection_node(node, nodes, runtime_generation, &mut seen)
+        capture_geometry_collection_node(
+            node,
+            nodes,
+            runtime_generation,
+            &mut seen,
+            state,
+            resolver,
+        )
     }
 
     fn install_geometry_carry(
@@ -242,7 +251,7 @@ impl ScalarMutationResolver<'_> {
         owner_statement_id: &str,
         environment: &mut ForGroupExecutionEnvironment<ScalarEvaluation>,
         state: &mut EvaluationState,
-        current_source_order: f64,
+        _current_source_order: f64,
     ) -> Result<(), ForGroupExecutionError> {
         for carry in self.immutable_carries_for(owner_statement_id) {
             let initial = self.evaluate_for_group(
@@ -273,7 +282,7 @@ impl ScalarMutationResolver<'_> {
                 if let Ok(value) = resolve_for_group_geometry_carry_target(
                     state,
                     &resolver,
-                    current_source_order,
+                    f64::INFINITY,
                     &carry.initializer,
                 ) {
                     self.install_geometry_carry(state, carry, &value);
@@ -284,6 +293,8 @@ impl ScalarMutationResolver<'_> {
                     &carry.initializer,
                     &state.geometry_collection_nodes,
                     None,
+                    state,
+                    &resolver,
                 ) {
                     state
                         .geometry_collection_nodes
@@ -428,16 +439,27 @@ impl ScalarMutationResolver<'_> {
                 };
                 let resolved = match selected_target.as_ref() {
                     Some(target) => {
-                        let template_element_id = target
-                            .for_group_template_element_id
-                            .as_deref()
-                            .or_else(|| {
-                                state
-                                    .for_group_generated_rows
-                                    .iter()
-                                    .any(|row| row.template_element_id == target.statement_id)
-                                    .then_some(target.statement_id.as_str())
-                            });
+                        if let Some(occurrence) = target.geometry_value_occurrence.as_ref() {
+                            if let Some(source) = state.lazy_geometry_value_programs.get(occurrence) {
+                                if let Ok(entries) = crate::evaluation::geometry_value_runtime::decode_geometry_value_program(Some(
+                                    &Value::Array(vec![source.clone()]),
+                                )) {
+                                    state.computed_geometry_values.remove(occurrence);
+                                    crate::evaluation::geometry_value_runtime::evaluate_geometry_value_entry(
+                                        &entries[0], &snapshot_resolver, state,
+                                    );
+                                }
+                            }
+                        }
+                        // A body-local drawable denotes the current iteration's row.
+                        // Explicit occurrence targets must retain their index and use
+                        // the canonical indexed resolver below instead.
+                        let template_element_id = (target.for_group_template_element_id.is_none()
+                            && state
+                                .for_group_generated_rows
+                                .iter()
+                                .any(|row| row.template_element_id == target.statement_id))
+                        .then_some(target.statement_id.as_str());
                         let resolved = if let Some(template_element_id) = template_element_id {
                             let row = state
                                 .for_group_generated_rows
@@ -529,6 +551,8 @@ impl ScalarMutationResolver<'_> {
                         &carry.next,
                         &geometry_collection_snapshot,
                         Some(iteration_index),
+                        state,
+                        &snapshot_resolver,
                     ),
                 )
             })
@@ -557,7 +581,7 @@ impl ScalarMutationResolver<'_> {
     pub(crate) fn consume_for_group_source_range(
         &mut self,
         owner_statement_id: &str,
-        exit_source_order: usize,
+        _exit_source_order: usize,
     ) {
         while self.next_version_index < self.program.versions.len() {
             let version = &self.program.versions[self.next_version_index];
@@ -572,7 +596,9 @@ impl ScalarMutationResolver<'_> {
                                 == Some(owner_statement_id)
                     })
                 });
-            if version.source_order >= exit_source_order && !belongs_to_owner {
+            // Source ranges can overlap independent Module execution positions.
+            // Only this loop's compiler-owned declarations belong to its cursor.
+            if !belongs_to_owner {
                 break;
             }
             self.next_version_index += 1;
@@ -997,6 +1023,15 @@ pub(super) fn resolve_collection_carry_snapshot_with_context(
                 });
             }
             _ => {
+                if let super::super::program_payload::ValidatedScalarProgramCollectionValue::Literal(members) = &value.value {
+                    for member in members {
+                        if let super::super::program_payload::ValidatedScalarProgramCollectionMember::Binding { binding_id, .. } = member {
+                            if let Some(value) = iteration_bindings.get(binding_id) {
+                                local_bindings.entry(binding_id.clone()).or_insert_with(|| value.clone());
+                            }
+                        }
+                    }
+                }
                 let is_lazy = !matches!(
                     value.value,
                     super::super::program_payload::ValidatedScalarProgramCollectionValue::None
@@ -1036,13 +1071,131 @@ fn geometry_type_name(geometry_type: &super::super::types::GeometryInterfaceType
     .to_owned()
 }
 
+fn capture_geometry_collection_target(
+    target: &GeometryInputTarget,
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
+    seen: &mut HashSet<GeometryValueOccurrence>,
+) -> Option<GeometryInputTarget> {
+    if let GeometryInputTarget::Drawable {
+        element_id,
+        geometry_type,
+        point_key,
+        stage_path,
+    } = target
+    {
+        let captured_id = state
+            .for_group_generated_rows
+            .iter()
+            .rev()
+            .find(|row| row.template_element_id == *element_id)
+            .map_or_else(
+                || element_id.clone(),
+                |row| row.generated_element_id.clone(),
+            );
+        return Some(GeometryInputTarget::Drawable {
+            element_id: captured_id,
+            geometry_type: geometry_type.clone(),
+            point_key: point_key.clone(),
+            stage_path: stage_path.clone(),
+        });
+    }
+    let GeometryInputTarget::GeometryValue {
+        occurrence,
+        point_key: None,
+        stage_path: None,
+        ..
+    } = target
+    else {
+        return clone_geometry_input_target(target);
+    };
+    let Some(entry) = state.lazy_geometry_value_programs.get(occurrence) else {
+        return clone_geometry_input_target(target);
+    };
+    let construction = entry.get("construction")?;
+    if construction.get("kind").and_then(Value::as_str) != Some("reference")
+        || construction.pointer("/target/kind").and_then(Value::as_str)
+            != Some("geometryInputTarget")
+    {
+        return clone_geometry_input_target(target);
+    }
+    if !seen.insert(occurrence.clone()) {
+        return None;
+    }
+    let indexed = crate::evaluation::line_geometry_input::decode_target(
+        construction.pointer("/target/target")?,
+        "captured indexed alias",
+    )
+    .ok()?;
+    let GeometryInputTarget::CollectionIndex {
+        collection_value_id,
+        index,
+        ..
+    } = indexed
+    else {
+        return None;
+    };
+    let ScalarEvaluation::Ok {
+        value: ScalarValue::Number(index),
+        ..
+    } = evaluate_document_typed_expression(&index, resolver, state, None)
+    else {
+        return None;
+    };
+    if !index.is_finite() || index < 0.0 || index.fract() != 0.0 {
+        return None;
+    }
+    let selected =
+        crate::evaluation::line_geometry_input::resolve_geometry_collection_endpoint_member(
+            state,
+            resolver,
+            &collection_value_id,
+            index as usize,
+            None,
+        )
+        .ok()?;
+    let captured = capture_geometry_collection_target(&selected, state, resolver, seen);
+    seen.remove(occurrence);
+    captured
+}
+
 fn capture_geometry_collection_node(
     node: &GeometryInputCollectionNode,
     nodes: &HashMap<String, std::sync::Arc<GeometryInputCollectionNode>>,
     runtime_generation: Option<usize>,
     seen_value_ids: &mut HashSet<String>,
+    state: &EvaluationState,
+    resolver: &dyn ScalarDocumentBindingResolver,
 ) -> Option<GeometryInputCollectionNode> {
     match node {
+        GeometryInputCollectionNode::Leaf { targets } => Some(GeometryInputCollectionNode::Leaf {
+            targets: targets
+                .iter()
+                .map(|target| {
+                    capture_geometry_collection_target(target, state, resolver, &mut HashSet::new())
+                })
+                .collect::<Option<Vec<_>>>()?,
+        }),
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            ..
+        } => {
+            if !seen_value_ids.insert(collection_value_id.clone()) {
+                return None;
+            }
+            let captured = nodes.get(collection_value_id).and_then(|source_node| {
+                capture_geometry_collection_node(
+                    source_node,
+                    nodes,
+                    runtime_generation,
+                    seen_value_ids,
+                    state,
+                    resolver,
+                )
+            });
+            seen_value_ids.remove(collection_value_id);
+            captured
+        }
         GeometryInputCollectionNode::GeometryValueMap {
             source,
             source_statement_id,
@@ -1060,7 +1213,14 @@ fn capture_geometry_collection_node(
                         return None;
                     }
                     let captured = nodes.get(value_id).and_then(|source_node| {
-                        capture_geometry_collection_node(source_node, nodes, None, seen_value_ids)
+                        capture_geometry_collection_node(
+                            source_node,
+                            nodes,
+                            None,
+                            seen_value_ids,
+                            state,
+                            resolver,
+                        )
                     });
                     seen_value_ids.remove(value_id);
                     (
@@ -1090,44 +1250,48 @@ fn capture_geometry_collection_node(
             source_order,
             then_branch,
             else_branch,
-        } => Some(GeometryInputCollectionNode::If {
-            condition: condition.clone(),
-            source_order: *source_order,
-            then_branch: Box::new(capture_geometry_collection_node(
-                then_branch,
+        } => {
+            let ScalarEvaluation::Ok {
+                value: ScalarValue::Boolean(selected),
+                ..
+            } = evaluate_document_typed_expression(condition, resolver, state, Some(*source_order))
+            else {
+                return None;
+            };
+            capture_geometry_collection_node(
+                if selected { then_branch } else { else_branch },
                 nodes,
                 runtime_generation,
                 seen_value_ids,
-            )?),
-            else_branch: Box::new(capture_geometry_collection_node(
-                else_branch,
-                nodes,
-                runtime_generation,
-                seen_value_ids,
-            )?),
-        }),
+                state,
+                resolver,
+            )
+        }
         GeometryInputCollectionNode::Match {
             scrutinee,
             source_order,
             arms,
-        } => Some(GeometryInputCollectionNode::Match {
-            scrutinee: scrutinee.clone(),
-            source_order: *source_order,
-            arms: arms
-                .iter()
-                .map(|(label, branch)| {
-                    Some((
-                        label.clone(),
-                        capture_geometry_collection_node(
-                            branch,
-                            nodes,
-                            runtime_generation,
-                            seen_value_ids,
-                        )?,
-                    ))
-                })
-                .collect::<Option<Vec<_>>>()?,
-        }),
+        } => {
+            let label =
+                crate::evaluation::line_geometry_input::geometry_collection_match_arm_label(
+                    evaluate_document_typed_expression(
+                        scrutinee,
+                        resolver,
+                        state,
+                        Some(*source_order),
+                    ),
+                )
+                .ok()?;
+            let (_, branch) = arms.iter().find(|(candidate, _)| candidate == &label)?;
+            capture_geometry_collection_node(
+                branch,
+                nodes,
+                runtime_generation,
+                seen_value_ids,
+                state,
+                resolver,
+            )
+        }
         GeometryInputCollectionNode::Coalesce {
             left_branch,
             right_branch,
@@ -1137,12 +1301,16 @@ fn capture_geometry_collection_node(
                 nodes,
                 runtime_generation,
                 seen_value_ids,
+                state,
+                resolver,
             )?),
             right_branch: Box::new(capture_geometry_collection_node(
                 right_branch,
                 nodes,
                 runtime_generation,
                 seen_value_ids,
+                state,
+                resolver,
             )?),
         }),
         _ => clone_geometry_collection_node(node),
@@ -1159,6 +1327,13 @@ fn clone_geometry_collection_node(
                 .iter()
                 .map(clone_geometry_input_target)
                 .collect::<Option<Vec<_>>>()?,
+        }),
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            geometry_type,
+        } => Some(GeometryInputCollectionNode::CarryReference {
+            collection_value_id: collection_value_id.clone(),
+            geometry_type: geometry_type.clone(),
         }),
         GeometryInputCollectionNode::GeometryValueMap {
             source,
@@ -1264,15 +1439,19 @@ struct ForGroupExecutionBindingResolverWithLocals<
 
 impl ForGroupExecutionBindingResolverWithLocals<'_, '_, '_, '_, '_> {
     fn visible_bindings(&self) -> HashMap<String, ScalarEvaluation> {
-        let mut bindings = self
-            .resolver
-            .environment
+        let mut bindings = self.resolver.visible_bindings();
+        bindings.extend(self.local_bindings.clone());
+        bindings
+    }
+}
+
+impl ForGroupExecutionBindingResolver<'_, '_, '_> {
+    fn visible_bindings(&self) -> HashMap<String, ScalarEvaluation> {
+        self.environment
             .visible_bindings()
             .into_iter()
             .map(|(binding_id, value)| (binding_id, scalar_evaluation_for_loop_read(value)))
-            .collect::<HashMap<_, _>>();
-        bindings.extend(self.local_bindings.clone());
-        bindings
+            .collect()
     }
 }
 
@@ -1391,16 +1570,20 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
         index: f64,
         element_type: &ScalarType,
         collection_length: Option<f64>,
-        target_source_order: f64,
+        _target_source_order: f64,
         state: &EvaluationState,
     ) -> ScalarEvaluation {
-        self.resolver.resolve_collection_index(
+        // A nested statement-for reads its source through these accessors.
+        // Preserve the current frame for conditional selectors and members,
+        // just as expression evaluation and carry snapshot capture do.
+        self.resolver.resolve_collection_index_with_bindings(
             collection_value_id,
             index,
             element_type,
             collection_length,
-            target_source_order,
             state,
+            &self.visible_bindings(),
+            None,
         )
     }
 
@@ -1410,8 +1593,9 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
         state: &EvaluationState,
         seen: &mut std::collections::HashSet<String>,
     ) -> Option<f64> {
-        self.resolver
-            .resolve_collection_length(collection_value_id, state, seen)
+        self.resolve_collection_length_evaluation(collection_value_id, state, seen)
+            .ok()
+            .flatten()
     }
 
     fn resolve_collection_length_evaluation(
@@ -1420,12 +1604,7 @@ impl ScalarDocumentBindingResolver for ForGroupExecutionBindingResolver<'_, '_, 
         state: &EvaluationState,
         seen: &mut std::collections::HashSet<String>,
     ) -> Result<Option<f64>, ScalarEvaluation> {
-        let local_bindings = self
-            .environment
-            .visible_bindings()
-            .into_iter()
-            .map(|(binding_id, value)| (binding_id, scalar_evaluation_for_loop_read(value)))
-            .collect::<HashMap<_, _>>();
+        let local_bindings = self.visible_bindings();
         self.resolver.resolve_collection_length_with_bindings(
             collection_value_id,
             state,

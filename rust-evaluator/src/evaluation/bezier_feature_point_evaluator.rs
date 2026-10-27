@@ -392,6 +392,7 @@ mod tests {
         computed_geometry.insert("curve".to_owned(), source_geometry("bezierCurve"));
         let mut state = EvaluationState {
             completed_transformation_recipe_indices: std::collections::HashSet::new(),
+            completed_transformation_targets: HashMap::new(),
             transformation_dependency_plans: None,
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
@@ -407,6 +408,7 @@ mod tests {
             base_transformation_geometry: HashMap::new(),
             transformation_stage_geometry: HashMap::new(),
             computed_geometry_values: HashMap::new(),
+            lazy_geometry_value_programs: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),
@@ -446,6 +448,7 @@ mod tests {
         computed_geometry.insert("curve".to_owned(), source_geometry("line"));
         let mut state = EvaluationState {
             completed_transformation_recipe_indices: std::collections::HashSet::new(),
+            completed_transformation_targets: HashMap::new(),
             transformation_dependency_plans: None,
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
@@ -461,6 +464,7 @@ mod tests {
             base_transformation_geometry: HashMap::new(),
             transformation_stage_geometry: HashMap::new(),
             computed_geometry_values: HashMap::new(),
+            lazy_geometry_value_programs: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),

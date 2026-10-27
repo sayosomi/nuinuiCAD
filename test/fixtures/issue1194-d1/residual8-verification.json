@@ -1,0 +1,222 @@
+{
+  "base": "4994472a32a916e2b750c96cc7879f88237c52ef",
+  "branch": "sayosomi/issue-1194-residual8-d1",
+  "status": "PASS; bounded checkpoint for independent exact-pushed-HEAD blocking review; #1194 closure not claimed",
+  "requiredBlockVerbatim": "(\n  set -e\n  cd /Users/yosomi/Code/nuinuiCAD || {\n    echo \"BLOCKED: registered implementation checkout missing\"\n    exit 1\n  }\n\n  export VITEST_MAX_WORKERS=1\n\n  npx vitest run \\\n    test/issue1194Residual8D1Rust.integration.test.ts \\\n    test/issue1194Residual7D1Rust.integration.test.ts \\\n    test/issue1194Residual6D1Rust.integration.test.ts \\\n    test/issue1194Residual5D1Rust.integration.test.ts \\\n    test/issue1194Residual4D1Rust.integration.test.ts \\\n    test/issue1194Residual3D1Rust.integration.test.ts \\\n    test/issue1194ResidualD1Rust.integration.test.ts \\\n    test/issue1194StructuredD1Rust.integration.test.ts \\\n    test/issue1376RootRecordModuleFieldsRust.integration.test.ts \\\n    src/scalars/recordScalarLowering.test.ts \\\n    src/scalars/recordScalarIntegration.test.ts \\\n    src/dsl/recordDocumentIntegration.test.ts \\\n    src/dsl/moduleScalarRuntime.integration.test.ts \\\n    src/dsl/moduleGeometryArrayRuntime.integration.test.ts \\\n    src/dsl/geometryArraySemanticAnalysis.integration.test.ts \\\n    test/mappedGeometryOccurrenceIdentityRust.integration.test.ts\n\n  npx vitest run \\\n    test/issue1415ScalarMetamorphicRust.integration.test.ts \\\n    test/issue1417ControlFlowMetamorphicRust.integration.test.ts \\\n    test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts \\\n    test/issue1421EvaluatorStrategyRust.integration.test.ts \\\n    test/issue1423EvaluatorStrategyRust.integration.test.ts \\\n    test/issue1426MutationSensitiveRust.integration.test.ts \\\n    test/issue1428TargetedStage7Rust.integration.test.ts\n\n  npm run build\n  npm run lint\n  npm run test:parity\n  npm test\n  npm run docs:dsl:check\n\n  if [[ -n \"$(git diff --name-only 4994472a32a916e2b750c96cc7879f88237c52ef -- rust-evaluator/)\" ]]; then\n    cargo fmt --check --manifest-path rust-evaluator/Cargo.toml\n    cargo check --manifest-path rust-evaluator/Cargo.toml\n    cargo test --manifest-path rust-evaluator/Cargo.toml\n    cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings\n  fi\n\n  git diff --check\n)\n",
+  "requiredBlockExecution": {
+    "exitCode": 0,
+    "blocked": null,
+    "events": [
+      {
+        "event": "start",
+        "pid": 40378,
+        "command": "npm exec vitest run test/issue1194Residual8D1Rust.integration.test.ts test/issue1194Residual7D1Rust.integration.test.ts test/issue1194Residual6D1Rust.integration.test.ts test/issue1194Residual5D1Rust.integration.test.ts test/issue1194Residual4D1Rust.integration.test.ts test/issue1194Residual3D1Rust.integration.test.ts test/issue1194ResidualD1Rust.integration.test.ts test/issue1194StructuredD1Rust.integration.test.ts test/issue1376RootRecordModuleFieldsRust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/scalars/recordScalarIntegration.test.ts src/dsl/recordDocumentIntegration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/geometryArraySemanticAnalysis.integration.test.ts test/mappedGeometryOccurrenceIdentityRust.integration.test.ts               ",
+        "seconds": 1.04
+      },
+      {
+        "event": "start",
+        "pid": 40905,
+        "command": "npm exec vitest run test/issue1415ScalarMetamorphicRust.integration.test.ts test/issue1417ControlFlowMetamorphicRust.integration.test.ts test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts test/issue1421EvaluatorStrategyRust.integration.test.ts test/issue1423EvaluatorStrategyRust.integration.test.ts test/issue1426MutationSensitiveRust.integration.test.ts test/issue1428TargetedStage7Rust.integration.test.ts",
+        "seconds": 20.75
+      },
+      {
+        "event": "start",
+        "pid": 41434,
+        "command": "npm run build",
+        "seconds": 47.79
+      },
+      {
+        "event": "start",
+        "pid": 41524,
+        "command": "npm run typecheck:nui-language",
+        "seconds": 65.58
+      },
+      {
+        "event": "start",
+        "pid": 41566,
+        "command": "npm run build:mcp",
+        "seconds": 70.79
+      },
+      {
+        "event": "start",
+        "pid": 41627,
+        "command": "npm run lint",
+        "seconds": 75.99
+      },
+      {
+        "event": "start",
+        "pid": 41831,
+        "command": "npm run test:parity",
+        "seconds": 107.18
+      },
+      {
+        "event": "start",
+        "pid": 47555,
+        "command": "npm test",
+        "seconds": 165.55
+      }
+    ],
+    "elapsedSeconds": 707.37
+  },
+  "results": {
+    "focusedRequired": {
+      "passed": 555,
+      "skipped": 20,
+      "filesPassed": 16
+    },
+    "historicalStageControls": {
+      "passed": 1073,
+      "skipped": 0,
+      "filesPassed": 7
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "test:parity": {
+      "passed": 203,
+      "skipped": 0,
+      "filesPassed": 1
+    },
+    "npm test": {
+      "passed": 10835,
+      "skipped": 177,
+      "filesPassed": 677,
+      "filesSkipped": 2
+    },
+    "docs:dsl:check": "PASS",
+    "conditionalRustGates": "NOT_RUN: no rust-evaluator/ delta from exact Base",
+    "git diff --check": "PASS"
+  },
+  "focusedBeforeRequired": [
+    {
+      "command": "npm run typecheck:nui-language",
+      "result": "PASS",
+      "log": "/tmp/issue1194-r8-typecheck-final.log"
+    },
+    {
+      "command": "VITEST_MAX_WORKERS=1 npx vitest run test/issue1194Residual8D1Rust.integration.test.ts test/issue1194Residual7D1Rust.integration.test.ts test/issue1194Residual6D1Rust.integration.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts test/mappedGeometryOccurrenceIdentityRust.integration.test.ts",
+      "passed": 269,
+      "skipped": 13,
+      "log": "/tmp/issue1194-r8-presettled-focused.log"
+    },
+    {
+      "command": "VITEST_MAX_WORKERS=1 npx vitest run src/geometry/evaluate.test.ts test/indexedGeometryCollectionAliasRust.integration.test.ts test/geometryInputTargetOverlayRust.integration.test.ts",
+      "passed": 184,
+      "skipped": 0,
+      "log": "/tmp/issue1194-r8-geometry-focused.log"
+    }
+  ],
+  "baseProof": {
+    "base": "4994472a32a916e2b750c96cc7879f88237c52ef",
+    "paths": [
+      "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "src/geometry/evaluate.ts"
+    ],
+    "candidateSha256": {
+      "packages/nui-language/src/dsl/moduleGeometryRuntime.ts": "5a1a05c04f8f6861e027477fbd8f846c9dc41eeb0fe6f580317825816ad828ac",
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts": "0a1126ee1fd3c60c006957aaa46ae05a53936e4b54c72ade039ea12df35459e6",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5ebdfe68f5a6a49fb9011cd077a084a1881ce2314b42cd355b88735bdd872407",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "b1c22d426582c36461e5be1bddfa2e038ec1ea0add64023c5f01fa07f83b4e99",
+      "src/geometry/evaluate.ts": "8ca94c50f5462d0df879610eb5fd3b09663d254e44dc4bc176cad852c082abe9"
+    },
+    "exactBaseProductionDiff": "",
+    "baseSha256": {
+      "packages/nui-language/src/dsl/moduleGeometryRuntime.ts": "6e905a8a19045c2c01272a59a903cb1797ffd0bf0beab4a9aef8a56f395e49e6",
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts": "9e8db940104bb723b0311ccd6f1af9b88f117c936dc13c7f20c0ff6076657a3a",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "68d848606316cc69cf63d081165a2e9122fe4ea27e19745bde4a98951b509fac",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "b31ba8cd48400c50ec2c25053de163f75190286caf5ea9d3dcce0fb6d59e2e02",
+      "src/geometry/evaluate.ts": "9be8aab23011729317e5366a6d340c265ecd0793f924af359e215dab107f3302"
+    },
+    "base-exact": {
+      "mode": "discover",
+      "ids": "",
+      "exitCode": 0
+    },
+    "base-regression": {
+      "mode": "verify",
+      "ids": "B-scalar-dynamic,B-scalar-fixed,B-reduced-forward-dynamic,B-reduced-forward-fixed,A-reduced-optional-forward,A-reduced-direct-forward,B-reduced-construct-dynamic,B-reduced-construct-fixed",
+      "exitCode": 1
+    },
+    "restoredSha256": {
+      "packages/nui-language/src/dsl/moduleGeometryRuntime.ts": "5a1a05c04f8f6861e027477fbd8f846c9dc41eeb0fe6f580317825816ad828ac",
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts": "0a1126ee1fd3c60c006957aaa46ae05a53936e4b54c72ade039ea12df35459e6",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5ebdfe68f5a6a49fb9011cd077a084a1881ce2314b42cd355b88735bdd872407",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "b1c22d426582c36461e5be1bddfa2e038ec1ea0add64023c5f01fa07f83b4e99",
+      "src/geometry/evaluate.ts": "8ca94c50f5462d0df879610eb5fd3b09663d254e44dc4bc176cad852c082abe9"
+    }
+  },
+  "baseRegression": {
+    "mode": "verify with exact production Base bytes; candidate restored in finally",
+    "expectedExit": 1,
+    "actualExit": 1,
+    "expectedFailures": 4,
+    "adjacentPasses": 4,
+    "log": "/tmp/issue1194-r8-base-regression.log"
+  },
+  "repairDisabledSensitivity": [
+    {
+      "family": "F45",
+      "path": "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "disabled": "}, ...reference.target.index.references],\n        geometryProperties: reference.target.index.geometryProperties,\n        geometryBuiltinArguments: reference.target.index.geometryBuiltinArguments",
+      "replacement": "}],\n        geometryProperties: [],\n        geometryBuiltinArguments: []",
+      "ids": "B-scalar-dynamic,B-scalar-fixed",
+      "exitCode": 0,
+      "candidateSha256": "b1c22d426582c36461e5be1bddfa2e038ec1ea0add64023c5f01fa07f83b4e99"
+    },
+    {
+      "family": "F46",
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "disabled": "if (indexed.index.ast.kind !== \"numberLiteral\" && indexed.collectionLength !== null) {",
+      "replacement": "if (indexed.index.ast.kind !== \"numberLiteral\" && indexed.collectionLength === -1) {",
+      "ids": "B-reduced-forward-dynamic,B-reduced-forward-fixed",
+      "exitCode": 0,
+      "candidateSha256": "0a1126ee1fd3c60c006957aaa46ae05a53936e4b54c72ade039ea12df35459e6"
+    },
+    {
+      "family": "F47",
+      "path": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "disabled": "[\"if\", \"match\", \"coalesce\", \"alias\"].includes(collection.value.kind)",
+      "replacement": "[\"disabled-projection\"].includes(collection.value.kind)",
+      "ids": "A-reduced-optional-forward,A-reduced-direct-forward",
+      "exitCode": 0,
+      "candidateSha256": "0a1126ee1fd3c60c006957aaa46ae05a53936e4b54c72ade039ea12df35459e6"
+    },
+    {
+      "family": "F48",
+      "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "disabled": "if (indexed.index.ast.kind !== \"numberLiteral\" && indexed.collectionLength !== null) {",
+      "replacement": "if (indexed.index.ast.kind !== \"numberLiteral\" && indexed.collectionLength === -1) {",
+      "ids": "B-reduced-construct-dynamic,B-reduced-construct-fixed",
+      "exitCode": 0,
+      "candidateSha256": "5ebdfe68f5a6a49fb9011cd077a084a1881ce2314b42cd355b88735bdd872407"
+    }
+  ],
+  "eighthRunner": {
+    "passed": 26,
+    "deferredSkipped": 7,
+    "normallyEligible": true,
+    "realPersistentRust": true
+  },
+  "bounds": {
+    "cargoBuildSeconds": 120,
+    "rustRequestSeconds": 10,
+    "rustLifetimeSeconds": 600,
+    "rustCleanupSeconds": 5,
+    "individualTestSeconds": 60,
+    "focusedSubprocessSeconds": 180,
+    "ordinaryRequiredCommandSeconds": 180,
+    "npmTestSeconds": 600,
+    "requiredBlockSeconds": 1200,
+    "processMonitor": "Only owned process group; no global termination or unrelated cleanup.",
+    "securityChanges": "None"
+  },
+  "scopeDeviations": [],
+  "blockersToBoundedCheckpoint": [],
+  "remainingClosureConditions": [
+    "Human contract decision for qualified imported record-type grammar",
+    "Independent review of seven deferred scheduler ownership observations and untested combinations",
+    "Exact pushed HEAD blocking review, protected PR/CI/merge, Human clean-main restoration"
+  ]
+}

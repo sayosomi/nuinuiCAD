@@ -1,0 +1,421 @@
+[
+  {
+    "id": "A1",
+    "source": "nui 1\nmodule Dart(width: number = 13) {\n point P = coordinate(x: @width + 2, y: -7)\n point Q = coordinate(x: @width * 2, y: 11)\n line Edge = segment(start: @P, end: @Q)\n}\ninstance Left = Dart()\ninstance Right = Dart(width: 31)\npoint Outside = coordinate(x: -41, y: 23)\n",
+    "sha256": "aa1b6b1d457013abe2d599ec2dd38061cb07dc0b014de59b0d0edc373a0c73ed",
+    "target": "point P",
+    "arguments": [],
+    "expected": {
+      "P": [
+        15,
+        -7
+      ],
+      "Q": [
+        26,
+        11
+      ]
+    },
+    "instance": "Left",
+    "control": {
+      "P": [
+        33,
+        -7
+      ],
+      "Q": [
+        62,
+        11
+      ]
+    }
+  },
+  {
+    "id": "A2",
+    "source": "nui 1\nmodule Dart(width: number = 13) {\n point P = coordinate(x: @width + 2, y: -7)\n point Q = coordinate(x: @width * 2, y: 11)\n line Edge = segment(start: @P, end: @Q)\n}\ninstance Left = Dart()\ninstance Right = Dart(width: 31)\npoint Outside = coordinate(x: -41, y: 23)\n",
+    "sha256": "aa1b6b1d457013abe2d599ec2dd38061cb07dc0b014de59b0d0edc373a0c73ed",
+    "target": "point P",
+    "arguments": [
+      {
+        "name": "width",
+        "expression": "19"
+      }
+    ],
+    "revised": "nui 1\nmodule Dart(width: number = 13) {\n point P = coordinate(x: @width + 2, y: -7)\n point Q = coordinate(x: @width * 2, y: 11)\n line Edge = segment(start: @P, end: @Q)\n}\ninstance Left = Dart(width: 19)\ninstance Right = Dart(width: 31)\npoint Outside = coordinate(x: -41, y: 23)\n",
+    "expected": {
+      "P": [
+        21,
+        -7
+      ],
+      "Q": [
+        38,
+        11
+      ]
+    },
+    "instance": "Left",
+    "control": {
+      "P": [
+        33,
+        -7
+      ],
+      "Q": [
+        62,
+        11
+      ]
+    },
+    "revisedSha256": "ead37a5c67f6173bb262433aec10daf275ced8233cc67dcd139acb8a3bd42289"
+  },
+  {
+    "id": "A3",
+    "source": "nui 1\nmodule Outer(scale: number) {\n group Scope {\n  const half: number = @scale / 2\n  module Inner(width: number) {\n   point P = coordinate(x: @width + 1, y: -9)\n   point Q = coordinate(x: -3, y: @width * 2)\n   line Edge = segment(start: @P, end: @Q)\n  }\n  instance Child = Inner(width: @half)\n }\n}\ninstance Left = Outer(scale: 18)\ninstance Right = Outer(scale: 42)\n",
+    "sha256": "359a931e17e823c714ba3fe5d6b814f54c31f3293cb4128f0b9719705abf4920",
+    "target": "point P",
+    "arguments": [
+      {
+        "name": "width",
+        "expression": "@half"
+      }
+    ],
+    "ancestor": {
+      "name": "Outer",
+      "arguments": [
+        {
+          "name": "scale",
+          "expression": "18"
+        }
+      ]
+    },
+    "expected": {
+      "P": [
+        10,
+        -9
+      ],
+      "Q": [
+        -3,
+        18
+      ]
+    },
+    "instance": "Left",
+    "control": {
+      "P": [
+        22,
+        -9
+      ],
+      "Q": [
+        -3,
+        42
+      ]
+    }
+  },
+  {
+    "id": "A4",
+    "source": "nui 1\nmodule Marks(width: number = 17) {\n point Mark = coordinate(x: @width + 7, y: -3)\n point Hidden(visible: false) = coordinate(x: 91, y: -13)\n point Off(enabled: false) = coordinate(x: -99, y: 81)\n}\ninstance Left = Marks()\ninstance Right = Marks(width: 32)\n",
+    "sha256": "d8ab42e7762c7295002a0dc7dfc1b17c63e0b6065cd2db2b88d3d02ed57a4fc7",
+    "target": "point Mark",
+    "arguments": [],
+    "expected": {
+      "Mark": [
+        24,
+        -3
+      ],
+      "Hidden": [
+        91,
+        -13
+      ]
+    },
+    "instance": "Left",
+    "control": {
+      "Mark": [
+        39,
+        -3
+      ]
+    }
+  },
+  {
+    "id": "B1",
+    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge = segment(start: (5, 2), end: (22, 14))\n curve Curve = bezier(start: (5, 2), end: (22, 14), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n}\nlayout L {\n place @G(at: (0, 0))\n}\nsvg S(layout: @L, margin: 0)\n",
+    "sha256": "3cfb334db61241b77ac11cab355f13e00eb36ffb05e03a296197754626fa49bb",
+    "expected": {
+      "points": [
+        [
+          5,
+          2
+        ],
+        [
+          22,
+          14
+        ],
+        [
+          5,
+          10
+        ],
+        [
+          27,
+          14
+        ]
+      ],
+      "placed": [
+        [
+          5,
+          2
+        ],
+        [
+          22,
+          14
+        ],
+        [
+          5,
+          10
+        ],
+        [
+          27,
+          14
+        ]
+      ],
+      "order": [
+        "Edge",
+        "Curve"
+      ]
+    }
+  },
+  {
+    "id": "B2",
+    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge = segment(start: (5, 2), end: (22, 14))\n curve Curve = bezier(start: (5, 2), end: (22, 14), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n}\nlayout L {\n place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "sha256": "f1c09014e3884635da9bcd8ebf8264f32d54247abd0b407d5a764dd015f435de",
+    "expected": {
+      "points": [
+        [
+          5,
+          2
+        ],
+        [
+          22,
+          14
+        ],
+        [
+          5,
+          10
+        ],
+        [
+          27,
+          14
+        ]
+      ],
+      "placed": [
+        [
+          29,
+          -27
+        ],
+        [
+          5,
+          -61
+        ],
+        [
+          13,
+          -27
+        ],
+        [
+          5,
+          -71
+        ]
+      ],
+      "order": [
+        "Edge",
+        "Curve"
+      ]
+    }
+  },
+  {
+    "id": "B3",
+    "source": "nui 1\nprofile Paper\nprofile Canvas\nstyle Ink {\n width: 2px,\n color: #123456,\n for @Paper {\n  width: 4px,\n  lineType: dashed,\n  color: #aabbcc,\n }\n for @Canvas {\n  width: 3px,\n  color: #334455,\n }\n}\nstyle Suppress {\n for @Paper {\n  visible: false,\n }\n}\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line Edge [Ink] = segment(start: (5, 2), end: (22, 14))\n line Hidden [Suppress] = segment(start: (-19, 31), end: (43, -11))\n}\nlayout L {\n place @G(at: (11, -7), scale: 2)\n}\nsvg S(layout: @L, profile: @Paper, margin: 0)\n",
+    "sha256": "c4cdd78ff3e965f4de2b34b0efbd71345fea1628089a066bfe5fd58941db69fe",
+    "expected": {
+      "order": [
+        "Edge"
+      ],
+      "start": [
+        21,
+        -3
+      ],
+      "end": [
+        55,
+        21
+      ],
+      "widthMm": 1.0583333333333333,
+      "color": "#aabbcc",
+      "style": "dashed"
+    }
+  },
+  {
+    "id": "B4",
+    "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 0, y: 0)\n line A [Hidden] = segment(start: (5, 2), end: (245, 2))\n line B [Hidden] = segment(start: (245, 2), end: (245, 42))\n line Joined [Ink] = join(paths: [@A, @B], closed: false)\n text Caption = label(text: \"Alpha\\nBeta\", anchor: (12, 18), size: 5)\n}\nlayout L {\n place @G(at: (31, -23))\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "sha256": "2bf42e4b26d02ee17f7f3845d80a13e6babe0b1be521ba82ac5ac34d76c5ef7e",
+    "expected": {
+      "order": [
+        "Joined",
+        "Caption"
+      ],
+      "segments": [
+        [
+          [
+            36,
+            -21
+          ],
+          [
+            276,
+            -21
+          ]
+        ],
+        [
+          [
+            276,
+            -21
+          ],
+          [
+            276,
+            19
+          ]
+        ]
+      ],
+      "anchor": [
+        43,
+        -5
+      ],
+      "fontSize": 5,
+      "lineHeight": 6,
+      "pageOrigin": [
+        25.735416666666666,
+        -31.264583333333334
+      ],
+      "columns": 2,
+      "rows": 1,
+      "guides": [
+        10,
+        200,
+        10,
+        287
+      ],
+      "glyphUpScreenVector": [
+        0,
+        -2
+      ],
+      "secondBaselineScreenVector": [
+        0,
+        12
+      ]
+    }
+  },
+  {
+    "id": "C1",
+    "source": "nui 1\nconst width: number = 13\npoint P = coordinate(x: @width + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "sha256": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+    "expected": {
+      "point": [
+        15,
+        -7
+      ],
+      "start": [
+        15,
+        -7
+      ],
+      "control1": [
+        15,
+        1
+      ],
+      "control2": [
+        31,
+        11
+      ],
+      "end": [
+        26,
+        11
+      ]
+    }
+  },
+  {
+    "id": "C2",
+    "source": "nui 1\nconst width: number = 13\npoint P = coordinate(x: @width + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "sha256": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+    "revised": "nui 1\nconst width: number = 19\npoint P = coordinate(x: @width + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "expected": {
+      "point": [
+        21,
+        -7
+      ],
+      "start": [
+        21,
+        -7
+      ],
+      "control1": [
+        21,
+        1
+      ],
+      "control2": [
+        43,
+        11
+      ],
+      "end": [
+        38,
+        11
+      ]
+    },
+    "revisedSha256": "14e625071bae57302ca167e6e3716e5844e8c4d164f52fbd53e01aa296901b62"
+  },
+  {
+    "id": "C3",
+    "source": "nui 1\nconst width: number = 13\npoint P = coordinate(x: @width + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "sha256": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+    "invalid": "nui 1\nconst width: number = 13\npoint P = coordinate(x: @missing + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "revised": "nui 1\nconst width: number = 23\npoint P = coordinate(x: @width + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "expected": {
+      "point": [
+        25,
+        -7
+      ],
+      "start": [
+        25,
+        -7
+      ],
+      "control1": [
+        25,
+        1
+      ],
+      "control2": [
+        51,
+        11
+      ],
+      "end": [
+        46,
+        11
+      ]
+    },
+    "revisedSha256": "3aa3694584da5f25c11d9c11ac8076db75e6d5be27e6d202740368653b2ebaae",
+    "invalidSha256": "0175c0cace6bd75e7c67d6eddaf4222039072ef1b422aca9543cdf2649e39f1b"
+  },
+  {
+    "id": "C4",
+    "source": "nui 1\nconst width: number = 13\npoint P = coordinate(x: @width + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "sha256": "999eddda349443a930f4b14f89b4c77347e2deb66719d07ce973ffd758016513",
+    "revised": "nui 1\nconst width: number = 29\npoint P = coordinate(x: @width + 2, y: -7)\ncurve Curve = bezier(start: @P, end: (@width * 2, 11), startAngle: 90, startLength: 8, endAngle: 180, endLength: 5)\n",
+    "expected": {
+      "point": [
+        31,
+        -7
+      ],
+      "start": [
+        31,
+        -7
+      ],
+      "control1": [
+        31,
+        1
+      ],
+      "control2": [
+        63,
+        11
+      ],
+      "end": [
+        58,
+        11
+      ]
+    },
+    "revisedSha256": "ed042db41e0860fe75f913edd13d09e836dd30c4a97d404947cee0c95e0eb331"
+  }
+]

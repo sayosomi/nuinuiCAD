@@ -1,0 +1,221 @@
+[
+  {
+    "id": "C1",
+    "mechanism": "Dynamic optional-record match retained only numeric-literal singleton identities",
+    "owners": [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts"
+    ],
+    "baseFail": [
+      "O-dynamic"
+    ],
+    "basePass": [
+      "P4"
+    ],
+    "candidatePass": [
+      "O-dynamic",
+      "O-dynamic-fields",
+      "O-module",
+      "O-index-errors"
+    ],
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F35",
+    "exactBaseFail": [
+      "O-dynamic"
+    ],
+    "exactBasePass": [
+      "P4"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
+  },
+  {
+    "id": "C2",
+    "mechanism": "Collection if/match alternatives concatenated into a static nominal member list",
+    "owners": [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts"
+    ],
+    "baseFail": [],
+    "basePass": [
+      "P4"
+    ],
+    "candidatePass": [
+      "O-if-false",
+      "O-choice"
+    ],
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F36",
+    "exactBaseFail": [
+      "O-if-false",
+      "O-choice"
+    ],
+    "exactBasePass": [
+      "P4"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": [
+      "O-if-false",
+      "O-choice"
+    ]
+  },
+  {
+    "id": "C3",
+    "mechanism": "Optional-record inline constructor fields seeded as eager root/Module declarations",
+    "owners": [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "packages/nui-language/src/dsl/dslDocument.ts",
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts"
+    ],
+    "baseFail": [
+      "O-if-inline"
+    ],
+    "basePass": [
+      "P4"
+    ],
+    "candidatePass": [
+      "O-if-inline",
+      "O-module-lazy"
+    ],
+    "note": "Static validation regression found during implementation was repaired in isolated tests; both invalid controls reject. It is not a novel family.",
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F37",
+    "exactBaseFail": [
+      "O-if-inline",
+      "O-module-lazy"
+    ],
+    "exactBasePass": [
+      "P4"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
+  },
+  {
+    "id": "C4",
+    "mechanism": "Geometry construction scalar parsing omitted the existing record-property resolver",
+    "owners": [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts"
+    ],
+    "baseFail": [
+      "G-construct"
+    ],
+    "basePass": [
+      "M1"
+    ],
+    "candidatePass": [
+      "G-module"
+    ],
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F38",
+    "exactBaseFail": [
+      "G-module"
+    ],
+    "exactBasePass": [
+      "G-module-direct-control",
+      "M1"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": [
+      "G-module"
+    ]
+  },
+  {
+    "id": "C5",
+    "mechanism": "Selected constructor-map geometry fields lacked their defining geometry program occurrence",
+    "owners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts"
+    ],
+    "baseFail": [
+      "G-constant"
+    ],
+    "basePass": [
+      "M1"
+    ],
+    "candidatePass": [
+      "G-constant",
+      "G-module",
+      "G-unselected-member"
+    ],
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F39",
+    "exactBaseFail": [
+      "G-constant"
+    ],
+    "exactBasePass": [
+      "M1"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
+  },
+  {
+    "id": "C6",
+    "mechanism": "Geometry collection parameters skipped record-field array admission and forwarding",
+    "owners": [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts"
+    ],
+    "baseFail": [
+      "C-record-field"
+    ],
+    "basePass": [
+      "C-parameter",
+      "C-root-control"
+    ],
+    "candidatePass": [
+      "C-record-field",
+      "C-document-field-direct",
+      "C-lazy-parameter"
+    ],
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F40",
+    "exactBaseFail": [
+      "C-record-field",
+      "C-record-direct-control"
+    ],
+    "exactBasePass": [
+      "C-parameter",
+      "C-record-literal-control"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": []
+  },
+  {
+    "id": "C7",
+    "mechanism": "Named geometry-array aliases rejected and then lost canonical nominal record-field content products",
+    "owners": [
+      "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+      "packages/nui-language/src/dsl/moduleGeometryArrayRuntime.ts",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts"
+    ],
+    "baseFail": [],
+    "basePass": [
+      "C-document-nested"
+    ],
+    "candidatePass": [
+      "C-document-field"
+    ],
+    "status": "REPAIRED_THEN_PASS",
+    "priorStatus": "UNRESOLVED_UNVERIFIED_CANDIDATE",
+    "family": "F41",
+    "exactBaseFail": [
+      "C-record-literal-alias"
+    ],
+    "exactBasePass": [
+      "C-record-literal-control"
+    ],
+    "finalEvidence": "residual6-families.json",
+    "baseReplayRequiredCompleted": [
+      "C-document-field"
+    ]
+  }
+]

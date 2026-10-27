@@ -1,0 +1,3755 @@
+[
+  {
+    "id": "O1",
+    "variant": "compound",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (5, 2), end: (17, 11))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 29,
+            "y": -27
+          },
+          "end": {
+            "x": 11,
+            "y": -51
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 2,
+          "angleDeg": 90,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 10.735416666666667,
+        "minY": -51.264583333333334,
+        "maxX": 29.264583333333334,
+        "maxY": -26.735416666666666,
+        "width": 18.52916666666667,
+        "height": 24.52916666666667
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": 29,
+              "y": -27
+            },
+            {
+              "x": 11,
+              "y": -51
+            }
+          ],
+          "bounds": {
+            "minX": 10.735416666666667,
+            "minY": -51.264583333333334,
+            "maxX": 29.264583333333334,
+            "maxY": -26.735416666666666,
+            "width": 18.52916666666667,
+            "height": 24.52916666666667
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 10.735416666666667,
+        "minY": -51.264583333333334,
+        "maxX": 29.264583333333334,
+        "maxY": -26.735416666666666,
+        "width": 18.52916666666667,
+        "height": 24.52916666666667
+      },
+      "svg": {
+        "widthMm": 18.52916666666667,
+        "heightMm": 24.52916666666667,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 18.52916666666667,
+          "height": 24.52916666666667
+        }
+      },
+      "contentOrigin": {
+        "x": 10.735416666666667,
+        "y": -51.264583333333334
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-2",
+      "Origin": "freePoint-mvn29s00-3",
+      "Edge": "line-mvn29s00-4"
+    },
+    "drawableIds": [
+      "line-mvn29s00-4"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-3",
+      "line-mvn29s00-4"
+    ]
+  },
+  {
+    "id": "O2",
+    "variant": "positive",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 30, end: 150)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Curve",
+          "kind": "arc",
+          "center": {
+            "x": 40.75,
+            "y": 18.700961894323342
+          },
+          "radius": 15,
+          "startAngleDeg": 180,
+          "sweepAngleDeg": -120,
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 40,
+            "y": 20
+          },
+          "scale": 1.5,
+          "angleDeg": 30,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 25.485416666666666,
+        "minY": 18.43637856099001,
+        "maxX": 48.514583333333334,
+        "maxY": 33.965545227656676,
+        "width": 23.02916666666667,
+        "height": 15.529166666666665
+      },
+      "critical": [
+        {
+          "name": "Curve",
+          "points": [
+            {
+              "x": 25.75,
+              "y": 18.700961894323346
+            },
+            {
+              "x": 48.25,
+              "y": 31.691342951089922
+            },
+            {
+              "x": 40.75,
+              "y": 33.70096189432334
+            },
+            {
+              "x": 25.75,
+              "y": 18.700961894323346
+            }
+          ],
+          "bounds": {
+            "minX": 25.485416666666666,
+            "minY": 18.43637856099001,
+            "maxX": 48.514583333333334,
+            "maxY": 33.965545227656676,
+            "width": 23.02916666666667,
+            "height": 15.529166666666665
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 25.485416666666666,
+        "minY": 18.43637856099001,
+        "maxX": 48.514583333333334,
+        "maxY": 33.965545227656676,
+        "width": 23.02916666666667,
+        "height": 15.529166666666665
+      },
+      "svg": {
+        "widthMm": 23.02916666666667,
+        "heightMm": 15.529166666666665,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 23.02916666666667,
+          "height": 15.529166666666665
+        }
+      },
+      "contentOrigin": {
+        "x": 25.485416666666666,
+        "y": 18.43637856099001
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-5",
+      "Origin": "freePoint-mvn29s00-6",
+      "Curve": "arcLine-mvn29s00-7"
+    },
+    "drawableIds": [
+      "arcLine-mvn29s00-7"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-6",
+      "arcLine-mvn29s00-7"
+    ]
+  },
+  {
+    "id": "O2",
+    "variant": "negative",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 150, end: 30, direction: clockwise)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Curve",
+          "kind": "arc",
+          "center": {
+            "x": 40.75,
+            "y": 18.700961894323342
+          },
+          "radius": 15,
+          "startAngleDeg": 60,
+          "sweepAngleDeg": 120,
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 40,
+            "y": 20
+          },
+          "scale": 1.5,
+          "angleDeg": 30,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 25.485416666666666,
+        "minY": 18.43637856099001,
+        "maxX": 48.514583333333334,
+        "maxY": 33.965545227656676,
+        "width": 23.02916666666667,
+        "height": 15.529166666666665
+      },
+      "critical": [
+        {
+          "name": "Curve",
+          "points": [
+            {
+              "x": 48.25,
+              "y": 31.691342951089922
+            },
+            {
+              "x": 25.75,
+              "y": 18.700961894323346
+            },
+            {
+              "x": 40.75,
+              "y": 33.70096189432334
+            },
+            {
+              "x": 25.75,
+              "y": 18.700961894323346
+            }
+          ],
+          "bounds": {
+            "minX": 25.485416666666666,
+            "minY": 18.43637856099001,
+            "maxX": 48.514583333333334,
+            "maxY": 33.965545227656676,
+            "width": 23.02916666666667,
+            "height": 15.529166666666665
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 25.485416666666666,
+        "minY": 18.43637856099001,
+        "maxX": 48.514583333333334,
+        "maxY": 33.965545227656676,
+        "width": 23.02916666666667,
+        "height": 15.529166666666665
+      },
+      "svg": {
+        "widthMm": 23.02916666666667,
+        "heightMm": 15.529166666666665,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 23.02916666666667,
+          "height": 15.529166666666665
+        }
+      },
+      "contentOrigin": {
+        "x": 25.485416666666666,
+        "y": 18.43637856099001
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-8",
+      "Origin": "freePoint-mvn29s00-9",
+      "Curve": "arcLine-mvn29s00-10"
+    },
+    "drawableIds": [
+      "arcLine-mvn29s00-10"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-9",
+      "arcLine-mvn29s00-10"
+    ]
+  },
+  {
+    "id": "O2",
+    "variant": "wraparound",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n arc Curve [Ink] = arc(center: (3, -5), radius: 10, start: 300, end: 420)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (40, 20), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Curve",
+          "kind": "arc",
+          "center": {
+            "x": 40.75,
+            "y": 18.700961894323342
+          },
+          "radius": 15,
+          "startAngleDeg": 270,
+          "sweepAngleDeg": -120,
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 40,
+            "y": 20
+          },
+          "scale": 1.5,
+          "angleDeg": 30,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 25.485416666666666,
+        "minY": 3.4363785609900086,
+        "maxX": 41.014583333333334,
+        "maxY": 26.465545227656676,
+        "width": 15.529166666666669,
+        "height": 23.02916666666667
+      },
+      "critical": [
+        {
+          "name": "Curve",
+          "points": [
+            {
+              "x": 40.75,
+              "y": 3.700961894323342
+            },
+            {
+              "x": 27.75961894323342,
+              "y": 26.200961894323342
+            },
+            {
+              "x": 25.75,
+              "y": 18.700961894323346
+            },
+            {
+              "x": 40.75,
+              "y": 3.700961894323342
+            }
+          ],
+          "bounds": {
+            "minX": 25.485416666666666,
+            "minY": 3.4363785609900086,
+            "maxX": 41.014583333333334,
+            "maxY": 26.465545227656676,
+            "width": 15.529166666666669,
+            "height": 23.02916666666667
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 25.485416666666666,
+        "minY": 3.4363785609900086,
+        "maxX": 41.014583333333334,
+        "maxY": 26.465545227656676,
+        "width": 15.529166666666669,
+        "height": 23.02916666666667
+      },
+      "svg": {
+        "widthMm": 15.529166666666669,
+        "heightMm": 23.02916666666667,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 15.529166666666669,
+          "height": 23.02916666666667
+        }
+      },
+      "contentOrigin": {
+        "x": 25.485416666666666,
+        "y": 3.4363785609900086
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-11",
+      "Origin": "freePoint-mvn29s00-12",
+      "Curve": "arcLine-mvn29s00-13"
+    },
+    "drawableIds": [
+      "arcLine-mvn29s00-13"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-12",
+      "arcLine-mvn29s00-13"
+    ]
+  },
+  {
+    "id": "O3",
+    "variant": "interior",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Curve",
+          "kind": "bezier",
+          "start": {
+            "x": 41.897114317029974,
+            "y": -15.553847577293368
+          },
+          "control1": {
+            "x": 11.897114317029981,
+            "y": 36.40767664977295
+          },
+          "control2": {
+            "x": 77.11825748732971,
+            "y": 13.441342951089919
+          },
+          "end": {
+            "x": 25.156733260263394,
+            "y": -16.558657048910078
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 1.5,
+          "angleDeg": 30,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 24.89214992693006,
+        "minY": -16.823240382243412,
+        "maxX": 46.2906318755179,
+        "maxY": 15.576780495928046,
+        "width": 21.398481948587843,
+        "height": 32.40002087817146
+      },
+      "critical": [
+        {
+          "name": "Curve",
+          "points": [
+            {
+              "x": 41.897114317029974,
+              "y": -15.553847577293368
+            },
+            {
+              "x": 33.622044920707296,
+              "y": 7.460829703248935
+            },
+            {
+              "x": 39.160668308114694,
+              "y": 15.312197162594714
+            },
+            {
+              "x": 46.02604854218457,
+              "y": 7.134930636359615
+            },
+            {
+              "x": 25.156733260263394,
+              "y": -16.558657048910078
+            }
+          ],
+          "bounds": {
+            "minX": 24.89214992693006,
+            "minY": -16.823240382243412,
+            "maxX": 46.2906318755179,
+            "maxY": 15.576780495928046,
+            "width": 21.398481948587843,
+            "height": 32.40002087817146
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 24.89214992693006,
+        "minY": -16.823240382243412,
+        "maxX": 46.2906318755179,
+        "maxY": 15.576780495928046,
+        "width": 21.398481948587843,
+        "height": 32.40002087817146
+      },
+      "svg": {
+        "widthMm": 21.398481948587843,
+        "heightMm": 32.40002087817146,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 21.398481948587843,
+          "height": 32.40002087817146
+        }
+      },
+      "contentOrigin": {
+        "x": 24.89214992693006,
+        "y": -16.823240382243412
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-14",
+      "Origin": "freePoint-mvn29s00-15",
+      "Curve": "bezierCurve-mvn29s00-16"
+    },
+    "drawableIds": [
+      "bezierCurve-mvn29s00-16"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-15",
+      "bezierCurve-mvn29s00-16"
+    ]
+  },
+  {
+    "id": "O4",
+    "variant": "joined",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\nstyle Hidden {\n visible: false,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Lead [Hidden] = segment(start: (-10, 0), end: (0, 0))\n curve Curve [Hidden] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n line Joined [Ink] = join(paths: [@Lead, @Curve], closed: false)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Joined",
+          "kind": "joinedPath",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 54.887495373796554,
+                "y": -8.05384757729337
+              },
+              "end": {
+                "x": 41.897114317029974,
+                "y": -15.553847577293368
+              }
+            },
+            {
+              "kind": "bezier",
+              "start": {
+                "x": 41.897114317029974,
+                "y": -15.553847577293368
+              },
+              "control1": {
+                "x": 11.897114317029981,
+                "y": 36.40767664977295
+              },
+              "control2": {
+                "x": 77.11825748732971,
+                "y": 13.441342951089919
+              },
+              "end": {
+                "x": 25.156733260263394,
+                "y": -16.558657048910078
+              }
+            }
+          ],
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 1.5,
+          "angleDeg": 30,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 24.89214992693006,
+        "minY": -16.823240382243412,
+        "maxX": 55.15207870712989,
+        "maxY": 15.576780495928046,
+        "width": 30.25992878019983,
+        "height": 32.40002087817146
+      },
+      "critical": [
+        {
+          "name": "Joined",
+          "points": [
+            {
+              "x": 54.887495373796554,
+              "y": -8.05384757729337
+            },
+            {
+              "x": 41.897114317029974,
+              "y": -15.553847577293368
+            },
+            {
+              "x": 41.897114317029974,
+              "y": -15.553847577293368
+            },
+            {
+              "x": 33.622044920707296,
+              "y": 7.460829703248935
+            },
+            {
+              "x": 39.160668308114694,
+              "y": 15.312197162594714
+            },
+            {
+              "x": 46.02604854218457,
+              "y": 7.134930636359615
+            },
+            {
+              "x": 25.156733260263394,
+              "y": -16.558657048910078
+            }
+          ],
+          "bounds": {
+            "minX": 24.89214992693006,
+            "minY": -16.823240382243412,
+            "maxX": 55.15207870712989,
+            "maxY": 15.576780495928046,
+            "width": 30.25992878019983,
+            "height": 32.40002087817146
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 24.89214992693006,
+        "minY": -16.823240382243412,
+        "maxX": 55.15207870712989,
+        "maxY": 15.576780495928046,
+        "width": 30.25992878019983,
+        "height": 32.40002087817146
+      },
+      "svg": {
+        "widthMm": 30.25992878019983,
+        "heightMm": 32.40002087817146,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 30.25992878019983,
+          "height": 32.40002087817146
+        }
+      },
+      "contentOrigin": {
+        "x": 24.89214992693006,
+        "y": -16.823240382243412
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-17",
+      "Origin": "freePoint-mvn29s00-18",
+      "Lead": "line-mvn29s00-19",
+      "Curve": "bezierCurve-mvn29s00-20",
+      "Joined": "joinedPath-mvn29s00-21"
+    },
+    "drawableIds": [
+      "joinedPath-mvn29s00-21"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-18",
+      "line-mvn29s00-19",
+      "bezierCurve-mvn29s00-20",
+      "joinedPath-mvn29s00-21"
+    ]
+  },
+  {
+    "id": "O5",
+    "variant": "forward",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup Outer {\n group Inner {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n }\n}\nlayout L {\n  place @Outer(origin: @Outer::Inner::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (-50, 17), scale: 0.5, angle: 180, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": 29,
+            "y": -27
+          },
+          "end": {
+            "x": 11,
+            "y": -51
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": 29,
+            "y": -27
+          },
+          "end": {
+            "x": 21,
+            "y": -33
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": -51,
+            "y": 14
+          },
+          "end": {
+            "x": -57,
+            "y": 9.5
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": -51,
+            "y": 14
+          },
+          "end": {
+            "x": -52.5,
+            "y": 12
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "Outer",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 2,
+          "angleDeg": 90,
+          "mirror": true
+        },
+        {
+          "target": "Outer::Inner",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": -50,
+            "y": 17
+          },
+          "scale": 0.5,
+          "angleDeg": 180,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -57.264583333333334,
+        "minY": -51.264583333333334,
+        "maxX": 29.264583333333334,
+        "maxY": 14.264583333333333,
+        "width": 86.52916666666667,
+        "height": 65.52916666666667
+      },
+      "critical": [
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": 29,
+              "y": -27
+            },
+            {
+              "x": 11,
+              "y": -51
+            }
+          ],
+          "bounds": {
+            "minX": 10.735416666666667,
+            "minY": -51.264583333333334,
+            "maxX": 29.264583333333334,
+            "maxY": -26.735416666666666,
+            "width": 18.52916666666667,
+            "height": 24.52916666666667
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": 29,
+              "y": -27
+            },
+            {
+              "x": 21,
+              "y": -33
+            }
+          ],
+          "bounds": {
+            "minX": 20.735416666666666,
+            "minY": -33.264583333333334,
+            "maxX": 29.264583333333334,
+            "maxY": -26.735416666666666,
+            "width": 8.529166666666669,
+            "height": 6.529166666666669
+          }
+        },
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": -51,
+              "y": 14
+            },
+            {
+              "x": -57,
+              "y": 9.5
+            }
+          ],
+          "bounds": {
+            "minX": -57.264583333333334,
+            "minY": 9.235416666666667,
+            "maxX": -50.735416666666666,
+            "maxY": 14.264583333333333,
+            "width": 6.529166666666669,
+            "height": 5.029166666666665
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": -51,
+              "y": 14
+            },
+            {
+              "x": -52.5,
+              "y": 12
+            }
+          ],
+          "bounds": {
+            "minX": -52.764583333333334,
+            "minY": 11.735416666666667,
+            "maxX": -50.735416666666666,
+            "maxY": 14.264583333333333,
+            "width": 2.0291666666666686,
+            "height": 2.529166666666665
+          }
+        }
+      ],
+      "bounds": {
+        "minX": -57.264583333333334,
+        "minY": -51.264583333333334,
+        "maxX": 29.264583333333334,
+        "maxY": 14.264583333333333,
+        "width": 86.52916666666667,
+        "height": 65.52916666666667
+      },
+      "svg": {
+        "widthMm": 86.52916666666667,
+        "heightMm": 65.52916666666667,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 86.52916666666667,
+          "height": 65.52916666666667
+        }
+      },
+      "contentOrigin": {
+        "x": -57.264583333333334,
+        "y": -51.264583333333334
+      }
+    },
+    "elementIds": {
+      "Outer": "group-mvn29s00-22",
+      "Inner": "group-mvn29s00-23",
+      "Origin": "freePoint-mvn29s00-24",
+      "First": "line-mvn29s00-25",
+      "Later": "line-mvn29s00-26"
+    },
+    "drawableIds": [
+      "line-mvn29s00-25",
+      "line-mvn29s00-26",
+      "line-mvn29s00-25",
+      "line-mvn29s00-26"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-24",
+      "line-mvn29s00-25",
+      "line-mvn29s00-26"
+    ]
+  },
+  {
+    "id": "O5",
+    "variant": "independent",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup Outer {\n group Inner {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: (5, 2), end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n }\n}\nlayout L {\n  place @Outer(origin: @Outer::Inner::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n  place @Outer::Inner(origin: @Outer::Inner::Origin, at: (-50, 17), scale: 0.5, angle: 180, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": 29,
+            "y": -27
+          },
+          "end": {
+            "x": 11,
+            "y": -51
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": 29,
+            "y": -27
+          },
+          "end": {
+            "x": 21,
+            "y": -33
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": -51,
+            "y": 14
+          },
+          "end": {
+            "x": -57,
+            "y": 9.5
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": -51,
+            "y": 14
+          },
+          "end": {
+            "x": -52.5,
+            "y": 12
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "Outer",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 2,
+          "angleDeg": 90,
+          "mirror": true
+        },
+        {
+          "target": "Outer::Inner",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": -50,
+            "y": 17
+          },
+          "scale": 0.5,
+          "angleDeg": 180,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -57.264583333333334,
+        "minY": -51.264583333333334,
+        "maxX": 29.264583333333334,
+        "maxY": 14.264583333333333,
+        "width": 86.52916666666667,
+        "height": 65.52916666666667
+      },
+      "critical": [
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": 29,
+              "y": -27
+            },
+            {
+              "x": 11,
+              "y": -51
+            }
+          ],
+          "bounds": {
+            "minX": 10.735416666666667,
+            "minY": -51.264583333333334,
+            "maxX": 29.264583333333334,
+            "maxY": -26.735416666666666,
+            "width": 18.52916666666667,
+            "height": 24.52916666666667
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": 29,
+              "y": -27
+            },
+            {
+              "x": 21,
+              "y": -33
+            }
+          ],
+          "bounds": {
+            "minX": 20.735416666666666,
+            "minY": -33.264583333333334,
+            "maxX": 29.264583333333334,
+            "maxY": -26.735416666666666,
+            "width": 8.529166666666669,
+            "height": 6.529166666666669
+          }
+        },
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": -51,
+              "y": 14
+            },
+            {
+              "x": -57,
+              "y": 9.5
+            }
+          ],
+          "bounds": {
+            "minX": -57.264583333333334,
+            "minY": 9.235416666666667,
+            "maxX": -50.735416666666666,
+            "maxY": 14.264583333333333,
+            "width": 6.529166666666669,
+            "height": 5.029166666666665
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": -51,
+              "y": 14
+            },
+            {
+              "x": -52.5,
+              "y": 12
+            }
+          ],
+          "bounds": {
+            "minX": -52.764583333333334,
+            "minY": 11.735416666666667,
+            "maxX": -50.735416666666666,
+            "maxY": 14.264583333333333,
+            "width": 2.0291666666666686,
+            "height": 2.529166666666665
+          }
+        }
+      ],
+      "bounds": {
+        "minX": -57.264583333333334,
+        "minY": -51.264583333333334,
+        "maxX": 29.264583333333334,
+        "maxY": 14.264583333333333,
+        "width": 86.52916666666667,
+        "height": 65.52916666666667
+      },
+      "svg": {
+        "widthMm": 86.52916666666667,
+        "heightMm": 65.52916666666667,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 86.52916666666667,
+          "height": 65.52916666666667
+        }
+      },
+      "contentOrigin": {
+        "x": -57.264583333333334,
+        "y": -51.264583333333334
+      }
+    },
+    "elementIds": {
+      "Outer": "group-mvn29s00-27",
+      "Inner": "group-mvn29s00-28",
+      "Origin": "freePoint-mvn29s00-29",
+      "First": "line-mvn29s00-30",
+      "Later": "line-mvn29s00-31"
+    },
+    "drawableIds": [
+      "line-mvn29s00-30",
+      "line-mvn29s00-31",
+      "line-mvn29s00-30",
+      "line-mvn29s00-31"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-29",
+      "line-mvn29s00-30",
+      "line-mvn29s00-31"
+    ]
+  },
+  {
+    "id": "O6",
+    "variant": "profile",
+    "source": "nui 1\nprofile Print\nstyle Ink {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n }\n}\nstyle Hidden {\n for @Print {\n visible: false,\n }\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (5, 2), end: (17, 11))\n line HiddenEdge [Hidden] = segment(start: (-1000, -1000), end: (1000, 1000))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 3, angle: 90, mirror: true)\n}\nsvg S(layout: @L, margin: 0, profile: @Print)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 23,
+            "y": -29
+          },
+          "end": {
+            "x": -4,
+            "y": -65
+          },
+          "stroke": {
+            "widthMm": 1.0583333333333333,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 3,
+          "angleDeg": 90,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": -4.529166666666667,
+        "minY": -65.52916666666667,
+        "maxX": 23.529166666666665,
+        "maxY": -28.470833333333335,
+        "width": 28.05833333333333,
+        "height": 37.05833333333334
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": 23,
+              "y": -29
+            },
+            {
+              "x": -4,
+              "y": -65
+            }
+          ],
+          "bounds": {
+            "minX": -4.529166666666667,
+            "minY": -65.52916666666667,
+            "maxX": 23.529166666666665,
+            "maxY": -28.470833333333335,
+            "width": 28.05833333333333,
+            "height": 37.05833333333334
+          }
+        }
+      ],
+      "bounds": {
+        "minX": -4.529166666666667,
+        "minY": -65.52916666666667,
+        "maxX": 23.529166666666665,
+        "maxY": -28.470833333333335,
+        "width": 28.05833333333333,
+        "height": 37.05833333333334
+      },
+      "svg": {
+        "widthMm": 28.05833333333333,
+        "heightMm": 37.05833333333334,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 28.05833333333333,
+          "height": 37.05833333333334
+        }
+      },
+      "contentOrigin": {
+        "x": -4.529166666666667,
+        "y": -65.52916666666667
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-32",
+      "Origin": "freePoint-mvn29s00-33",
+      "Edge": "line-mvn29s00-34",
+      "HiddenEdge": "line-mvn29s00-35"
+    },
+    "drawableIds": [
+      "line-mvn29s00-34"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-33",
+      "line-mvn29s00-34",
+      "line-mvn29s00-35"
+    ]
+  },
+  {
+    "id": "O7",
+    "variant": "text",
+    "source": "nui 1\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n text Label = label(text: \"AB\\n日本\", anchor: (5, 2), size: 4)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 1.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "kind": "text",
+          "name": "Label",
+          "text": "AB\n日本",
+          "anchor": {
+            "x": 33.901923788646684,
+            "y": -16.705771365940052
+          },
+          "fontSizeMm": 6,
+          "widthMm": 12,
+          "lineWidthsMm": [
+            7.44,
+            12
+          ],
+          "lineAdvancesMm": [
+            [
+              3.72,
+              3.72
+            ],
+            [
+              6,
+              6
+            ]
+          ],
+          "lineHeightMm": 7.2,
+          "rotationDeg": 30,
+          "mirrorX": true,
+          "colorHex": "#31322f"
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 1.5,
+          "angleDeg": 30,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 24.70961894323342,
+        "minY": -29.980384757729336,
+        "maxX": 38.10192378864669,
+        "maxY": -12.548849427774746,
+        "width": 13.392304845413268,
+        "height": 17.431535329954592
+      },
+      "bounds": {
+        "minX": 24.70961894323342,
+        "minY": -29.980384757729336,
+        "maxX": 38.10192378864669,
+        "maxY": -12.548849427774746,
+        "width": 13.392304845413268,
+        "height": 17.431535329954592
+      },
+      "svg": {
+        "widthMm": 13.392304845413268,
+        "heightMm": 17.431535329954592,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 13.392304845413268,
+          "height": 17.431535329954592
+        }
+      },
+      "contentOrigin": {
+        "x": 24.70961894323342,
+        "y": -29.980384757729336
+      },
+      "critical": [
+        {
+          "x": 34.501923788646685,
+          "y": -17.74500185048138
+        },
+        {
+          "x": 31.501923788646685,
+          "y": -12.548849427774746
+        },
+        {
+          "x": 28.058694784490463,
+          "y": -21.46500185048138
+        },
+        {
+          "x": 25.058694784490463,
+          "y": -16.268849427774747
+        },
+        {
+          "x": 38.10192378864669,
+          "y": -23.980384757729336
+        },
+        {
+          "x": 35.10192378864669,
+          "y": -18.784232335022704
+        },
+        {
+          "x": 27.70961894323342,
+          "y": -29.980384757729336
+        },
+        {
+          "x": 24.70961894323342,
+          "y": -24.784232335022704
+        }
+      ]
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-36",
+      "Origin": "freePoint-mvn29s00-37",
+      "Label": "text-mvn29s00-38"
+    },
+    "drawableIds": [
+      "text-mvn29s00-38"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-37",
+      "text-mvn29s00-38"
+    ]
+  },
+  {
+    "id": "O8",
+    "variant": "svg",
+    "source": "nui 1\nprofile Print\nstyle Ink {\n width: 2px,\n color: #123456,\n for @Print {\n width: 4px,\n }\n}\nstyle Hidden {\n for @Print {\n visible: false,\n }\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n curve Curve [Ink] = bezier(start: (0, 0), end: (10, 5), startAngle: 90, startLength: 40, endAngle: 0, endLength: 40)\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2.5, angle: 30, mirror: true)\n}\nsvg S(layout: @L, margin: 7, profile: @Print)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Curve",
+          "kind": "bezier",
+          "start": {
+            "x": 42.49519052838329,
+            "y": -10.589745962155613
+          },
+          "control1": {
+            "x": -7.504809471616703,
+            "y": 76.01279441628826
+          },
+          "control2": {
+            "x": 101.19709581221619,
+            "y": 37.73557158514986
+          },
+          "end": {
+            "x": 14.594555433772323,
+            "y": -12.26442841485013
+          },
+          "stroke": {
+            "widthMm": 1.0583333333333333,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 2.5,
+          "angleDeg": 30,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 14.065388767105656,
+        "minY": -12.793595081516797,
+        "maxX": 49.90591423697427,
+        "maxY": 41.382828604324516,
+        "width": 35.84052546986861,
+        "height": 54.176423685841314
+      },
+      "critical": [
+        {
+          "name": "Curve",
+          "points": [
+            {
+              "x": 42.49519052838329,
+              "y": -10.589745962155613
+            },
+            {
+              "x": 28.703408201178824,
+              "y": 27.768049505414886
+            },
+            {
+              "x": 37.93444718019115,
+              "y": 40.85366193765785
+            },
+            {
+              "x": 49.3767475703076,
+              "y": 27.224884393932683
+            },
+            {
+              "x": 14.594555433772323,
+              "y": -12.26442841485013
+            }
+          ],
+          "bounds": {
+            "minX": 14.065388767105656,
+            "minY": -12.793595081516797,
+            "maxX": 49.90591423697427,
+            "maxY": 41.382828604324516,
+            "width": 35.84052546986861,
+            "height": 54.176423685841314
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 7.065388767105656,
+        "minY": -19.7935950815168,
+        "maxX": 56.90591423697427,
+        "maxY": 48.382828604324516,
+        "width": 49.84052546986861,
+        "height": 68.17642368584131
+      },
+      "svg": {
+        "widthMm": 49.84052546986861,
+        "heightMm": 68.17642368584131,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 49.84052546986861,
+          "height": 68.17642368584131
+        }
+      },
+      "contentOrigin": {
+        "x": 7.065388767105656,
+        "y": -19.7935950815168
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-39",
+      "Origin": "freePoint-mvn29s00-40",
+      "Curve": "bezierCurve-mvn29s00-41"
+    },
+    "drawableIds": [
+      "bezierCurve-mvn29s00-41"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-40",
+      "bezierCurve-mvn29s00-41"
+    ]
+  },
+  {
+    "id": "O9",
+    "variant": "a4-portrait-threshold",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (164.6, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -34,
+            "y": -43
+          },
+          "end": {
+            "x": 130.6,
+            "y": -43
+          },
+          "stroke": {
+            "widthMm": 25.4,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": -31,
+            "y": -47
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -46.7,
+        "minY": -55.7,
+        "maxX": 143.29999999999998,
+        "maxY": -30.3,
+        "width": 190,
+        "height": 25.400000000000002
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -34,
+              "y": -43
+            },
+            {
+              "x": 130.6,
+              "y": -43
+            }
+          ],
+          "bounds": {
+            "minX": -46.7,
+            "minY": -55.7,
+            "maxX": 143.29999999999998,
+            "maxY": -30.3,
+            "width": 190,
+            "height": 25.400000000000002
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 210,
+        "paperHeightMm": 297,
+        "strideXmm": 190,
+        "strideYmm": 277,
+        "columns": 1,
+        "rows": 1,
+        "overlapMm": 10,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -56.7,
+              "y": -65.7
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 200,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-42",
+      "Origin": "freePoint-mvn29s00-43",
+      "Edge": "line-mvn29s00-44"
+    },
+    "drawableIds": [
+      "line-mvn29s00-44"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-43",
+      "line-mvn29s00-44"
+    ]
+  },
+  {
+    "id": "O9",
+    "variant": "a4-portrait-crossing",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (164.601, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -34,
+            "y": -43
+          },
+          "end": {
+            "x": 130.601,
+            "y": -43
+          },
+          "stroke": {
+            "widthMm": 25.4,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": -31,
+            "y": -47
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -46.7,
+        "minY": -55.7,
+        "maxX": 143.301,
+        "maxY": -30.3,
+        "width": 190.00099999999998,
+        "height": 25.400000000000002
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -34,
+              "y": -43
+            },
+            {
+              "x": 130.601,
+              "y": -43
+            }
+          ],
+          "bounds": {
+            "minX": -46.7,
+            "minY": -55.7,
+            "maxX": 143.301,
+            "maxY": -30.3,
+            "width": 190.00099999999998,
+            "height": 25.400000000000002
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 210,
+        "paperHeightMm": 297,
+        "strideXmm": 190,
+        "strideYmm": 277,
+        "columns": 2,
+        "rows": 1,
+        "overlapMm": 10,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -56.7,
+              "y": -65.7
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 200,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 205.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "column": 1,
+            "row": 0,
+            "origin": {
+              "x": 133.3,
+              "y": -65.7
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 5.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 200,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-45",
+      "Origin": "freePoint-mvn29s00-46",
+      "Edge": "line-mvn29s00-47"
+    },
+    "drawableIds": [
+      "line-mvn29s00-47"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-46",
+      "line-mvn29s00-47"
+    ]
+  },
+  {
+    "id": "O9",
+    "variant": "a3-landscape-threshold",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (374.6, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 10)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -34,
+            "y": -43
+          },
+          "end": {
+            "x": 340.6,
+            "y": -43
+          },
+          "stroke": {
+            "widthMm": 25.4,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": -31,
+            "y": -47
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -46.7,
+        "minY": -55.7,
+        "maxX": 353.3,
+        "maxY": -30.3,
+        "width": 400,
+        "height": 25.400000000000002
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -34,
+              "y": -43
+            },
+            {
+              "x": 340.6,
+              "y": -43
+            }
+          ],
+          "bounds": {
+            "minX": -46.7,
+            "minY": -55.7,
+            "maxX": 353.3,
+            "maxY": -30.3,
+            "width": 400,
+            "height": 25.400000000000002
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 420,
+        "paperHeightMm": 297,
+        "strideXmm": 400,
+        "strideYmm": 277,
+        "columns": 1,
+        "rows": 1,
+        "overlapMm": 10,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -56.7,
+              "y": -65.7
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 410,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-48",
+      "Origin": "freePoint-mvn29s00-49",
+      "Edge": "line-mvn29s00-50"
+    },
+    "drawableIds": [
+      "line-mvn29s00-50"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-49",
+      "line-mvn29s00-50"
+    ]
+  },
+  {
+    "id": "O9",
+    "variant": "a3-landscape-crossing",
+    "source": "nui 1\nstyle Ink {\n  width: 96px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (374.601, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (-31, -47), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 10)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -34,
+            "y": -43
+          },
+          "end": {
+            "x": 340.601,
+            "y": -43
+          },
+          "stroke": {
+            "widthMm": 25.4,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": -31,
+            "y": -47
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -46.7,
+        "minY": -55.7,
+        "maxX": 353.301,
+        "maxY": -30.3,
+        "width": 400.001,
+        "height": 25.400000000000002
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -34,
+              "y": -43
+            },
+            {
+              "x": 340.601,
+              "y": -43
+            }
+          ],
+          "bounds": {
+            "minX": -46.7,
+            "minY": -55.7,
+            "maxX": 353.301,
+            "maxY": -30.3,
+            "width": 400.001,
+            "height": 25.400000000000002
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 420,
+        "paperHeightMm": 297,
+        "strideXmm": 400,
+        "strideYmm": 277,
+        "columns": 2,
+        "rows": 1,
+        "overlapMm": 10,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -56.7,
+              "y": -65.7
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 410,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 415.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "column": 1,
+            "row": 0,
+            "origin": {
+              "x": 343.3,
+              "y": -65.7
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 5.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 410,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-51",
+      "Origin": "freePoint-mvn29s00-52",
+      "Edge": "line-mvn29s00-53"
+    },
+    "drawableIds": [
+      "line-mvn29s00-53"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-52",
+      "line-mvn29s00-53"
+    ]
+  },
+  {
+    "id": "O9",
+    "variant": "invalid-usable",
+    "source": "nui 1\nconst Overlap: number = 105\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (0, 0), end: (1, 0))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (41, -23), scale: 2, angle: 90, mirror: true)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: @Overlap)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 33,
+            "y": -17
+          },
+          "end": {
+            "x": 33,
+            "y": -19
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 41,
+            "y": -23
+          },
+          "scale": 2,
+          "angleDeg": 90,
+          "mirror": true
+        }
+      ],
+      "renderedBounds": {
+        "minX": 32.735416666666666,
+        "minY": -19.264583333333334,
+        "maxX": 33.264583333333334,
+        "maxY": -16.735416666666666,
+        "width": 0.5291666666666686,
+        "height": 2.5291666666666686
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": 33,
+              "y": -17
+            },
+            {
+              "x": 33,
+              "y": -19
+            }
+          ],
+          "bounds": {
+            "minX": 32.735416666666666,
+            "minY": -19.264583333333334,
+            "maxX": 33.264583333333334,
+            "maxY": -16.735416666666666,
+            "width": 0.5291666666666686,
+            "height": 2.5291666666666686
+          }
+        }
+      ],
+      "error": "print usable width"
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-54",
+      "Origin": "freePoint-mvn29s00-55",
+      "Edge": "line-mvn29s00-56"
+    },
+    "drawableIds": [
+      "line-mvn29s00-56"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-55",
+      "line-mvn29s00-56"
+    ]
+  },
+  {
+    "id": "O10",
+    "variant": "a4-portrait-overlap10",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (170, 250))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 10)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -83,
+            "y": -86
+          },
+          "end": {
+            "x": 167,
+            "y": 254
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -83.26458333333333,
+        "minY": -86.26458333333333,
+        "maxX": 167.26458333333332,
+        "maxY": 254.26458333333332,
+        "width": 250.52916666666664,
+        "height": 340.52916666666664
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -83,
+              "y": -86
+            },
+            {
+              "x": 167,
+              "y": 254
+            }
+          ],
+          "bounds": {
+            "minX": -83.26458333333333,
+            "minY": -86.26458333333333,
+            "maxX": 167.26458333333332,
+            "maxY": 254.26458333333332,
+            "width": 250.52916666666664,
+            "height": 340.52916666666664
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 210,
+        "paperHeightMm": 297,
+        "strideXmm": 190,
+        "strideYmm": 277,
+        "columns": 2,
+        "rows": 2,
+        "overlapMm": 10,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -93.26458333333333,
+              "y": -96.26458333333333
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 200,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 205.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": {
+                  "text": "A",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 105.0,
+                    "y": 292.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "column": 1,
+            "row": 0,
+            "origin": {
+              "x": 96.73541666666667,
+              "y": -96.26458333333333
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 5.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 200,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": {
+                  "text": "B",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 105.0,
+                    "y": 292.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "column": 0,
+            "row": 1,
+            "origin": {
+              "x": -93.26458333333333,
+              "y": 180.73541666666665
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 200,
+                "label": {
+                  "text": "2",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 205.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": {
+                  "text": "A",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 105.0,
+                    "y": 5.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "column": 1,
+            "row": 1,
+            "origin": {
+              "x": 96.73541666666667,
+              "y": 180.73541666666665
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": {
+                  "text": "2",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 5.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 200,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": {
+                  "text": "B",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 105.0,
+                    "y": 5.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-57",
+      "Origin": "freePoint-mvn29s00-58",
+      "Edge": "line-mvn29s00-59"
+    },
+    "drawableIds": [
+      "line-mvn29s00-59"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-58",
+      "line-mvn29s00-59"
+    ]
+  },
+  {
+    "id": "O10",
+    "variant": "a4-portrait-overlap0",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (170, 250))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a4, orientation: portrait, overlap: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -83,
+            "y": -86
+          },
+          "end": {
+            "x": 167,
+            "y": 254
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -83.26458333333333,
+        "minY": -86.26458333333333,
+        "maxX": 167.26458333333332,
+        "maxY": 254.26458333333332,
+        "width": 250.52916666666664,
+        "height": 340.52916666666664
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -83,
+              "y": -86
+            },
+            {
+              "x": 167,
+              "y": 254
+            }
+          ],
+          "bounds": {
+            "minX": -83.26458333333333,
+            "minY": -86.26458333333333,
+            "maxX": 167.26458333333332,
+            "maxY": 254.26458333333332,
+            "width": 250.52916666666664,
+            "height": 340.52916666666664
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 210,
+        "paperHeightMm": 297,
+        "strideXmm": 210,
+        "strideYmm": 297,
+        "columns": 2,
+        "rows": 2,
+        "overlapMm": 0,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -83.26458333333333,
+              "y": -86.26458333333333
+            },
+            "guides": []
+          },
+          {
+            "index": 1,
+            "column": 1,
+            "row": 0,
+            "origin": {
+              "x": 126.73541666666667,
+              "y": -86.26458333333333
+            },
+            "guides": []
+          },
+          {
+            "index": 2,
+            "column": 0,
+            "row": 1,
+            "origin": {
+              "x": -83.26458333333333,
+              "y": 210.73541666666665
+            },
+            "guides": []
+          },
+          {
+            "index": 3,
+            "column": 1,
+            "row": 1,
+            "origin": {
+              "x": 126.73541666666667,
+              "y": 210.73541666666665
+            },
+            "guides": []
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-60",
+      "Origin": "freePoint-mvn29s00-61",
+      "Edge": "line-mvn29s00-62"
+    },
+    "drawableIds": [
+      "line-mvn29s00-62"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-61",
+      "line-mvn29s00-62"
+    ]
+  },
+  {
+    "id": "O10",
+    "variant": "a3-landscape-overlap10",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (370, 260))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 10)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -83,
+            "y": -86
+          },
+          "end": {
+            "x": 367,
+            "y": 264
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -83.26458333333333,
+        "minY": -86.26458333333333,
+        "maxX": 367.26458333333335,
+        "maxY": 264.26458333333335,
+        "width": 450.5291666666667,
+        "height": 350.5291666666667
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -83,
+              "y": -86
+            },
+            {
+              "x": 367,
+              "y": 264
+            }
+          ],
+          "bounds": {
+            "minX": -83.26458333333333,
+            "minY": -86.26458333333333,
+            "maxX": 367.26458333333335,
+            "maxY": 264.26458333333335,
+            "width": 450.5291666666667,
+            "height": 350.5291666666667
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 420,
+        "paperHeightMm": 297,
+        "strideXmm": 400,
+        "strideYmm": 277,
+        "columns": 2,
+        "rows": 2,
+        "overlapMm": 10,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -93.26458333333333,
+              "y": -96.26458333333333
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 410,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 415.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": {
+                  "text": "A",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 210.0,
+                    "y": 292.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "index": 1,
+            "column": 1,
+            "row": 0,
+            "origin": {
+              "x": 306.73541666666665,
+              "y": -96.26458333333333
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": {
+                  "text": "1",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 5.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 410,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": {
+                  "text": "B",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 210.0,
+                    "y": 292.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "index": 2,
+            "column": 0,
+            "row": 1,
+            "origin": {
+              "x": -93.26458333333333,
+              "y": 180.73541666666665
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": null
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 410,
+                "label": {
+                  "text": "2",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 415.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": {
+                  "text": "A",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 210.0,
+                    "y": 5.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          },
+          {
+            "index": 3,
+            "column": 1,
+            "row": 1,
+            "origin": {
+              "x": 306.73541666666665,
+              "y": 180.73541666666665
+            },
+            "guides": [
+              {
+                "axis": "vertical",
+                "positionMm": 10,
+                "label": {
+                  "text": "2",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 90,
+                  "center": {
+                    "x": 5.0,
+                    "y": 148.5
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "vertical",
+                "positionMm": 410,
+                "label": null
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 10,
+                "label": {
+                  "text": "B",
+                  "fontSizeMm": 3,
+                  "rotationDeg": 0,
+                  "center": {
+                    "x": 210.0,
+                    "y": 5.0
+                  },
+                  "widthMm": 1.86,
+                  "advancesMm": [
+                    1.86
+                  ]
+                }
+              },
+              {
+                "axis": "horizontal",
+                "positionMm": 287,
+                "label": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-63",
+      "Origin": "freePoint-mvn29s00-64",
+      "Edge": "line-mvn29s00-65"
+    },
+    "drawableIds": [
+      "line-mvn29s00-65"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-64",
+      "line-mvn29s00-65"
+    ]
+  },
+  {
+    "id": "O10",
+    "variant": "a3-landscape-overlap0",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line Edge [Ink] = segment(start: (-80, -90), end: (370, 260))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nprint P(layout: @L, paper: a3, orientation: landscape, overlap: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": -83,
+            "y": -86
+          },
+          "end": {
+            "x": 367,
+            "y": 264
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -83.26458333333333,
+        "minY": -86.26458333333333,
+        "maxX": 367.26458333333335,
+        "maxY": 264.26458333333335,
+        "width": 450.5291666666667,
+        "height": 350.5291666666667
+      },
+      "critical": [
+        {
+          "name": "Edge",
+          "points": [
+            {
+              "x": -83,
+              "y": -86
+            },
+            {
+              "x": 367,
+              "y": 264
+            }
+          ],
+          "bounds": {
+            "minX": -83.26458333333333,
+            "minY": -86.26458333333333,
+            "maxX": 367.26458333333335,
+            "maxY": 264.26458333333335,
+            "width": 450.5291666666667,
+            "height": 350.5291666666667
+          }
+        }
+      ],
+      "print": {
+        "paperWidthMm": 420,
+        "paperHeightMm": 297,
+        "strideXmm": 420,
+        "strideYmm": 297,
+        "columns": 2,
+        "rows": 2,
+        "overlapMm": 0,
+        "pages": [
+          {
+            "index": 0,
+            "column": 0,
+            "row": 0,
+            "origin": {
+              "x": -83.26458333333333,
+              "y": -86.26458333333333
+            },
+            "guides": []
+          },
+          {
+            "index": 1,
+            "column": 1,
+            "row": 0,
+            "origin": {
+              "x": 336.73541666666665,
+              "y": -86.26458333333333
+            },
+            "guides": []
+          },
+          {
+            "index": 2,
+            "column": 0,
+            "row": 1,
+            "origin": {
+              "x": -83.26458333333333,
+              "y": 210.73541666666665
+            },
+            "guides": []
+          },
+          {
+            "index": 3,
+            "column": 1,
+            "row": 1,
+            "origin": {
+              "x": 336.73541666666665,
+              "y": 210.73541666666665
+            },
+            "guides": []
+          }
+        ]
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-66",
+      "Origin": "freePoint-mvn29s00-67",
+      "Edge": "line-mvn29s00-68"
+    },
+    "drawableIds": [
+      "line-mvn29s00-68"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-67",
+      "line-mvn29s00-68"
+    ]
+  },
+  {
+    "id": "R1",
+    "variant": "forward",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: @Later.start, end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": 2,
+            "y": 6
+          },
+          "end": {
+            "x": 14,
+            "y": 15
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": 2,
+            "y": 6
+          },
+          "end": {
+            "x": 5,
+            "y": 10
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": 1.7354166666666666,
+        "minY": 5.735416666666667,
+        "maxX": 14.264583333333333,
+        "maxY": 15.264583333333333,
+        "width": 12.529166666666665,
+        "height": 9.529166666666665
+      },
+      "critical": [
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": 2,
+              "y": 6
+            },
+            {
+              "x": 14,
+              "y": 15
+            }
+          ],
+          "bounds": {
+            "minX": 1.7354166666666666,
+            "minY": 5.735416666666667,
+            "maxX": 14.264583333333333,
+            "maxY": 15.264583333333333,
+            "width": 12.529166666666665,
+            "height": 9.529166666666665
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": 2,
+              "y": 6
+            },
+            {
+              "x": 5,
+              "y": 10
+            }
+          ],
+          "bounds": {
+            "minX": 1.7354166666666666,
+            "minY": 5.735416666666667,
+            "maxX": 5.264583333333333,
+            "maxY": 10.264583333333333,
+            "width": 3.529166666666667,
+            "height": 4.529166666666666
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 1.7354166666666666,
+        "minY": 5.735416666666667,
+        "maxX": 14.264583333333333,
+        "maxY": 15.264583333333333,
+        "width": 12.529166666666665,
+        "height": 9.529166666666665
+      },
+      "svg": {
+        "widthMm": 12.529166666666665,
+        "heightMm": 9.529166666666665,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 12.529166666666665,
+          "height": 9.529166666666665
+        }
+      },
+      "contentOrigin": {
+        "x": 1.7354166666666666,
+        "y": 5.735416666666667
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-69",
+      "Origin": "freePoint-mvn29s00-70",
+      "First": "line-mvn29s00-71",
+      "Later": "line-mvn29s00-72"
+    },
+    "drawableIds": [
+      "line-mvn29s00-71",
+      "line-mvn29s00-72"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-70",
+      "line-mvn29s00-71",
+      "line-mvn29s00-72"
+    ]
+  },
+  {
+    "id": "R1",
+    "variant": "independent",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n line First [Ink] = segment(start: (5, 2), end: (17, 11))\n line Later [Ink] = segment(start: (5, 2), end: (8, 6))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": 2,
+            "y": 6
+          },
+          "end": {
+            "x": 14,
+            "y": 15
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": 2,
+            "y": 6
+          },
+          "end": {
+            "x": 5,
+            "y": 10
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": 1.7354166666666666,
+        "minY": 5.735416666666667,
+        "maxX": 14.264583333333333,
+        "maxY": 15.264583333333333,
+        "width": 12.529166666666665,
+        "height": 9.529166666666665
+      },
+      "critical": [
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": 2,
+              "y": 6
+            },
+            {
+              "x": 14,
+              "y": 15
+            }
+          ],
+          "bounds": {
+            "minX": 1.7354166666666666,
+            "minY": 5.735416666666667,
+            "maxX": 14.264583333333333,
+            "maxY": 15.264583333333333,
+            "width": 12.529166666666665,
+            "height": 9.529166666666665
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": 2,
+              "y": 6
+            },
+            {
+              "x": 5,
+              "y": 10
+            }
+          ],
+          "bounds": {
+            "minX": 1.7354166666666666,
+            "minY": 5.735416666666667,
+            "maxX": 5.264583333333333,
+            "maxY": 10.264583333333333,
+            "width": 3.529166666666667,
+            "height": 4.529166666666666
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 1.7354166666666666,
+        "minY": 5.735416666666667,
+        "maxX": 14.264583333333333,
+        "maxY": 15.264583333333333,
+        "width": 12.529166666666665,
+        "height": 9.529166666666665
+      },
+      "svg": {
+        "widthMm": 12.529166666666665,
+        "heightMm": 9.529166666666665,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 12.529166666666665,
+          "height": 9.529166666666665
+        }
+      },
+      "contentOrigin": {
+        "x": 1.7354166666666666,
+        "y": 5.735416666666667
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-73",
+      "Origin": "freePoint-mvn29s00-74",
+      "First": "line-mvn29s00-75",
+      "Later": "line-mvn29s00-76"
+    },
+    "drawableIds": [
+      "line-mvn29s00-75",
+      "line-mvn29s00-76"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-74",
+      "line-mvn29s00-75",
+      "line-mvn29s00-76"
+    ]
+  },
+  {
+    "id": "R2",
+    "variant": "generated-order",
+    "source": "nui 1\nstyle Ink {\n  width: 2px,\n  color: #123456,\n}\ngroup G {\n point Origin = coordinate(x: 3, y: -4)\n for i in range(min: 0, max: 1, step: 1, showGenerated: true) {\n line First [Ink] = segment(start: (@i * 20, 0), end: (@i * 20 + 10, 5))\n line Later [Ink] = segment(start: @First.end, end: (@i * 20 + 15, 10))\n }\n line After [Ink] = segment(start: (50, 0), end: (60, 5))\n}\nlayout L {\n  place @G(origin: @G::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg S(layout: @L, margin: 0)\n",
+    "expected": {
+      "drawables": [
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 4
+          },
+          "end": {
+            "x": 7,
+            "y": 9
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": 7,
+            "y": 9
+          },
+          "end": {
+            "x": 12,
+            "y": 14
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "First",
+          "kind": "line",
+          "start": {
+            "x": 17,
+            "y": 4
+          },
+          "end": {
+            "x": 27,
+            "y": 9
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "Later",
+          "kind": "line",
+          "start": {
+            "x": 27,
+            "y": 9
+          },
+          "end": {
+            "x": 32,
+            "y": 14
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        },
+        {
+          "name": "After",
+          "kind": "line",
+          "start": {
+            "x": 47,
+            "y": 4
+          },
+          "end": {
+            "x": 57,
+            "y": 9
+          },
+          "stroke": {
+            "widthMm": 0.5291666666666667,
+            "style": "solid",
+            "colorHex": "#123456"
+          }
+        }
+      ],
+      "placements": [
+        {
+          "target": "G",
+          "origin": {
+            "x": 3,
+            "y": -4
+          },
+          "at": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": 1,
+          "angleDeg": 0,
+          "mirror": false
+        }
+      ],
+      "renderedBounds": {
+        "minX": -3.2645833333333334,
+        "minY": 3.7354166666666666,
+        "maxX": 57.264583333333334,
+        "maxY": 14.264583333333333,
+        "width": 60.52916666666667,
+        "height": 10.529166666666665
+      },
+      "critical": [
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": -3,
+              "y": 4
+            },
+            {
+              "x": 7,
+              "y": 9
+            }
+          ],
+          "bounds": {
+            "minX": -3.2645833333333334,
+            "minY": 3.7354166666666666,
+            "maxX": 7.264583333333333,
+            "maxY": 9.264583333333333,
+            "width": 10.529166666666667,
+            "height": 5.529166666666666
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": 7,
+              "y": 9
+            },
+            {
+              "x": 12,
+              "y": 14
+            }
+          ],
+          "bounds": {
+            "minX": 6.735416666666667,
+            "minY": 8.735416666666667,
+            "maxX": 12.264583333333333,
+            "maxY": 14.264583333333333,
+            "width": 5.529166666666666,
+            "height": 5.529166666666665
+          }
+        },
+        {
+          "name": "First",
+          "points": [
+            {
+              "x": 17,
+              "y": 4
+            },
+            {
+              "x": 27,
+              "y": 9
+            }
+          ],
+          "bounds": {
+            "minX": 16.735416666666666,
+            "minY": 3.7354166666666666,
+            "maxX": 27.264583333333334,
+            "maxY": 9.264583333333333,
+            "width": 10.529166666666669,
+            "height": 5.529166666666666
+          }
+        },
+        {
+          "name": "Later",
+          "points": [
+            {
+              "x": 27,
+              "y": 9
+            },
+            {
+              "x": 32,
+              "y": 14
+            }
+          ],
+          "bounds": {
+            "minX": 26.735416666666666,
+            "minY": 8.735416666666667,
+            "maxX": 32.264583333333334,
+            "maxY": 14.264583333333333,
+            "width": 5.529166666666669,
+            "height": 5.529166666666665
+          }
+        },
+        {
+          "name": "After",
+          "points": [
+            {
+              "x": 47,
+              "y": 4
+            },
+            {
+              "x": 57,
+              "y": 9
+            }
+          ],
+          "bounds": {
+            "minX": 46.735416666666666,
+            "minY": 3.7354166666666666,
+            "maxX": 57.264583333333334,
+            "maxY": 9.264583333333333,
+            "width": 10.529166666666669,
+            "height": 5.529166666666666
+          }
+        }
+      ],
+      "bounds": {
+        "minX": -3.2645833333333334,
+        "minY": 3.7354166666666666,
+        "maxX": 57.264583333333334,
+        "maxY": 14.264583333333333,
+        "width": 60.52916666666667,
+        "height": 10.529166666666665
+      },
+      "svg": {
+        "widthMm": 60.52916666666667,
+        "heightMm": 10.529166666666665,
+        "viewBox": {
+          "x": 0,
+          "y": 0,
+          "width": 60.52916666666667,
+          "height": 10.529166666666665
+        }
+      },
+      "contentOrigin": {
+        "x": -3.2645833333333334,
+        "y": 3.7354166666666666
+      }
+    },
+    "elementIds": {
+      "G": "group-mvn29s00-77",
+      "Origin": "freePoint-mvn29s00-78",
+      "": "forGroup-mvn29s00-79",
+      "First": "line-mvn29s00-80",
+      "Later": "line-mvn29s00-81",
+      "After": "line-mvn29s00-82"
+    },
+    "drawableIds": [
+      "line-mvn29s00-80@forGroup-mvn29s00-79:0",
+      "line-mvn29s00-81@forGroup-mvn29s00-79:0",
+      "line-mvn29s00-80@forGroup-mvn29s00-79:1",
+      "line-mvn29s00-81@forGroup-mvn29s00-79:1",
+      "line-mvn29s00-82"
+    ],
+    "evaluatedIds": [
+      "freePoint-mvn29s00-78",
+      "line-mvn29s00-80@forGroup-mvn29s00-79:0",
+      "line-mvn29s00-81@forGroup-mvn29s00-79:0",
+      "line-mvn29s00-80@forGroup-mvn29s00-79:1",
+      "line-mvn29s00-81@forGroup-mvn29s00-79:1",
+      "line-mvn29s00-82"
+    ]
+  }
+]

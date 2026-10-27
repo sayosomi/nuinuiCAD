@@ -124,6 +124,8 @@ export type DslArrayMemberSemantic<TTarget> = {
   sourceSpan: DslSpan;
   elementType: DslNonArrayValueType;
   target: TTarget;
+  /** Scalar member checked by the canonical Module expression owner. */
+  expression?: ModuleScalarExpressionSemantic;
 };
 
 export type DslArrayLiteralValue<TTarget> = {

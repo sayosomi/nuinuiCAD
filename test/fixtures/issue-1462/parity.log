@@ -1,0 +1,15 @@
+
+> nuinuicad@0.0.0 test:parity
+> VITE_RUN_RUST_PARITY=1 vitest run test/evaluationParity.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  1 passed (1)
+      Tests  203 passed (203)
+   Start at  00:28:31
+   Duration  62.46s (transform 1.87s, setup 37ms, import 2.18s, tests 59.84s, environment 318ms)
+
+
+PARITY EXIT=0

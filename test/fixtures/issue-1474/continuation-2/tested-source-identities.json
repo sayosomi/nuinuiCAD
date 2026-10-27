@@ -1,0 +1,77 @@
+[
+  {
+    "file": "packages/nui-language/src/dsl/dependencyTopologyCompilation.test.ts",
+    "sha256": "848d8d07d732e859ddddedcca3d8fc4e9813dc86cb76e0c2db38d406da6f12bb",
+    "gitBlob": "af7951031eb76713058f1d596878cb17ec698bb4"
+  },
+  {
+    "file": "packages/nui-language/src/dsl/dslCompiler.ts",
+    "sha256": "4a1030551cc214df051a7ea94ad35b5a7a581fe46193c63dfa7a0c36d6b8fd8c",
+    "gitBlob": "58f0f9887fdd2c6d54b50c710824f3f4ce1455dd"
+  },
+  {
+    "file": "packages/nui-language/src/model/elementFactory.ts",
+    "sha256": "2dbc0e5fcdab8f7b7f6e818bbe4dafc0821aa2869ba3489c636b331a40a0da14",
+    "gitBlob": "acd9982da0748d73d5e246f92f575d2db6c64d53"
+  },
+  {
+    "file": "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs",
+    "sha256": "94e23e7db5f9716dd1b755269675a3c506718158ad5a7d5515bfcaaa15cd7849",
+    "gitBlob": "baf72a3bc39e9507910f3e9ddce2353eb17782b6"
+  },
+  {
+    "file": "rust-evaluator/src/evaluation/scalars/bindings.rs",
+    "sha256": "f62fbf29acb412b8c0084fcddfc3f57a95507447d773faff6c64b5e137b7c7de",
+    "gitBlob": "dd5bcdd5b6b44d8ec4542ebbe2422fd1b41fd9b4"
+  },
+  {
+    "file": "rust-evaluator/src/evaluation/scalars/bindings_tests.rs",
+    "sha256": "2f68ba9b5c069d8f543734985f7a3334da76889e6951183aeac70827e960756a",
+    "gitBlob": "6dba4ed686b0c9043c65fb6f4da956d93dfbb96a"
+  },
+  {
+    "file": "rust-evaluator/src/evaluation/scalars/expression_evaluator.rs",
+    "sha256": "f2f2692750c96f435bedd155514e07422ca9b0100f489194259f3b2b1601638b",
+    "gitBlob": "ed78d7a1c79aa4a7ab3fdc0b3f70830092cc51a0"
+  },
+  {
+    "file": "src/geometry/numericBindingRuntime.integration.test.ts",
+    "sha256": "337c544d116e72af795edbc3d4ae34a08838050817ff33ff23dd75f4f5c294d5",
+    "gitBlob": "5975836e083d13a94b07581808afa48e647fa035"
+  },
+  {
+    "file": "src/geometry/numericBindingRuntime.ts",
+    "sha256": "177d80e79cf399c70401632aca839590a112d6d761a36f8037e3c87ba0dc1988",
+    "gitBlob": "8d7066370d8f05dfbc10fd9c777cf896afe0aee5"
+  },
+  {
+    "file": "src/scalars/declarationEvaluator.ts",
+    "sha256": "13eba969b7426e24a61748b29ae30e7e3085b3cc56784afbcfa0c0ef80d7a97d",
+    "gitBlob": "4f730c9f91ea45cdb443112ba94bc30a4c03eeea"
+  },
+  {
+    "file": "src/scalars/dependencyResolution.test.ts",
+    "sha256": "423bea6a1486848fad0fc2120cb7619cac34464820f84754344c8d699630e7b6",
+    "gitBlob": "733bee22b9b9540fb3a4bf0750de5e5557ae4ec3"
+  },
+  {
+    "file": "src/scalars/expressionEvaluator.ts",
+    "sha256": "40c10ff4805dc0ba3213d30ca81b3001deceb80e54bf15e7827dcd7d75cd93fe",
+    "gitBlob": "5b6c41b2554094c346365386025a5fa21ae8626f"
+  },
+  {
+    "file": "test/issue1474DependencyTopology.performance.test.ts",
+    "sha256": "01ef6a4937d6cbb7bb47baa85368289290ab4a4f6a3e339f486dec5f8319cd13",
+    "gitBlob": "d103167a2a9fbec8dc1b4f4ae8d7f22dab2902b4"
+  },
+  {
+    "file": "test/issue1474DependencyTopologySupport.ts",
+    "sha256": "871bf75eb2f386dfd7c93e640a6e28f284b078b5b49bc0baf98d2261cea7b782",
+    "gitBlob": "0206b83b1baeedc96031f4a3c6f4db33146ac738"
+  },
+  {
+    "file": "test/issue1474DependencyTopologyTiming.performance.test.ts",
+    "sha256": "f4f605873b4c3f11866866e840e2a372c80948be6dbda01b320ed407f306c662",
+    "gitBlob": "6d64706df4098101063aa6f883897b7835c5224a"
+  }
+]

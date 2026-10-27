@@ -1,0 +1,354 @@
+{
+  "instrumentedRuns": [
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/a-variants",
+      "runId": "a-variants-1792632388822",
+      "phase": "a-variants",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 5
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/b-alias-fix",
+      "runId": "b-alias-fix-1792607113298",
+      "phase": "b-alias-fix",
+      "sourceTreeSha256": "29bf00d3657c35f5ee1eee76e6fa2fa6dda77f1af75b320fa2a46aab196ff3ca",
+      "counts": {
+        "compiler": 9,
+        "setupCompiler": 1,
+        "reference": 9,
+        "production": 9
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 6,
+        "UNRESOLVED": 3
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/b-saved",
+      "runId": "b-saved-1792632614369",
+      "phase": "b-saved",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/b-sensitive",
+      "runId": "b-sensitive-1792632443073",
+      "phase": "b-sensitive",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 3
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/b-source-fix",
+      "runId": "b-source-fix-1792607240706",
+      "phase": "b-source-fix",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 11,
+        "setupCompiler": 1,
+        "reference": 11,
+        "production": 11
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 9,
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-b",
+      "runId": "base-b-1792607039007",
+      "phase": "base-b",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 4
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-b-direct",
+      "runId": "base-b-direct-1792607068249",
+      "phase": "base-b-direct",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-b-noalias",
+      "runId": "base-b-noalias-1792607168516",
+      "phase": "base-b-noalias",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-exact",
+      "runId": "base-exact-1792632496170",
+      "phase": "base-exact",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 23,
+        "setupCompiler": 1,
+        "reference": 23,
+        "production": 23
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 6,
+        "UNRESOLVED": 17
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-pilot",
+      "runId": "base-pilot-1792606835714",
+      "phase": "base-pilot",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 1,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-reduce",
+      "runId": "base-reduce-1792606885460",
+      "phase": "base-reduce",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-reduced-legal",
+      "runId": "base-reduced-legal-1792606914015",
+      "phase": "base-reduced-legal",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 1,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-regression",
+      "runId": "base-regression-1792632667496",
+      "phase": "base-regression",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 3,
+        "UNRESOLVED": 3
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/base-saved",
+      "runId": "base-saved-1792632634167",
+      "phase": "base-saved",
+      "sourceTreeSha256": "66ff75c7f43f6183850f15255d777c8ab670509c3ded7514d7dbcf5253106184",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/f42",
+      "runId": "f42-1792606997439",
+      "phase": "f42",
+      "sourceTreeSha256": "972565b2d62e6189ea37d1eb7cd8cd1fb534f390ef0f45d74a3594e1c1d91cb7",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 4
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/focused",
+      "runId": "focused-1792632461238",
+      "phase": "focused",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 17,
+        "setupCompiler": 1,
+        "reference": 17,
+        "production": 17
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 17
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/presettled-focused",
+      "runId": "presettled-focused-1792632689968",
+      "phase": "presettled-focused",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 21,
+        "setupCompiler": 1,
+        "reference": 21,
+        "production": 21
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 21
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/required",
+      "runId": "required-1792632747650",
+      "phase": "required",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 21,
+        "setupCompiler": 1,
+        "reference": 21,
+        "production": 21
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 21
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/required",
+      "runId": "required-1792633012289",
+      "phase": "required",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 21,
+        "setupCompiler": 1,
+        "reference": 21,
+        "production": 21
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 21
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/scheduler-discriminator",
+      "runId": "scheduler-discriminator-1792632347133",
+      "phase": "scheduler-discriminator",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual7/strengthened",
+      "runId": "strengthened-1792632568690",
+      "phase": "strengthened",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 20,
+        "setupCompiler": 1,
+        "reference": 20,
+        "production": 20
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 20
+      }
+    }
+  ],
+  "counts": {
+    "compiler": 177,
+    "setupCompiler": 21,
+    "reference": 175,
+    "production": 175
+  },
+  "exclusions": "Other historical/parity/full-suite harness counts are not instrumented by the seventh runner. No external Rust requests.",
+  "quotaAttribution": "CONFOUNDED; concurrent independent Human use. Quota measurement intentionally waived; no quota readings or estimates."
+}

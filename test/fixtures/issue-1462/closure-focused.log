@@ -1,0 +1,15 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2 test/issue1406LineAngleResidualRust.integration.test.ts src/commands/bakeSourceRoundtrip.test.ts src/commands/bakeGeometry.test.ts src/commands/bakeFailureResults.test.ts src/geometry/offsetPaths.test.ts src/document/canonicalDocument.commitLineSplicePatch.test.ts src/document/textPatch.test.ts src/document/textPatch.property.test.ts src/document/statementReconciler.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  9 passed (9)
+      Tests  156 passed (156)
+   Start at  07:32:23
+   Duration  7.44s (transform 2.85s, setup 219ms, import 4.72s, tests 6.52s, environment 2.68s)
+
+
+focused EXIT=0

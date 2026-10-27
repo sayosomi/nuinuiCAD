@@ -3,6 +3,7 @@ use super::types::{
     ScalarExpressionResolvedGeometryTarget, TypedBuiltinArgument,
 };
 use crate::evaluation::activity::{effective_activity_by_element_id_with_profile, ElementActivity};
+use crate::evaluation::geometry_value_kernels::{segment_geometry_kernel, StructuralPoint};
 use crate::evaluation::point_anchor::{
     point_from_geometry, point_from_value, resolve_derived_point,
 };
@@ -33,20 +34,31 @@ pub(crate) fn geometry_builtin_runtime_target_value(
         GeometryBuiltinRuntimeTarget::GeometryValuePoint { x, y } => {
             json!({ "kind": "point", "x": x, "y": y })
         }
-        GeometryBuiltinRuntimeTarget::Line { start, end } => json!({
-            "kind": "line",
-            "start": { "x": start.x, "y": start.y },
-            "end": { "x": end.x, "y": end.y },
-            "length": ((end.x - start.x).powi(2) + (end.y - start.y).powi(2)).sqrt()
-        }),
-        GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end } => json!({
-            "kind": "line",
-            "start": { "x": start.0, "y": start.1 },
-            "end": { "x": end.0, "y": end.1 },
-            "length": ((end.0 - start.0).powi(2) + (end.1 - start.1).powi(2)).sqrt()
-        }),
+        GeometryBuiltinRuntimeTarget::Line { start, end } => {
+            line_target_value((start.x, start.y), (end.x, end.y))
+        }
+        GeometryBuiltinRuntimeTarget::GeometryValueLine { start, end } => {
+            line_target_value(*start, *end)
+        }
         GeometryBuiltinRuntimeTarget::GeometryValuePath { value } => value.clone(),
     }
+}
+
+fn line_target_value(start: (f64, f64), end: (f64, f64)) -> Value {
+    let line = segment_geometry_kernel(
+        StructuralPoint {
+            x: start.0,
+            y: start.1,
+        },
+        StructuralPoint { x: end.0, y: end.1 },
+    );
+    json!({
+        "kind": "line", "start": { "x": start.0, "y": start.1 },
+        "end": { "x": end.0, "y": end.1 }, "length": line.length,
+        "startAngleDeg": line.start_angle_deg, "endAngleDeg": line.end_angle_deg,
+        "startTangentAngleDeg": line.start_tangent_angle_deg,
+        "endTangentAngleDeg": line.end_tangent_angle_deg
+    })
 }
 
 impl PartialEq for GeometryBuiltinRuntimeTarget {

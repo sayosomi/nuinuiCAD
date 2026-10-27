@@ -1,0 +1,270 @@
+[
+  {
+    "id": "B01",
+    "endpoint": "start",
+    "expected": 59,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "flipped"
+      ],
+      "occurrence": 0,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 128
+  },
+  {
+    "id": "B02",
+    "endpoint": "end",
+    "expected": 21,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "flipped"
+      ],
+      "occurrence": 1,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 28
+  },
+  {
+    "id": "B03",
+    "endpoint": "end",
+    "expected": 27,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "first",
+        "nested"
+      ],
+      "occurrence": 0,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 160
+  },
+  {
+    "id": "B04",
+    "endpoint": "start",
+    "expected": 53,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "first",
+        "nested"
+      ],
+      "occurrence": 1,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 60
+  },
+  {
+    "id": "B05",
+    "endpoint": "start",
+    "expected": 50,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "flipped"
+      ],
+      "occurrence": 0,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 137
+  },
+  {
+    "id": "B06",
+    "endpoint": "end",
+    "expected": 38,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "flipped"
+      ],
+      "occurrence": 1,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 45
+  },
+  {
+    "id": "B07",
+    "endpoint": "end",
+    "expected": 18,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "first",
+        "nested"
+      ],
+      "occurrence": 0,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 169
+  },
+  {
+    "id": "B08",
+    "endpoint": "start",
+    "expected": 70,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "first",
+        "nested"
+      ],
+      "occurrence": 1,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 77
+  },
+  {
+    "id": "K01",
+    "endpoint": "start",
+    "expected": 48,
+    "identity": {
+      "owner": "Two::Edge",
+      "stage": [
+        "selected"
+      ],
+      "collection_index": 1,
+      "route": "path-alias",
+      "control_note": "direct qualified selected-stage export contrast"
+    },
+    "tangent_axis_deg": 55
+  },
+  {
+    "id": "K02",
+    "endpoint": "end",
+    "expected": 12,
+    "identity": {
+      "owner": "RenamedUse::Edge",
+      "stage": [
+        "tilted"
+      ],
+      "collection_index": 1,
+      "route": "collection-alias",
+      "control_note": "source-order and consistent rename of Module, collection and alias"
+    },
+    "tangent_axis_deg": 175
+  },
+  {
+    "id": "K03",
+    "endpoint": "start",
+    "expected": 10,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "base"
+      ],
+      "occurrence": 0,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out",
+      "control_note": "unreversed generated occurrence through same Module carry"
+    },
+    "tangent_axis_deg": 17
+  },
+  {
+    "id": "K04",
+    "endpoint": "start",
+    "expected": 70,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "first",
+        "nested"
+      ],
+      "occurrence": 1,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out",
+      "control_note": "direct generated named-stage occurrence contrast"
+    },
+    "tangent_axis_deg": 77
+  },
+  {
+    "id": "K05",
+    "endpoint": "start",
+    "expected": 50,
+    "identity": {
+      "owner": "Two::Result",
+      "stage": [
+        "selected"
+      ],
+      "module": "Two",
+      "collection_index": null,
+      "route": "carry-alias",
+      "reverse_before_rotation": false,
+      "control_note": "direct evaluated offset selected-stage export contrast"
+    },
+    "tangent_axis_deg": 57
+  },
+  {
+    "id": "K06",
+    "endpoint": "end",
+    "expected": 46.756045666873526,
+    "identity": {
+      "owner": "RenamedUse::Result",
+      "stage": [
+        "tilted"
+      ],
+      "module": "RenamedUse",
+      "collection_index": 1,
+      "route": "collection",
+      "reverse_before_rotation": true,
+      "control_note": "split collection source-order/consistent rename contrast"
+    },
+    "tangent_axis_deg": 53.756045666873526
+  },
+  {
+    "id": "K07",
+    "endpoint": "start",
+    "expected": 59,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "flipped"
+      ],
+      "occurrence": 0,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 128
+  },
+  {
+    "id": "K08",
+    "endpoint": "start",
+    "expected": 82,
+    "identity": {
+      "owner": "Two::Result",
+      "stage": [
+        "final"
+      ],
+      "module": "Two",
+      "collection_index": null,
+      "route": "carry-alias",
+      "reverse_before_rotation": false,
+      "control_note": "offset final versus selected-stage contrast through Module carry"
+    },
+    "tangent_axis_deg": 105
+  },
+  {
+    "id": "R01",
+    "endpoint": "start",
+    "expected": 59,
+    "identity": {
+      "owner": "Generated",
+      "stage": [
+        "flipped"
+      ],
+      "occurrence": 0,
+      "module": "Chosen",
+      "route": "path parameter -> loop carry -> exported out"
+    },
+    "tangent_axis_deg": 128
+  }
+]

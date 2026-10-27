@@ -1,0 +1,188 @@
+{
+  "base": "c595241dd5974aa643cae707eb7ac849beefb344",
+  "focused": [
+    {
+      "command": "ISSUE1260_EVIDENCE=/tmp/issue1260-d1/focused-verified VITEST_MAX_WORKERS=1 npx vitest run test/issue1260ControllerOwnership.test.ts test/issue1260ResidualD1Rust.integration.test.ts test/issue1194Residual9D1Rust.integration.test.ts test/issue1428TargetedStage7Rust.integration.test.ts test/issue1426MutationSensitiveRust.integration.test.ts test/issue1423EvaluatorStrategyRust.integration.test.ts test/issue1421EvaluatorStrategyRust.integration.test.ts test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/scalars/recordScalarIntegration.test.ts",
+      "result": "11 files PASS; 508 tests PASS, 21 skipped (before adding the extra unchanged historical fixed-selector control)",
+      "log": "/tmp/issue1260-d1/focused-verified.log"
+    },
+    {
+      "command": "cargo fmt --check --manifest-path rust-evaluator/Cargo.toml; cargo check --manifest-path rust-evaluator/Cargo.toml; cargo test --manifest-path rust-evaluator/Cargo.toml conditional_dependency_runtime",
+      "result": "PASS; four selected Rust unit tests, including new forwarded-controller ownership regression",
+      "log": "/tmp/issue1260-d1/rust-focused-corrected.log"
+    },
+    {
+      "command": "ISSUE1260_MODE=discover ISSUE1260_EVIDENCE=/tmp/issue1260-d1/settled-all VITEST_MAX_WORKERS=1 npx vitest run test/issue1260ControllerOwnership.test.ts test/issue1260ResidualD1Rust.integration.test.ts",
+      "result": "Intermediate observation runner exits 0; 24 PASS and eight UNRESOLVED, including an overbroad producer-edge assertion corrected later. Final settledDiscovery supersedes this run.",
+      "log": "/tmp/issue1260-d1/settled-all.log"
+    }
+  ],
+  "requiredBlockVerbatim": "(\n  set -e\n  cd /Users/yosomi/Code/nuinuiCAD\n  export VITEST_MAX_WORKERS=1\n\n  npm run build\n  npm run lint\n  npm run test:parity\n  npm test\n\n  if [[ -n \"$(git diff --name-only c595241dd5974aa643cae707eb7ac849beefb344 -- docs/)\" ]]; then\n    npm run docs:dsl:check\n  fi\n\n  if [[ -n \"$(git diff --name-only c595241dd5974aa643cae707eb7ac849beefb344 -- rust-evaluator/)\" ]]; then\n    cargo fmt --check --manifest-path rust-evaluator/Cargo.toml\n    cargo check --manifest-path rust-evaluator/Cargo.toml\n    cargo test --manifest-path rust-evaluator/Cargo.toml\n    cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings\n  fi\n\n  git diff --check\n)\n",
+  "requiredBlockInvocations": 2,
+  "firstRequiredBlock": {
+    "result": "Commands passed but eight repaired historical cases were unintentionally skipped; selection corrected before the final block",
+    "commands": {
+      "exitCode": 0,
+      "blocked": null,
+      "events": [
+        {
+          "event": "start",
+          "pid": 61256,
+          "command": "npm run build",
+          "seconds": 1.04
+        },
+        {
+          "event": "start",
+          "pid": 61338,
+          "command": "npm run typecheck:nui-language",
+          "seconds": 17.67
+        },
+        {
+          "event": "start",
+          "pid": 61377,
+          "command": "npm run build:mcp",
+          "seconds": 21.83
+        },
+        {
+          "event": "start",
+          "pid": 61426,
+          "command": "npm run lint",
+          "seconds": 27.01
+        },
+        {
+          "event": "start",
+          "pid": 61577,
+          "command": "npm run test:parity",
+          "seconds": 56.14
+        },
+        {
+          "event": "start",
+          "pid": 67257,
+          "command": "npm test",
+          "seconds": 115.54
+        }
+      ],
+      "elapsedSeconds": 719.1
+    },
+    "log": "/tmp/issue1260-d1/required-first.log",
+    "logSha256": "d2d3c9a63faaac60e2f4f7df96ee3d2fc3fe8cbf4fd60d527dc3e8f465824d96"
+  },
+  "requiredBlock": {
+    "exitCode": 0,
+    "blocked": null,
+    "events": [
+      {
+        "event": "start",
+        "pid": 77295,
+        "command": "npm run build",
+        "seconds": 1.04
+      },
+      {
+        "event": "start",
+        "pid": 77373,
+        "command": "npm run typecheck:nui-language",
+        "seconds": 17.68
+      },
+      {
+        "event": "start",
+        "pid": 77418,
+        "command": "npm run build:mcp",
+        "seconds": 21.84
+      },
+      {
+        "event": "start",
+        "pid": 77459,
+        "command": "npm run lint",
+        "seconds": 27.03
+      },
+      {
+        "event": "start",
+        "pid": 77622,
+        "command": "npm run test:parity",
+        "seconds": 56.12
+      },
+      {
+        "event": "start",
+        "pid": 83291,
+        "command": "npm test",
+        "seconds": 114.47
+      }
+    ],
+    "elapsedSeconds": 649.74,
+    "log": "/tmp/issue1260-d1/required.log",
+    "logSha256": "88be0c7079711a8c610bd3557c6144826dcd7d89bb22a30a1aef690d978b8dda",
+    "scriptSha256": "04e1ce71ed83508608a666c9899f5b6a77b6ccdaed44234faf0606dc195424ee"
+  },
+  "results": [
+    {
+      "command": "npm run build",
+      "result": "PASS"
+    },
+    {
+      "command": "npm run lint",
+      "result": "PASS"
+    },
+    {
+      "command": "npm run test:parity",
+      "result": "203 PASS"
+    },
+    {
+      "command": "npm test",
+      "result": "680 files PASS, two skipped; 10871 tests PASS, 190 skipped (11061 total)"
+    },
+    {
+      "command": "npm run docs:dsl:check",
+      "result": "NOT_APPLICABLE: exact required docs/ diff condition false"
+    },
+    {
+      "command": "cargo fmt --check --manifest-path rust-evaluator/Cargo.toml",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo check --manifest-path rust-evaluator/Cargo.toml",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo test --manifest-path rust-evaluator/Cargo.toml",
+      "result": "615 library + 6 stdio + 1 integration PASS; 9 ignored; doc tests 0"
+    },
+    {
+      "command": "cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings",
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS; repeated after evidence-only finalization"
+    }
+  ],
+  "newRunnerNormalMode": "25 PASS, seven explicitly skipped unresolved sources; no weakened historical regression.",
+  "intermediateFailures": [
+    "Expected exact-Base six FAIL-before regressions; independent adjacent Base controls PASS.",
+    "Twelve Stage 4/5 failures during source-closure implementation: forwarded activation collected downstream consumer prerequisites. Corrected identically in TS and Rust; affected suites re-passed.",
+    "Initial new Rust unit failed to compile because ScalarSpan is private; test uses the existing typed-expression payload decoder instead. Corrected focused and full Rust gates pass.",
+    "The first full block inherited eight stale historical deferred flags. Removed them, added an anti-skip assertion, and repeated the exact full block for the corrected final selection. A producer-edge test also incorrectly demanded direct n edges from root forwarders; it now checks the two genuine indexed Module producers, preserving canonical transitive forwarding.",
+    "Early discovery payload setup exceptions are retained as R2-03/R2-04 unresolved; final runner records these explicitly."
+  ],
+  "safety": "No process hang, request timeout, SIGKILL, execution denial, unsafe cleanup, security bypass or automatic resigning. Owned Rust processes closed normally and required process group has no remaining children.",
+  "manualE2E": "Not Required",
+  "issueState": "OPEN, authorization/body unchanged at pre-push refresh; no Issue write performed",
+  "focusedSelectionNote": "The first focused pass preceded removal of eight inherited defer flags. Its historical suite results remain valid; finalNewRegressionFocus and the second full block cover the repaired transfers under strict normal verification.",
+  "finalNewRegressionFocus": {
+    "command": "ISSUE1260_EVIDENCE=/tmp/issue1260-d1/focused-selection-fixed VITEST_MAX_WORKERS=1 npx vitest run test/issue1260ControllerOwnership.test.ts test/issue1260ResidualD1Rust.integration.test.ts",
+    "result": "26 PASS, seven explicitly unresolved skips",
+    "log": "/tmp/issue1260-d1/focused-selection-fixed.log"
+  },
+  "settledDiscovery": {
+    "command": "ISSUE1260_MODE=discover ISSUE1260_EVIDENCE=/tmp/issue1260-d1/settled-final VITEST_MAX_WORKERS=1 npx vitest run test/issue1260ResidualD1Rust.integration.test.ts",
+    "result": "32 compiler requests, 28 reference calls, 26 normally eligible persistent Rust requests; 25 PASS and seven UNRESOLVED",
+    "log": "/tmp/issue1260-d1/settled-final.log"
+  },
+  "exactFinalVitestSummaries": [
+    "Test Files  1 passed (1)",
+    "Tests  203 passed (203)",
+    "Duration  57.85s (transform 1.72s, setup 50ms, import 1.98s, tests 55.30s, environment 432ms)",
+    "Test Files  680 passed | 2 skipped (682)",
+    "Tests  10871 passed | 190 skipped (11061)",
+    "Duration  525.90s (transform 8.39s, setup 13.61s, import 120.27s, tests 154.25s, environment 188.89s)"
+  ]
+}

@@ -1,0 +1,334 @@
+{
+  "A01": [
+    {
+      "consumer": "Outer::P",
+      "reference": "@Kid::n",
+      "target": "Outer::Inner::n",
+      "via": "Outer::Kid"
+    }
+  ],
+  "A02": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "A04": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "A05": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "A06": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "C01": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "C02": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Default::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Default"
+    },
+    {
+      "consumer": "Parent::P",
+      "reference": "@Override::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Override"
+    }
+  ],
+  "C03": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "C04": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "C06": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "D01": [
+    {
+      "consumer": "Parent::Direct",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    },
+    {
+      "consumer": "Parent::Alias",
+      "reference": "@alias",
+      "target": "Parent::alias"
+    }
+  ],
+  "D02": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::dx",
+      "target": "Parent::Child::dx",
+      "via": "Parent::Kid"
+    },
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::dy",
+      "target": "Parent::Child::dy",
+      "via": "Parent::Kid"
+    }
+  ],
+  "D03": [
+    {
+      "consumer": "Parent::L",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "D04": [
+    {
+      "consumer": "Parent::Arc",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "D05": [
+    {
+      "consumer": "Parent::Curve",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "D06": [
+    {
+      "consumer": "Parent::L",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "R01": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "R02": [
+    {
+      "consumer": "Parent::alias",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "R05": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "X01": [
+    {
+      "consumer": "Parent::alias",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "X03": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "A03": [
+    {
+      "consumer": "Parent::alias",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "B01": [
+    {
+      "consumer": "Grand::P",
+      "reference": "@Mid::value",
+      "target": "Grand::Parent::value",
+      "via": "Grand::Mid"
+    }
+  ],
+  "B02": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Left::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Left"
+    },
+    {
+      "consumer": "Parent::P",
+      "reference": "@Right::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Right"
+    }
+  ],
+  "B03": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    }
+  ],
+  "B04": [
+    {
+      "consumer": "Left::P",
+      "reference": "@Kid::n",
+      "target": "Left::Child::n",
+      "via": "Left::Kid"
+    },
+    {
+      "consumer": "Right::P",
+      "reference": "@Kid::n",
+      "target": "Right::Child::n",
+      "via": "Right::Kid"
+    }
+  ],
+  "B05": [
+    {
+      "consumer": "Parent::P",
+      "reference": "@Seen::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Seen"
+    },
+    {
+      "consumer": "Parent::P",
+      "reference": "@Hidden::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Hidden"
+    }
+  ],
+  "B06": [
+    {
+      "consumer": "Parent::Bad",
+      "reference": "@Off::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Off"
+    },
+    {
+      "consumer": "Independent::Good",
+      "reference": "@On::n",
+      "target": "Independent::Child::n",
+      "via": "Independent::On"
+    }
+  ],
+  "C05": [
+    {
+      "consumer": "Local::P",
+      "reference": "@::Copy::n",
+      "target": "Parent::n",
+      "via": "Copy"
+    },
+    {
+      "consumer": "Local::P",
+      "reference": "@Copy::n",
+      "target": "Parent::n",
+      "via": "Local::Copy"
+    }
+  ],
+  "R03": [
+    {
+      "consumer": "G::P",
+      "reference": "@::Copy::n",
+      "target": "Child::n",
+      "via": "Copy"
+    }
+  ],
+  "R04": [
+    {
+      "consumer": "G::P",
+      "reference": "@::Copy::n",
+      "target": "Child::n",
+      "via": "Copy"
+    }
+  ],
+  "X06": [
+    {
+      "consumer": "G::P",
+      "reference": "@::Copy::n",
+      "target": "Child::n",
+      "via": "Copy"
+    }
+  ],
+  "X02": [
+    {
+      "consumer": "G::alias",
+      "reference": "@::Copy::n",
+      "target": "Child::n",
+      "via": "Copy"
+    }
+  ],
+  "X07": [
+    {
+      "consumer": "P",
+      "reference": "@::Copy::n",
+      "target": "Child::n",
+      "via": "Copy"
+    }
+  ],
+  "X08": [
+    {
+      "consumer": "Parent::alias",
+      "reference": "@Kid::n",
+      "target": "Parent::Child::n",
+      "via": "Parent::Kid"
+    },
+    {
+      "consumer": "Parent::P",
+      "reference": "@alias",
+      "target": "Parent::alias"
+    }
+  ]
+}

@@ -1,0 +1,2116 @@
+[
+  {
+    "id": "G-map-free-dynamic",
+    "domain": "scheduler-discriminator",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Pick(p: path, q: path, which: number) {\n const Values: path[] = [@p, @q]\n export const out: path = @Values[@which]\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 13
+    },
+    "historical": true
+  },
+  {
+    "id": "B-min-forward-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: @p)\n const B: R = R(p: @q)\n const Values: R[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: @item.p) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 13
+    },
+    "historical": true
+  },
+  {
+    "id": "B-min-forward-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: @p)\n const B: R = R(p: @q)\n const Values: R[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: @item.p) }\n const Chosen: R = @Mapped[1]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 13
+    },
+    "historical": true
+  },
+  {
+    "id": "A-map-free-optional-control",
+    "domain": "scheduler-discriminator",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Make(n: number, present: boolean) {\n const Values: number[] = [@n]\n const Fallback: number[] = [@n + 100]\n const Maybe: number[]? = if (@present) { @Values }\n const Source: number[] = match @Maybe { none => @Fallback some held => @held }\n const Alias: number[] = @Source\n export const out: path = segment(start: (0, 0), end: (@Alias[0], 0))\n}\ninstance One = Make(n: 19, present: true)\ninstance Two = Make(n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length",
+    "expected": {
+      "L": 19,
+      "M": 143
+    },
+    "historical": true
+  },
+  {
+    "id": "A-min-optional-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: @p)\n const B: R = R(p: @q)\n const Values: R[] = [@A]\n const Fallback: R[] = [@B]\n const Maybe: R[]? = if (@present) { @Values }\n const Source: R[] = match @Maybe { none => @Fallback some held => @held }\n const Mapped: R[] = for item in @Source { R(p: @item.p) }\n const Chosen: R = @Mapped[0]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, present: true)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    },
+    "historical": true
+  },
+  {
+    "id": "A-optional-source-constructor",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: @n)\n const B: Seed = Seed(n: @n + 100)\n const Values: Seed[] = [@A]\n const Fallback: Seed[] = [@B]\n const Maybe: Seed[]? = if (@present) { @Values }\n const Source: Seed[] = match @Maybe { none => @Fallback some held => @held }\n const Alias: Seed[] = @Source\n const Mapped: Shape[] = for item in @Alias { Shape(p: segment(start: (0, 0), end: (@item.n, 0)), n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 19,
+      "M": 143,
+      "X": 19,
+      "Y": 143,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "historical": true
+  },
+  {
+    "id": "B-map-free-scalar-source",
+    "domain": "scheduler-discriminator",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Make(n: number) {\n const Values: number[] = [@n + 10]\n export const out: path = segment(start: (@Values[0], 0), end: (@Values[0] + 3, 4))\n}\ninstance One = Make(n: 19)\ninstance Two = Make(n: 43)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 32,
+      "Y": 56
+    },
+    "historical": true
+  },
+  {
+    "id": "G-map-free-construct",
+    "domain": "scheduler-discriminator",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Pick(which: number) {\n const Values: number[] = [3, 5]\n export const out: path = segment(start: (0, 0), end: (@Values[1], 0))\n}\ninstance One = Pick(which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    },
+    "historical": true
+  },
+  {
+    "id": "B-min-construct-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.n, 0))) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    },
+    "historical": true
+  },
+  {
+    "id": "B-min-construct-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.n, 0))) }\n const Chosen: R = @Mapped[1]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    },
+    "historical": true
+  },
+  {
+    "id": "C-lazy-index",
+    "domain": "C",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Make(n: number, k: number) {\n const Values: number[] = [1 / 0, @n]\n export const Out: path = segment(start: (0, 0), end: (@Values[@k], 0))\n}\ninstance One = Make(n: 17, k: 1)\ninstance Two = Make(n: 31, k: 1)\nconst L: number = @One::Out.length\nconst M: number = @Two::Out.length\n",
+    "expected": {
+      "L": 17,
+      "M": 31
+    },
+    "geometry": [],
+    "errors": [],
+    "claims": "C-lazy-index follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "C-lazy-map",
+    "domain": "C",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Make(n: number) {\n const Values: number[] = [0, @n]\n const Mapped: number[] = for item in @Values { if (@item > 0) { @item + 2 } else { 1 / 0 } }\n export const Out: path = segment(start: (0, 0), end: (@Mapped[1], 0))\n export const Size: number = @Mapped.length\n}\ninstance One = Make(n: 17)\ninstance Two = Make(n: 31)\nconst L: number = @One::Out.length\nconst M: number = @Two::Out.length\nconst C: number = @One::Size\n",
+    "expected": {
+      "L": 19,
+      "M": 33,
+      "C": 2
+    },
+    "geometry": [],
+    "errors": [],
+    "claims": "C-lazy-map follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R1-01",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Ticks: number[] = [1, 2]\nconst Once: number[] = [9]\nfor Tick in @Ticks carry Left: number[] = [2, 7] carry Right: number[] = [11, 13, 17] {\n for InnerTick in @Once carry A: number[] = @Left carry B: number[] = @Right {\n  const Shifted: number[] = for Item in @A { @Item + @Tick }\n  next A = @B\n  next B = @Shifted\n }\n next Left = @A\n next Right = @B\n}\nconst L0: number = @Left[0]\nconst L1: number = @Left[1]\nconst R0: number = @Right[0]\nconst R2: number = @Right[2]\nconst LL: number = @Left.length\nconst RL: number = @Right.length\n",
+    "expected": {
+      "L0": 3,
+      "L1": 8,
+      "R0": 13,
+      "R2": 19,
+      "LL": 2,
+      "RL": 3
+    },
+    "geometry": [],
+    "errors": [],
+    "claims": "R1-01 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R1-02",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Ticks: number[] = [2, 4]\nconst Once: number[] = [3]\nconst Empty: number[] = []\nfor Tick in @Ticks carry Outer: number[] = [1, 6] {\n for Mid in @Once carry Middle: number[] = @Outer {\n  for Never in @Empty carry Inner: number[] = @Middle {\n const ReplacementInner: number[] = [99, 101, 103]\n next Inner = @ReplacementInner\n}\n  const ReplacementMiddle: number[] = [@Inner[0] + @Tick, @Inner[1] + @Mid]\n next Middle = @ReplacementMiddle\n }\n next Outer = @Middle\n}\nconst X: number = @Outer[0]\nconst Y: number = @Outer[1]\nconst N: number = @Outer.length\n",
+    "expected": {
+      "X": 7,
+      "Y": 12,
+      "N": 2
+    },
+    "geometry": [],
+    "errors": [],
+    "claims": "R1-02 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R1-03",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Exchange(n: number, choose: boolean) {\n const Poison: point = coordinate(x: 1 / 0, y: 0)\n const P0: point = coordinate(x: @n, y: 1)\n const P1: point = coordinate(x: @n + 10, y: 2)\n const P2: point = coordinate(x: @n + 30, y: 3)\n const P3: point = coordinate(x: @n + 40, y: 4)\n const AA: point[] = [@P0, @Poison]\n const BB: point[] = [@P1]\n const CC: point[] = [@P2, @P3]\n const Ticks: number[] = [7]\n for Tick in @Ticks carry A: point[] = @AA carry B: point[] = @BB carry C: point[] = @CC {\n next A = @B\n next B = @C\n next C = @A\n }\n export point OutA = from(source: @A[0])\n export point OutB = from(source: @B[1])\n export point OutC = from(source: @C[0])\n export const Size: number = @C.length\n}\ninstance One = Exchange(n: 7, choose: true)\ninstance Two = Exchange(n: 41, choose: true)\nconst N: number = @One::Size\nconst M: number = @Two::Size\n",
+    "expected": {
+      "N": 2,
+      "M": 2
+    },
+    "geometry": [
+      {
+        "owner": "One::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 2
+        }
+      },
+      {
+        "owner": "One::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 47,
+          "y": 4
+        }
+      },
+      {
+        "owner": "One::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 7,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Two::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 51,
+          "y": 2
+        }
+      },
+      {
+        "owner": "Two::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 81,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Two::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 41,
+          "y": 1
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R1-03 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R1-04",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Exchange(n: number, choose: boolean) {\n const Poison: point = coordinate(x: 1 / 0, y: 0)\n const P0: point = coordinate(x: @n, y: 1)\n const P1: point = coordinate(x: @n + 10, y: 2)\n const P2: point = coordinate(x: @n + 30, y: 3)\n const P3: point = coordinate(x: @n + 40, y: 4)\n const AA: point[] = [@P0, @Poison]\n const BB: point[] = [@P1]\n const CC: point[] = [@P2, @P3]\n const Ticks: number[] = [7]\n for Tick in @Ticks carry A: point[] = @AA carry B: point[] = @BB carry C: point[] = @CC {\n const Selected: point[] = if (@choose) { @B } else { [@Poison] }\n next A = @Selected\n next B = @C\n next C = @A\n }\n export point OutA = from(source: @A[0])\n export point OutB = from(source: @B[1])\n export point OutC = from(source: @C[0])\n export const Size: number = @C.length\n}\ninstance One = Exchange(n: 7, choose: true)\ninstance Two = Exchange(n: 41, choose: true)\nconst N: number = @One::Size\nconst M: number = @Two::Size\n",
+    "expected": {
+      "N": 2,
+      "M": 2
+    },
+    "geometry": [
+      {
+        "owner": "One::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 2
+        }
+      },
+      {
+        "owner": "One::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 47,
+          "y": 4
+        }
+      },
+      {
+        "owner": "One::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 7,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Two::OutA",
+        "shape": {
+          "kind": "point",
+          "x": 51,
+          "y": 2
+        }
+      },
+      {
+        "owner": "Two::OutB",
+        "shape": {
+          "kind": "point",
+          "x": 81,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Two::OutC",
+        "shape": {
+          "kind": "point",
+          "x": 41,
+          "y": 1
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R1-04 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R2-01",
+    "domain": "R2",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Seed: line = segment(start: (0, 0), end: (3, 4))\nfor Tick in range(min: 0, max: 1, step: 1) carry Edge: line = @Seed carry End: point = @Seed.end {\n line Moving = segment(start: (1, 0), end: (10 + @Tick, 2 + @Tick))\n next Edge = @Moving\n next End = @Edge.end\n}\npoint Observed = from(source: @End)\nline Final = from(source: @Edge)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Moving",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 10,
+              "y": 2
+            }
+          ],
+          "length": 9.219544457292887
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Moving",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 11,
+              "y": 3
+            }
+          ],
+          "length": 10.44030650891055
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 10,
+          "y": 2
+        }
+      },
+      {
+        "owner": "Final",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 1,
+              "y": 0
+            },
+            {
+              "x": 11,
+              "y": 3
+            }
+          ],
+          "length": 10.44030650891055
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R2-01 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R2-02",
+    "domain": "R2",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nline Seed = polyline(points: [(0, 0), (3, 0), (3, 4)], closed: false)\nmove Seed as shifted (from: (0, 0), to: (5, 7))\nmove Seed as later (from: (0, 0), to: (100, 200))\nconst Start: path[] = [@Seed.shifted]\nfor Tick in range(min: 0, max: 1, step: 1) carry Paths: path[] = @Start carry End: point = @Seed.base.end {\n const Selected: path = @Paths[0]\n point Incoming = from(source: @Selected.end)\n next End = @Selected.end\n next Paths = [@Seed.base]\n}\npoint Observed = from(source: @End)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 105,
+              "y": 207
+            },
+            {
+              "x": 108,
+              "y": 207
+            },
+            {
+              "x": 108,
+              "y": 211
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "Incoming",
+        "shape": {
+          "kind": "point",
+          "x": 8,
+          "y": 11
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Incoming",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R2-02 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R2-03",
+    "domain": "R2",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Change(n: number) {\n const Straight: line = segment(start: (@n, 0), end: (@n + 3, 4))\n const Bent: path = polyline(points: [(@n + 10, 0), (@n + 13, 0), (@n + 13, 12)], closed: false)\n const Origin: point = coordinate(x: @n, y: 1)\n const Ticks: number[] = [1]\n for Tick in @Ticks carry Edge: line = @Straight carry Route: path = @Bent carry End: point = @Origin {\n  line Rebuilt = segment(start: @Edge.end, end: @Route.end)\n  next End = @Route.end\n  next Edge = @Rebuilt\n  next Route = @Edge\n }\n export point Observed = from(source: @End)\n export line Result = from(source: @Edge)\n export const Size: number = @Route.length\n}\ninstance One = Change(n: 7)\ninstance Two = Change(n: 31)\nconst X: number = @One::Size\nconst Y: number = @Two::Size\n",
+    "expected": {
+      "X": 5,
+      "Y": 5
+    },
+    "geometry": [
+      {
+        "owner": "One::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 20,
+          "y": 12
+        }
+      },
+      {
+        "owner": "One::Result",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 10,
+              "y": 4
+            },
+            {
+              "x": 20,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      },
+      {
+        "owner": "Two::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 44,
+          "y": 12
+        }
+      },
+      {
+        "owner": "Two::Result",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 34,
+              "y": 4
+            },
+            {
+              "x": 44,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      },
+      {
+        "owner": "One::Rebuilt",
+        "at": [
+          0
+        ],
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 10,
+              "y": 4
+            },
+            {
+              "x": 20,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      },
+      {
+        "owner": "Two::Rebuilt",
+        "at": [
+          0
+        ],
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 34,
+              "y": 4
+            },
+            {
+              "x": 44,
+              "y": 12
+            }
+          ],
+          "length": 12.806248474865697
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R2-03 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R2-04",
+    "domain": "R2",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(@n, 0), (@n + 3, 0), (@n + 3, 4)], closed: false)\n move Seed as shifted (from: (0, 0), to: (5, 7))\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (@select) { [@Seed.shifted] } else { [@Bad] }\n for Tick in range(min: 0, max: 0, step: 1) carry End: point = @Origin carry Held: path[] = @Paths {\n  const Selected: path = @Held[0]\n  next End = @Selected.end\n  next Held = @Paths\n }\n export point Observed = from(source: @End)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "One::Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 16,
+              "y": 7
+            },
+            {
+              "x": 19,
+              "y": 7
+            },
+            {
+              "x": 19,
+              "y": 11
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "One::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 19,
+          "y": 11
+        }
+      },
+      {
+        "owner": "Two::Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 42,
+              "y": 7
+            },
+            {
+              "x": 45,
+              "y": 7
+            },
+            {
+              "x": 45,
+              "y": 11
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "Two::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 45,
+          "y": 11
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R2-04 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R3-01",
+    "domain": "R3",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Values: number[] = [1 / 0, 29]\ngroup Sleeping(enabled: false) {\n group Child(enabled: true) {\n point Hidden = coordinate(x: @Values[0], y: 1)\n}\n}\npoint Survivor = coordinate(x: @Values[1], y: 7)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 29,
+          "y": 7
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R3-01 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R3-02",
+    "domain": "R3",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Values: number[] = [17, 31]\nconst Maybe: number[]? = if (true) { @Values }\nconst Selected: number[] = match @Maybe { none => [1 / 0] some held => @held }\ngroup Outer(visible: false) {\n group Live(enabled: true) {\n point HiddenButEvaluated = coordinate(x: @Selected[1], y: 9)\n}\n group Sleeping(enabled: false) {\n point Dormant = coordinate(x: @Selected[2], y: 0)\n}\n}\npoint Survivor = coordinate(x: 5, y: 6)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "HiddenButEvaluated",
+        "shape": {
+          "kind": "point",
+          "x": 31,
+          "y": 9
+        }
+      },
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 5,
+          "y": 6
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R3-02 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R3-03",
+    "domain": "R3",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number) {\n export point P = coordinate(x: @n, y: 3)\n export line L = segment(start: (@n, 0), end: (@n + 3, 4))\n}\ngroup Sleeping(enabled: false) {\n instance Dormant = Box(n: 1 / 0)\n}\ninstance Live(visible: false) = Box(n: 43)\npoint UseP = from(source: @Live::P)\nline UseL = from(source: @Live::L)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Live::P",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 3
+        }
+      },
+      {
+        "owner": "Live::L",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 43,
+              "y": 0
+            },
+            {
+              "x": 46,
+              "y": 4
+            }
+          ],
+          "length": 5.0
+        }
+      },
+      {
+        "owner": "UseP",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 3
+        }
+      },
+      {
+        "owner": "UseL",
+        "shape": {
+          "kind": "line",
+          "vertices": [
+            {
+              "x": 43,
+              "y": 0
+            },
+            {
+              "x": 46,
+              "y": 4
+            }
+          ],
+          "length": 5.0
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R3-03 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R3-04",
+    "domain": "R3",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number) {\n const Values: number[] = [1 / 0, @n]\n group Sleeping(enabled: false) {\n point Dormant = coordinate(x: @Values[0], y: 0)\n}\n group Enabled(enabled: true) {\n point Mark = coordinate(x: @Values[1], y: 3)\n}\n}\ninstance Live = Box(n: 47)\npoint IndependentFault = coordinate(x: 1 / 0, y: 7)\npoint Survivor = coordinate(x: 11, y: 13)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Live::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 47,
+          "y": 3
+        }
+      },
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 11,
+          "y": 13
+        }
+      }
+    ],
+    "errors": [
+      "IndependentFault"
+    ],
+    "claims": "R3-04 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts"
+  },
+  {
+    "id": "R8-01",
+    "domain": "R8",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Zero: number = 0\nconst Chosen: number = if (true) { 5 / @Zero } else { 17 }\npoint Dependent = coordinate(x: @Chosen, y: 3)\nconst Independent: number = 7 / @Zero\npoint Survivor = coordinate(x: 23, y: 29)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 23,
+          "y": 29
+        }
+      }
+    ],
+    "errors": [
+      "Dependent"
+    ],
+    "claims": "R8-01 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts",
+    "expectedIssues": {
+      "Chosen": "evaluation-divide-by-zero",
+      "Independent": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "R8-02",
+    "domain": "R8",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Zero: number = 0\nconst Chosen: number = if (false) { 5 / @Zero } else { 17 }\npoint Observed = coordinate(x: @Chosen, y: 3)\nconst Independent: number = 7 / @Zero\n",
+    "expected": {
+      "Chosen": 17
+    },
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 3
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R8-02 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts",
+    "expectedIssues": {
+      "Independent": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "R8-03",
+    "domain": "R8",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\ngroup Sleeping(enabled: false) {\n group Child(enabled: true) {\n point Dormant = coordinate(x: 1 / 0, y: 0)\n}\n}\npoint IndependentFault = coordinate(x: 1 / 0, y: 3)\nconst Independent: number = 11 / 0\npoint Survivor = coordinate(x: 31, y: 37)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Survivor",
+        "shape": {
+          "kind": "point",
+          "x": 31,
+          "y": 37
+        }
+      }
+    ],
+    "errors": [
+      "IndependentFault"
+    ],
+    "claims": "R8-03 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts",
+    "expectedIssues": {
+      "Independent": "evaluation-divide-by-zero"
+    }
+  },
+  {
+    "id": "R8-04",
+    "domain": "R8",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: @n, y: 1)\n if (@fail) {\n point Fault = coordinate(x: 1 / 0, y: 2)\n}\n export point Mark = coordinate(x: @n + 3, y: 4)\n}\ninstance Failed = Box(n: 17, fail: true)\ninstance Healthy = Box(n: 43, fail: false)\npoint Use = from(source: @Healthy::Mark)\nconst Independent: number = 11 / 0\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy::Prefix",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Healthy::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 46,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Use",
+        "shape": {
+          "kind": "point",
+          "x": 46,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [
+      "Failed::Fault"
+    ],
+    "claims": "R8-04 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "Stage 7 H1-03/H2-07 or Stage 4/5 attributed diagnostic contrasts",
+    "expectedIssues": {
+      "Independent": "evaluation-divide-by-zero"
+    },
+    "instances": [
+      "Healthy"
+    ]
+  },
+  {
+    "id": "C-carry-if",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst P: point = coordinate(x: 3, y: 4)\nconst Seeds: point[] = [@P]\nfor Tick in range(min: 0, max: 0, step: 1) carry Points: point[] = @Seeds {\n const Selected: point[] = if (true) { @Points } else { [(1 / 0, 0)] }\n next Points = @Selected\n}\npoint Observed = from(source: @Points[0])\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "The selected whole carry is the immutable incoming point[] value; the unselected invalid coordinate stays lazy.",
+    "control": "C-carry-if-control"
+  },
+  {
+    "id": "C-carry-if-control",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst P: point = coordinate(x: 3, y: 4)\nconst Seeds: point[] = [@P]\nfor Tick in range(min: 0, max: 0, step: 1) carry Points: point[] = @Seeds {\n next Points = @Points\n}\npoint Observed = from(source: @Points[0])\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "The selected whole carry is the immutable incoming point[] value; the unselected invalid coordinate stays lazy.",
+    "control": "C-carry-if-control"
+  },
+  {
+    "id": "C-coordinate",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Points: point[] = [(3, 4)]\npoint Observed = from(source: @Points[0])\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Coordinate collection members are immutable points; from materializes the selected point.",
+    "control": "C-coordinate-control"
+  },
+  {
+    "id": "C-coordinate-control",
+    "domain": "R1",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst P: point = coordinate(x: 3, y: 4)\nconst Points: point[] = [@P]\npoint Observed = from(source: @Points[0])\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Observed",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Same point observed through a named geometry value.",
+    "control": "C-coordinate-control"
+  },
+  {
+    "id": "R4-01",
+    "domain": "R4",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Seed: number[] = [2, 5]\nfor Tick in range(min: 0, max: 1, step: 1) carry Values: number[] = @Seed carry Sum: number = 0 {\n const Mapped: number[] = for Item in @Values { if (@Item > 0) { @Item + @Tick + 1 } else { 1 / 0 } }\n point Incoming = coordinate(x: @Values[0], y: @Sum)\n next Values = @Mapped\n next Sum = @Sum + @Values[1]\n}\nconst First: number = @Values[0]\nconst Second: number = @Values[1]\nconst Total: number = @Sum\n",
+    "expected": {
+      "First": 5,
+      "Second": 8,
+      "Total": 11
+    },
+    "geometry": [
+      {
+        "owner": "Incoming",
+        "shape": {
+          "kind": "point",
+          "x": 2,
+          "y": 0
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Incoming",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 5
+        },
+        "at": [
+          1
+        ]
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+  },
+  {
+    "id": "R4-02",
+    "domain": "R4",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Mode: choice(good, bad) = good\nfor Outer in range(min: 1, max: 2, step: 1) carry Total: number = 0 {\n for Inner in range(min: 3, max: 4, step: 1) carry Subtotal: number = @Total {\n  next Subtotal = match @Mode { good => @Subtotal + @Outer * @Inner bad => 1 / 0 }\n }\n next Total = @Subtotal\n}\nconst Final: number = @Total\npoint Result = coordinate(x: @Final, y: 2)\n",
+    "expected": {
+      "Final": 21
+    },
+    "geometry": [
+      {
+        "owner": "Result",
+        "shape": {
+          "kind": "point",
+          "x": 21,
+          "y": 2
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+  },
+  {
+    "id": "R4-03",
+    "domain": "R4",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Nest(n: number) {\n for Outer in range(min: 1, max: 2, step: 1) carry Values: number[] = [@n, @n + 2] {\n  for Inner in range(min: 1, max: 2, step: 1) carry Working: number[] = @Values {\n   const Mapped: number[] = for Item in @Working { @Item + @Outer + @Inner }\n   next Working = @Mapped\n  }\n  next Values = @Working\n }\n export point Result = coordinate(x: @Values[0], y: @Values[1])\n export const First: number = @Values[0]\n}\ninstance One = Nest(n: 3)\ninstance Two = Nest(n: 19)\nconst X: number = @One::First\nconst Y: number = @Two::First\n",
+    "expected": {
+      "X": 15,
+      "Y": 31
+    },
+    "geometry": [
+      {
+        "owner": "One::Result",
+        "shape": {
+          "kind": "point",
+          "x": 15,
+          "y": 17
+        }
+      },
+      {
+        "owner": "Two::Result",
+        "shape": {
+          "kind": "point",
+          "x": 31,
+          "y": 33
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+  },
+  {
+    "id": "R4-04",
+    "domain": "R4",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Pick(n: number, select: boolean, mode: choice(left, right)) {\n if (@select) {\n  const N: number = match @mode { left => @n + 3 right => 1 / 0 }\n  point Mark = coordinate(x: @N, y: 5)\n }\n for Tick in range(min: 1, max: 2, step: 1) {\n  point Made = coordinate(x: @n + @Tick, y: 9)\n }\n export point Result = coordinate(x: @n, y: 1)\n}\ninstance One = Pick(n: 7, select: true, mode: left)\ninstance Two = Pick(n: 29, select: false, mode: right)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "One::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 10,
+          "y": 5
+        }
+      },
+      {
+        "owner": "One::Made",
+        "shape": {
+          "kind": "point",
+          "x": 8,
+          "y": 9
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "One::Made",
+        "shape": {
+          "kind": "point",
+          "x": 9,
+          "y": 9
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "One::Result",
+        "shape": {
+          "kind": "point",
+          "x": 7,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Two::Made",
+        "shape": {
+          "kind": "point",
+          "x": 30,
+          "y": 9
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Two::Made",
+        "shape": {
+          "kind": "point",
+          "x": 31,
+          "y": 9
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "Two::Result",
+        "shape": {
+          "kind": "point",
+          "x": 29,
+          "y": 1
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+  },
+  {
+    "id": "R6-01",
+    "domain": "R6",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Inner(n: number) {\n export point Mark = coordinate(x: @n, y: 4)\n}\nmodule Outer(n: number) {\n instance Child = Inner(n: @n)\n export point Mark = from(source: @Child::Mark)\n}\npoint Before = coordinate(x: 2, y: 3)\ninstance One = Outer(n: 17)\npoint Use = from(source: @One::Mark)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Before",
+        "shape": {
+          "kind": "point",
+          "x": 2,
+          "y": 3
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation. Limit includes outer/inner Module headers but precedes the nested geometry export.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "limitThrough": "Child",
+    "instances": []
+  },
+  {
+    "id": "R6-02",
+    "domain": "R6",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Pair(n: number) {\n export point Mark = coordinate(x: @n, y: 4)\n}\ninstance One = Pair(n: 11)\npoint UseOne = from(source: @One::Mark)\ninstance Two = Pair(n: 37)\npoint UseTwo = from(source: @Two::Mark)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "One::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 11,
+          "y": 4
+        }
+      },
+      {
+        "owner": "UseOne",
+        "shape": {
+          "kind": "point",
+          "x": 11,
+          "y": 4
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "limitThrough": "UseOne",
+    "instances": [
+      "One"
+    ]
+  },
+  {
+    "id": "R6-03",
+    "domain": "R6",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: @n, y: 1)\n if (@fail) {\n point Fault = coordinate(x: 1 / 0, y: 2)\n }\n export point Mark = coordinate(x: @n + 3, y: 4)\n}\ninstance Healthy = Box(n: 43, fail: false)\npoint Independent = coordinate(x: 71, y: 5)\ninstance Failed = Box(n: 17, fail: true)\npoint UseFailed = from(source: @Failed::Mark)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy::Prefix",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Healthy::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 46,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Independent",
+        "shape": {
+          "kind": "point",
+          "x": 71,
+          "y": 5
+        }
+      }
+    ],
+    "errors": [
+      "Failed::Fault"
+    ],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation. Limit inside the failed instance includes Fault but excludes its final Mark; its successful Prefix must not leak.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "limitThrough": "Failed::Fault",
+    "instances": [
+      "Healthy"
+    ]
+  },
+  {
+    "id": "R6-04",
+    "domain": "R6",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Nest(n: number) {\n for Outer in range(min: 1, max: 2, step: 1) {\n  for Inner in range(min: 1, max: 2, step: 1) {\n   const N: number = if (@Inner > 0) { @n + @Outer * 10 + @Inner } else { 1 / 0 }\n   point Mark = coordinate(x: @N, y: 6)\n  }\n }\n export point End = coordinate(x: @n, y: 7)\n}\ninstance One = Nest(n: 3)\npoint Use = from(source: @One::End)\ninstance Two = Nest(n: 41)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "One::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 14,
+          "y": 6
+        },
+        "at": [
+          0,
+          0
+        ]
+      },
+      {
+        "owner": "One::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 15,
+          "y": 6
+        },
+        "at": [
+          0,
+          1
+        ]
+      },
+      {
+        "owner": "One::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 24,
+          "y": 6
+        },
+        "at": [
+          1,
+          0
+        ]
+      },
+      {
+        "owner": "One::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 25,
+          "y": 6
+        },
+        "at": [
+          1,
+          1
+        ]
+      },
+      {
+        "owner": "One::End",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 7
+        }
+      },
+      {
+        "owner": "Use",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 7
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "limitThrough": "Use",
+    "instances": [
+      "One"
+    ]
+  },
+  {
+    "id": "R7-01",
+    "domain": "R7",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst First: number = if (true) { 7 / 0 } else { 2 }\nconst Second: number = if (false) { 3 } else { sqrt(-1) }\npoint Healthy = coordinate(x: 2, y: 8)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 2,
+          "y": 8
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "expectedIssues": {
+      "First": "evaluation-divide-by-zero",
+      "Second": "evaluation-sqrt-negative-input"
+    }
+  },
+  {
+    "id": "R7-02",
+    "domain": "R7",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\npoint Padding = coordinate(x: 41, y: 3)\nconst PaddingValue: number = 83\npoint Fault = coordinate(x: 1 / 0, y: 5)\nconst Bad: number = sqrt(-1)\npoint Healthy = coordinate(x: @PaddingValue, y: 9)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Padding",
+        "shape": {
+          "kind": "point",
+          "x": 41,
+          "y": 3
+        }
+      },
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 83,
+          "y": 9
+        }
+      }
+    ],
+    "errors": [
+      "Fault"
+    ],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "expectedIssues": {
+      "Bad": "evaluation-sqrt-negative-input"
+    }
+  },
+  {
+    "id": "R7-03",
+    "domain": "R7",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: @n, y: 1)\n if (@fail) {\n point Fault = coordinate(x: 1 / 0, y: @n)\n }\n export point Mark = coordinate(x: @n + 3, y: 4)\n}\ninstance One = Box(n: 13, fail: true)\ninstance Two = Box(n: 43, fail: true)\npoint Healthy = coordinate(x: 97, y: 3)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 97,
+          "y": 3
+        }
+      }
+    ],
+    "errors": [
+      "One::Fault",
+      "Two::Fault"
+    ],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "instances": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "R7-04",
+    "domain": "R7",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Denominator: number = 0\nconst Numerator: number = 11\nconst Alpha: number = @Numerator / @Denominator\nconst Negative: number = -4\nconst Beta: number = sqrt(@Negative)\npoint Healthy = coordinate(x: 17, y: 5)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 5
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "expectedIssues": {
+      "Alpha": "evaluation-divide-by-zero",
+      "Beta": "evaluation-sqrt-negative-input"
+    }
+  },
+  {
+    "id": "R5-01",
+    "domain": "R5",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nfor Tick in range(min: 0, max: 1, step: 0.25) {\n point Mark = coordinate(x: @Tick, y: 3)\n}\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0,
+          "y": 3
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0.25,
+          "y": 3
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0.5,
+          "y": 3
+        },
+        "at": [
+          2
+        ]
+      },
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0.75,
+          "y": 3
+        },
+        "at": [
+          3
+        ]
+      },
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 1,
+          "y": 3
+        },
+        "at": [
+          4
+        ]
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+  },
+  {
+    "id": "R5-02",
+    "domain": "R5",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nfor Tick in range(min: 0, max: 1, step: 0.3) {\n point Mark = coordinate(x: @Tick, y: 3)\n}\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0,
+          "y": 3
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0.3,
+          "y": 3
+        },
+        "at": [
+          1
+        ]
+      },
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0.6,
+          "y": 3
+        },
+        "at": [
+          2
+        ]
+      },
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 0.8999999999999999,
+          "y": 3
+        },
+        "at": [
+          3
+        ]
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+  },
+  {
+    "id": "R5-03",
+    "domain": "R5",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nfor Tick in range(min: 2, max: 2, step: 99) {\n point Mark = coordinate(x: @Tick, y: 3)\n}\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Mark",
+        "shape": {
+          "kind": "point",
+          "x": 2,
+          "y": 3
+        },
+        "at": [
+          0
+        ]
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+  },
+  {
+    "id": "R5-04",
+    "domain": "R5",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nfor Tick in range(min: 0, max: 1000, step: 1) {\n point Mark = coordinate(x: @Tick, y: 4)\n}\npoint Healthy = coordinate(x: 7, y: 2)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 7,
+          "y": 2
+        }
+      }
+    ],
+    "errors": [
+      ""
+    ],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+    "rangeLimitError": true
+  },
+  {
+    "id": "C-R7-01",
+    "domain": "R7",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Second: number = if (false) { 3 } else { sqrt(-1) }\nconst First: number = if (true) { 7 / 0 } else { 2 }\npoint Healthy = coordinate(x: 2, y: 8)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 2,
+          "y": 8
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R7-01",
+    "expectedIssues": {
+      "First": "evaluation-divide-by-zero",
+      "Second": "evaluation-sqrt-negative-input"
+    }
+  },
+  {
+    "id": "C-R7-03",
+    "domain": "R7",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: @n, y: 1)\n if (@fail) {\n point Fault = coordinate(x: 1 / 0, y: @n)\n }\n export point Mark = coordinate(x: @n + 3, y: 4)\n}\ninstance Two = Box(n: 43, fail: true)\ninstance One = Box(n: 13, fail: true)\npoint Healthy = coordinate(x: 97, y: 3)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 97,
+          "y": 3
+        }
+      }
+    ],
+    "errors": [
+      "One::Fault",
+      "Two::Fault"
+    ],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R7-03",
+    "instances": [],
+    "expectedIssues": {}
+  },
+  {
+    "id": "C-R7-04",
+    "domain": "R7",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nconst Negative: number = -4\nconst RenamedB: number = sqrt(@Negative)\nconst Numerator: number = 11\nconst Denominator: number = 0\nconst RenamedA: number = @Numerator / @Denominator\npoint Healthy = coordinate(x: 17, y: 5)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy",
+        "shape": {
+          "kind": "point",
+          "x": 17,
+          "y": 5
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R7-04",
+    "expectedIssues": {
+      "RenamedA": "evaluation-divide-by-zero",
+      "RenamedB": "evaluation-sqrt-negative-input"
+    }
+  },
+  {
+    "id": "C-R2-selected",
+    "domain": "R2",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Staged(n: number, select: boolean) {\n line Seed = polyline(points: [(@n, 0), (@n + 3, 0), (@n + 3, 4)], closed: false)\n move Seed as shifted (from: (0, 0), to: (5, 7))\n const Bad: path = segment(start: (0, 0), end: (1 / 0, 0))\n const Origin: point = coordinate(x: 0, y: 0)\n const Paths: path[] = if (@select) { [@Seed.shifted] } else { [@Bad] }\n const Selected: path = @Paths[0]\n export point Observed = from(source: @Selected.end)\n}\ninstance One = Staged(n: 11, select: true)\ninstance Two = Staged(n: 37, select: true)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "One::Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 16,
+              "y": 7
+            },
+            {
+              "x": 19,
+              "y": 7
+            },
+            {
+              "x": 19,
+              "y": 11
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "One::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 19,
+          "y": 11
+        }
+      },
+      {
+        "owner": "Two::Seed",
+        "shape": {
+          "kind": "polyline",
+          "vertices": [
+            {
+              "x": 42,
+              "y": 7
+            },
+            {
+              "x": 45,
+              "y": 7
+            },
+            {
+              "x": 45,
+              "y": 11
+            }
+          ],
+          "length": 7.0
+        }
+      },
+      {
+        "owner": "Two::Observed",
+        "shape": {
+          "kind": "point",
+          "x": 45,
+          "y": 11
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "R2-04 follows immutable incoming snapshots, exact selected members and owner isolation from docs/nui1/spec.md",
+    "control": "R2-04 without statement-for carry"
+  },
+  {
+    "id": "C-R4-arithmetic",
+    "domain": "R4",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nfor Outer in range(min: 1, max: 2, step: 1) carry Total: number = 0 {\n for Inner in range(min: 3, max: 4, step: 1) carry Subtotal: number = @Total {\n  next Subtotal = @Subtotal + @Outer * @Inner\n }\n next Total = @Subtotal\n}\nconst Final: number = @Total\npoint Result = coordinate(x: @Final, y: 2)\n",
+    "expected": {
+      "Final": 21
+    },
+    "geometry": [
+      {
+        "owner": "Result",
+        "shape": {
+          "kind": "point",
+          "x": 21,
+          "y": 2
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R4-02 without an independent choice controller"
+  },
+  {
+    "id": "C-R4-literal",
+    "domain": "R4",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Nest(n: number) {\n for Outer in range(min: 1, max: 2, step: 1) carry Values: number[] = [3, 5] {\n  for Inner in range(min: 1, max: 2, step: 1) carry Working: number[] = @Values {\n   const Mapped: number[] = for Item in @Working { @Item + @Outer + @Inner }\n   next Working = @Mapped\n  }\n  next Values = @Working\n }\n export point Result = coordinate(x: @Values[0], y: @Values[1])\n export const First: number = @Values[0]\n}\ninstance One = Nest(n: 3)\ninstance Two = Nest(n: 19)\nconst X: number = @One::First\nconst Y: number = @Two::First\n",
+    "expected": {
+      "X": 15,
+      "Y": 15
+    },
+    "geometry": [
+      {
+        "owner": "One::Result",
+        "shape": {
+          "kind": "point",
+          "x": 15,
+          "y": 17
+        }
+      },
+      {
+        "owner": "Two::Result",
+        "shape": {
+          "kind": "point",
+          "x": 15,
+          "y": 17
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R4-03 with literal initializer in both instances"
+  },
+  {
+    "id": "D-R4-literal",
+    "domain": "R4",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Pair(n: number) {\n for Tick in range(min: 0, max: 0, step: 1) carry Values: number[] = [@n, @n + 2] {\n  next Values = @Values\n }\n export point Result = coordinate(x: @Values[0], y: @Values[1])\n}\ninstance One = Pair(n: 3)\ninstance Two = Pair(n: 19)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "One::Result",
+        "shape": {
+          "kind": "point",
+          "x": 3,
+          "y": 5
+        }
+      },
+      {
+        "owner": "Two::Result",
+        "shape": {
+          "kind": "point",
+          "x": 19,
+          "y": 21
+        }
+      }
+    ],
+    "errors": [],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "C-R4-literal"
+  },
+  {
+    "id": "C-R6-complete-failed",
+    "domain": "R6",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: @n, y: 1)\n if (@fail) {\n point Fault = coordinate(x: 1 / 0, y: 2)\n }\n export point Mark = coordinate(x: @n + 3, y: 4)\n}\ninstance Failed = Box(n: 17, fail: true)\npoint UseFailed = from(source: @Failed::Mark)\ninstance Healthy = Box(n: 43, fail: false)\npoint Independent = coordinate(x: 71, y: 5)\npoint Later = coordinate(x: 99, y: 99)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy::Prefix",
+        "shape": {
+          "kind": "point",
+          "x": 43,
+          "y": 1
+        }
+      },
+      {
+        "owner": "Healthy::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 46,
+          "y": 4
+        }
+      },
+      {
+        "owner": "Independent",
+        "shape": {
+          "kind": "point",
+          "x": 71,
+          "y": 5
+        }
+      }
+    ],
+    "errors": [
+      "Failed::Fault"
+    ],
+    "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+    "control": "R6-03 whole failed instance is included",
+    "limitThrough": "Independent",
+    "instances": [
+      "Healthy"
+    ]
+  },
+  {
+    "id": "C-R6-generated-failure",
+    "domain": "R6",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n for Tick in range(min: 1, max: 1, step: 1) {\n  const N: number = if (@fail) { 1 / 0 } else { @n + @Tick }\n  point Mark = coordinate(x: @N, y: 6)\n }\n export point End = coordinate(x: @n, y: 9)\n}\ninstance Failed = Box(n: 3, fail: true)\ninstance Healthy = Box(n: 19, fail: false)\npoint Use = from(source: @Healthy::End)\n",
+    "expected": {},
+    "geometry": [
+      {
+        "owner": "Healthy::Mark",
+        "shape": {
+          "kind": "point",
+          "x": 20,
+          "y": 6
+        },
+        "at": [
+          0
+        ]
+      },
+      {
+        "owner": "Healthy::End",
+        "shape": {
+          "kind": "point",
+          "x": 19,
+          "y": 9
+        }
+      },
+      {
+        "owner": "Use",
+        "shape": {
+          "kind": "point",
+          "x": 19,
+          "y": 9
+        }
+      }
+    ],
+    "errors": [
+      "Failed::Mark"
+    ],
+    "instances": [
+      "Healthy"
+    ],
+    "claims": "A failed generated point makes its entire Module unavailable; healthy asymmetric Module includes its generated row in the snapshot.",
+    "control": "R6-04 / C-R6-complete-failed"
+  }
+]

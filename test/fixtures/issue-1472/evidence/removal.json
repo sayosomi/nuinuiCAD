@@ -1,0 +1,6 @@
+{
+  "command": "npx vitest run test/issue1472AsyncPublication.test.ts -t R1|X2|B5 --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
+  "exitCode": 1,
+  "baseOwnerSha256": "2eeec554f2b9a6c87d9ebb54da93e2ccbca3ff1544da2e97af7afadf9561ad8f",
+  "candidateRestored": true
+}

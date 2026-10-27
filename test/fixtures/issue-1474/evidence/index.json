@@ -1,0 +1,7 @@
+{
+  "evidence/adapter-error.log.gz": "b6aa821044dc5980b09a7d145f28fbb0fca83eeb693b3a99377cba4e95339e36",
+  "evidence/base-correctness.json": "20e5a320938db3740ec14f177dfa5de77200426a4748902d63a633f48c36f257",
+  "evidence/base-correctness.log.gz": "793fbdf5d425dd4f9cc6690c9b5db29f68ec401c6846b4a85ec7835807a5e246",
+  "evidence/legality.log.gz": "4c530eaaad8785bc8d1280ab56446b741dceffc9337dbf040de084167afcec86",
+  "evidence/sample-command.log.gz": "952f213ed4261ed1502ef30c186e6d2dc11657a4398cde5de002c44094bdb476"
+}

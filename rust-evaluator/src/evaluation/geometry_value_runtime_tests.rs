@@ -637,6 +637,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
     ]);
     let entries = decode_geometry_value_program(Some(&program)).expect("valid point references");
     let mut state = EvaluationState {
+        lazy_geometry_value_programs: HashMap::new(),
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: Value::Array(Vec::new()),
@@ -655,6 +656,7 @@ fn point_references_project_drawable_geometry_values_and_selected_stages() {
             drawable_line(30.0, 2.0, 40.0, 2.0),
         )]),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::from([(
@@ -918,6 +920,7 @@ fn geometry_references_project_selected_drawable_stages_and_immutable_aliases() 
     let path_named = path_geometry("drawable:path", 20.0, 30.0);
     let path_final = path_geometry("drawable:path", 40.0, 50.0);
     let mut state = EvaluationState {
+        lazy_geometry_value_programs: HashMap::new(),
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: Value::Array(Vec::new()),
@@ -942,6 +945,7 @@ fn geometry_references_project_selected_drawable_stages_and_immutable_aliases() 
             ),
         ]),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),
@@ -1299,6 +1303,7 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
     let entries = decode_geometry_value_program(Some(&Value::Array(program)))
         .expect("valid drawable and value references");
     let mut state = EvaluationState {
+        lazy_geometry_value_programs: HashMap::new(),
         elements: Vec::new(),
         elements_by_id: HashMap::new(),
         drawing_modifiers: Value::Array(Vec::new()),
@@ -1308,6 +1313,7 @@ fn geometry_references_project_exact_identity_free_values_from_drawables_and_val
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values,

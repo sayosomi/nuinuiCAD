@@ -282,6 +282,18 @@ export const geometryCollectionLengthForNode = (
 ): number | undefined => {
   if (node.kind === "none") return undefined;
   if (node.kind === "leaf") return node.targets.length;
+  if (node.kind === "carryReference") {
+    if (seen.has(node.collectionValueId)) return undefined;
+    const sourceNode = resolveSourceCollectionNode?.(node.collectionValueId);
+    return sourceNode
+      ? geometryCollectionLengthForNode(
+          sourceNode,
+          environmentFor,
+          resolveSourceCollectionNode,
+          new Set([...seen, node.collectionValueId])
+        )
+      : undefined;
+  }
   if (node.kind === "geometryValueMap") {
     if (node.source.kind === "node") {
       return geometryCollectionLengthForNode(node.source.node, environmentFor, resolveSourceCollectionNode, seen);
@@ -333,6 +345,19 @@ export const resolveGeometryCollectionMemberForNode = (
   if (node.kind === "none") return undefined;
   if (node.kind === "leaf") {
     return node.targets[index];
+  }
+  if (node.kind === "carryReference") {
+    if (seen.has(node.collectionValueId)) return undefined;
+    const sourceNode = runtime?.resolveSourceCollectionNode?.(node.collectionValueId);
+    return sourceNode
+      ? resolveGeometryCollectionMemberForNode(
+          sourceNode,
+          index,
+          environmentFor,
+          runtime,
+          new Set([...seen, node.collectionValueId])
+        )
+      : undefined;
   }
   if (node.kind === "geometryValueMap") {
     const sourceNode = node.source.kind === "node"
@@ -587,7 +612,8 @@ export const createDocumentLinearScalarBindingResolver = (
   graph: BindingVersionGraph,
   geometry?: DocumentGeometryRuntime,
   collectionValues?: readonly ScalarProgramCollection[],
-  getDependencyExecutionPositionByVersionId?: () => ReadonlyMap<string, number>
+  getDependencyExecutionPositionByVersionId?: () => ReadonlyMap<string, number>,
+  getEarlyDependencyVersionIds?: () => ReadonlySet<string>
 ): LinearScalarBindingResolver => {
   const resolveGeometryCollectionLength = geometry
     ? (collectionValueId: string): number | undefined => {
@@ -635,7 +661,8 @@ export const createDocumentLinearScalarBindingResolver = (
     resolveGeometryTarget,
     collectionValues,
     resolveGeometryCollectionLength,
-    resolveGeometryCollectionEndpoint
+    resolveGeometryCollectionEndpoint,
+    getEarlyDependencyVersionIds
   );
   const collectionResolver = createScalarProgramCollectionResolver(
     { collectionValues },

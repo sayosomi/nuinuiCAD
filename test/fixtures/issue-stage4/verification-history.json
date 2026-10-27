@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "supersededFullSuite": {
+    "command": "npm test -- --maxWorkers=1 --no-file-parallelism",
+    "started": 1792391970.3816268,
+    "ended": 1792392508.879731,
+    "elapsedSeconds": 538.498104095459,
+    "exitCode": 0
+  },
+  "interruptedSupersededFullSuite": {
+    "command": "npm test -- --maxWorkers=1 --no-file-parallelism",
+    "started": 1792392887.488968,
+    "ended": 1792393004.943228,
+    "elapsedSeconds": 117.4542601108551,
+    "exitCode": 130
+  },
+  "diagnosticScopeRegression": {
+    "focusedTestsFailed": 16,
+    "focusedTestsPassed": 2216,
+    "cause": "initial diagnostic-retention edit also changed two root scalar/value-for projection sites; restored those sites to their original diagnostic owner",
+    "scopeCorrectedFocused": {
+      "filesPassed": 3,
+      "testsPassed": 124,
+      "vitestSeconds": 9.98
+    }
+  },
+  "supersededParity": "interrupted after production scope correction; pending old stdio run is not a final PASS",
+  "newFamiliesFromValidationFeedback": 0,
+  "finalRuns": "final-summary.json",
+  "notes": [
+    "No retry-until-green of unchanged timing-sensitive code. Failed production checks triggered an explicit source-scope correction; new gates run on that corrected tree.",
+    "Earlier full-suite PASS 10350 is superseded by the later numeric diagnostic change.",
+    "All interrupted/failed checks remain reported, not counted as discovery yield."
+  ],
+  "secondInterruptedSupersededFullSuite": {
+    "command": "npm test -- --maxWorkers=1 --no-file-parallelism",
+    "started": 1792393187.1582441,
+    "ended": 1792393322.55098,
+    "elapsedSeconds": 135.39273595809937,
+    "exitCode": 130
+  },
+  "secondInterruptionReason": "Canonical graph wiring completion identified during final source review; do not credit a run on the superseded tree.",
+  "finalFocusedWithGraphAndTypeErrors": {
+    "filesPassed": 3,
+    "testsPassed": 125,
+    "vitestSeconds": 9.76
+  },
+  "finalFullSuite": {
+    "command": "npm test -- --maxWorkers=1 --no-file-parallelism",
+    "started": 1792393621.897742,
+    "ended": 1792394142.7061539,
+    "elapsedSeconds": 520.808413028717,
+    "exitCode": 0
+  },
+  "finalFullSuiteCounts": {
+    "passed": 10354,
+    "skipped": 157,
+    "filesPassed": 665,
+    "filesSkipped": 2
+  },
+  "finalFocused": {
+    "filesPassed": 10,
+    "testsPassed": 2232,
+    "vitestSeconds": 50.41
+  },
+  "finalParity": {
+    "testsPassed": 203,
+    "vitestSeconds": 62.42
+  },
+  "frozenSourceHashesMatch": true,
+  "supersededParityCleanup": "Interrupted superseded parity left its already identified test worker6224 and stdio child6317 orphaned. After final gates, TERM of that owned worker closed the client/stdin; both processes exited. No active or unrelated owner was terminated."
+}

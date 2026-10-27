@@ -47,6 +47,9 @@ vi.mock("vscode", () => {
   class Range {
     constructor(public readonly start: Position, public readonly end: Position) {}
   }
+  class CompletionItem {
+    constructor(public readonly label: string, public readonly kind: number) {}
+  }
   class Location {
     constructor(public readonly uri: TestUri, public readonly range: Range) {}
   }
@@ -118,6 +121,9 @@ vi.mock("vscode", () => {
     },
     Position,
     Range,
+    CompletionItem,
+    CompletionItemKind: { Property: 1, Function: 2, Value: 3 },
+    env: { language: "en" },
     Location,
     WorkspaceEdit,
     FileSystemError
@@ -140,6 +146,7 @@ import { createLanguageAnalysisSession } from "./languageAnalysisSession";
 import { VscodeMultiDocumentHost } from "./multiDocumentHost";
 import { createVscodeModuleMultiDocumentHost } from "./moduleMultiDocumentHost";
 import { createNuiRenameProvider } from "./renameProvider";
+import { createNuiCompletionProvider, normalizedOffsetAt, normalizedPositionAt } from "./completionProvider";
 import type { VscodeMultiDocumentGraphPublication } from "../../src/vscode/multiDocumentGraphTransport";
 
 const encoder = new TextEncoder();
@@ -185,6 +192,157 @@ afterEach(() => {
   mocks.watcherDeleteListeners = [];
   mocks.watcherDispose.mockClear();
   mocks.findFiles.mockClear();
+});
+
+describe("VS Code completion with the active Module host", () => {
+  const minimalSource = [
+    "nui 1",
+    "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+    "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+    "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)"
+  ].join("\n");
+  const humanSource = [
+    "nui 1",
+    "line Horizontal = segment(start: (0, 0), end: (10, 0))",
+    "const Arc: path = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+    "const Curve: path = bezier(start: (0, 0), end: (10, 0), startAngle: 0, startLength: 0, endAngle: 180, endLength: 0)",
+    "const Offset: path = offset(sources: [@Curve], distance: 1, side: right, closed: false, suppressTrimWarnings: false)",
+    "const Reversed: path = mirrorCopy(axis1: (0, 0), axis2: (0, 10), baseLines: [@Curve])",
+    "arc Quarter = arc(center: (0, 0), radius: 10, start: 0, end: 90, direction: counterclockwise)",
+    "reverse Quarter ()",
+    "const lineArc: number = lineAngle(@Horizontal.start, @Arc.start)",
+    "const arcEnds: number = lineAngle(@Arc.start, @Arc.end)",
+    "const zeroHandleBezier: number = lineAngle(@Curve.start, @Curve.end)",
+    "const offsetArc: number = lineAngle(@Offset.end, @Arc.start)",
+    "const reversedArc: number = lineAngle(@Reversed.start, @Arc.end)",
+    "const stageAngle: number = lineAngle(@Quarter.base.start, @Horizontal.end)"
+  ].join("\n");
+  const validCall = "lineAngle(@Horizontal.start, @Arc.start)";
+
+  const completionDocument = (source: string) => {
+    let text = source;
+    let session: ReturnType<typeof createLanguageAnalysisSession> | undefined;
+    const root = documentFor("/workspace/endpoint-completion.nui", text);
+    root.getText = () => text;
+    const host = createVscodeModuleMultiDocumentHost();
+    host.start();
+    mocks.textDocuments = [root];
+    const provider = createNuiCompletionProvider(() => session ??= createLanguageAnalysisSession(text));
+    return {
+      host,
+      root,
+      session: () => session!,
+      edit: (next: string) => {
+        text = next;
+        root.version += 1;
+        root.isDirty = true;
+        for (const listener of mocks.changeListeners) listener({ document: root });
+      },
+      items: async (needle: string) => {
+        const offset = text.indexOf(needle) + needle.length;
+        expect(offset).toBeGreaterThanOrEqual(needle.length);
+        return await provider.provideCompletionItems(
+          root as unknown as vscode.TextDocument,
+          normalizedPositionAt(text, offset),
+          undefined as never,
+          undefined as never
+        ) as vscode.CompletionItem[];
+      }
+    };
+  };
+
+  it.each([
+    { fixture: "minimal", mode: "cold", call: "lineAngle(@Horizontal.|, @Arc.start)", member: "" },
+    { fixture: "human", mode: "cold", call: "lineAngle(@Horizontal.start, @Arc.|)", member: "" },
+    { fixture: "human", mode: "live", call: "lineAngle(@Arc.|, @Arc.start)", member: "" },
+    { fixture: "human", mode: "live", call: "lineAngle(@Horizontal.start, @Horizontal.|)", member: "" },
+    { fixture: "human", mode: "live", call: "lineAngle(@Quarter.base.st|, @Arc.start)", member: "st" },
+    { fixture: "human", mode: "cold", call: "ab|", member: "ab" },
+    { fixture: "human", mode: "live", call: "ab|", member: "ab" }
+  ])("inserts current candidates for $fixture $mode $call", async ({ fixture, mode, call, member }) => {
+    const valid = fixture === "minimal" ? minimalSource : humanSource;
+    const source = valid.replace(validCall, call.replace("|", ""));
+    const cursorPrefix = `const lineArc: number = ${call.slice(0, call.indexOf("|"))}`;
+    const test = completionDocument(mode === "cold" ? source : valid);
+    const snapshotFor = vi.spyOn(test.host, "completionSemanticSnapshotFor");
+    try {
+      if (mode === "live") {
+        await test.items("@Horizontal.start");
+        test.edit(source);
+      }
+      const items = await test.items(cursorPrefix);
+      expect(snapshotFor).toHaveBeenCalledWith(test.root);
+      const snapshot = await test.host.completionSemanticSnapshotFor(test.root);
+      expect(snapshot).not.toBeNull();
+      expect(snapshot!.sourceText).toBe(source);
+      expect(snapshot!.sourceRevision).toBe(test.session().getSourceRevision());
+      expect(snapshot!.sourceRevision).toBe(mode === "cold" ? 1 : 2);
+      expect(snapshot!.compiled.spans.sourceMap).toMatchObject({ source, sourceRevision: snapshot!.sourceRevision });
+      expect(test.session().getSource()).toBe(source);
+      expect(test.host.diagnosticsStateFor(test.root)).toMatchObject({ documentVersion: mode === "cold" ? 1 : 2 });
+
+      const scalar = member === "ab";
+      expect(items.map(item => item.label)).toEqual(expect.arrayContaining(scalar ? ["abs"] : ["start", "end"]));
+      const item = items.find(item => item.label === (scalar ? "abs" : "start"))!;
+      const offset = source.indexOf(cursorPrefix) + cursorPrefix.length;
+      const from = offset - member.length;
+      expect(item.range).toEqual(new vscode.Range(normalizedPositionAt(source, from), normalizedPositionAt(source, offset)));
+      expect(item.insertText).toBe(scalar ? "abs" : "start");
+      const range = item.range as vscode.Range;
+      const applied = source.slice(0, normalizedOffsetAt(source, range.start)) + item.insertText + source.slice(normalizedOffsetAt(source, range.end));
+      expect(applied).toBe(source.slice(0, from) + (scalar ? "abs" : "start") + source.slice(offset));
+      const query = queryDslCompletion({
+        source: { normalizedSource: source, sourceRevision: snapshot!.sourceRevision },
+        position: offset,
+        semantic: snapshot!
+      });
+      if (member === "st") {
+        expect(query?.candidates.find(candidate => candidate.label === "start")?.identity).toContain(":stage:base:start");
+        expect(applied).toContain("lineAngle(@Quarter.base.start, @Arc.start)");
+      }
+      if (!scalar) {
+        test.edit(applied);
+        await test.items("@Arc.start");
+        expect(test.session().getDiagnostics().filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+      }
+    } finally {
+      test.host.dispose();
+    }
+  });
+
+  it("does not reuse endpoint candidates after invalid edits and restores argument diagnostics", async () => {
+    const source = humanSource.replace(validCall, "lineAngle(@Horizontal., @Arc.start)");
+    const test = completionDocument(humanSource);
+    try {
+      await test.items("@Horizontal.start");
+      test.edit(source);
+      expect((await test.items("@Horizontal.")).map(item => item.label)).toEqual(expect.arrayContaining(["start", "end"]));
+
+      for (const invalid of [
+        source.replace("line Horizontal =", "line Renamed ="),
+        source.replace("line Horizontal = segment(start: (0, 0), end: (10, 0))", "point Horizontal = coordinate(x: 0, y: 0)"),
+        source.replace("@Horizontal.,", "@Quarter.missing.st,")
+      ]) {
+        test.edit(invalid);
+        const items = await test.items(invalid.includes("@Quarter.missing.st") ? "@Quarter.missing.st" : "@Horizontal.");
+        expect(items.map(item => item.label)).not.toContain("start");
+        expect(items.map(item => item.label)).not.toContain("end");
+        const snapshot = await test.host.completionSemanticSnapshotFor(test.root);
+        expect(snapshot!.sourceText).toBe(invalid);
+        expect(snapshot!.sourceRevision).toBe(test.session().getSourceRevision());
+        expect(test.session().getDiagnostics().some(diagnostic => diagnostic.severity === "error")).toBe(true);
+      }
+
+      test.edit(humanSource.replace(validCall, "lineAngle(@Horizontal, @Arc)"));
+      await test.items("@Horizontal,");
+      expect(test.session().getDiagnostics().filter(diagnostic => diagnostic.code === "builtin-geometry-argument-invalid")).toHaveLength(2);
+      test.edit(humanSource);
+      await test.items("@Horizontal.start");
+      expect(test.session().getDiagnostics().filter(diagnostic => diagnostic.severity === "error")).toEqual([]);
+    } finally {
+      test.host.dispose();
+    }
+  });
 });
 
 describe("VS Code multi-document host lifecycle", () => {

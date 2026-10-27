@@ -64,13 +64,19 @@ fn active_branch_for_condition_evaluation(evaluation: &ScalarEvaluation) -> Opti
 
 /// Shared adapter for compiler-owned runtime controllers. Callers still use
 /// the same typed scalar evaluator and document binding resolver; this only
-/// exposes the existing environment shim for graph activation.
+/// uses the document environment for graph activation, including optional
+/// record/collection projections used by geometry-valued record matches.
 pub(crate) fn evaluate_scalar_expression_with_document_resolver(
     expression: &TypedScalarExpression,
     resolver: &dyn ScalarDocumentBindingResolver,
     state: &EvaluationState,
 ) -> ScalarEvaluation {
-    evaluate_typed_expression(expression, &ResolverEnvironment { resolver, state })
+    super::scalar_expression_runtime::evaluate_document_typed_expression(
+        expression,
+        resolver,
+        state,
+        Some(f64::INFINITY),
+    )
 }
 
 /// Evaluates a `conditionalGroup` condition exactly once through the existing

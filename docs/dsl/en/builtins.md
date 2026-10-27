@@ -146,6 +146,11 @@ The measurement builtins use the geometry interfaces described in
   tangent or swapping the arguments does not change the result. An endpoint
   without a finite, nonzero tangent is invalid.
 
+Each operand keeps its selected stage and occurrence through immutable aliases,
+carry snapshots, indexed geometry collections, and nested Module exports.
+Collection selectors read the current typed numeric binding; a conditional
+`next` reads only its selected branch from the iteration-start carry snapshot.
+
 ## Where calls are valid
 
 Scalar-only builtins can be used in typed declarations, `next` expressions,

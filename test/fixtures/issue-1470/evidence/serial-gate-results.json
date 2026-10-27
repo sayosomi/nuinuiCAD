@@ -1,0 +1,71 @@
+{
+  "finished": "2026-10-27T11:40:12.110094+09:00",
+  "overallExit": 0,
+  "stopReason": null,
+  "durationSeconds": 669.6930735839996,
+  "peakAggregateRssKiB": 2528944,
+  "executed": [
+    "npm run build",
+    "npm run lint",
+    "npm test -- --maxWorkers=2 --no-file-parallelism",
+    "npm run test:parity",
+    "cargo fmt --manifest-path rust-evaluator/Cargo.toml -- --check",
+    "cargo check --manifest-path rust-evaluator/Cargo.toml",
+    "cargo test --manifest-path rust-evaluator/Cargo.toml",
+    "cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings",
+    "cargo build --manifest-path rust-evaluator/Cargo.toml --bin evaluation_stdio",
+    "git diff --check"
+  ],
+  "results": [
+    {
+      "command": "npm run build",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "npm run lint",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "npm test -- --maxWorkers=2 --no-file-parallelism",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "npm run test:parity",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "cargo fmt --manifest-path rust-evaluator/Cargo.toml -- --check",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "cargo check --manifest-path rust-evaluator/Cargo.toml",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "cargo test --manifest-path rust-evaluator/Cargo.toml",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "cargo build --manifest-path rust-evaluator/Cargo.toml --bin evaluation_stdio",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0,
+      "status": "PASS"
+    }
+  ]
+}

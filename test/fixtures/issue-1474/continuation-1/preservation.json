@@ -1,0 +1,246 @@
+{
+  "previousCheckpoint": "21466dc8358e79940442b9f0ab6a265c42cc48da",
+  "allOriginalFilesByteIdentical": true,
+  "files": [
+    {
+      "path": "test/fixtures/issue-1474/A1-r1.nui",
+      "sha256": "517c7e7670e8b9de40e9d3d96ba0521fd8becb03a020d1a86b90709c433afeb6"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A1-r1.oracle.json",
+      "sha256": "ce61744e1bec24626e49cda739232a14d809ca2fad51d6f5e2416088d2067d46"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A2-r1.nui",
+      "sha256": "37ed944fecac731e6e15c3bb4d95b1db59d3148b2de9c48f0d718d5c3148d0f7"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A2-r1.oracle.json",
+      "sha256": "37d5e50983036fc8cf07891a6f01a40d85050d608658715fadf644e24666286e"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A3-r1.nui",
+      "sha256": "88d2d62ba1782bc0e26844d7d4b069c8e1bb6b64a1c003ac1ba3edc7cbc8ba88"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A3-r1.oracle.json",
+      "sha256": "12c05132a16843c320d0da7659ec4acfa54e8595c8cb98cae1f60fae4caf9f99"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A4-r1.nui",
+      "sha256": "88d2d62ba1782bc0e26844d7d4b069c8e1bb6b64a1c003ac1ba3edc7cbc8ba88"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A4-r1.oracle.json",
+      "sha256": "12c05132a16843c320d0da7659ec4acfa54e8595c8cb98cae1f60fae4caf9f99"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A4-r2.nui",
+      "sha256": "57a3296aa9e708f6e2f4ea83dd908746bacb4dc94aa7b5759df33095956dd2f2"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A4-r2.oracle.json",
+      "sha256": "5e72afaa5bd656cc1c43338c1816d1e3859dc98b3dd7befe5f2016a9740b65ee"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A4-r3.nui",
+      "sha256": "88d2d62ba1782bc0e26844d7d4b069c8e1bb6b64a1c003ac1ba3edc7cbc8ba88"
+    },
+    {
+      "path": "test/fixtures/issue-1474/A4-r3.oracle.json",
+      "sha256": "12c05132a16843c320d0da7659ec4acfa54e8595c8cb98cae1f60fae4caf9f99"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B1-r1.nui",
+      "sha256": "9718228236a2317d3ed9bcfc3a1641a5604774342511db328d9528d68cd50930"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B1-r1.oracle.json",
+      "sha256": "fd383118809a3265fee53e6eec59b1b7512c0f9a63c2eb7fd09f52fc50e9dce0"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B2-r1.nui",
+      "sha256": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B2-r1.oracle.json",
+      "sha256": "8ec6a1f9bd6d2e6d9193d3374e7a83bb5d3b0be5e040f9d8ada3d9a8e8435c85"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B3-r1.nui",
+      "sha256": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B3-r1.oracle.json",
+      "sha256": "0725c95263594863c4a7a67929bbea89aa4ca1b290ca88925d0409cc20d7e8fa"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B4-r1.nui",
+      "sha256": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B4-r1.oracle.json",
+      "sha256": "0725c95263594863c4a7a67929bbea89aa4ca1b290ca88925d0409cc20d7e8fa"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B4-r2.nui",
+      "sha256": "559dbc60c80a0bff94526ba5e45c29f7b11c30b6a29c38e5c9c58d241c573e42"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B4-r2.oracle.json",
+      "sha256": "d7f936ad2dd4b15f02c9722df4b89ba9b0a249db05b6c0cc08dd19c337e657d2"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B4-r3.nui",
+      "sha256": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1"
+    },
+    {
+      "path": "test/fixtures/issue-1474/B4-r3.oracle.json",
+      "sha256": "0725c95263594863c4a7a67929bbea89aa4ca1b290ca88925d0409cc20d7e8fa"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C1-r1.nui",
+      "sha256": "525e5efc131ad701b3091a6a58a83f86a733a5f25525453aa5b0ddb459d98763"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C1-r1.oracle.json",
+      "sha256": "02994d61f95e098d1d5e0ac05d75c9a915c8d3424fecabd17a84e048a6b39f00"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C2-r1.nui",
+      "sha256": "d68a766617e018bed18fd258c2eb9854b69c7b4abd59ac3e17e46e726936caab"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C2-r1.oracle.json",
+      "sha256": "a0c2d9f0a931df108e07d7c0cd34a07b366512b10dc31c4160c6196c6d775f0b"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C3-r1.nui",
+      "sha256": "863a18f2795ceeadb31ec5ee0c31958259ec175048836aedad4677a19da214f9"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C3-r1.oracle.json",
+      "sha256": "1c6fa48678f2330bf7710ad58552aacbe224061048396198ec6a2dcf83bd303b"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C4-r1.nui",
+      "sha256": "863a18f2795ceeadb31ec5ee0c31958259ec175048836aedad4677a19da214f9"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C4-r1.oracle.json",
+      "sha256": "1c6fa48678f2330bf7710ad58552aacbe224061048396198ec6a2dcf83bd303b"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C4-r2.nui",
+      "sha256": "5ddf40587971075802616a62c0d153698f83c353d436d6cdf6757be9bd2a1a1d"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C4-r2.oracle.json",
+      "sha256": "1c6fa48678f2330bf7710ad58552aacbe224061048396198ec6a2dcf83bd303b"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C4-r3.nui",
+      "sha256": "863a18f2795ceeadb31ec5ee0c31958259ec175048836aedad4677a19da214f9"
+    },
+    {
+      "path": "test/fixtures/issue-1474/C4-r3.oracle.json",
+      "sha256": "1c6fa48678f2330bf7710ad58552aacbe224061048396198ec6a2dcf83bd303b"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D1-r1.nui",
+      "sha256": "25401aeccd20d7bb69f4f94e029df0a818777cf1e40dbde326e81bd4db619758"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D1-r1.oracle.json",
+      "sha256": "a346e7996324d72d15d8f606337e9a7ea591c1fd996148614bf76615e794b7fd"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D2-r1.nui",
+      "sha256": "e9f8b736d5e02ffacd7dc5e0c5efd00a392baf161bddb1f85a0d20fe715205e9"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D2-r1.oracle.json",
+      "sha256": "b14253b2eb667d6f17630e3e5be734a690d29f79e4425affea00989ae8feb863"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D3-r1.nui",
+      "sha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D3-r1.oracle.json",
+      "sha256": "d8f7c48ddf548b6612803c7f983b8b16fd131f0b3225ecc94aa6f1040754c6a9"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D4-r1.nui",
+      "sha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D4-r1.oracle.json",
+      "sha256": "d8f7c48ddf548b6612803c7f983b8b16fd131f0b3225ecc94aa6f1040754c6a9"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D4-r2.nui",
+      "sha256": "770ce4a37bd451fd34d40fba594e063e8419955c5ad2600d1a3695f05a4d7d81"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D4-r2.oracle.json",
+      "sha256": "3d51a28a254ddc39250de13245e14210472e25344443f8844459913e15824205"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D4-r3.nui",
+      "sha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f"
+    },
+    {
+      "path": "test/fixtures/issue-1474/D4-r3.oracle.json",
+      "sha256": "d8f7c48ddf548b6612803c7f983b8b16fd131f0b3225ecc94aa6f1040754c6a9"
+    },
+    {
+      "path": "test/fixtures/issue-1474/compiled-graph-seal.json",
+      "sha256": "e0c4e07b208c9e2d923973f7f5beaca1afbb1920a1ce5f708737c9733892a24c"
+    },
+    {
+      "path": "test/fixtures/issue-1474/dispositions.json",
+      "sha256": "3899a5c49eff83410c48475ee2c1c5641ed56b74fc7f1a8cc0b771eca2bf24df"
+    },
+    {
+      "path": "test/fixtures/issue-1474/evidence/adapter-error.log.gz",
+      "sha256": "b6aa821044dc5980b09a7d145f28fbb0fca83eeb693b3a99377cba4e95339e36"
+    },
+    {
+      "path": "test/fixtures/issue-1474/evidence/base-correctness.json",
+      "sha256": "20e5a320938db3740ec14f177dfa5de77200426a4748902d63a633f48c36f257"
+    },
+    {
+      "path": "test/fixtures/issue-1474/evidence/base-correctness.log.gz",
+      "sha256": "793fbdf5d425dd4f9cc6690c9b5db29f68ec401c6846b4a85ec7835807a5e246"
+    },
+    {
+      "path": "test/fixtures/issue-1474/evidence/index.json",
+      "sha256": "f206110d6bcad70022aa12b04d1dc92cce279ba254716ab6b0fc485db9b72808"
+    },
+    {
+      "path": "test/fixtures/issue-1474/evidence/legality.log.gz",
+      "sha256": "4c530eaaad8785bc8d1280ab56446b741dceffc9337dbf040de084167afcec86"
+    },
+    {
+      "path": "test/fixtures/issue-1474/evidence/sample-command.log.gz",
+      "sha256": "952f213ed4261ed1502ef30c186e6d2dc11657a4398cde5de002c44094bdb476"
+    },
+    {
+      "path": "test/fixtures/issue-1474/generate.py",
+      "sha256": "b2c83db02641039f1c1ee3185146b20f55597bad420b028335d796af61471102"
+    },
+    {
+      "path": "test/fixtures/issue-1474/manifest.json",
+      "sha256": "09beec03dff28e8874c662b34f22dd368c60c14e678cc96a3545d56a21e8c501"
+    },
+    {
+      "path": "test/fixtures/issue-1474/protocol.md",
+      "sha256": "d86392a7515da45b7561dc26f15f591c6c3171245bb3ad5d3b1562b7f571aa35"
+    },
+    {
+      "path": "test/fixtures/issue-1474/result.md",
+      "sha256": "e78635bd30ccc65883fd00b4d92cc5f4328babde6fc4366e41d346b00a782f7c"
+    }
+  ]
+}

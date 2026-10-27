@@ -1,0 +1,22 @@
+{
+  "frozenBeforeExecutionUTC": "2026-10-26T05:54:32.398389+00:00",
+  "triggers": {
+    "R04": "C05 absolute shadow discrimination; dslDocument discards path.absolute at first segment",
+    "R05": "C03/X03 F1 candidate has lowered binding but zero graph edge",
+    "X06": "C05 absolute route nearest wrong-kind guard"
+  },
+  "units": [
+    {
+      "id": "R04",
+      "sourceSha256": "ed132cd45ca4c60b80c71e059b2de92f3af785ca174671d12685dc2051c6d3c1"
+    },
+    {
+      "id": "R05",
+      "sourceSha256": "6fde3dcefd72bdd428599f03b7cc9a4561bf467094300f28bdbaeb7abfe7b854"
+    },
+    {
+      "id": "X06",
+      "sourceSha256": "2ea59395b63f23bb4e20b35e4ffd4b6cdd443c31215dcf605f28d1f875b600fe"
+    }
+  ]
+}

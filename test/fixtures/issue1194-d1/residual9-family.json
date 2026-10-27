@@ -1,0 +1,46 @@
+{
+  "id": "F49",
+  "status": "REPAIRED_THEN_PASS",
+  "title": "Module record declaration end boundary excludes later field-binding events",
+  "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: pushEvent / eventOrderByPathAndStatementIndex consumed by runtimeEventPositionForValue",
+  "firstLoss": "A declaration emits both flat and nested-path field bindings. The binding ID records its last event while the path/statement map retained its first event. B.n therefore has sourceOrder=5 while its following constructor program has sourceExecutionPosition=4.5. At runtime the valid graph producer is invoked too early and resolves evaluation-binding-unavailable; finalization later computes B.n but the geometry is already unavailable.",
+  "repair": "Retain the final event for each path/statement in the existing Module map. The original field boundary becomes 5.5, after B.n=5; multi-field records likewise follow all of their declaration events. No scheduler, graph traversal, source order or reference evaluator was replaced.",
+  "scopeDecision": "#1194 Module/record lowering owner; original B-min cases must not be transferred to #1260. Their geometric/scalar products were present but their source boundary was wrong.",
+  "normativeOracle": "Current docs/nui1/spec.md: deterministic dependency ordering; exact nominal record selection; immutable lazy record-map fields; Module-private to exported geometry preserves values. Independently expected original L=5; asymmetric new fields yield 7/11.",
+  "base": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+  "primaryRegressions": [
+    "B-min-construct-dynamic",
+    "B-min-construct-fixed"
+  ],
+  "adjacentBasePass": [
+    "B-reduced-construct-dynamic",
+    "B-reduced-construct-fixed",
+    "G-map-free-construct"
+  ],
+  "additionalDiscriminators": [
+    "N9-multifield-dynamic",
+    "N9-multifield-fixed",
+    "N9-multifield-lazy",
+    "N9-direct-record",
+    "B-poison-selected"
+  ],
+  "baseProof": {
+    "base": "87ae4dd2a7552b73435f8627ec540f5e53b784a6",
+    "path": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "candidateSha256": "6991385a56ff194b68b72133d26f7c165e6d0838115ae0c619390e81213d50e4",
+    "baseSha256": "cc4846ce095f0dbb8476e201fb363932cdbc1e75a42d5c66c0433fae98870baa",
+    "productionDiff": "empty",
+    "base-all": {
+      "exitCode": 0,
+      "mode": "discover"
+    },
+    "base-regression": {
+      "exitCode": 1,
+      "mode": "verify"
+    },
+    "restoredSha256": "6991385a56ff194b68b72133d26f7c165e6d0838115ae0c619390e81213d50e4"
+  },
+  "regressionResult": "Exact Base: 6 FAIL / 4 PASS / 5 historical deferred SKIP; candidate: 10 PASS / 6 deferred SKIP (one additional existing map-free control).",
+  "evidence": "residual9-dispositions.json; exact compiler/normal decoded results and source boundaries. Runtime lookup trace fingerprint retained in residual9-evidence-manifest.json.",
+  "independence": "F01\u2013F48 stay repaired controls. F48 already emits these concrete producers and occurrence identities; F49 corrects their record-owned Module event boundary without scalar observer padding."
+}

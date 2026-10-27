@@ -7,6 +7,8 @@ import { derivedAnchor, referenceAnchor } from "./pointAnchors";
 type CreateCadElementOptions = {
   createId?: (type: CadElementType) => ElementId;
   referenceElements?: CadElement[];
+  /** Already validated source names do not need interactive automatic naming. */
+  authoredName?: string;
 };
 
 export const createCadElement = (
@@ -54,7 +56,7 @@ export const createCadElement = (
       element.type === "cornerRadiusArcLine"
   );
   const uniqueName = (elementId: ElementId, requestedName: string) =>
-    makeUniqueElementName({
+    options.authoredName ?? makeUniqueElementName({
       elements,
       elementId,
       requestedName,
@@ -592,6 +594,8 @@ export const createCadElement = (
   // (emitCreationRecipe / dslCompiler) to reset it.
   const normalized = elementTypesWithoutOwnDrawableGeometry.has(type)
     ? { ...element, name: "" }
+    : options.authoredName !== undefined
+      ? { ...element, name: options.authoredName }
     : withCreatedElementName(element, elements, referenceElements);
   return { ...normalized, enabled: normalized.enabled ?? true, visible: normalized.visible ?? true };
 };

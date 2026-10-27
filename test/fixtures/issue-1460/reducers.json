@@ -1,0 +1,30 @@
+[
+  {
+    "id": "F1",
+    "source": "nui 1\nmodule Outer(scale: number) {\n module Inner(width: number) {\n  point P = coordinate(x: @width + 1, y: -9)\n }\n instance Child = Inner(width: @scale)\n}\ninstance Left = Outer(scale: 18)\n",
+    "sha256": "2dbc028161a28c1138f414e23420fc8faa222ea6d5f912bfcd4794204d2f4fd0",
+    "target": "point P",
+    "arguments": [
+      {
+        "name": "width",
+        "expression": "@scale"
+      }
+    ],
+    "ancestor": {
+      "name": "Outer",
+      "arguments": [
+        {
+          "name": "scale",
+          "expression": "18"
+        }
+      ]
+    },
+    "expected": {
+      "P": [
+        19,
+        -9
+      ]
+    },
+    "purpose": "Reduce A3 stale aggregate runtime bindings to one nested target, one point, one authored instance; canonical same-source independently passes."
+  }
+]

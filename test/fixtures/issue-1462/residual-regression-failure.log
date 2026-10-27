@@ -1,0 +1,47 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=1 test/issue1406LineAngleResidualRust.integration.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+ ❯ test/issue1406LineAngleResidualRust.integration.test.ts (4 tests | 1 failed) 2576ms
+     × H: rechecks ten historical residual and nearby control sources 95ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/issue1406LineAngleResidualRust.integration.test.ts > Issue #1406 lineAngle residual conformance > H: rechecks ten historical residual and nearby control sources
+AssertionError: H-singular-arc-offset
+nui 1
+line Axis = segment(start: (100, 40), end: (110, 40))
+arc Arc = arc(center: (0, 0), radius: 10, start: 10, end: 100)
+const Offset: path = offset(sources: [@Arc], distance: 10, side: right, closed: false, suppressTrimWarnings: false)
+const result: number = lineAngle(@Offset.start, @Axis.start)
+: expected { status: 'ok', …(2) } to match object { status: 'error', …(1) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "issueCode": "evaluation-geometry-builtin-unavailable",
+-   "status": "error",
++   "status": "ok",
+  }
+
+ ❯ checkHistorical test/issue1406LineAngleResidualRust.integration.test.ts:605:62
+    603|       const scalar = evaluationPayloadToResult(payload).computedScalar…
+    604|       if (testCase.issueCode) {
+    605|         expect(scalar, `${testCase.id}\n${testCase.source}`).toMatchOb…
+       |                                                              ^
+    606|         expect(runtimeDiagnosticsFor(fixture, payload), testCase.id).t…
+    607|           origin: "runtime", severity: "error", code: testCase.issueCo…
+ ❯ test/issue1406LineAngleResidualRust.integration.test.ts:641:45
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed (4)
+   Start at  07:04:10
+   Duration  5.02s (transform 1.71s, setup 33ms, import 2.02s, tests 2.58s, environment 302ms)

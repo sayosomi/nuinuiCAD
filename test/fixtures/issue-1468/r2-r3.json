@@ -1,0 +1,78 @@
+[
+  {
+    "id": "R2",
+    "variant": "transformed",
+    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move Edge as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse Edge as turned()\n}\ninstance Left = Sleeve()\n",
+    "sha256": "cf393e988586e6f649ccf7eeb4a6750c1236d7dc3686dcce361b6c0d6fb8138c",
+    "expected": {
+      "kind": "line",
+      "start": {
+        "x": 4,
+        "y": -15
+      },
+      "end": {
+        "x": 4,
+        "y": -5
+      }
+    },
+    "mode": "preview",
+    "hypothesis": "Canonical authored instance and ephemeral Preview must both apply module-local recipes; literal mirror\u2192rotate90\u2192translate then reverse. The root producer must retain resolved recipes."
+  },
+  {
+    "id": "R2",
+    "variant": "literal-neighbor",
+    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n}\ninstance Left = Sleeve()\n",
+    "sha256": "0bce2ca7f9f338fc79402b96ac45a178b42caec7123d0967ddec0c0554d9e7d0",
+    "expected": {
+      "kind": "line",
+      "start": {
+        "x": 2,
+        "y": 3
+      },
+      "end": {
+        "x": 12,
+        "y": 3
+      }
+    },
+    "mode": "preview",
+    "hypothesis": "No transformation recipes; adjacent Base PASS with same Module and line."
+  },
+  {
+    "id": "R3",
+    "variant": "translated",
+    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move Edge as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse Edge as turned()\n}\ninstance Left = Sleeve()\nmove Left::Edge(from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)\n",
+    "sha256": "c686c8efb2102cdd9727ff08809afc071f7b464bccb95296bfdf04c484e5fd1e",
+    "expected": {
+      "kind": "line",
+      "start": {
+        "x": 124,
+        "y": -25
+      },
+      "end": {
+        "x": 124,
+        "y": -15
+      }
+    },
+    "mode": "canonical",
+    "hypothesis": "Module recipes execute within the call before the later caller recipe. Runtime source order, not concatenated producer buckets, determines the same-owner recipe chain."
+  },
+  {
+    "id": "R3",
+    "variant": "identity-neighbor",
+    "source": "nui 1\nmodule Sleeve() {\n  export line Edge = segment(start: (2, 3), end: (12, 3))\n  move Edge as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 90, mirrorX: true)\n  reverse Edge as turned()\n}\ninstance Left = Sleeve()\nmove Left::Edge(from: (0, 0), to: (0, 0), scale: 1, angleDeg: 0, mirrorX: false)\n",
+    "sha256": "433e9581ed25889d2d19b18cd287d5dfd4640a2128163ac2515c147f36865fdb",
+    "expected": {
+      "kind": "line",
+      "start": {
+        "x": 4,
+        "y": -15
+      },
+      "end": {
+        "x": 4,
+        "y": -5
+      }
+    },
+    "mode": "canonical",
+    "hypothesis": "Module recipes execute within the call before the later caller recipe. Runtime source order, not concatenated producer buckets, determines the same-owner recipe chain."
+  }
+]

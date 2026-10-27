@@ -1,0 +1,231 @@
+[
+  {
+    "id": "F01",
+    "title": "Geometry property occurrence is lost through a record backing target",
+    "reproducer": "R-geometry-record",
+    "adjacentPassControl": "P-geometry-direct",
+    "affectedCells": [
+      "D00",
+      "D01",
+      "D02",
+      "D03",
+      "D04",
+      "D05",
+      "D06",
+      "D07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: geometryPropertyTargetForSourceTarget",
+    "repair": "Retain the already resolved geometry-value occurrence if the backing record field has no direct numeric-property target.",
+    "regressions": [
+      "R-geometry-record"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F02",
+    "title": "Geometry record forwarding loses the owning Module instance path",
+    "reproducer": "R-geometry-export",
+    "adjacentPassControl": "P-geometry-direct",
+    "affectedCells": [
+      "D01",
+      "D03",
+      "D05",
+      "D07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts: sourceAliasForTarget",
+    "repair": "Carry the caller/definition instance path through record aliases and parameters; detect field-expression cycles by occurrence identity.",
+    "regressions": [
+      "R-geometry-export",
+      "R-geometry-asymmetric"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS",
+    "independentCounterfactual": {
+      "run": "isolate-geometry-forwarding-1792497872784",
+      "revertedOwner": "dsl/moduleGeometryRuntimeLowering.ts",
+      "fail": [
+        "R-geometry-export",
+        "R-geometry-asymmetric"
+      ],
+      "pass": [
+        "R-geometry-record",
+        "P-geometry-direct"
+      ]
+    }
+  },
+  {
+    "id": "F03",
+    "title": "Root record collection-field index misses canonical scalar routing and producer position",
+    "reproducer": "R-field-index",
+    "adjacentPassControl": "P-field-module",
+    "affectedCells": [
+      "C00"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/dslDocument.ts; scalars/moduleScalarRuntime.ts: root record field collection index",
+    "repair": "Reuse the canonical field-contents descriptor; root records with no scalar event use the existing absent-position sentinel.",
+    "regressions": [
+      "R-field-index"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F04",
+    "title": "Whole collection-valued record fields are rejected as array aliases",
+    "reproducer": "R-field-array",
+    "adjacentPassControl": "P-array-alias",
+    "affectedCells": [
+      "C02",
+      "C03"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts; dsl/moduleSemanticAnalysis.ts",
+    "repair": "Reuse the existing record-member accessor and field-contents identity for root/parameter/map-binder collection fields.",
+    "regressions": [
+      "R-field-array"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F05",
+    "title": "An optional nominal-record whole some-binder is unresolved",
+    "reproducer": "R-record-binder",
+    "adjacentPassControl": "P-scalar-binder",
+    "affectedCells": [
+      "B06",
+      "B07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: parseExpression",
+    "repair": "Normalize the exact exhaustive whole-binder-return match to the existing lazy coalesce value descriptor; preserve nominal assignability.",
+    "regressions": [
+      "R-record-binder",
+      "R-binder-none"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F06",
+    "title": "Optional record selections lose collection contents or invent eager scalar producers",
+    "reproducer": "R-record-coalesce-root",
+    "adjacentPassControl": "P-record-coalesce-source",
+    "affectedCells": [
+      "B04",
+      "B05",
+      "B06",
+      "B07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: registerInstance, appendRecordFieldContentsForExpression, appendRecordExpression",
+    "repair": "Preserve the selected descriptor through root/Module exports; represent anonymous constructor leaves with the existing lazy recordMap rather than eager fallback fields.",
+    "regressions": [
+      "R-record-coalesce-root",
+      "R-record-coalesce-module",
+      "R-direct-constructor-fallback",
+      "R-constructor-dependency-root",
+      "R-constructor-dependency-module",
+      "R-lazy-constructor-root",
+      "R-lazy-constructor-module",
+      "R-selected-error"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F07",
+    "title": "Mapped record collection-field selectors have no root producer",
+    "reproducer": "R-mapped-record-index",
+    "adjacentPassControl": "P-record-index-constant",
+    "affectedCells": [
+      "C06",
+      "C07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendMappedRecordFieldContents",
+    "repair": "Forward binder field contents to the selected source record occurrence in root and Module contexts, reusing canonical identities.",
+    "regressions": [
+      "R-mapped-record-index"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F08",
+    "title": "Computed record member indexes leave an unconsumed typecheck resolution",
+    "reproducer": "R-mapped-tag",
+    "adjacentPassControl": "P-mapped-tag-constant",
+    "affectedCells": [
+      "C06",
+      "C07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/moduleScalarExpression.ts: resolveAndTypecheck",
+    "repair": "Remove typecheck entries belonging to the replaced index AST while retaining semantic references required by runtime lowering.",
+    "regressions": [
+      "R-mapped-tag"
+    ],
+    "beforeRun": "base-late-controls-1792497869048",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F09",
+    "title": "Nested exported record access loses its full path and defining-document catalog",
+    "reproducer": "R-import-nested",
+    "adjacentPassControl": "E00",
+    "affectedCells": [
+      "E02",
+      "E03",
+      "E06",
+      "E07"
+    ],
+    "firstLossOwner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts; scalars/moduleScalarRuntime.ts; document/multiDocumentModuleSemantics.ts",
+    "repair": "Carry the full field path into binding IDs/seeds and consult the canonical saved defining-document record catalog.",
+    "regressions": [
+      "R-import-nested",
+      "P-local-nested",
+      "R-import-asymmetric"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F10",
+    "title": "Inline record collection members lack canonical producers; scalar-record indexing depends on an unrelated Module",
+    "reproducer": "R-record-constructor-array",
+    "adjacentPassControl": "P-record-literal-with-module",
+    "affectedCells": [],
+    "firstLossOwner": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts; dsl/geometryArraySemanticAnalysis.ts; scalars/recordScalarLowering.ts; dsl/dslDocument.ts",
+    "repair": "Register source-owned literal constructor occurrences in existing record semantics, allocate unique field seed order, and activate record collection access from the resolved semantic target.",
+    "regressions": [
+      "R-record-constructor-array",
+      "R-record-constructor-module",
+      "R-record-constructor-nested",
+      "P-record-literal-references"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  },
+  {
+    "id": "F11",
+    "title": "Record control-flow parsing rejects constructor arguments containing collections",
+    "reproducer": "R-record-if-array",
+    "adjacentPassControl": "P-record-if-scalar",
+    "affectedCells": [],
+    "firstLossOwner": "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: record control-flow shell parse",
+    "repair": "Use existing opaque named-call parsing for the control-flow shell and normally parse/typecheck its conditions and scrutinees.",
+    "regressions": [
+      "R-record-if-array"
+    ],
+    "beforeRun": "base-replay-1792497394243",
+    "afterRun": "final-repaired-gates-1792515225830",
+    "status": "REPAIRED_THEN_PASS"
+  }
+]

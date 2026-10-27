@@ -1,0 +1,33 @@
+{
+  "issue": "sayosomi/nuinuiCAD#1260",
+  "base": "d8e8ad20a325e2d190561940f6f15a39347d910e",
+  "branch": "sayosomi/issue-1260-r2-d1",
+  "origin": "https://github.com/sayosomi/nuinuiCAD.git",
+  "humanAdmissionComment": "https://github.com/sayosomi/nuinuiCAD/issues/1260#issuecomment-6345329258",
+  "preCommitReadbackAt": "2026-10-23 03:27:43 JST",
+  "remoteMain": "d8e8ad20a325e2d190561940f6f15a39347d910e",
+  "remoteTopicAbsent": true,
+  "localHead": "d8e8ad20a325e2d190561940f6f15a39347d910e",
+  "localBranch": "sayosomi/issue-1260-r2-d1",
+  "conflictingOwnershipMarkers": false,
+  "projectRouterBlob": "2e27610f8fd56476c55b6ac8f6204052fed6ff2a",
+  "productionPaths": [
+    "packages/nui-language/src/dsl/dslDocument.ts",
+    "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+    "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+    "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+    "packages/nui-language/src/scalars/typedDependencyGraph.ts",
+    "rust-evaluator/src/evaluation/mod.rs",
+    "rust-evaluator/src/evaluation/scalars/mutation/for_group_scheduler.rs",
+    "src/geometry/evaluate.ts"
+  ],
+  "scopeDeviations": [],
+  "newWorktree": false,
+  "resetStashRebaseForce": false,
+  "transportOrSharedModelChanged": false,
+  "issue1194Changed": false,
+  "prCreated": false,
+  "selfApprovalMergeClosure": false,
+  "humanManualE2E": "Not Required",
+  "checkpointIdentity": "The commit containing this ledger is the candidate checkpoint. Exact local/pushed/remote HEAD and clean status are verified after normal push and returned in the final report, avoiding self-referential commit contents."
+}

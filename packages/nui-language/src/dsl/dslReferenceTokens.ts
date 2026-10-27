@@ -285,7 +285,7 @@ export const parseDslSourceReferenceAt = (
   source: string,
   start: number,
   end = source.length,
-  options: { parseOccurrenceIndex?: boolean } = {}
+  options: { parseOccurrenceIndex?: boolean; allowIncompleteProperty?: boolean } = {}
 ): { kind: "valid"; reference: DslSourceReference; end: number } | { kind: "invalid"; error: DslSourceReferenceParseError; end: number } => {
   if (source[start] !== "@") {
     return { kind: "invalid", end: start + 1, error: sourceReferenceError("missing-sigil", { start, end: start + 1 }, "参照には先頭の「@」が必要です。") };
@@ -339,15 +339,26 @@ export const parseDslSourceReferenceAt = (
     const propertyStart = cursor + 1;
     const parsedProperty = readProperty(source, propertyStart, end);
     if (!parsedProperty.value) {
-      return {
-        kind: "invalid",
-        end: Math.max(propertyStart, cursor + 1),
-        error: sourceReferenceError("missing-property", { start: cursor, end: Math.min(cursor + 1, end) }, "「.」の後にプロパティ名が必要です。")
-      };
+      const incomplete = options.allowIncompleteProperty && (
+        propertyStart === end ||
+        (source[end - 1] === "." && source[end - 2] !== ".")
+      );
+      if (incomplete) {
+        property = source.slice(propertyStart, end);
+        propertyRange = { start: propertyStart, end };
+        cursor = end;
+      } else {
+        return {
+          kind: "invalid",
+          end: Math.max(propertyStart, cursor + 1),
+          error: sourceReferenceError("missing-property", { start: cursor, end: Math.min(cursor + 1, end) }, "「.」の後にプロパティ名が必要です。")
+        };
+      }
+    } else {
+      property = parsedProperty.value;
+      propertyRange = { start: propertyStart, end: parsedProperty.end };
+      cursor = parsedProperty.end;
     }
-    property = parsedProperty.value;
-    propertyRange = { start: propertyStart, end: parsedProperty.end };
-    cursor = parsedProperty.end;
   }
   const reference: DslSourceReference = {
     source: source.slice(start, cursor),

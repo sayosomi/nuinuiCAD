@@ -1,0 +1,24 @@
+{
+  "phase": "00/01 before any 02/03 novel compilation",
+  "cells": 32,
+  "result": "PASS after repair and rerun",
+  "calibration": [
+    "X02 detected in TS/Rust",
+    "X05 detected in TS/Rust",
+    "X07 detected in TS/Rust"
+  ],
+  "discoveryFamilies": [
+    "F01 frame context missing from Rust collection source length/index",
+    "F02 point[] frame geometry program loss and consumer materialization",
+    "F03 literal collection members omit captured local bindings",
+    "F04 Module-in-loop geometry value ownership (including F06 history completion follow-on)",
+    "F05 generated Module export consumer loses invocation mapping"
+  ],
+  "activationAssessment": {
+    "R": "zero initializes/escapes both full asymmetric collections; one checks simultaneous incoming swap and all members",
+    "N": "one outer iteration executes three inner iterations; zero checks escaped initializer; 02/03 add even/empty inner executions",
+    "G": "zero retains staged initializer; one swaps endpoints; each Module pair has two asymmetric owners",
+    "D": "zero retains adjacent selected/unselected controls; one activates dynamic guard and gate consumers; independent diagnostic survives"
+  },
+  "refinementBeforeLaterWave": "Keep frozen shapes/transforms/IDs. For G 02/03 strengthen Other segment from a 24/7 vector (length 25) to a 16/63 vector (length 65), alongside the 15/20 vector (length 25). Preserve every coordinate, endpoint, stage and per-iteration snapshot assertion. Add exact total snapshot row-count and cross-next compiled-identity assertions."
+}

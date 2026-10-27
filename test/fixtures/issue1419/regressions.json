@@ -1,0 +1,81 @@
+[
+  {
+    "id": "F01-conditional-inner-iteration-source",
+    "expected": 3,
+    "source": "nui 1\nfor OuterTick in range(min: 0, max: 0, step: 1) carry Outer: number = 1 {\nconst Items: number[] = if (@OuterTick == 0) { [2] } else { [] }\nfor InnerTick in @Items carry Inner: number = @Outer {\nnext Inner = @Inner + @InnerTick\n}\nnext Outer = @Inner\n}\nconst Result: number = @Outer\n",
+    "control": "nui 1\nfor OuterTick in range(min: 0, max: 0, step: 1) carry Outer: number = 1 {\nconst Items: number[] = [2]\nfor InnerTick in @Items carry Inner: number = @Outer {\nnext Inner = @Inner + @InnerTick\n}\nnext Outer = @Inner\n}\nconst Result: number = @Outer\n"
+  },
+  {
+    "id": "F01-local-member-inner-iteration-source",
+    "expected": 3,
+    "source": "nui 1\nfor OuterTick in range(min: 0, max: 0, step: 1) carry Outer: number = 1 {\nconst Member: number = @OuterTick + 2\nconst Items: number[] = [@Member]\nfor InnerTick in @Items carry Inner: number = @Outer {\nnext Inner = @Inner + @InnerTick\n}\nnext Outer = @Inner\n}\nconst Result: number = @Outer\n",
+    "control": "nui 1\nfor OuterTick in range(min: 0, max: 0, step: 1) carry Outer: number = 1 {\nconst Items: number[] = [2]\nfor InnerTick in @Items carry Inner: number = @Outer {\nnext Inner = @Inner + @InnerTick\n}\nnext Outer = @Inner\n}\nconst Result: number = @Outer\n"
+  },
+  {
+    "id": "F02-point-collection-frame-value",
+    "expected": null,
+    "source": "nui 1\npoint Seed = coordinate(x: 3, y: 4)\nfor Tick in range(min: 0, max: 0, step: 1) carry Points: point[] = [@Seed] {\nconst Count: number = @Points.length\nconst Chosen: point = if (@Count > 0) { @Points[0] } else { @Seed }\npoint Observed = from(source: @Chosen)\nnext Points = @Points\n}\n",
+    "control": "nui 1\npoint Seed = coordinate(x: 3, y: 4)\nfor Tick in range(min: 0, max: 0, step: 1) carry Points: point[] = [@Seed] {\nconst Count: number = @Points.length\npoint Observed = from(source: @Points[0])\nnext Points = @Points\n}\n",
+    "geometry": {
+      "x": 3,
+      "y": 4
+    }
+  },
+  {
+    "id": "F03-literal-collection-capture",
+    "expected": 5,
+    "source": "nui 1\nfor Tick in range(min: 0, max: 1, step: 1) carry Items: number[] = [3] {\nconst Member: number = @Items[0] + 1\nconst Replacement: number[] = [@Member]\nnext Items = @Replacement\n}\nconst Result: number = @Items[0]\n",
+    "control": "nui 1\nfor Tick in range(min: 0, max: 1, step: 1) carry Items: number[] = [3] {\nconst Member: number = @Items[0] + 1\nconst Replacement: number[] = for Value in @Items { @Value + 1 }\nnext Items = @Replacement\n}\nconst Result: number = @Items[0]\n",
+    "carries": [
+      "Items"
+    ]
+  },
+  {
+    "id": "F04-unexecuted-Module-frame-value",
+    "expected": null,
+    "source": "nui 1\nmodule Box(Seed: number) {\nconst Chosen: point = if (@Seed > 0) { coordinate(x: @Seed, y: 0) } else { coordinate(x: 1, y: 2) }\nexport point Mark = from(source: @Chosen)\n}\nconst Items: number[] = []\nfor Tick in @Items {\ninstance Live = Box(Seed: 1)\npoint Observed = from(source: @Live::Mark)\n}\n",
+    "control": "nui 1\nmodule Box(Seed: number) {\nexport point Mark = coordinate(x: @Seed, y: 0)\n}\nconst Items: number[] = []\nfor Tick in @Items {\ninstance Live = Box(Seed: 1)\npoint Observed = from(source: @Live::Mark)\n}\n",
+    "carries": []
+  },
+  {
+    "id": "F05-Module-loop-export-consumer",
+    "expected": null,
+    "source": "nui 1\nmodule Box(Seed: number) {\nexport point Mark = coordinate(x: @Seed, y: 17)\n}\nconst Items: number[] = [1]\nfor Tick in @Items {\ninstance Live = Box(Seed: @Tick)\npoint Observed = from(source: @Live::Mark)\n}\n",
+    "control": "nui 1\nmodule Box(Seed: number) {\nexport point Mark = coordinate(x: @Seed, y: 17)\n}\nconst Items: number[] = [1]\nfor Tick in @Items {\ninstance Live = Box(Seed: @Tick)\npoint Observed = coordinate(x: @Tick, y: 17)\n}\n",
+    "geometry": {
+      "x": 1,
+      "y": 17
+    },
+    "carries": []
+  },
+  {
+    "id": "F06-Module-version-completion",
+    "expected": null,
+    "source": "nui 1\nconst Unit: number = 3\nconst Zero: number = 0\nconst Ticks: number[] = [1]\nmodule Box(Seed: number) {\nconst Selected: point = if (@Seed > 0) { coordinate(x: @Seed + 3, y: 17) } else { coordinate(x: @Seed / 0, y: 29) }\nexport point Mark = from(source: @Selected)\n}\ninstance Dormant(enabled: false) = Box(Seed: 0)\nconst Forwarded: point = @Dormant::Mark\npoint Blocked = from(source: @Forwarded)\nfor Tick in @Ticks {\ninstance Live = Box(Seed: @Tick)\npoint Observed = from(source: @Live::Mark)\n}\nconst Independent: number = @Unit / @Zero\nconst Surviving: number = @Unit + 9\n",
+    "control": "nui 1\nconst Unit: number = 3\nconst Zero: number = 0\nconst Ticks: number[] = [1]\nmodule Box(Seed: number) {\nconst Selected: point = if (@Seed > 0) { coordinate(x: @Seed + 3, y: 17) } else { coordinate(x: @Seed / 0, y: 29) }\nexport point Mark = from(source: @Selected)\n}\ninstance Dormant(enabled: false) = Box(Seed: 0)\npoint Blocked = from(source: @Dormant::Mark)\nfor Tick in @Ticks {\ninstance Live = Box(Seed: @Tick)\npoint Observed = from(source: @Live::Mark)\n}\nconst Independent: number = @Unit / @Zero\nconst Surviving: number = @Unit + 9\n",
+    "geometry": {
+      "x": 4,
+      "y": 17
+    },
+    "carries": [],
+    "errors": [
+      "Blocked"
+    ],
+    "paths": [
+      "dependent-consumer-unavailable"
+    ],
+    "scalars": {
+      "Independent": "evaluation-divide-by-zero",
+      "Surviving": 12
+    },
+    "diagnosticBindings": {
+      "Independent": "evaluation-divide-by-zero"
+    },
+    "valueErrors": [
+      {
+        "name": "Forwarded",
+        "message": "Geometry value reference is unavailable at runtime."
+      }
+    ]
+  }
+]

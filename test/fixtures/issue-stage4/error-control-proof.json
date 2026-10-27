@@ -1,0 +1,183 @@
+{
+  "family": "Stage4-F6",
+  "purpose": "mandatory negative validation; conservative accepted-source accounting",
+  "newFamilies": 0,
+  "incorrectlyAcceptedBefore": 2,
+  "compilerRejectedBefore": 1,
+  "before": [
+    {
+      "source": "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: @Values[0] + @Missing, y: 0)\n",
+      "sha256": "8c68a9ed0e0eb22390b3f4c2545da98c343cc31818962a6ceaae1092f2193561",
+      "status": "fatal",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 3,
+          "column": 45,
+          "code": "numeric-binding-unresolved",
+          "message": "\u672a\u5b9a\u7fa9\u306e\u5909\u6570 \"Missing\" \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u3002",
+          "exactSpanOnly": true,
+          "presentation": {
+            "key": "diagnostic.numeric-binding-unresolved",
+            "parameters": {
+              "name": "Missing"
+            }
+          },
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 79,
+                "to": 87
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ],
+      "expected": "fatal",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "numeric-field error-control regression"
+    },
+    {
+      "source": "nui 1\nconst Values: boolean[] = [true]\npoint Observed = coordinate(x: @Values[0], y: 0)\n",
+      "sha256": "48b2a9220b59b6adc873609268aafa2f6ede847a25cfe3689367ada6e8b97a5e",
+      "status": "valid",
+      "diagnostics": [],
+      "expected": "fatal",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "numeric-field error-control regression"
+    },
+    {
+      "source": "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: @Values[true], y: 0)\n",
+      "sha256": "f675bd1bede7970e8de87074e8e52de5303af88261fb227d07a0beb36b0bcfa1",
+      "status": "valid",
+      "diagnostics": [],
+      "expected": "fatal",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "numeric-field error-control regression"
+    }
+  ],
+  "after": [
+    {
+      "source": "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: @Values[0] + @Missing, y: 0)\n",
+      "sha256": "8c68a9ed0e0eb22390b3f4c2545da98c343cc31818962a6ceaae1092f2193561",
+      "status": "fatal",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 3,
+          "column": 45,
+          "code": "numeric-binding-unresolved",
+          "message": "\u672a\u5b9a\u7fa9\u306e\u5909\u6570 \"Missing\" \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u3002",
+          "exactSpanOnly": true,
+          "presentation": {
+            "key": "diagnostic.numeric-binding-unresolved",
+            "parameters": {
+              "name": "Missing"
+            }
+          },
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 79,
+                "to": 87
+              }
+            ],
+            "sourceRevision": 1
+          }
+        }
+      ],
+      "expected": "fatal",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "numeric-field error-control regression"
+    },
+    {
+      "source": "nui 1\nconst Values: boolean[] = [true]\npoint Observed = coordinate(x: @Values[0], y: 0)\n",
+      "sha256": "48b2a9220b59b6adc873609268aafa2f6ede847a25cfe3689367ada6e8b97a5e",
+      "status": "fatal",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 3,
+          "column": 32,
+          "code": "module-scalar-type-mismatch",
+          "message": "\u5ba3\u8a00\u3055\u308c\u305f\u578b\u3068\u4e00\u81f4\u3057\u307e\u305b\u3093(\u671f\u5f85: number, \u5b9f\u969b: boolean)\u3002",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 70,
+                "to": 80
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.scalar-type-mismatch",
+            "parameters": {
+              "expected": "number",
+              "actual": "boolean"
+            }
+          },
+          "expectedType": {
+            "kind": "number"
+          },
+          "actualType": {
+            "kind": "boolean"
+          }
+        }
+      ],
+      "expected": "fatal",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "numeric-field error-control regression"
+    },
+    {
+      "source": "nui 1\nconst Values: number[] = [7]\npoint Observed = coordinate(x: @Values[true], y: 0)\n",
+      "sha256": "f675bd1bede7970e8de87074e8e52de5303af88261fb227d07a0beb36b0bcfa1",
+      "status": "fatal",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 3,
+          "column": 40,
+          "code": "module-scalar-type-mismatch",
+          "message": "\u578b\u304c\u4e00\u81f4\u3057\u307e\u305b\u3093(\u671f\u5f85: number, \u5b9f\u969b: boolean)\u3002",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 74,
+                "to": 78
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.scalar-type-mismatch",
+            "parameters": {
+              "expected": "number",
+              "actual": "boolean"
+            }
+          },
+          "expectedType": {
+            "kind": "number"
+          },
+          "actualType": {
+            "kind": "boolean"
+          }
+        }
+      ],
+      "expected": "fatal",
+      "method": "B",
+      "stratum": "C",
+      "purpose": "numeric-field error-control regression"
+    }
+  ],
+  "repair": "Preserve canonical numeric-collection type diagnostics at root geometry sites; keep ordinary unresolved names owned by existing numeric compiler, preventing duplicate diagnostics.",
+  "negativeValidationStatus": "PASS: all 3 rejected with diagnostics; no evaluator invocation or new family credited"
+}

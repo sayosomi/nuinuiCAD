@@ -12,6 +12,10 @@ pub(crate) enum GeometryInputCollectionNode {
     Leaf {
         targets: Vec<GeometryInputTarget>,
     },
+    CarryReference {
+        collection_value_id: String,
+        geometry_type: String,
+    },
     GeometryValueMap {
         source: GeometryInputCollectionSource,
         source_statement_id: String,
@@ -71,6 +75,7 @@ pub(crate) enum GeometryInputTarget {
         template_element_id: ElementId,
         geometry_type: String,
         point_key: Option<String>,
+        stage_path: Option<Vec<String>>,
         target_source_order: f64,
         index: Option<Box<TypedScalarExpression>>,
     },
@@ -373,9 +378,12 @@ pub(crate) struct EvaluationState {
     pub(crate) base_transformation_geometry: HashMap<ElementId, Value>,
     pub(crate) transformation_stage_geometry: HashMap<String, Value>,
     pub(crate) completed_transformation_recipe_indices: HashSet<usize>,
+    pub(crate) completed_transformation_targets: HashMap<usize, HashSet<ElementId>>,
     pub(crate) transformation_dependency_plans: Option<Value>,
     pub(crate) computed_geometry_order: Vec<ElementId>,
     pub(crate) computed_geometry_values: HashMap<GeometryValueOccurrence, Value>,
+    /// Canonical lazy frame entries, indexed for consuming-statement execution.
+    pub(crate) lazy_geometry_value_programs: HashMap<GeometryValueOccurrence, Value>,
     pub(crate) geometry_input_targets:
         HashMap<ElementId, HashMap<String, Vec<GeometryInputTarget>>>,
     pub(crate) geometry_collection_nodes: HashMap<String, Arc<GeometryInputCollectionNode>>,

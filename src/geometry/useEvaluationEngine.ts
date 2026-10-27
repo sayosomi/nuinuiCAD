@@ -60,22 +60,13 @@ type AsyncEvaluationState = {
 };
 
 let nextEvaluationRequestRevision = 1;
-const evaluationRequestRevisionByKey = new Map<string, number>();
-const MAX_REQUEST_IDENTITIES = 256;
 
 const mustFailClosedAfterRustError = (scalarProgram: EvaluateElementsOptions["scalarProgram"], error: unknown): boolean =>
   scalarProgram !== undefined || error instanceof ScalarOutputDecodeError;
 
-const requestRevisionFor = (key: string) => {
-  const existing = evaluationRequestRevisionByKey.get(key);
-  if (existing !== undefined) return existing;
+const allocateRequestRevision = () => {
   const revision = nextEvaluationRequestRevision;
   nextEvaluationRequestRevision += 1;
-  evaluationRequestRevisionByKey.set(key, revision);
-  if (evaluationRequestRevisionByKey.size > MAX_REQUEST_IDENTITIES) {
-    const oldest = evaluationRequestRevisionByKey.keys().next().value;
-    if (oldest !== undefined) evaluationRequestRevisionByKey.delete(oldest);
-  }
   return revision;
 };
 
@@ -234,9 +225,20 @@ export const useEvaluationEngine = (
       textPropertyBindingEntries
     ]
   );
-  const evaluationRequestRevision = useMemo(
-    () => requestRevisionFor(`${evaluationRevision}:${requestKey}`),
-    [evaluationRevision, requestKey]
+  // Match the evaluation effect's inputs, including a new host transport or
+  // mode. Restoring an earlier input key starts a new request, not a cache hit.
+  const { revision: evaluationRequestRevision } = useMemo(
+    () => ({
+      elements,
+      evaluationOptions,
+      evaluationRevision,
+      requestKey,
+      engineMode,
+      rustEligible,
+      rustTransport,
+      revision: allocateRequestRevision()
+    }),
+    [elements, evaluationOptions, evaluationRevision, requestKey, engineMode, rustEligible, rustTransport]
   );
   const needsReferenceEvaluation =
     (!rustTransportAvailable || engineMode !== "rust" || !rustEligible) && !deferScalarReferenceEvaluation;
@@ -355,8 +357,12 @@ export const useEvaluationEngine = (
     };
   }
 
+  const isCurrentAsyncEvaluation = asyncEvaluation !== null &&
+    asyncEvaluation.requestKey === requestKey &&
+    asyncEvaluation.evaluationRevision === evaluationRevision &&
+    asyncEvaluation.evaluationRequestRevision === evaluationRequestRevision;
+
   if (parityMode) {
-    const isCurrentAsyncEvaluation = asyncEvaluation?.requestKey === requestKey;
     if (deferScalarReferenceEvaluation) {
       if (isCurrentAsyncEvaluation && asyncEvaluation.status === "failed") {
         return {
@@ -410,7 +416,6 @@ export const useEvaluationEngine = (
   }
 
   if (asyncEvaluation) {
-    const isCurrentAsyncEvaluation = asyncEvaluation.requestKey === requestKey;
     return {
       evaluation: asyncEvaluation.evaluation,
       evaluationRevision: asyncEvaluation.evaluationRevision,

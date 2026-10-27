@@ -238,7 +238,8 @@ const shifted: Pair[] = for item in @pairs {
 ```
 
 The source must be a collection already declared and visible at this source
-position. The immutable binder has the source element's exact scalar, choice,
+position. Scalar and nominal-record collection fields, such as `@packet.xs`,
+may be used directly as the source. The immutable binder has the source element's exact scalar, choice,
 geometry, or nominal-record type and is visible only in the body. The body is
 checked against the declared result element type, so scalar kinds may change,
 geometry interfaces must be assignable, bare choice literals use the declared

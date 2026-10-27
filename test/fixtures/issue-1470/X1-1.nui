@@ -1,0 +1,13 @@
+nui 1
+// #1470 X1 occurrence-owned pure bulge failure and sibling isolation
+module M(index: number) {
+  const Local: path = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+  export const Path: path = @Local
+  export const Out: point = bezierBulgePoint(source: @Local, segmentIndex: @index)
+}
+instance Left = M(index: 1)
+instance Right = M(index: 0)
+path Material = from(source: @Right::Path)
+point RightResult = offset(from: @Right::Out, dx: 0, dy: 0)
+curve ControlCurve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+point Control = bezierBulgePoint(source: @ControlCurve)

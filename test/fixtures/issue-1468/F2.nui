@@ -1,0 +1,38 @@
+nui 1
+// sewing workflow: preserve this comment and blank lines
+profile Plot
+style Ink {
+  width: 1px,
+  color: #123456,
+  for @Plot {
+    width: 2px,
+  }
+}
+
+module Sleeve(span: number = 60, lift: number = 40) {
+  export curve Cap = bezier(start: (0, 0), end: (@span, @lift), startAngle: 90, startLength: 20, endAngle: 0, endLength: 15)
+  move Cap as staged(from: (0, 0), to: (7, -3), scale: 1, angleDeg: 0, mirrorX: false)
+  reverse Cap as turned()
+  export line Hem = segment(start: (0, -20), end: (@span, -20))
+}
+group Sleeves [Ink] {
+  instance Left = Sleeve(span: 60, lift: 40)
+  instance Right = Sleeve(span: 85, lift: 25)
+  move Right(from: (0, 0), to: (120, -10), scale: 1, angleDeg: 0, mirrorX: false)
+  const count: number = 2
+  const chosen: number = 1
+  for i in range(min: 0, max: @count, step: 1) {
+    line Tick = segment(start: (@i * 10, -40), end: (@i * 10, -35))
+  }
+  point Pick = offset(from: @Tick[@chosen].end, dx: 2, dy: 3)
+  line Probe = segment(start: (0, -32), end: @Pick)
+  path Stage = from(source: @Left::Cap.turned)
+  text Caption = label(text: "SLEEVE", anchor: (3, -10), size: 3)
+}
+layout Sheet {
+  place @Sleeves(at: (11, 5), scale: 1, angle: 0, mirror: false)
+}
+svg Vector(layout: @Sheet, profile: @Plot, margin: 3)
+print Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)
+
+// end sentinel

@@ -1,0 +1,17 @@
+nui 1
+line Axis = polar(start: (430, -70), angle: 7, length: 33)
+for i in range(min: 0, max: 1, step: 1) {
+  curve Generated = bezier(start: (@i * 120, 7), end: (@i * 120 + 75, 43), startAngle: 34 + @i * 11, startLength: 23, endAngle: 137 + @i * 11, endLength: 27)
+  move Generated as first (from: (0, 0), to: (0, 0), angleDeg: 13)
+  move Generated.first as nested (from: (0, 0), to: (0, 0), angleDeg: 19)
+  move Generated as later (from: (0, 0), to: (0, 0), angleDeg: 31)
+}
+module Forward(source: path) {
+  for tick in range(min: 0, max: 1, step: 1) carry edge: path = @source {
+    next edge = @source
+  }
+  export const out: path = @edge
+}
+instance Decoy = Forward(source: @Generated[0].base)
+instance Chosen = Forward(source: @Generated[1].first.nested)
+const result: number = lineAngle(@Chosen::out.start, @Axis.start)

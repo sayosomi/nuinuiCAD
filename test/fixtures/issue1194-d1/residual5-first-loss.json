@@ -1,0 +1,480 @@
+[
+  {
+    "family": "F31",
+    "id": "M1",
+    "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+    "base": "9a19e02d5f916074368395f87b659931c99d9336",
+    "expected": {
+      "L": 5,
+      "N": 21
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts: sourceAliasForTarget / recordValueExpressionForTarget",
+      "packages/nui-language/src/dsl/moduleGeometryRuntime.ts: defining-namespace recordCollectionLookup adapter"
+    ],
+    "mechanism": "The canonical mapped constructor already contains a nominal record-field reference to the exact map binder. Geometry alias lowering stops at recordCollectionIndex unless a literal member exists, losing the map body and its source occurrence. Follow existing collection products and mapped-record bodies in the defining namespace, substituting the selected source record for the binder. No geometry evaluator or root scheduler is added.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [],
+          "mappedRecordBodies": [
+            {
+              "statementId": "statement:typedDeclaration:mvhxe0qa:6",
+              "binderId": "value-for-binder:statement:typedDeclaration:mvhxe0qa:6",
+              "sourceTypeIdentity": "statement:recordDefinition:mvhxe0qa:2",
+              "resultTypeIdentity": "statement:recordDefinition:mvhxe0qa:2"
+            }
+          ],
+          "geometry": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhxe0qa:3",
+                "instancePath": []
+              },
+              "kind": "segment"
+            }
+          ]
+        },
+        "reference": {
+          "L": {
+            "status": "error",
+            "type": {
+              "kind": "number"
+            },
+            "issueCode": "evaluation-geometry-property-unavailable"
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          }
+        },
+        "production": {
+          "L": {
+            "issueCode": "evaluation-geometry-property-unavailable",
+            "status": "error",
+            "type": {
+              "kind": "number"
+            }
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          }
+        },
+        "wireSha256": "3b92093704693d8d98b751d9fac9f2cc738b0fc5667228a521e7cdfee1091186",
+        "rustEligible": true,
+        "diagnostics": []
+      },
+      {
+        "phase": "settled-focused",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [],
+          "mappedRecordBodies": [
+            {
+              "statementId": "statement:typedDeclaration:mvhxixo5:6",
+              "binderId": "value-for-binder:statement:typedDeclaration:mvhxixo5:6",
+              "sourceTypeIdentity": "statement:recordDefinition:mvhxixo5:2",
+              "resultTypeIdentity": "statement:recordDefinition:mvhxixo5:2"
+            }
+          ],
+          "geometry": [
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhxixo5:3",
+                "instancePath": []
+              },
+              "kind": "segment"
+            },
+            {
+              "occurrence": {
+                "sourceStatementId": "statement:typedDeclaration:mvhxixo5:8",
+                "instancePath": []
+              },
+              "kind": "reference"
+            }
+          ]
+        },
+        "reference": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 5
+            }
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          }
+        },
+        "production": {
+          "L": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 5
+            }
+          },
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 21
+            }
+          }
+        },
+        "wireSha256": "12fef962bb779a295a6c18a997628e772117f144acda22f76b173ae5f9cfb5d3",
+        "rustEligible": true,
+        "diagnostics": []
+      }
+    ]
+  },
+  {
+    "family": "F32",
+    "id": "P-length-constructor",
+    "sha256": "59e07b07931a44d4cd3c28f53946086075a4b4e89c1338cf3e022739a34454f8",
+    "base": "9a19e02d5f916074368395f87b659931c99d9336",
+    "expected": {
+      "N": 2
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: inlineCollectionMember registration",
+      "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts: recordIdentityForType / resolveGenericArrayMember"
+    ],
+    "mechanism": "Both inline constructor discovery and generic collection admission test only element.kind record, so Box?[] rejects a Box constructor although T is assignable to T?. Unwrap only for canonical record identity/member analysis, retain the optional element wrapper and original ordinal. The reference-only counterfactual already passes on Base.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [],
+          "mappedRecordBodies": [],
+          "geometry": []
+        },
+        "reference": {},
+        "production": {},
+        "wireSha256": null,
+        "rustEligible": null,
+        "diagnostics": [
+          {
+            "code": "array-invalid-member",
+            "line": 3,
+            "message": "array member は scalar/geometry/record reference または scalar literal で指定してください。"
+          }
+        ]
+      },
+      {
+        "phase": "settled-focused",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [],
+          "mappedRecordBodies": [],
+          "geometry": []
+        },
+        "reference": {
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 2
+            }
+          }
+        },
+        "production": {
+          "N": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 2
+            }
+          }
+        },
+        "wireSha256": "c5269ca3d9315b1d5bacda07f9f79d0b120f13ffb0b3eec788aaff8607b39b98",
+        "rustEligible": true,
+        "diagnostics": []
+      }
+    ]
+  },
+  {
+    "family": "F33",
+    "id": "P4",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "base": "9a19e02d5f916074368395f87b659931c99d9336",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/dsl/recordSemanticAnalysis.ts: deferred optional indexed match binder",
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts: moduleRecordValueExpressionFor / recordReferenceSemantic",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: selected singleton IDs, member resolver reuse and optional collection forwarding"
+    ],
+    "mechanism": "The early record shell cannot retain a collection-index scrutinee and the Module owner therefore reparses its some binder as an unavailable record. Resolve the optional element nominal identity at the existing Module owner, preserve explicit-none ordinals, use existing singleton-record presence and canonical selected-member aliases. Retain occurrence-specific IDs through Module arguments and register their cardinality/forwarding descriptors. Bounds use the existing typed collection-index evaluator. These downstream parameter, none, conditional-member and bounds symptoms belong to this same initially rejected indexed-optional form, not extra Base-independent families.",
+    "snapshots": [
+      {
+        "phase": "base-exact",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [],
+          "mappedRecordBodies": [],
+          "geometry": []
+        },
+        "reference": {},
+        "production": {},
+        "wireSha256": null,
+        "rustEligible": null,
+        "diagnostics": [
+          {
+            "code": "record-reference-not-record",
+            "line": 6,
+            "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。"
+          },
+          {
+            "code": "record-reference-not-record",
+            "line": 8,
+            "message": "参照「@held」は利用可能な record 値または record Module parameter ではありません。"
+          }
+        ]
+      },
+      {
+        "phase": "settled-focused",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [],
+          "mappedRecordBodies": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 31
+            }
+          }
+        },
+        "wireSha256": "df7a37db1a045ab94d45d7e3955797f75a41dfed5cd356e2c657a44b831aa3d0",
+        "rustEligible": true,
+        "diagnostics": []
+      }
+    ]
+  },
+  {
+    "family": "F34",
+    "id": "S-index",
+    "sha256": "cb83c234a2bb552d835a4c558c4d8da7d1d62b18638c8f1a8de11c4905f380c2",
+    "base": "9a19e02d5f916074368395f87b659931c99d9336",
+    "expected": {
+      "X": 19,
+      "Y": 43
+    },
+    "firstIncorrectOwners": [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts: appendRecordValueExpression"
+    ],
+    "mechanism": "Base accepts the record index and can compute scalar fields through an alternate field path, yet exported whole-record field projections point at an absent record-value producer. Emit the exact selected singleton by reusing its original record alias or existing lazy field declarations; fall back to the existing lazy record-map descriptor when fields lack declarations. The minimal reducer has no geometry or optional values, independently separating this first loss from F31/F33.",
+    "snapshots": [
+      {
+        "phase": "base-exact-singleton",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [
+            {
+              "valueId": "record-field-collection:[\"record-value:[[\\\"statement:moduleInstance:mvhxfm2a:7\\\"],\\\"statement:typedDeclaration:mvhxfm2a:6\\\"]\",\"statement:recordDefinition:mvhxfm2a:2\",0]",
+              "kind": "recordField",
+              "sourceValueId": "record-value:[[\"statement:moduleInstance:mvhxfm2a:7\"],\"statement:typedDeclaration:mvhxfm2a:6\"]"
+            },
+            {
+              "valueId": "record-field-collection:[\"record-value:[[\\\"statement:moduleInstance:mvhxfm2a:8\\\"],\\\"statement:typedDeclaration:mvhxfm2a:6\\\"]\",\"statement:recordDefinition:mvhxfm2a:2\",0]",
+              "kind": "recordField",
+              "sourceValueId": "record-value:[[\"statement:moduleInstance:mvhxfm2a:8\"],\"statement:typedDeclaration:mvhxfm2a:6\"]"
+            }
+          ],
+          "mappedRecordBodies": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          }
+        },
+        "wireSha256": "6c4794263ac9d0f12271ec4d6d5b583fd502a8bf5cd62c8fd06c14847f31a6db",
+        "rustEligible": true,
+        "diagnostics": []
+      },
+      {
+        "phase": "settled-focused",
+        "compilerProduct": {
+          "missingCollectionTargets": [],
+          "missingAliasTargets": [],
+          "missingSourceTargets": [],
+          "mappedRecordBodies": [],
+          "geometry": []
+        },
+        "reference": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          }
+        },
+        "production": {
+          "X": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 19
+            }
+          },
+          "Y": {
+            "status": "ok",
+            "type": {
+              "kind": "number"
+            },
+            "value": {
+              "kind": "number",
+              "value": 43
+            }
+          }
+        },
+        "wireSha256": "1d6228944509d91a93598b5bb550cde13389a1d7921c52750f03c4dd616af999",
+        "rustEligible": true,
+        "diagnostics": []
+      }
+    ]
+  }
+]

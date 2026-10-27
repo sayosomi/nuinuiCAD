@@ -1,0 +1,654 @@
+{
+  "scope": "Exact counts for the instrumented #1260 campaign harness, including Base replays, intermediate failures, affected replays and final full-suite invocation. Other historical/focused/parity/Rust suites are verification, not additionally instrumented request totals. Do not interpret their test count as a request count.",
+  "totals": {
+    "compiler": 595,
+    "setupCompiler": 30,
+    "reference": 581,
+    "production": 578
+  },
+  "observedStdinWrites": 578,
+  "perRun": [
+    {
+      "phase": "base-r2",
+      "runId": "base-r2-1792685649967",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "results": {
+        "PASS": 1,
+        "UNRESOLVED": 3
+      }
+    },
+    {
+      "phase": "candidate-r2",
+      "runId": "candidate-r2-1792685750055",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "results": {
+        "PASS": 2,
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "phase": "candidate-r2-owner",
+      "runId": "candidate-r2-owner-1792685785117",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "results": {
+        "PASS": 2,
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "phase": "candidate-r2-root",
+      "runId": "candidate-r2-root-1792685811489",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 3
+      },
+      "results": {
+        "PASS": 2,
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "phase": "primary-pilot",
+      "runId": "primary-pilot-1792685918982",
+      "counts": {
+        "compiler": 16,
+        "setupCompiler": 1,
+        "reference": 12,
+        "production": 12
+      },
+      "results": {
+        "PASS": 5,
+        "UNRESOLVED": 11
+      }
+    },
+    {
+      "phase": "candidate-r2-endpoint",
+      "runId": "candidate-r2-endpoint-1792686003238",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 1
+      },
+      "results": {
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "phase": "candidate-r2-projection",
+      "runId": "candidate-r2-projection-1792686048424",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 1
+      },
+      "results": {
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "phase": "candidate-r2-anchor",
+      "runId": "candidate-r2-anchor-1792690527779",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "results": {
+        "PASS": 1,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "phase": "primary-corrected",
+      "runId": "primary-corrected-1792690561092",
+      "counts": {
+        "compiler": 9,
+        "setupCompiler": 1,
+        "reference": 9,
+        "production": 9
+      },
+      "results": {
+        "PASS": 8,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "phase": "base-expanded",
+      "runId": "base-expanded-1792690635372",
+      "counts": {
+        "compiler": 24,
+        "setupCompiler": 1,
+        "reference": 22,
+        "production": 22
+      },
+      "results": {
+        "PASS": 18,
+        "UNRESOLVED": 6
+      }
+    },
+    {
+      "phase": "candidate-r2-lazy",
+      "runId": "candidate-r2-lazy-1792690843755",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "results": {
+        "PASS": 4
+      }
+    },
+    {
+      "phase": "candidate-r4-literal",
+      "runId": "candidate-r4-literal-1792690978586",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "results": {
+        "PASS": 2
+      }
+    },
+    {
+      "phase": "candidate-r4-schedule",
+      "runId": "candidate-r4-schedule-1792691022667",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "results": {
+        "PASS": 3
+      }
+    },
+    {
+      "phase": "candidate-r6-snapshot",
+      "runId": "candidate-r6-snapshot-1792691111069",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "results": {
+        "PASS": 5
+      }
+    },
+    {
+      "phase": "base-reduced",
+      "runId": "base-reduced-1792691231999",
+      "counts": {
+        "compiler": 10,
+        "setupCompiler": 1,
+        "reference": 10,
+        "production": 10
+      },
+      "results": {
+        "UNRESOLVED": 5,
+        "PASS": 5
+      }
+    },
+    {
+      "phase": "candidate-r6-exact-limit",
+      "runId": "candidate-r6-exact-limit-1792691272097",
+      "counts": {
+        "compiler": 7,
+        "setupCompiler": 1,
+        "reference": 7,
+        "production": 7
+      },
+      "results": {
+        "PASS": 5,
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "phase": "candidate-r4-no-root",
+      "runId": "candidate-r4-no-root-1792691352838",
+      "counts": {
+        "compiler": 6,
+        "setupCompiler": 1,
+        "reference": 6,
+        "production": 6
+      },
+      "results": {
+        "PASS": 5,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "phase": "candidate-r4-reference",
+      "runId": "candidate-r4-reference-1792691391658",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "results": {
+        "PASS": 2
+      }
+    },
+    {
+      "phase": "base-partial-exact",
+      "runId": "base-partial-exact-1792691401946",
+      "counts": {
+        "compiler": 1,
+        "setupCompiler": 1,
+        "reference": 1,
+        "production": 1
+      },
+      "results": {
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "phase": "candidate-r6-atomic",
+      "runId": "candidate-r6-atomic-1792691444118",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "results": {
+        "PASS": 5
+      }
+    },
+    {
+      "phase": "focused-settled",
+      "runId": "focused-settled-1792691491156",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 52,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "phase": "focused-final",
+      "runId": "focused-final-1792691521043",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    },
+    {
+      "phase": "required-final",
+      "runId": "required-final-1792691797253",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    },
+    {
+      "phase": "focused-regression-fixed",
+      "runId": "focused-regression-fixed-1792692079448",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    },
+    {
+      "phase": "focused-regression-final",
+      "runId": "focused-regression-final-1792692099244",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    },
+    {
+      "phase": "required-final-v2",
+      "runId": "required-final-v2-1792692396190",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    },
+    {
+      "phase": "focused-final-v3",
+      "runId": "focused-final-v3-1792692843148",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    },
+    {
+      "phase": "focused-final-v4",
+      "runId": "focused-final-v4-1792692895257",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    },
+    {
+      "phase": "scope1442-readback",
+      "runId": "scope1442-readback-1792693131309",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "results": {
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "phase": "required-final-v4",
+      "runId": "required-final-v4-1792693137551",
+      "counts": {
+        "compiler": 53,
+        "setupCompiler": 1,
+        "reference": 53,
+        "production": 53
+      },
+      "results": {
+        "PASS": 53
+      }
+    }
+  ],
+  "processes": [
+    {
+      "runId": "base-r2-1792685649967",
+      "pid": 45604,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r2-1792685750055",
+      "pid": 46232,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r2-owner-1792685785117",
+      "pid": 46429,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r2-root-1792685811489",
+      "pid": 46567,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "primary-pilot-1792685918982",
+      "pid": 46982,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r2-endpoint-1792686003238",
+      "pid": 47366,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r2-projection-1792686048424",
+      "pid": 47646,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r2-anchor-1792690527779",
+      "pid": 62281,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "primary-corrected-1792690561092",
+      "pid": 62444,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "base-expanded-1792690635372",
+      "pid": 62763,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r2-lazy-1792690843755",
+      "pid": 63746,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r4-literal-1792690978586",
+      "pid": 64281,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r4-schedule-1792691022667",
+      "pid": 64481,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r6-snapshot-1792691111069",
+      "pid": 64848,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "base-reduced-1792691231999",
+      "pid": 65318,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r6-exact-limit-1792691272097",
+      "pid": 65521,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r4-no-root-1792691352838",
+      "pid": 65798,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r4-reference-1792691391658",
+      "pid": 65969,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "base-partial-exact-1792691401946",
+      "pid": 66104,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "candidate-r6-atomic-1792691444118",
+      "pid": 66303,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "focused-settled-1792691491156",
+      "pid": 66551,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "focused-final-1792691521043",
+      "pid": 66723,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "required-final-1792691797253",
+      "pid": 73421,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "focused-regression-fixed-1792692079448",
+      "pid": 77685,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "focused-regression-final-1792692099244",
+      "pid": 77944,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "required-final-v2-1792692396190",
+      "pid": 85450,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "focused-final-v3-1792692843148",
+      "pid": 89919,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "focused-final-v4-1792692895257",
+      "pid": 90272,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    },
+    {
+      "runId": "required-final-v4-1792693137551",
+      "pid": 97374,
+      "closeObserved": true,
+      "signal": "SIGTERM",
+      "code": null
+    }
+  ],
+  "ownedCancelledGate": {
+    "reason": "Three confirmed regressions; cancel first full gate to repair before repeating. No claim of a successful gate.",
+    "rootPid": 67143,
+    "ownedPids": [
+      67143,
+      67145,
+      72992,
+      73012,
+      77519
+    ],
+    "processes": [
+      [
+        67143,
+        "zsh /tmp/issue1260-r2-evidence/required.zsh"
+      ],
+      [
+        67145,
+        "zsh /tmp/issue1260-r2-evidence/required.zsh"
+      ],
+      [
+        72992,
+        "npm test"
+      ],
+      [
+        73012,
+        "node /Users/yosomi/Code/nuinuiCAD/node_modules/.bin/vitest run"
+      ],
+      [
+        77519,
+        "/usr/local/bin/node --experimental-import-meta-resolve --require /Users/yosomi/Code/nuinuiCAD/node_modules/vitest/suppress-warnings.cjs --conditions node --conditions development /Users/yosomi/Code/nuinuiCAD/node_modules/vitest/dist/workers/forks.js"
+      ]
+    ]
+  },
+  "quotaEfficiency": null,
+  "quotaReason": "No attributable Human quota observations supplied."
+}
