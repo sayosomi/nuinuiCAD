@@ -26,6 +26,185 @@ fn number_literal(value: f64) -> TypedScalarExpression {
     }
 }
 
+// Safe mechanism discriminator: the same serial diamond as frozen C1, reduced
+// to eight diamonds so Base can expose call-depth growth without overflowing.
+#[test]
+fn dependency_diamonds_use_bounded_native_resolution_depth() {
+    use super::types::ScalarBinaryOperator;
+    let binary = |operator, left, right| TypedScalarExpression::Binary {
+        span: SPAN,
+        operator,
+        left: Box::new(left),
+        right: Box::new(right),
+        r#type: Some(ScalarType::Number),
+    };
+    let mut statements = vec![declare("root", 0, number_literal(7.0))];
+    let mut previous = "root".to_owned();
+    for i in 0..8 {
+        let left = format!("left{i}");
+        let right = format!("right{i}");
+        let join = format!("join{i}");
+        statements.push(declare(
+            &left,
+            3 * i + 1,
+            binary(
+                ScalarBinaryOperator::Add,
+                reference(&previous, &previous),
+                number_literal(1.0),
+            ),
+        ));
+        statements.push(declare(
+            &right,
+            3 * i + 2,
+            binary(
+                ScalarBinaryOperator::Add,
+                reference(&previous, &previous),
+                number_literal(2.0),
+            ),
+        ));
+        statements.push(declare(
+            &join,
+            3 * i + 3,
+            binary(
+                ScalarBinaryOperator::Sub,
+                binary(
+                    ScalarBinaryOperator::Add,
+                    reference(&left, &left),
+                    reference(&right, &right),
+                ),
+                reference(&previous, &previous),
+            ),
+        ));
+        previous = join;
+    }
+    statements.reverse();
+    let program = program(statements);
+    let resolver = ScalarBindingResolver::new(&program);
+    let result = resolver.resolve(&previous, &empty_state());
+    assert_eq!(scalar_evaluation_json(&result)["value"]["value"], 31.0);
+    eprintln!(
+        "#1474 eight-diamond native resolver depth={}",
+        resolver.peak_native_depth.get()
+    );
+    assert!(
+        resolver.peak_native_depth.get() <= 2,
+        "binding dependencies must use heap continuations, not native recursion"
+    );
+    assert_eq!(resolver.finalize(&empty_state()).len(), 25);
+    assert_eq!(resolver.started_bindings.borrow().len(), 25);
+    assert!(resolver
+        .started_bindings
+        .borrow()
+        .values()
+        .all(|count| *count == 1));
+}
+
+#[test]
+fn dependency_chain_and_missing_binding_preserve_results_and_cache_isolation() {
+    let mut statements = vec![declare("root", 0, number_literal(13.0))];
+    let mut previous = "root".to_owned();
+    for i in 0..64 {
+        let id = format!("chain{i}");
+        statements.push(declare(&id, i + 1, reference(&previous, &previous)));
+        previous = id;
+    }
+    let program = program(statements);
+    let resolver = ScalarBindingResolver::new(&program);
+    assert_eq!(
+        scalar_evaluation_json(&resolver.resolve(&previous, &empty_state()))["value"]["value"],
+        13.0
+    );
+    assert!(resolver.peak_native_depth.get() <= 2);
+    assert_eq!(
+        scalar_evaluation_json(&resolver.resolve("missing", &empty_state()))["issueCode"],
+        "evaluation-binding-unavailable"
+    );
+    let other = ValidatedScalarProgram {
+        statements: vec![declare("root", 0, number_literal(29.0))],
+        collection_values: Vec::new(),
+    };
+    assert_eq!(
+        scalar_evaluation_json(&ScalarBindingResolver::new(&other).resolve("root", &empty_state()))
+            ["value"]["value"],
+        29.0
+    );
+}
+
+#[test]
+fn deferred_dependencies_do_not_activate_inactive_branches() {
+    let mut statements = vec![declare("root", 0, number_literal(9.0))];
+    let mut previous = "root".to_owned();
+    for i in 0..32 {
+        let id = format!("selected{i}");
+        statements.push(declare(
+            &id,
+            i + 1,
+            TypedScalarExpression::ValueIf {
+                span: SPAN,
+                condition: Box::new(TypedScalarExpression::BooleanLiteral {
+                    span: SPAN,
+                    value: true,
+                    r#type: ScalarType::Boolean,
+                }),
+                then_branch: Box::new(reference(&previous, &previous)),
+                // A synthetic cycle is deliberately only in the inactive branch.
+                else_branch: Box::new(reference(&id, &id)),
+                r#type: Some(ScalarType::Number),
+            },
+        ));
+        previous = id;
+    }
+    let program = program(statements);
+    let resolver = ScalarBindingResolver::new(&program);
+    assert_eq!(
+        scalar_evaluation_json(&resolver.resolve(&previous, &empty_state()))["value"]["value"],
+        9.0
+    );
+    assert!(resolver.peak_native_depth.get() <= 2);
+}
+
+#[test]
+fn deferred_transient_geometry_is_retryable_after_state_progress() {
+    let geometry = TypedScalarExpression::GeometryProperty {
+        span: SPAN,
+        element_name_span: SPAN,
+        property_span: SPAN,
+        element_name: "A".to_owned(),
+        element_id: "A".to_owned(),
+        collection_value_id: None,
+        collection_length: None,
+        stage_path: None,
+        geometry_value_occurrence: None,
+        geometry_value_binder_id: None,
+        for_group_template_element_id: None,
+        for_group_target_source_order: None,
+        for_group_index: None,
+        geometry_value_point_key: None,
+        property: "length".to_owned(),
+        target_source_order: 0.0,
+        r#type: ScalarType::Number,
+    };
+    let program = program(vec![
+        declare("length", 0, geometry),
+        declare("sink", 1, reference("length", "length")),
+    ]);
+    let resolver = ScalarBindingResolver::new(&program);
+    let mut state = empty_state();
+    for _ in 0..2 {
+        assert_eq!(
+            scalar_evaluation_json(&resolver.resolve("sink", &state))["issueCode"],
+            "evaluation-geometry-property-unavailable"
+        );
+    }
+    state.computed_geometry.insert("A".to_owned(), serde_json::json!({ "kind":"line", "start":{"x":0,"y":0}, "end":{"x":17,"y":0}, "length":17 }));
+    assert_eq!(
+        scalar_evaluation_json(&resolver.resolve("sink", &state))["value"]["value"],
+        17.0
+    );
+    assert_eq!(resolver.started_bindings.borrow()["length"], 3);
+    assert_eq!(resolver.started_bindings.borrow()["sink"], 3);
+}
+
 fn reference(name: &str, binding_id: &str) -> TypedScalarExpression {
     TypedScalarExpression::Reference {
         span: SPAN,

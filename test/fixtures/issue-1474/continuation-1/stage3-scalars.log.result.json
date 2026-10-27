@@ -1,0 +1,15 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "rust-evaluator/Cargo.toml",
+    "evaluation::scalars::",
+    "--",
+    "--test-threads=1"
+  ],
+  "exit": 0,
+  "elapsedSeconds": 6.256695082993247,
+  "peakOwnedRssKiB": 323088,
+  "stopReason": null
+}

@@ -13,7 +13,8 @@ use super::super::scalar_expression_runtime::{
     ForGroupGeometryPropertyRequest,
 };
 use super::expression_evaluator::{
-    evaluate_typed_expression, static_expression_type, ScalarEvaluationEnvironment,
+    evaluate_typed_expression, static_expression_type, ExpressionEvaluation,
+    ScalarEvaluationEnvironment,
 };
 use super::program_payload::{
     ValidatedScalarProgram, ValidatedScalarProgramCollectionMember,
@@ -329,6 +330,26 @@ pub(crate) struct ScalarBindingResolver<'a> {
     statement_by_binding_id: HashMap<&'a str, &'a ValidatedScalarProgramStatement>,
     cache: RefCell<HashMap<BindingId, ScalarEvaluation>>,
     in_progress: RefCell<HashSet<BindingId>>,
+    deferred_binding: RefCell<Option<BindingId>>,
+    // Retryable results are shared only within one resolve call / state view.
+    // They must never become stable memoized results across geometry updates.
+    request_results: RefCell<HashMap<BindingId, ScalarEvaluation>>,
+    #[cfg(test)]
+    native_depth: std::cell::Cell<usize>,
+    #[cfg(test)]
+    pub(super) peak_native_depth: std::cell::Cell<usize>,
+    #[cfg(test)]
+    pub(super) started_bindings: RefCell<HashMap<BindingId, usize>>,
+}
+
+#[cfg(test)]
+struct NativeResolutionDepth<'a>(&'a std::cell::Cell<usize>);
+
+#[cfg(test)]
+impl Drop for NativeResolutionDepth<'_> {
+    fn drop(&mut self) {
+        self.0.set(self.0.get() - 1);
+    }
 }
 
 pub(super) struct ScalarRecordMapBinderContext {
@@ -365,6 +386,14 @@ impl<'a> ScalarBindingResolver<'a> {
             statement_by_binding_id,
             cache: RefCell::new(HashMap::new()),
             in_progress: RefCell::new(HashSet::new()),
+            deferred_binding: RefCell::new(None),
+            request_results: RefCell::new(HashMap::new()),
+            #[cfg(test)]
+            native_depth: std::cell::Cell::new(0),
+            #[cfg(test)]
+            peak_native_depth: std::cell::Cell::new(0),
+            #[cfg(test)]
+            started_bindings: RefCell::new(HashMap::new()),
         }
     }
 
@@ -373,15 +402,26 @@ impl<'a> ScalarBindingResolver<'a> {
     /// point during the caller's per-element loop; transient unavailable
     /// geometry results may be evaluated again after their prerequisites run.
     pub(crate) fn resolve(&self, binding_id: &str, state: &EvaluationState) -> ScalarEvaluation {
+        #[cfg(test)]
+        let _native_depth = {
+            self.native_depth.set(self.native_depth.get() + 1);
+            self.peak_native_depth
+                .set(self.peak_native_depth.get().max(self.native_depth.get()));
+            NativeResolutionDepth(&self.native_depth)
+        };
         if let Some(cached) = self.cache.borrow().get(binding_id) {
             return cached.clone();
+        }
+
+        if let Some(result) = self.request_results.borrow().get(binding_id) {
+            return result.clone();
         }
 
         let Some(statement) = self.statement_by_binding_id.get(binding_id).copied() else {
             return unavailable_binding(binding_id);
         };
 
-        if !self.in_progress.borrow_mut().insert(binding_id.to_owned()) {
+        if self.in_progress.borrow().contains(binding_id) {
             // Defense-in-depth only - see module comment. Should be
             // unreachable for any program that passed Task 13's compile-time
             // acyclicity checks.
@@ -393,36 +433,97 @@ impl<'a> ScalarBindingResolver<'a> {
             };
         }
 
-        let environment = ResolvingEnvironment {
-            resolver: self,
-            state,
-            source_order: statement.source_order as f64,
-            local_binding_id: None,
-            local_binding: None,
-            local_bindings: None,
-            record_map_context: None,
+        if !self.in_progress.borrow().is_empty() {
+            let mut deferred = self.deferred_binding.borrow_mut();
+            if deferred.is_none() {
+                *deferred = Some(binding_id.to_owned());
+            }
+            return unavailable_binding(binding_id);
+        }
+
+        // Follow only lookups actually reached by the expression evaluator.
+        // Suspended AST frames preserve short circuit / match state without
+        // scanning (and accidentally activating) unselected prerequisites.
+        let frame = |statement: &'a ValidatedScalarProgramStatement| {
+            #[cfg(test)]
+            {
+                *self
+                    .started_bindings
+                    .borrow_mut()
+                    .entry(statement.binding_id.clone())
+                    .or_default() += 1;
+            }
+            (
+                statement,
+                statement
+                    .initializer
+                    .as_ref()
+                    .ok()
+                    .map(ExpressionEvaluation::new),
+            )
         };
-        let evaluation = match &statement.initializer {
-            Ok(initializer) => result_for_declared_type(
-                evaluate_typed_expression(initializer, &environment),
+        self.in_progress.borrow_mut().insert(binding_id.to_owned());
+        let mut frames = vec![frame(statement)];
+        loop {
+            let (statement, expression) = frames
+                .last_mut()
+                .expect("root frame remains until completion");
+            let environment = ResolvingEnvironment {
+                resolver: self,
+                state,
+                source_order: statement.source_order as f64,
+                local_binding_id: None,
+                local_binding: None,
+                local_bindings: None,
+                record_map_context: None,
+            };
+            let evaluation = if let Some(expression) = expression {
+                expression.resume(&environment)
+            } else {
+                Some(ScalarEvaluation::Error {
+                    r#type: statement.declared_type.clone(),
+                    issue_code: statement
+                        .initializer
+                        .as_ref()
+                        .err()
+                        .expect("invalid initializer")
+                        .clone(),
+                    binding_id: Some(statement.binding_id.clone()),
+                    context: None,
+                })
+            };
+            let Some(evaluation) = evaluation else {
+                let dependency = self
+                    .deferred_binding
+                    .borrow_mut()
+                    .take()
+                    .expect("suspended binding lookup");
+                let dependency_statement = self.statement_by_binding_id[dependency.as_str()];
+                self.in_progress.borrow_mut().insert(dependency);
+                frames.push(frame(dependency_statement));
+                continue;
+            };
+            let evaluation = result_for_declared_type(
+                evaluation,
                 &statement.declared_type,
                 &statement.binding_id,
-            ),
-            Err(issue_code) => ScalarEvaluation::Error {
-                r#type: statement.declared_type.clone(),
-                issue_code: issue_code.clone(),
-                binding_id: Some(statement.binding_id.clone()),
-                context: None,
-            },
-        };
-
-        self.in_progress.borrow_mut().remove(binding_id);
-        if !is_transient_unavailable_evaluation(&evaluation) {
-            self.cache
-                .borrow_mut()
-                .insert(binding_id.to_owned(), evaluation.clone());
+            );
+            self.in_progress.borrow_mut().remove(&statement.binding_id);
+            if is_transient_unavailable_evaluation(&evaluation) {
+                self.request_results
+                    .borrow_mut()
+                    .insert(statement.binding_id.clone(), evaluation.clone());
+            } else {
+                self.cache
+                    .borrow_mut()
+                    .insert(statement.binding_id.clone(), evaluation.clone());
+            }
+            frames.pop();
+            if frames.is_empty() {
+                self.request_results.borrow_mut().clear();
+                return evaluation;
+            }
         }
-        evaluation
     }
 
     fn resolve_collection_presence_with_bindings(
@@ -1497,6 +1598,9 @@ struct ResolvingEnvironment<'a, 'b, 'c> {
 }
 
 impl ScalarEvaluationEnvironment for ResolvingEnvironment<'_, '_, '_> {
+    fn has_deferred_binding(&self) -> bool {
+        self.resolver.deferred_binding.borrow().is_some()
+    }
     fn lookup_binding(&self, binding_id: &str) -> ScalarEvaluation {
         if let Some(context) = self.record_map_context {
             if let Some(binder_field) = context

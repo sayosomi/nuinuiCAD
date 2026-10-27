@@ -1,0 +1,26 @@
+{
+  "base": "60f54f3ccec505821bc615e516bab8192bd20533",
+  "spawns": 1,
+  "requests": 1,
+  "childPid": 50515,
+  "peakRustRssKiB": 47104,
+  "workerResourceUsage": {
+    "userCPUTime": 1068993,
+    "systemCPUTime": 128127,
+    "maxRSS": 363472,
+    "sharedMemorySize": 0,
+    "unsharedDataSize": 0,
+    "unsharedStackSize": 0,
+    "minorPageFault": 22977,
+    "majorPageFault": 90,
+    "swappedOut": 0,
+    "fsRead": 0,
+    "fsWrite": 0,
+    "ipcSent": 382,
+    "ipcReceived": 313,
+    "signalsCount": 0,
+    "voluntaryContextSwitches": 3,
+    "involuntaryContextSwitches": 3849
+  },
+  "observations": []
+}
