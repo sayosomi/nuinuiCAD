@@ -1,9 +1,59 @@
 import { describe, expect, it } from "vitest";
 import { sampleElements } from "../sampleData";
-import type { CadElementType } from "../types/geometry";
+import type { CadElement, CadElementType } from "../types/geometry";
 import { createCadElement } from "@nuinuicad/nui-language";
 
 const createTestId = (type: CadElementType) => `${type}-test-id`;
+
+const createPoint = (id: string, name = id): CadElement => ({
+  id,
+  name,
+  type: "freePoint",
+  activity: "visible",
+  x: 0,
+  y: 0
+});
+
+const createLine = (id: string, name: string, parentGroupId?: string): CadElement => ({
+  id,
+  name,
+  type: "line",
+  activity: "visible",
+  ...(parentGroupId ? { parentGroupId } : {}),
+  startPoint: { mode: "coordinate", x: 0, y: 0 },
+  endPoint: { mode: "coordinate", x: 10, y: 0 }
+});
+
+const observeArrayFilters = (elements: CadElement[]) => {
+  let filterPasses = 0;
+  let predicateCalls = 0;
+  const observed = new Proxy(elements, {
+    get(target, property, receiver) {
+      if (property !== "filter") {
+        return Reflect.get(target, property, receiver);
+      }
+
+      return (
+        predicate: (value: CadElement, index: number, array: CadElement[]) => unknown,
+        thisArg?: unknown
+      ) => {
+        filterPasses += 1;
+        const countedPredicate = (value: CadElement, index: number, array: CadElement[]) => {
+          predicateCalls += 1;
+          return predicate.call(thisArg, value, index, array);
+        };
+        return Array.prototype.filter.call(receiver, countedPredicate, thisArg) as CadElement[];
+      };
+    }
+  });
+
+  return {
+    elements: observed,
+    counts: () => ({ filterPasses, predicateCalls })
+  };
+};
+
+const snapshot = (elements: CadElement[]) => JSON.parse(JSON.stringify(elements)) as CadElement[];
 
 describe("createCadElement", () => {
   it("creates group-like elements collapsed by default", () => {
@@ -159,6 +209,168 @@ describe("createCadElement", () => {
       activity: "visible",
       startPoint: { mode: "reference", pointId: "point-a" },
       endPoint: { mode: "reference", pointId: "point-b" }
+    });
+  });
+
+  it.each([0, 32, 256])(
+    "uses one point-selection scan for an authored line with %i unrelated lines",
+    (unrelatedLineCount) => {
+      const input = [
+        createPoint("point-1", "A"),
+        createPoint("point-2", "B"),
+        ...Array.from({ length: unrelatedLineCount }, (_, index) => createLine(`unrelated-${index}`, `Other ${index}`))
+      ];
+      const before = snapshot(input);
+      const observed = observeArrayFilters(input);
+
+      const created = createCadElement("line", observed.elements, {
+        createId: () => "new-line",
+        authoredName: "Fan"
+      });
+
+      expect(created).toEqual({
+        id: "new-line",
+        name: "Fan",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: "point-1" },
+        endPoint: { mode: "reference", pointId: "point-2" },
+        enabled: true,
+        visible: true
+      });
+      expect(input).toEqual(before);
+      expect(observed.elements).toEqual(before);
+      expect(observed.counts()).toEqual({
+        filterPasses: 1,
+        predicateCalls: 2 + unrelatedLineCount
+      });
+    }
+  );
+
+  it("preserves fallback endpoints for authored lines with zero, one, two, or more points", () => {
+    const cases = [
+      { label: "zero", points: [], first: "", second: "" },
+      { label: "one", points: [createPoint("point-1")], first: "point-1", second: "point-1" },
+      {
+        label: "two",
+        points: [createPoint("point-1"), createPoint("point-2")],
+        first: "point-1",
+        second: "point-2"
+      },
+      {
+        label: "more than two",
+        points: [createPoint("point-1"), createPoint("point-2"), createPoint("point-3")],
+        first: "point-1",
+        second: "point-2"
+      }
+    ];
+
+    for (const { label, points, first, second } of cases) {
+      const before = snapshot(points);
+      expect(createCadElement("line", points, { createId: () => `${label}-line`, authoredName: "Fan" })).toEqual({
+        id: `${label}-line`,
+        name: "Fan",
+        type: "line",
+        activity: "visible",
+        startPoint: { mode: "reference", pointId: first },
+        endPoint: { mode: "reference", pointId: second },
+        enabled: true,
+        visible: true
+      });
+      expect(points).toEqual(before);
+    }
+  });
+
+  it("keeps an authored line name even when another line already uses it", () => {
+    const elements = [createPoint("point-1", "A"), createPoint("point-2", "B"), createLine("existing", "Fan")];
+    const before = snapshot(elements);
+
+    expect(createCadElement("line", elements, { createId: () => "new-line", authoredName: "Fan" })).toEqual({
+      id: "new-line",
+      name: "Fan",
+      type: "line",
+      activity: "visible",
+      startPoint: { mode: "reference", pointId: "point-1" },
+      endPoint: { mode: "reference", pointId: "point-2" },
+      enabled: true,
+      visible: true
+    });
+    expect(elements).toEqual(before);
+  });
+
+  it("preserves generated line fallback counts, duplicate suffixes, and namespace behavior", () => {
+    expect(createCadElement("line", [], { createId: () => "line-1" })).toEqual({
+      id: "line-1",
+      name: "直線1",
+      type: "line",
+      activity: "visible",
+      startPoint: { mode: "reference", pointId: "" },
+      endPoint: { mode: "reference", pointId: "" },
+      enabled: true,
+      visible: true
+    });
+
+    const duplicate = [createLine("existing", "直線2")];
+    expect(createCadElement("line", duplicate, { createId: () => "line-2" }).name).toBe("直線2 2");
+
+    const otherNamespace = [createLine("nested", "直線2", "group-1")];
+    expect(createCadElement("line", otherNamespace, { createId: () => "line-3" }).name).toBe("直線2");
+    expect(duplicate).toEqual([createLine("existing", "直線2")]);
+    expect(otherNamespace).toEqual([createLine("nested", "直線2", "group-1")]);
+  });
+
+  it("uses explicit referenceElements for line anchors and elements for generated-name counts", () => {
+    const elements = [createLine("existing-1", "Existing A"), createLine("existing-2", "Existing B")];
+    const referenceElements = [createPoint("reference-1", "A"), createPoint("reference-2", "B")];
+    const elementsBefore = snapshot(elements);
+    const referencesBefore = snapshot(referenceElements);
+
+    expect(createCadElement("line", elements, {
+      createId: () => "new-line",
+      referenceElements
+    })).toEqual({
+      id: "new-line",
+      name: "直線AB",
+      type: "line",
+      activity: "visible",
+      startPoint: { mode: "reference", pointId: "reference-1" },
+      endPoint: { mode: "reference", pointId: "reference-2" },
+      enabled: true,
+      visible: true
+    });
+
+    expect(createCadElement("line", elements, {
+      createId: () => "fallback-line",
+      referenceElements: []
+    }).name).toBe("直線3");
+    expect(elements).toEqual(elementsBefore);
+    expect(referenceElements).toEqual(referencesBefore);
+  });
+
+  it("preserves non-line constructors' default references when referenceElements is overridden", () => {
+    const references = sampleElements;
+
+    expect(createCadElement("lineDivisionPoint", [], {
+      createId: () => "line-division",
+      referenceElements: references
+    })).toMatchObject({
+      id: "line-division",
+      name: "AB分点",
+      type: "lineDivisionPoint",
+      activity: "visible",
+      endpoint: { lineId: "line-ab", endpointKey: "start" }
+    });
+    expect(createCadElement("threePointArcLine", [], {
+      createId: () => "three-point-arc",
+      referenceElements: references
+    })).toMatchObject({
+      id: "three-point-arc",
+      name: "円弧AC",
+      type: "threePointArcLine",
+      activity: "visible",
+      point1: { mode: "reference", pointId: "point-a" },
+      point2: { mode: "reference", pointId: "point-b" },
+      point3: { mode: "reference", pointId: "point-c" }
     });
   });
 
