@@ -1,0 +1,19 @@
+{
+  "unit": "R3",
+  "trigger": "three paired Base-compiler blocks B2/B3 + V8 profile dominated by discarded automatic names",
+  "sourceSha256": "fc1d72dc5f397db0d374319171e3d668e6216f569d5e73861d2dd4e5c0b35282",
+  "oracleFile": "R2-oracle.json",
+  "expectedDiscardedAutoNameCalls": 0,
+  "expectedAuthoredGeometryNames": [
+    "Fan0",
+    "Fan1",
+    "Fan2",
+    "Fan3",
+    "Fan4",
+    "Fan5",
+    "Fan6",
+    "Fan7",
+    "Producer",
+    "ControlPoint"
+  ]
+}

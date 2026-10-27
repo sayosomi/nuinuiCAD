@@ -8,18 +8,15 @@
 // (`createLazyScalarProgramEvaluator`) rather than a single eager left-to-right
 // sweep:
 // a binding's initializer is evaluated the first time something asks for it
-// (recursing into other referenced bindings on demand) rather than always in
+// (suspending on reached dependencies) rather than always in
 // array order up front. This lets a caller (the per-element evaluation loop)
 // ask for a specific binding's value mid-run, without re-evaluating the whole
 // program. Stable results are evaluated once; transient unavailable geometry
 // results remain retryable as graph predecessors become ready. A
-// compiled ScalarProgram is already guaranteed acyclic && forward-reference
-// free (`binding-cycle`/`forward-binding-reference`/
-// `self-initialization` diagnostics make the whole document fail to compile
-// otherwise - see `compileDslDocument`'s early-return-on-error &&
-// `buildBindingProgramEligibility`'s own defensive throw in
-// bindingProgramEligibility.ts), so on-demand recursion always strictly
-// resolves "earlier" statements first && terminates. `evaluateScalarProgram`
+// compiled ScalarProgram retains compiler-resolved binding identities and
+// canonical dependency semantics. The runtime guard reports a selected cycle
+// explicitly, while inactive lazy dependencies remain untouched.
+// `evaluateScalarProgram`
 // still exists with its original signature && byte-identical output (same
 // map, same insertion order) - it walks `program.statements` in array order,
 // pulling each value from the resolver, so callers that only need the
@@ -32,6 +29,8 @@
 import type { BindingId } from "@nuinuicad/nui-language";
 import {
   evaluateTypedExpression,
+  createTypedExpressionEvaluation,
+  ScalarBindingDemand,
   type GeometryBuiltinTargetLookupResult,
   type GeometryCollectionEndpointLookupResult,
   type ScalarEvaluationEnvironment
@@ -623,55 +622,62 @@ export const createLazyScalarProgramEvaluator = (
   const cache = new Map<BindingId, ScalarEvaluation>();
   // Defense-in-depth only (see module comment): a compiled program is already
   // proven acyclic before it reaches this module. Guards against this new
-  // on-demand recursion ever silently looping forever if that upstream
+  // on-demand resolution ever silently looping forever if that upstream
   // invariant were somehow violated, rather than letting it hang.
   const inProgressBindingIds = new Set<BindingId>();
 
+  // Transient values are reused only during one resolve / geometry-state view.
+  const requestResults = new Map<BindingId, ScalarEvaluation>();
+  const frameFor = (statement: ScalarProgramStatement) => {
+    const environment: ScalarEvaluationEnvironment = {
+      lookupBinding: resolve,
+      ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {}),
+      ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {}),
+      ...(resolveGeometryCollectionEndpoint
+        ? { lookupGeometryCollectionEndpoint: (target, index) => resolveGeometryCollectionEndpoint(target, index, statement.sourceOrder) }
+        : {}),
+      ...(collectionResolver ? collectionResolver.environmentFor(statement.sourceOrder) : {}),
+      ...(resolveCollectionLength ? {
+        lookupCollectionLength: (collectionValueId: string) =>
+          resolveCollectionLength(collectionValueId, statement.sourceOrder) ??
+          collectionResolver?.environmentFor(statement.sourceOrder).lookupCollectionLength?.(collectionValueId)
+      } : {})
+    };
+    return { statement, expression: createTypedExpressionEvaluation(statement.declaration.initializer, environment) };
+  };
+
   const resolve = (bindingId: BindingId): ScalarEvaluation => {
-    const cached = cache.get(bindingId);
+    const cached = cache.get(bindingId) ?? requestResults.get(bindingId);
     if (cached) return cached;
-
     const statement = statementByBindingId.get(bindingId);
-    if (!statement) {
-      return { status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-unavailable", bindingId };
-    }
-
+    if (!statement) return { status: "error", type: { kind: "number" }, issueCode: "evaluation-binding-unavailable", bindingId };
     if (inProgressBindingIds.has(bindingId)) {
-      return {
-        status: "error",
-        type: statement.declaration.declaredType,
-        issueCode: "evaluation-binding-cycle-guard",
-        bindingId
-      };
+      return { status: "error", type: statement.declaration.declaredType, issueCode: "evaluation-binding-cycle-guard", bindingId };
     }
-
+    // Yield only an actually reached dependency. The existing expression
+    // continuation retains operands, selected scopes and observer ordering.
+    if (inProgressBindingIds.size) throw new ScalarBindingDemand(bindingId);
     inProgressBindingIds.add(bindingId);
+    const frames = [frameFor(statement)];
     try {
-      const environment: ScalarEvaluationEnvironment = {
-        lookupBinding: resolve,
-        ...(resolveGeometryProperty ? { lookupGeometryProperty: (reference) => resolveGeometryProperty(reference, statement.sourceOrder) } : {}),
-        ...(resolveGeometryTarget ? { lookupGeometryTarget: (target) => resolveGeometryTarget(target, statement.sourceOrder) } : {}),
-        ...(resolveGeometryCollectionEndpoint
-          ? { lookupGeometryCollectionEndpoint: (target, index) => resolveGeometryCollectionEndpoint(target, index, statement.sourceOrder) }
-          : {}),
-        ...(collectionResolver ? collectionResolver.environmentFor(statement.sourceOrder) : {}),
-        ...(resolveCollectionLength ? {
-          lookupCollectionLength: (collectionValueId: string) =>
-            resolveCollectionLength(collectionValueId, statement.sourceOrder) ??
-            collectionResolver?.environmentFor(statement.sourceOrder).lookupCollectionLength?.(collectionValueId)
-        } : {})
-      };
-      const evaluation = resultForDeclaredType(
-        evaluateTypedExpression(statement.declaration.initializer, environment),
-        statement.declaration.declaredType
-      );
-      // Geometry-dependent controller probes can be transiently unavailable
-      // before their canonical graph predecessors have run. Do not turn that
-      // scheduler state into a permanent scalar result.
-      if (!isTransientUnavailableEvaluation(evaluation)) cache.set(bindingId, evaluation);
-      return evaluation;
+      for (;;) {
+        const frame = frames[frames.length - 1]!;
+        const step = frame.expression.next();
+        if (!step.done) {
+          const dependency = statementByBindingId.get(step.value.bindingId)!;
+          inProgressBindingIds.add(dependency.bindingId);
+          frames.push(frameFor(dependency));
+          continue;
+        }
+        const evaluation = resultForDeclaredType(step.value, frame.statement.declaration.declaredType);
+        (isTransientUnavailableEvaluation(evaluation) ? requestResults : cache).set(frame.statement.bindingId, evaluation);
+        inProgressBindingIds.delete(frame.statement.bindingId);
+        frames.pop();
+        if (!frames.length) return evaluation;
+      }
     } finally {
-      inProgressBindingIds.delete(bindingId);
+      inProgressBindingIds.clear();
+      requestResults.clear();
     }
   };
 

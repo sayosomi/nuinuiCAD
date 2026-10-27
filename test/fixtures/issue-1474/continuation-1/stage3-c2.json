@@ -1,0 +1,50 @@
+{
+  "base": "60f54f3ccec505821bc615e516bab8192bd20533",
+  "spawns": 1,
+  "requests": 1,
+  "childPid": 50339,
+  "peakRustRssKiB": 3760,
+  "workerResourceUsage": {
+    "userCPUTime": 886028,
+    "systemCPUTime": 150983,
+    "maxRSS": 300640,
+    "sharedMemorySize": 0,
+    "unsharedDataSize": 0,
+    "unsharedStackSize": 0,
+    "minorPageFault": 18953,
+    "majorPageFault": 105,
+    "swappedOut": 0,
+    "fsRead": 0,
+    "fsWrite": 0,
+    "ipcSent": 320,
+    "ipcReceived": 310,
+    "signalsCount": 0,
+    "voluntaryContextSwitches": 2228,
+    "involuntaryContextSwitches": 2159
+  },
+  "observations": [
+    {
+      "unit": "C2",
+      "file": "C2-r1.nui",
+      "sha256": "d68a766617e018bed18fd258c2eb9854b69c7b4abd59ac3e17e46e726936caab",
+      "sourceRevision": 1,
+      "graph": {
+        "V": 262,
+        "E": 430,
+        "edgeRecords": 430,
+        "maxPrerequisites": 3,
+        "maxDependents": 3,
+        "outputCount": 2,
+        "bindingCount": 257,
+        "evaluationOrderCount": 2
+      },
+      "payloadBytes": 339622,
+      "scalarCount": 257,
+      "geometryCount": 2,
+      "outputSha256": "2399acbae0b70eec9232a414bc5153e8b56e5295794337d28ec9f8afb6396ae4",
+      "wrongResultRejected": true,
+      "staleResultRejected": null,
+      "status": "PASS"
+    }
+  ]
+}

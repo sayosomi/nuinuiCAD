@@ -1,0 +1,4 @@
+{
+  "source": "nui 1\nline Fan7 = segment(start: @Producer, end: (37, 47))\nline Fan6 = segment(start: @Producer, end: (36, 46))\nline Fan5 = segment(start: @Producer, end: (35, 45))\nline Fan4 = segment(start: @Producer, end: (34, 44))\nline Fan3 = segment(start: @Producer, end: (33, 43))\nline Fan2 = segment(start: @Producer, end: (32, 42))\nline Fan1 = segment(start: @Producer, end: (31, 41))\nline Fan0 = segment(start: @Producer, end: (30, 40))\npoint Producer = coordinate(x: @Root, y: 0 - @Root)\nconst Root: number = 5\nconst ControlScalar: number = 19\npoint ControlPoint = coordinate(x: -23, y: 31)\n",
+  "sourceSha256": "fc1d72dc5f397db0d374319171e3d668e6216f569d5e73861d2dd4e5c0b35282"
+}

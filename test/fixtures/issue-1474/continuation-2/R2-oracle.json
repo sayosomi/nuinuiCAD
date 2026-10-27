@@ -1,0 +1,140 @@
+{
+  "dependencies": {
+    "ControlPoint": [],
+    "ControlScalar": [],
+    "Fan0": [
+      "Producer"
+    ],
+    "Fan1": [
+      "Producer"
+    ],
+    "Fan2": [
+      "Producer"
+    ],
+    "Fan3": [
+      "Producer"
+    ],
+    "Fan4": [
+      "Producer"
+    ],
+    "Fan5": [
+      "Producer"
+    ],
+    "Fan6": [
+      "Producer"
+    ],
+    "Fan7": [
+      "Producer"
+    ],
+    "Producer": [
+      "Root"
+    ],
+    "Root": []
+  },
+  "geometry": {
+    "ControlPoint": {
+      "type": "point",
+      "x": -23,
+      "y": 31
+    },
+    "Fan0": {
+      "end": {
+        "x": 30,
+        "y": 40
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Fan1": {
+      "end": {
+        "x": 31,
+        "y": 41
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Fan2": {
+      "end": {
+        "x": 32,
+        "y": 42
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Fan3": {
+      "end": {
+        "x": 33,
+        "y": 43
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Fan4": {
+      "end": {
+        "x": 34,
+        "y": 44
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Fan5": {
+      "end": {
+        "x": 35,
+        "y": 45
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Fan6": {
+      "end": {
+        "x": 36,
+        "y": 46
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Fan7": {
+      "end": {
+        "x": 37,
+        "y": 47
+      },
+      "start": {
+        "x": 5,
+        "y": -5
+      },
+      "type": "line"
+    },
+    "Producer": {
+      "type": "point",
+      "x": 5,
+      "y": -5
+    }
+  },
+  "scalars": {
+    "ControlScalar": 19,
+    "Root": 5
+  },
+  "semanticE": 9,
+  "semanticV": 12
+}

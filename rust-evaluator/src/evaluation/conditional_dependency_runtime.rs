@@ -16,6 +16,11 @@ use super::scalars::{
 };
 use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOccurrence};
 
+#[cfg(test)]
+thread_local! {
+    static READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawConditionalDependencyGraph {
@@ -640,9 +645,14 @@ impl ConditionalDependencyGraph {
         &self,
         readiness: DependencyScheduledBindingReadiness<'_>,
     ) -> HashSet<String> {
+        if readiness.candidate_binding_ids.is_empty() {
+            return HashSet::new();
+        }
         let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
         let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
         for edge in &self.edges {
+            #[cfg(test)]
+            READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
             let from_id = endpoint_key(&edge.from);
             let to_id = endpoint_key(&edge.to);
             endpoints.entry(from_id.clone()).or_insert(&edge.from);
@@ -922,9 +932,14 @@ impl ConditionalDependencyGraph {
         evaluated_geometry_values: &[bool],
         geometry_value_index_by_endpoint_id: &HashMap<String, usize>,
     ) -> HashSet<String> {
+        if candidate_binding_ids.is_empty() {
+            return HashSet::new();
+        }
         let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
         let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
         for edge in &self.edges {
+            #[cfg(test)]
+            READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
             let from_id = endpoint_key(&edge.from);
             let to_id = endpoint_key(&edge.to);
             endpoints.entry(from_id.clone()).or_insert(&edge.from);
@@ -981,10 +996,15 @@ impl ConditionalDependencyGraph {
         branch_selections: &HashMap<String, String>,
         state: &EvaluationState,
     ) -> bool {
+        if state.errors.is_empty() {
+            return false;
+        }
         let current_element_id = endpoint_id.strip_prefix("element:").unwrap_or(endpoint_id);
         self.edges
             .iter()
             .filter(|edge| {
+                #[cfg(test)]
+                READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
                 endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
             })
             .any(|edge| {
@@ -1354,6 +1374,131 @@ impl<'a> DependencyTraversal<'a> {
 mod tests {
     use super::*;
     use crate::evaluation::scalars::{ScalarEvaluation, ScalarType};
+
+    #[test]
+    fn empty_error_readiness_does_not_scan_unrelated_edges() {
+        let payload: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1474/continuation-2/R2-graph.json"
+        ))
+        .unwrap();
+        let graph = decode_conditional_dependency_graph(Some(&payload))
+            .unwrap()
+            .unwrap();
+        let mut state = empty_evaluation_state();
+        let selections = HashMap::new();
+        READINESS_EDGE_VISITS.with(|count| count.set(0));
+        for edge in graph
+            .edges
+            .iter()
+            .filter(|edge| edge.from.kind == "element" && edge.from.name.starts_with("Fan"))
+        {
+            assert!(!graph.geometry_prerequisites_have_failed(
+                &endpoint_key(&edge.from),
+                &selections,
+                &state
+            ));
+        }
+        let visits = READINESS_EDGE_VISITS.with(|count| count.get());
+        eprintln!("#1474 empty-error readiness edge visits={visits}");
+        assert_eq!(
+            visits, 0,
+            "no prerequisite can have failed when the error set is empty"
+        );
+        let edge = graph
+            .edges
+            .iter()
+            .find(|edge| edge.from.kind == "element" && edge.from.name == "Fan0")
+            .unwrap();
+        let dependency_id = edge.to.owner_id.as_deref().unwrap_or(&edge.to.id);
+        state.errors.push(DependencyError {
+            code: None,
+            element_id: "unrelated".to_owned(),
+            element_name: "unrelated".to_owned(),
+            missing_dependency_id: "missing".to_owned(),
+            missing_dependency_name: None,
+            message: "control".to_owned(),
+        });
+        assert!(!graph.geometry_prerequisites_have_failed(
+            &endpoint_key(&edge.from),
+            &selections,
+            &state
+        ));
+        state.errors[0].element_id = dependency_id.to_owned();
+        assert!(graph.geometry_prerequisites_have_failed(
+            &endpoint_key(&edge.from),
+            &selections,
+            &state
+        ));
+    }
+
+    #[test]
+    fn empty_candidate_readiness_does_not_rebuild_unrelated_topology() {
+        let payload: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1474/continuation-2/R2-graph.json"
+        ))
+        .unwrap();
+        let graph = decode_conditional_dependency_graph(Some(&payload))
+            .unwrap()
+            .unwrap();
+        let state = empty_evaluation_state();
+        let resolver = AvailabilityResolver {
+            available_binding_ids: HashSet::new(),
+        };
+        let source_orders = HashMap::new();
+        let selections = HashMap::new();
+        let geometry_indices = HashMap::new();
+        READINESS_EDGE_VISITS.with(|count| count.set(0));
+        let empty = decode_conditional_dependency_graph(Some(&serde_json::json!({"edges":[]})))
+            .unwrap()
+            .unwrap();
+        assert!(empty
+            .ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
+                candidate_binding_ids: &[],
+                source_order_by_binding_id: &source_orders,
+                branch_selections: &selections,
+                resolver: &resolver,
+                state: &state,
+                completed_element_ids: None,
+                evaluated_geometry_values: &[],
+                geometry_value_index_by_endpoint_id: &geometry_indices,
+            })
+            .is_empty());
+        assert_eq!(
+            READINESS_EDGE_VISITS.with(|count| count.get()),
+            0,
+            "adjacent empty graph control"
+        );
+        for _ in 0..8 {
+            assert!(graph
+                .ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
+                    candidate_binding_ids: &[],
+                    source_order_by_binding_id: &source_orders,
+                    branch_selections: &selections,
+                    resolver: &resolver,
+                    state: &state,
+                    completed_element_ids: None,
+                    evaluated_geometry_values: &[],
+                    geometry_value_index_by_endpoint_id: &geometry_indices,
+                })
+                .is_empty());
+            assert!(graph
+                .ready_geometry_dependent_binding_ids(
+                    &[],
+                    &selections,
+                    &resolver,
+                    &state,
+                    &[],
+                    &geometry_indices
+                )
+                .is_empty());
+        }
+        let visits = READINESS_EDGE_VISITS.with(|count| count.get());
+        eprintln!("#1474 empty-candidate readiness edge visits={visits} for 16 queries / 29 edges");
+        assert_eq!(
+            visits, 0,
+            "an empty query must not scan or allocate a copy of the topology"
+        );
+    }
 
     struct AvailabilityResolver {
         available_binding_ids: HashSet<String>,

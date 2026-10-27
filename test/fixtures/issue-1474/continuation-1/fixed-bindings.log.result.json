@@ -1,0 +1,15 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--manifest-path",
+    "rust-evaluator/Cargo.toml",
+    "bindings_tests",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "elapsedSeconds": 9.510599582994473,
+  "peakOwnedRssKiB": 1593104,
+  "stopReason": null
+}

@@ -1,0 +1,380 @@
+{
+  "base": "60f54f3ccec505821bc615e516bab8192bd20533",
+  "previousCheckpoint": "21466dc8358e79940442b9f0ab6a265c42cc48da",
+  "status": "BLOCKED",
+  "reason": "TS reference native call-stack exhaustion after corrected Rust oracle PASS on isolated C3",
+  "originalPrimaryUnits": 16,
+  "originalSourceRevisions": 24,
+  "additionalExplorationUnits": 0,
+  "correctedC3RustRequests": 1,
+  "acceptedCompletedRepairFamilies": 0,
+  "rustOwnerCorrectionFocusedAndC3Verified": true,
+  "timingProtocolExecuted": false,
+  "commands": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "bindings_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 9.510599582994473,
+      "peakOwnedRssKiB": 1593104,
+      "stopReason": null
+    },
+    {
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1474DependencyTopology.performance.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--bail=1",
+        "-t",
+        "\\bC3\\b"
+      ],
+      "exit": 1,
+      "elapsedSeconds": 3.6425077919993782,
+      "peakOwnedRssKiB": 903584,
+      "stopReason": null
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "bindings_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 5.261117292000563,
+      "peakOwnedRssKiB": 815760,
+      "stopReason": null
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "bindings_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "elapsedSeconds": 2.1507079169969074,
+      "peakOwnedRssKiB": 1098768,
+      "stopReason": null
+    },
+    {
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1474DependencyTopology.performance.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--bail=1",
+        "-t",
+        "\\bC2\\b"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 4.169950541006983,
+      "peakOwnedRssKiB": 806816,
+      "stopReason": null
+    },
+    {
+      "command": [
+        "cargo",
+        "check",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 2.610354832999292,
+      "peakOwnedRssKiB": 427200,
+      "stopReason": null
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "evaluation::scalars::",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "elapsedSeconds": 6.256695082993247,
+      "peakOwnedRssKiB": 323088,
+      "stopReason": null
+    }
+  ],
+  "consolidatedFinalGate": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--check"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "cargo",
+        "check",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:performance:binding-analysis"
+      ],
+      "result": "NOT_RUN after staged safety stop"
+    }
+  ],
+  "diffCheck": {
+    "command": [
+      "git",
+      "diff",
+      "--check",
+      "60f54f3ccec505821bc615e516bab8192bd20533"
+    ],
+    "exit": 0
+  },
+  "units": [
+    {
+      "unit": "A1",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "A2",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "A3",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "A4",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "B1",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "B2",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "B3",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "B4",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "C1",
+      "disposition": "BLOCKED",
+      "semantic": "earlier Base PASS; corrected rerun pending",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "C2",
+      "disposition": "BLOCKED",
+      "semantic": "corrected Rust+TS PASS",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "C3",
+      "disposition": "BLOCKED",
+      "semantic": "corrected Rust PASS; TS stack exhaustion",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "C4",
+      "disposition": "BLOCKED",
+      "semantic": "runtime not executed",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "D1",
+      "disposition": "BLOCKED",
+      "semantic": "runtime not executed",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "D2",
+      "disposition": "BLOCKED",
+      "semantic": "runtime not executed",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "D3",
+      "disposition": "BLOCKED",
+      "semantic": "runtime not executed",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "D4",
+      "disposition": "BLOCKED",
+      "semantic": "runtime not executed",
+      "performance": "NOT_RUN"
+    },
+    {
+      "unit": "X1",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X2",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X3",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X4",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X5",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X6",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X7",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X8",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R1",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R2",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R3",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R4",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R5",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R6",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R7",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R8",
+      "disposition": "NOT_TRIGGERED"
+    }
+  ]
+}

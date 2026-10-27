@@ -1,0 +1,138 @@
+{
+  "units": [
+    {
+      "id": "R1",
+      "size": 8,
+      "checkpoints": [
+        {
+          "file": "continuation-2/R1.nui",
+          "oracle": "continuation-2/R1-runtime-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "e704afe1f7026a8c330880bd4c4df79c3fc4c423f327ee6b019a7690d519b5aa",
+          "oracleSha256": "2be277c9f26a4a3bd6ad5f02667a505232b14be98f14a97cb98f58e830b286af",
+          "bytes": 946,
+          "semanticV": 25,
+          "semanticE": 40
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "size": 8,
+      "checkpoints": [
+        {
+          "file": "continuation-2/R2.nui",
+          "oracle": "continuation-2/R2-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "fc1d72dc5f397db0d374319171e3d668e6216f569d5e73861d2dd4e5c0b35282",
+          "oracleSha256": "4944695bfbb3101e85bb7899c274ef9ebb021559a43c6679da1957220ad8bd52",
+          "bytes": 585,
+          "semanticV": 12,
+          "semanticE": 9
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "size": 8,
+      "checkpoints": [
+        {
+          "file": "continuation-2/R3.nui",
+          "oracle": "continuation-2/R2-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "fc1d72dc5f397db0d374319171e3d668e6216f569d5e73861d2dd4e5c0b35282",
+          "oracleSha256": "4944695bfbb3101e85bb7899c274ef9ebb021559a43c6679da1957220ad8bd52",
+          "bytes": 585,
+          "semanticV": 12,
+          "semanticE": 9
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "size": 8,
+      "checkpoints": [
+        {
+          "file": "continuation-2/R4.nui",
+          "oracle": "continuation-2/R4-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "86e6ae965093db251f5460788651826d499dfd149ffa3b7f8c46fd369de11886",
+          "oracleSha256": "24d9eab65c9da92b68e67e1d8784d4da9d3bbea382a9fdfe8b75e55c5761311a",
+          "bytes": 1861,
+          "semanticV": 27,
+          "semanticE": 32
+        }
+      ]
+    }
+  ],
+  "graphSeal": [
+    {
+      "unit": "R1",
+      "file": "continuation-2/R1.nui",
+      "revision": 1,
+      "V": 25,
+      "E": 40,
+      "edgeRecords": 40,
+      "maxPrerequisites": 3,
+      "maxDependents": 3,
+      "outputCount": 0,
+      "bindingCount": 25,
+      "evaluationOrderCount": 0,
+      "semanticV": 25,
+      "semanticE": 40
+    },
+    {
+      "unit": "R2",
+      "file": "continuation-2/R2.nui",
+      "revision": 1,
+      "V": 31,
+      "E": 29,
+      "edgeRecords": 29,
+      "maxPrerequisites": 1,
+      "maxDependents": 8,
+      "outputCount": 10,
+      "bindingCount": 2,
+      "evaluationOrderCount": 10,
+      "semanticV": 12,
+      "semanticE": 9
+    },
+    {
+      "unit": "R3",
+      "file": "continuation-2/R3.nui",
+      "revision": 1,
+      "V": 31,
+      "E": 29,
+      "edgeRecords": 29,
+      "maxPrerequisites": 1,
+      "maxDependents": 8,
+      "outputCount": 10,
+      "bindingCount": 2,
+      "evaluationOrderCount": 10,
+      "semanticV": 12,
+      "semanticE": 9
+    },
+    {
+      "V": 78,
+      "E": 84,
+      "edgeRecords": 84,
+      "maxPrerequisites": 2,
+      "maxDependents": 2,
+      "outputCount": 26,
+      "bindingCount": 1,
+      "evaluationOrderCount": 26,
+      "unit": "R4",
+      "file": "continuation-2/R4.nui",
+      "revision": 1,
+      "semanticV": 27,
+      "semanticE": 32
+    }
+  ]
+}
