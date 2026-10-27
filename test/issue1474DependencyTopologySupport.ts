@@ -69,9 +69,10 @@ export function actualValues(compiled: TextCompileResult, result: EvaluationResu
   for (const element of compiled.doc.document.elements) {
     const value = result.computedGeometry.get(element.id);
     assert.ok(value, element.name);
-    if (value.type === "point") geometry[element.name] = { type: "point", x: value.x, y: value.y };
-    else if (value.type === "line") geometry[element.name] = { type: "line", start: value.start, end: value.end };
-    else throw new Error(`unexpected geometry ${element.name}:${value.type}`);
+    if (value.kind === "point") geometry[element.name] = { type: "point", x: value.x, y: value.y };
+    else if (value.kind === "line") geometry[element.name] = { type: "line",
+      start: { x: value.start.x, y: value.start.y }, end: { x: value.end.x, y: value.end.y } };
+    else throw new Error(`unexpected geometry ${element.name}:${value.kind}`);
   }
   return { scalars, geometry };
 }
