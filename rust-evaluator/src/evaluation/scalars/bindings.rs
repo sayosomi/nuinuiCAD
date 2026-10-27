@@ -485,8 +485,7 @@ impl<'a> ScalarBindingResolver<'a> {
                     issue_code: statement
                         .initializer
                         .as_ref()
-                        .err()
-                        .expect("invalid initializer")
+                        .expect_err("invalid initializer")
                         .clone(),
                     binding_id: Some(statement.binding_id.clone()),
                     context: None,

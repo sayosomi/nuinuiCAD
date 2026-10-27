@@ -1,0 +1,20 @@
+{
+  "unit": "R2",
+  "trigger": "three repeated exact Base B1/B2 blocks + native sample: empty candidate readiness rebuilds whole graph",
+  "sourceSha256": "fc1d72dc5f397db0d374319171e3d668e6216f569d5e73861d2dd4e5c0b35282",
+  "graphSha256": "9b6e032864c22b86cec949a0f1e59c882b10e1e4487bd6477456fb9a946560e5",
+  "semanticV": 12,
+  "semanticE": 9,
+  "canonical": {
+    "V": 31,
+    "E": 29,
+    "edgeRecords": 29,
+    "maxPrerequisites": 1,
+    "maxDependents": 8,
+    "outputCount": 10,
+    "bindingCount": 2,
+    "evaluationOrderCount": 10
+  },
+  "queryCount": 8,
+  "expectedEmptyCandidateEdgeVisits": 0
+}

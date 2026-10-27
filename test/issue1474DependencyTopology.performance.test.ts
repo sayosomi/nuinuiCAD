@@ -9,9 +9,11 @@ import { evaluatePreparedRust, prepareRustEvaluation } from "../src/geometry/rus
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import { actualValues, checkValues, compile, hash, initial, loadCheckpoint, manifest, metrics, sensitivity } from "./issue1474DependencyTopologySupport";
 import graphSeal from "./fixtures/issue-1474/compiled-graph-seal.json";
+import compilerReducerSource from "./fixtures/issue-1474/continuation-2/R3-source.json";
+import reducers from "./fixtures/issue-1474/continuation-2/reducers.json";
 
-// Opt-in diagnostic campaign: C3 exhausted the Base Rust stack. The recorded
-// BLOCKED checkpoint must be reviewed before anyone deliberately reruns it.
+// Opt-in campaign: the staged corrected C3 safety gate must pass before a full
+// replay. Historical unsafe Base binaries must never be selected here.
 // This file is excluded by the repository's existing performance-suite policy.
 const observations: unknown[] = [];
 let rust: RustEvaluationProcess;
@@ -66,19 +68,23 @@ afterAll(async () => {
 });
 
 describe("#1474 sealed dependency topology through production persistent Rust", () => {
-  it.each(manifest.units)("$id independent integer/geometry oracle and source transitions", async unit => {
+  it.each([...manifest.units, ...reducers.units])("$id independent integer/geometry oracle and source transitions", async unit => {
     let current = initial();
     let previousValues: ReturnType<typeof actualValues> | undefined;
     let previousOracle: ReturnType<typeof loadCheckpoint>["oracle"] | undefined;
     let previousIds: Map<string, string> | undefined;
     for (const checkpoint of unit.checkpoints) {
       const { source, oracle } = loadCheckpoint(checkpoint);
+      if (unit.id === "R3") {
+        assert.equal(source, compilerReducerSource.source);
+        assert.equal(hash(source), compilerReducerSource.sourceSha256);
+      }
       assert.equal(current.doc.statementMap.sourceRevision, checkpoint.sourceRevisionBefore);
       const compiled = compile(source, current);
       current = compiled;
       assert.equal(compiled.doc.statementMap.sourceRevision, checkpoint.sourceRevisionAfter);
       const graph = metrics(compiled);
-      const sealed = graphSeal.find(row => row.file === checkpoint.file)!;
+      const sealed = [...graphSeal, ...reducers.graphSeal].find(row => row.file === checkpoint.file)!;
       for (const [key, value] of Object.entries(graph)) assert.equal(value, sealed[key as keyof typeof graph]);
       const options = buildEvaluationOptions({ compiledDocument: compiled.doc, evaluationLimitIndex: undefined });
       const prepared = prepareRustEvaluation(compiled.doc.document.elements, options);
