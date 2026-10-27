@@ -1,0 +1,615 @@
+{
+  "units": [
+    {
+      "id": "X1",
+      "trigger": "B5 measures drawable errors and B6 pure success; pure Module occurrence-owned invalid segment and unaffected sibling was not exercised.",
+      "checkpoints": [
+        {
+          "file": "X1-0.nui",
+          "sha256": "bc22b2d7f9847603ba9b7898b4262521ed75aec2ac9acba946223e4bcb3f1b35",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Material": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "expectedValues": {
+            "Left::Out": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "Right::Out": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "valueErrors": {}
+        },
+        {
+          "file": "X1-1.nui",
+          "sha256": "c1393c009ab4db07e4b385b711889f2727f78b8c6b483193c193762c743bbf41",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Material": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 1,
+          "expectedValues": {
+            "Left::Out": null,
+            "Right::Out": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "valueErrors": {
+            "Left::Out": "segmentIndex"
+          }
+        },
+        {
+          "file": "X1-2.nui",
+          "sha256": "bc22b2d7f9847603ba9b7898b4262521ed75aec2ac9acba946223e4bcb3f1b35",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Material": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 3,
+                    "y": 36
+                  },
+                  "control2": {
+                    "x": 31,
+                    "y": 12
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 0
+                  }
+                }
+              ]
+            },
+            "RightResult": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "Control": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "expectedValues": {
+            "Left::Out": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            },
+            "Right::Out": {
+              "kind": "point",
+              "x": 12.42021484141416,
+              "y": 19.01350611830143
+            }
+          },
+          "valueErrors": {}
+        }
+      ],
+      "analytic": {
+        "controlPoints": [
+          [
+            0,
+            0
+          ],
+          [
+            3,
+            36
+          ],
+          [
+            31,
+            12
+          ],
+          [
+            40,
+            0
+          ]
+        ],
+        "instanceArguments": {
+          "Left": 5,
+          "Right": 80
+        },
+        "coefficients": [
+          8640,
+          -14400,
+          4320
+        ],
+        "candidates": [
+          {
+            "t": 0.39237478148923494,
+            "score": 19.01350611830143,
+            "point": [
+              12.42021484141416,
+              19.01350611830143
+            ]
+          }
+        ],
+        "t": 0.39237478148923494,
+        "score": 19.01350611830143,
+        "point": [
+          12.42021484141416,
+          19.01350611830143
+        ]
+      }
+    },
+    {
+      "id": "X2",
+      "trigger": "C4/C5 validate drawable error ownership; pure path/point error channel and no stale pure value on off-curve or negative-distance failure were uncovered.",
+      "checkpoints": [
+        {
+          "file": "X2-0.nui",
+          "sha256": "5f0f699a02aaf0672e228ddb45879335c63aa5cafc70dcadf656722cd37c14ec",
+          "sourceRevisionBefore": 1,
+          "sourceRevisionAfter": 2,
+          "tolerance": 1e-07,
+          "expected": {
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "expectedValues": {
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            }
+          },
+          "valueErrors": {},
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          }
+        },
+        {
+          "file": "X2-1.nui",
+          "sha256": "6aed322d5f9c31662d2eba6733510d0b7abeb9f26835f00619986a53a2addd53",
+          "sourceRevisionBefore": 2,
+          "sourceRevisionAfter": 3,
+          "tolerance": 1e-07,
+          "expected": {
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 1,
+          "expectedValues": {
+            "Result": null
+          },
+          "valueErrors": {
+            "Result": "曲線上にありません"
+          },
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              19.065016000000004
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          }
+        },
+        {
+          "file": "X2-2.nui",
+          "sha256": "4baf6d5e6b1779619363ef5d95854a91d4db7a212b3ce8e8676b1fd3167a8009",
+          "sourceRevisionBefore": 3,
+          "sourceRevisionAfter": 4,
+          "tolerance": 1e-07,
+          "expected": {
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 1,
+          "expectedValues": {
+            "Result": null
+          },
+          "valueErrors": {
+            "Result": "0以上"
+          },
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": -3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.649916437843995,
+              15.97821912778089
+            ]
+          }
+        },
+        {
+          "file": "X2-3.nui",
+          "sha256": "bf12a3941cfa20ccf0fefd4a25635ddad3b29e624311828a856f0bece4ce5d39",
+          "sourceRevisionBefore": 4,
+          "sourceRevisionAfter": 5,
+          "tolerance": 1e-07,
+          "expected": {
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "expectedValues": {
+            "Result": {
+              "kind": "point",
+              "x": 11.368768,
+              "y": 18.965016000000002
+            }
+          },
+          "valueErrors": {},
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 0,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.368768,
+              18.965016000000002
+            ]
+          }
+        },
+        {
+          "file": "X2-4.nui",
+          "sha256": "5f0f699a02aaf0672e228ddb45879335c63aa5cafc70dcadf656722cd37c14ec",
+          "sourceRevisionBefore": 5,
+          "sourceRevisionAfter": 6,
+          "tolerance": 1e-07,
+          "expected": {
+            "Control": {
+              "kind": "point",
+              "x": 12.874184786295622,
+              "y": 22.006644144329368
+            }
+          },
+          "errors": {},
+          "geometryValueErrorCount": 0,
+          "expectedValues": {
+            "Result": {
+              "kind": "point",
+              "x": 11.087619562156004,
+              "y": 21.951812872219115
+            }
+          },
+          "valueErrors": {},
+          "analytic": {
+            "controlPoints": [
+              [
+                0,
+                0
+              ],
+              [
+                3,
+                36
+              ],
+              [
+                31,
+                12
+              ],
+              [
+                40,
+                0
+              ]
+            ],
+            "base": [
+              11.368768,
+              18.965016000000002
+            ],
+            "reversed": false,
+            "side": "convex",
+            "distance": 3,
+            "t": 0.37,
+            "first": [
+              46.429199999999994,
+              4.370400000000007
+            ],
+            "second": [
+              52.31999999999999,
+              -200.16
+            ],
+            "speed": 46.63444015746302,
+            "curvature": -0.093886811643274,
+            "tangent": [
+              0.9955989574063713,
+              0.09371614594799851
+            ],
+            "normal": [
+              -0.09371614594799851,
+              0.9955989574063713
+            ],
+            "point": [
+              11.087619562156004,
+              21.951812872219115
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "acceptedUnitCount": 20,
+  "remainingX": {
+    "X3": "NOT_TRIGGERED",
+    "X4": "NOT_TRIGGERED",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED",
+    "X7": "NOT_TRIGGERED",
+    "X8": "NOT_TRIGGERED"
+  },
+  "R": {
+    "R1": "NOT_TRIGGERED",
+    "R2": "NOT_TRIGGERED",
+    "R3": "NOT_TRIGGERED",
+    "R4": "NOT_TRIGGERED",
+    "R5": "NOT_TRIGGERED",
+    "R6": "NOT_TRIGGERED",
+    "R7": "NOT_TRIGGERED",
+    "R8": "NOT_TRIGGERED"
+  }
+}
