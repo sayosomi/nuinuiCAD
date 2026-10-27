@@ -1,0 +1,1985 @@
+{
+  "protocol": "five warmups / 21 alternating paired trials; encoding probe is additional, transport includes actual encoding/JSON decode",
+  "originalBase": "60f54f3ccec505821bc615e516bab8192bd20533",
+  "setupWallMs": 146.87345800000003,
+  "spawns": 1,
+  "requests": 53,
+  "pid": 45458,
+  "peakRustRssKiB": 74336,
+  "workerResourceUsage": {
+    "userCPUTime": 10103223,
+    "systemCPUTime": 320127,
+    "maxRSS": 712416,
+    "sharedMemorySize": 0,
+    "unsharedDataSize": 0,
+    "unsharedStackSize": 0,
+    "minorPageFault": 54443,
+    "majorPageFault": 106,
+    "swappedOut": 0,
+    "fsRead": 0,
+    "fsWrite": 0,
+    "ipcSent": 2303,
+    "ipcReceived": 1038,
+    "signalsCount": 0,
+    "voluntaryContextSwitches": 2053,
+    "involuntaryContextSwitches": 15890
+  },
+  "records": [
+    {
+      "label": "cold first source/request (excluded from steady state)",
+      "observation": {
+        "compile": {
+          "wallMs": 39.03708299999971,
+          "workerCpuMs": 58.524
+        },
+        "lowering": {
+          "wallMs": 1.0927919999999176,
+          "workerCpuMs": 1.291
+        },
+        "encodingProbe": {
+          "wallMs": 0.2506669999997939,
+          "workerCpuMs": 0.252
+        },
+        "rustTransport": {
+          "wallMs": 533.260084,
+          "workerCpuMs": 1.584
+        },
+        "decode": {
+          "wallMs": 0.7039159999999356,
+          "workerCpuMs": 0.711
+        },
+        "graph": {
+          "V": 133,
+          "E": 131,
+          "edgeRecords": 131,
+          "maxPrerequisites": 2,
+          "maxDependents": 1,
+          "outputCount": 2,
+          "bindingCount": 128,
+          "evaluationOrderCount": 2
+        },
+        "sourceBytes": 4359,
+        "payloadBytes": 110545,
+        "computedGeometryCount": 2,
+        "scalarOutputCount": 128,
+        "generatedRowCount": 0,
+        "sourceRevision": 1,
+        "sourceHash": "517c7e7670e8b9de40e9d3d96ba0521fd8becb03a020d1a86b90709c433afeb6",
+        "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+      }
+    },
+    {
+      "pair": "B2:B3",
+      "block": 1,
+      "warmups": 5,
+      "trials": 21,
+      "alternating": true,
+      "summaries": [
+        {
+          "id": "B2-r1",
+          "compile": {
+            "wallMs": 36.516874999999345,
+            "workerCpuMs": 42.12
+          },
+          "lowering": {
+            "wallMs": 0.3288750000010623,
+            "workerCpuMs": 0.33
+          },
+          "encodingProbe": {
+            "wallMs": 0.5762500000000728,
+            "workerCpuMs": 0.578
+          },
+          "rustTransport": {
+            "wallMs": 108.28537499999948,
+            "workerCpuMs": 4.443
+          },
+          "decode": {
+            "wallMs": 0.2562920000000304,
+            "workerCpuMs": 0.257
+          },
+          "graph": {
+            "V": 775,
+            "E": 773,
+            "edgeRecords": 773,
+            "maxPrerequisites": 1,
+            "maxDependents": 256,
+            "outputCount": 258,
+            "bindingCount": 2,
+            "evaluationOrderCount": 258
+          },
+          "sourceBytes": 14513,
+          "payloadBytes": 348087,
+          "computedGeometryCount": 258,
+          "scalarOutputCount": 2,
+          "generatedRowCount": 0,
+          "sourceRevision": 1,
+          "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+          "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a",
+          "stageStats": {
+            "compile": {
+              "wallMs": {
+                "p50": 36.491416999999274,
+                "p95": 46.14487499999814,
+                "max": 47.72375000000102
+              },
+              "workerCpuMs": {
+                "p50": 45.61,
+                "p95": 81.481,
+                "max": 102.339
+              }
+            },
+            "lowering": {
+              "wallMs": {
+                "p50": 0.3097909999996773,
+                "p95": 0.42637500000273576,
+                "max": 0.4415000000008149
+              },
+              "workerCpuMs": {
+                "p50": 0.311,
+                "p95": 0.557,
+                "max": 0.648
+              }
+            },
+            "encodingProbe": {
+              "wallMs": {
+                "p50": 0.5762500000000728,
+                "p95": 0.6589579999999842,
+                "max": 0.6955409999973199
+              },
+              "workerCpuMs": {
+                "p50": 0.588,
+                "p95": 1.9,
+                "max": 2.269
+              }
+            },
+            "rustTransport": {
+              "wallMs": {
+                "p50": 105.44129199999952,
+                "p95": 119.81037500000093,
+                "max": 124.23254099999758
+              },
+              "workerCpuMs": {
+                "p50": 3.599,
+                "p95": 18.754,
+                "max": 66.799
+              }
+            },
+            "decode": {
+              "wallMs": {
+                "p50": 0.23695799999950395,
+                "p95": 0.29424999999901047,
+                "max": 0.35199999999895226
+              },
+              "workerCpuMs": {
+                "p50": 0.237,
+                "p95": 0.276,
+                "max": 0.298
+              }
+            }
+          }
+        },
+        {
+          "id": "B3-r1",
+          "compile": {
+            "wallMs": 243.4965000000011,
+            "workerCpuMs": 263.265
+          },
+          "lowering": {
+            "wallMs": 1.0743750000001455,
+            "workerCpuMs": 1.171
+          },
+          "encodingProbe": {
+            "wallMs": 2.1596669999998994,
+            "workerCpuMs": 2.161
+          },
+          "rustTransport": {
+            "wallMs": 781.4525830000002,
+            "workerCpuMs": 7.4
+          },
+          "decode": {
+            "wallMs": 0.8574170000010781,
+            "workerCpuMs": 0.858
+          },
+          "graph": {
+            "V": 3007,
+            "E": 3005,
+            "edgeRecords": 3005,
+            "maxPrerequisites": 1,
+            "maxDependents": 1000,
+            "outputCount": 1002,
+            "bindingCount": 2,
+            "evaluationOrderCount": 1002
+          },
+          "sourceBytes": 56991,
+          "payloadBytes": 1352833,
+          "computedGeometryCount": 1002,
+          "scalarOutputCount": 2,
+          "generatedRowCount": 0,
+          "sourceRevision": 1,
+          "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+          "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a",
+          "stageStats": {
+            "compile": {
+              "wallMs": {
+                "p50": 223.91066599999976,
+                "p95": 252.38300000000163,
+                "max": 491.6377089999987
+              },
+              "workerCpuMs": {
+                "p50": 255.687,
+                "p95": 307.771,
+                "max": 311.167
+              }
+            },
+            "lowering": {
+              "wallMs": {
+                "p50": 1.0090829999971902,
+                "p95": 1.2663749999992433,
+                "max": 1.882540999999037
+              },
+              "workerCpuMs": {
+                "p50": 1.021,
+                "p95": 2.501,
+                "max": 3.998
+              }
+            },
+            "encodingProbe": {
+              "wallMs": {
+                "p50": 2.1268749999981083,
+                "p95": 2.3302499999990687,
+                "max": 2.5252089999994496
+              },
+              "workerCpuMs": {
+                "p50": 2.217,
+                "p95": 4.477,
+                "max": 6.966
+              }
+            },
+            "rustTransport": {
+              "wallMs": {
+                "p50": 775.1294999999991,
+                "p95": 844.3556250000001,
+                "max": 1035.8150419999984
+              },
+              "workerCpuMs": {
+                "p50": 8.458,
+                "p95": 16.449,
+                "max": 85.308
+              }
+            },
+            "decode": {
+              "wallMs": {
+                "p50": 0.7752919999984442,
+                "p95": 0.971084000000701,
+                "max": 1.011041000001569
+              },
+              "workerCpuMs": {
+                "p50": 0.776,
+                "p95": 1.357,
+                "max": 1.684
+              }
+            }
+          }
+        }
+      ],
+      "samples": [
+        [
+          {
+            "compile": {
+              "wallMs": 36.516874999999345,
+              "workerCpuMs": 42.12
+            },
+            "lowering": {
+              "wallMs": 0.3288750000010623,
+              "workerCpuMs": 0.33
+            },
+            "encodingProbe": {
+              "wallMs": 0.5762500000000728,
+              "workerCpuMs": 0.578
+            },
+            "rustTransport": {
+              "wallMs": 108.28537499999948,
+              "workerCpuMs": 4.443
+            },
+            "decode": {
+              "wallMs": 0.2562920000000304,
+              "workerCpuMs": 0.257
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 348087,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 39.53658399999949,
+              "workerCpuMs": 102.339
+            },
+            "lowering": {
+              "wallMs": 0.33729200000016135,
+              "workerCpuMs": 0.338
+            },
+            "encodingProbe": {
+              "wallMs": 0.5694999999996071,
+              "workerCpuMs": 0.57
+            },
+            "rustTransport": {
+              "wallMs": 102.35541699999885,
+              "workerCpuMs": 8.025
+            },
+            "decode": {
+              "wallMs": 0.2568749999991269,
+              "workerCpuMs": 0.258
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 348087,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 34.0561660000003,
+              "workerCpuMs": 45.61
+            },
+            "lowering": {
+              "wallMs": 0.3015419999992446,
+              "workerCpuMs": 0.303
+            },
+            "encodingProbe": {
+              "wallMs": 0.5633330000000569,
+              "workerCpuMs": 1.113
+            },
+            "rustTransport": {
+              "wallMs": 100.71429200000057,
+              "workerCpuMs": 2.082
+            },
+            "decode": {
+              "wallMs": 0.251458000000639,
+              "workerCpuMs": 0.252
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 348087,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 36.381124999999884,
+              "workerCpuMs": 56.639
+            },
+            "lowering": {
+              "wallMs": 0.3050829999992857,
+              "workerCpuMs": 0.307
+            },
+            "encodingProbe": {
+              "wallMs": 0.5702079999991838,
+              "workerCpuMs": 1.9
+            },
+            "rustTransport": {
+              "wallMs": 99.51416699999936,
+              "workerCpuMs": 5.416
+            },
+            "decode": {
+              "wallMs": 0.23695799999950395,
+              "workerCpuMs": 0.237
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 33.489292000000205,
+              "workerCpuMs": 44.986
+            },
+            "lowering": {
+              "wallMs": 0.27770799999962037,
+              "workerCpuMs": 0.28
+            },
+            "encodingProbe": {
+              "wallMs": 0.546875,
+              "workerCpuMs": 0.657
+            },
+            "rustTransport": {
+              "wallMs": 99.30566700000054,
+              "workerCpuMs": 2.122
+            },
+            "decode": {
+              "wallMs": 0.23833300000114832,
+              "workerCpuMs": 0.24
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 36.491416999999274,
+              "workerCpuMs": 43.085
+            },
+            "lowering": {
+              "wallMs": 0.34037499999976717,
+              "workerCpuMs": 0.648
+            },
+            "encodingProbe": {
+              "wallMs": 0.5867920000000595,
+              "workerCpuMs": 0.588
+            },
+            "rustTransport": {
+              "wallMs": 104.26624999999876,
+              "workerCpuMs": 2.145
+            },
+            "decode": {
+              "wallMs": 0.2589160000006814,
+              "workerCpuMs": 0.259
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 40.89470900000015,
+              "workerCpuMs": 49.463
+            },
+            "lowering": {
+              "wallMs": 0.2745410000006814,
+              "workerCpuMs": 0.276
+            },
+            "encodingProbe": {
+              "wallMs": 0.5432920000002923,
+              "workerCpuMs": 0.544
+            },
+            "rustTransport": {
+              "wallMs": 118.22995900000024,
+              "workerCpuMs": 3.599
+            },
+            "decode": {
+              "wallMs": 0.23958300000049348,
+              "workerCpuMs": 0.241
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 38.37837500000023,
+              "workerCpuMs": 55.662
+            },
+            "lowering": {
+              "wallMs": 0.29341700000077253,
+              "workerCpuMs": 0.294
+            },
+            "encodingProbe": {
+              "wallMs": 0.5663329999988491,
+              "workerCpuMs": 0.567
+            },
+            "rustTransport": {
+              "wallMs": 113.75754199999938,
+              "workerCpuMs": 2.647
+            },
+            "decode": {
+              "wallMs": 0.2735419999989972,
+              "workerCpuMs": 0.276
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 37.6452500000014,
+              "workerCpuMs": 47.699
+            },
+            "lowering": {
+              "wallMs": 0.2755409999990661,
+              "workerCpuMs": 0.277
+            },
+            "encodingProbe": {
+              "wallMs": 0.5541250000023865,
+              "workerCpuMs": 0.556
+            },
+            "rustTransport": {
+              "wallMs": 107.65258299999914,
+              "workerCpuMs": 2.248
+            },
+            "decode": {
+              "wallMs": 0.24708400000235997,
+              "workerCpuMs": 0.251
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 34.124582999997074,
+              "workerCpuMs": 37.293
+            },
+            "lowering": {
+              "wallMs": 0.30962499999805004,
+              "workerCpuMs": 0.311
+            },
+            "encodingProbe": {
+              "wallMs": 0.6131249999998545,
+              "workerCpuMs": 0.608
+            },
+            "rustTransport": {
+              "wallMs": 102.91229200000089,
+              "workerCpuMs": 2.186
+            },
+            "decode": {
+              "wallMs": 0.22399999999834108,
+              "workerCpuMs": 0.225
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 33.45379200000025,
+              "workerCpuMs": 40.128
+            },
+            "lowering": {
+              "wallMs": 0.29900000000270666,
+              "workerCpuMs": 0.303
+            },
+            "encodingProbe": {
+              "wallMs": 0.5529999999998836,
+              "workerCpuMs": 0.553
+            },
+            "rustTransport": {
+              "wallMs": 105.343667000001,
+              "workerCpuMs": 4.532
+            },
+            "decode": {
+              "wallMs": 0.2303329999995185,
+              "workerCpuMs": 0.231
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 35.44983400000274,
+              "workerCpuMs": 39.923
+            },
+            "lowering": {
+              "wallMs": 0.2762089999996533,
+              "workerCpuMs": 0.276
+            },
+            "encodingProbe": {
+              "wallMs": 0.6589579999999842,
+              "workerCpuMs": 0.627
+            },
+            "rustTransport": {
+              "wallMs": 106.75941700000112,
+              "workerCpuMs": 2.627
+            },
+            "decode": {
+              "wallMs": 0.21958399999857647,
+              "workerCpuMs": 0.221
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 35.31550000000061,
+              "workerCpuMs": 54.008
+            },
+            "lowering": {
+              "wallMs": 0.34370799999669543,
+              "workerCpuMs": 0.344
+            },
+            "encodingProbe": {
+              "wallMs": 0.5757080000003043,
+              "workerCpuMs": 0.577
+            },
+            "rustTransport": {
+              "wallMs": 103.86750000000029,
+              "workerCpuMs": 18.754
+            },
+            "decode": {
+              "wallMs": 0.2125000000014552,
+              "workerCpuMs": 0.215
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 33.88783300000068,
+              "workerCpuMs": 42.789
+            },
+            "lowering": {
+              "wallMs": 0.327540999998746,
+              "workerCpuMs": 0.328
+            },
+            "encodingProbe": {
+              "wallMs": 0.586250000000291,
+              "workerCpuMs": 0.588
+            },
+            "rustTransport": {
+              "wallMs": 102.7435000000005,
+              "workerCpuMs": 2.23
+            },
+            "decode": {
+              "wallMs": 0.23020899999755784,
+              "workerCpuMs": 0.231
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 39.91729200000191,
+              "workerCpuMs": 38.879
+            },
+            "lowering": {
+              "wallMs": 0.3097909999996773,
+              "workerCpuMs": 0.311
+            },
+            "encodingProbe": {
+              "wallMs": 0.582457999997132,
+              "workerCpuMs": 0.584
+            },
+            "rustTransport": {
+              "wallMs": 124.23254099999758,
+              "workerCpuMs": 4.694
+            },
+            "decode": {
+              "wallMs": 0.35199999999895226,
+              "workerCpuMs": 0.298
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 47.72375000000102,
+              "workerCpuMs": 81.481
+            },
+            "lowering": {
+              "wallMs": 0.4415000000008149,
+              "workerCpuMs": 0.452
+            },
+            "encodingProbe": {
+              "wallMs": 0.6955409999973199,
+              "workerCpuMs": 2.269
+            },
+            "rustTransport": {
+              "wallMs": 114.54608299999745,
+              "workerCpuMs": 66.799
+            },
+            "decode": {
+              "wallMs": 0.22170799999730662,
+              "workerCpuMs": 0.223
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 46.14487499999814,
+              "workerCpuMs": 80.988
+            },
+            "lowering": {
+              "wallMs": 0.42637500000273576,
+              "workerCpuMs": 0.557
+            },
+            "encodingProbe": {
+              "wallMs": 0.6380410000019765,
+              "workerCpuMs": 1.087
+            },
+            "rustTransport": {
+              "wallMs": 105.54991599999994,
+              "workerCpuMs": 5.605
+            },
+            "decode": {
+              "wallMs": 0.21674999999959255,
+              "workerCpuMs": 0.217
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 35.8604579999992,
+              "workerCpuMs": 45.924
+            },
+            "lowering": {
+              "wallMs": 0.30658300000141026,
+              "workerCpuMs": 0.307
+            },
+            "encodingProbe": {
+              "wallMs": 0.5334170000023732,
+              "workerCpuMs": 0.534
+            },
+            "rustTransport": {
+              "wallMs": 104.40829099999974,
+              "workerCpuMs": 2.199
+            },
+            "decode": {
+              "wallMs": 0.21158400000058464,
+              "workerCpuMs": 0.212
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 36.539292000001296,
+              "workerCpuMs": 38.456
+            },
+            "lowering": {
+              "wallMs": 0.3360419999989972,
+              "workerCpuMs": 0.336
+            },
+            "encodingProbe": {
+              "wallMs": 0.6334999999999127,
+              "workerCpuMs": 1.72
+            },
+            "rustTransport": {
+              "wallMs": 105.44129199999952,
+              "workerCpuMs": 4.808
+            },
+            "decode": {
+              "wallMs": 0.21375000000261934,
+              "workerCpuMs": 0.214
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 45.19508300000234,
+              "workerCpuMs": 48.18
+            },
+            "lowering": {
+              "wallMs": 0.32687499999883585,
+              "workerCpuMs": 0.328
+            },
+            "encodingProbe": {
+              "wallMs": 0.6206250000032014,
+              "workerCpuMs": 0.615
+            },
+            "rustTransport": {
+              "wallMs": 112.04125000000204,
+              "workerCpuMs": 2.559
+            },
+            "decode": {
+              "wallMs": 0.2141669999982696,
+              "workerCpuMs": 0.216
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 36.0349170000045,
+              "workerCpuMs": 39.996
+            },
+            "lowering": {
+              "wallMs": 0.41066599999612663,
+              "workerCpuMs": 0.387
+            },
+            "encodingProbe": {
+              "wallMs": 0.6428749999977299,
+              "workerCpuMs": 0.637
+            },
+            "rustTransport": {
+              "wallMs": 119.81037500000093,
+              "workerCpuMs": 4.667
+            },
+            "decode": {
+              "wallMs": 0.29424999999901047,
+              "workerCpuMs": 0.264
+            },
+            "graph": {
+              "V": 775,
+              "E": 773,
+              "edgeRecords": 773,
+              "maxPrerequisites": 1,
+              "maxDependents": 256,
+              "outputCount": 258,
+              "bindingCount": 2,
+              "evaluationOrderCount": 258
+            },
+            "sourceBytes": 14513,
+            "payloadBytes": 351694,
+            "computedGeometryCount": 258,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          }
+        ],
+        [
+          {
+            "compile": {
+              "wallMs": 243.4965000000011,
+              "workerCpuMs": 263.265
+            },
+            "lowering": {
+              "wallMs": 1.0743750000001455,
+              "workerCpuMs": 1.171
+            },
+            "encodingProbe": {
+              "wallMs": 2.1596669999998994,
+              "workerCpuMs": 2.161
+            },
+            "rustTransport": {
+              "wallMs": 781.4525830000002,
+              "workerCpuMs": 7.4
+            },
+            "decode": {
+              "wallMs": 0.8574170000010781,
+              "workerCpuMs": 0.858
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1352833,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 231.17041700000118,
+              "workerCpuMs": 311.167
+            },
+            "lowering": {
+              "wallMs": 0.9799170000005688,
+              "workerCpuMs": 0.981
+            },
+            "encodingProbe": {
+              "wallMs": 2.0285000000003492,
+              "workerCpuMs": 2.031
+            },
+            "rustTransport": {
+              "wallMs": 769.882916999999,
+              "workerCpuMs": 7.519
+            },
+            "decode": {
+              "wallMs": 0.9060000000008586,
+              "workerCpuMs": 0.907
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1352833,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 229.33254100000158,
+              "workerCpuMs": 271.811
+            },
+            "lowering": {
+              "wallMs": 1.0055830000001151,
+              "workerCpuMs": 1.006
+            },
+            "encodingProbe": {
+              "wallMs": 2.001749999999447,
+              "workerCpuMs": 2.003
+            },
+            "rustTransport": {
+              "wallMs": 763.2530420000003,
+              "workerCpuMs": 7.596
+            },
+            "decode": {
+              "wallMs": 0.9022080000013375,
+              "workerCpuMs": 0.904
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1356758,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 228.60116700000071,
+              "workerCpuMs": 307.771
+            },
+            "lowering": {
+              "wallMs": 1.078125,
+              "workerCpuMs": 1.095
+            },
+            "encodingProbe": {
+              "wallMs": 2.1865410000009433,
+              "workerCpuMs": 3.809
+            },
+            "rustTransport": {
+              "wallMs": 758.4623749999992,
+              "workerCpuMs": 11.171
+            },
+            "decode": {
+              "wallMs": 0.971084000000701,
+              "workerCpuMs": 1.187
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 220.4091669999998,
+              "workerCpuMs": 255.687
+            },
+            "lowering": {
+              "wallMs": 1.031290999999328,
+              "workerCpuMs": 2.501
+            },
+            "encodingProbe": {
+              "wallMs": 2.053250000000844,
+              "workerCpuMs": 2.054
+            },
+            "rustTransport": {
+              "wallMs": 754.1131669999995,
+              "workerCpuMs": 9.148
+            },
+            "decode": {
+              "wallMs": 0.9123339999987365,
+              "workerCpuMs": 1.684
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 217.47095799999988,
+              "workerCpuMs": 262.599
+            },
+            "lowering": {
+              "wallMs": 0.9714579999999842,
+              "workerCpuMs": 0.973
+            },
+            "encodingProbe": {
+              "wallMs": 2.084415999999692,
+              "workerCpuMs": 2.086
+            },
+            "rustTransport": {
+              "wallMs": 761.6297079999986,
+              "workerCpuMs": 13.909
+            },
+            "decode": {
+              "wallMs": 0.8795829999999114,
+              "workerCpuMs": 0.881
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 233.59862500000054,
+              "workerCpuMs": 245.218
+            },
+            "lowering": {
+              "wallMs": 0.9942499999997381,
+              "workerCpuMs": 0.995
+            },
+            "encodingProbe": {
+              "wallMs": 2.25512499999968,
+              "workerCpuMs": 2.239
+            },
+            "rustTransport": {
+              "wallMs": 782.6903329999986,
+              "workerCpuMs": 9.292
+            },
+            "decode": {
+              "wallMs": 0.8215830000008282,
+              "workerCpuMs": 0.823
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 222.02116699999897,
+              "workerCpuMs": 268.019
+            },
+            "lowering": {
+              "wallMs": 0.9307499999995343,
+              "workerCpuMs": 0.932
+            },
+            "encodingProbe": {
+              "wallMs": 1.9862089999987802,
+              "workerCpuMs": 1.987
+            },
+            "rustTransport": {
+              "wallMs": 824.6598329999979,
+              "workerCpuMs": 8.486
+            },
+            "decode": {
+              "wallMs": 0.9380410000012489,
+              "workerCpuMs": 0.939
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 210.56033300000126,
+              "workerCpuMs": 231.006
+            },
+            "lowering": {
+              "wallMs": 0.9796669999996084,
+              "workerCpuMs": 0.982
+            },
+            "encodingProbe": {
+              "wallMs": 2.182334000000992,
+              "workerCpuMs": 4.477
+            },
+            "rustTransport": {
+              "wallMs": 755.8477080000011,
+              "workerCpuMs": 16.449
+            },
+            "decode": {
+              "wallMs": 0.7192080000022543,
+              "workerCpuMs": 0.719
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 228.68687499999942,
+              "workerCpuMs": 281.208
+            },
+            "lowering": {
+              "wallMs": 1.2365830000017013,
+              "workerCpuMs": 1.237
+            },
+            "encodingProbe": {
+              "wallMs": 2.0937080000003334,
+              "workerCpuMs": 2.844
+            },
+            "rustTransport": {
+              "wallMs": 1035.8150419999984,
+              "workerCpuMs": 7.697
+            },
+            "decode": {
+              "wallMs": 0.7434159999975236,
+              "workerCpuMs": 0.744
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 213.21258300000045,
+              "workerCpuMs": 221.906
+            },
+            "lowering": {
+              "wallMs": 1.0188750000015716,
+              "workerCpuMs": 1.021
+            },
+            "encodingProbe": {
+              "wallMs": 2.1902090000003227,
+              "workerCpuMs": 2.731
+            },
+            "rustTransport": {
+              "wallMs": 764.6648750000022,
+              "workerCpuMs": 8.064
+            },
+            "decode": {
+              "wallMs": 0.722249999998894,
+              "workerCpuMs": 0.723
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 209.14645799999926,
+              "workerCpuMs": 222.546
+            },
+            "lowering": {
+              "wallMs": 1.882540999999037,
+              "workerCpuMs": 3.998
+            },
+            "encodingProbe": {
+              "wallMs": 1.995374999998603,
+              "workerCpuMs": 2.866
+            },
+            "rustTransport": {
+              "wallMs": 764.4445830000004,
+              "workerCpuMs": 7.663
+            },
+            "decode": {
+              "wallMs": 0.7026660000010452,
+              "workerCpuMs": 0.703
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 210.3766250000008,
+              "workerCpuMs": 218.423
+            },
+            "lowering": {
+              "wallMs": 0.9469170000011218,
+              "workerCpuMs": 0.948
+            },
+            "encodingProbe": {
+              "wallMs": 2.045916999999463,
+              "workerCpuMs": 2.047
+            },
+            "rustTransport": {
+              "wallMs": 801.0729580000007,
+              "workerCpuMs": 8.103
+            },
+            "decode": {
+              "wallMs": 0.756666999997833,
+              "workerCpuMs": 0.758
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 252.38300000000163,
+              "workerCpuMs": 253.072
+            },
+            "lowering": {
+              "wallMs": 0.9337500000001455,
+              "workerCpuMs": 0.935
+            },
+            "encodingProbe": {
+              "wallMs": 2.12212499999805,
+              "workerCpuMs": 2.123
+            },
+            "rustTransport": {
+              "wallMs": 781.0169999999998,
+              "workerCpuMs": 10.283
+            },
+            "decode": {
+              "wallMs": 0.7414160000007541,
+              "workerCpuMs": 0.744
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 491.6377089999987,
+              "workerCpuMs": 269.847
+            },
+            "lowering": {
+              "wallMs": 0.9842080000016722,
+              "workerCpuMs": 0.986
+            },
+            "encodingProbe": {
+              "wallMs": 2.2426249999989523,
+              "workerCpuMs": 2.245
+            },
+            "rustTransport": {
+              "wallMs": 838.8160000000025,
+              "workerCpuMs": 8.458
+            },
+            "decode": {
+              "wallMs": 0.7487499999988358,
+              "workerCpuMs": 0.774
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 208.7270000000026,
+              "workerCpuMs": 219.894
+            },
+            "lowering": {
+              "wallMs": 1.0090829999971902,
+              "workerCpuMs": 1.123
+            },
+            "encodingProbe": {
+              "wallMs": 2.1268749999981083,
+              "workerCpuMs": 3.473
+            },
+            "rustTransport": {
+              "wallMs": 844.3556250000001,
+              "workerCpuMs": 85.308
+            },
+            "decode": {
+              "wallMs": 1.011041000001569,
+              "workerCpuMs": 1.357
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 240.25970799999777,
+              "workerCpuMs": 277.694
+            },
+            "lowering": {
+              "wallMs": 1.2663749999992433,
+              "workerCpuMs": 2.214
+            },
+            "encodingProbe": {
+              "wallMs": 2.3302499999990687,
+              "workerCpuMs": 6.966
+            },
+            "rustTransport": {
+              "wallMs": 775.1294999999991,
+              "workerCpuMs": 7.475
+            },
+            "decode": {
+              "wallMs": 0.758125000000291,
+              "workerCpuMs": 0.759
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 223.91066599999976,
+              "workerCpuMs": 276.466
+            },
+            "lowering": {
+              "wallMs": 1.071749999999156,
+              "workerCpuMs": 1.074
+            },
+            "encodingProbe": {
+              "wallMs": 2.1000830000011774,
+              "workerCpuMs": 2.101
+            },
+            "rustTransport": {
+              "wallMs": 781.4169169999986,
+              "workerCpuMs": 9.164
+            },
+            "decode": {
+              "wallMs": 0.7792499999995925,
+              "workerCpuMs": 0.777
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 219.5822079999998,
+              "workerCpuMs": 236.13
+            },
+            "lowering": {
+              "wallMs": 1.0809579999986454,
+              "workerCpuMs": 1.084
+            },
+            "encodingProbe": {
+              "wallMs": 2.1644169999999576,
+              "workerCpuMs": 2.16
+            },
+            "rustTransport": {
+              "wallMs": 770.7450419999986,
+              "workerCpuMs": 7.391
+            },
+            "decode": {
+              "wallMs": 0.7287919999980659,
+              "workerCpuMs": 0.73
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 221.8079170000019,
+              "workerCpuMs": 252.244
+            },
+            "lowering": {
+              "wallMs": 1.075749999999971,
+              "workerCpuMs": 1.077
+            },
+            "encodingProbe": {
+              "wallMs": 2.2202910000014526,
+              "workerCpuMs": 2.217
+            },
+            "rustTransport": {
+              "wallMs": 784.0228330000027,
+              "workerCpuMs": 9.958
+            },
+            "decode": {
+              "wallMs": 0.7752919999984442,
+              "workerCpuMs": 0.776
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          },
+          {
+            "compile": {
+              "wallMs": 238.62558300000092,
+              "workerCpuMs": 242.588
+            },
+            "lowering": {
+              "wallMs": 0.9740000000019791,
+              "workerCpuMs": 0.974
+            },
+            "encodingProbe": {
+              "wallMs": 2.5252089999994496,
+              "workerCpuMs": 2.442
+            },
+            "rustTransport": {
+              "wallMs": 773.7112080000006,
+              "workerCpuMs": 7.715
+            },
+            "decode": {
+              "wallMs": 0.7412499999991269,
+              "workerCpuMs": 0.742
+            },
+            "graph": {
+              "V": 3007,
+              "E": 3005,
+              "edgeRecords": 3005,
+              "maxPrerequisites": 1,
+              "maxDependents": 1000,
+              "outputCount": 1002,
+              "bindingCount": 2,
+              "evaluationOrderCount": 1002
+            },
+            "sourceBytes": 56991,
+            "payloadBytes": 1366856,
+            "computedGeometryCount": 1002,
+            "scalarOutputCount": 2,
+            "generatedRowCount": 0,
+            "sourceRevision": 1,
+            "sourceHash": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+            "predecessorHash": "7d4956bb795b0cb0a2e8fca04d57575c459d8fc82fb3332e0d988472a338ee0a"
+          }
+        ]
+      ],
+      "child": {
+        "before": {
+          "cpuSeconds": 4.37,
+          "rssKiB": 73904
+        },
+        "after": {
+          "cpuSeconds": 22.65,
+          "rssKiB": 74336
+        },
+        "batchCpuSeconds": 18.279999999999998,
+        "cpuResolutionSeconds": 0.01
+      }
+    }
+  ]
+}
