@@ -1,0 +1,16 @@
+nui 1
+// Frozen #1470 B6
+module M(dy: number) {
+  const Local: path = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+  export const Path: path = @Local
+  const LocalPoint: point = bezierBulgePoint(source: @Local)
+  export const Out: point = offset(from: @LocalPoint, dx: 0, dy: @dy)
+}
+instance Left = M(dy: 5)
+instance Right = M(dy: 80)
+path Material = from(source: @Left::Path)
+point Drawable = bezierBulgePoint(source: @Material)
+point LeftResult = offset(from: @Left::Out, dx: 0, dy: 0)
+point RightResult = offset(from: @Right::Out, dx: 0, dy: 0)
+curve ControlCurve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+point Control = bezierBulgePoint(source: @ControlCurve)
