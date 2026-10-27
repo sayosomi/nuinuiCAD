@@ -33,7 +33,7 @@ export const createCadElement = (
   const firstPointId = points[0]?.id ?? "";
   const secondPointId = points[1]?.id ?? firstPointId;
   const thirdPointId = points[2]?.id ?? secondPointId;
-  const lineLikeElements = referenceElements.filter(
+  const lineLikeElements = type === "line" ? [] : referenceElements.filter(
     (element) =>
       element.type === "line" ||
       element.type === "angleLengthLine" ||
@@ -49,7 +49,7 @@ export const createCadElement = (
       element.type === "copyLine" ||
       element.type === "symmetricCopyLine"
   );
-  const arcLikeElements = referenceElements.filter(
+  const arcLikeElements = type === "line" ? [] : referenceElements.filter(
     (element) =>
       element.type === "arcLine" ||
       element.type === "threePointArcLine" ||
@@ -264,7 +264,9 @@ export const createCadElement = (
     }
     case "line": {
       const id = createId(type);
-      const lineCount = elements.filter((element) => element.type === "line").length;
+      const lineCount = options.authoredName === undefined
+        ? elements.filter((element) => element.type === "line").length
+        : 0;
       const requestedName = `直線${lineCount + 1}`;
       return {
         id,
