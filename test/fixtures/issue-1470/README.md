@@ -22,3 +22,9 @@ before sealing a separately identified supported equivalent.
 
 X/R slots are conditional, never filler. Execution evidence and dispositions
 are recorded separately without rewriting this original seal.
+
+Completed results, unsupported-source classification, conditional X triggers,
+negative sensitivity and full serial gate results are in [result.md](result.md).
+`evidence/index.json` authenticates retained original failure/PASS logs and
+observations. The test uses `supported-equivalents.json` for C6 and adds only
+the two pre-execution-sealed `counterfactuals.json` units.

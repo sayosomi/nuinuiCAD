@@ -1,0 +1,29 @@
+[
+  {
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1470BezierConformance.integration.test.ts",
+      "src/geometry/bezierExtremePoint.test.ts",
+      "src/geometry/bezierBulgePoint.test.ts",
+      "src/geometry/bezierMath.test.ts",
+      "src/geometry/tangentOffsetCurveSide.test.ts",
+      "src/geometry/geometryValueConstruction.integration.test.ts",
+      "test/moduleQualifiedStageRust.integration.test.ts",
+      "--maxWorkers=1",
+      "--no-file-parallelism"
+    ],
+    "exit": 0
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "line_tangent_offset_point_tests"
+    ],
+    "exit": 0
+  }
+]

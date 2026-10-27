@@ -1,0 +1,6 @@
+{
+  "command": "python3 freeze.py (isolated external reproduction directory)",
+  "exit": 0,
+  "identicalOriginalArtifacts": 49,
+  "productImportsOrCalls": false
+}

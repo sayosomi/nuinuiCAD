@@ -1,0 +1,11 @@
+{
+  "base": "b1f9a32c1b18890729895c1157884e3a72f70cb3",
+  "testedImplementationAndHarnessCommit": "a2ebc6682e1a3d78173970121cf01acc08786baa",
+  "branch": "sayosomi/issue-1470-bezier-derived-geometry",
+  "originalSeal": "251574a7311c998c55f18cd123f9b87c063ea119",
+  "supportedEquivalentSeal": "6e14022bdfc3a20dedbd8ab09a7eafef748ff53b",
+  "counterfactualSeal": "a7e3470efede26255c99bdbb6fc8e8341cc6419a",
+  "gateCampaign": "gate-campaign.json.gz",
+  "productionSourcesChanged": false,
+  "reportAndEvidenceOnlyAfterGate": true
+}
