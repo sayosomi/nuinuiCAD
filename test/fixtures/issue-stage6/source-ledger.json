@@ -1,0 +1,752 @@
+{
+  "ceiling": 160,
+  "accepted": 51,
+  "primary": 48,
+  "controls": 3,
+  "counterfactuals": 0,
+  "newMinimizations": 0,
+  "rejected": 8,
+  "acceptedSources": [
+    {
+      "id": "S-00-S",
+      "order": 0,
+      "seed": 8000,
+      "sha256": "8442f6690cf0738ae3f112789bbc5e11bd6f7deff679321cbf836fecfa8ac5c1",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-00-T",
+      "order": 1,
+      "seed": 8000,
+      "sha256": "a793f67ad983d2d904242cfc88377ef37d2c8eb6024e5b23d271a7c045fc6fe5",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-01-S",
+      "order": 2,
+      "seed": 8001,
+      "sha256": "ce0958c7f05ac48dbd11ff985b53abe6951833001257ce6d8bd8f37077288ff3",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-01-T",
+      "order": 3,
+      "seed": 8001,
+      "sha256": "f98ddca63d42899491b4870f9b3ac12da45e4bdd2e91116df8655cf00f1a403b",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-02-S",
+      "order": 4,
+      "seed": 8002,
+      "sha256": "5ef97d879d8951c91eef4dc47e25491e6691ee0593abab318ef720948a19bf46",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-02-T",
+      "order": 5,
+      "seed": 8002,
+      "sha256": "c8a687d23f222495d14e26dbc2fc2c3ab9d210ec771e64ba4b9482bd43b7df9f",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-03-S",
+      "order": 6,
+      "seed": 8003,
+      "sha256": "2a806ab53935f2415ab7a3568e8ce6d50594db0ff425e5e7a4b35b64af72b6f2",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-03-T",
+      "order": 7,
+      "seed": 8003,
+      "sha256": "932be169637ef90bbe17fdbe79ac1e7f878901d73e54387d7ed41c00f4ddcca9",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-04-S",
+      "order": 8,
+      "seed": 8004,
+      "sha256": "e73a82dc273be2f3172dfa16189e42bee0d8f871ed574876189af598710edc5d",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-04-T",
+      "order": 9,
+      "seed": 8004,
+      "sha256": "cba7e9cefb9abc3f70a0a26fc64be1167f4f7eaf4864a41e8aed68289965419c",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-05-S",
+      "order": 10,
+      "seed": 8005,
+      "sha256": "2b8f6c3c1f588c412415d887354bb35e05fc11321b99ca6a9841966bddf5f9c9",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-05-T",
+      "order": 11,
+      "seed": 8005,
+      "sha256": "4eff19fe1f66304a4161ff17d055f9e92800ac92334c3750bd588a5567f3e7a7",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-06-S",
+      "order": 12,
+      "seed": 8006,
+      "sha256": "458348b2db55cc983dec681020acb17d76e95627da2a9c35ce50dc67be43b028",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-06-T",
+      "order": 13,
+      "seed": 8006,
+      "sha256": "6f8218be7e4b6c6f084da740db248d4365c15d32880d61e2109c5b6fed4c9e86",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-07-S",
+      "order": 14,
+      "seed": 8007,
+      "sha256": "3c3b70cb3bdc4c028dec25ac7b58ea1098bf61dcf38f2c4ad2034aafcd3536f4",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-07-T",
+      "order": 15,
+      "seed": 8007,
+      "sha256": "5fe88c6303b28bb93acda9467f41ffdef1cdd8fe1f3ef036709f4ab50a2cdadf",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "S-00-control",
+      "order": 16,
+      "seed": 8000,
+      "sha256": "98c617fa6fca5e15f7fe8f73aee0fa3c64213ccd14fc7c4cca408dd48fd4458e",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "scalar-updated-first",
+        "array-updated-first"
+      ]
+    },
+    {
+      "id": "O-00-S",
+      "order": 17,
+      "seed": 8100,
+      "sha256": "6f1fb1eeb463798578e31a8c70f2b387fa437aa56aafb53f26ca6a4d2ee40c1c",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-00-T",
+      "order": 18,
+      "seed": 8100,
+      "sha256": "c9de777e34f02eb0b800f88bd901dea92ad16b2099843cee233e218eb0c7b2ca",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-01-S",
+      "order": 19,
+      "seed": 8101,
+      "sha256": "c4e94f11e5f86bd7c8aba75057602c15d1a4ebc69e256aeb4f447d0f70869639",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-01-T",
+      "order": 20,
+      "seed": 8101,
+      "sha256": "646944cadcd3bd253720586085cecfcd18bfcc5f691b95a17866f68e3f7e19d0",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-02-S",
+      "order": 21,
+      "seed": 8102,
+      "sha256": "1c997c411cbaa86d062a84833941ac53be190d52a4d643e0cc5817406c33fcbe",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-02-T",
+      "order": 22,
+      "seed": 8102,
+      "sha256": "427e022253ebc8eb45ce85e4f26084cd6e313795c8d0a9c458dce41c67f566ba",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-03-S",
+      "order": 23,
+      "seed": 8103,
+      "sha256": "9c5e8fa940be51e2a90480f6eca3fe75334aff4371d3e37fc43ef6f79bf3b08f",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-03-T",
+      "order": 24,
+      "seed": 8103,
+      "sha256": "c9eab01781fe091beb539d4d9ce927fd39f9ec5752f93e3114aa2cbe854a8080",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-04-S",
+      "order": 25,
+      "seed": 8104,
+      "sha256": "3d90b53b9d1c02729683d44d63ec59796af3e2df9ba5a2c203821596141db331",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-04-T",
+      "order": 26,
+      "seed": 8104,
+      "sha256": "2aaf6101bfe8ae70b916ff14090e7d969ce596a3794898729548ca242abbeabb",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-05-S",
+      "order": 27,
+      "seed": 8105,
+      "sha256": "6c2e4c45f9b63c6bdf7ef368b0f48ac453766e88c1cb59df1d8558fb3bce0f9c",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-05-T",
+      "order": 28,
+      "seed": 8105,
+      "sha256": "889e59162c1b0c4e271b8960739b9e3d13f4cfcba81fc46cd91097379945e4c9",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-06-S",
+      "order": 29,
+      "seed": 8106,
+      "sha256": "79a4bbc30dade0a5511e499b08411a2c3893eef88fe45629aeb37a29ae266b6b",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-06-T",
+      "order": 30,
+      "seed": 8106,
+      "sha256": "b545cb670c39b0d4b2e2bb3370eec8f5634c34b9c682853b53619f0c7a51b22e",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-07-S",
+      "order": 31,
+      "seed": 8107,
+      "sha256": "2f91ec12e09701a0a3111c1e07dcfcd3c1199a90ec6fe48aef3b51b56d3adbcf",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-07-T",
+      "order": 32,
+      "seed": 8107,
+      "sha256": "b8e2d1dcfedd9321a807d886ea5eb86544ebb4b78f07f51bf9ac5f340540218d",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "O-00-control",
+      "order": 33,
+      "seed": 8100,
+      "sha256": "d1a3dbcdc6ef0131ebc3a87ee1a6073647fa070fbb416600cc2da2732ddf4f0a",
+      "methods": [
+        "OWNER",
+        "MODEL"
+      ],
+      "faultModels": [
+        "private-lazy-first-loss"
+      ]
+    },
+    {
+      "id": "X-00-S",
+      "order": 34,
+      "seed": 8200,
+      "sha256": "3651c651032536f57f3db4d572dfccf9a75ca464b6391eb37bf9f76132b7fb0f",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-00-T",
+      "order": 35,
+      "seed": 8200,
+      "sha256": "f324523a88e215b32ceeec1f5ac6819b97f1135bc8b4fbafac683a4962582fb5",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-01-S",
+      "order": 36,
+      "seed": 8201,
+      "sha256": "14c1926b50bca677b785749bb4b988ddf591a8400c5c5aea4ae1a2604ccf2be8",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-01-T",
+      "order": 37,
+      "seed": 8201,
+      "sha256": "1c82c38069fa0a033baf73fa381abb40da6742b6f51e2e7c384fb9336018ce8d",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-02-S",
+      "order": 38,
+      "seed": 8202,
+      "sha256": "91ba53e8c2f4d95fd1902806dbc2a4c5de85b903289ed45b1c88fa982391e534",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-02-T",
+      "order": 39,
+      "seed": 8202,
+      "sha256": "1832d9f48d914df5c1b333bc3cdc29f67c3d03e2cdb5e08d2aaf50ae71c50546",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-03-S",
+      "order": 40,
+      "seed": 8203,
+      "sha256": "867febc6b1800ea91ce0e0e93e2a4f55cc4c87067aca80fba2fe8fe19fb0ff2d",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-03-T",
+      "order": 41,
+      "seed": 8203,
+      "sha256": "d1e9230ef0dc0faa13777b87abd325813833024b621d02d9c132b141addfbe4e",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-04-S",
+      "order": 42,
+      "seed": 8204,
+      "sha256": "9f402e7ba2aae60e8a5ab38cbebc468fe1dd9574bdb37f72aa6cd7c4029b8026",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-04-T",
+      "order": 43,
+      "seed": 8204,
+      "sha256": "d5476ba8b7b4c8417e6b1d6191499f7aa3a211e3a324f635e2bee7dc7f1986be",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-05-S",
+      "order": 44,
+      "seed": 8205,
+      "sha256": "8bca01c2d281630c7b0e6725054ee383964bb5d6585467e9ba365e79eb8fafe2",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-05-T",
+      "order": 45,
+      "seed": 8205,
+      "sha256": "6e73d1ab65b8bddc2d51042ac60d78b186783167a04b7d0da836d04e88bb8ea6",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-06-S",
+      "order": 46,
+      "seed": 8206,
+      "sha256": "054c84e2d7653fffd575ef4ab4db1d35bc440f815bb49a04cb6c2c441dd9dcd6",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-06-T",
+      "order": 47,
+      "seed": 8206,
+      "sha256": "398ddb840870f10b2caa73591bd124f17f8c60204539edc80ec568467b3c374f",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-07-S",
+      "order": 48,
+      "seed": 8207,
+      "sha256": "ba19ba151efedd657a13038051b4facf9c48ece0cfdf655e769cd2c761a46fe2",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-07-T",
+      "order": 49,
+      "seed": 8207,
+      "sha256": "8c0c9a4f7f1aabcccfd92bc4cd36373e9f65822ff212511fa2e3e2f4b388e61e",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    },
+    {
+      "id": "X-00-control",
+      "order": 50,
+      "seed": 8200,
+      "sha256": "f1cc836bd88ae30def292a3e260272e29f5bcca6b85120f70b4ebc996df6a398",
+      "methods": [
+        "RISK",
+        "MODEL"
+      ],
+      "faultModels": [
+        "atomicity",
+        "gate-before-input",
+        "selected-branch",
+        "limit-owner"
+      ]
+    }
+  ],
+  "rejectedHashes": [
+    "899d028774136c1da94b6d6b251837f0361bdcbac03697bf927d4634422568bb",
+    "3d7a2df5c15e90e0d912cd17cf8b1f2e26711395b30d52fd14e6d3736582e724",
+    "8c886696860709709084a5b889a94e4f7a4db7b333c1db7b4f1da59119e6fbf0",
+    "e7d2acd2ac15861ab63f62f216154be0aae02e3abfc91b2b2c7ab824db3418c3",
+    "c50ac80c4f24a6184de30423ed8a845c855e3aa4c41d5088752127250134601d",
+    "e3657860c9c94645684e46da1f4abd4ce704c8ac8bf274523febec61c16c0f58",
+    "dee66b7d03739759814ffa2d231d0f848703a1608b2126f1c90c7adf4dab6e1a",
+    "eadc31bc9281d687924610f40201537cde6c37f6f92551e617b20ad3dae3dbf4"
+  ]
+}

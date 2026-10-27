@@ -35,9 +35,11 @@ fn evaluation_state() -> EvaluationState {
         base_transformation_geometry: HashMap::new(),
         transformation_stage_geometry: HashMap::new(),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),
+        lazy_geometry_value_programs: HashMap::new(),
         geometry_input_targets: HashMap::new(),
         geometry_collection_nodes: HashMap::new(),
         geometry_value_binders: HashMap::new(),
@@ -1002,6 +1004,7 @@ fn dependency_scheduled_module_exports_remain_available_through_nested_forwardin
         .collect::<HashSet<_>>();
     let no_scheduled_prerequisites = HashMap::new();
     let binding_schedule = DependencyBindingSchedule {
+        early_binding_ids: &HashSet::new(),
         execution_positions: &execution_positions,
         prerequisites: &no_scheduled_prerequisites,
     };
@@ -1341,4 +1344,189 @@ fn optional_member_equal_unresolved_presence_remains_an_error() {
         lookup_optional_member(&resolver, &state, &target, 0.0),
         "evaluation-collection-property-unavailable",
     );
+}
+
+// Issue #1421 F01 sensitivity holdout. Only this test calls the document
+// resolver in place of the frame resolver, reproducing Stage 3's first loss.
+// No production fault switch or deliberately defective production path exists.
+#[test]
+fn issue1421_f01_document_only_collection_reads_lose_outer_frame() {
+    use super::super::bindings::ScalarDocumentBindingResolver;
+    use crate::evaluation::scalars::for_group_execution_core::{
+        ForGroupExecutionEnvironment, ForGroupExecutionPlan, ForGroupExecutionRunOutcome,
+    };
+
+    let program = binding_versions(vec![
+        ValidatedScalarProgramCollection {
+            value_id: "selected".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::If {
+                condition: Box::new(TypedScalarExpression::Reference {
+                    span: SPAN,
+                    name_span: SPAN,
+                    name: "outer-flag".to_owned(),
+                    binding_id: Some("outer-flag".to_owned()),
+                    r#type: Some(ScalarType::Boolean),
+                }),
+                then_value_id: "members".to_owned(),
+                else_value_id: "empty".to_owned(),
+                source_order: 1.0,
+            },
+        },
+        ValidatedScalarProgramCollection {
+            value_id: "members".to_owned(),
+            value: ValidatedScalarProgramCollectionValue::Literal(vec![
+                ValidatedScalarProgramCollectionMember::Binding {
+                    r#type: ScalarType::Number,
+                    binding_id: "outer-member".to_owned(),
+                },
+            ]),
+        },
+        number_collection("empty", &[]),
+        number_collection("control", &[2.0]),
+    ]);
+    let resolver = ScalarMutationResolver::new(&program);
+    let mut environment = ForGroupExecutionEnvironment::new(HashMap::new());
+    let plan = |scope: &str| ForGroupExecutionPlan {
+        loop_scope_id: scope.to_owned(),
+        iteration_binding_id: format!("{scope}-tick"),
+        iteration_values: vec![0.0],
+        iteration_value_overrides: vec![],
+        generated_statements: vec![()],
+    };
+    environment
+        .run(&plan("outer"), |environment, _| {
+            environment.declare_local(
+                "outer-flag",
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Boolean,
+                    value: ScalarValue::Boolean(true),
+                },
+            )?;
+            environment.declare_local(
+                "outer-member",
+                ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(2.0),
+                },
+            )?;
+            environment.run(&plan("inner"), |environment, _| {
+                let frame = resolver.for_group_binding_resolver(environment);
+                let state = evaluation_state();
+                let number = ScalarEvaluation::Ok {
+                    r#type: ScalarType::Number,
+                    value: ScalarValue::Number(2.0),
+                };
+                assert_eq!(
+                    frame.resolve_collection_length("selected", &state, &mut HashSet::new()),
+                    Some(1.0)
+                );
+                assert_eq!(
+                    frame.resolve_collection_index(
+                        "members",
+                        0.0,
+                        &ScalarType::Number,
+                        None,
+                        1.0,
+                        &state
+                    ),
+                    number
+                );
+                // Authentic old delegation: the same collection and document state, but
+                // no visible frame bindings reach collection selection/member lookup.
+                assert_ne!(
+                    resolver.resolve_collection_length("selected", &state, &mut HashSet::new()),
+                    Some(1.0)
+                );
+                assert_ne!(
+                    resolver.resolve_collection_index(
+                        "members",
+                        0.0,
+                        &ScalarType::Number,
+                        None,
+                        1.0,
+                        &state
+                    ),
+                    number
+                );
+                // The adjacent literal control remains correct under either resolver.
+                for context in [&frame as &dyn ScalarDocumentBindingResolver, &resolver] {
+                    assert_eq!(
+                        context.resolve_collection_length("control", &state, &mut HashSet::new()),
+                        Some(1.0)
+                    );
+                    assert_eq!(
+                        context.resolve_collection_index(
+                            "control",
+                            0.0,
+                            &ScalarType::Number,
+                            None,
+                            1.0,
+                            &state
+                        ),
+                        number
+                    );
+                }
+                Ok(ForGroupExecutionRunOutcome::Completed)
+            })?;
+            Ok(ForGroupExecutionRunOutcome::Completed)
+        })
+        .expect("nested holdout frame execution");
+}
+
+#[test]
+fn issue1421_carried_collection_closure_shadows_the_consuming_iteration() {
+    let program = binding_versions(vec![ValidatedScalarProgramCollection {
+        value_id: "members".to_owned(),
+        value: ValidatedScalarProgramCollectionValue::Literal(vec![
+            ValidatedScalarProgramCollectionMember::Binding {
+                r#type: ScalarType::Number,
+                binding_id: "member".to_owned(),
+            },
+        ]),
+    }]);
+    let number = |value| ScalarEvaluation::Ok {
+        r#type: ScalarType::Number,
+        value: ScalarValue::Number(value),
+    };
+    let mut resolver = ScalarMutationResolver::new(&program);
+    let state = evaluation_state();
+    let current = HashMap::from([("member".to_owned(), number(9.0))]);
+    // Both a captured literal member and a lazy map generation own their
+    // scalar closure, even on the first read from the current frame.
+    for generation in [None, Some(Arc::new(HashMap::new()))] {
+        resolver.collection_carry_snapshots.insert(
+            "carry".to_owned(),
+            CollectionCarrySnapshot {
+                value_id: "members".to_owned(),
+                local_bindings: HashMap::from([("member".to_owned(), number(2.0))]),
+                collection_carry_snapshots: generation,
+                error: None,
+            },
+        );
+        assert_eq!(
+            resolver.resolve_collection_index_with_bindings(
+                "carry",
+                0.0,
+                &ScalarType::Number,
+                None,
+                &state,
+                &current,
+                None,
+            ),
+            number(2.0),
+        );
+        // An uncarried body collection still reads the current iteration.
+        assert_eq!(
+            resolver.resolve_collection_index_with_bindings(
+                "members",
+                0.0,
+                &ScalarType::Number,
+                None,
+                &state,
+                &current,
+                None,
+            ),
+            number(9.0),
+        );
+    }
 }

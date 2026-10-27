@@ -1,0 +1,94 @@
+{
+  "base": "7a31489d69aadbf1fafcdef9f68b64c491633ba3",
+  "phase": "compiler/target prevalidation only; oracles authored in cases.json before any plan/evaluation comparison",
+  "cases": [
+    {
+      "id": "R1",
+      "sha256": "c956a166fe546f56136a8e868c4ae8275ccac697c8f14932a69cf232e47492b0",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Values",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "typed",
+            "bindingId": "binding:hunt:R1:1"
+          },
+          "key": "typed:binding:hunt:R1:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "R2",
+      "sha256": "8a19bf3834b11c9c0c4455514f4fb1c24d37720ba4094ae59225f0c49201180f",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Values",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "typed",
+            "bindingId": "binding:hunt:R2:1"
+          },
+          "key": "typed:binding:hunt:R2:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "C1",
+      "sha256": "1c79b25ef1e02d871663f190af6d60ae32c4ea5495486e2362e99f9dc5db2bf3",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Values",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "typed",
+            "bindingId": "binding:hunt:C1:1"
+          },
+          "key": "typed:binding:hunt:C1:1"
+        }
+      ],
+      "errors": []
+    },
+    {
+      "id": "C2",
+      "sha256": "c80805a35fa53f74fc564417eeb2ff13e87a31ef52d3a769c93f9f382d183633",
+      "target": {
+        "sourceRevision": 1,
+        "oldName": "Values",
+        "range": {
+          "from": 12,
+          "to": 18
+        }
+      },
+      "identities": [
+        {
+          "identity": {
+            "kind": "typed",
+            "bindingId": "binding:hunt:C2:1"
+          },
+          "key": "typed:binding:hunt:C2:1"
+        }
+      ],
+      "errors": []
+    }
+  ]
+}

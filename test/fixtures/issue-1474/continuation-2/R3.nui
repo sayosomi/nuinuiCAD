@@ -1,0 +1,13 @@
+nui 1
+line Fan7 = segment(start: @Producer, end: (37, 47))
+line Fan6 = segment(start: @Producer, end: (36, 46))
+line Fan5 = segment(start: @Producer, end: (35, 45))
+line Fan4 = segment(start: @Producer, end: (34, 44))
+line Fan3 = segment(start: @Producer, end: (33, 43))
+line Fan2 = segment(start: @Producer, end: (32, 42))
+line Fan1 = segment(start: @Producer, end: (31, 41))
+line Fan0 = segment(start: @Producer, end: (30, 40))
+point Producer = coordinate(x: @Root, y: 0 - @Root)
+const Root: number = 5
+const ControlScalar: number = 19
+point ControlPoint = coordinate(x: -23, y: 31)

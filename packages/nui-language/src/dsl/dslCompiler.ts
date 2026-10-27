@@ -1890,7 +1890,10 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
       runtimeTransformationRecipes: [
         ...runtimeRootTransformationRecipes,
         ...moduleTransformationCompilation.runtimeRecipes
-      ],
+      ].sort((left, right) =>
+        (left.runtimeSourceOrder ?? left.sourceStatementIndex) -
+        (right.runtimeSourceOrder ?? right.sourceStatementIndex)
+      ),
       modifiers,
       drawingProfiles
     };
@@ -1986,7 +1989,10 @@ export const compileDslToElements = (source: string, context: CompileDslContext)
     const id = createdIds.get(statement) ?? createCadElement(type, existing).id;
     const current = existing.find((element) => element.id === id);
     const base = withBlockContext(
-      current ?? createCadElement(type, [...existing, ...insertions], { createId: () => id }),
+      current ?? createCadElement(type, [...existing, ...insertions], {
+        createId: () => id,
+        ...(statement.name ? { authoredName: statement.name } : {})
+      }),
       statement
     );
     let effectiveStatement = statement;

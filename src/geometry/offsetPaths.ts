@@ -51,7 +51,8 @@ const offsetArcSegment = (
   offset: number,
   elementName: string
 ) => {
-  const radius = segment.radius + (segment.sweepAngleDeg >= 0 ? -offset : offset);
+  // Positive offset is right of the directed path: outward for a CCW arc.
+  const radius = segment.radius + (segment.sweepAngleDeg >= 0 ? offset : -offset);
   if (radius <= EPSILON) {
     return {
       segment: null,

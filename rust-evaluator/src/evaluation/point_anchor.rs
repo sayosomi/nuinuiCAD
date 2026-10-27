@@ -305,7 +305,17 @@ pub(crate) fn point_anchor_or_error(
                 mapped_member_index,
                 runtime_generation,
             };
-            let geometry = state.computed_geometry_values.get(&occurrence)?;
+            let Some(geometry) = state.computed_geometry_values.get(&occurrence) else {
+                // A missing immutable input fails its consuming drawable just
+                // like an unavailable drawable input. Module atomicity and
+                // dependent suppression use this exact owner diagnostic.
+                state.errors.push(dependency_error(
+                    state,
+                    element,
+                    &occurrence.source_statement_id,
+                ));
+                return None;
+            };
             let point = if let Some(point_key) = anchor.get("pointKey").and_then(Value::as_str) {
                 let value = if geometry.get("kind").and_then(Value::as_str) == Some("bezierCurve") {
                     let segments = geometry.get("segments")?.as_array()?;

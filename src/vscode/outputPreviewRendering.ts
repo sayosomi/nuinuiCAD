@@ -125,5 +125,5 @@ export const outputPreviewTextTransformFor = (
   viewport: OutputPreviewViewport
 ): string => {
   const anchor = outputPreviewScreenPointFor(text.anchor, size, viewport);
-  return `translate(${anchor.x} ${anchor.y}) rotate(${-text.rotationDeg}) scale(${text.mirrorX ? -viewport.zoom : viewport.zoom} ${-viewport.zoom})`;
+  return `translate(${anchor.x} ${anchor.y}) rotate(${-text.rotationDeg}) scale(${text.mirrorX ? -viewport.zoom : viewport.zoom} ${viewport.zoom})`;
 };

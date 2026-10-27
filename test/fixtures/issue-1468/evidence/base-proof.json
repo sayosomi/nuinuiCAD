@@ -1,0 +1,12 @@
+{
+  "base": "c7ae3500f16d6e17dfb7bffd57365c967e1c4e5c",
+  "productionFilesEqualBase": [
+    "packages/nui-language/src/dsl/dslCompiler.ts",
+    "packages/nui-language/src/dsl/dslDocument.ts",
+    "packages/nui-language/src/scalars/scalarProgram.ts",
+    "src/dsl/modulePreviewRoot.ts",
+    "src/vscode/modulePreviewEvaluation.ts"
+  ],
+  "exitCode": 1,
+  "testSealHead": "066cdd12030700c1c94f86779f8edd6fdb77263f"
+}

@@ -1,0 +1,1001 @@
+[
+  {
+    "id": "M1",
+    "cluster": "map",
+    "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+    "disposition": "UNRESOLVED",
+    "expected": {
+      "L": 5,
+      "N": 21
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "rustEligible": true,
+      "failures": [
+        "TS: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)",
+        "Rust: AssertionError: L: expected { status: 'error', …(2) } to match object { status: 'ok', value: { …(2) } }\n(3 matching properties omitted from actual)"
+      ]
+    },
+    "reason": "UNRESOLVED: constructor record-map geometry fields lose the selected geometry producer; whole-binder identity maps are repaired separately. No geometry reference is emitted for Result. No #1260 scheduling repair attempted."
+  },
+  {
+    "id": "M2",
+    "cluster": "map",
+    "sha256": "cd4df480323dddf70096328b6c32c622be828f64932825c46cdf6956113772bf",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 24,
+      "Y": 48,
+      "Z": 31
+    },
+    "families": [
+      "F27",
+      "F28"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M3",
+    "cluster": "map",
+    "sha256": "158915c67e48909050533f1a933fac0bca299e2f6d970f26f82ccbb50b633662",
+    "disposition": "PASS",
+    "expected": {
+      "X": 24,
+      "Y": 48
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P1",
+    "cluster": "optional-members",
+    "sha256": "4f2700499e3a5519194ba26d6b874f39705f605067ed0fdc9de891d015810ff0",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "families": [
+      "F25",
+      "F26"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "geometry-property-invalid",
+        "invalid-choice-literal"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P2",
+    "cluster": "optional-members",
+    "sha256": "a1c8549f78373021ae35961a7e0625acab56a32c4f660747722d38dc4abc2938",
+    "disposition": "UNRESOLVED",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "array-invalid-member",
+        "record-reference-not-record"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "rustEligible": null,
+      "failures": []
+    },
+    "reason": "UNRESOLVED: spec-valid optional-record collection constructor member is rejected before runtime; optional-indexed record match also lacks binder routing. No unsupported syntax is treated as PASS."
+  },
+  {
+    "id": "D1",
+    "cluster": "document",
+    "sha256": "dd59cebd5e54b4514ba401dfb949c477092ef49932614d8f27870d70afba1712",
+    "disposition": "PASS",
+    "expected": {
+      "X": 29,
+      "Y": 47
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "D2",
+    "cluster": "document",
+    "sha256": "790691746b3fece4cd1153a3e2c0a2eedbc7a9a2fd52c22ad02c53ce0a95a0cc",
+    "disposition": "PASS",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M0",
+    "cluster": "map",
+    "sha256": "11e36a5feec109374a32444770ff300beb74397cd1175e808d43fd07f7739ba0",
+    "disposition": "PASS",
+    "expected": {
+      "L": 5,
+      "N": 19
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M4",
+    "cluster": "map",
+    "sha256": "79816a022c4c23d6f00d8bf51c74e18bab0312306b66dea6909849de538a9510",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "families": [
+      "F27"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M5",
+    "cluster": "map",
+    "sha256": "9b8e0958fd2b5cd131fb77a260c7bad63af88d709b7003b1f9fa9643a84bfe25",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 24,
+      "Y": 48,
+      "Z": 29
+    },
+    "families": [
+      "F28"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M6",
+    "cluster": "map",
+    "sha256": "c5e75bc87027096edf753897cf3659176911a0314a2282e479bda1cc8ec8b379",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "L": 5,
+      "N": 19
+    },
+    "families": [
+      "F30"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P0",
+    "cluster": "optional-members",
+    "sha256": "65a9bd3bce09908a552aedd53142684ad6fd8d002a0a3d32e0c421b5d872e28d",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "families": [
+      "F26"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "geometry-property-invalid"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P3",
+    "cluster": "optional-members",
+    "sha256": "414362dcdb08c58712302f356661b59393993ee02cd1d09b4cd9cb2a36d1fe83",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "families": [
+      "F25"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "invalid-choice-literal"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P4",
+    "cluster": "optional-members",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "disposition": "UNRESOLVED",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "record-reference-not-record"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "rustEligible": null,
+      "failures": []
+    },
+    "reason": "UNRESOLVED: references avoid the inline constructor rejection but optional-record indexed-match binder remains compiler-rejected."
+  },
+  {
+    "id": "P5",
+    "cluster": "optional-members",
+    "sha256": "647b05fe478a2b61cb5b7ffb104bb9e16efc34a2eeb233a27d907ad3df4e4ca5",
+    "disposition": "PASS",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P6",
+    "cluster": "optional-members",
+    "sha256": "a7b3e30f1a6e990bb0203873ce8dd214a6da419ba5cab0a613e8a029228191f2",
+    "disposition": "PASS",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M7",
+    "cluster": "map",
+    "sha256": "6d9ed40b0722a08ea31534fb8bffa9ecdc49a76420aa7b09ed46a08d67e0d583",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 29
+    },
+    "families": [
+      "F28"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M8",
+    "cluster": "map",
+    "sha256": "fd3f3c81b44bc27af97289d635d8450faa22ec90063d777b06a7b6929b8a7897",
+    "disposition": "PASS",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 29
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M9",
+    "cluster": "map",
+    "sha256": "9a89781ed6fd407fa461190ef14878fe95eb75483b5da315275c0951abc5d2d5",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "families": [
+      "F27"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P7",
+    "cluster": "optional-members",
+    "sha256": "e9bd2f95c1d47ba11c8af6239f48cd4b7de47602952a319e40f27a7f5a70c3cb",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "families": [
+      "F25",
+      "F26"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "geometry-property-invalid",
+        "module-invalid-choice-literal"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P8",
+    "cluster": "optional-members",
+    "sha256": "25e6765737d1f8f90e5ac5af2968a7adad61d1b1ebb07362414651bfb9d1f27a",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "families": [
+      "F26"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "geometry-property-invalid"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "D3",
+    "cluster": "document",
+    "sha256": "fc4ad748c7881e31bc83775eff011e695d770abc71e3acd22dbca18fe0f9ad1b",
+    "disposition": "PASS",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "N1",
+    "cluster": "nested-record",
+    "sha256": "84af6c85041c85950696d1010e008578e1c79a6cfcbaf9c180c47d68856d2741",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 19,
+      "Y": 43,
+      "Z": 29
+    },
+    "families": [
+      "F29"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "N0",
+    "cluster": "nested-record",
+    "sha256": "6ca21c92fd512d3d4339f803e8ae3fef78d91bb75db6b4d5897fa6f8d1e44c81",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 43,
+      "Y": 29
+    },
+    "families": [
+      "F29"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler-exception",
+      "diagnosticCodes": [],
+      "exception": "Error: typedDeclarationAnalysis: prepared dependency record-field-binding-path:39:statement:typedDeclaration:mvhnkxlg:20139:statement:recordDefinition:mvhnkxlg:1991:039:statement:recordDefinition:mvhnkxlg:1981:0 is not in the catalog",
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "N2",
+    "cluster": "nested-record",
+    "sha256": "fb679ab3e71e46d96fd4a6d5cfe98769a3ce1f1b49183f8454bfd0b560b9beb3",
+    "disposition": "PASS",
+    "expected": {
+      "X": 43,
+      "Y": 29
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "N3",
+    "cluster": "nested-record",
+    "sha256": "275b51a735cbea0a9f3edc8a526cbf079b3a340380fe8e179886792e08aeeb8e",
+    "disposition": "PASS",
+    "expected": {
+      "X": 19,
+      "Y": 43,
+      "Z": 29
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "N4",
+    "cluster": "nested-record",
+    "sha256": "7b6447daa5c0a2dc4976d5a7dfe2ad62888cc7e69e9e5711e65b149ab243da82",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19
+    },
+    "families": [
+      "F29"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler-exception",
+      "diagnosticCodes": [],
+      "exception": "Error: bindingVersions: eligible binding module-record-binding:5:value37:statement:moduleInstance:mvhnkxlz:22239:statement:typedDeclaration:mvhnkxlz:22139:statement:recordDefinition:mvhnkxlz:2181:039:statement:recordDefinition:mvhnkxlz:2171:0 is missing its scalar program declaration",
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "D4",
+    "cluster": "document",
+    "sha256": "3dde670d68bd271591827deb61fde9a9ca9b8d6e18d70cf8a12d7546b683624c",
+    "disposition": "PASS",
+    "expected": {
+      "X": 11,
+      "Y": 29,
+      "N": 13,
+      "M": 31
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M10",
+    "cluster": "map",
+    "sha256": "7ca9fdf15a0eda3c22cf1255efc43817a555fb18a68ce21f5af92dff50749010",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    },
+    "families": [
+      "F30"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "N5",
+    "cluster": "nested-record",
+    "sha256": "e56c6d341af887be2de6bd8601096e744f28a3951cd6b312ad1a078fe64f23e4",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19,
+      "W": 7
+    },
+    "families": [
+      "F29"
+    ],
+    "before": {
+      "runId": "base-exact-1792559394714",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P10",
+    "cluster": "optional-members",
+    "sha256": "add61529d39ca8950eb6a6f460ac577d2819aeb4664bf022e44bd02e6aef4837",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 31
+    },
+    "families": [
+      "F25"
+    ],
+    "before": {
+      "runId": "base-exact-extra-1792559468915",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": "compiler",
+      "diagnosticCodes": [
+        "module-invalid-choice-literal",
+        "scalar-namespace-type-mismatch"
+      ],
+      "exception": null,
+      "rustEligible": null
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "P11",
+    "cluster": "optional-members",
+    "sha256": "005831a8c0a797fc253d402af13bea16cd5981e128c02c26dc81f7f9de82619f",
+    "disposition": "PASS",
+    "expected": {
+      "X": 31
+    },
+    "families": [],
+    "before": {
+      "runId": "base-exact-extra-1792559468915",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "PASS",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  },
+  {
+    "id": "M11",
+    "cluster": "map",
+    "sha256": "653a2f9fdca7162976f5fe8f9d1979982854dc06e5a03c08dfd854d45d155543",
+    "disposition": "REPAIRED_THEN_PASS",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "families": [
+      "F27"
+    ],
+    "before": {
+      "runId": "base-exact-extra-1792559468915",
+      "sourceTreeSha256": "19d1838078cffd4a4f3db8c68525114d6f1de1ec46dd452a5ea85468be016851",
+      "status": "UNRESOLVED",
+      "boundary": null,
+      "diagnosticCodes": [],
+      "exception": null,
+      "rustEligible": true
+    },
+    "after": {
+      "runId": "focused-final-1792559506456",
+      "sourceTreeSha256": "7d07868c4c8895b4440e37d5c67654f3052301caedc8fd6429d601756ce0c0f4",
+      "status": "PASS",
+      "rustEligible": true,
+      "failures": []
+    },
+    "reason": "Frozen expectation, canonical compiler identity, independent TS/reference payload decode and real persistent production Rust verification."
+  }
+]

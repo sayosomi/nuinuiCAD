@@ -1,0 +1,19 @@
+{
+  "unit": "R4",
+  "trigger": "D lowering scaling + CPU profile + Cartesian element/binding scan",
+  "sourceSha256": "86e6ae965093db251f5460788651826d499dfd149ffa3b7f8c46fd369de11886",
+  "semanticV": 27,
+  "semanticE": 32,
+  "canonical": {
+    "V": 78,
+    "E": 84,
+    "edgeRecords": 84,
+    "maxPrerequisites": 2,
+    "maxDependents": 2,
+    "outputCount": 26,
+    "bindingCount": 1,
+    "evaluationOrderCount": 26
+  },
+  "numericBindings": 16,
+  "expectedMaximumBindingVisits": 16
+}

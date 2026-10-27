@@ -1,0 +1,6 @@
+nui 1
+const width: number = 30
+point A = coordinate(x: 0, y: 0)
+point B = coordinate(x: @width, y: 40)
+line AB = segment(start: @A, end: @B)
+// New scalar compiled revision; unchanged evaluation inputs.

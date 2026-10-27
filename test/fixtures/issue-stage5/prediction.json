@@ -1,0 +1,15 @@
+{
+  "freezeSha256": "6c9e23bfe1d3769490b6d433a9aa62917f166a8ff0347c86d66ea070fe7e4161",
+  "frozenCommit": "1ccd0818fe1a514a526233f069bea9a9a8789d6e",
+  "commentUrl": "https://github.com/sayosomi/nuinuiCAD/issues/1423#issuecomment-6266621585",
+  "publishedAt": "2026-10-19T11:55:55Z",
+  "selection": {
+    "E": "B",
+    "C": "B",
+    "D": "C",
+    "G": "A"
+  },
+  "efficiencyRanking": "INCONCLUSIVE",
+  "prediction": "W2 all-method semantic PASS and zero novel-family yield",
+  "switch": "Independently confirmed family or demonstrated activation/sensitivity failure; mandatory matrix unchanged."
+}

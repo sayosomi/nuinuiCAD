@@ -1,0 +1,325 @@
+[
+  {
+    "id": "M1",
+    "sha256": "ded0eae5f020b7ebde54fcdf9ad4b71c0fb519490623e805d869549646b26989",
+    "expected": {
+      "L": 5,
+      "N": 21
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M2",
+    "sha256": "cd4df480323dddf70096328b6c32c622be828f64932825c46cdf6956113772bf",
+    "expected": {
+      "X": 24,
+      "Y": 48,
+      "Z": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M3",
+    "sha256": "158915c67e48909050533f1a933fac0bca299e2f6d970f26f82ccbb50b633662",
+    "expected": {
+      "X": 24,
+      "Y": 48
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P1",
+    "sha256": "4f2700499e3a5519194ba26d6b874f39705f605067ed0fdc9de891d015810ff0",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P2",
+    "sha256": "a1c8549f78373021ae35961a7e0625acab56a32c4f660747722d38dc4abc2938",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "D1",
+    "sha256": "dd59cebd5e54b4514ba401dfb949c477092ef49932614d8f27870d70afba1712",
+    "expected": {
+      "X": 29,
+      "Y": 47
+    },
+    "savedDocumentPaths": [
+      "left/lib.nui",
+      "right/lib.nui"
+    ]
+  },
+  {
+    "id": "D2",
+    "sha256": "790691746b3fece4cd1153a3e2c0a2eedbc7a9a2fd52c22ad02c53ce0a95a0cc",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    },
+    "savedDocumentPaths": [
+      "left/lib.nui",
+      "right/lib.nui"
+    ]
+  },
+  {
+    "id": "M0",
+    "sha256": "11e36a5feec109374a32444770ff300beb74397cd1175e808d43fd07f7739ba0",
+    "expected": {
+      "L": 5,
+      "N": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M4",
+    "sha256": "79816a022c4c23d6f00d8bf51c74e18bab0312306b66dea6909849de538a9510",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M5",
+    "sha256": "9b8e0958fd2b5cd131fb77a260c7bad63af88d709b7003b1f9fa9643a84bfe25",
+    "expected": {
+      "X": 24,
+      "Y": 48,
+      "Z": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M6",
+    "sha256": "c5e75bc87027096edf753897cf3659176911a0314a2282e479bda1cc8ec8b379",
+    "expected": {
+      "L": 5,
+      "N": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P0",
+    "sha256": "65a9bd3bce09908a552aedd53142684ad6fd8d002a0a3d32e0c421b5d872e28d",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P3",
+    "sha256": "414362dcdb08c58712302f356661b59393993ee02cd1d09b4cd9cb2a36d1fe83",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P4",
+    "sha256": "8f89b992d7e36af6a0493fa4ec12d324b8cdc759792337dfd1543df16ae2bfbc",
+    "expected": {
+      "X": 19,
+      "Y": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P5",
+    "sha256": "647b05fe478a2b61cb5b7ffb104bb9e16efc34a2eeb233a27d907ad3df4e4ca5",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P6",
+    "sha256": "a7b3e30f1a6e990bb0203873ce8dd214a6da419ba5cab0a613e8a029228191f2",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M7",
+    "sha256": "6d9ed40b0722a08ea31534fb8bffa9ecdc49a76420aa7b09ed46a08d67e0d583",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M8",
+    "sha256": "fd3f3c81b44bc27af97289d635d8450faa22ec90063d777b06a7b6929b8a7897",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M9",
+    "sha256": "9a89781ed6fd407fa461190ef14878fe95eb75483b5da315275c0951abc5d2d5",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P7",
+    "sha256": "e9bd2f95c1d47ba11c8af6239f48cd4b7de47602952a319e40f27a7f5a70c3cb",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P8",
+    "sha256": "25e6765737d1f8f90e5ac5af2968a7adad61d1b1ebb07362414651bfb9d1f27a",
+    "expected": {
+      "X": 31,
+      "Y": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "D3",
+    "sha256": "fc4ad748c7881e31bc83775eff011e695d770abc71e3acd22dbca18fe0f9ad1b",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "savedDocumentPaths": [
+      "left/lib.nui",
+      "relay.nui",
+      "right/lib.nui"
+    ]
+  },
+  {
+    "id": "N1",
+    "sha256": "84af6c85041c85950696d1010e008578e1c79a6cfcbaf9c180c47d68856d2741",
+    "expected": {
+      "X": 19,
+      "Y": 43,
+      "Z": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "N0",
+    "sha256": "6ca21c92fd512d3d4339f803e8ae3fef78d91bb75db6b4d5897fa6f8d1e44c81",
+    "expected": {
+      "X": 43,
+      "Y": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "N2",
+    "sha256": "fb679ab3e71e46d96fd4a6d5cfe98769a3ce1f1b49183f8454bfd0b560b9beb3",
+    "expected": {
+      "X": 43,
+      "Y": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "N3",
+    "sha256": "275b51a735cbea0a9f3edc8a526cbf079b3a340380fe8e179886792e08aeeb8e",
+    "expected": {
+      "X": 19,
+      "Y": 43,
+      "Z": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "N4",
+    "sha256": "7b6447daa5c0a2dc4976d5a7dfe2ad62888cc7e69e9e5711e65b149ab243da82",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "D4",
+    "sha256": "3dde670d68bd271591827deb61fde9a9ca9b8d6e18d70cf8a12d7546b683624c",
+    "expected": {
+      "X": 11,
+      "Y": 29,
+      "N": 13,
+      "M": 31
+    },
+    "savedDocumentPaths": [
+      "lib.nui",
+      "relay.nui"
+    ]
+  },
+  {
+    "id": "M10",
+    "sha256": "7ca9fdf15a0eda3c22cf1255efc43817a555fb18a68ce21f5af92dff50749010",
+    "expected": {
+      "X": 11,
+      "Y": 29
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "N5",
+    "sha256": "e56c6d341af887be2de6bd8601096e744f28a3951cd6b312ad1a078fe64f23e4",
+    "expected": {
+      "X": 43,
+      "Y": 29,
+      "Z": 19,
+      "W": 7
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P10",
+    "sha256": "add61529d39ca8950eb6a6f460ac577d2819aeb4664bf022e44bd02e6aef4837",
+    "expected": {
+      "X": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "P11",
+    "sha256": "005831a8c0a797fc253d402af13bea16cd5981e128c02c26dc81f7f9de82619f",
+    "expected": {
+      "X": 31
+    },
+    "savedDocumentPaths": []
+  },
+  {
+    "id": "M11",
+    "sha256": "653a2f9fdca7162976f5fe8f9d1979982854dc06e5a03c08dfd854d45d155543",
+    "expected": {
+      "X": 21,
+      "Y": 45,
+      "Z": 31
+    },
+    "savedDocumentPaths": []
+  }
+]

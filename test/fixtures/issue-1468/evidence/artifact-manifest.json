@@ -1,0 +1,270 @@
+{
+  "archive": "fixed-artifacts.tar.gz",
+  "sha256": "2dbe98d4d0239708c9dc172e201ff0ffc878542a9f65f896b2b2d46f646c94c4",
+  "artifacts": [
+    {
+      "format": "svg",
+      "sha256": "c6af294e6bc9108856a4f5e84b88ce652972ec5d0c5208ed45d4bfc2a0da7209",
+      "byteLength": 1184,
+      "entry": "A1-1.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "b50b0ce2dcac108aac7a5739a70e82c30ad87b18f4ccc2eecdc8e12d87ebf119",
+      "byteLength": 1848,
+      "entry": "A1-1.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "87d553fa6c2922ca3c060d44126b1c8264330b54fecd0c28e222f3a68a25b7b6",
+      "byteLength": 1184,
+      "entry": "A2-2.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "a0bf0bffe24200cfbf71205ac673866432c3ec1161dbaaed5d41316fd2306559",
+      "byteLength": 1848,
+      "entry": "A2-2.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "05c744c9e2469366e341464b8d78c9d77dd725cd684925096522339e43a3d623",
+      "byteLength": 1184,
+      "entry": "A3-3.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "cf21da30a644ea3aab6bc7c30ed7275a9afa10858308cd99ace76a7c98d35cc7",
+      "byteLength": 1848,
+      "entry": "A3-3.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "bd39f9cd7ad53096d490dc1ad93b47833b4b7e8f9523d32b2dc39a6030f5b33f",
+      "byteLength": 1184,
+      "entry": "A3-4.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "c2dd76cbb425606fcd065d20753e5ddeb4d68ca68bd38032d33854eb3cfc7ef1",
+      "byteLength": 1850,
+      "entry": "A3-4.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "05c744c9e2469366e341464b8d78c9d77dd725cd684925096522339e43a3d623",
+      "byteLength": 1184,
+      "entry": "A3-5.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "cf21da30a644ea3aab6bc7c30ed7275a9afa10858308cd99ace76a7c98d35cc7",
+      "byteLength": 1848,
+      "entry": "A3-5.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "87d553fa6c2922ca3c060d44126b1c8264330b54fecd0c28e222f3a68a25b7b6",
+      "byteLength": 1184,
+      "entry": "A3-6.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "a0bf0bffe24200cfbf71205ac673866432c3ec1161dbaaed5d41316fd2306559",
+      "byteLength": 1848,
+      "entry": "A3-6.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "87d553fa6c2922ca3c060d44126b1c8264330b54fecd0c28e222f3a68a25b7b6",
+      "byteLength": 1184,
+      "entry": "A4-7.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "a0bf0bffe24200cfbf71205ac673866432c3ec1161dbaaed5d41316fd2306559",
+      "byteLength": 1848,
+      "entry": "A4-7.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "50c0eb5ccfa248744c18b92187875e2e027b8ff57b192de0fbf60b6489389f9b",
+      "byteLength": 1184,
+      "entry": "A4-8.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "da50d39952319964ea9b94212ada33e33b896e9e165a06c9e007f3f53945628b",
+      "byteLength": 1847,
+      "entry": "A4-8.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "6c73a53293b303f04c4b3624189701a1f1b373ba35f6a80103626f871869ca99",
+      "byteLength": 1814,
+      "entry": "B1-1.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "a030b895e1b21e5c5eefccfe855d70f26b2521769472871b94817f90b8c9cafe",
+      "byteLength": 3892,
+      "entry": "B1-1.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "f4abe90701f8ccf7c1d916842072fea235359b958ce0fbf933cb78b0897de8ad",
+      "byteLength": 1814,
+      "entry": "B1-2.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "f399291e26eb7dc1f52753f98bd4574be6565320e035ccb24069accd534c9450",
+      "byteLength": 3892,
+      "entry": "B1-2.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "4e6a6f74b7784fbdcaedc13d6d0869755ba529f0e1667b432a9b15ab9035c68e",
+      "byteLength": 1960,
+      "entry": "B2-3.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "2a99819da7a374f0d7970c823d22f399fffca5b67ea8c54ea428a285fb686da1",
+      "byteLength": 4048,
+      "entry": "B2-3.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "bb998134a5b2a43d44050d6032a11febbf3691f045ca75c2fdf34c49d62b29db",
+      "byteLength": 1960,
+      "entry": "B2-4.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "227a60da4e48ea29823d5a3ded7bcdd84a06b26b63dc42ae220b10cd8e33cfca",
+      "byteLength": 4049,
+      "entry": "B2-4.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "4740f30084e55fa6025011a29478565984f85351648651e04a9ff34a31ed131b",
+      "byteLength": 1963,
+      "entry": "B3-5.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "83e9556bda4081f17ca45f76743aa24a9f92ece9f43dd04c04ff6748f7b99441",
+      "byteLength": 4084,
+      "entry": "B3-5.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "decada7d649716a7651566d5540faaa5b862601081b6fc4b6a6780070912ac72",
+      "byteLength": 1964,
+      "entry": "B4-7.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "97a3b268d8f8d83ea39adff60a02a2ab9c354171b9fe2f456598530f68ef227e",
+      "byteLength": 4092,
+      "entry": "B4-7.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "1e2178221754c48f9459453ef18f35fb39c1e825e3132251ca30519bd8ee53e5",
+      "byteLength": 1154,
+      "entry": "C1-1.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "cd73538895504feb50001987514943cc3e37da35b8ee0c2a01315606f96b63ba",
+      "byteLength": 3044,
+      "entry": "C1-1.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "5ed02a2a9af806d3f05be0f29c1a91bb02f209611e2d758afb00cc6cc9719ca0",
+      "byteLength": 1301,
+      "entry": "C1-2.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "52b0a97086dfe0efcd6bd169c7b992e97b9f4488267dc6da53bc1a4923b3f734",
+      "byteLength": 3202,
+      "entry": "C1-2.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "5ed02a2a9af806d3f05be0f29c1a91bb02f209611e2d758afb00cc6cc9719ca0",
+      "byteLength": 1301,
+      "entry": "C2-3.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "52b0a97086dfe0efcd6bd169c7b992e97b9f4488267dc6da53bc1a4923b3f734",
+      "byteLength": 3202,
+      "entry": "C2-3.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "0f7d05cfbd5a55efb1b650812d83bd75ad911bb4611106875c8295d011c006ab",
+      "byteLength": 1301,
+      "entry": "C2-4.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "92ab233ae8d473adfd94bec1f59606d0ad7ca316901e3e1738faca2f10bf7e1f",
+      "byteLength": 3202,
+      "entry": "C2-4.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "085665dfd19a07e25a32f31ec843347503ed33584dbd336ff0b6597325d5fd4e",
+      "byteLength": 1316,
+      "entry": "C3-5.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "733509051f38b09f63be153fe6b81a6730d4c03cc22ceb9f82ef742f911ea8c3",
+      "byteLength": 6053,
+      "entry": "C3-5.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "085665dfd19a07e25a32f31ec843347503ed33584dbd336ff0b6597325d5fd4e",
+      "byteLength": 1316,
+      "entry": "C4-1.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "733509051f38b09f63be153fe6b81a6730d4c03cc22ceb9f82ef742f911ea8c3",
+      "byteLength": 6053,
+      "entry": "C4-1.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "e47babe47d81cfb3ffec258a661ea74a7173cffd3201855966650d1901a544d6",
+      "byteLength": 1316,
+      "entry": "C4-2.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "fd682ca2cb79d9f6c0f4d8a3d72b6a88918bb099f6439c752d9d919325c87531",
+      "byteLength": 6051,
+      "entry": "C4-2.pdf"
+    },
+    {
+      "format": "svg",
+      "sha256": "e63002208f2df8c5c522e6320d73d7ddc9dd3607624a0cb548844c66c0aec664",
+      "byteLength": 1316,
+      "entry": "X1-2.svg"
+    },
+    {
+      "format": "pdf",
+      "sha256": "c32a8d1efc8d9e182ed09656c517d7823651cc2c2686ae849bc22ff65cdacb68",
+      "byteLength": 6077,
+      "entry": "X1-2.pdf"
+    }
+  ]
+}

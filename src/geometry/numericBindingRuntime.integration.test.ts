@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import type { CompiledNumericBinding } from "@nuinuicad/nui-language";
+import loweringSeal from "../../test/fixtures/issue-1474/continuation-2/R4-seal.json";
 import { compileCanonicalText, regenerateCanonicalFromModel, type LastGoodDslDocument } from "@nuinuicad/nui-language/document";
 import {
   emptyDocument,
@@ -45,6 +49,38 @@ const compileWithStatementIds = (source: string, prefix: string): LastGoodDslDoc
 };
 
 describe("general numeric typed binding runtime", () => {
+  it("enumerates compiler numeric bindings once instead of once per geometry element", () => {
+    const source = readFileSync("test/fixtures/issue-1474/continuation-2/R4.nui", "utf8");
+    expect(createHash("sha256").update(source).digest("hex")).toBe(loweringSeal.sourceSha256);
+    const compiled = compile(source);
+    class ObservedBindings extends Map<string, CompiledNumericBinding> {
+      visits = 0;
+      override *[Symbol.iterator](): MapIterator<[string, CompiledNumericBinding]> {
+        for (const entry of super[Symbol.iterator]()) { this.visits++; yield entry; }
+      }
+    }
+    const bindings = new ObservedBindings(compiled.numericBindings);
+    const entries = buildNumericBindingRuntimeEntries({ numericBindings: bindings,
+      elementIdByStatementIndex: compiled.statementMap.elementIdByStatementIndex }, compiled.document.elements);
+    expect(entries).toHaveLength(loweringSeal.numericBindings);
+    console.log(`#1474 R4 binding visits=${bindings.visits} for ${bindings.size} bindings / ${compiled.document.elements.length} elements`);
+    expect(bindings.visits).toBeLessThanOrEqual(loweringSeal.expectedMaximumBindingVisits);
+  });
+
+  it("keeps statement-map order, per-statement binding order, materialized tails and strict key integrity", () => {
+    const compiled = compile("nui 1\nconst n: number = 7\npoint A = coordinate(x: @n, y: @n + 1)\npoint B = coordinate(x: @n + 2, y: 0)");
+    const occurrences = [...compiled.numericBindings!];
+    const shuffled = new Map([...occurrences].reverse());
+    const [validKey, binding] = occurrences[0];
+    shuffled.set(validKey.replace(":", ":wrong-"), binding);
+    shuffled.set(`0${validKey}`, binding);
+    const statements = new Map([...compiled.statementMap.elementIdByStatementIndex].reverse());
+    const a = point(compiled, "A"), b = point(compiled, "B");
+    const entries = buildNumericBindingRuntimeEntries({ numericBindings: shuffled, elementIdByStatementIndex: statements,
+      materializedNumericBindings: [{ elementId: a.id, binding }] }, compiled.document.elements);
+    expect(entries.map(e => [e.elementId, e.parameterKey])).toEqual([[b.id, "x"], [a.id, "y"], [a.id, "x"], [a.id, binding.parameterKey]]);
+  });
+
   it.each([
     ["R(x: 7)", 7],
     ["none", 11]

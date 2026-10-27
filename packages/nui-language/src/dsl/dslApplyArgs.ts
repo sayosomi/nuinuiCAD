@@ -696,12 +696,12 @@ export const applyArgs = (
           if (parsed.expression?.kind === "literal" && parsed.diagnostics.length === 0) {
             next = {
               ...next,
-              points: parsed.expression.members.map((member) => {
+              points: parsed.expression.members.map((member, index) => {
                 const span = {
                   start: pointsArg.valueSpan.start + member.span.start,
                   end: pointsArg.valueSpan.start + member.span.end
                 };
-                return anchor(member.text, span);
+                return anchor(member.text, `points:${index}`, span);
               })
             };
           }

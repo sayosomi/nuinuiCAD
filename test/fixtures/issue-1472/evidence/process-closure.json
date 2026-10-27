@@ -1,0 +1,7 @@
+{
+  "requiredGateExitCode": 0,
+  "activeVitestOrEvaluationStdioProcesses": [],
+  "ownedRustControlsDisposedAndCloseObserved": true,
+  "detachedProcessesStarted": false,
+  "humanE2eHelpersRun": false
+}

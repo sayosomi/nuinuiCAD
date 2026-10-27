@@ -23,7 +23,7 @@ import type {
   TypedBuiltinArgument,
   TypedScalarExpression
 } from "./typedExpressionAst";
-import type { ScalarProgram } from "./scalarProgram";
+import type { ScalarProgram, ScalarProgramCollection, ScalarProgramRecordField } from "./scalarProgram";
 import type { TransformationOperation, TransformationRecipe, TransformationTargetSelector } from "../dsl/transformationRecipes";
 import { moduleOwnerIdFor } from "../dsl/moduleMaterialization";
 import type { ModuleMaterialization } from "../dsl/moduleMaterialization";
@@ -149,6 +149,8 @@ export type TypedDependencyGraphInput = {
   bindingVersions?: BindingVersionGraph;
   propertyBindings?: ReadonlyMap<string, ScalarValueSource>;
   numericBindings?: ReadonlyMap<string, CompiledNumericBinding>;
+  /** Already-materialized numeric occurrences keep their exact runtime owner. */
+  materializedNumericBindings?: readonly { elementId: ElementId; binding: CompiledNumericBinding }[];
   transformationNumericBindings?: readonly CompiledTransformationNumericBinding[];
   textTemplates?: ReadonlyMap<string, TextTemplateAst>;
   scalarProgram?: ScalarProgram;
@@ -228,7 +230,10 @@ const scopeActivationToSource = (
     }
   : undefined;
 
-export const referencesIn = (expression: TypedScalarExpression): readonly TypedDependencyReferenceNode[] => {
+export const referencesIn = (
+  expression: TypedScalarExpression,
+  collections: ReadonlyMap<string, ScalarProgramCollection> = new Map()
+): readonly TypedDependencyReferenceNode[] => {
   const result: TypedDependencyReferenceNode[] = [];
   const visit = (
     node: TypedScalarExpression,
@@ -238,7 +243,7 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
   ): void => {
     if (node.kind === "reference") {
       if (node.bindingId === null || !localBindingIds.has(node.bindingId)) {
-        result.push({ ...node, ...(lazy ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
+        result.push({ ...node, ...((lazy || activation?.guards.length) ? { lazy: true } : {}), ...(activation ? { activation } : {}) });
       }
     }
     else if (node.kind === "unary") visit(node.operand, lazy, activation, localBindingIds);
@@ -285,11 +290,81 @@ export const referencesIn = (expression: TypedScalarExpression): readonly TypedD
         }), armLocalBindingIds);
       });
     }
-    else if (node.kind === "collectionIndex") visit(node.index, lazy, activation, localBindingIds);
+    else if (node.kind === "collectionIndex") {
+      visit(node.index, lazy, activation, localBindingIds);
+      if (node.collectionValueId) visitCollection(node.collectionValueId, node.index, lazy, activation, localBindingIds, new Set());
+    } else if (node.kind === "optionalMember" && node.target?.kind === "collectionLength") {
+      visitCollection(node.target.collectionValueId, undefined, lazy, activation, localBindingIds, new Set());
+    }
     else if (node.kind === "geometryProperty" && node.forGroupOccurrenceIndex) visit(node.forGroupOccurrenceIndex, lazy, activation, localBindingIds);
     else if (node.kind === "call") node.args.forEach((argument) => {
       if (argument.kind === "scalar") visit(argument.expression, lazy, activation, localBindingIds);
     });
+  };
+  // Follow compiler-owned collection descriptors, retaining the requested
+  // member and branch guards. A length/presence read visits controllers only.
+  const visitCollection = (
+    valueId: string, index: TypedScalarExpression | undefined, lazy: boolean,
+    activation: TypedDependencyActivation | undefined, locals: ReadonlySet<BindingId>,
+    seen: ReadonlySet<string>, field?: ScalarProgramRecordField
+  ): void => {
+    if (seen.has(valueId)) return;
+    const value = collections.get(valueId);
+    if (!value) return;
+    const nextSeen = new Set([...seen, valueId]);
+    const follow = (id: string, nextActivation = activation, nextField = field) =>
+      visitCollection(id, index, lazy, nextActivation, locals, nextSeen, nextField);
+    const guard = (branch: string, controllerExpression: TypedScalarExpression) => appendActivationGuard(activation, {
+      controllerId: `collection:${valueId}`, branch, controllerExpression
+    });
+    if (value.kind === "alias") follow(value.targetValueId);
+    else if (value.kind === "recordField") follow(value.sourceValueId, activation, { ...value.field, bindingId: "" });
+    else if (value.kind === "if") {
+      visit(value.condition, lazy, activation, locals);
+      follow(value.thenValueId, guard("then", value.condition));
+      follow(value.elseValueId, guard("else", value.condition));
+    } else if (value.kind === "match") {
+      visit(value.scrutinee, lazy, activation, locals);
+      for (const arm of value.arms) follow(arm.valueId, guard(`match:${arm.label}`, value.scrutinee));
+    } else if (value.kind === "map" && index) {
+      // Bind the map variable to the same selected source occurrence in any
+      // controller AST, so conditional graph edges remain evaluable outside
+      // the member's local frame. This is a typed projection, not evaluation.
+      const binder: TypedScalarExpression = { kind: "collectionIndex", span: index.span, nameSpan: index.span,
+        name: value.sourceValueId, collectionValueId: value.sourceValueId, collectionLength: null,
+        targetSourceOrder: value.sourceOrder, index, type: value.sourceElementType };
+      const replace = (node: TypedScalarExpression): TypedScalarExpression => {
+        switch (node.kind) {
+          case "reference": return node.bindingId === value.binderId ? binder : node;
+          case "unary": return { ...node, operand: replace(node.operand) };
+          case "binary": return { ...node, left: replace(node.left), right: replace(node.right) };
+          case "group": return { ...node, expression: replace(node.expression) };
+          case "valueIf": return { ...node, condition: replace(node.condition), thenBranch: replace(node.thenBranch), elseBranch: replace(node.elseBranch) };
+          case "valueMatch": return { ...node, scrutinee: replace(node.scrutinee), arms: node.arms.map(arm => ({ ...arm, expression: replace(arm.expression) })) };
+          case "collectionIndex": return { ...node, index: replace(node.index) };
+          case "call": return { ...node, args: node.args.map(arg => arg.kind === "scalar" ? { ...arg, expression: replace(arg.expression) } : arg) };
+          default: return node;
+        }
+      };
+      visit(replace(value.body), lazy, activation, locals);
+    } else if (value.kind === "literal" && index) {
+      value.members.forEach((member, ordinal) => {
+        if (index.kind === "numberLiteral" && index.value !== ordinal) return;
+        const memberActivation = index.kind === "numberLiteral" ? activation : appendActivationGuard(activation, {
+          controllerId: `collection:${valueId}:index:${index.span.start}:${index.span.end}`, branch: "then",
+          controllerExpression: { kind: "binary", span: index.span, operator: "==", type: { kind: "boolean" },
+            left: index, right: { kind: "numberLiteral", span: index.span, value: ordinal, type: { kind: "number" } } }
+        });
+        if (member.kind === "binding") visit({ kind: "reference", span: index.span, nameSpan: index.span,
+          name: member.bindingId, bindingId: member.bindingId, type: member.type }, lazy, memberActivation, locals);
+        if (member.kind === "record" && field) for (const leaf of member.fields) {
+          if (leaf.recordStatementId !== field.recordStatementId || leaf.fieldIndex !== field.fieldIndex ||
+              JSON.stringify(leaf.fieldPath) !== JSON.stringify(field.fieldPath)) continue;
+          visit({ kind: "reference", span: index.span, nameSpan: index.span,
+            name: leaf.bindingId, bindingId: leaf.bindingId, type: leaf.type }, lazy, memberActivation, locals);
+        }
+      });
+    }
   };
   visit(expression);
   return result;
@@ -590,11 +665,22 @@ type GeometryValueInputDependency = {
 };
 
 const geometryValueOccurrencesInInput = (
-  input: GeometryInputTarget | readonly GeometryInputTarget[]
+  input: GeometryInputTarget | readonly GeometryInputTarget[],
+  nodesByValueId: ReadonlyMap<string, GeometryInputCollectionNode> = new Map()
 ): readonly GeometryValueInputDependency[] => {
   const dependencies: GeometryValueInputDependency[] = [];
+  const activeCollectionIds = new Set<string>();
   const visitCollection = (node: GeometryInputCollectionNode, guards: readonly TypedDependencyActivationGuard[]): void => {
     if (node.kind === "leaf") node.targets.forEach((target) => visitTarget(target, guards));
+    else if (node.kind === "carryReference") {
+      if (activeCollectionIds.has(node.collectionValueId)) return;
+      const sourceNode = nodesByValueId.get(node.collectionValueId);
+      if (sourceNode) {
+        activeCollectionIds.add(node.collectionValueId);
+        visitCollection(sourceNode, guards);
+        activeCollectionIds.delete(node.collectionValueId);
+      }
+    }
     else if (node.kind === "if") {
       const selection = node.condition.kind === "booleanLiteral" ? node.condition.value : undefined;
       const controllerId = `geometry-input:if:${node.condition.span.start}`;
@@ -663,6 +749,17 @@ const geometryInputTargetsInCollectionNode = (
     if (current.kind === "leaf") {
       const targets = index === undefined ? current.targets : [current.targets[index]].filter((target) => target !== undefined);
       targets.forEach((target) => dependencies.push({ target, guards }));
+      return;
+    }
+    if (current.kind === "carryReference") {
+      if (!activeValues.has(current.collectionValueId)) {
+        const sourceNode = nodesByValueId.get(current.collectionValueId);
+        if (sourceNode) {
+          activeValues.add(current.collectionValueId);
+          visit(sourceNode, guards, index);
+          activeValues.delete(current.collectionValueId);
+        }
+      }
       return;
     }
     if (current.kind === "geometryValueMap") {
@@ -873,6 +970,11 @@ export const typedDependencyControllerCandidates = (
         branches: new Set<string>(),
         prerequisites: new Set<string>()
       };
+      // Module atomicity forwards the producer's activation onto downstream
+      // consumers. Those consumers do not own the controller: adding their
+      // prerequisites here would make selection wait for its own output (or
+      // for the completed Module containing it).
+      if (candidate.sourceEndpointId !== endpointId(edge.from)) return;
       candidate.branches.add(guard.branch);
       for (const prerequisite of graph.edges) {
         if (endpointId(prerequisite.from) !== endpointId(edge.from)) continue;
@@ -970,6 +1072,7 @@ export const buildTypedDependencyGraph = ({
   bindingVersions,
   propertyBindings,
   numericBindings,
+  materializedNumericBindings,
   transformationNumericBindings,
   textTemplates,
   scalarProgram,
@@ -1026,6 +1129,7 @@ export const buildTypedDependencyGraph = ({
     seen.set(key, edges.length);
     edges.push(scopedEdge);
   };
+  const scalarCollectionsById = new Map((scalarProgram?.collectionValues ?? []).map(value => [value.valueId, value]));
   const reasonFor = (bindingId: BindingId): TypedDependencyReason | undefined => {
     if (!bindingAnalysis) return undefined;
     const entry = bindingAnalysis.entriesById.get(bindingId);
@@ -1067,7 +1171,7 @@ export const buildTypedDependencyGraph = ({
     // Binding-analysis intentionally keeps the unconditional graph small. The
     // canonical graph also retains conditional value-branch references so the
     // selected branch can be scheduled later by either evaluator.
-    for (const reference of referencesIn(statement.declaration.initializer)) {
+    for (const reference of referencesIn(statement.declaration.initializer, scalarCollectionsById)) {
       if (!reference.bindingId || !bindingAnalysis.catalog.bindingsById.has(reference.bindingId)) continue;
       add({ kind: "initializer", from, to: bindingEndpoint(bindingAnalysis, reference.bindingId), span: reference.span, reason: reasonFor(reference.bindingId), requiredness: reference.lazy ? "conditional" : "required", ...(reference.activation ? { activation: reference.activation } : {}) });
     }
@@ -1087,7 +1191,7 @@ export const buildTypedDependencyGraph = ({
     const elementId = elementIdByStatementIndex.get(statementIndex);
     if (!elementId) continue;
     const from = elementEndpoint(elementsById, elementId, statementIndex);
-    for (const reference of referencesIn(expression)) {
+    for (const reference of referencesIn(expression, scalarCollectionsById)) {
       if (!reference.bindingId || !bindingAnalysis.catalog.bindingsById.has(reference.bindingId)) continue;
       add({
         kind: "property-binding",
@@ -1136,36 +1240,64 @@ export const buildTypedDependencyGraph = ({
   }
   const scalarOwnedParameterKeysByElementId = new Map<ElementId, ReadonlySet<string>>();
   const typedScalarGeometryDependencyIdsByElementId = new Map<ElementId, Set<ElementId>>();
-  const addTypedScalarGeometryDependencies = (key: string, expression: TypedScalarExpression | undefined) => {
+  const numericOccurrences = new Map<string, { elementId: ElementId; source: CompiledNumericBinding; namespace: string; materialized: boolean }>();
+  for (const [key, source] of numericBindings ?? []) {
+    const elementId = elementIdByStatementIndex.get(Number(key.slice(0, key.indexOf(":"))));
+    if (elementId) numericOccurrences.set(`${elementId}\0${source.parameterKey}`, { elementId, source, namespace: key, materialized: false });
+  }
+  for (const { elementId, binding: source } of materializedNumericBindings ?? []) {
+    if (elementsById.has(elementId)) {
+      const occurrenceKey = `${elementId}\0${source.parameterKey}`;
+      numericOccurrences.set(occurrenceKey, { elementId, source,
+        namespace: numericOccurrences.get(occurrenceKey)?.namespace ?? occurrenceKey, materialized: true });
+    }
+  }
+  const addTypedScalarGeometryDependenciesForElement = (elementId: ElementId, parameterKey: string, expression: TypedScalarExpression | undefined) => {
     if (!expression) return;
-    const separator = key.indexOf(":");
-    if (separator < 0) return;
-    const statementIndex = Number(key.slice(0, separator));
-    const elementId = elementIdByStatementIndex.get(statementIndex);
-    if (!elementId) return;
     const dependencyIds = typedScalarGeometryDependencyIdsByElementId.get(elementId) ?? new Set<ElementId>();
     for (const reference of geometryPropertiesIn(expression)) {
       if (reference.elementId) dependencyIds.add(reference.elementId);
     }
     if (dependencyIds.size > 0) {
-      const parameterKey = key.slice(separator + 1);
       const owned = new Set(scalarOwnedParameterKeysByElementId.get(elementId) ?? []);
       owned.add(parameterKey);
       scalarOwnedParameterKeysByElementId.set(elementId, owned);
     }
     typedScalarGeometryDependencyIdsByElementId.set(elementId, dependencyIds);
   };
+  const addTypedScalarGeometryDependencies = (key: string, expression: TypedScalarExpression | undefined) => {
+    const separator = key.indexOf(":");
+    if (separator < 0) return;
+    const elementId = elementIdByStatementIndex.get(Number(key.slice(0, separator)));
+    if (elementId) addTypedScalarGeometryDependenciesForElement(elementId, key.slice(separator + 1), expression);
+  };
   for (const [key, source] of propertyBindings ?? []) {
     if (source.kind === "expression") addTypedScalarGeometryDependencies(key, source.expression);
   }
-  for (const [key, source] of numericBindings ?? []) {
-    addTypedScalarGeometryDependencies(key, source.typedExpression);
+  for (const { elementId, source } of numericOccurrences.values()) {
+    addTypedScalarGeometryDependenciesForElement(elementId, source.parameterKey, source.typedExpression);
   }
   for (const [key, expression] of conditionalGroupConditions ?? []) {
     addTypedScalarGeometryDependencies(key, expression);
   }
   for (const element of elements) {
     const from = elementEndpoint(elementsById, element.id, elementStatementIndex.get(element.id) ?? 0);
+    // Lazy-branch activation can change the graph's topological order. A
+    // descendant must still wait for every enclosing statement condition,
+    // including across ordinary groups or Module materialization boundaries.
+    const visitedOwners = new Set<ElementId>();
+    let owner = element.parentGroupId ? elementsById.get(element.parentGroupId) : undefined;
+    while (owner && !visitedOwners.has(owner.id)) {
+      visitedOwners.add(owner.id);
+      if (owner.type === "conditionalGroup") add({
+        kind: "geometry",
+        from,
+        to: elementEndpoint(elementsById, owner.id, elementStatementIndex.get(owner.id) ?? 0),
+        span: null,
+        requiredness: "required"
+      });
+      owner = owner.parentGroupId ? elementsById.get(owner.parentGroupId) : undefined;
+    }
     const typedScalarGeometryDependencyIds = typedScalarGeometryDependencyIdsByElementId.get(element.id) ?? new Set<ElementId>();
     const dependencies = new Map<ElementId, TypedDependencyRequiredness>((getDirectParentIds(element, {
       textTemplatesByElementId: new Map(
@@ -1180,7 +1312,7 @@ export const buildTypedDependencyGraph = ({
       for (const [parameterKey, target] of targetMap) {
         if (scalarOwnedParameterKeys.has(parameterKey)) continue;
         collectStructuredGeometryDependencies(target, structuredDependencies);
-        for (const dependency of geometryValueOccurrencesInInput(target)) {
+        for (const dependency of geometryValueOccurrencesInInput(target, geometryCollectionNodesByValueId)) {
           deferredGeometryValueEdges.push({
             from,
             occurrence: dependency.occurrence,
@@ -1288,13 +1420,17 @@ export const buildTypedDependencyGraph = ({
       });
     }
   }
-  if (bindingAnalysis) for (const [key, source] of numericBindings ?? []) {
-    const statementIndex = Number(key.slice(0, key.indexOf(":")));
-    const elementId = elementIdByStatementIndex.get(statementIndex);
-    if (!elementId) continue;
-    const references = source.typedExpression
-      ? typedNumericBindingReferences(source)
-      : source.references.map((reference) => ({ typed: undefined, source: reference }));
+  if (bindingAnalysis) for (const { elementId, source, namespace: key, materialized } of numericOccurrences.values()) {
+    const statementIndex = elementStatementIndex.get(elementId) ?? 0;
+    // Module lowering has already projected field/property occurrences into
+    // typed binding nodes. They need no legacy source-splice occurrence join;
+    // the resolved typed nodes retain the original statement-relative spans.
+    const references = source.typedExpression && materialized
+      ? referencesIn(source.typedExpression).filter(reference => reference.bindingId !== null)
+        .map(typed => ({ typed, source: { bindingId: typed.bindingId!, span: typed.span } }))
+      : source.typedExpression
+        ? typedNumericBindingReferences(source)
+        : source.references.map((reference) => ({ typed: undefined, source: reference }));
     for (const reference of references) {
       const typed = reference.typed;
       const sourceReference = reference.source;
@@ -1422,6 +1558,67 @@ export const buildTypedDependencyGraph = ({
       ...(guards.length ? { activation: { guards } } : {})
     }, occurrenceNamespace);
   };
+  const geometryCarryOwnerByBindingId = new Map<string, TypedDependencyEndpoint>();
+  const scalarCarryOwnerByBindingId = new Map<string, { endpoint: TypedDependencyEndpoint; ownerStatementId: string }>();
+  const geometryCollectionOwnerByValueId = new Map<string, TypedDependencyEndpoint>();
+  for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
+    const moduleStatement = moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId);
+    const ownerId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId) ?? moduleStatement?.runtimeElementId;
+    if (!ownerId) continue;
+    const endpoint = elementEndpoint(elementsById, ownerId,
+      moduleStatement?.executionUnitStatementIndex ?? elementStatementIndex.get(ownerId) ?? 0);
+    for (const carry of plan.carries) scalarCarryOwnerByBindingId.set(carry.bindingId, { endpoint, ownerStatementId: plan.ownerStatementId });
+    for (const carry of plan.geometryCarries ?? []) geometryCarryOwnerByBindingId.set(carry.bindingId, endpoint);
+    // Module collection owners already use materialized execution events. This
+    // join supplies the missing root collection boundary without reordering
+    // Module-local conditional binding events.
+    if (rootForGroupElementIdByStatementId.has(plan.ownerStatementId)) {
+      for (const carry of plan.geometryCollectionCarries ?? []) geometryCollectionOwnerByValueId.set(carry.collectionValueId, endpoint);
+    }
+  }
+  if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
+    const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
+    const versions = (bindingVersions?.versionIdsByBindingId.get(statement.bindingId) ?? [])
+      .flatMap(id => bindingVersions?.versionsById.get(id) ?? []);
+    for (const reference of referencesIn(statement.declaration.initializer, scalarCollectionsById)) {
+      const owner = reference.bindingId ? scalarCarryOwnerByBindingId.get(reference.bindingId) : undefined;
+      if (!owner || versions.some(version => version.control.ownerChain.some(control =>
+        control.kind === "forGroup" && control.ownerStatementId === owner.ownerStatementId))) continue;
+      // Escaped reads require the completed loop; body reads use its incoming
+      // snapshot and must not acquire a dependency back to their own owner.
+      add({ kind: "initializer", from, to: owner.endpoint, span: reference.span,
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {}) });
+    }
+  }
+  const addGeometryCollectionOwnerDependency = (from: TypedDependencyEndpoint, valueId: string, guards: readonly TypedDependencyActivationGuard[], namespace?: string) => {
+    const to = geometryCollectionOwnerByValueId.get(valueId);
+    if (!to || to.kind !== "element" || endpointId(to) === endpointId(from)) return;
+    // Frame-local aliases read the incoming collection inside the owner; only
+    // escaped consumers wait for the completed loop, avoiding a body/owner cycle.
+    if (from.kind === "geometry-value" && geometryValueProgram?.some(entry =>
+      geometryValueOccurrenceKey(entry.occurrence) === from.id && entry.lazy)) return;
+    let current = from.kind === "element" ? elementsById.get(from.id) : undefined;
+    while (current?.parentGroupId) {
+      if (current.parentGroupId === to.id) return;
+      current = elementsById.get(current.parentGroupId);
+    }
+    add({ kind: "geometry", from, to, span: null, requiredness: guards.length ? "conditional" : "required",
+      ...(guards.length ? { activation: { guards } } : {}) }, namespace);
+  };
+  const geometryBindingEndpoint = (bindingId: string) => geometryCarryOwnerByBindingId.get(bindingId) ??
+    (bindingAnalysis?.catalog.bindingsById.has(bindingId) ? bindingEndpoint(bindingAnalysis, bindingId) : undefined);
+  if (bindingAnalysis) for (const statement of scalarProgram?.statements ?? []) {
+    const from = bindingEndpoint(bindingAnalysis, statement.bindingId);
+    for (const reference of geometryPropertiesIn(statement.declaration.initializer)) {
+      const to = reference.geometryCarryBindingId ? geometryBindingEndpoint(reference.geometryCarryBindingId) : undefined;
+      if (to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) add({
+        kind: "geometry-property", from, to, span: reference.span,
+        requiredness: reference.lazy ? "conditional" : "required",
+        ...(reference.activation ? { activation: reference.activation } : {})
+      });
+    }
+  }
   // An immutable geometry carry is initialized at loop entry. Make its
   // resolved geometry source a prerequisite of the compiled loop execution
   // owner so both evaluators release the same seed first. Module owners join
@@ -1443,10 +1640,11 @@ export const buildTypedDependencyGraph = ({
         addGeometryValueDependency(from, target.occurrence, null, [], namespace);
       } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
         const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-        if (bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+        const to = geometryBindingEndpoint(bindingId);
+        if (to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) add({
           kind: "geometry",
           from,
-          to: bindingEndpoint(bindingAnalysis, bindingId),
+          to,
           span: null,
           requiredness: "required"
         }, namespace);
@@ -1480,7 +1678,7 @@ export const buildTypedDependencyGraph = ({
     occurrenceNamespace?: string,
     ignoredBindingIds: ReadonlySet<BindingId> = new Set()
   ) => {
-    for (const reference of referencesIn(expression)) {
+    for (const reference of referencesIn(expression, scalarCollectionsById)) {
       if (!reference.bindingId || ignoredBindingIds.has(reference.bindingId) || !bindingAnalysis?.catalog.bindingsById.has(reference.bindingId)) continue;
       const mergedGuards = [...guards, ...(reference.activation?.guards ?? [])];
       add({
@@ -1511,11 +1709,12 @@ export const buildTypedDependencyGraph = ({
         addGeometryValueDependency(from, reference.geometryValueOccurrence, reference.span, mergedGuards, occurrenceNamespace);
       } else {
         const bindingId = reference.geometryCarryBindingId ?? reference.geometryValueBinderId;
-        if (bindingId && !ignoredBindingIds.has(bindingId) && bindingAnalysis?.catalog.bindingsById.has(bindingId)) {
+        const to = bindingId ? geometryBindingEndpoint(bindingId) : undefined;
+        if (bindingId && !ignoredBindingIds.has(bindingId) && to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) {
           add({
             kind: "geometry-property",
             from,
-            to: bindingEndpoint(bindingAnalysis, bindingId),
+            to,
             span: reference.span,
             requiredness,
             ...(mergedGuards.length ? { activation: { guards: mergedGuards } } : {})
@@ -1544,9 +1743,10 @@ export const buildTypedDependencyGraph = ({
     ignoredBindingIds: ReadonlySet<BindingId> = new Set()
   ) => {
     if (target.kind === "geometryInputTarget") {
+      addGeometryCollectionOwnerDependency(from, target.target.collectionValueId, guards, occurrenceNamespace);
       addScalarProgramDependencies(from, target.target.index, guards, occurrenceNamespace, ignoredBindingIds);
       const input = target.target;
-      for (const dependency of geometryValueOccurrencesInInput(input)) {
+      for (const dependency of geometryValueOccurrencesInInput(input, geometryCollectionNodesByValueId)) {
         const mergedGuards = [...guards, ...dependency.guards];
         addGeometryValueDependency(from, dependency.occurrence, null, mergedGuards, occurrenceNamespace);
       }
@@ -1570,10 +1770,11 @@ export const buildTypedDependencyGraph = ({
       addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
     } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
       const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-      if (!ignoredBindingIds.has(bindingId) && bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+      const to = geometryBindingEndpoint(bindingId);
+      if (!ignoredBindingIds.has(bindingId) && to && typedDependencyEndpointId(to) !== typedDependencyEndpointId(from)) add({
         kind: "geometry",
         from,
-        to: bindingEndpoint(bindingAnalysis, bindingId),
+        to,
         span: null,
         requiredness: guards.length ? "conditional" : "required",
         ...(guards.length ? { activation: { guards } } : {})
@@ -1621,10 +1822,10 @@ export const buildTypedDependencyGraph = ({
         occurrenceNamespace
       });
     } else if (target.kind === "geometryCarry") {
-      if (bindingAnalysis?.catalog.bindingsById.has(target.bindingId)) add({
+      if (geometryBindingEndpoint(target.bindingId)) add({
         kind: "geometry",
         from,
-        to: bindingEndpoint(bindingAnalysis, target.bindingId),
+        to: geometryBindingEndpoint(target.bindingId)!,
         span: null,
         requiredness: guards.length ? "conditional" : "required",
         ...(guards.length ? { activation: { guards } } : {})
@@ -1649,6 +1850,7 @@ export const buildTypedDependencyGraph = ({
     } else if (target.kind === "collectionValue") {
       addGeometryCollectionNodeDependencies(from, target.value, undefined, guards, occurrenceNamespace);
     } else if (target.kind === "collectionIndex") {
+      addGeometryCollectionOwnerDependency(from, target.collectionValueId, guards, occurrenceNamespace);
       addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
       const index = target.index.kind === "numberLiteral" ? target.index.value : undefined;
       const members = index === undefined ? target.members : [target.members[index]].filter((member) => member !== undefined);
@@ -1678,6 +1880,7 @@ export const buildTypedDependencyGraph = ({
     occurrenceNamespace?: string
   ): void => {
     if (target.kind === "geometryCollectionIndex") {
+      addGeometryCollectionOwnerDependency(from, target.collectionValueId, guards, occurrenceNamespace);
       if (target.index) addScalarProgramDependencies(from, target.index, guards, occurrenceNamespace);
       const collectionNode = geometryCollectionNodesByValueId?.get(target.collectionValueId);
       if (collectionNode) {
@@ -1688,10 +1891,10 @@ export const buildTypedDependencyGraph = ({
       addGeometryValueDependency(from, target.occurrence, null, guards, occurrenceNamespace);
     } else if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
       const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-      if (bindingAnalysis?.catalog.bindingsById.has(bindingId)) add({
+      if (geometryBindingEndpoint(bindingId)) add({
         kind: "geometry",
         from,
-        to: bindingEndpoint(bindingAnalysis, bindingId),
+        to: geometryBindingEndpoint(bindingId)!,
         span: null,
         requiredness: guards.length ? "conditional" : "required",
         ...(guards.length ? { activation: { guards } } : {})
@@ -1747,10 +1950,10 @@ export const buildTypedDependencyGraph = ({
       ...plan.carries.map((candidate) => candidate.bindingId),
       ...(plan.geometryCarries ?? []).map((candidate) => candidate.bindingId)
     ]);
-    const targetIsOwnedByLoop = (targetId: string): boolean => {
+    const targetIsOwnedByLoop = (targetId: string, loopId = ownerElementId): boolean => {
       let current = elementsById.get(targetId);
       while (current?.parentGroupId) {
-        if (current.parentGroupId === ownerElementId) return true;
+        if (current.parentGroupId === loopId) return true;
         current = elementsById.get(current.parentGroupId);
       }
       return false;
@@ -1765,11 +1968,17 @@ export const buildTypedDependencyGraph = ({
       }
       if (target.kind === "geometryCarry" || target.kind === "geometryValueForBinder") {
         const bindingId = target.kind === "geometryCarry" ? target.bindingId : target.binderId;
-        if (loopCarryBindingIds.has(bindingId) || !bindingAnalysis?.catalog.bindingsById.has(bindingId)) return;
+        if (loopCarryBindingIds.has(bindingId)) return;
+        const to = geometryBindingEndpoint(bindingId);
+        if (!to) return;
+        // Nested body carries are produced inside this loop; enclosing carries
+        // are its incoming immutable views. Neither waits for the whole owner.
+        if (to.kind === "element" && (to.id === ownerElementId ||
+            targetIsOwnedByLoop(to.id) || targetIsOwnedByLoop(ownerElementId, to.id))) return;
         add({
           kind: "geometry",
           from,
-          to: bindingEndpoint(bindingAnalysis, bindingId),
+          to,
           span: null,
           requiredness: guards.length ? "conditional" : "required",
           ...(guards.length ? { activation: { guards } } : {})
@@ -1777,6 +1986,18 @@ export const buildTypedDependencyGraph = ({
         return;
       }
       if (target.kind === "forGroupOccurrence") {
+        if (!targetIsOwnedByLoop(target.templateElementId)) {
+          let current = elementsById.get(target.templateElementId);
+          let generationOwner: ElementId | undefined;
+          while (current?.parentGroupId) {
+            current = elementsById.get(current.parentGroupId);
+            if (current?.type === "forGroup") generationOwner = current.id;
+          }
+          if (generationOwner) add({ kind: "geometry", from,
+            to: elementEndpoint(elementsById, generationOwner, elementStatementIndex.get(generationOwner) ?? 0),
+            span: null, requiredness: guards.length ? "conditional" : "required",
+            ...(guards.length ? { activation: { guards } } : {}) }, namespace);
+        }
         if (!targetIsOwnedByLoop(target.templateElementId)) deferredStageEdges.push({
           kind: "geometry",
           from,
@@ -1866,8 +2087,25 @@ export const buildTypedDependencyGraph = ({
     visit(carry.nextTarget, []);
   };
   for (const plan of bindingVersions?.immutableForGroups?.values() ?? []) {
-    const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId);
+    const ownerElementId = rootForGroupElementIdByStatementId.get(plan.ownerStatementId) ??
+      moduleForGroupExecutionStatementByOwnerStatementId.get(plan.ownerStatementId)?.runtimeElementId;
     if (!ownerElementId) continue;
+    const from = elementEndpoint(elementsById, ownerElementId, elementStatementIndex.get(ownerElementId) ?? 0);
+    for (const carry of rootForGroupElementIdByStatementId.has(plan.ownerStatementId) ? plan.geometryCollectionCarries ?? [] : []) {
+      const node = carry.initializer.kind === "node" ? carry.initializer.node : geometryCollectionNodesByValueId?.get(carry.initializer.valueId);
+      // Snapshotting a collection captures identities, not selected geometry.
+      // Only an unconditional eager value needs release here. Conditional and
+      // lazy leaves keep their existing consumer-owned activation boundary.
+      if (node) for (const dependency of geometryInputTargetsInCollectionNode(node, undefined, geometryCollectionNodesByValueId)) {
+        for (const [index, guard] of dependency.guards.entries()) {
+          if (guard.controllerExpression) addScalarProgramDependencies(from, guard.controllerExpression, dependency.guards.slice(0, index), `${plan.ownerStatementId}:${carry.bindingId}:selector`);
+        }
+        const target = dependency.target;
+        if (dependency.guards.length || target.kind !== "geometryValue") continue;
+        if (geometryValueProgram?.some(entry => geometryValueOccurrenceKey(entry.occurrence) === geometryValueOccurrenceKey(target.occurrence) && entry.lazy)) continue;
+        addGeometryInputTargetDependency(from, target, [], `${plan.ownerStatementId}:${carry.bindingId}:initializer`);
+      }
+    }
     for (const carry of plan.geometryCarries ?? []) {
       addImmutableGeometryCarryPlanDependencies(plan, ownerElementId, carry);
     }

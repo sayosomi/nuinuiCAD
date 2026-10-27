@@ -1,0 +1,12 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2 test/evaluationParity.test.ts -t Issue 1462
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed | 203 skipped (207)
+   Start at  07:00:46
+   Duration  3.25s (transform 2.01s, setup 32ms, import 2.35s, tests 481ms, environment 298ms)

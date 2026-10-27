@@ -1,0 +1,16 @@
+nui 1
+module Provider(turn: number, x: number) {
+  export arc Edge = arc(center: (@x, 7), radius: 26, start: 287 + 0, end: 38 + 0, direction: counterclockwise)
+  export line Result = offset(sources: [@Edge.base], distance: 1.5, side: right, closed: false, suppressTrimWarnings: false)
+  move Result as selected (from: (0, 0), to: (0, 0), angleDeg: @turn + 23)
+  move Result as later (from: (0, 0), to: (0, 0), angleDeg: 31)
+  for tick in range(min: 0, max: 1, step: 1) carry edge: path = @Result.selected {
+    next edge = @Result.selected
+  }
+  export const out: path = @edge
+}
+instance One = Provider(turn: 0, x: 0)
+instance Two = Provider(turn: 17, x: 170)
+line Axis = polar(start: (430, -70), angle: 7, length: 33)
+const Alias: path = @Two::out
+const result: number = lineAngle(@Two::Result.selected.start, @Axis.start)

@@ -1,0 +1,47 @@
+{
+  "controls": [
+    {
+      "command": "VITEST_MAX_WORKERS=1 npx vitest run test/issue1428TargetedStage7Rust.integration.test.ts -t 'H1-03|H2-07'",
+      "result": "2 PASS; 38 filtered skips",
+      "mechanisms": [
+        "nested snapshot propagation",
+        "collection swap identity",
+        "gate and Module atomicity"
+      ],
+      "status": "SENSITIVE",
+      "method": "Existing test-local negative carry-plan contrasts change outputs in both evaluators. No production source fault injection."
+    },
+    {
+      "cases": [
+        "R8-01",
+        "R8-02",
+        "R8-03",
+        "R8-04"
+      ],
+      "status": "SENSITIVE",
+      "method": "Selected failure versus unselected failing expression, disabled ancestor versus independently failing outside owner, failed versus healthy asymmetric Module. Exact attributed diagnostic sets and emitted/suppressed owners are independently authored."
+    },
+    {
+      "cases": [
+        "C-lazy-index",
+        "C-lazy-map"
+      ],
+      "status": "SENSITIVE",
+      "method": "Unselected arithmetic failure, selected member with asymmetric n, and cardinality independent of member evaluation. Both normal Rust and TS checked against numeric oracle."
+    },
+    {
+      "status": "SENSITIVE",
+      "cases": [
+        "R2-02",
+        "R4-03",
+        "R6-04",
+        "R7-01"
+      ],
+      "method": "Verification explicitly rejects test-local wrong coordinates, dropped Module snapshot and dropped attributed diagnostics. Exact Base FAIL versus adjacent Base PASS controls retained in r2-proofs.json. No production fault injection."
+    }
+  ],
+  "notCovered": [
+    "R1-04 whole geometry collection carry identity, separately scoped under #1442"
+  ],
+  "notes": "Historical Stage 3–7 focused regressions verify overlaps; they are not substituted for unexecuted primary cells."
+}

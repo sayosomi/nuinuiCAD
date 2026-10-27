@@ -1,0 +1,117 @@
+[
+  {
+    "name": "build",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 31.5
+  },
+  {
+    "name": "lint",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 29.18
+  },
+  {
+    "name": "full-test",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2",
+      "--no-file-parallelism"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 599.45
+  },
+  {
+    "name": "rust-fmt",
+    "command": [
+      "cargo",
+      "fmt",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--",
+      "--check"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 1.27
+  },
+  {
+    "name": "rust-check",
+    "command": [
+      "cargo",
+      "check",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 4.17
+  },
+  {
+    "name": "rust-test",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 18.84
+  },
+  {
+    "name": "rust-clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 7.45
+  },
+  {
+    "name": "rust-stdio-build",
+    "command": [
+      "cargo",
+      "build",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--bin",
+      "evaluation_stdio"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.08
+  },
+  {
+    "name": "parity",
+    "command": [
+      "npm",
+      "run",
+      "test:parity"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 58.05
+  },
+  {
+    "name": "diff-check",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exitCode": 0,
+    "elapsedSeconds": 0.07
+  }
+]

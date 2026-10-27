@@ -1,0 +1,551 @@
+[
+  {
+    "id": "A-direct",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: @n)\n const B: Seed = Seed(n: @n + 100)\n const Values: Seed[] = [@A]\n const Fallback: Seed[] = [@B]\n const Source: Seed[] = @Values\n const Mapped: Shape[] = for item in @Source { Shape(p: segment(start: (0, 0), end: (3, 4)), n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 21,
+      "O": 45,
+      "C": 1,
+      "D": 1
+    }
+  },
+  {
+    "id": "A-optional-construct",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: @n)\n const B: Seed = Seed(n: @n + 100)\n const Values: Seed[] = [@A]\n const Fallback: Seed[] = [@B]\n const Maybe: Seed[]? = if (@present) { @Values }\n const Source: Seed[] = match @Maybe { none => @Fallback some held => @held }\n const Mapped: Shape[] = for item in @Source { Shape(p: segment(start: (0, 0), end: (3, 4)), n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    }
+  },
+  {
+    "id": "A-optional-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: @p, n: @n)\n const B: Shape = Shape(p: @q, n: @n + 100)\n const Values: Shape[] = [@A]\n const Fallback: Shape[] = [@B]\n const Maybe: Shape[]? = if (@present) { @Values }\n const Source: Shape[] = match @Maybe { none => @Fallback some held => @held }\n const Mapped: Shape[] = for item in @Source { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    }
+  },
+  {
+    "id": "B-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: @p, n: 17)\n const B: Shape = Shape(p: @q, n: 41)\n const Values: Shape[] = [@A, @B]\n const Mapped: Shape[] = for item in @Values { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 0)\ninstance Two = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 19,
+      "O": 19
+    }
+  },
+  {
+    "id": "B-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: @p, n: 17)\n const B: Shape = Shape(p: @q, n: 41)\n const Values: Shape[] = [@A, @B]\n const Mapped: Shape[] = for item in @Values { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[@which]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 0)\ninstance Two = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 19,
+      "O": 43
+    }
+  },
+  {
+    "id": "B-scalar-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Item(n: number)\nmodule Pick(which: number) {\n const A: Item = Item(n: 17)\n const B: Item = Item(n: 41)\n const Values: Item[] = [@A, @B]\n const Mapped: Item[] = for item in @Values { Item(n: @item.n + 2) }\n const Chosen: Item = @Mapped[0]\n export const tag: number = @Chosen.n\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "N": 19,
+      "O": 19
+    }
+  },
+  {
+    "id": "B-scalar-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Item(n: number)\nmodule Pick(which: number) {\n const A: Item = Item(n: 17)\n const B: Item = Item(n: 41)\n const Values: Item[] = [@A, @B]\n const Mapped: Item[] = for item in @Values { Item(n: @item.n + 2) }\n const Chosen: Item = @Mapped[@which]\n export const tag: number = @Chosen.n\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "N": 19,
+      "O": 43
+    }
+  },
+  {
+    "id": "A-forward-direct",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: @p, n: @n)\n const B: Shape = Shape(p: @q, n: @n + 100)\n const Values: Shape[] = [@A]\n const Fallback: Shape[] = [@B]\n const Maybe: Shape[]? = if (@present) { @Values }\n const Source: Shape[] = @Values\n const Mapped: Shape[] = for item in @Source { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 5,
+      "M": 5,
+      "X": 3,
+      "Y": 3,
+      "N": 21,
+      "O": 45,
+      "C": 1,
+      "D": 1
+    }
+  },
+  {
+    "id": "A-if-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: @p, n: @n)\n const B: Shape = Shape(p: @q, n: @n + 100)\n const Values: Shape[] = [@A]\n const Fallback: Shape[] = [@B]\n const Maybe: Shape[]? = if (@present) { @Values }\n const Source: Shape[] = if (@present) { @Values } else { @Fallback }\n const Mapped: Shape[] = for item in @Source { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    }
+  },
+  {
+    "id": "A-coalesce-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Shape = Shape(p: @p, n: @n)\n const B: Shape = Shape(p: @q, n: @n + 100)\n const Values: Shape[] = [@A]\n const Fallback: Shape[] = [@B]\n const Maybe: Shape[]? = if (@present) { @Values }\n const Source: Shape[] = @Maybe ?? @Fallback\n const Mapped: Shape[] = for item in @Source { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    }
+  },
+  {
+    "id": "B-computed-selector",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: @p, n: 17)\n const B: Shape = Shape(p: @q, n: 41)\n const Values: Shape[] = [@A, @B]\n const Mapped: Shape[] = for item in @Values { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[@which + @p.length / @p.length - 1]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 0)\ninstance Two = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 5,
+      "M": 13,
+      "X": 3,
+      "Y": 5,
+      "N": 19,
+      "O": 43
+    }
+  },
+  {
+    "id": "B-constructor-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: @p, n: 17)\n const B: Shape = Shape(p: @q, n: 41)\n const Values: Shape[] = [@A, @B]\n const Mapped: Shape[] = for item in @Values { Shape(p: segment(start: (0, 0), end: (@item.n, 0)), n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 0)\ninstance Two = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 17,
+      "M": 17,
+      "X": 17,
+      "Y": 17,
+      "N": 19,
+      "O": 19
+    }
+  },
+  {
+    "id": "B-constructor-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: @p, n: 17)\n const B: Shape = Shape(p: @q, n: 41)\n const Values: Shape[] = [@A, @B]\n const Mapped: Shape[] = for item in @Values { Shape(p: segment(start: (0, 0), end: (@item.n, 0)), n: @item.n + 2) }\n const Chosen: Shape = @Mapped[@which]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 0)\ninstance Two = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 17,
+      "M": 41,
+      "X": 17,
+      "Y": 41,
+      "N": 19,
+      "O": 43
+    }
+  },
+  {
+    "id": "C-deep-local",
+    "domain": "deep-forward",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = @packet\n const Alias: path[] = @Whole.middle.inner.paths\n export const out: path = @Alias[1]\n export const picked: path = @Whole.middle.inner.p\n export const size: number = @Alias.length\n export const tag: number = @Whole.middle.inner.n + @Whole.middle.n + @Whole.n\n}\nmodule Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: @items, p: @p, n: @n)\n const M: Middle = Middle(inner: @I, n: @n + 100)\n const O: Outer = Outer(middle: @M, n: @n + 200)\n const Whole: Outer = @O\n instance Forward = Relay(packet: @Whole)\n export const out: path = @Forward::out\n export const picked: path = @Forward::picked\n export const size: number = @Forward::size\n export const tag: number = @Forward::tag\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nconst Reverse: path[] = [@Q, @P, @Q]\ninstance One = Make(items: @Values, p: @P, n: 17)\ninstance Two = Make(items: @Reverse, p: @Q, n: 41)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst Third: path = @One::picked\nconst Fourth: path = @Two::picked\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @Third.length\nconst Y: number = @Fourth.length\nconst C: number = @One::size\nconst D: number = @Two::size\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 13,
+      "C": 2,
+      "D": 3,
+      "N": 351,
+      "O": 423
+    }
+  },
+  {
+    "id": "C-deep-reexport",
+    "domain": "deep-forward",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nimport \"./relay.nui\" as left\nimport \"./relay-right.nui\" as right\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nconst Reverse: path[] = [@Q, @P, @Q]\ninstance One = left::Make(items: @Values, p: @P, n: 17)\ninstance Two = right::Make(items: @Reverse, p: @Q, n: 41)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst Third: path = @One::picked\nconst Fourth: path = @Two::picked\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @Third.length\nconst Y: number = @Fourth.length\nconst C: number = @One::size\nconst D: number = @Two::size\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 13,
+      "C": 2,
+      "D": 3,
+      "N": 351,
+      "O": 423
+    },
+    "saved": {
+      "lib.nui": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = @packet\n const Alias: path[] = @Whole.middle.inner.paths\n export const out: path = @Alias[1]\n export const picked: path = @Whole.middle.inner.p\n export const size: number = @Alias.length\n export const tag: number = @Whole.middle.inner.n + @Whole.middle.n + @Whole.n\n}\nexport module Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: @items, p: @p, n: @n)\n const M: Middle = Middle(inner: @I, n: @n + 100)\n const O: Outer = Outer(middle: @M, n: @n + 200)\n const Whole: Outer = @O\n instance Forward = Relay(packet: @Whole)\n export const out: path = @Forward::out\n export const picked: path = @Forward::picked\n export const size: number = @Forward::size\n export const tag: number = @Forward::tag\n}",
+      "right.nui": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = @packet\n const Alias: path[] = @Whole.middle.inner.paths\n export const out: path = @Alias[1]\n export const picked: path = @Whole.middle.inner.p\n export const size: number = @Alias.length\n export const tag: number = @Whole.middle.inner.n + @Whole.middle.n + @Whole.n\n}\nexport module Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: @items, p: @p, n: @n)\n const M: Middle = Middle(inner: @I, n: @n + 100)\n const O: Outer = Outer(middle: @M, n: @n + 200)\n const Whole: Outer = @O\n instance Forward = Relay(packet: @Whole)\n export const out: path = @Forward::out\n export const picked: path = @Forward::picked\n export const size: number = @Forward::size\n export const tag: number = @Forward::tag\n}",
+      "relay.nui": "nui 1\nimport \"./lib.nui\" as impl\nexport @impl::Make",
+      "relay-right.nui": "nui 1\nimport \"./right.nui\" as impl\nexport @impl::Make"
+    }
+  },
+  {
+    "id": "B-constructor-lazy",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Shape = Shape(p: @p, n: 17)\n const B: Shape = Shape(p: @q, n: 41)\n const Bad: Shape = Shape(p: @p, n: 0)\n const Values: Shape[] = [@A, @B, @Bad]\n const Mapped: Shape[] = for item in @Values { Shape(p: segment(start: (0, 0), end: (@item.n / @item.n * @item.n, 0)), n: @item.n + 2) }\n const Chosen: Shape = @Mapped[@which]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 0)\ninstance Two = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 17,
+      "M": 41,
+      "X": 17,
+      "Y": 41,
+      "N": 19,
+      "O": 43
+    }
+  },
+  {
+    "id": "A-optional-source-constructor",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Seed(n: number)\nrecord Shape(p: path, n: number)\nmodule Make(p: path, q: path, n: number, present: boolean) {\n const A: Seed = Seed(n: @n)\n const B: Seed = Seed(n: @n + 100)\n const Values: Seed[] = [@A]\n const Fallback: Seed[] = [@B]\n const Maybe: Seed[]? = if (@present) { @Values }\n const Source: Seed[] = match @Maybe { none => @Fallback some held => @held }\n const Alias: Seed[] = @Source\n const Mapped: Shape[] = for item in @Alias { Shape(p: segment(start: (0, 0), end: (@item.n, 0)), n: @item.n + 2) }\n const Chosen: Shape = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n export const size: number = @Source.length\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Make(p: @P, q: @Q, n: 19, present: true)\ninstance Two = Make(p: @P, q: @Q, n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @First.endPoint.x\nconst Y: number = @Second.endPoint.x\nconst N: number = @One::tag\nconst O: number = @Two::tag\nconst C: number = @One::size\nconst D: number = @Two::size",
+    "expected": {
+      "L": 19,
+      "M": 143,
+      "X": 19,
+      "Y": 143,
+      "N": 21,
+      "O": 145,
+      "C": 1,
+      "D": 1
+    },
+    "deferred": "#1260: generic scalar-collection source release; map-free optional control reproduces Rust failure. Typed identity/producers are retained; no runtime PASS."
+  },
+  {
+    "id": "B-point-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Shape(p: point, n: number)\nmodule Pick(p: point, q: point, which: number) {\n const A: Shape = Shape(p: @p, n: 17)\n const B: Shape = Shape(p: @q, n: 41)\n const Values: Shape[] = [@A, @B]\n const Mapped: Shape[] = for item in @Values { Shape(p: @item.p, n: @item.n + 2) }\n const Chosen: Shape = @Mapped[@which]\n export const out: point = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: point = coordinate(x: 3, y: 4)\nconst Q: point = coordinate(x: 5, y: 12)\ninstance One = Pick(p: @P, q: @Q, which: 0)\ninstance Two = Pick(p: @P, q: @Q, which: 1)\nconst First: point = @One::out\nconst Second: point = @Two::out\nconst L: number = @First.x\nconst M: number = @Second.x\nconst X: number = @First.y\nconst Y: number = @Second.y\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 3,
+      "M": 5,
+      "X": 4,
+      "Y": 12,
+      "N": 19,
+      "O": 43
+    }
+  },
+  {
+    "id": "B-min-forward-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: @p)\n const B: R = R(p: @q)\n const Values: R[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: @item.p) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 13
+    },
+    "deferred": "#1260: scalar-observation-free reduction crosses the same map-free dynamic selector release failure; canonical geometry targets/producers are retained."
+  },
+  {
+    "id": "B-min-forward-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: @p)\n const B: R = R(p: @q)\n const Values: R[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: @item.p) }\n const Chosen: R = @Mapped[1]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 13
+    }
+  },
+  {
+    "id": "B-min-construct-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.n, 0))) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    },
+    "deferred": "#1260 scheduler boundary: canonical occurrence, construction producer and binding prerequisite are present; TS does not release required field construction. Not a verified repaired family."
+  },
+  {
+    "id": "B-min-construct-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.n, 0))) }\n const Chosen: R = @Mapped[1]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    },
+    "deferred": "#1260 scheduler boundary: same static selected construction is present with its scalar prerequisite; TS release fails without selected scalar observation. Not a verified repaired family."
+  },
+  {
+    "id": "A-min-optional-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: @p)\n const B: R = R(p: @q)\n const Values: R[] = [@A]\n const Fallback: R[] = [@B]\n const Maybe: R[]? = if (@present) { @Values }\n const Source: R[] = match @Maybe { none => @Fallback some held => @held }\n const Mapped: R[] = for item in @Source { R(p: @item.p) }\n const Chosen: R = @Mapped[0]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, present: true)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    },
+    "deferred": "#1260: scalar-observation-free reduction retains corrected selected collection identity; Rust controller/dependency release remains unavailable."
+  },
+  {
+    "id": "A-min-direct-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: @p)\n const B: R = R(p: @q)\n const Values: R[] = [@A]\n const Fallback: R[] = [@B]\n const Maybe: R[]? = if (@present) { @Values }\n const Source: R[] = @Values\n const Mapped: R[] = for item in @Source { R(p: @item.p) }\n const Chosen: R = @Mapped[0]\n export const out: path = @Chosen.p\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, present: true)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    }
+  },
+  {
+    "id": "A-map-free-optional-control",
+    "domain": "scheduler-discriminator",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Make(n: number, present: boolean) {\n const Values: number[] = [@n]\n const Fallback: number[] = [@n + 100]\n const Maybe: number[]? = if (@present) { @Values }\n const Source: number[] = match @Maybe { none => @Fallback some held => @held }\n const Alias: number[] = @Source\n export const out: path = segment(start: (0, 0), end: (@Alias[0], 0))\n}\ninstance One = Make(n: 19, present: true)\ninstance Two = Make(n: 43, present: false)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length",
+    "expected": {
+      "L": 19,
+      "M": 143
+    },
+    "deferred": "#1260: map-free scalar optional collection construction control; Rust unavailable while TS passes."
+  },
+  {
+    "id": "G-map-free-dynamic",
+    "domain": "scheduler-discriminator",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Pick(p: path, q: path, which: number) {\n const Values: path[] = [@p, @q]\n export const out: path = @Values[@which]\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 13
+    },
+    "deferred": "#1260: map-free dynamic geometry collection selector; Rust unavailable while TS passes."
+  },
+  {
+    "id": "G-map-free-construct",
+    "domain": "scheduler-discriminator",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nmodule Pick(which: number) {\n const Values: number[] = [3, 5]\n export const out: path = segment(start: (0, 0), end: (@Values[1], 0))\n}\ninstance One = Pick(which: 1)\nconst First: path = @One::out\nconst L: number = @First.length",
+    "expected": {
+      "L": 5
+    }
+  },
+  {
+    "id": "B-reduced-forward-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: @p, n: 3)\n const B: R = R(p: @q, n: 5)\n const Values: R[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: @item.p, n: @item.n) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length\nconst N: number = @One::tag",
+    "expected": {
+      "L": 13,
+      "N": 5
+    }
+  },
+  {
+    "id": "B-reduced-forward-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: R = R(p: @p, n: 3)\n const B: R = R(p: @q, n: 5)\n const Values: R[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: @item.p, n: @item.n) }\n const Chosen: R = @Mapped[1]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length\nconst N: number = @One::tag",
+    "expected": {
+      "L": 13,
+      "N": 5
+    }
+  },
+  {
+    "id": "B-reduced-construct-dynamic",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path, n: number)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.n, 0)), n: @item.n) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length\nconst N: number = @One::tag",
+    "expected": {
+      "L": 5,
+      "N": 5
+    }
+  },
+  {
+    "id": "B-reduced-construct-fixed",
+    "domain": "dynamic-selector",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path, n: number)\nrecord Seed(n: number)\nmodule Pick(p: path, q: path, which: number) {\n const A: Seed = Seed(n: 3)\n const B: Seed = Seed(n: 5)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.n, 0)), n: @item.n) }\n const Chosen: R = @Mapped[1]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, which: 1)\nconst First: path = @One::out\nconst L: number = @First.length\nconst N: number = @One::tag",
+    "expected": {
+      "L": 5,
+      "N": 5
+    }
+  },
+  {
+    "id": "A-reduced-optional-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: @p, n: 3)\n const B: R = R(p: @q, n: 5)\n const Values: R[] = [@A]\n const Fallback: R[] = [@B]\n const Maybe: R[]? = if (@present) { @Values }\n const Source: R[] = match @Maybe { none => @Fallback some held => @held }\n const Mapped: R[] = for item in @Source { R(p: @item.p, n: @item.n) }\n const Chosen: R = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, present: true)\nconst First: path = @One::out\nconst L: number = @First.length\nconst N: number = @One::tag",
+    "expected": {
+      "L": 5,
+      "N": 3
+    }
+  },
+  {
+    "id": "A-reduced-direct-forward",
+    "domain": "optional-source",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path, n: number)\nmodule Pick(p: path, q: path, present: boolean) {\n const A: R = R(p: @p, n: 3)\n const B: R = R(p: @q, n: 5)\n const Values: R[] = [@A]\n const Fallback: R[] = [@B]\n const Maybe: R[]? = if (@present) { @Values }\n const Source: R[] = @Values\n const Mapped: R[] = for item in @Source { R(p: @item.p, n: @item.n) }\n const Chosen: R = @Mapped[0]\n export const out: path = @Chosen.p\n export const tag: number = @Chosen.n\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\ninstance One = Pick(p: @P, q: @Q, present: true)\nconst First: path = @One::out\nconst L: number = @First.length\nconst N: number = @One::tag",
+    "expected": {
+      "L": 5,
+      "N": 3
+    }
+  }
+]

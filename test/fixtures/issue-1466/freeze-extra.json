@@ -1,0 +1,47 @@
+{
+  "frozenBeforeExecutionUTC": "2026-10-26T05:50:31.063161+00:00",
+  "triggers": {
+    "R01": "A02 direct missing binding, A03 alias PASS",
+    "R02": "D01 Alias y fails while x passes",
+    "R03": "C05 valid absolute numeric path rejected",
+    "X01": "D01 unary alias failure",
+    "X02": "C05 unresolved absolute qualified numeric path",
+    "X03": "B03/C03 direct nested reference failures",
+    "X04": "A02 direct scalar lowering safety guard",
+    "X05": "C05 absolute lexical path safety guard"
+  },
+  "units": [
+    {
+      "id": "R01",
+      "sourceSha256": "e0751731c2e08b47251859540a3fedc78679d91e5f34ca91bb983bfcb6b985ab"
+    },
+    {
+      "id": "R02",
+      "sourceSha256": "64862e4b8741fc7bccfb58b410dbff39a07312a788ad2556f6bdb58cba44f941"
+    },
+    {
+      "id": "R03",
+      "sourceSha256": "45eae3862e16310b7cb4fe640a10a1b8d0a840c222cccb7c835af3e4b06e676e"
+    },
+    {
+      "id": "X01",
+      "sourceSha256": "adebd5b8b5b00992fbb7ddf88bc7ff4b9248beea14365fe542919ff9c5d88453"
+    },
+    {
+      "id": "X02",
+      "sourceSha256": "af788597a24344b865ed012a45762f157b5f7f09b4087caff155ccd717a7c86d"
+    },
+    {
+      "id": "X03",
+      "sourceSha256": "68154002692da897e8755377d5e2801eeac07630fef9b958641d11dde183e62f"
+    },
+    {
+      "id": "X04",
+      "sourceSha256": "b94f5a353f2407d3e5508889094cddf2bb5725e765fb6d5d825b9ff60ac6545c"
+    },
+    {
+      "id": "X05",
+      "sourceSha256": "f2ec6878da885c9170b8b74d91fe6fa32ddd1c42ed1908a3ac032759733cc286"
+    }
+  ]
+}

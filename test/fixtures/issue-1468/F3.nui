@@ -1,0 +1,32 @@
+nui 1
+// sewing workflow: preserve this comment and blank lines
+profile Plot
+style Ink {
+  width: 1px,
+  color: #123456,
+  for @Plot {
+    width: 2px,
+  }
+}
+
+group Front [Ink] {
+  point Base = coordinate(x: 3, y: -4)
+  point Tip = coordinate(x: 103, y: -4)
+  line Reference = segment(start: @Base, end: @Tip)
+  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)
+  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)
+  text Caption = label(text: "FRONT", anchor: (5, 10), size: 3)
+}
+group Back [Ink] {
+  point Base = coordinate(x: -5, y: 2)
+  line Edge = segment(start: @Base, end: (45, 22))
+  text Caption = label(text: "BACK", anchor: (0, 10), size: 3)
+}
+layout Sheet(scale: 1) {
+  place @Front(origin: @Front::Base, at: (20, -30), scale: 1, angle: 0, mirror: false)
+  place @Back(origin: @Back::Base, at: (240, 50), angle: 0, mirror: false)
+}
+svg Vector(layout: @Sheet, profile: @Plot, margin: 3)
+print Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)
+
+// end sentinel

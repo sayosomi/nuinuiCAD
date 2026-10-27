@@ -1,0 +1,412 @@
+{
+  "id": "X1",
+  "hypothesis": "Sensitive uncovered boundary: selecting common 1px style after placed, scaled, mirrored, baked and reopened F3 must change physical stroke bounds only; profile selection never changes computation. Numeric source/geometry unchanged, width is physical unscaled.",
+  "checkpoints": [
+    {
+      "action": "Source Value Step reopened dx101\u2192102; save; Rust; exact-current projections; SVG/PDF",
+      "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 102,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, profile: @Plot, margin: 3)\nprint Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
+      "sha256": "11a140f2d861b5b0769a00b042d7ff6d506c4304215f51278db6067879d98738",
+      "sourceRevision": 1,
+      "geometry": {
+        "Front::Base": {
+          "kind": "point",
+          "x": 3,
+          "y": -4
+        },
+        "Front::Tip": {
+          "kind": "point",
+          "x": 105,
+          "y": -4
+        },
+        "Front::Reference": {
+          "kind": "line",
+          "start": {
+            "x": 10,
+            "y": 7
+          },
+          "end": {
+            "x": 112,
+            "y": 7
+          }
+        },
+        "Front::Outline": {
+          "kind": "polyline",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 3,
+                "y": -4
+              },
+              "end": {
+                "x": 33,
+                "y": -4
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 33,
+                "y": -4
+              },
+              "end": {
+                "x": 23,
+                "y": 46
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 23,
+                "y": 46
+              },
+              "end": {
+                "x": 3,
+                "y": 66
+              }
+            }
+          ]
+        },
+        "Back::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -5,
+            "y": 2
+          },
+          "end": {
+            "x": 45,
+            "y": 22
+          }
+        },
+        "Front::Reference_bake": {
+          "kind": "line",
+          "start": {
+            "x": 10,
+            "y": 7
+          },
+          "end": {
+            "x": 110,
+            "y": 7
+          }
+        }
+      },
+      "output": {
+        "bounds": {
+          "minX": -160.26458333333332,
+          "minY": -178.26458333333332,
+          "maxX": 260.26458333333335,
+          "maxY": 40.264583333333334
+        },
+        "drawables": {
+          "Front::Reference": {
+            "kind": "line",
+            "start": {
+              "x": -42,
+              "y": 26
+            },
+            "end": {
+              "x": -42,
+              "y": -178
+            }
+          },
+          "Front::Reference_bake": {
+            "kind": "line",
+            "start": {
+              "x": -42,
+              "y": 26
+            },
+            "end": {
+              "x": -42,
+              "y": -174
+            }
+          },
+          "Front::Outline": {
+            "kind": "polyline",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": -20,
+                  "y": 40
+                },
+                "end": {
+                  "x": -20,
+                  "y": -20
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -20,
+                  "y": -20
+                },
+                "end": {
+                  "x": -120,
+                  "y": 0
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -120,
+                  "y": 0
+                },
+                "end": {
+                  "x": -160,
+                  "y": 40
+                }
+              }
+            ]
+          },
+          "Back::Edge": {
+            "kind": "line",
+            "start": {
+              "x": 260.0,
+              "y": -50.0
+            },
+            "end": {
+              "x": 185.0,
+              "y": -80.0
+            }
+          }
+        },
+        "svgMm": [
+          426.5291666666667,
+          224.52916666666664
+        ],
+        "paperMm": [
+          297,
+          210
+        ],
+        "overlap": 12,
+        "stride": [
+          273,
+          186
+        ],
+        "columns": 2,
+        "rows": 2,
+        "pageOrigins": [
+          [
+            -172.26458333333332,
+            -190.26458333333332
+          ],
+          [
+            100.73541666666668,
+            -190.26458333333332
+          ],
+          [
+            -172.26458333333332,
+            -4.26458333333332
+          ],
+          [
+            100.73541666666668,
+            -4.26458333333332
+          ]
+        ]
+      }
+    },
+    {
+      "action": "Source Value Step reopened dx101\u2192102; save; Rust; exact-current projections; SVG/PDF",
+      "source": "nui 1\n// sewing workflow: preserve this comment and blank lines\nprofile Plot\nstyle Ink {\n  width: 1px,\n  color: #123456,\n  for @Plot {\n    width: 2px,\n  }\n}\n\ngroup Front [Ink] {\n  point Base = coordinate(x: 3, y: -4)\n  point Tip = offset(\n    from: @Base,\n    dx: 102,\n    dy: 0,\n  )\n  line Reference = segment(start: @Base, end: @Tip)\n  line Reference_bake = segment(start: (10, 7), end: (110, 7))\n  move Reference as shifted(from: (0, 0), to: (7, 11), scale: 1, angleDeg: 0, mirrorX: false)\n  line Outline = polyline(points: [(3, -4), (33, -4), (23, 46), (3, 66)], closed: false)\n  text Caption = label(text: \"FRONT\", anchor: (5, 10), size: 3)\n}\ngroup Back [Ink] {\n  point Base = coordinate(x: -5, y: 2)\n  line Edge = segment(start: @Base, end: (45, 22))\n  text Caption = label(text: \"BACK\", anchor: (0, 10), size: 3)\n}\nlayout Sheet(scale: 1.5) {\n  place @Front(origin: @Front::Base, at: (-20, 40), scale: 2, angle: 90, mirror: true)\n  place @Back(origin: @Back::Base, at: (260, -50), angle: 180, mirror: false)\n}\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, orientation: landscape, overlap: 12)\n\n// end sentinel\n",
+      "sha256": "f917d9d5dc9aab08175f073dde252cd1d80a90b00503a0e026f8f464cdfa41b6",
+      "sourceRevision": 2,
+      "geometry": {
+        "Front::Base": {
+          "kind": "point",
+          "x": 3,
+          "y": -4
+        },
+        "Front::Tip": {
+          "kind": "point",
+          "x": 105,
+          "y": -4
+        },
+        "Front::Reference": {
+          "kind": "line",
+          "start": {
+            "x": 10,
+            "y": 7
+          },
+          "end": {
+            "x": 112,
+            "y": 7
+          }
+        },
+        "Front::Outline": {
+          "kind": "polyline",
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 3,
+                "y": -4
+              },
+              "end": {
+                "x": 33,
+                "y": -4
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 33,
+                "y": -4
+              },
+              "end": {
+                "x": 23,
+                "y": 46
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 23,
+                "y": 46
+              },
+              "end": {
+                "x": 3,
+                "y": 66
+              }
+            }
+          ]
+        },
+        "Back::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -5,
+            "y": 2
+          },
+          "end": {
+            "x": 45,
+            "y": 22
+          }
+        },
+        "Front::Reference_bake": {
+          "kind": "line",
+          "start": {
+            "x": 10,
+            "y": 7
+          },
+          "end": {
+            "x": 110,
+            "y": 7
+          }
+        }
+      },
+      "output": {
+        "bounds": {
+          "minX": -160.13229166666665,
+          "minY": -178.13229166666665,
+          "maxX": 260.1322916666667,
+          "maxY": 40.13229166666667
+        },
+        "drawables": {
+          "Front::Reference": {
+            "kind": "line",
+            "start": {
+              "x": -42,
+              "y": 26
+            },
+            "end": {
+              "x": -42,
+              "y": -178
+            }
+          },
+          "Front::Reference_bake": {
+            "kind": "line",
+            "start": {
+              "x": -42,
+              "y": 26
+            },
+            "end": {
+              "x": -42,
+              "y": -174
+            }
+          },
+          "Front::Outline": {
+            "kind": "polyline",
+            "segments": [
+              {
+                "kind": "line",
+                "start": {
+                  "x": -20,
+                  "y": 40
+                },
+                "end": {
+                  "x": -20,
+                  "y": -20
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -20,
+                  "y": -20
+                },
+                "end": {
+                  "x": -120,
+                  "y": 0
+                }
+              },
+              {
+                "kind": "line",
+                "start": {
+                  "x": -120,
+                  "y": 0
+                },
+                "end": {
+                  "x": -160,
+                  "y": 40
+                }
+              }
+            ]
+          },
+          "Back::Edge": {
+            "kind": "line",
+            "start": {
+              "x": 260.0,
+              "y": -50.0
+            },
+            "end": {
+              "x": 185.0,
+              "y": -80.0
+            }
+          }
+        },
+        "svgMm": [
+          426.26458333333335,
+          224.26458333333332
+        ],
+        "paperMm": [
+          297,
+          210
+        ],
+        "overlap": 12,
+        "stride": [
+          273,
+          186
+        ],
+        "columns": 2,
+        "rows": 2,
+        "pageOrigins": [
+          [
+            -172.13229166666665,
+            -190.13229166666665
+          ],
+          [
+            100.86770833333334,
+            -190.13229166666665
+          ],
+          [
+            -172.13229166666665,
+            -4.132291666666654
+          ],
+          [
+            100.86770833333334,
+            -4.132291666666654
+          ]
+        ]
+      }
+    }
+  ]
+}

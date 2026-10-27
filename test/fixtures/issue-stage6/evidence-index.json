@@ -1,0 +1,77 @@
+{
+  "externalDirectory": "/tmp/nuinui-stage6-1426",
+  "artifacts": [
+    {
+      "name": "attempts.ndjson",
+      "sha256": "3699e75403aa7d9cd0a18145ede7daaaec7cb335f2e22cf767cec638887fb2ce"
+    },
+    {
+      "name": "baseline.json",
+      "sha256": "5d6d705ecae4030432d3ca9f8f59e3446a7ef96f5cd860d2aafceeb33cc048aa"
+    },
+    {
+      "name": "baseline.log",
+      "sha256": "decb10f208ebbaac988f0d3bc83e917e7b2b106ac19730e567a5d669e6e31f35"
+    },
+    {
+      "name": "checked-baseline.json",
+      "sha256": "5479465858f7b19ee067f2a5b46dfafc22f5a2075cf7f139e78ba8601ed81104"
+    },
+    {
+      "name": "checked-baseline.log",
+      "sha256": "0459616b3a80c101de5c7d63954cb66742c030915681c43aa2279c51ab79a91a"
+    },
+    {
+      "name": "focused.log",
+      "sha256": "beba12b50acd03ef87e0a011d420f05760de6d16a46d6e34bafe3ab27333761a"
+    },
+    {
+      "name": "freeze.json",
+      "sha256": "5aede1761eb47c0d45492dc386e9531f79d0620adbec665e84499d86eb3f5ae5"
+    },
+    {
+      "name": "freeze.log",
+      "sha256": "205399335e39a789ffb14e92aaf00ded0e2207f21f7fc0513a2bded828c36a69"
+    },
+    {
+      "name": "mutations.ndjson",
+      "sha256": "32613e37c6cb295dcc9489e35002d425a6e86475f341d899b617eb64d71f5f6e"
+    },
+    {
+      "name": "observe.json",
+      "sha256": "742ed9cfbfb5fe423b18156891581151acb023601a536239c4f990369cf016e7"
+    },
+    {
+      "name": "observe.log",
+      "sha256": "3fbc55f1bc21acb487f07bd02b408e308938af3a8ca5dccd7b15510157edfb5c"
+    },
+    {
+      "name": "prevalidate.json",
+      "sha256": "40589ac96e76c0a9ad3c890087a52c6d9cba98716325935f2b57cd25107944d6"
+    },
+    {
+      "name": "prevalidate.log",
+      "sha256": "e104c1ed7729fbdaafb933ac5ed332b6317d4e170b65574c198fb498128ccd74"
+    },
+    {
+      "name": "prevalidation.ndjson",
+      "sha256": "3377cc86c497d37e169d8d16ac8ada0786bfb06452a4f41741e3bc6115cc24cd"
+    },
+    {
+      "name": "raw.ndjson",
+      "sha256": "4a835d55c2bde53b819b669abe98a56a505838f53b8c10f301efce464da99dd5"
+    },
+    {
+      "name": "test-typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "verify.json",
+      "sha256": "4371ba660b3a6ecdd569a762ae5b7fd6e7684bd8795c311e2e6b4793e6192596"
+    },
+    {
+      "name": "verify.log",
+      "sha256": "6df5d6762a024f5edac70b87acd327a7f6652422e32776b44c94b7597732d1c0"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-10-22T12:50:33.164877+09:00",
+  "base": "4994472a32a916e2b750c96cc7879f88237c52ef",
+  "branch": "sayosomi/issue-1194-residual8-d1",
+  "localHead": "4994472a32a916e2b750c96cc7879f88237c52ef",
+  "remoteMain": "4994472a32a916e2b750c96cc7879f88237c52ef",
+  "remoteTopic": "absent",
+  "origin": "https://github.com/sayosomi/nuinuiCAD.git",
+  "competingMarkers": [],
+  "dirtyPaths": [
+    "packages/nui-language/src/dsl/moduleGeometryRuntime.ts",
+    "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "packages/nui-language/src/scalars/recordScalarLowering.ts",
+    "src/geometry/evaluate.ts",
+    "test/fixtures/issue1194-d1/residual8-README.md",
+    "test/fixtures/issue1194-d1/residual8-assertions.ts",
+    "test/fixtures/issue1194-d1/residual8-cases.json",
+    "test/fixtures/issue1194-d1/residual8-deferred.json",
+    "test/fixtures/issue1194-d1/residual8-dispositions.json",
+    "test/fixtures/issue1194-d1/residual8-families.json",
+    "test/fixtures/issue1194-d1/residual8-freeze.json",
+    "test/fixtures/issue1194-d1/residual8-identities.json",
+    "test/fixtures/issue1194-d1/residual8-input-registry.json",
+    "test/fixtures/issue1194-d1/residual8-rejected.json",
+    "test/fixtures/issue1194-d1/residual8-telemetry.json",
+    "test/fixtures/issue1194-d1/residual8-verification.json",
+    "test/issue1194Residual8D1Rust.integration.test.ts"
+  ],
+  "dirtyState": "Only this authorized slice; clean at initial admission; final clean state verified after commit/push.",
+  "humanAdmission": "Actual supplied LOCAL CHECK PASS mode=new consumed once; full inventory not repeated.",
+  "issueState": "OPEN",
+  "authorization": "Current Issue and material comments re-read; unchanged eighth scope.",
+  "latestMaterialComments": [
+    6331352766,
+    6331508729,
+    6331632146
+  ],
+  "forbiddenRecovery": "None: no reset/stash/rebase/merge/force/worktree creation."
+}

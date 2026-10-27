@@ -1,0 +1,552 @@
+{
+  "instrumentedRunnerTotals": {
+    "compiler": 434,
+    "setupCompiler": 22,
+    "reference": 367,
+    "production": 354
+  },
+  "runs": [
+    {
+      "path": "/tmp/issue1260-d1/base/runs.ndjson",
+      "runId": "issue1260-base-1792665994515",
+      "phase": "issue1260-base",
+      "counts": {
+        "compiler": 9,
+        "setupCompiler": 1,
+        "reference": 9,
+        "production": 9
+      },
+      "results": 9,
+      "sha256": "725186dce8ee4ff2fb5c5820d0327dafefae7e7ec04757e19f99be895d8843b4"
+    },
+    {
+      "path": "/tmp/issue1260-d1/base-adjacent/runs.ndjson",
+      "runId": "verify-1792667812234",
+      "phase": "verify",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "results": 2,
+      "sha256": "1d390b945095021905daa60c9ef5e4f4fcae9ed0a66377ba184f6fe967eef763"
+    },
+    {
+      "path": "/tmp/issue1260-d1/base-primary/runs.ndjson",
+      "runId": "discover-1792666810754",
+      "phase": "discover",
+      "counts": {
+        "compiler": 31,
+        "setupCompiler": 1,
+        "reference": 27,
+        "production": 25
+      },
+      "results": 29,
+      "sha256": "43bb321fd53cc025e3d28ca40aec76b4e4ba2ff571508cfa911101f524727aa9"
+    },
+    {
+      "path": "/tmp/issue1260-d1/base-regression/runs.ndjson",
+      "runId": "verify-1792666067070",
+      "phase": "verify",
+      "counts": {
+        "compiler": 9,
+        "setupCompiler": 1,
+        "reference": 9,
+        "production": 9
+      },
+      "results": 9,
+      "sha256": "9c1370775ffa73dd0ecb22ee93dcb9ee90128203e808985d1bb6c3601fedb33c"
+    },
+    {
+      "path": "/tmp/issue1260-d1/clock-fix/runs.ndjson",
+      "runId": "discover-1792666081187",
+      "phase": "discover",
+      "counts": {
+        "compiler": 9,
+        "setupCompiler": 1,
+        "reference": 9,
+        "production": 9
+      },
+      "results": 9,
+      "sha256": "ad68ef228d71d0409daf0b0e6b0615f49ea0b1c0ec75e03f497ee68103fb3d76"
+    },
+    {
+      "path": "/tmp/issue1260-d1/closure-fix/runs.ndjson",
+      "runId": "discover-1792666219499",
+      "phase": "discover",
+      "counts": {
+        "compiler": 9,
+        "setupCompiler": 1,
+        "reference": 9,
+        "production": 9
+      },
+      "results": 9,
+      "sha256": "4a7475b87396bfae0b5f8c7585092928ee015d6815f0fd20bea1e558bbfa9ce0"
+    },
+    {
+      "path": "/tmp/issue1260-d1/final-discovery/runs.ndjson",
+      "runId": "discover-1792667726945",
+      "phase": "discover",
+      "counts": {
+        "compiler": 31,
+        "setupCompiler": 1,
+        "reference": 27,
+        "production": 25
+      },
+      "results": 31,
+      "sha256": "8e87b96a55ab30a322161d4172993f83088deeeabf6bfbc2fa2f24e33d58d7df"
+    },
+    {
+      "path": "/tmp/issue1260-d1/focused-complete-selection/runs.ndjson",
+      "runId": "verify-1792668828173",
+      "phase": "verify",
+      "counts": {
+        "compiler": 25,
+        "setupCompiler": 1,
+        "reference": 25,
+        "production": 25
+      },
+      "results": 25,
+      "sha256": "d83c896ff9c199c23dbdd9e93de49aa5cd2c4a0e4dd5abd4ff3f37c1a1b0eed4"
+    },
+    {
+      "path": "/tmp/issue1260-d1/focused-final/runs.ndjson",
+      "runId": "verify-1792667527657",
+      "phase": "verify",
+      "counts": {
+        "compiler": 16,
+        "setupCompiler": 1,
+        "reference": 16,
+        "production": 16
+      },
+      "results": 16,
+      "sha256": "ebb095321baf475c77c72d56362e3f5901151a7c597d200ef6a0dd89d3f83f67"
+    },
+    {
+      "path": "/tmp/issue1260-d1/focused-new/runs.ndjson",
+      "runId": "verify-1792667125072",
+      "phase": "verify",
+      "counts": {
+        "compiler": 16,
+        "setupCompiler": 1,
+        "reference": 16,
+        "production": 16
+      },
+      "results": 16,
+      "sha256": "c41b0c0e04ff785a1aed21160c9a8206bd0503d74cac4d6ade9ba7bf881457da"
+    },
+    {
+      "path": "/tmp/issue1260-d1/focused-selection-fixed/runs.ndjson",
+      "runId": "verify-1792668871479",
+      "phase": "verify",
+      "counts": {
+        "compiler": 25,
+        "setupCompiler": 1,
+        "reference": 25,
+        "production": 25
+      },
+      "results": 25,
+      "sha256": "d4732e1cfaa806c6b3bf408d217ef27f1a80814c888e4159fbc12dcbcca8661b"
+    },
+    {
+      "path": "/tmp/issue1260-d1/focused-settled/runs.ndjson",
+      "runId": "verify-1792667291752",
+      "phase": "verify",
+      "counts": {
+        "compiler": 16,
+        "setupCompiler": 1,
+        "reference": 16,
+        "production": 16
+      },
+      "results": 16,
+      "sha256": "072f815aa9e501df23a565bca4a8faf682aca3f05f1609be58bf212302729113"
+    },
+    {
+      "path": "/tmp/issue1260-d1/focused-verified/runs.ndjson",
+      "runId": "verify-1792667670412",
+      "phase": "verify",
+      "counts": {
+        "compiler": 16,
+        "setupCompiler": 1,
+        "reference": 16,
+        "production": 16
+      },
+      "results": 16,
+      "sha256": "ac53942d1d9cb5381cf676eb3a0937a52faf0680137751af7d9c812e7a350c81"
+    },
+    {
+      "path": "/tmp/issue1260-d1/owner-fix/runs.ndjson",
+      "runId": "discover-1792666832797",
+      "phase": "discover",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 5
+      },
+      "results": 8,
+      "sha256": "320fa0586115b2783256371d2dc3967d4e2cbe090ed27d1713590ab64f2ff166"
+    },
+    {
+      "path": "/tmp/issue1260-d1/pilot/runs.ndjson",
+      "runId": "discover-1792666578965",
+      "phase": "discover",
+      "counts": {
+        "compiler": 19,
+        "setupCompiler": 1,
+        "reference": 16,
+        "production": 16
+      },
+      "results": 17,
+      "sha256": "49f0544794ed0b0aa8bfb63ddda39c72ae53c0b269dc59b364f32b100aef9fd4"
+    },
+    {
+      "path": "/tmp/issue1260-d1/prevalidate2/runs.ndjson",
+      "runId": "prevalidate-1792666504348",
+      "phase": "prevalidate",
+      "counts": {
+        "compiler": 27,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "results": 27,
+      "sha256": "a75217dd99f2e0e522d0dff0f00d6395d101c1ed857f0833568757356c4237f3"
+    },
+    {
+      "path": "/tmp/issue1260-d1/primary-prevalidate/runs.ndjson",
+      "runId": "prevalidate-1792666464047",
+      "phase": "prevalidate",
+      "counts": {
+        "compiler": 27,
+        "setupCompiler": 1,
+        "reference": 0,
+        "production": 0
+      },
+      "results": 27,
+      "sha256": "948fa5d3b2681e95c892d0ce78f5f84c99a3d9961210c674c467145713a5cc75"
+    },
+    {
+      "path": "/tmp/issue1260-d1/required/runs.ndjson",
+      "runId": "required-1792669135696",
+      "phase": "required",
+      "counts": {
+        "compiler": 25,
+        "setupCompiler": 1,
+        "reference": 25,
+        "production": 25
+      },
+      "results": 25,
+      "sha256": "9da542342499f09bb0d0b86e092389061f3f167214a128ecd9aac1f7d0301d42"
+    },
+    {
+      "path": "/tmp/issue1260-d1/required-first/runs.ndjson",
+      "runId": "required-1792668013728",
+      "phase": "required",
+      "counts": {
+        "compiler": 17,
+        "setupCompiler": 1,
+        "reference": 17,
+        "production": 17
+      },
+      "results": 17,
+      "sha256": "8736dd47bdbd26effa998bd289cb5ec238f9add990b1425bec7b116ff5ef6858"
+    },
+    {
+      "path": "/tmp/issue1260-d1/settled-all/runs.ndjson",
+      "runId": "discover-1792667824269",
+      "phase": "discover",
+      "counts": {
+        "compiler": 32,
+        "setupCompiler": 1,
+        "reference": 28,
+        "production": 26
+      },
+      "results": 32,
+      "sha256": "b6059bd7dfa0f2ae3e8730fb12b19028ee0f6175deb7d37b4dc3835bf602ebef"
+    },
+    {
+      "path": "/tmp/issue1260-d1/settled-discovery/runs.ndjson",
+      "runId": "discover-1792667078927",
+      "phase": "discover",
+      "counts": {
+        "compiler": 31,
+        "setupCompiler": 1,
+        "reference": 27,
+        "production": 25
+      },
+      "results": 31,
+      "sha256": "e610ed280e9a4dfeffa99c622bedb678c00caceba2bd29b2aac168853388d58e"
+    },
+    {
+      "path": "/tmp/issue1260-d1/settled-final/runs.ndjson",
+      "runId": "discover-1792668886212",
+      "phase": "discover",
+      "counts": {
+        "compiler": 32,
+        "setupCompiler": 1,
+        "reference": 28,
+        "production": 26
+      },
+      "results": 32,
+      "sha256": "4146b09e8f88179d715af4fbd56d2faf6eba19c9d90a8bc191b4e22fdc3e041b"
+    },
+    {
+      "path": "/tmp/issue1260-d1/stage4-regression/runs.ndjson",
+      "runId": null,
+      "phase": "verify",
+      "counts": {
+        "compiler": 2,
+        "reference": 12,
+        "production": 12
+      },
+      "results": 0,
+      "sha256": "9138a956336b3eb2087b3d571868499ae74b19def65a8799e89539eb4dcd9b4e"
+    }
+  ],
+  "units": "Public canonical source-compile requests; blank regeneration separately setupCompiler; TS reference calls; normally eligible real persistent Rust request attempts. No inference of model quota consumption.",
+  "coverage": "Totals cover instrumented task-owned runs and the separately instrumented Stage 4 diagnosis. Other historical/full-suite internal request counts were not instrumented and are NOT_MEASURED, not zero. Test/command invocations are retained in verification.json.",
+  "quota": {
+    "attribution": "CONFOUNDED by concurrent Human use; measurement waived",
+    "humanObservedReadings": null,
+    "percentagesEstimated": false
+  },
+  "processes": {
+    "requestTimeoutMs": 10000,
+    "cargoBuildTimeoutMs": 120000,
+    "testTimeoutMs": 60000,
+    "runnerProcessLifetimeMs": 600000,
+    "cleanupTimeoutMs": 5000,
+    "requiredBlockBoundSeconds": 1200,
+    "requiredNpmTestBoundSeconds": 600,
+    "requiredOtherCommandBoundSeconds": 180,
+    "requiredProcessGroup": 77292,
+    "ownedGroupRemainingProcesses": [],
+    "resourceError": null,
+    "lifecycle": [
+      {
+        "path": "/tmp/issue1260-d1/focused-final/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/focused-new/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/closure-fix/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/settled-all/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/final-discovery/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/owner-fix/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/required-first/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/base-regression/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/settled-discovery/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/required/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/clock-fix/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/base-adjacent/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/focused-complete-selection/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/focused-selection-fixed/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/pilot/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/focused-settled/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/settled-final/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/base/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/focused-verified/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      },
+      {
+        "path": "/tmp/issue1260-d1/base-primary/lifecycle.ndjson",
+        "spawned": 1,
+        "closed": 1,
+        "nonzeroExit": [
+          {
+            "code": null,
+            "signal": "SIGTERM"
+          }
+        ]
+      }
+    ]
+  },
+  "acceptedNewSourceCount": 24,
+  "historical1194AcceptedSourceCount": 276
+}

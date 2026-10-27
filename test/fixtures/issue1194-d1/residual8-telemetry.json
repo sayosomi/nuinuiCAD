@@ -1,0 +1,381 @@
+{
+  "instrumentedRuns": [
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/base-exact",
+      "runId": "base-exact-1792640096508",
+      "phase": "base-exact",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 33,
+        "setupCompiler": 1,
+        "reference": 33,
+        "production": 33
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 14,
+        "UNRESOLVED": 19
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/base-pilot",
+      "runId": "base-pilot-1792638773055",
+      "phase": "base-pilot",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 3,
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/base-reduce",
+      "runId": "base-reduce-1792638839636",
+      "phase": "base-reduce",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 3,
+        "setupCompiler": 1,
+        "reference": 3,
+        "production": 3
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 2,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/base-regression",
+      "runId": "base-regression-1792640100437",
+      "phase": "base-regression",
+      "sourceTreeSha256": "7d454c9a9cbf23e4ca29f28a8531d1d341f127486b44a9e7037f1effc5b4691c",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 4,
+        "UNRESOLVED": 4
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/boundaries",
+      "runId": "boundaries-1792639917304",
+      "phase": "boundaries",
+      "sourceTreeSha256": "07fa28cd15364ce26927ee7812643cabacc02014c7332f628a36eda80555064a",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 1,
+        "PASS": 7
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/constructed-occurrences",
+      "runId": "constructed-occurrences-1792639540567",
+      "phase": "constructed-occurrences",
+      "sourceTreeSha256": "9b14283b38df303167ff1155bbb81d1dc870da4acc67ce2ca12e9524742a035e",
+      "counts": {
+        "compiler": 15,
+        "setupCompiler": 1,
+        "reference": 15,
+        "production": 15
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 14,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/expanded",
+      "runId": "expanded-1792639484445",
+      "phase": "expanded",
+      "sourceTreeSha256": "5df6c673551bbf0860993b16cc9bd693d122c8d365092f762e6cffb9dd7ce9d4",
+      "counts": {
+        "compiler": 7,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 4,
+        "UNRESOLVED": 3
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/geometry-selection",
+      "runId": "geometry-selection-1792639130439",
+      "phase": "geometry-selection",
+      "sourceTreeSha256": "f7214afe844ac8cf0d312944f2d765ecdb3c0f09efe0fc6e98daf5549a778585",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 5,
+        "UNRESOLVED": 3
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/identity-focused",
+      "runId": "identity-focused-1792640042218",
+      "phase": "identity-focused",
+      "sourceTreeSha256": "07fa28cd15364ce26927ee7812643cabacc02014c7332f628a36eda80555064a",
+      "counts": {
+        "compiler": 26,
+        "setupCompiler": 1,
+        "reference": 26,
+        "production": 26
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 26
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/index-references",
+      "runId": "index-references-1792638860590",
+      "phase": "index-references",
+      "sourceTreeSha256": "2a1680612db9b37f615a6e45f907449d690989dab769a0b17f3f209c8f7a1e64",
+      "counts": {
+        "compiler": 4,
+        "setupCompiler": 1,
+        "reference": 4,
+        "production": 4
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 3,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/lazy-selection",
+      "runId": "lazy-selection-1792639697720",
+      "phase": "lazy-selection",
+      "sourceTreeSha256": "f54ea5c46ae3cfbb752f02349a5ddcadad0377ddb2991689aa7814ceb0921cc2",
+      "counts": {
+        "compiler": 5,
+        "setupCompiler": 1,
+        "reference": 5,
+        "production": 5
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 3,
+        "UNRESOLVED": 2
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/optional-identity",
+      "runId": "optional-identity-1792639419115",
+      "phase": "optional-identity",
+      "sourceTreeSha256": "5df6c673551bbf0860993b16cc9bd693d122c8d365092f762e6cffb9dd7ce9d4",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 8
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/presettled-focused",
+      "runId": "presettled-focused-1792640206556",
+      "phase": "presettled-focused",
+      "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+      "counts": {
+        "compiler": 26,
+        "setupCompiler": 1,
+        "reference": 26,
+        "production": 26
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 26
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/record-lazy-identity",
+      "runId": "record-lazy-identity-1792639610255",
+      "phase": "record-lazy-identity",
+      "sourceTreeSha256": "11f0819d539bf9e49b8f39cd7d7f81daa5a1f05aa83d95d054a00c1b76e160b9",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 1,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/reducers",
+      "runId": "reducers-1792639779578",
+      "phase": "reducers",
+      "sourceTreeSha256": "3e2c5c2e8e1a57ba263773d505b8bc799fc6c17deadef1f32d8476db815a4e70",
+      "counts": {
+        "compiler": 25,
+        "setupCompiler": 1,
+        "reference": 25,
+        "production": 25
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 19,
+        "UNRESOLVED": 6
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/required",
+      "runId": "required-1792640237298",
+      "phase": "required",
+      "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+      "counts": {
+        "compiler": 26,
+        "setupCompiler": 1,
+        "reference": 26,
+        "production": 26
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 26
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/required",
+      "runId": "required-1792640509404",
+      "phase": "required",
+      "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+      "counts": {
+        "compiler": 26,
+        "setupCompiler": 1,
+        "reference": 26,
+        "production": 26
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 26
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/selection-context",
+      "runId": "selection-context-1792639218041",
+      "phase": "selection-context",
+      "sourceTreeSha256": "820bbefc0649013480cfedd71210a10a0a91e67c5081f2c7a4733fc52239ea99",
+      "counts": {
+        "compiler": 8,
+        "setupCompiler": 1,
+        "reference": 8,
+        "production": 8
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 7,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/sensitivity-F45",
+      "runId": "sensitivity-F45-1792640151301",
+      "phase": "sensitivity-F45",
+      "sourceTreeSha256": "772c4d9ac00beda217d026b1ffd08f544e55c13cb518bdd5a26326a410173d43",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "PASS": 1,
+        "UNRESOLVED": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/sensitivity-F46",
+      "runId": "sensitivity-F46-1792640154709",
+      "phase": "sensitivity-F46",
+      "sourceTreeSha256": "c3dc1468138b48a6e78e11d88f735ed046c7de87a96de48d8c1fcdca22ff72dc",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 1,
+        "PASS": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/sensitivity-F47",
+      "runId": "sensitivity-F47-1792640158302",
+      "phase": "sensitivity-F47",
+      "sourceTreeSha256": "b30a90b249e1bd0962d3a2248c8ac1eb60d76b6ade7797a464163fc91f102b6b",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 1,
+        "PASS": 1
+      }
+    },
+    {
+      "evidenceDirectory": "/tmp/issue1194-residual8/sensitivity-F48",
+      "runId": "sensitivity-F48-1792640161616",
+      "phase": "sensitivity-F48",
+      "sourceTreeSha256": "45d4271f7da5dafffe6192d101ebddb8efa1c9c06d6aa9d7b18e661747b3b802",
+      "counts": {
+        "compiler": 2,
+        "setupCompiler": 1,
+        "reference": 2,
+        "production": 2
+      },
+      "resourceError": null,
+      "outcomes": {
+        "UNRESOLVED": 1,
+        "PASS": 1
+      }
+    }
+  ],
+  "counts": {
+    "compiler": 251,
+    "setupCompiler": 22,
+    "reference": 249,
+    "production": 249
+  },
+  "exclusions": "Historical/parity/full-suite harness calls are not attributed to this runner. These are actual eighth-runner invocations, not quota measurements.",
+  "quotaAttribution": "CONFOUNDED; concurrent independent Human use; measurement waived. No quota readings/estimates."
+}

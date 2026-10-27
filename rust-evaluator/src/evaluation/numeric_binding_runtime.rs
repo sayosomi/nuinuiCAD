@@ -53,7 +53,17 @@ fn utf16_byte_offset(value: &str, offset: usize) -> Option<usize> {
 
 fn numeric_expression<'a>(element: &'a Value, parameter_key: &str) -> Option<&'a str> {
     let object = element.as_object()?;
-    let value = if let Some(rest) = parameter_key.strip_prefix("intermediate:") {
+    let value = if let Some(rest) = parameter_key.strip_prefix("points:") {
+        let (index, axis) = rest.split_once(':')?;
+        if !matches!(axis, "x" | "y") {
+            return None;
+        }
+        object
+            .get("points")?
+            .as_array()?
+            .get(index.parse::<usize>().ok()?)?
+            .get(axis)?
+    } else if let Some(rest) = parameter_key.strip_prefix("intermediate:") {
         let (id, field) = rest.split_once(':')?;
         object
             .get("intermediatePoints")?
@@ -84,6 +94,17 @@ fn numeric_expression_mut<'a>(
     parameter_key: &str,
 ) -> Option<&'a mut Value> {
     let object = element.as_object_mut()?;
+    if let Some(rest) = parameter_key.strip_prefix("points:") {
+        let (index, axis) = rest.split_once(':')?;
+        if !matches!(axis, "x" | "y") {
+            return None;
+        }
+        return object
+            .get_mut("points")?
+            .as_array_mut()?
+            .get_mut(index.parse::<usize>().ok()?)?
+            .get_mut(axis);
+    }
     if let Some(rest) = parameter_key.strip_prefix("intermediate:") {
         let (id, field) = rest.split_once(':')?;
         return object
@@ -849,6 +870,7 @@ mod tests {
     fn geometry_state(element: Value) -> EvaluationState {
         EvaluationState {
             completed_transformation_recipe_indices: std::collections::HashSet::new(),
+            completed_transformation_targets: HashMap::new(),
             transformation_dependency_plans: None,
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
@@ -891,6 +913,7 @@ mod tests {
             base_transformation_geometry: HashMap::new(),
             transformation_stage_geometry: HashMap::new(),
             computed_geometry_values: HashMap::new(),
+            lazy_geometry_value_programs: HashMap::new(),
             computed_geometry_order: vec![String::from("baseline"), String::from("p")],
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),
@@ -905,6 +928,7 @@ mod tests {
     fn state(element: Value) -> EvaluationState {
         EvaluationState {
             completed_transformation_recipe_indices: std::collections::HashSet::new(),
+            completed_transformation_targets: HashMap::new(),
             transformation_dependency_plans: None,
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
@@ -920,6 +944,7 @@ mod tests {
             base_transformation_geometry: HashMap::new(),
             transformation_stage_geometry: HashMap::new(),
             computed_geometry_values: HashMap::new(),
+            lazy_geometry_value_programs: HashMap::new(),
             computed_geometry_order: Vec::new(),
             pre_mutation_geometry: HashMap::new(),
             geometry_mutation_executions: Vec::new(),

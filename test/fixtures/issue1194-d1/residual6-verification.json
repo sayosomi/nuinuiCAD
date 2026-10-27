@@ -1,0 +1,115 @@
+{
+  "status": "PASS",
+  "base": "05b4fa7078d5625090d5cb42a5131383c74f9cad",
+  "priorCheckpoint": "ada1bbcc29fd483c4f5b7aa1a7d669b60d5d4af0",
+  "finalizedFamilies": [
+    "F35",
+    "F36",
+    "F37",
+    "F38",
+    "F39",
+    "F40",
+    "F41"
+  ],
+  "focused": {
+    "command": "ISSUE1194_RESIDUAL6_PHASE=verified-focused ISSUE1194_RESIDUAL6_EVIDENCE=/tmp/issue1194-residual6 VITEST_MAX_WORKERS=1 npx vitest run test/issue1194Residual6D1Rust.integration.test.ts test/issue1194Residual5D1Rust.integration.test.ts test/issue1194Residual4D1Rust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/scalars/recordScalarIntegration.test.ts src/dsl/recordDocumentIntegration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/recordSemanticAnalysis.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/moduleGeometryRuntime.integration.test.ts src/dsl/geometryArrayRuntimeLowering.integration.test.ts src/dsl/geometryArraySemanticAnalysis.integration.test.ts test/statementForDrawableOccurrenceRust.integration.test.ts test/mappedGeometryOccurrenceIdentityRust.integration.test.ts src/scalars/immutableCarry.integration.test.ts",
+    "files": 15,
+    "passed": 478,
+    "skipped": 6,
+    "log": "/tmp/issue1194-r6-verified-focused.log"
+  },
+  "requiredBlock": {
+    "command": "VITEST_MAX_WORKERS=1 /bin/zsh /tmp/issue1194-r4-required-gates.zsh",
+    "script": "(\n  set -e\n  cd /Users/yosomi/Code/nuinuiCAD || {\n    echo \"BLOCKED: implementation checkout missing\"\n    exit 1\n  }\n\n  npx vitest run \\\n    test/issue1194StructuredD1Rust.integration.test.ts \\\n    test/issue1194ResidualD1Rust.integration.test.ts \\\n    test/issue1194Residual3D1Rust.integration.test.ts \\\n    test/issue1376RootRecordModuleFieldsRust.integration.test.ts \\\n    test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts \\\n    test/issue1421EvaluatorStrategyRust.integration.test.ts \\\n    test/issue1428TargetedStage7Rust.integration.test.ts\n\n  npm run build\n  npm run lint\n  npm run test:parity\n  npm test\n  npm run docs:dsl:check\n\n  if [[ -n \"$(git diff --name-only 4a43b27fe969c0e33350c973842966525fe8bc1f -- rust-evaluator/)\" ]]; then\n    cargo fmt --check --manifest-path rust-evaluator/Cargo.toml\n    cargo check --manifest-path rust-evaluator/Cargo.toml\n    cargo test --manifest-path rust-evaluator/Cargo.toml\n    cargo clippy --all-targets --manifest-path rust-evaluator/Cargo.toml\n  fi\n\n  git diff --check\n)\n",
+    "result": {
+      "command": "VITEST_MAX_WORKERS=1 /bin/zsh /tmp/issue1194-r6-gates-npm-resume.zsh",
+      "scriptSha256": "3c9d69cc1c6b4c46c75f6fb46d954cbcf556da9f7bf8b52eeb8bf66eb05c6d24",
+      "exitCode": 0,
+      "seconds": 550.8710314590135,
+      "stopReason": null,
+      "binarySha256": "100d197779478530e49c35b0418374df286a62b8e9dd82f95ca4da5740681500",
+      "binaryContentUnchanged": true,
+      "serializedWorkers": 1
+    },
+    "completedSuffixScript": "(\n  set -e\n  cd /Users/yosomi/Code/nuinuiCAD || {\n    echo \"BLOCKED: implementation checkout missing\"\n    exit 1\n  }\n\n  npm test\n  npm run docs:dsl:check\n\n  if [[ -n \"$(git diff --name-only 4a43b27fe969c0e33350c973842966525fe8bc1f -- rust-evaluator/)\" ]]; then\n    cargo fmt --check --manifest-path rust-evaluator/Cargo.toml\n    cargo check --manifest-path rust-evaluator/Cargo.toml\n    cargo test --manifest-path rust-evaluator/Cargo.toml\n    cargo clippy --all-targets --manifest-path rust-evaluator/Cargo.toml\n  fi\n\n  git diff --check\n)\n",
+    "unchangedSourceBetweenPrefixSuffix": true,
+    "prefixLog": "/tmp/issue1194-r6-final-gates-after-map.log",
+    "log": "/tmp/issue1194-r6-gates-npm-resume.log",
+    "continuation": "On the same settled source, complete block passed historical7/build/lint/parity; npm gate was interrupted only by the external artifact monitor. After diagnostic correction and signature/smoke checks, npm test resumed and remaining commands completed in original order."
+  },
+  "priorGateCorrections": [
+    "External generated-binary hash monitor raised FileNotFoundError during Cargo artifact recreation; corrected bounded artifact observation, verified signature and one fresh smoke, resumed npm gate without source changes. No actual execution denial.",
+    "Build rejected geometry target type bridge annotation; restored the canonical target type from the existing erased generic carrier.",
+    "Lint rejected an unused type import; removed it.",
+    "Full npm 10784 PASS / 4 FAIL exposed cardinality aliases replacing canonical mapped geometry nodes; preserved existing geometry nodes, all four controls passed before final full gates.",
+    "Parity 202 PASS / 1 FAIL exposed root optional geometry collection presence metadata; reused existing optionalCollectionMatchPresenceProjection. Existing failed parity test then passed, final focused rerun passed, and complete original ordered block rerun on settled tree."
+  ],
+  "sourceScope": "Only authorized DSL/scalar semantic owners and tests/fixtures; no Rust source delta, grammar/spec change or architecture boundary change.",
+  "accepted": {
+    "historical": 188,
+    "sixth": 27,
+    "previousCheckpoint": 211,
+    "mandatoryProofReductionNew": 4,
+    "cumulative": 215,
+    "ceiling": null
+  },
+  "residuals": [
+    "G-construct/G-scalar-source/G-direct-control root runtime paths remain UNRESOLVED under excluded generic root scheduling #1260; excluded from verify, not counted as repaired runtime paths.",
+    "File-public and qualified imported record-type grammar remains CONTRACT_AMBIGUOUS pending Human contract.",
+    "Deeper nested geometry collection aliases, mapped constructor source chains and other unprobed combinations remain NOT_COVERED."
+  ],
+  "quota": {
+    "humanWeeklyBaselineRemaining": 74,
+    "ending": "UNAVAILABLE",
+    "attributableConsumption": "UNAVAILABLE"
+  },
+  "nextSafeAction": "Independent blocking review of exact pushed HEAD, including seven first-loss proofs and full gate evidence, before protected PR/CI integration. No PR/merge/Issue closure by implementation agent.",
+  "results": {
+    "historicalSevenRunners": {
+      "filesPassed": 7,
+      "passed": 320,
+      "skipped": 4
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "test:parity": {
+      "passed": 203,
+      "failed": 0
+    },
+    "npm test": {
+      "filesPassed": 675,
+      "filesSkipped": 2,
+      "passed": 10788,
+      "failed": 0,
+      "skipped": 167
+    },
+    "docs:dsl:check": "PASS",
+    "cargo fmt --check": "PASS",
+    "cargo check": "PASS",
+    "cargo test": {
+      "passed": 621,
+      "ignored": 9,
+      "failed": 0,
+      "components": [
+        614,
+        6,
+        1
+      ]
+    },
+    "cargo clippy --all-targets": "PASS",
+    "git diff --check": "PASS"
+  },
+  "instrumentedSixthRunnerCounts": {
+    "compiler": 337,
+    "setupCompiler": 32,
+    "reference": 293,
+    "production": 293
+  },
+  "externalProductionRequests": 5,
+  "caseDispositions": {
+    "PASS": 7,
+    "REPAIRED_THEN_PASS": 19,
+    "UNRESOLVED": 3,
+    "CONTRACT_INVALID": 2
+  }
+}

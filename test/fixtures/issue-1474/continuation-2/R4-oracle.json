@@ -1,0 +1,320 @@
+{
+  "dependencies": {
+    "ControlPoint": [],
+    "ControlScalar": [],
+    "Join0": [
+      "Left0",
+      "Right0"
+    ],
+    "Join1": [
+      "Left1",
+      "Right1"
+    ],
+    "Join2": [
+      "Left2",
+      "Right2"
+    ],
+    "Join3": [
+      "Left3",
+      "Right3"
+    ],
+    "Join4": [
+      "Left4",
+      "Right4"
+    ],
+    "Join5": [
+      "Left5",
+      "Right5"
+    ],
+    "Join6": [
+      "Left6",
+      "Right6"
+    ],
+    "Join7": [
+      "Left7",
+      "Right7"
+    ],
+    "Left0": [
+      "Producer"
+    ],
+    "Left1": [
+      "Join0"
+    ],
+    "Left2": [
+      "Join1"
+    ],
+    "Left3": [
+      "Join2"
+    ],
+    "Left4": [
+      "Join3"
+    ],
+    "Left5": [
+      "Join4"
+    ],
+    "Left6": [
+      "Join5"
+    ],
+    "Left7": [
+      "Join6"
+    ],
+    "Producer": [],
+    "Right0": [
+      "Producer"
+    ],
+    "Right1": [
+      "Join0"
+    ],
+    "Right2": [
+      "Join1"
+    ],
+    "Right3": [
+      "Join2"
+    ],
+    "Right4": [
+      "Join3"
+    ],
+    "Right5": [
+      "Join4"
+    ],
+    "Right6": [
+      "Join5"
+    ],
+    "Right7": [
+      "Join6"
+    ]
+  },
+  "geometry": {
+    "ControlPoint": {
+      "type": "point",
+      "x": -23,
+      "y": 31
+    },
+    "Join0": {
+      "type": "point",
+      "x": 4,
+      "y": -4
+    },
+    "Join1": {
+      "type": "point",
+      "x": 6,
+      "y": -6
+    },
+    "Join2": {
+      "type": "point",
+      "x": 9,
+      "y": -9
+    },
+    "Join3": {
+      "type": "point",
+      "x": 13,
+      "y": -13
+    },
+    "Join4": {
+      "type": "point",
+      "x": 18,
+      "y": -18
+    },
+    "Join5": {
+      "type": "point",
+      "x": 24,
+      "y": -24
+    },
+    "Join6": {
+      "type": "point",
+      "x": 31,
+      "y": -31
+    },
+    "Join7": {
+      "type": "point",
+      "x": 39,
+      "y": -39
+    },
+    "Left0": {
+      "end": {
+        "x": 1,
+        "y": -1
+      },
+      "start": {
+        "x": 3,
+        "y": -3
+      },
+      "type": "line"
+    },
+    "Left1": {
+      "end": {
+        "x": 2,
+        "y": -2
+      },
+      "start": {
+        "x": 4,
+        "y": -4
+      },
+      "type": "line"
+    },
+    "Left2": {
+      "end": {
+        "x": 3,
+        "y": -3
+      },
+      "start": {
+        "x": 6,
+        "y": -6
+      },
+      "type": "line"
+    },
+    "Left3": {
+      "end": {
+        "x": 4,
+        "y": -4
+      },
+      "start": {
+        "x": 9,
+        "y": -9
+      },
+      "type": "line"
+    },
+    "Left4": {
+      "end": {
+        "x": 5,
+        "y": -5
+      },
+      "start": {
+        "x": 13,
+        "y": -13
+      },
+      "type": "line"
+    },
+    "Left5": {
+      "end": {
+        "x": 6,
+        "y": -6
+      },
+      "start": {
+        "x": 18,
+        "y": -18
+      },
+      "type": "line"
+    },
+    "Left6": {
+      "end": {
+        "x": 7,
+        "y": -7
+      },
+      "start": {
+        "x": 24,
+        "y": -24
+      },
+      "type": "line"
+    },
+    "Left7": {
+      "end": {
+        "x": 8,
+        "y": -8
+      },
+      "start": {
+        "x": 31,
+        "y": -31
+      },
+      "type": "line"
+    },
+    "Producer": {
+      "type": "point",
+      "x": 3,
+      "y": -3
+    },
+    "Right0": {
+      "end": {
+        "x": 2,
+        "y": -2
+      },
+      "start": {
+        "x": 3,
+        "y": -3
+      },
+      "type": "line"
+    },
+    "Right1": {
+      "end": {
+        "x": 3,
+        "y": -3
+      },
+      "start": {
+        "x": 4,
+        "y": -4
+      },
+      "type": "line"
+    },
+    "Right2": {
+      "end": {
+        "x": 4,
+        "y": -4
+      },
+      "start": {
+        "x": 6,
+        "y": -6
+      },
+      "type": "line"
+    },
+    "Right3": {
+      "end": {
+        "x": 5,
+        "y": -5
+      },
+      "start": {
+        "x": 9,
+        "y": -9
+      },
+      "type": "line"
+    },
+    "Right4": {
+      "end": {
+        "x": 6,
+        "y": -6
+      },
+      "start": {
+        "x": 13,
+        "y": -13
+      },
+      "type": "line"
+    },
+    "Right5": {
+      "end": {
+        "x": 7,
+        "y": -7
+      },
+      "start": {
+        "x": 18,
+        "y": -18
+      },
+      "type": "line"
+    },
+    "Right6": {
+      "end": {
+        "x": 8,
+        "y": -8
+      },
+      "start": {
+        "x": 24,
+        "y": -24
+      },
+      "type": "line"
+    },
+    "Right7": {
+      "end": {
+        "x": 9,
+        "y": -9
+      },
+      "start": {
+        "x": 31,
+        "y": -31
+      },
+      "type": "line"
+    }
+  },
+  "scalars": {
+    "ControlScalar": 19
+  },
+  "semanticE": 32,
+  "semanticV": 27
+}

@@ -16,6 +16,12 @@ use super::scalars::{
 };
 use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOccurrence};
 
+#[cfg(test)]
+thread_local! {
+    static READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static MODULE_PREREQUISITE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawConditionalDependencyGraph {
@@ -104,6 +110,7 @@ struct ConditionalDependencyGuard {
 #[derive(Debug)]
 pub(crate) struct ConditionalDependencyGraph {
     edges: Vec<ConditionalDependencyEdge>,
+    module_occurrence_edge_indices_by_from: HashMap<String, Vec<usize>>,
 }
 
 pub(crate) struct ActivatedConditionalDependencies {
@@ -125,6 +132,7 @@ struct DependencyReadinessContext<'a> {
     branch_selections: &'a HashMap<String, String>,
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
+    completed_element_ids: Option<&'a HashSet<ElementId>>,
     evaluated_geometry_values: &'a [bool],
     geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
 }
@@ -132,6 +140,7 @@ struct DependencyReadinessContext<'a> {
 struct GeometryDependencyReadinessContext<'a> {
     branch_selections: &'a HashMap<String, String>,
     state: &'a EvaluationState,
+    completed_element_ids: Option<&'a HashSet<ElementId>>,
 }
 
 struct GeometryPropertyReadinessContext<'a> {
@@ -139,6 +148,7 @@ struct GeometryPropertyReadinessContext<'a> {
     endpoints: HashMap<String, &'a ConditionalDependencyEndpoint>,
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
+    completed_element_ids: Option<&'a HashSet<ElementId>>,
     evaluated_geometry_values: &'a [bool],
     geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
     source_order_by_binding_id: Option<&'a HashMap<String, usize>>,
@@ -150,6 +160,7 @@ pub(crate) struct DependencyScheduledBindingReadiness<'a> {
     pub(crate) branch_selections: &'a HashMap<String, String>,
     pub(crate) resolver: &'a dyn ScalarDocumentBindingResolver,
     pub(crate) state: &'a EvaluationState,
+    pub(crate) completed_element_ids: Option<&'a HashSet<ElementId>>,
     pub(crate) evaluated_geometry_values: &'a [bool],
     pub(crate) geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
 }
@@ -209,7 +220,7 @@ pub(crate) fn decode_conditional_dependency_graph(
             activation,
         });
     }
-    Ok(Some(ConditionalDependencyGraph { edges }))
+    Ok(Some(ConditionalDependencyGraph::from_edges(edges)))
 }
 
 fn encode_identity_tuple(parts: &[String]) -> String {
@@ -334,6 +345,22 @@ fn activation_path_is_active(
         })
 }
 
+fn element_geometry_prerequisite_ready(
+    state: &EvaluationState,
+    element_id: &str,
+    completed: Option<&HashSet<ElementId>>,
+) -> bool {
+    state.computed_geometry.contains_key(element_id)
+        || (completed.is_some_and(|ids| ids.contains(element_id))
+            && state
+                .elements_by_id
+                .get(element_id)
+                .and_then(|index| state.elements.get(*index))
+                .and_then(|element| element.get("type"))
+                .and_then(Value::as_str)
+                == Some("forGroup"))
+}
+
 fn geometry_property_prerequisites_are_ready(
     endpoint_id: &str,
     context: &GeometryPropertyReadinessContext<'_>,
@@ -377,7 +404,11 @@ fn geometry_property_prerequisites_are_ready(
                     }
                     None => false,
                 },
-                "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+                "element" => element_geometry_prerequisite_ready(
+                    context.state,
+                    &endpoint.id,
+                    context.completed_element_ids,
+                ),
                 "module-occurrence" => context.state.instance_base_geometry.contains_key(
                     endpoint
                         .id
@@ -414,6 +445,22 @@ fn geometry_property_prerequisites_are_ready(
 }
 
 impl ConditionalDependencyGraph {
+    fn from_edges(edges: Vec<ConditionalDependencyEdge>) -> Self {
+        let mut module_occurrence_edge_indices_by_from = HashMap::<String, Vec<usize>>::new();
+        for (edge_index, edge) in edges.iter().enumerate() {
+            if edge.to.kind == "module-occurrence" {
+                module_occurrence_edge_indices_by_from
+                    .entry(endpoint_key(&edge.from))
+                    .or_default()
+                    .push(edge_index);
+            }
+        }
+        Self {
+            edges,
+            module_occurrence_edge_indices_by_from,
+        }
+    }
+
     /// Binding IDs that directly or transitively depend on a geometry
     /// property. Scalar forwarding declarations participate in the same
     /// dependency ordering as the geometry-derived binding they expose.
@@ -428,7 +475,7 @@ impl ConditionalDependencyGraph {
                 continue;
             }
             match edge.to.kind.as_str() {
-                "geometry-value" | "geometry-stage" | "module-occurrence" => {
+                "element" | "geometry-value" | "geometry-stage" | "module-occurrence" => {
                     geometry_dependent_bindings.insert(edge.from.id.clone());
                 }
                 "binding" => binding_dependents
@@ -482,6 +529,57 @@ impl ConditionalDependencyGraph {
             }
         }
         scheduled_binding_ids
+    }
+
+    /// Immutable binding prerequisites of forward geometry inputs. Follow only
+    /// canonical active edges; control-owned declarations keep their event fence.
+    pub(crate) fn early_geometry_input_bindings(
+        &self,
+        branch_selections: &HashMap<String, String>,
+        binding_orders: &HashMap<String, usize>,
+        element_orders: &HashMap<String, usize>,
+        linear_bindings: &HashSet<String>,
+    ) -> HashSet<String> {
+        let mut prerequisites = HashMap::<&str, Vec<&str>>::new();
+        for edge in &self.edges {
+            if edge.from.kind == "binding"
+                && edge.to.kind == "binding"
+                && edge_is_active(edge, branch_selections)
+            {
+                prerequisites
+                    .entry(&edge.from.id)
+                    .or_default()
+                    .push(&edge.to.id);
+            }
+        }
+        let mut early = HashSet::new();
+        for edge in &self.edges {
+            if edge.from.kind != "element"
+                || edge.to.kind != "binding"
+                || !edge_is_active(edge, branch_selections)
+            {
+                continue;
+            }
+            let Some(consumer_order) = element_orders.get(&edge.from.id) else {
+                continue;
+            };
+            let mut pending = vec![edge.to.id.as_str()];
+            let mut closure = HashSet::new();
+            let mut has_forward = false;
+            while let Some(binding_id) = pending.pop() {
+                if !linear_bindings.contains(binding_id) || !closure.insert(binding_id) {
+                    continue;
+                }
+                has_forward |= binding_orders
+                    .get(binding_id)
+                    .is_some_and(|order| order > consumer_order);
+                pending.extend(prerequisites.get(binding_id).into_iter().flatten().copied());
+            }
+            if has_forward {
+                early.extend(closure.into_iter().map(str::to_owned));
+            }
+        }
+        early
     }
 
     /// Scalar bindings referenced by if/match selectors in immutable geometry
@@ -565,9 +663,14 @@ impl ConditionalDependencyGraph {
         &self,
         readiness: DependencyScheduledBindingReadiness<'_>,
     ) -> HashSet<String> {
+        if readiness.candidate_binding_ids.is_empty() {
+            return HashSet::new();
+        }
         let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
         let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
         for edge in &self.edges {
+            #[cfg(test)]
+            READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
             let from_id = endpoint_key(&edge.from);
             let to_id = endpoint_key(&edge.to);
             endpoints.entry(from_id.clone()).or_insert(&edge.from);
@@ -582,6 +685,7 @@ impl ConditionalDependencyGraph {
             endpoints,
             resolver: readiness.resolver,
             state: readiness.state,
+            completed_element_ids: readiness.completed_element_ids,
             evaluated_geometry_values: readiness.evaluated_geometry_values,
             geometry_value_index_by_endpoint_id: readiness.geometry_value_index_by_endpoint_id,
             source_order_by_binding_id: Some(readiness.source_order_by_binding_id),
@@ -686,6 +790,12 @@ impl ConditionalDependencyGraph {
                         branches: Vec::new(),
                         prerequisite_endpoint_ids: Vec::new(),
                     });
+                // Module atomicity forwards this activation to consumers.
+                // Their prerequisites must not become the producer's own
+                // controller prerequisites (which would wait for its output).
+                if candidate.source_endpoint_id != source_endpoint_id {
+                    continue;
+                }
                 if !candidate.branches.contains(&guard.branch) {
                     candidate.branches.push(guard.branch.clone());
                 }
@@ -713,6 +823,7 @@ impl ConditionalDependencyGraph {
         candidates.into_values().collect()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn endpoint_is_ready(
         &self,
         endpoint_id: &str,
@@ -721,6 +832,7 @@ impl ConditionalDependencyGraph {
         state: &EvaluationState,
         evaluated_geometry_values: &[bool],
         geometry_value_index_by_endpoint_id: &HashMap<String, usize>,
+        completed_element_ids: Option<&HashSet<ElementId>>,
     ) -> bool {
         self.endpoint_is_ready_inner(
             endpoint_id,
@@ -728,6 +840,7 @@ impl ConditionalDependencyGraph {
                 branch_selections,
                 resolver,
                 state,
+                completed_element_ids,
                 evaluated_geometry_values,
                 geometry_value_index_by_endpoint_id,
             },
@@ -740,10 +853,12 @@ impl ConditionalDependencyGraph {
         endpoint_id: &str,
         branch_selections: &HashMap<String, String>,
         state: &EvaluationState,
+        completed_element_ids: Option<&HashSet<ElementId>>,
     ) -> bool {
         let context = GeometryDependencyReadinessContext {
             branch_selections,
             state,
+            completed_element_ids,
         };
         self.edges
             .iter()
@@ -756,6 +871,31 @@ impl ConditionalDependencyGraph {
                     &context,
                     &mut HashSet::new(),
                 )
+            })
+    }
+
+    /// A rank-sorted release pass can still skip a predecessor at its source
+    /// fence. Read the current pass's completion state before releasing aliases.
+    pub(crate) fn geometry_value_prerequisites_are_ready(
+        &self,
+        endpoint_id: &str,
+        branch_selections: &HashMap<String, String>,
+        evaluated: &[bool],
+        index_by_endpoint_id: &HashMap<String, usize>,
+    ) -> bool {
+        self.edges
+            .iter()
+            .filter(|edge| {
+                endpoint_key(&edge.from) == endpoint_id
+                    && edge.to.kind == "geometry-value"
+                    && edge_is_active(edge, branch_selections)
+            })
+            .all(|edge| {
+                index_by_endpoint_id
+                    .get(&endpoint_key(&edge.to))
+                    .and_then(|index| evaluated.get(*index))
+                    .copied()
+                    .unwrap_or(false)
             })
     }
 
@@ -810,9 +950,14 @@ impl ConditionalDependencyGraph {
         evaluated_geometry_values: &[bool],
         geometry_value_index_by_endpoint_id: &HashMap<String, usize>,
     ) -> HashSet<String> {
+        if candidate_binding_ids.is_empty() {
+            return HashSet::new();
+        }
         let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
         let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
         for edge in &self.edges {
+            #[cfg(test)]
+            READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
             let from_id = endpoint_key(&edge.from);
             let to_id = endpoint_key(&edge.to);
             endpoints.entry(from_id.clone()).or_insert(&edge.from);
@@ -830,6 +975,7 @@ impl ConditionalDependencyGraph {
             evaluated_geometry_values,
             geometry_value_index_by_endpoint_id,
             source_order_by_binding_id: None,
+            completed_element_ids: None,
         };
         Self::ready_geometry_dependent_binding_ids_from_context(candidate_binding_ids, &context)
     }
@@ -868,10 +1014,15 @@ impl ConditionalDependencyGraph {
         branch_selections: &HashMap<String, String>,
         state: &EvaluationState,
     ) -> bool {
+        if state.errors.is_empty() {
+            return false;
+        }
         let current_element_id = endpoint_id.strip_prefix("element:").unwrap_or(endpoint_id);
         self.edges
             .iter()
             .filter(|edge| {
+                #[cfg(test)]
+                READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
                 endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
             })
             .any(|edge| {
@@ -895,10 +1046,16 @@ impl ConditionalDependencyGraph {
         included_instance_ids: &HashSet<ElementId>,
     ) -> Option<(ElementId, bool)> {
         let mut excluded_instance_id = None;
-        for edge in self.edges.iter().filter(|edge| {
-            endpoint_key(&edge.from) == endpoint_id && edge_is_active(edge, branch_selections)
-        }) {
-            if edge.to.kind != "module-occurrence" {
+        for edge_index in self
+            .module_occurrence_edge_indices_by_from
+            .get(endpoint_id)
+            .into_iter()
+            .flatten()
+        {
+            let edge = &self.edges[*edge_index];
+            #[cfg(test)]
+            MODULE_PREREQUISITE_EDGE_VISITS.with(|count| count.set(count.get() + 1));
+            if !edge_is_active(edge, branch_selections) {
                 continue;
             }
             let instance_id = edge
@@ -995,7 +1152,11 @@ impl ConditionalDependencyGraph {
                 }
                 None => false,
             },
-            "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+            "element" => element_geometry_prerequisite_ready(
+                context.state,
+                &endpoint.id,
+                context.completed_element_ids,
+            ),
             "module-occurrence" => context.state.instance_base_geometry.contains_key(
                 endpoint
                     .id
@@ -1067,7 +1228,11 @@ impl ConditionalDependencyGraph {
                 }
                 None => false,
             },
-            "element" => context.state.computed_geometry.contains_key(&endpoint.id),
+            "element" => element_geometry_prerequisite_ready(
+                context.state,
+                &endpoint.id,
+                context.completed_element_ids,
+            ),
             "module-occurrence" => context.state.instance_base_geometry.contains_key(
                 endpoint
                     .id
@@ -1234,6 +1399,404 @@ mod tests {
     use super::*;
     use crate::evaluation::scalars::{ScalarEvaluation, ScalarType};
 
+    fn no_module_occurrence_graph_payload(edge_count: usize, query_count: usize) -> Value {
+        assert!(query_count > 0);
+        let edges = (0..edge_count)
+            .map(|index| {
+                let element_index = index % query_count;
+                serde_json::json!({
+                    "from": {
+                        "kind": "element",
+                        "id": format!("element-{element_index}"),
+                        "name": format!("Element{element_index}")
+                    },
+                    "to": {
+                        "kind": "binding",
+                        "id": format!("binding-{index}"),
+                        "name": format!("Binding{index}")
+                    },
+                    "requiredness": "required"
+                })
+            })
+            .collect::<Vec<_>>();
+        serde_json::json!({ "edges": edges })
+    }
+
+    #[test]
+    fn module_prerequisite_lookup_skips_unrelated_edges_without_module_occurrences() {
+        let edge_count = 64;
+        let query_count = 8;
+        let payload = no_module_occurrence_graph_payload(edge_count, query_count);
+        let payload_edges = payload["edges"].as_array().unwrap();
+        assert!(!payload_edges
+            .iter()
+            .any(|edge| { edge["to"]["kind"].as_str() == Some("module-occurrence") }));
+        // Independent graph oracle: no compiler-supplied module-occurrence
+        // prerequisite means every endpoint query has the semantic answer None.
+        let expected = None;
+        let graph = decode_conditional_dependency_graph(Some(&payload))
+            .unwrap()
+            .unwrap();
+        let selections = HashMap::new();
+        let failed = HashSet::new();
+        let included = HashSet::new();
+        MODULE_PREREQUISITE_EDGE_VISITS.with(|count| count.set(0));
+        for index in 0..query_count {
+            assert_eq!(
+                graph.unavailable_module_instance_prerequisite(
+                    &format!("element:element-{index}"),
+                    &selections,
+                    &failed,
+                    &included,
+                ),
+                expected,
+            );
+        }
+        let edge_visits = MODULE_PREREQUISITE_EDGE_VISITS.with(|count| count.get());
+        let independently_expected_full_scan_visits = query_count * edge_count;
+        assert_eq!(
+            edge_visits,
+            0,
+            "module-free lookup must avoid unrelated edge visits and endpoint-key work; base full-scan discriminator expects {independently_expected_full_scan_visits} visits, observed {edge_visits}",
+        );
+    }
+
+    #[test]
+    fn module_prerequisite_lookup_empty_graph_control() {
+        let graph = decode_conditional_dependency_graph(Some(&serde_json::json!({
+            "edges": []
+        })))
+        .unwrap()
+        .unwrap();
+        let selections = HashMap::new();
+        let failed = HashSet::new();
+        let included = HashSet::new();
+        MODULE_PREREQUISITE_EDGE_VISITS.with(|count| count.set(0));
+        for endpoint_id in ["element:first", "element:second", "element:third"] {
+            assert_eq!(
+                graph.unavailable_module_instance_prerequisite(
+                    endpoint_id,
+                    &selections,
+                    &failed,
+                    &included,
+                ),
+                None,
+            );
+        }
+        assert_eq!(MODULE_PREREQUISITE_EDGE_VISITS.with(|count| count.get()), 0,);
+    }
+
+    fn module_prerequisite_semantics_payload() -> Value {
+        serde_json::json!({
+            "edges": [
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:excluded-first", "name": "ExcludedFirst" },
+                    "requiredness": "required"
+                },
+                {
+                    "from": { "kind": "element", "id": "other", "name": "Other" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:unrelated", "name": "Unrelated" },
+                    "requiredness": "required"
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "binding", "id": "ordinary-binding", "name": "OrdinaryBinding" },
+                    "requiredness": "required"
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:candidate-first", "name": "CandidateFirst" },
+                    "requiredness": "required"
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:excluded-last", "name": "ExcludedLast" },
+                    "requiredness": "required"
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:candidate-last", "name": "CandidateLast" },
+                    "requiredness": "required"
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:then-only", "name": "ThenOnly" },
+                    "requiredness": "conditional",
+                    "activation": { "guards": [{ "controllerId": "controller", "branch": "then" }] }
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:else-only", "name": "ElseOnly" },
+                    "requiredness": "conditional",
+                    "activation": { "guards": [{ "controllerId": "controller", "branch": "else" }] }
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:static-selected", "name": "StaticSelected" },
+                    "requiredness": "conditional",
+                    "activation": { "guards": [{ "controllerId": "static", "branch": "then", "staticSelection": "selected" }] }
+                },
+                {
+                    "from": { "kind": "element", "id": "target", "name": "Target" },
+                    "to": { "kind": "module-occurrence", "id": "module-occurrence:static-unselected", "name": "StaticUnselected" },
+                    "requiredness": "conditional",
+                    "activation": { "guards": [{ "controllerId": "static", "branch": "else", "staticSelection": "unselected" }] }
+                }
+            ]
+        })
+    }
+
+    #[test]
+    fn module_prerequisite_resolution_preserves_activation_and_priority() {
+        let payload = module_prerequisite_semantics_payload();
+        let graph = decode_conditional_dependency_graph(Some(&payload))
+            .unwrap()
+            .unwrap();
+        let then = HashMap::from([("controller".to_owned(), "then".to_owned())]);
+        let else_branch = HashMap::from([("controller".to_owned(), "else".to_owned())]);
+        let all_active_then = HashSet::from([
+            "excluded-first".to_owned(),
+            "candidate-first".to_owned(),
+            "excluded-last".to_owned(),
+            "candidate-last".to_owned(),
+            "then-only".to_owned(),
+            "static-selected".to_owned(),
+        ]);
+        let failed = HashSet::new();
+
+        // Reuse one decoded graph with changing branch and instance state.
+        assert_eq!(
+            graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &then,
+                &failed,
+                &all_active_then,
+            ),
+            None,
+            "included and available active prerequisites are ready; inactive guards are ignored",
+        );
+
+        let excluding_two = HashSet::from([
+            "candidate-first".to_owned(),
+            "candidate-last".to_owned(),
+            "then-only".to_owned(),
+            "static-selected".to_owned(),
+        ]);
+        assert_eq!(
+            graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &then,
+                &failed,
+                &excluding_two,
+            ),
+            Some(("excluded-last".to_owned(), false)),
+            "when none failed, preserve the last active excluded prerequisite in graph order",
+        );
+
+        let two_failures =
+            HashSet::from(["candidate-first".to_owned(), "candidate-last".to_owned()]);
+        assert_eq!(
+            graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &then,
+                &two_failures,
+                &all_active_then,
+            ),
+            Some(("candidate-first".to_owned(), true)),
+            "return the first active failed prerequisite, even when a later one also failed",
+        );
+
+        let late_failure = HashSet::from(["candidate-last".to_owned()]);
+        assert_eq!(
+            graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &then,
+                &late_failure,
+                &excluding_two,
+            ),
+            Some(("candidate-last".to_owned(), true)),
+            "a failed prerequisite takes priority over earlier excluded prerequisites",
+        );
+
+        let all_active_else = HashSet::from([
+            "excluded-first".to_owned(),
+            "candidate-first".to_owned(),
+            "excluded-last".to_owned(),
+            "candidate-last".to_owned(),
+            "else-only".to_owned(),
+            "static-selected".to_owned(),
+        ]);
+        assert_eq!(
+            graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &else_branch,
+                &failed,
+                &all_active_else,
+            ),
+            None,
+            "the else selection activates else-only and deactivates then-only",
+        );
+
+        assert_eq!(
+            graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &then,
+                &HashSet::from(["unrelated".to_owned()]),
+                &all_active_then,
+            ),
+            None,
+            "other source endpoints and non-module target kinds do not affect this query",
+        );
+    }
+
+    #[test]
+    fn module_prerequisite_graph_decode_rejects_invalid_payloads() {
+        assert!(
+            decode_conditional_dependency_graph(Some(&serde_json::json!({
+                "edges": [{ "from": {}, "to": {} }]
+            })))
+            .is_err()
+        );
+        assert!(decode_conditional_dependency_graph(Some(&serde_json::json!({
+            "edges": [{
+                "from": { "kind": "element", "id": "target", "name": "Target" },
+                "to": { "kind": "module-occurrence", "id": "module-occurrence:one", "name": "One" },
+                "requiredness": "conditional",
+                "activation": { "guards": [{
+                    "controllerId": "controller", "branch": "then",
+                    "controllerExpression": { "kind": "invalid" }
+                }] }
+            }]
+        })))
+        .is_err());
+    }
+
+    #[test]
+    fn empty_error_readiness_does_not_scan_unrelated_edges() {
+        let payload: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1474/continuation-2/R2-graph.json"
+        ))
+        .unwrap();
+        let graph = decode_conditional_dependency_graph(Some(&payload))
+            .unwrap()
+            .unwrap();
+        let mut state = empty_evaluation_state();
+        let selections = HashMap::new();
+        READINESS_EDGE_VISITS.with(|count| count.set(0));
+        for edge in graph
+            .edges
+            .iter()
+            .filter(|edge| edge.from.kind == "element" && edge.from.name.starts_with("Fan"))
+        {
+            assert!(!graph.geometry_prerequisites_have_failed(
+                &endpoint_key(&edge.from),
+                &selections,
+                &state
+            ));
+        }
+        let visits = READINESS_EDGE_VISITS.with(|count| count.get());
+        eprintln!("#1474 empty-error readiness edge visits={visits}");
+        assert_eq!(
+            visits, 0,
+            "no prerequisite can have failed when the error set is empty"
+        );
+        let edge = graph
+            .edges
+            .iter()
+            .find(|edge| edge.from.kind == "element" && edge.from.name == "Fan0")
+            .unwrap();
+        let dependency_id = edge.to.owner_id.as_deref().unwrap_or(&edge.to.id);
+        state.errors.push(DependencyError {
+            code: None,
+            element_id: "unrelated".to_owned(),
+            element_name: "unrelated".to_owned(),
+            missing_dependency_id: "missing".to_owned(),
+            missing_dependency_name: None,
+            message: "control".to_owned(),
+        });
+        assert!(!graph.geometry_prerequisites_have_failed(
+            &endpoint_key(&edge.from),
+            &selections,
+            &state
+        ));
+        state.errors[0].element_id = dependency_id.to_owned();
+        assert!(graph.geometry_prerequisites_have_failed(
+            &endpoint_key(&edge.from),
+            &selections,
+            &state
+        ));
+    }
+
+    #[test]
+    fn empty_candidate_readiness_does_not_rebuild_unrelated_topology() {
+        let payload: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1474/continuation-2/R2-graph.json"
+        ))
+        .unwrap();
+        let graph = decode_conditional_dependency_graph(Some(&payload))
+            .unwrap()
+            .unwrap();
+        let state = empty_evaluation_state();
+        let resolver = AvailabilityResolver {
+            available_binding_ids: HashSet::new(),
+        };
+        let source_orders = HashMap::new();
+        let selections = HashMap::new();
+        let geometry_indices = HashMap::new();
+        READINESS_EDGE_VISITS.with(|count| count.set(0));
+        let empty = decode_conditional_dependency_graph(Some(&serde_json::json!({"edges":[]})))
+            .unwrap()
+            .unwrap();
+        assert!(empty
+            .ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
+                candidate_binding_ids: &[],
+                source_order_by_binding_id: &source_orders,
+                branch_selections: &selections,
+                resolver: &resolver,
+                state: &state,
+                completed_element_ids: None,
+                evaluated_geometry_values: &[],
+                geometry_value_index_by_endpoint_id: &geometry_indices,
+            })
+            .is_empty());
+        assert_eq!(
+            READINESS_EDGE_VISITS.with(|count| count.get()),
+            0,
+            "adjacent empty graph control"
+        );
+        for _ in 0..8 {
+            assert!(graph
+                .ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
+                    candidate_binding_ids: &[],
+                    source_order_by_binding_id: &source_orders,
+                    branch_selections: &selections,
+                    resolver: &resolver,
+                    state: &state,
+                    completed_element_ids: None,
+                    evaluated_geometry_values: &[],
+                    geometry_value_index_by_endpoint_id: &geometry_indices,
+                })
+                .is_empty());
+            assert!(graph
+                .ready_geometry_dependent_binding_ids(
+                    &[],
+                    &selections,
+                    &resolver,
+                    &state,
+                    &[],
+                    &geometry_indices
+                )
+                .is_empty());
+        }
+        let visits = READINESS_EDGE_VISITS.with(|count| count.get());
+        eprintln!("#1474 empty-candidate readiness edge visits={visits} for 16 queries / 29 edges");
+        assert_eq!(
+            visits, 0,
+            "an empty query must not scan or allocate a copy of the topology"
+        );
+    }
+
     struct AvailabilityResolver {
         available_binding_ids: HashSet<String>,
     }
@@ -1304,9 +1867,11 @@ mod tests {
             base_transformation_geometry: HashMap::new(),
             transformation_stage_geometry: HashMap::new(),
             completed_transformation_recipe_indices: HashSet::new(),
+            completed_transformation_targets: HashMap::new(),
             transformation_dependency_plans: None,
             computed_geometry_order: Vec::new(),
             computed_geometry_values: HashMap::new(),
+            lazy_geometry_value_programs: HashMap::new(),
             geometry_input_targets: HashMap::new(),
             geometry_collection_nodes: HashMap::new(),
             geometry_value_binders: HashMap::new(),
@@ -1323,41 +1888,83 @@ mod tests {
     }
 
     #[test]
-    fn geometry_value_selector_bindings_use_canonical_selector_spans() {
-        let graph = ConditionalDependencyGraph {
-            edges: vec![
-                required_edge_with_span(
-                    endpoint("geometry-value", "chosen", "chosen"),
-                    endpoint("binding", "flag", "flag"),
-                    (12, 17),
-                ),
-                required_edge_with_span(
-                    endpoint("geometry-value", "chosen", "chosen"),
-                    endpoint("binding", "leafValue", "leaf value"),
-                    (30, 37),
-                ),
-                ConditionalDependencyEdge {
-                    from: endpoint("geometry-value", "chosen", "chosen"),
-                    to: endpoint("binding", "nestedFlag", "nested flag"),
-                    span: Some((15, 19)),
-                    requiredness: Some("conditional".to_owned()),
-                    activation: Some(ConditionalDependencyActivation {
-                        guards: vec![ConditionalDependencyGuard {
-                            controller_id: "outer-controller".to_owned(),
-                            branch: "then".to_owned(),
-                            controller_kind: None,
-                            static_selection: None,
-                            controller_expression: None,
-                        }],
-                    }),
-                },
-                required_edge_with_span(
-                    endpoint("element", "other", "other"),
-                    endpoint("binding", "otherFlag", "other flag"),
-                    (15, 19),
-                ),
-            ],
+    fn forwarded_activation_keeps_controller_prerequisites_at_its_producer() {
+        let conditional = |from| ConditionalDependencyEdge {
+            from,
+            to: endpoint("binding", "selected", "selected"),
+            span: None,
+            requiredness: Some("conditional".to_owned()),
+            activation: Some(ConditionalDependencyActivation {
+                guards: vec![ConditionalDependencyGuard {
+                    controller_id: "geometry-value:chosen\0choice".to_owned(),
+                    branch: "then".to_owned(),
+                    controller_kind: None,
+                    static_selection: None,
+                    controller_expression: Some(
+                        validate_typed_expression_payload(&serde_json::json!({
+                            "kind": "booleanLiteral", "span": { "start": 0, "end": 1 },
+                            "value": true, "type": { "kind": "boolean" }
+                        }))
+                        .expect("valid typed controller"),
+                    ),
+                }],
+            }),
         };
+        let graph = ConditionalDependencyGraph::from_edges(vec![
+            required_edge(
+                endpoint("geometry-value", "chosen", "chosen"),
+                endpoint("binding", "flag", "flag"),
+            ),
+            conditional(endpoint("geometry-value", "chosen", "chosen")),
+            required_edge(
+                endpoint("element", "outside", "outside"),
+                endpoint("geometry-value", "chosen", "chosen"),
+            ),
+            conditional(endpoint("element", "outside", "outside")),
+        ]);
+        let candidates = graph.controller_candidates(&HashMap::new());
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].source_endpoint_id, "geometry-value:chosen");
+        assert_eq!(
+            candidates[0].prerequisite_endpoint_ids,
+            vec!["binding:flag"]
+        );
+    }
+
+    #[test]
+    fn geometry_value_selector_bindings_use_canonical_selector_spans() {
+        let graph = ConditionalDependencyGraph::from_edges(vec![
+            required_edge_with_span(
+                endpoint("geometry-value", "chosen", "chosen"),
+                endpoint("binding", "flag", "flag"),
+                (12, 17),
+            ),
+            required_edge_with_span(
+                endpoint("geometry-value", "chosen", "chosen"),
+                endpoint("binding", "leafValue", "leaf value"),
+                (30, 37),
+            ),
+            ConditionalDependencyEdge {
+                from: endpoint("geometry-value", "chosen", "chosen"),
+                to: endpoint("binding", "nestedFlag", "nested flag"),
+                span: Some((15, 19)),
+                requiredness: Some("conditional".to_owned()),
+                activation: Some(ConditionalDependencyActivation {
+                    guards: vec![ConditionalDependencyGuard {
+                        controller_id: "outer-controller".to_owned(),
+                        branch: "then".to_owned(),
+                        controller_kind: None,
+                        static_selection: None,
+                        controller_expression: None,
+                    }],
+                }),
+            },
+            required_edge_with_span(
+                endpoint("element", "other", "other"),
+                endpoint("binding", "otherFlag", "other flag"),
+                (15, 19),
+            ),
+        ]);
 
         let selector_spans = HashMap::from([("geometry-value:chosen".to_owned(), vec![(10, 20)])]);
         assert_eq!(
@@ -1397,34 +2004,32 @@ mod tests {
         let inner_40 = "module-binding:inner-40";
         let outer_40 = "module-binding:outer-40";
         let root_40 = "binding:root-40";
-        let graph = ConditionalDependencyGraph {
-            edges: vec![
-                required_edge(
-                    endpoint("binding", inner_20, "Inner20.value"),
-                    endpoint("geometry-value", "shape-20", "Shape20.length"),
-                ),
-                required_edge(
-                    endpoint("binding", outer_20, "Outer20.value"),
-                    endpoint("binding", inner_20, "Inner20.value"),
-                ),
-                required_edge(
-                    endpoint("binding", root_20, "Root20.value"),
-                    endpoint("binding", outer_20, "Outer20.value"),
-                ),
-                required_edge(
-                    endpoint("binding", inner_40, "Inner40.value"),
-                    endpoint("geometry-value", "shape-40", "Shape40.length"),
-                ),
-                required_edge(
-                    endpoint("binding", outer_40, "Outer40.value"),
-                    endpoint("binding", inner_40, "Inner40.value"),
-                ),
-                required_edge(
-                    endpoint("binding", root_40, "Root40.value"),
-                    endpoint("binding", outer_40, "Outer40.value"),
-                ),
-            ],
-        };
+        let graph = ConditionalDependencyGraph::from_edges(vec![
+            required_edge(
+                endpoint("binding", inner_20, "Inner20.value"),
+                endpoint("geometry-value", "shape-20", "Shape20.length"),
+            ),
+            required_edge(
+                endpoint("binding", outer_20, "Outer20.value"),
+                endpoint("binding", inner_20, "Inner20.value"),
+            ),
+            required_edge(
+                endpoint("binding", root_20, "Root20.value"),
+                endpoint("binding", outer_20, "Outer20.value"),
+            ),
+            required_edge(
+                endpoint("binding", inner_40, "Inner40.value"),
+                endpoint("geometry-value", "shape-40", "Shape40.length"),
+            ),
+            required_edge(
+                endpoint("binding", outer_40, "Outer40.value"),
+                endpoint("binding", inner_40, "Inner40.value"),
+            ),
+            required_edge(
+                endpoint("binding", root_40, "Root40.value"),
+                endpoint("binding", outer_40, "Outer40.value"),
+            ),
+        ]);
         let branch_selections = HashMap::new();
         let geometry_dependent_binding_ids =
             graph.bindings_with_active_geometry_property_dependency(&branch_selections);
@@ -1506,7 +2111,7 @@ mod tests {
             endpoint("binding", outer, "Outer.Forwarded"),
             endpoint("binding", child, "Nested.Value"),
         );
-        let graph = ConditionalDependencyGraph { edges: vec![edge] };
+        let graph = ConditionalDependencyGraph::from_edges(vec![edge]);
         let branch_selections = HashMap::new();
         let source_order_by_binding_id =
             HashMap::from([(outer.to_owned(), 1), (child.to_owned(), 3)]);
@@ -1537,13 +2142,14 @@ mod tests {
                 branch_selections: &branch_selections,
                 resolver: &unavailable,
                 state: &state,
+                completed_element_ids: None,
                 evaluated_geometry_values: &[],
                 geometry_value_index_by_endpoint_id: &geometry_value_index_by_endpoint_id,
             });
         assert_eq!(ready, HashSet::from([outer.to_owned(), child.to_owned()]));
 
-        let conditional_graph = ConditionalDependencyGraph {
-            edges: vec![ConditionalDependencyEdge {
+        let conditional_graph =
+            ConditionalDependencyGraph::from_edges(vec![ConditionalDependencyEdge {
                 from: endpoint("binding", outer, "Outer.Forwarded"),
                 to: endpoint("binding", child, "Nested.Value"),
                 span: None,
@@ -1557,8 +2163,7 @@ mod tests {
                         controller_expression: None,
                     }],
                 }),
-            }],
-        };
+            }]);
         assert!(conditional_graph
             .bindings_with_active_forward_binding_dependency(
                 &branch_selections,

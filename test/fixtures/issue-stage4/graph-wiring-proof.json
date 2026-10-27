@@ -1,0 +1,59 @@
+{
+  "family": "Stage4-F6 repair completion",
+  "newFamilies": 0,
+  "source": "nui 1\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\npoint Observed = coordinate(x: @Values[@Index], y: 0)\n",
+  "sha256": "df5c82342121c6d73e6a1dc130d691d33640b9f0771d74c439a1617cb7d2a42a",
+  "expected": {
+    "source": "nui 1\nconst Values: number[] = [@Number]\nconst Index: number = 0\nconst Number: number = 7\npoint Observed = coordinate(x: @Values[@Index], y: 0)\n",
+    "scalars": {},
+    "geometry": [
+      {
+        "name": "Observed",
+        "value": {
+          "x": 7,
+          "y": 0
+        }
+      }
+    ],
+    "failedGeometry": [],
+    "templates": [],
+    "trace": [],
+    "carries": [],
+    "errors": [],
+    "diagnosticBindings": {},
+    "absent": [],
+    "valueErrors": [],
+    "errorInstances": {},
+    "paths": []
+  },
+  "beforeNumericEdges": [],
+  "afterNumericEdges": [
+    {
+      "kind": "numeric-expression",
+      "from": {
+        "kind": "element",
+        "id": "freePoint-mvewph7g-2",
+        "name": "Observed",
+        "statementIndex": 4
+      },
+      "to": {
+        "kind": "binding",
+        "id": "binding:statement:typedDeclaration:mvewph7g:3",
+        "name": "Index",
+        "statementIndex": 2,
+        "span": {
+          "start": 6,
+          "end": 11
+        }
+      },
+      "span": {
+        "start": 39,
+        "end": 45
+      },
+      "requiredness": "required"
+    }
+  ],
+  "geometryStatusBefore": "PASS",
+  "geometryStatusAfter": "PASS",
+  "explanation": "The root numeric program must reach the existing canonical graph even when legacy compilation defers to it; graph input projection only, no resolver/scheduler replacement."
+}

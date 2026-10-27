@@ -151,7 +151,7 @@ const resolutionFor = (
     const binding = catalog.bindingsById.get(sourceLookup.bindingId);
     const path = parseDslReferenceToken(name);
     const finalName = path.segments.at(-1);
-    if (binding && (binding.name === name || binding.name === finalName)) return { kind: "resolved", binding };
+    if (binding && (binding.name === name || binding.name === finalName || binding.name === path.segments.join("::"))) return { kind: "resolved", binding };
   } else if (sourceLookup?.kind === "blocked") {
     return {
       kind: "namespace",

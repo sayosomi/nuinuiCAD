@@ -1,0 +1,848 @@
+{
+  "oracle": "Independent authored source text; UTF-16 ranges counted from text before production graph/query observations. Opaque statement IDs allocated only by real reconciler with deterministic test allocator; inherited across edits by reconciler.",
+  "sources": {
+    "lib1": {
+      "documentId": "library",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:8341f42efdeb7dac75a88ac326910691e9f992d1cf4a30211184c4ff2b057c4b",
+      "sha256": "8341f42efdeb7dac75a88ac326910691e9f992d1cf4a30211184c4ff2b057c4b",
+      "text": "nui 1\nexport module Pocket() {\n}\nconst marker: number = 7",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 20,
+            "to": 26
+          }
+        ],
+        "marker": [
+          {
+            "from": 39,
+            "to": 45
+          }
+        ]
+      },
+      "imports": []
+    },
+    "lib2": {
+      "documentId": "library",
+      "sourceRevision": 2,
+      "savedSourceFingerprint": "sha256:cb63b2e547ebf29a8b6ffb6fb9fc28cf53812bc34f249a1c7c3680a844110edc",
+      "sha256": "cb63b2e547ebf29a8b6ffb6fb9fc28cf53812bc34f249a1c7c3680a844110edc",
+      "text": "nui 1\n// 🧵 saved v2\nexport module Pocket() {\n}\nconst marker: number = 7",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 35,
+            "to": 41
+          }
+        ],
+        "marker": [
+          {
+            "from": 54,
+            "to": 60
+          }
+        ]
+      },
+      "imports": []
+    },
+    "libRenamed": {
+      "documentId": "library",
+      "sourceRevision": 3,
+      "savedSourceFingerprint": "sha256:2037a01196db181feb12c3c05d82c4c8a51c1f6c83e18b6c95cc197dc07b4bf8",
+      "sha256": "2037a01196db181feb12c3c05d82c4c8a51c1f6c83e18b6c95cc197dc07b4bf8",
+      "text": "nui 1\n// 🧵 saved v3\nexport module Pouch() {\n}\nconst marker: number = 7",
+      "ranges": {
+        "Pouch": [
+          {
+            "from": 35,
+            "to": 40
+          }
+        ],
+        "marker": [
+          {
+            "from": 53,
+            "to": 59
+          }
+        ]
+      },
+      "imports": []
+    },
+    "libDirty": {
+      "documentId": "library",
+      "sourceRevision": 11,
+      "savedSourceFingerprint": "sha256:0779446bccca91e0a60f26e10d43ca835d41fe8642ea7185f0e562b175b873e3",
+      "sha256": "0779446bccca91e0a60f26e10d43ca835d41fe8642ea7185f0e562b175b873e3",
+      "text": "nui 1\n// 🧵 dirty current\n\nexport module Pocket() {\n}\nconst marker: number = 7",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 41,
+            "to": 47
+          }
+        ],
+        "marker": [
+          {
+            "from": 60,
+            "to": 66
+          }
+        ]
+      },
+      "imports": []
+    },
+    "libOther": {
+      "documentId": "library",
+      "sourceRevision": 12,
+      "savedSourceFingerprint": "sha256:d4dfc0f1e39b852ae4f9a54fb48d524e61141ab5db64dcc18d5084290fee00ef",
+      "sha256": "d4dfc0f1e39b852ae4f9a54fb48d524e61141ab5db64dcc18d5084290fee00ef",
+      "text": "nui 1\n// no Pocket identity\nexport module Other() {\n}\nconst marker: number = 7",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 12,
+            "to": 18
+          }
+        ],
+        "Other": [
+          {
+            "from": 42,
+            "to": 47
+          }
+        ],
+        "marker": [
+          {
+            "from": 60,
+            "to": 66
+          }
+        ]
+      },
+      "imports": []
+    },
+    "libCapture": {
+      "documentId": "library",
+      "sourceRevision": 13,
+      "savedSourceFingerprint": "sha256:e904c2d1f0febacc7cdf6e37374dbe3a27843e661a3c275f8d944d3cf7dfc175",
+      "sha256": "e904c2d1f0febacc7cdf6e37374dbe3a27843e661a3c275f8d944d3cf7dfc175",
+      "text": "nui 1\nexport module Pocket() {\n}\nmodule Bag() {\n}\nconst marker: number = 7",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 20,
+            "to": 26
+          }
+        ],
+        "Bag": [
+          {
+            "from": 40,
+            "to": 43
+          }
+        ],
+        "marker": [
+          {
+            "from": 56,
+            "to": 62
+          }
+        ]
+      },
+      "imports": []
+    },
+    "libInvalid": {
+      "documentId": "library",
+      "sourceRevision": 4,
+      "savedSourceFingerprint": "sha256:b86ae90db67455f3527b29deb2ef3494c844175478e8e7a4ea4be8a6e9051ae3",
+      "sha256": "b86ae90db67455f3527b29deb2ef3494c844175478e8e7a4ea4be8a6e9051ae3",
+      "text": "nui 99\nexport module Pocket() {\n}",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 21,
+            "to": 27
+          }
+        ]
+      },
+      "imports": []
+    },
+    "root1": {
+      "documentId": "root-a",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:6f31639be718bcb0c8bde015363def433178e1f28e0d1e88f2ae9a1b89c3bd0c",
+      "sha256": "6f31639be718bcb0c8bde015363def433178e1f28e0d1e88f2ae9a1b89c3bd0c",
+      "text": "nui 1\nimport \"./library.nui\" as library\ninstance use = library::Pocket()",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 64,
+            "to": 70
+          }
+        ],
+        "library": [
+          {
+            "from": 16,
+            "to": 23
+          },
+          {
+            "from": 32,
+            "to": 39
+          },
+          {
+            "from": 55,
+            "to": 62
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 6,
+          "to": 39
+        }
+      ]
+    },
+    "root2": {
+      "documentId": "root-a",
+      "sourceRevision": 2,
+      "savedSourceFingerprint": "sha256:10fec2a0299f2a868554c566bacd131d12c283ce2f5e5bf213a9c79a643dffe2",
+      "sha256": "10fec2a0299f2a868554c566bacd131d12c283ce2f5e5bf213a9c79a643dffe2",
+      "text": "nui 1\n// current R2\nimport \"./library.nui\" as cloth\ninstance use = cloth::Pocket()",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 74,
+            "to": 80
+          }
+        ],
+        "library": [
+          {
+            "from": 30,
+            "to": 37
+          }
+        ],
+        "cloth": [
+          {
+            "from": 46,
+            "to": 51
+          },
+          {
+            "from": 67,
+            "to": 72
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 20,
+          "to": 51
+        }
+      ]
+    },
+    "rootB": {
+      "documentId": "root-b",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:6f31639be718bcb0c8bde015363def433178e1f28e0d1e88f2ae9a1b89c3bd0c",
+      "sha256": "6f31639be718bcb0c8bde015363def433178e1f28e0d1e88f2ae9a1b89c3bd0c",
+      "text": "nui 1\nimport \"./library.nui\" as library\ninstance use = library::Pocket()",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 64,
+            "to": 70
+          }
+        ],
+        "library": [
+          {
+            "from": 16,
+            "to": 23
+          },
+          {
+            "from": 32,
+            "to": 39
+          },
+          {
+            "from": 55,
+            "to": 62
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 6,
+          "to": 39
+        }
+      ]
+    },
+    "independent": {
+      "documentId": "root-c",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:2b2d4e46f0540045fd54caba77ac96705dcfe9451969f4e3856e9fc56b4d9cd7",
+      "sha256": "2b2d4e46f0540045fd54caba77ac96705dcfe9451969f4e3856e9fc56b4d9cd7",
+      "text": "nui 1\nmodule Independent() {\n}",
+      "ranges": {
+        "Independent": [
+          {
+            "from": 13,
+            "to": 24
+          }
+        ]
+      },
+      "imports": []
+    },
+    "importOnly": {
+      "documentId": "root-a",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:df86b3a3e49003c8171cc747ad9bb8b6ffeb19654fa52585d26aba407f4d1aab",
+      "sha256": "df86b3a3e49003c8171cc747ad9bb8b6ffeb19654fa52585d26aba407f4d1aab",
+      "text": "nui 1\nimport \"./library.nui\" as library",
+      "ranges": {
+        "library": [
+          {
+            "from": 16,
+            "to": 23
+          },
+          {
+            "from": 32,
+            "to": 39
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 6,
+          "to": 39
+        }
+      ]
+    },
+    "facade1": {
+      "documentId": "facade",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:8f468618fb8c72e64588fd6f5842b3322af99cf38c8fd7403c5e859a53e4aeda",
+      "sha256": "8f468618fb8c72e64588fd6f5842b3322af99cf38c8fd7403c5e859a53e4aeda",
+      "text": "nui 1\nimport \"./library.nui\" as library\nexport @library::Pocket",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 57,
+            "to": 63
+          }
+        ],
+        "library": [
+          {
+            "from": 16,
+            "to": 23
+          },
+          {
+            "from": 32,
+            "to": 39
+          },
+          {
+            "from": 48,
+            "to": 55
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 6,
+          "to": 39
+        }
+      ]
+    },
+    "facade2": {
+      "documentId": "facade",
+      "sourceRevision": 2,
+      "savedSourceFingerprint": "sha256:e8b56ba933dbb79d8d027ef197d4e108b870c12a937b60b1a1cd2f83faae8393",
+      "sha256": "e8b56ba933dbb79d8d027ef197d4e108b870c12a937b60b1a1cd2f83faae8393",
+      "text": "nui 1\n// shifted facade\nimport \"./library.nui\" as base\nexport @base::Pocket",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 69,
+            "to": 75
+          }
+        ],
+        "library": [
+          {
+            "from": 34,
+            "to": 41
+          }
+        ],
+        "base": [
+          {
+            "from": 50,
+            "to": 54
+          },
+          {
+            "from": 63,
+            "to": 67
+          }
+        ],
+        "facade": [
+          {
+            "from": 17,
+            "to": 23
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 24,
+          "to": 54
+        }
+      ]
+    },
+    "facadeRenamed": {
+      "documentId": "facade",
+      "sourceRevision": 3,
+      "savedSourceFingerprint": "sha256:415cd4ef8aa1ddaadca215612364741e700e52db10ce5cf6067b9bb8b901e2aa",
+      "sha256": "415cd4ef8aa1ddaadca215612364741e700e52db10ce5cf6067b9bb8b901e2aa",
+      "text": "nui 1\n// shifted facade\nimport \"./library.nui\" as base\nexport @base::Pouch",
+      "ranges": {
+        "Pouch": [
+          {
+            "from": 69,
+            "to": 74
+          }
+        ],
+        "library": [
+          {
+            "from": 34,
+            "to": 41
+          }
+        ],
+        "base": [
+          {
+            "from": 50,
+            "to": 54
+          },
+          {
+            "from": 63,
+            "to": 67
+          }
+        ],
+        "facade": [
+          {
+            "from": 17,
+            "to": 23
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 24,
+          "to": 54
+        }
+      ]
+    },
+    "chain1": {
+      "documentId": "root-a",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:ba6c028de865422985a9b2f5887bc3bb30f9546e6ec63329a421e8ded85037b9",
+      "sha256": "ba6c028de865422985a9b2f5887bc3bb30f9546e6ec63329a421e8ded85037b9",
+      "text": "nui 1\nimport \"./facade.nui\" as facade\ninstance use = facade::Pocket()",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 61,
+            "to": 67
+          }
+        ],
+        "facade": [
+          {
+            "from": 16,
+            "to": 22
+          },
+          {
+            "from": 31,
+            "to": 37
+          },
+          {
+            "from": 53,
+            "to": 59
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 6,
+          "to": 37
+        }
+      ]
+    },
+    "chain2": {
+      "documentId": "root-a",
+      "sourceRevision": 2,
+      "savedSourceFingerprint": "sha256:82c205b999d53d7658118149f3bfccf485a493d8e51f1273dea587256cb54987",
+      "sha256": "82c205b999d53d7658118149f3bfccf485a493d8e51f1273dea587256cb54987",
+      "text": "nui 1\n// shifted root\nimport \"./facade.nui\" as bridge\ninstance use = bridge::Pocket()",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 77,
+            "to": 83
+          }
+        ],
+        "facade": [
+          {
+            "from": 32,
+            "to": 38
+          }
+        ],
+        "bridge": [
+          {
+            "from": 47,
+            "to": 53
+          },
+          {
+            "from": 69,
+            "to": 75
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 22,
+          "to": 53
+        }
+      ]
+    },
+    "chainRenamed": {
+      "documentId": "root-a",
+      "sourceRevision": 3,
+      "savedSourceFingerprint": "sha256:881fda1a109b91be28d1c13f028eb25a40bfc59c4cdabd29c1eab86744a7445a",
+      "sha256": "881fda1a109b91be28d1c13f028eb25a40bfc59c4cdabd29c1eab86744a7445a",
+      "text": "nui 1\n// shifted root\nimport \"./facade.nui\" as bridge\ninstance use = bridge::Pouch()",
+      "ranges": {
+        "Pouch": [
+          {
+            "from": 77,
+            "to": 82
+          }
+        ],
+        "facade": [
+          {
+            "from": 32,
+            "to": 38
+          }
+        ],
+        "bridge": [
+          {
+            "from": 47,
+            "to": 53
+          },
+          {
+            "from": 69,
+            "to": 75
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 22,
+          "to": 53
+        }
+      ]
+    },
+    "diamond": {
+      "documentId": "root-a",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:3d13c0ef5eccf006069ff30abf25a032253e9081cec15d6cc8871c72a06d01dc",
+      "sha256": "3d13c0ef5eccf006069ff30abf25a032253e9081cec15d6cc8871c72a06d01dc",
+      "text": "nui 1\nimport \"./left.nui\" as left\nimport \"./right.nui\" as right",
+      "ranges": {},
+      "imports": [
+        {
+          "from": 6,
+          "to": 33
+        },
+        {
+          "from": 34,
+          "to": 63
+        }
+      ]
+    },
+    "left": {
+      "documentId": "left",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:8f468618fb8c72e64588fd6f5842b3322af99cf38c8fd7403c5e859a53e4aeda",
+      "sha256": "8f468618fb8c72e64588fd6f5842b3322af99cf38c8fd7403c5e859a53e4aeda",
+      "text": "nui 1\nimport \"./library.nui\" as library\nexport @library::Pocket",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 57,
+            "to": 63
+          }
+        ],
+        "library": [
+          {
+            "from": 16,
+            "to": 23
+          },
+          {
+            "from": 32,
+            "to": 39
+          },
+          {
+            "from": 48,
+            "to": 55
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 6,
+          "to": 39
+        }
+      ]
+    },
+    "right": {
+      "documentId": "right",
+      "sourceRevision": 1,
+      "savedSourceFingerprint": "sha256:8f468618fb8c72e64588fd6f5842b3322af99cf38c8fd7403c5e859a53e4aeda",
+      "sha256": "8f468618fb8c72e64588fd6f5842b3322af99cf38c8fd7403c5e859a53e4aeda",
+      "text": "nui 1\nimport \"./library.nui\" as library\nexport @library::Pocket",
+      "ranges": {
+        "Pocket": [
+          {
+            "from": 57,
+            "to": 63
+          }
+        ],
+        "library": [
+          {
+            "from": 16,
+            "to": 23
+          },
+          {
+            "from": 32,
+            "to": 39
+          },
+          {
+            "from": 48,
+            "to": 55
+          }
+        ]
+      },
+      "imports": [
+        {
+          "from": 6,
+          "to": 39
+        }
+      ]
+    }
+  },
+  "sequences": [
+    {
+      "id": "T1",
+      "sourceKeys": [
+        "root1",
+        "root2",
+        "lib1",
+        "lib2"
+      ],
+      "sourceBundleSha256": "517f956194fa284fe0885a6e168845fda12a7b59489b24d060eaee803dc7438d",
+      "orderedLedger": [
+        "request R1 blocked on lib1",
+        "request R2 loads lib2 and installs",
+        "resolve R1 late => stale; R2 remains"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "T2",
+      "sourceKeys": [
+        "importOnly",
+        "lib1",
+        "libRenamed"
+      ],
+      "sourceBundleSha256": "c96504b387aac0f4f872cd789a0b73c22534d75196386f3a4fb8e6a968169fa7",
+      "orderedLedger": [
+        "install lib1",
+        "save libRenamed; invalidate library",
+        "rebuild same root revision; Pouch new fingerprint/range; Pocket absent"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "T3",
+      "sourceKeys": [
+        "chain1",
+        "facade1",
+        "facade2",
+        "lib1",
+        "lib2",
+        "libRenamed"
+      ],
+      "sourceBundleSha256": "298ef08733d70b6b35744c0192146118c294a4226316d71623ede2602c0230ac",
+      "orderedLedger": [
+        "install root->facade1->lib1",
+        "save facade2/lib2; invalidate library => root-a",
+        "rebuild; facade Pocket retains library identity",
+        "save libRenamed only; invalidate/rebuild => invalid facade public API"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "T4",
+      "sourceKeys": [
+        "root1",
+        "rootB",
+        "independent",
+        "lib1",
+        "lib2"
+      ],
+      "sourceBundleSha256": "028bd2af657362395b02e32180f7d140562fed94a3d386881dad3250406248b6",
+      "orderedLedger": [
+        "install three roots, first two share exact artifact",
+        "save lib2; invalidate => root-a/root-b only",
+        "rebuild first two; third remains same object"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "T5",
+      "sourceKeys": [
+        "importOnly",
+        "libInvalid",
+        "lib1"
+      ],
+      "sourceBundleSha256": "654e0d82d24e23073be16458bbece026eeb636e4146c348f2f9a370e5d901761",
+      "orderedLedger": [
+        "missing => importer diagnostic",
+        "unreadable => importer diagnostic",
+        "version-invalid => invalid-source at importer",
+        "valid lib1 => valid",
+        "invalid again => no valid artifact fallback"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "T6",
+      "sourceKeys": [
+        "diamond",
+        "left",
+        "right",
+        "lib1",
+        "lib2"
+      ],
+      "sourceBundleSha256": "05b1ebcf6d134b1cbd8a1856154e1736c7d074889ab81fd32ea328a4649e5199",
+      "orderedLedger": [
+        "left->lib1/right->lib2 same DocumentId => stale diagnostic right; root invalid",
+        "control both->lib1 => valid shared node"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "Q1",
+      "sourceKeys": [
+        "root1",
+        "lib1",
+        "libDirty",
+        "libOther"
+      ],
+      "sourceBundleSha256": "9d1ecd8b3225f222509d4e6b34519d6ed7dcd80f5fba94d41b29f5ec5a41db90",
+      "orderedLedger": [
+        "saved definition => lib1 range",
+        "reconcile dirty current from lib1; compile current view => libDirty range",
+        "withdraw semantic proof => null",
+        "replace by other declaration => null"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "Q2",
+      "sourceKeys": [
+        "chain1",
+        "chainRenamed",
+        "facade1",
+        "facadeRenamed",
+        "lib1",
+        "libRenamed",
+        "rootB"
+      ],
+      "sourceBundleSha256": "cbf7364183d9dfafe38c803dfa4ffaa1b633d38278e3ee9b9aa484136ad82f2c",
+      "orderedLedger": [
+        "compile v1 indexes; complete discovery exact references",
+        "save renamed library/facade/root; reconcile/rebuild all",
+        "new Definition/References exact; duplicate indexes deduped",
+        "incomplete discovery rejected",
+        "incompatible old root-b reverse index using lib1 plus fresh root-a graph using libRenamed => rejected even with current defining view"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "BUG→FIXED→REPASS"
+    },
+    {
+      "id": "Q3",
+      "sourceKeys": [
+        "root1",
+        "lib1",
+        "libDirty",
+        "libCapture"
+      ],
+      "sourceBundleSha256": "3ecbb6efe199f537ded227943f8ce1c559396d7472aa5e2086007a888f5c4cc8",
+      "orderedLedger": [
+        "freeze full Pocket->Pouch rename footprint",
+        "reconcile current libDirty; stale proof rejects atomically",
+        "recompute current proofs => complete plan",
+        "incomplete/partial/rejected/capturing proofs => atomic rejection",
+        "physically replay accepted edits; recompile/requery; marker and alias unchanged"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "Q4",
+      "sourceKeys": [
+        "root1",
+        "root2",
+        "lib1",
+        "lib2",
+        "libDirty"
+      ],
+      "sourceBundleSha256": "8e665e4a8d24fb9614068e012b715b8095737f30af8989e57a6a9b5cc076a735",
+      "orderedLedger": [
+        "R1 gated on lib1",
+        "save lib2; request/complete R2",
+        "reconcile libDirty current from lib2; compile view",
+        "late R1 stale; query R2 Definition/References/Rename exact current sources",
+        "counterfactual resolve R1 before R2; R2 final and same query outcomes"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "PASS"
+    },
+    {
+      "id": "A1",
+      "sourceKeys": [
+        "root1",
+        "rootB",
+        "lib1",
+        "lib2",
+        "libDirty"
+      ],
+      "sourceBundleSha256": "dd24af105d8b00f0c853eb34a2d658c5913c746374424680939fc173a7646e66",
+      "orderedLedger": [
+        "reduce Q2 to root-a->lib1, root-b->lib2, current library libDirty; each independently compiles",
+        "complete References and Rename reject incompatible saved candidates despite current view",
+        "control root-a/root-b both->lib1 plus libDirty current => exact two references/full three-document plan"
+      ],
+      "prevalidation": "PASS: real parser plus graph-backed production Module compile at legal checkpoints; libInvalid is intentional nui 99 rejection control in T5",
+      "disposition": "BUG→FIXED→REPASS"
+    }
+  ],
+  "rejectedOracleControl": {
+    "id": "Q2-draft",
+    "classification": "CONTRACT_INVALID",
+    "detail": "A current library root plus one old saved graph alone cannot prove a conflicting new saved snapshot. Current identity reproving legitimately overrides a single saved source. Replaced before accepting discrepancy with two real graphs carrying incompatible saved fingerprints."
+  },
+  "expectedIdentity": {
+    "Pocket/Pouch": {
+      "documentId": "library",
+      "localIdentity": "lib1:moduleDefinition:1"
+    },
+    "allocator": "canonical reconcileStatements with deterministic createStatementId; edits inherit only through real reconciliation"
+  }
+}

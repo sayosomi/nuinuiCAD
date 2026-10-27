@@ -1,0 +1,102 @@
+[
+  {
+    "reuse": "B-min-construct-dynamic"
+  },
+  {
+    "reuse": "B-min-construct-fixed"
+  },
+  {
+    "reuse": "B-reduced-construct-dynamic"
+  },
+  {
+    "reuse": "B-reduced-construct-fixed"
+  },
+  {
+    "reuse": "G-map-free-construct"
+  },
+  {
+    "reuse": "A-optional-source-constructor",
+    "deferred": "UNRESOLVED; generic boundary proposed to #1260; exact first-owner evidence required separately."
+  },
+  {
+    "reuse": "A-map-free-optional-control",
+    "deferred": "UNRESOLVED; generic boundary proposed to #1260; exact first-owner evidence required separately."
+  },
+  {
+    "reuse": "G-map-free-dynamic",
+    "deferred": "UNRESOLVED; generic boundary proposed to #1260; exact first-owner evidence required separately."
+  },
+  {
+    "reuse": "B-min-forward-dynamic",
+    "deferred": "UNRESOLVED; generic boundary proposed to #1260; exact first-owner evidence required separately."
+  },
+  {
+    "reuse": "A-min-optional-forward",
+    "deferred": "UNRESOLVED; generic boundary proposed to #1260; exact first-owner evidence required separately."
+  },
+  {
+    "reuse": "B-poison-selected",
+    "slice": 7
+  },
+  {
+    "reuse": "B-map-free-scalar-source",
+    "slice": 7,
+    "deferred": "UNRESOLVED; existing residual7 map-free scalar collection dependency control for #1260 transfer evidence."
+  },
+  {
+    "id": "N9-multifield-dynamic",
+    "domain": "module-record-constructor-order",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.pad, 0))) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length",
+    "expected": {
+      "L": 7,
+      "M": 11
+    }
+  },
+  {
+    "id": "N9-multifield-fixed",
+    "domain": "module-record-constructor-order",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Values: Seed[] = [@A, @B]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.pad, 0))) }\n const Chosen: R = @Mapped[1]\n export const out: path = @Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length",
+    "expected": {
+      "L": 11,
+      "M": 11
+    }
+  },
+  {
+    "id": "N9-multifield-lazy",
+    "domain": "module-record-constructor-order",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Bad: Seed = Seed(n: 0, pad: 0)\n const Values: Seed[] = [@A, @B, @Bad]\n const Mapped: R[] = for item in @Values { R(p: segment(start: (0, 0), end: (@item.pad / @item.pad * @item.pad, 0))) }\n const Chosen: R = @Mapped[@which]\n export const out: path = @Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length",
+    "expected": {
+      "L": 7,
+      "M": 11
+    }
+  },
+  {
+    "id": "N9-direct-record",
+    "domain": "module-record-constructor-order",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord R(p: path)\nrecord Seed(n: number, pad: number)\nmodule Pick(which: number) {\n const A: Seed = Seed(n: 3, pad: 7)\n const B: Seed = Seed(n: 5, pad: 11)\n const Chosen: R = R(p: segment(start: (0, 0), end: (@B.pad, 0)))\n export const out: path = @Chosen.p\n}\ninstance One = Pick(which: 0)\ninstance Two = Pick(which: 1)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst L: number = @First.length\nconst M: number = @Second.length",
+    "expected": {
+      "L": 11,
+      "M": 11
+    }
+  }
+]

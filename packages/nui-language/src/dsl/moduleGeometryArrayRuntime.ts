@@ -1,3 +1,4 @@
+import { recordFieldContentsCollectionIdentityFor, recordValueCollectionIdentityFor } from "../scalars/recordScalarLowering";
 import type { ElementId, PointAnchor } from "../types/geometry";
 import { isDerivedPointKeyForGeometryCategory } from "../model/pointAnchors";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
@@ -16,6 +17,7 @@ import {
 import { geometryArrayTypeOfModuleParameter } from "./geometryArraySourceAnnotations";
 import {
   geometryArrayTypeName,
+  geometryArrayTypeOfDslValueType,
   isGeometryArrayTypeAssignable,
   type GeometryArrayType
 } from "./geometryArrayTypes";
@@ -29,8 +31,11 @@ import type { ModuleMaterialization } from "./moduleMaterialization";
 import type { ModuleGeometryReferenceSemantic, ModuleSemanticAnalysis } from "./moduleSemanticTypes";
 import type { ModuleRuntimeContext } from "./moduleRuntimeContext";
 import {
+  moduleCarryBindingIdFor,
   pathKey,
   sourceAliasForTarget,
+  recordFieldValueSourceFor,
+  type RecordCollectionLookup,
   lowerAliasWithPointKey as lowerStagePreservingAliasWithPointKey,
   pointAnchorForAlias as pointAnchorForGeometryAlias,
   geometryInputTargetForAlias,
@@ -42,6 +47,7 @@ import {
   type GeometryAlias,
   type InstanceContext
 } from "./moduleGeometryRuntimeLowering";
+import { immutableCarryCollectionValueId } from "../scalars/immutableCarryIdentity";
 import {
   buildSourceLexicalNamespaceIndex,
   resolveSourceLexicalPath,
@@ -216,7 +222,9 @@ export const buildModuleGeometryArrayRuntime = ({
   contextsByPath,
   exportsByPath,
   moduleRuntimeContext,
-  sourceNamespace
+  sourceNamespace,
+  rootRecordValuesByStatementId = moduleSemanticAnalysis.rootRecordValuesByStatementId,
+  recordCollectionLookup
 }: {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
@@ -226,6 +234,8 @@ export const buildModuleGeometryArrayRuntime = ({
   exportsByPath: ReadonlyMap<string, ReadonlyMap<string, ExportEntry>>;
   moduleRuntimeContext?: ModuleRuntimeContext;
   sourceNamespace?: SourceLexicalNamespaceIndex;
+  rootRecordValuesByStatementId?: ReadonlyMap<string, import("./moduleSemanticTypes").ModuleRecordValueSemantic>;
+  recordCollectionLookup?: RecordCollectionLookup;
 }): ModuleGeometryArrayRuntimeCompilation => {
   type RuntimeSource = {
     documentId: string;
@@ -335,6 +345,27 @@ export const buildModuleGeometryArrayRuntime = ({
   };
 
   const singularTargetFor = (target: GeometryArraySourceTarget, currentPath: readonly string[]) => {
+    if (target.kind === "geometryCarry") return {
+      kind: "geometryCarry" as const, bindingId: target.bindingId, statementId: target.statementId,
+      statementIndex: target.statementIndex, geometryKind: target.interfaceType,
+      ...(target.pointKey ? { pointKey: target.pointKey } : {})
+    };
+    if (target.kind === "deferredModuleExport") {
+      return {
+        kind: "deferredModuleExport" as const,
+        instanceStatementId: target.instanceStatementId,
+        instanceStatementIndex: target.instanceStatementIndex,
+        instanceName: target.instanceName,
+        exportName: target.exportName,
+        expectedGeometryKind: target.interfaceType === "point" ? "point" as const : "line" as const,
+        expectedInterfaceType: target.interfaceType,
+        referenceSpan: target.referenceSpan,
+        instanceSpan: target.instanceSpan,
+        memberSpan: target.memberSpan,
+        ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+        ...(target.stagePath ? { stagePath: target.stagePath } : {})
+      };
+    }
     if (target.kind === "moduleParameter") {
       return {
         kind: "parameter" as const,
@@ -900,6 +931,26 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
+    if (semantic.value.kind === "alias" && semantic.value.targetValueId.startsWith("carry-collection:")) {
+      const geometryType = semantic.value.type.elementType;
+      const sourceBindingId = semantic.value.targetValueId.slice("carry-collection:".length);
+      if (!geometryType || !sourceBindingId) {
+        sourceValueCache.set(key, null);
+        return null;
+      }
+      const value: RuntimeArrayValue = {
+        type: semantic.type,
+        members: [],
+        collection: {
+          kind: "carryReference",
+          collectionValueId: immutableCarryCollectionValueId(moduleCarryBindingIdFor(currentPath, sourceBindingId)),
+          geometryType
+        }
+      };
+      sourceValueCache.set(key, value);
+      return value;
+    }
+
     const currentSource = sourceForPath(currentPath);
     const currentAnalysis = currentSource.analysis;
     if (!currentAnalysis) {
@@ -968,6 +1019,12 @@ export const buildModuleGeometryArrayRuntime = ({
       return value;
     }
 
+    if (recordFieldContentsCollectionIdentityFor(semantic.value.targetValueId)) {
+      const value = lowerValueById(semantic.value.targetValueId, currentPath, nextVisited);
+      sourceValueCache.set(key, value);
+      return value;
+    }
+
     sourceValueCache.set(key, null);
     return null;
   }
@@ -978,6 +1035,39 @@ export const buildModuleGeometryArrayRuntime = ({
     visited: ReadonlySet<string>
   ): RuntimeArrayValue | null => {
     const source = sourceForPath(currentPath);
+    const contents = recordFieldContentsCollectionIdentityFor(valueId);
+    const record = contents ? recordValueCollectionIdentityFor(contents.recordCollectionValueId) : null;
+    if (contents && record) {
+      const key = `${pathKey(currentPath)}:${valueId}`;
+      if (visited.has(key)) return null;
+      const paths = record.path.length > 0 ? [record.path] : Array.from({ length: currentPath.length + 1 }, (_, i) => currentPath.slice(0, currentPath.length - i));
+      for (const path of paths) {
+        const context = contextsByPath.get(pathKey(path));
+        const value = context?.definition.recordValues.find(candidate => candidate.value.statementId === record.statementId)
+          ?? sourceForPath(path).moduleSemanticAnalysis.rootRecordValuesByStatementId.get(record.statementId);
+        if (!value?.target) continue;
+        const resolved = recordFieldValueSourceFor(value.target, contents.fieldPath, path, contextsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+        const field = resolved.expression;
+        if (field?.kind !== "collection") continue;
+        if (field.value?.kind === "alias") return lowerValueById(field.value.targetValueId, resolved.fieldContextPath, new Set([...visited, key]));
+        const type = geometryArrayTypeOfDslValueType(field.valueType);
+        if (type && field.value?.kind === "literal") {
+          const members = field.value.members.map((member): RuntimeArrayMember => {
+            // Geometry record-field members retain the canonical Module target
+            // in the shared generic collection carrier (see analyzeRecordFieldValue).
+            const target = member.target as unknown as NonNullable<ModuleGeometryReferenceSemantic["target"]>;
+            const alias = sourceAliasForTarget(target, resolved.fieldContextPath, contextsByPath, moduleMaterialization, exportsByPath, rootRecordValuesByStatementId, recordCollectionLookup);
+            return {
+              interfaceType: type.elementType,
+              alias: alias ?? null,
+              ...(pointAnchorForAlias(alias) ? { anchor: pointAnchorForAlias(alias) } : {})
+            };
+          });
+          return { type, members };
+        }
+      }
+      return null;
+    }
     const semantic = source.analysis?.valuesByStatementId.get(valueId);
     if (semantic) return lowerSemantic(semantic, currentPath, visited);
     const parameter = source.analysis ? parameterSlotFromValueId(source.analysis, valueId) : null;

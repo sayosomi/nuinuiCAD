@@ -1,14 +1,13 @@
 import type { StatementIdentity } from "@nuinuicad/nui-language/document";
-import type { BindingId } from "@nuinuicad/nui-language";
+import { analyzeBindings, buildBindingCatalog, type BindingId, type BindingSeed } from "@nuinuicad/nui-language";
 import { compileModuleScalarRuntime, type ModuleScalarRuntimeCompilation } from "@nuinuicad/nui-language";
 import type { ElementId } from "../types/geometry";
-import { applyStatement } from "@nuinuicad/nui-language";
+import { compileDslToElements } from "@nuinuicad/nui-language";
 import { buildStatementMap, type CompiledDslDocument } from "@nuinuicad/nui-language";
 import { isCompilableDslStatement } from "@nuinuicad/nui-language";
 import { parseDslSnapshot } from "@nuinuicad/nui-language";
-import { buildModuleGeometryRuntime, type ModuleGeometryRuntimeCompilation } from "@nuinuicad/nui-language";
-import { compileMaterializedExecution } from "@nuinuicad/nui-language";
-import { materializeModuleExecution, materializedRuntimeElementId, type ModuleMaterialization } from "@nuinuicad/nui-language";
+import type { ModuleGeometryRuntimeCompilation } from "@nuinuicad/nui-language";
+import { materializedRuntimeElementId, type ModuleMaterialization } from "@nuinuicad/nui-language";
 import { analyzeModuleSemantics } from "@nuinuicad/nui-language";
 import type {
   ModuleDefinitionSemantic,
@@ -195,6 +194,38 @@ const documentScalarBindingsFor = (
     bindings.set(binding.statementIndex, { bindingId: binding.id, statementId });
   }
   return bindings;
+};
+
+/** Reuse source-owned bindings, then lower the Preview's instances afresh.
+ * The compiled aggregate also contains authored instance bindings; ancestor
+ * projection can remove those instances, so their runtime scopes are not a
+ * valid input to the synthetic root's scalar compilation.
+ */
+const sourceBindingAnalysisFor = (compiled: CompiledDslDocument) => {
+  const analysis = compiled.bindingAnalysis;
+  if (!analysis) return undefined;
+  const source = analysis.catalog;
+  const bindings = source.bindings.filter((binding) => source.scopeIndex.scopes.has(binding.effectiveScopeId));
+  const sourceOrders = new Map<number, Map<string, number>>();
+  const seeds: BindingSeed[] = bindings.map((binding) => {
+    const lane = sourceOrders.get(binding.statementIndex) ?? new Map<string, number>();
+    const sourceOrder = lane.get(binding.kind) ?? 0;
+    if (binding.catalogOrder !== "append") lane.set(binding.kind, sourceOrder + 1);
+    sourceOrders.set(binding.statementIndex, lane);
+    return { ...binding, sourceOrder };
+  });
+  const catalog = buildBindingCatalog({
+    scopeIndex: source.scopeIndex,
+    stableStatementIdByIndex: stableIdsFor(compiled),
+    iterationBindings: seeds.filter((binding) => binding.kind === "iteration"),
+    additionalBindings: seeds.filter((binding) => binding.kind === "typed" && binding.resolutionMode === "preResolvedOnly"),
+    containerIndex: source.containerIndex,
+    sourceNamespaceBindingResolver: source.sourceNamespaceBindingResolver
+  });
+  return analyzeBindings({
+    catalog,
+    initializerReferences: analysis.initializerReferences.filter((reference) => catalog.bindingsById.has(reference.fromBindingId))
+  });
 };
 
 const referenceIsResolved = (reference: ModuleGeometryReferenceSemantic): boolean =>
@@ -457,11 +488,15 @@ const projectAncestorDefinitions = (
 
 const assignedElementIdsFor = (
   statements: readonly DslStatement[],
-  stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>
+  stableStatementIdByIndex: ReadonlyMap<number, StatementIdentity>,
+  sourceElementIds: ReadonlyMap<number, ElementId>
 ): Map<number, ElementId> => new Map(statements.flatMap((statement, index) => {
   if (statement.kind !== "group" && statement.kind !== "element") return [];
   const statementId = stableStatementIdByIndex.get(index);
-  return statementId ? [[index, `module-preview-source:${statementId}` as ElementId] as const] : [];
+  // Ordinary source elements retain their compiler identities, including the
+  // iteration binding/element join. Only synthetic Module calls need new IDs.
+  const elementId = sourceElementIds.get(index) ?? statementId;
+  return elementId ? [[index, elementId as ElementId] as const] : [];
 }));
 
 const noSourceOutputs = () => ({
@@ -615,58 +650,50 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   ) return null;
 
   const previewAnalysis = projectAncestorDefinitions(analysis, chain, syntheticStatementIds);
-  const assignedElementIds = assignedElementIdsFor(statements, stableStatementIdByIndex);
+  const assignedElementIds = assignedElementIdsFor(
+    statements, stableStatementIdByIndex, compiled.statementMap?.elementIdByStatementIndex ?? new Map()
+  );
 
   let moduleMaterialization: ModuleMaterialization;
   let moduleGeometryRuntime: ModuleGeometryRuntimeCompilation;
   let compileResult: CompileDslResult;
   const compilerDiagnostics: DslDiagnostic[] = [];
   try {
-    const materialized = materializeModuleExecution({
-      statements,
-      stableStatementIdByIndex,
+    // Use the canonical element compiler, including its resolved root/Module
+    // transformation recipes, for this ephemeral AST as for an authored file.
+    compileResult = compileDslToElements(input.source.normalizedSource, {
+      elements: [], mode: "document",
+      majorVersion: compiled.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
+      preparsed: {
+        statements, diagnostics: [], sourceRevision: input.source.sourceRevision,
+        sourceMap: compiled.spans.sourceMap,
+        logicalStatementByRangeFrom: compiled.spans.logicalStatementByRangeFrom
+      },
       assignedElementIds,
-      moduleSemanticAnalysis: previewAnalysis
-    });
-    moduleMaterialization = {
-      ...materialized,
-      evaluationLimitIndex: undefined
-    };
-    moduleGeometryRuntime = buildModuleGeometryRuntime({
-      statements,
-      stableStatementIdByIndex,
       moduleSemanticAnalysis: previewAnalysis,
-      moduleMaterialization
-    });
-    if (hasRelevantError(moduleGeometryRuntime.diagnostics, relevantLines)) return null;
-
-    const visibilityRoles = compiled.document?.visibilityRoles ?? [];
-    const visibilityProfiles = compiled.document?.visibilityProfiles ?? [];
-    compileResult = compileMaterializedExecution({
-      statements,
-      context: {
-        elements: [],
-        mode: "document",
-        majorVersion: compiled.majorVersion ?? NEW_DOCUMENT_DSL_MAJOR_VERSION,
-        assignedElementIds,
-        moduleSemanticAnalysis: previewAnalysis,
-        stableStatementIdByIndex,
-        sourceLexicalResolution: {
-          sourceNamespace,
-          elementIdByStatementIndex: moduleMaterialization.elementIdBySourceStatementIndex
-        }
+      stableStatementIdByIndex,
+      sourceLexicalResolution: {
+        sourceNamespace,
+        elementIdByStatementIndex: assignedElementIds
       },
-      diagnostics: compilerDiagnostics,
-      visibilitySettings: {
-        visibilityRoles,
-        visibilityProfiles,
-        activeVisibilityProfileId: compiled.document?.activeVisibilityProfileId
-      },
-      materialization: moduleMaterialization,
-      moduleGeometryRuntime,
-      applyStatement,
-      buildSourceOutputModel: noSourceOutputs
+      visibilityRoles: compiled.document?.visibilityRoles ?? [],
+      visibilityProfiles: compiled.document?.visibilityProfiles ?? [],
+      activeVisibilityProfileId: compiled.document?.activeVisibilityProfileId
     });
+    compilerDiagnostics.push(...compileResult.diagnostics);
+    if (!compileResult.moduleMaterialization || !compileResult.moduleGeometryRuntime) return null;
+    moduleMaterialization = { ...compileResult.moduleMaterialization, evaluationLimitIndex: undefined };
+    moduleGeometryRuntime = compileResult.moduleGeometryRuntime;
+    const sourceElementIds = new Set(assignedElementIds.values());
+    moduleGeometryRuntime = {
+      ...moduleGeometryRuntime,
+      geometryInputTargetsByRuntimeElementId: new Map([
+        ...[...(compiled.moduleGeometryRuntime?.geometryInputTargetsByRuntimeElementId ?? [])]
+          .filter(([elementId]) => sourceElementIds.has(elementId)),
+        ...moduleGeometryRuntime.geometryInputTargetsByRuntimeElementId
+      ])
+    };
+    compileResult = { ...compileResult, ...noSourceOutputs() };
   } catch {
     return null;
   }
@@ -679,7 +706,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
       stableStatementIdByIndex,
       moduleSemanticAnalysis: previewAnalysis,
       moduleMaterialization,
-      documentBindingAnalysis: compiled.bindingAnalysis,
+      documentBindingAnalysis: sourceBindingAnalysisFor(compiled),
       documentScalarProgram: compiled.scalarProgram,
       reconciledContainers: {
         elementIdByStatementIndex: moduleMaterialization.elementIdBySourceStatementIndex,
@@ -689,6 +716,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
         isCompilableDslStatement(statements, statementIndex),
       elements: compileResult.elements,
       sourceScopeIndex: sourceNamespace.scopeIndex,
+      sourceNamespace,
       moduleGeometryRuntime,
       drawingModifiers: compileResult.modifiers
     });

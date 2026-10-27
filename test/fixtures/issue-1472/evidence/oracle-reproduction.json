@@ -1,0 +1,6 @@
+{
+  "command": "python3 test/fixtures/issue-1472/freeze.py",
+  "exitCode": 0,
+  "manifestSha256": "48fb69c3687dfcd0cefe1faf58971afe460d6504ae65c30588524fb6550cc56f",
+  "unchangedAfterMeasurement": true
+}

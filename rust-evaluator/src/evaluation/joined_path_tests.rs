@@ -129,9 +129,11 @@ fn joined_path_consumes_its_compiler_selected_drawable_stage_snapshot() {
             shifted_geometry,
         )]),
         completed_transformation_recipe_indices: HashSet::new(),
+        completed_transformation_targets: HashMap::new(),
         transformation_dependency_plans: None,
         computed_geometry_order: Vec::new(),
         computed_geometry_values: HashMap::new(),
+        lazy_geometry_value_programs: HashMap::new(),
         geometry_input_targets: HashMap::from([(
             "joined".to_owned(),
             HashMap::from([(

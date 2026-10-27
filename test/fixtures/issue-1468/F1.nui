@@ -1,0 +1,34 @@
+nui 1
+// sewing workflow: preserve this comment and blank lines
+profile Plot
+style Ink {
+  width: 1px,
+  color: #123456,
+  for @Plot {
+    width: 2px,
+  }
+}
+
+const width: number = 80 // editable bust
+const height: number = 140 // independent length
+
+group Bodice [Ink] {
+  point Origin = coordinate(x: 0, y: 0)
+  point Waist = coordinate(x: @width, y: 0)
+  line Bottom = segment(start: @Origin, end: @Waist)
+  line Side = segment(start: @Waist, end: (@width - 10, @height - 10))
+  curve Neck = bezier(start: (0, @height), end: (40, @height - 20), startAngle: 0, startLength: 20, endAngle: 270, endLength: 10)
+  line Reference = segment(start: (0, -20), end: (100, -20))
+  text Caption = label(text: "BODICE", anchor: (5, 5), size: 3)
+}
+group Control [Ink] {
+  line Edge = segment(start: (0, 0), end: (13, 7))
+}
+layout Sheet {
+  place @Bodice(at: (13, -7), scale: 1, angle: 0, mirror: false)
+  place @Control(at: (160, -10), scale: 1, angle: 0, mirror: false)
+}
+svg Vector(layout: @Sheet, profile: @Plot, margin: 3)
+print Paper(layout: @Sheet, profile: @Plot, paper: a4, orientation: portrait, overlap: 10)
+
+// end sentinel

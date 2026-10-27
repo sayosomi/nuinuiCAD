@@ -1,0 +1,557 @@
+[
+  {
+    "id": "X1",
+    "parent": "C1",
+    "purpose": "Instance segment control: Left changes without changing Right, Draft or export identity",
+    "source": "nui 1\nmodule Draft(seed: number) {\n export point Tip = coordinate(x: @seed * 3, y: @seed + 2)\n}\ninstance Left = Draft(seed: 5)\ninstance Right = Draft(seed: 13)\npoint Observer = from(source: @Left::Tip)\npoint Control = from(source: @Right::Tip)\n",
+    "sourceRevision": 7,
+    "sha256": "e7c172c160931e0eccf2ba7d9949a938fd7c658097343a3699705474519f356b",
+    "selection": 191,
+    "identity": "X1:Left",
+    "name": "Left",
+    "newName": "Front",
+    "declaration": {
+      "from": 105,
+      "to": 109
+    },
+    "references": [
+      {
+        "from": 191,
+        "to": 195
+      }
+    ],
+    "edits": [
+      {
+        "from": 105,
+        "to": 109,
+        "expectedText": "Left",
+        "newText": "Front"
+      },
+      {
+        "from": 191,
+        "to": 195,
+        "expectedText": "Left",
+        "newText": "Front"
+      }
+    ],
+    "afterSource": "nui 1\nmodule Draft(seed: number) {\n export point Tip = coordinate(x: @seed * 3, y: @seed + 2)\n}\ninstance Front = Draft(seed: 5)\ninstance Right = Draft(seed: 13)\npoint Observer = from(source: @Front::Tip)\npoint Control = from(source: @Right::Tip)\n",
+    "points": [
+      [
+        "Tip",
+        15,
+        7
+      ],
+      [
+        "Tip",
+        39,
+        15
+      ],
+      [
+        "Observer",
+        15,
+        7
+      ],
+      [
+        "Control",
+        39,
+        15
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 105,
+        "to": 109
+      },
+      "r0": {
+        "from": 191,
+        "to": 195
+      }
+    }
+  },
+  {
+    "id": "X2",
+    "parent": "C2",
+    "purpose": "Module parameter label rename expands shorthand while retaining caller value",
+    "source": "nui 1\nconst seed: number = 7\nmodule Draft(seed: number) {\n export point Tip = coordinate(x: @seed * 3, y: @seed + 2)\n}\ninstance Left = Draft(@seed)\npoint Observer = from(source: @Left::Tip)\npoint Control = coordinate(x: @seed, y: 92)\n",
+    "sourceRevision": 7,
+    "sha256": "fa80d8cd3c76e499229f98a8f01a32f7dd5994acd7a576614e7e386418ce4c25",
+    "selection": 42,
+    "identity": "X2:seed",
+    "name": "seed",
+    "newName": "size",
+    "declaration": {
+      "from": 42,
+      "to": 46
+    },
+    "references": [
+      {
+        "from": 93,
+        "to": 97
+      },
+      {
+        "from": 107,
+        "to": 111
+      },
+      {
+        "from": 142,
+        "to": 146
+      }
+    ],
+    "edits": [
+      {
+        "from": 42,
+        "to": 46,
+        "expectedText": "seed",
+        "newText": "size"
+      },
+      {
+        "from": 93,
+        "to": 97,
+        "expectedText": "seed",
+        "newText": "size"
+      },
+      {
+        "from": 107,
+        "to": 111,
+        "expectedText": "seed",
+        "newText": "size"
+      },
+      {
+        "from": 141,
+        "to": 146,
+        "expectedText": "@seed",
+        "newText": "size: @seed"
+      }
+    ],
+    "afterSource": "nui 1\nconst seed: number = 7\nmodule Draft(size: number) {\n export point Tip = coordinate(x: @size * 3, y: @size + 2)\n}\ninstance Left = Draft(size: @seed)\npoint Observer = from(source: @Left::Tip)\npoint Control = coordinate(x: @seed, y: 92)\n",
+    "points": [
+      [
+        "Tip",
+        21,
+        9
+      ],
+      [
+        "Observer",
+        21,
+        9
+      ],
+      [
+        "Control",
+        7,
+        92
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 42,
+        "to": 46
+      },
+      "r0": {
+        "from": 93,
+        "to": 97
+      },
+      "r1": {
+        "from": 107,
+        "to": 111
+      },
+      "r2": {
+        "from": 142,
+        "to": 146
+      }
+    },
+    "shorthand": true,
+    "dualDeclaration": {
+      "from": 12,
+      "to": 16
+    }
+  },
+  {
+    "id": "X3",
+    "parent": "D2",
+    "purpose": "Named checkpoint declaration, branch target and value reference share one stage identity",
+    "source": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse Edge as flipped()\nreverse Edge.flipped()\npoint Observer = from(source: @Edge.flipped.start)\npoint Control = from(source: @Edge.start)\n",
+    "sourceRevision": 7,
+    "sha256": "9b1b4286209ca24602971d2562a85ed478bd2a3347dd239ddf94da168ea555c8",
+    "selection": 95,
+    "identity": "X3:flipped",
+    "name": "flipped",
+    "newName": "turned",
+    "declaration": {
+      "from": 72,
+      "to": 79
+    },
+    "references": [
+      {
+        "from": 95,
+        "to": 102
+      },
+      {
+        "from": 141,
+        "to": 148
+      }
+    ],
+    "edits": [
+      {
+        "from": 72,
+        "to": 79,
+        "expectedText": "flipped",
+        "newText": "turned"
+      },
+      {
+        "from": 95,
+        "to": 102,
+        "expectedText": "flipped",
+        "newText": "turned"
+      },
+      {
+        "from": 141,
+        "to": 148,
+        "expectedText": "flipped",
+        "newText": "turned"
+      }
+    ],
+    "afterSource": "nui 1\nline Edge = segment(start: (2, 3), end: (17, 23))\nreverse Edge as turned()\nreverse Edge.turned()\npoint Observer = from(source: @Edge.turned.start)\npoint Control = from(source: @Edge.start)\n",
+    "points": [
+      [
+        "Observer",
+        17,
+        23
+      ],
+      [
+        "Control",
+        17,
+        23
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 72,
+        "to": 79
+      },
+      "r0": {
+        "from": 95,
+        "to": 102
+      },
+      "r1": {
+        "from": 141,
+        "to": 148
+      }
+    },
+    "stageConstruction": "reverse"
+  },
+  {
+    "id": "X4",
+    "parent": "A2",
+    "purpose": "Index binding control: scalar identity inside lowered indexed coordinate argument",
+    "source": "nui 1\nconst steps: number[] = [6, 23, 47]\nconst index: number = 1\npoint Observer = coordinate(x: @steps[@index], y: @steps[2] + @steps[0])\npoint Control = coordinate(x: 91, y: 92)\n",
+    "sourceRevision": 7,
+    "sha256": "51b7735fb80dd7e9229ee865f92becb7f00a4960ae89510153efa98d13e14764",
+    "selection": 105,
+    "identity": "X4:index",
+    "name": "index",
+    "newName": "slot",
+    "declaration": {
+      "from": 48,
+      "to": 53
+    },
+    "references": [
+      {
+        "from": 105,
+        "to": 110
+      }
+    ],
+    "edits": [
+      {
+        "from": 48,
+        "to": 53,
+        "expectedText": "index",
+        "newText": "slot"
+      },
+      {
+        "from": 105,
+        "to": 110,
+        "expectedText": "index",
+        "newText": "slot"
+      }
+    ],
+    "afterSource": "nui 1\nconst steps: number[] = [6, 23, 47]\nconst slot: number = 1\npoint Observer = coordinate(x: @steps[@slot], y: @steps[2] + @steps[0])\npoint Control = coordinate(x: 91, y: 92)\n",
+    "points": [
+      [
+        "Observer",
+        23,
+        53
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 48,
+        "to": 53
+      },
+      "r0": {
+        "from": 105,
+        "to": 110
+      }
+    }
+  },
+  {
+    "id": "X5",
+    "parent": "B2",
+    "purpose": "Root typed rename accepted safely; collision/capture alternatives reject atomically",
+    "source": "nui 1\nconst outer: number = 5\nconst occupied: number = 91\ngroup Inner {\n const inner: number = 17\n point Observer = coordinate(x: @outer, y: @inner)\n}\npoint Control = coordinate(x: @occupied, y: @outer)\n",
+    "sourceRevision": 7,
+    "sha256": "9a4ecc72deb4b17e0a033c3814a735acdaead795070b328e5ea89335982c0805",
+    "selection": 131,
+    "identity": "X5:outer",
+    "name": "outer",
+    "newName": "value",
+    "declaration": {
+      "from": 12,
+      "to": 17
+    },
+    "references": [
+      {
+        "from": 131,
+        "to": 136
+      },
+      {
+        "from": 196,
+        "to": 201
+      }
+    ],
+    "edits": [
+      {
+        "from": 12,
+        "to": 17,
+        "expectedText": "outer",
+        "newText": "value"
+      },
+      {
+        "from": 131,
+        "to": 136,
+        "expectedText": "outer",
+        "newText": "value"
+      },
+      {
+        "from": 196,
+        "to": 201,
+        "expectedText": "outer",
+        "newText": "value"
+      }
+    ],
+    "afterSource": "nui 1\nconst value: number = 5\nconst occupied: number = 91\ngroup Inner {\n const inner: number = 17\n point Observer = coordinate(x: @value, y: @inner)\n}\npoint Control = coordinate(x: @occupied, y: @value)\n",
+    "points": [
+      [
+        "Observer",
+        5,
+        17
+      ],
+      [
+        "Control",
+        91,
+        5
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 12,
+        "to": 17
+      },
+      "r0": {
+        "from": 131,
+        "to": 136
+      },
+      "r1": {
+        "from": 196,
+        "to": 201
+      }
+    },
+    "rejections": {
+      "occupied": "same-scope-collision",
+      "inner": "reference-resolution-change"
+    }
+  },
+  {
+    "id": "X6",
+    "parent": "X4",
+    "purpose": "Minimal lowered numeric index identity reproducer",
+    "source": "nui 1\nconst values: number[] = [2, 7]\nconst i: number = 1\npoint P = coordinate(x: @values[@i], y: 0)\n",
+    "sourceRevision": 7,
+    "sha256": "af141df529298451a3f8b0118b9c3aad4d541a4a68408c8fbdf48894b6b7d87f",
+    "selection": 91,
+    "identity": "X6:i",
+    "name": "i",
+    "newName": "j",
+    "declaration": {
+      "from": 44,
+      "to": 45
+    },
+    "references": [
+      {
+        "from": 91,
+        "to": 92
+      }
+    ],
+    "edits": [
+      {
+        "from": 44,
+        "to": 45,
+        "expectedText": "i",
+        "newText": "j"
+      },
+      {
+        "from": 91,
+        "to": 92,
+        "expectedText": "i",
+        "newText": "j"
+      }
+    ],
+    "afterSource": "nui 1\nconst values: number[] = [2, 7]\nconst j: number = 1\npoint P = coordinate(x: @values[@j], y: 0)\n",
+    "points": [
+      [
+        "P",
+        7,
+        0
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 44,
+        "to": 45
+      },
+      "r0": {
+        "from": 91,
+        "to": 92
+      }
+    }
+  },
+  {
+    "id": "X7",
+    "parent": "X3",
+    "purpose": "Minimal named stage point accessor identity reproducer",
+    "source": "nui 1\nline L = segment(start: (2, 3), end: (17, 23))\nreverse L as s()\npoint P = from(source: @L.s.start)\n",
+    "sourceRevision": 7,
+    "sha256": "8b879709f30adef379685e89e95f68d794d7ced2a796ca56089417151e85f41d",
+    "selection": 96,
+    "identity": "X7:s",
+    "name": "s",
+    "newName": "t",
+    "declaration": {
+      "from": 66,
+      "to": 67
+    },
+    "references": [
+      {
+        "from": 96,
+        "to": 97
+      }
+    ],
+    "edits": [
+      {
+        "from": 66,
+        "to": 67,
+        "expectedText": "s",
+        "newText": "t"
+      },
+      {
+        "from": 96,
+        "to": 97,
+        "expectedText": "s",
+        "newText": "t"
+      }
+    ],
+    "afterSource": "nui 1\nline L = segment(start: (2, 3), end: (17, 23))\nreverse L as t()\npoint P = from(source: @L.t.start)\n",
+    "points": [
+      [
+        "P",
+        17,
+        23
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 66,
+        "to": 67
+      },
+      "r0": {
+        "from": 96,
+        "to": 97
+      }
+    },
+    "stageConstruction": "reverse"
+  },
+  {
+    "id": "X8",
+    "parent": "X6",
+    "purpose": "Nearby PASS: ordinary numeric coordinate reference without indexed lowering",
+    "source": "nui 1\nconst values: number[] = [2, 7]\nconst i: number = 1\npoint P = coordinate(x: @i, y: 0)\n",
+    "sourceRevision": 7,
+    "sha256": "0cd6934f044a9ba65ecfa7c949e08d1995388b811c7b5e9893619ed088fb259b",
+    "selection": 83,
+    "identity": "X8:i",
+    "name": "i",
+    "newName": "j",
+    "declaration": {
+      "from": 44,
+      "to": 45
+    },
+    "references": [
+      {
+        "from": 83,
+        "to": 84
+      }
+    ],
+    "edits": [
+      {
+        "from": 44,
+        "to": 45,
+        "expectedText": "i",
+        "newText": "j"
+      },
+      {
+        "from": 83,
+        "to": 84,
+        "expectedText": "i",
+        "newText": "j"
+      }
+    ],
+    "afterSource": "nui 1\nconst values: number[] = [2, 7]\nconst j: number = 1\npoint P = coordinate(x: @j, y: 0)\n",
+    "points": [
+      [
+        "P",
+        1,
+        0
+      ]
+    ],
+    "scalars": {},
+    "hover": false,
+    "ranges": {
+      "d": {
+        "from": 44,
+        "to": 45
+      },
+      "r0": {
+        "from": 83,
+        "to": 84
+      }
+    }
+  }
+]

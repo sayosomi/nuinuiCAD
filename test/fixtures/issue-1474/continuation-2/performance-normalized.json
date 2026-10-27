@@ -1,0 +1,514 @@
+{
+  "protocol": "five warmups / 21 alternating paired trials; encoding probe is additional, transport includes actual encoding/JSON decode",
+  "setupWallMs": 43.816084000000046,
+  "requests": 937,
+  "spawns": 1,
+  "pid": 85910,
+  "peakRustRssKiB": 102240,
+  "workerResourceUsage": {
+    "userCPUTime": 153693223,
+    "systemCPUTime": 2004135,
+    "maxRSS": 988288,
+    "sharedMemorySize": 0,
+    "unsharedDataSize": 0,
+    "unsharedStackSize": 0,
+    "minorPageFault": 298646,
+    "majorPageFault": 89,
+    "swappedOut": 0,
+    "fsRead": 0,
+    "fsWrite": 0,
+    "ipcSent": 55595,
+    "ipcReceived": 11201,
+    "signalsCount": 0,
+    "voluntaryContextSwitches": 10,
+    "involuntaryContextSwitches": 118677
+  },
+  "comparisons": [
+    {
+      "pair": "A1:A2",
+      "VplusERatio": 3.909090909090909,
+      "medianRatios": {
+        "compile": 4.102086579332791,
+        "lowering": 1.848888675843743,
+        "rustTransport": 3.79397491352832
+      },
+      "normalizedRatios": {
+        "compile": 1.049370985410714,
+        "lowering": 0.47297152172746915,
+        "rustTransport": 0.9705517220653842
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 0.31,
+          "rssKiB": 19488
+        },
+        "after": {
+          "cpuSeconds": 1.39,
+          "rssKiB": 19808
+        },
+        "batchCpuSeconds": 1.0799999999999998,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "A2:A3",
+      "VplusERatio": 3.9767441860465116,
+      "medianRatios": {
+        "compile": 4.203202310213664,
+        "lowering": 2.5452376934054883,
+        "rustTransport": 3.940226946378052
+      },
+      "normalizedRatios": {
+        "compile": 1.0569456101706873,
+        "lowering": 0.640030531090269,
+        "rustTransport": 0.9908173023055921
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 2.42,
+          "rssKiB": 58016
+        },
+        "after": {
+          "cpuSeconds": 6.73,
+          "rssKiB": 58048
+        },
+        "batchCpuSeconds": 4.3100000000000005,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "B1:B2",
+      "VplusERatio": 3.909090909090909,
+      "medianRatios": {
+        "compile": 4.773031183271366,
+        "lowering": 2.736549835553971,
+        "rustTransport": 5.016478570844479
+      },
+      "normalizedRatios": {
+        "compile": 1.2210079771159308,
+        "lowering": 0.7000476323510159,
+        "rustTransport": 1.2832852157974248
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 7.32,
+          "rssKiB": 60672
+        },
+        "after": {
+          "cpuSeconds": 9.8,
+          "rssKiB": 60704
+        },
+        "batchCpuSeconds": 2.4800000000000004,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "B2:B3",
+      "VplusERatio": 3.883720930232558,
+      "medianRatios": {
+        "compile": 6.393044074876763,
+        "lowering": 3.4217867322229942,
+        "rustTransport": 7.375151358881857
+      },
+      "normalizedRatios": {
+        "compile": 1.6461131450281488,
+        "lowering": 0.8810588591951423,
+        "rustTransport": 1.89899106845461
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 14.03,
+          "rssKiB": 82912
+        },
+        "after": {
+          "cpuSeconds": 31.75,
+          "rssKiB": 83120
+        },
+        "batchCpuSeconds": 17.72,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "C1:C2",
+      "VplusERatio": 3.8444444444444446,
+      "medianRatios": {
+        "compile": 3.633403557422828,
+        "lowering": 1.4979378883140277,
+        "rustTransport": 3.7096882000876366
+      },
+      "normalizedRatios": {
+        "compile": 0.9451049715839726,
+        "lowering": 0.38963702297185693,
+        "rustTransport": 0.9649477977106569
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 31.94,
+          "rssKiB": 83488
+        },
+        "after": {
+          "cpuSeconds": 32.74,
+          "rssKiB": 83488
+        },
+        "batchCpuSeconds": 0.8000000000000007,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "C2:C3",
+      "VplusERatio": 3.867052023121387,
+      "medianRatios": {
+        "compile": 3.826801301636913,
+        "lowering": 2.0389874746998853,
+        "rustTransport": 3.85953907599024
+      },
+      "normalizedRatios": {
+        "compile": 0.989591367986825,
+        "lowering": 0.5272717983902544,
+        "rustTransport": 0.9980571900542774
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 33.47,
+          "rssKiB": 84784
+        },
+        "after": {
+          "cpuSeconds": 36.52,
+          "rssKiB": 84784
+        },
+        "batchCpuSeconds": 3.0500000000000043,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "D1:D2",
+      "VplusERatio": 3.9731051344743276,
+      "medianRatios": {
+        "compile": 5.366513220100895,
+        "lowering": 3.2180191451625655,
+        "rustTransport": 5.072653009750319
+      },
+      "normalizedRatios": {
+        "compile": 1.3507100966284715,
+        "lowering": 0.8099506648439935,
+        "rustTransport": 1.276747742146388
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 37.19,
+          "rssKiB": 85392
+        },
+        "after": {
+          "cpuSeconds": 39.97,
+          "rssKiB": 85408
+        },
+        "batchCpuSeconds": 2.780000000000001,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "D2:D3",
+      "VplusERatio": 3.8996923076923076,
+      "medianRatios": {
+        "compile": 7.65469840802084,
+        "lowering": 3.7582878614610657,
+        "rustTransport": 7.341600753484424
+      },
+      "normalizedRatios": {
+        "compile": 1.9628980452949132,
+        "lowering": 0.9637395889023563,
+        "rustTransport": 1.8826102610718305
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 44.64,
+          "rssKiB": 96192
+        },
+        "after": {
+          "cpuSeconds": 64.2,
+          "rssKiB": 96240
+        },
+        "batchCpuSeconds": 19.560000000000002,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "A3:B3",
+      "VplusERatio": 1.4649122807017543,
+      "medianRatios": {
+        "compile": 3.161487635109933,
+        "lowering": 5.019825717703289,
+        "rustTransport": 4.421885390512388
+      },
+      "normalizedRatios": {
+        "compile": 2.1581412598954035,
+        "lowering": 3.4267073761567364,
+        "rustTransport": 3.018532542026421
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 68.76,
+          "rssKiB": 94176
+        },
+        "after": {
+          "cpuSeconds": 87.89,
+          "rssKiB": 94224
+        },
+        "batchCpuSeconds": 19.129999999999995,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Mixed scalar/geometry output and payload costs; V+E is reported but does not establish a topology-only speed defect."
+    },
+    {
+      "pair": "B3:C3",
+      "VplusERatio": 0.44510978043912175,
+      "medianRatios": {
+        "compile": 0.1882287170783743,
+        "lowering": 0.12759159314190607,
+        "rustTransport": 0.1583116452629435
+      },
+      "normalizedRatios": {
+        "compile": 0.4228815572029844,
+        "lowering": 0.2866519648614123,
+        "rustTransport": 0.3556687635728013
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 92.2,
+          "rssKiB": 94224
+        },
+        "after": {
+          "cpuSeconds": 110.4,
+          "rssKiB": 94224
+        },
+        "batchCpuSeconds": 18.200000000000003,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Mixed scalar/geometry output and payload costs; V+E is reported but does not establish a topology-only speed defect."
+    },
+    {
+      "pair": "C3:D3",
+      "VplusERatio": 2.368086696562033,
+      "medianRatios": {
+        "compile": 9.42174364058646,
+        "lowering": 13.815671361949985,
+        "rustTransport": 6.923830282689901
+      },
+      "normalizedRatios": {
+        "compile": 3.978631210700547,
+        "lowering": 5.8341070797819405,
+        "rustTransport": 2.9238077696825275
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 115.11,
+          "rssKiB": 96448
+        },
+        "after": {
+          "cpuSeconds": 135.02,
+          "rssKiB": 96496
+        },
+        "batchCpuSeconds": 19.91000000000001,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Mixed scalar/geometry output and payload costs; V+E is reported but does not establish a topology-only speed defect."
+    },
+    {
+      "pair": "A4:edit",
+      "VplusERatio": 1.0,
+      "medianRatios": {
+        "compile": 0.9229936610896691,
+        "lowering": 1.010834926849235,
+        "rustTransport": 0.9980879425225465
+      },
+      "normalizedRatios": {
+        "compile": 0.9229936610896691,
+        "lowering": 1.010834926849235,
+        "rustTransport": 0.9980879425225465
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 136.68,
+          "rssKiB": 96496
+        },
+        "after": {
+          "cpuSeconds": 143.65,
+          "rssKiB": 96496
+        },
+        "batchCpuSeconds": 6.969999999999999,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "B4:edit",
+      "VplusERatio": 1.0,
+      "medianRatios": {
+        "compile": 0.9748684578966784,
+        "lowering": 0.9599481616920896,
+        "rustTransport": 1.0007501012270148
+      },
+      "normalizedRatios": {
+        "compile": 0.9748684578966784,
+        "lowering": 0.9599481616920896,
+        "rustTransport": 1.0007501012270148
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 151.18,
+          "rssKiB": 96496
+        },
+        "after": {
+          "cpuSeconds": 182.7,
+          "rssKiB": 95536
+        },
+        "batchCpuSeconds": 31.519999999999982,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "C4:edit",
+      "VplusERatio": 1.0,
+      "medianRatios": {
+        "compile": 0.958893727088008,
+        "lowering": 0.9632223135941935,
+        "rustTransport": 0.9976365221860314
+      },
+      "normalizedRatios": {
+        "compile": 0.958893727088008,
+        "lowering": 0.9632223135941935,
+        "rustTransport": 0.9976365221860314
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 183.86,
+          "rssKiB": 95536
+        },
+        "after": {
+          "cpuSeconds": 188.74,
+          "rssKiB": 95536
+        },
+        "batchCpuSeconds": 4.8799999999999955,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "D4:edit",
+      "VplusERatio": 1.0,
+      "medianRatios": {
+        "compile": 0.9893254680060112,
+        "lowering": 1.054087158623914,
+        "rustTransport": 1.0036585416905248
+      },
+      "normalizedRatios": {
+        "compile": 0.9893254680060112,
+        "lowering": 1.054087158623914,
+        "rustTransport": 1.0036585416905248
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 197.07,
+          "rssKiB": 97616
+        },
+        "after": {
+          "cpuSeconds": 232.03,
+          "rssKiB": 97632
+        },
+        "batchCpuSeconds": 34.96000000000001,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "chain250:chain1000",
+      "VplusERatio": 3.903225806451613,
+      "medianRatios": {
+        "compile": 7.395964178918409,
+        "lowering": 3.503449352730964,
+        "rustTransport": 8.695100685063942
+      },
+      "normalizedRatios": {
+        "compile": 1.8948337979047163,
+        "lowering": 0.8975779333442965,
+        "rustTransport": 2.227670423446134
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 238.84,
+          "rssKiB": 100256
+        },
+        "after": {
+          "cpuSeconds": 267.62,
+          "rssKiB": 98192
+        },
+        "batchCpuSeconds": 28.78,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    },
+    {
+      "pair": "B3:broad",
+      "VplusERatio": 0.012974051896207584,
+      "medianRatios": {
+        "compile": 0.00946619505059073,
+        "lowering": 0.05181659395371332,
+        "rustTransport": 0.37764255510561356
+      },
+      "normalizedRatios": {
+        "compile": 0.7296251877455316,
+        "lowering": 3.993863626278519,
+        "rustTransport": 29.10752617044806
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 272.75,
+          "rssKiB": 102208
+        },
+        "after": {
+          "cpuSeconds": 294.38,
+          "rssKiB": 102240
+        },
+        "batchCpuSeconds": 21.629999999999995,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Source graph normalization is not comparable to expanded runtime work: compact for-group vs explicit geometry; both produce about1000 runtime geometries."
+    },
+    {
+      "pair": "D3:chain1000",
+      "VplusERatio": 0.9547104308032192,
+      "medianRatios": {
+        "compile": 0.6059038401691232,
+        "lowering": 0.5870777308509381,
+        "rustTransport": 1.4682434647942202
+      },
+      "normalizedRatios": {
+        "compile": 0.6346467165540056,
+        "lowering": 0.614927533950809,
+        "rustTransport": 1.5378940225456155
+      },
+      "child": {
+        "before": {
+          "cpuSeconds": 304.67,
+          "rssKiB": 102240
+        },
+        "after": {
+          "cpuSeconds": 348.05,
+          "rssKiB": 101408
+        },
+        "batchCpuSeconds": 43.379999999999995,
+        "cpuResolutionSeconds": 0.01
+      },
+      "interpretation": "Observed V+E normalization; no uniform node-cost assumption or machine threshold."
+    }
+  ]
+}

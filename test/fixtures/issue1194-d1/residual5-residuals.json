@@ -1,0 +1,8 @@
+[
+  { "row": "fourth-slice M1", "disposition": "REPAIRED_THEN_PASS", "family": "F31", "oracle": { "L": 5, "N": 21 } },
+  { "row": "fourth-slice P2/P4", "disposition": "REPAIRED_THEN_PASS", "families": ["F32", "F33"], "oracle": { "X": 19, "Y": 31 }, "legality": "spec.md optional value assignability, optional collection elements, indexing and selected some-binder record value control flow; no new syntax" },
+  { "row": "file-public record definitions / qualified imported record-type spelling", "disposition": "CONTRACT_AMBIGUOUS/BLOCKED", "decisionRequired": "An authoritative grammar and visibility decision for file-public record definitions and qualified imported nominal-record type annotations. No production syntax or specification changes made." },
+  { "row": "third-slice G9-G12", "disposition": "UNRESOLVED", "scope": "General root geometry dependency/selector scheduling is coordinated under #1260, excluded from this slice." },
+  { "row": "dynamic optional-record collection indices and nonliteral collection control-flow routes", "disposition": "NOT_COVERED", "scope": "This slice's optional indexed-match regressions use static indices, literal/reference member arrays and conditional record members; broader combinations need separate frozen oracles." },
+  { "row": "geometry construction inside record-map constructor fields and geometry collections supplied through Module parameters", "disposition": "NOT_COVERED", "scope": "Geometry repair verifies source-field forwarding through constructor maps, chained maps, Module-local arrays and imported definitions; it does not establish other geometry map forms." }
+]

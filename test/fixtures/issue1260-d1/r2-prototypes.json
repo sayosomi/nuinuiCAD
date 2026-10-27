@@ -1,0 +1,289 @@
+[
+  {
+    "case": {
+      "id": "R6-01",
+      "domain": "R6",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\nmodule Inner(n: number) { export point Mark = coordinate(x: @n, y: 4) }\nmodule Outer(n: number) { instance Child = Inner(n: @n) export point Mark = from(source: @Child::Mark) }\npoint Before = coordinate(x: 2, y: 3)\ninstance One = Outer(n: 17)\npoint Use = from(source: @One::Mark)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "Before",
+          "shape": {
+            "kind": "point",
+            "x": 2,
+            "y": 3
+          }
+        }
+      ],
+      "errors": [],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+      "limitThrough": "Before",
+      "instances": []
+    },
+    "sha256": "8074463ee181eb552fdaa47021523169a34eb7277778378994bbe67a64971d00",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  },
+  {
+    "case": {
+      "id": "R6-02",
+      "domain": "R6",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\nmodule Pair(n: number) { export point Mark = coordinate(x: @n, y: 4) }\ninstance One = Pair(n: 11)\npoint UseOne = from(source: @One::Mark)\ninstance Two = Pair(n: 37)\npoint UseTwo = from(source: @Two::Mark)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "One::Mark",
+          "shape": {
+            "kind": "point",
+            "x": 11,
+            "y": 4
+          }
+        },
+        {
+          "owner": "UseOne",
+          "shape": {
+            "kind": "point",
+            "x": 11,
+            "y": 4
+          }
+        }
+      ],
+      "errors": [],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+      "limitThrough": "UseOne",
+      "instances": [
+        "One"
+      ]
+    },
+    "sha256": "7e2648cd158990f84ee547373c5af428fc29096663a7fe46b005a4cc790fba7c",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  },
+  {
+    "case": {
+      "id": "R6-03",
+      "domain": "R6",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: @n, y: 1)\n if (@fail) { point Fault = coordinate(x: 1 / 0, y: 2) }\n export point Mark = coordinate(x: @n + 3, y: 4)\n}\ninstance Failed = Box(n: 17, fail: true)\npoint UseFailed = from(source: @Failed::Mark)\ninstance Healthy = Box(n: 43, fail: false)\npoint Independent = coordinate(x: 71, y: 5)\npoint Later = coordinate(x: 99, y: 99)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "Healthy::Prefix",
+          "shape": {
+            "kind": "point",
+            "x": 43,
+            "y": 1
+          }
+        },
+        {
+          "owner": "Healthy::Mark",
+          "shape": {
+            "kind": "point",
+            "x": 46,
+            "y": 4
+          }
+        },
+        {
+          "owner": "Independent",
+          "shape": {
+            "kind": "point",
+            "x": 71,
+            "y": 5
+          }
+        }
+      ],
+      "errors": [
+        "Failed::Fault"
+      ],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+      "limitThrough": "Independent",
+      "instances": [
+        "Healthy"
+      ]
+    },
+    "sha256": "6591d67711b0e4bdbb129223487ca860fd204e94620338c6a3dab398dfe53600",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  },
+  {
+    "case": {
+      "id": "R7-01",
+      "domain": "R7",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\nconst First: number = if (true) { 7 / 0 } else { 2 }\nconst Second: number = if (false) { 3 } else { sqrt(-1) }\npoint Healthy = coordinate(x: 2, y: 8)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "Healthy",
+          "shape": {
+            "kind": "point",
+            "x": 2,
+            "y": 8
+          }
+        }
+      ],
+      "errors": [],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+      "expectedIssues": {
+        "First": "evaluation-divide-by-zero",
+        "Second": "evaluation-domain-error"
+      }
+    },
+    "sha256": "c012d90f96b5bdb843f978d072c88c58d9ad47ff4fe0c03dc9e9291ea3019ada",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  },
+  {
+    "case": {
+      "id": "R7-02",
+      "domain": "R7",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\npoint Padding = coordinate(x: 41, y: 3)\nconst PaddingValue: number = 83\npoint Fault = coordinate(x: 1 / 0, y: 5)\nconst Bad: number = sqrt(-1)\npoint Healthy = coordinate(x: @PaddingValue, y: 9)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "Padding",
+          "shape": {
+            "kind": "point",
+            "x": 41,
+            "y": 3
+          }
+        },
+        {
+          "owner": "Healthy",
+          "shape": {
+            "kind": "point",
+            "x": 83,
+            "y": 9
+          }
+        }
+      ],
+      "errors": [
+        "Fault"
+      ],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+      "expectedIssues": {
+        "Bad": "evaluation-domain-error"
+      }
+    },
+    "sha256": "9c36a1895317cd5119e927870c86768b0d94d01a728be746968df213bf822cc5",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  },
+  {
+    "case": {
+      "id": "R7-03",
+      "domain": "R7",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\nmodule Box(n: number, fail: boolean) {\n export point Prefix = coordinate(x: @n, y: 1)\n if (@fail) { point Fault = coordinate(x: 1 / 0, y: @n) }\n export point Mark = coordinate(x: @n + 3, y: 4)\n}\ninstance One = Box(n: 13, fail: true)\ninstance Two = Box(n: 43, fail: true)\npoint Healthy = coordinate(x: 97, y: 3)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "Healthy",
+          "shape": {
+            "kind": "point",
+            "x": 97,
+            "y": 3
+          }
+        }
+      ],
+      "errors": [
+        "One::Fault",
+        "Two::Fault"
+      ],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+      "instances": []
+    },
+    "sha256": "43e07829ce0935e1fa1b783ddf0194fea7bd4c36564e123f03bfcad470cadb00",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  },
+  {
+    "case": {
+      "id": "R7-04",
+      "domain": "R7",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\nconst Denominator: number = 0\nconst Numerator: number = 11\nconst Alpha: number = @Numerator / @Denominator\nconst Negative: number = -4\nconst Beta: number = sqrt(@Negative)\npoint Healthy = coordinate(x: 17, y: 5)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "Healthy",
+          "shape": {
+            "kind": "point",
+            "x": 17,
+            "y": 5
+          }
+        }
+      ],
+      "errors": [],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell",
+      "expectedIssues": {
+        "Alpha": "evaluation-divide-by-zero",
+        "Beta": "evaluation-domain-error"
+      }
+    },
+    "sha256": "f0e6cd45a77cfb7f31c936153b1eed1d7b33ea8224ad0c1a08ad5552858339f3",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  },
+  {
+    "case": {
+      "id": "R5-04",
+      "domain": "R5",
+      "axes": [
+        0,
+        0,
+        0
+      ],
+      "source": "nui 1\nfor Tick in range(min: 0, max: 1000, step: 1) {\n point Mark = coordinate(x: @Tick, y: 4)\n}\npoint Healthy = coordinate(x: 7, y: 2)\n",
+      "expected": {},
+      "geometry": [
+        {
+          "owner": "Healthy",
+          "shape": {
+            "kind": "point",
+            "x": 7,
+            "y": 2
+          }
+        }
+      ],
+      "errors": [
+        "Tick"
+      ],
+      "claims": "Independent unrolling / selected branch, inclusive arithmetic, atomic Module execution, and attributed diagnostic sets per docs/nui1/spec.md. Oracle frozen before compilation.",
+      "control": "R2-01, R8-01/04 and Stage 7 H1-03/H2-07; contrasts recorded per cell"
+    },
+    "sha256": "515e8aa47adb2ecf5e383c112dd80e160d6a96f1ba560c607674786957b0a308",
+    "reason": "Rejected statement-block spelling corrected, or provisional diagnostic spelling corrected using builtinFunctionSemantics.ts and existing 1000-item range contract; no numeric/geometry oracle inferred from engine agreement."
+  }
+]

@@ -1,0 +1,126 @@
+{
+  "requests": 31,
+  "observations": [
+    {
+      "id": "A3-boundary",
+      "canonicalIndependentOracle": "PASS",
+      "missingControlBindings": []
+    },
+    {
+      "id": "A3",
+      "sourceHash": "359a931e17e823c714ba3fe5d6b814f54c31f3293cb4128f0b9719705abf4920",
+      "target": "Inner",
+      "preview": [
+        {
+          "kind": "point",
+          "name": "P",
+          "x": 10,
+          "y": -9
+        },
+        {
+          "kind": "point",
+          "name": "Q",
+          "x": -3,
+          "y": 18
+        },
+        {
+          "end": {
+            "kind": "point",
+            "name": "Q",
+            "x": -3,
+            "y": 18
+          },
+          "kind": "line",
+          "name": "Edge",
+          "start": {
+            "kind": "point",
+            "name": "P",
+            "x": 10,
+            "y": -9
+          }
+        }
+      ],
+      "liveLeft": [
+        {
+          "kind": "point",
+          "name": "P",
+          "x": 10,
+          "y": -9
+        },
+        {
+          "kind": "point",
+          "name": "Q",
+          "x": -3,
+          "y": 18
+        },
+        {
+          "end": {
+            "kind": "point",
+            "name": "Q",
+            "x": -3,
+            "y": 18
+          },
+          "kind": "line",
+          "name": "Edge",
+          "start": {
+            "kind": "point",
+            "name": "P",
+            "x": 10,
+            "y": -9
+          }
+        }
+      ]
+    },
+    {
+      "id": "F1",
+      "sourceHash": "2dbc028161a28c1138f414e23420fc8faa222ea6d5f912bfcd4794204d2f4fd0",
+      "canonicalIndependentOracle": "PASS",
+      "missingControlBindings": []
+    },
+    {
+      "id": "B4",
+      "sourceHash": "2bf42e4b26d02ee17f7f3845d80a13e6babe0b1be521ba82ac5ac34d76c5ef7e",
+      "vectorPathPageInverse": "PASS",
+      "caption": {
+        "kind": "text",
+        "name": "Caption",
+        "text": "Alpha\nBeta",
+        "anchor": {
+          "x": 43,
+          "y": -5
+        },
+        "fontSizeMm": 5,
+        "widthMm": 15.5,
+        "lineWidthsMm": [
+          15.5,
+          12.4
+        ],
+        "lineHeightMm": 6,
+        "rotationDeg": 0,
+        "mirrorX": false,
+        "colorHex": "#31322f"
+      },
+      "transform": "translate(403 199) rotate(0) scale(2 2)",
+      "vectors": {
+        "glyphUp": [
+          0,
+          -2
+        ],
+        "secondBaseline": [
+          0,
+          12
+        ]
+      },
+      "expectedGlyphUp": [
+        0,
+        -2
+      ],
+      "expectedSecondBaseline": [
+        0,
+        12
+      ]
+    }
+  ],
+  "childClosed": true,
+  "temporaryDirectoryRemoved": true
+}

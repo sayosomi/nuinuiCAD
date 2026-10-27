@@ -1,0 +1,608 @@
+{
+  "startingAccepted": 48,
+  "newAccepted": 13,
+  "globalAccepted": 61,
+  "ceiling": 200,
+  "rejectedCandidates": 0,
+  "entries": [
+    {
+      "id": "P1-alias-completion",
+      "method": "A",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "84e9c4ecd04ea03784c82c2402e4ab5c6e6cacc2d862544d099107c6c88f91ba",
+      "source": "nui 1\nmodule Box(Origin: number, Fail: boolean) {\nconst Chosen: point = coordinate(x: @Origin + 2, y: 3)\nconst Send: point = @Chosen\nexport point Mark = from(source: @Send)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance Healthy = Box(Origin: 3, Fail: false)\nconst ExportHealthy: point = @Healthy::Mark\npoint UseHealthy = from(source: @ExportHealthy)\ninstance Failed = Box(Origin: 7, Fail: true)\npoint Observed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 19, y: 23)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Independent",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Healthy::Mark",
+                "value": {
+                  "x": 5,
+                  "y": 3
+                }
+              },
+              {
+                "name": "UseHealthy",
+                "value": {
+                  "x": 5,
+                  "y": 3
+                }
+              },
+              {
+                "name": "Independent",
+                "value": {
+                  "x": 19,
+                  "y": 23
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [
+              "Failed::Fault"
+            ],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": [
+            "Healthy"
+          ]
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "UNRESOLVED"
+    },
+    {
+      "id": "P3-control",
+      "method": "A",
+      "stratum": "D",
+      "purpose": "minimization/regression",
+      "sha256": "15a7a20e6d6d7eac289436fe7016a34c00a2874a09364fb48f7f3d1e1eeb0132",
+      "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: true) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\nconst Independent: number = 11\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+      "expected": {
+        "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: true) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\nconst Independent: number = 11\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+        "scalars": {
+          "Chosen": 7,
+          "Forwarded": 7,
+          "Independent": 11
+        },
+        "geometry": [
+          {
+            "name": "Observed",
+            "value": {
+              "x": 7,
+              "y": 3
+            }
+          },
+          {
+            "name": "Mark",
+            "value": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "failedGeometry": [],
+        "templates": [],
+        "trace": [],
+        "carries": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "valueErrors": [],
+        "errorInstances": {},
+        "paths": []
+      },
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P3-reproducer",
+      "method": "A",
+      "stratum": "D",
+      "purpose": "minimization/regression",
+      "sha256": "3b905caee2ec397693026bd01428c4383c0916ab9cd8af71935523f155de97e6",
+      "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: false) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\nconst Independent: number = 11\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+      "expected": {
+        "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: false) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\nconst Independent: number = 11\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+        "scalars": {
+          "Chosen": 7,
+          "Forwarded": 7,
+          "Independent": 11
+        },
+        "geometry": [
+          {
+            "name": "Observed",
+            "value": {
+              "x": 7,
+              "y": 3
+            }
+          }
+        ],
+        "failedGeometry": [],
+        "templates": [],
+        "trace": [],
+        "carries": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [
+          "Mark"
+        ],
+        "valueErrors": [],
+        "errorInstances": {},
+        "paths": []
+      },
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "UNRESOLVED"
+    },
+    {
+      "id": "P2-control",
+      "method": "B",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "90f557e402a91b2ebf9b7ae870dc713d50a6e0c8dd0a431821dffd210da0ff7d",
+      "source": "nui 1\nconst Values: number[] = [7]\nconst Chosen: point = coordinate(x: 7, y: 3)\npoint Observed = from(source: @Chosen)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Observed",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Observed",
+                "value": {
+                  "x": 7,
+                  "y": 3
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": []
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P2-reproducer",
+      "method": "B",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "6e16c260e9da6a91e68fc010de99df481c5a62eb649aface22d9072dc1763c9c",
+      "source": "nui 1\nconst Values: number[] = [7]\nconst Chosen: point = coordinate(x: @Values[0], y: 3)\npoint Observed = from(source: @Chosen)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Observed",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Observed",
+                "value": {
+                  "x": 7,
+                  "y": 3
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": []
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "UNRESOLVED"
+    },
+    {
+      "id": "P1-control",
+      "method": "A",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "1621029b7a19e9d3ce9d8d31d7adc6756d0c4dd7434a8d43959d94cde5cdc4f1",
+      "source": "nui 1\nmodule Box(Origin: number, Fail: boolean) {\nconst Chosen: point = coordinate(x: @Origin + 2, y: 3)\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance Healthy = Box(Origin: 3, Fail: false)\npoint UseHealthy = from(source: @Healthy::Mark)\ninstance Failed = Box(Origin: 7, Fail: true)\npoint Observed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 19, y: 23)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Independent",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Healthy::Mark",
+                "value": {
+                  "x": 5,
+                  "y": 3
+                }
+              },
+              {
+                "name": "UseHealthy",
+                "value": {
+                  "x": 5,
+                  "y": 3
+                }
+              },
+              {
+                "name": "Independent",
+                "value": {
+                  "x": 19,
+                  "y": 23
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [
+              "Failed::Fault"
+            ],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": [
+            "Healthy"
+          ]
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P1-reproducer",
+      "method": "A",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "09b91e35f00836668f355113f9c4397cd192bcde32c6a3f394b34a41525e20fe",
+      "source": "nui 1\nmodule Box(Origin: number, Fail: boolean) {\nconst Chosen: point = if (@Origin > 0) { coordinate(x: @Origin + 2, y: 3) } else { coordinate(x: 1 / 0, y: 0) }\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance Healthy = Box(Origin: 3, Fail: false)\npoint UseHealthy = from(source: @Healthy::Mark)\ninstance Failed = Box(Origin: 7, Fail: true)\npoint Observed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 19, y: 23)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Independent",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Healthy::Mark",
+                "value": {
+                  "x": 5,
+                  "y": 3
+                }
+              },
+              {
+                "name": "UseHealthy",
+                "value": {
+                  "x": 5,
+                  "y": 3
+                }
+              },
+              {
+                "name": "Independent",
+                "value": {
+                  "x": 19,
+                  "y": 23
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [
+              "Failed::Fault"
+            ],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": [
+            "Healthy"
+          ]
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "UNRESOLVED"
+    },
+    {
+      "id": "P1-control",
+      "method": "A",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "6072484d2db8b8412a11a81472298d11f781f30e96b31e361bc51b3893727118",
+      "source": "nui 1\nmodule Box(Origin: number, Fail: boolean) {\nconst Chosen: point = coordinate(x: 7, y: 3)\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance Failed = Box(Origin: 7, Fail: true)\npoint Observed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 19, y: 23)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Independent",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Independent",
+                "value": {
+                  "x": 19,
+                  "y": 23
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [
+              "Failed::Fault"
+            ],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": []
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P1-reproducer",
+      "method": "A",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "94ed3b3bc5b32fbcb33827fa49439be15fbbd46a2a60ec6122ceaceae2cae546",
+      "source": "nui 1\nmodule Box(Origin: number, Fail: boolean) {\nconst Chosen: point = if (@Origin > 0) { coordinate(x: 7, y: 3) } else { coordinate(x: 1 / 0, y: 0) }\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance Failed = Box(Origin: 7, Fail: true)\npoint Observed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 19, y: 23)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Independent",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Independent",
+                "value": {
+                  "x": 19,
+                  "y": 23
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [
+              "Failed::Fault"
+            ],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": []
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P3-control",
+      "method": "A",
+      "stratum": "D",
+      "purpose": "minimization/regression",
+      "sha256": "516c1c3e0f3f387548b12ac68ca591e299db1b0402219ff7a0584a2ca72e4ba1",
+      "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: true) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+      "expected": {
+        "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: true) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+        "scalars": {
+          "Chosen": 7,
+          "Forwarded": 7
+        },
+        "geometry": [
+          {
+            "name": "Observed",
+            "value": {
+              "x": 7,
+              "y": 3
+            }
+          },
+          {
+            "name": "Mark",
+            "value": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "failedGeometry": [],
+        "templates": [],
+        "trace": [],
+        "carries": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [],
+        "valueErrors": [],
+        "errorInstances": {},
+        "paths": []
+      },
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P3-reproducer",
+      "method": "A",
+      "stratum": "D",
+      "purpose": "minimization/regression",
+      "sha256": "f9f2ae703dbbe9c18838600f3ed29ebedb3f6a32d2ee3601bdb1ae137e050749",
+      "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: false) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+      "expected": {
+        "source": "nui 1\nmodule Guard(X: number) {\npoint Mark = coordinate(x: @X, y: 0)\n}\ninstance Dormant(enabled: false) = Guard(X: 0)\nconst Chosen: number = 7\nconst Forwarded: number = @Chosen\npoint Observed = coordinate(x: @Forwarded, y: 3)\n",
+        "scalars": {
+          "Chosen": 7,
+          "Forwarded": 7
+        },
+        "geometry": [
+          {
+            "name": "Observed",
+            "value": {
+              "x": 7,
+              "y": 3
+            }
+          }
+        ],
+        "failedGeometry": [],
+        "templates": [],
+        "trace": [],
+        "carries": [],
+        "errors": [],
+        "diagnosticBindings": {},
+        "absent": [
+          "Mark"
+        ],
+        "valueErrors": [],
+        "errorInstances": {},
+        "paths": []
+      },
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P1-control",
+      "method": "A",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "7c850eb99ad79401a1fa07874c30bd35fb8ab04601fdee37a6ead764cb2d5df9",
+      "source": "nui 1\nmodule Box(Fail: boolean) {\nconst Chosen: point = coordinate(x: 7, y: 3)\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance Failed = Box(Fail: true)\npoint Observed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 19, y: 23)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Independent",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Independent",
+                "value": {
+                  "x": 19,
+                  "y": 23
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [
+              "Failed::Fault"
+            ],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": []
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    },
+    {
+      "id": "P1-reproducer",
+      "method": "A",
+      "stratum": "E",
+      "purpose": "minimization/regression",
+      "sha256": "4077147b1c19464980c07407039c9f7c78d54425e1ee303c1e7274c40cbe3e62",
+      "source": "nui 1\nmodule Box(Fail: boolean) {\nconst Chosen: point = if (@Fail) { coordinate(x: 7, y: 3) } else { coordinate(x: 1 / 0, y: 0) }\nexport point Mark = from(source: @Chosen)\nif (@Fail) {\npoint Fault = coordinate(x: 1 / 0, y: 0)\n}\n}\ninstance Failed = Box(Fail: true)\npoint Observed = from(source: @Failed::Mark)\npoint Independent = coordinate(x: 19, y: 23)\n",
+      "expected": [
+        {
+          "placement": "full",
+          "through": "Independent",
+          "expected": {
+            "source": "",
+            "scalars": {},
+            "geometry": [
+              {
+                "name": "Independent",
+                "value": {
+                  "x": 19,
+                  "y": 23
+                }
+              }
+            ],
+            "failedGeometry": [],
+            "templates": [],
+            "trace": [],
+            "carries": [],
+            "errors": [
+              "Failed::Fault"
+            ],
+            "diagnosticBindings": {},
+            "absent": [],
+            "valueErrors": [],
+            "errorInstances": {},
+            "paths": []
+          },
+          "instances": []
+        }
+      ],
+      "compilerStatus": "valid",
+      "compilerDiagnostics": [],
+      "status": "PASS"
+    }
+  ]
+}

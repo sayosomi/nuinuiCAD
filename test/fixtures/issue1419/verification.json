@@ -1,0 +1,69 @@
+{
+  "requiredBlock": "Executed exactly, stopped at lint; corrected that in-scope test-only initialization and reran lint plus every remaining command in order. No gate skipped.",
+  "gates": [
+    {
+      "command": "specified focused 12-file npm test block",
+      "result": "PASS"
+    },
+    {
+      "command": "npm run test:parity",
+      "result": "PASS"
+    },
+    {
+      "command": "npm run build",
+      "result": "PASS"
+    },
+    {
+      "command": "npm run lint",
+      "result": "PASS"
+    },
+    {
+      "command": "npm run docs:dsl:check",
+      "result": "PASS"
+    },
+    {
+      "command": "npm test -- --maxWorkers=1 --no-file-parallelism",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo fmt --check --manifest-path rust-evaluator/Cargo.toml",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo check --manifest-path rust-evaluator/Cargo.toml",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo test --manifest-path rust-evaluator/Cargo.toml",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings",
+      "result": "PASS"
+    }
+  ],
+  "focused": "12 files; 1810 tests passed",
+  "parity": "203 tests passed",
+  "fullSerialSummary": [
+    "Test Files  663 passed | 2 skipped (665)",
+    "Tests  10304 passed | 157 skipped (10461)",
+    "Duration  521.64s (transform 8.25s, setup 14.35s, import 116.39s, tests 146.94s, environment 196.77s)"
+  ],
+  "rustTestSummaries": [
+    "test result: ok. 612 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 5.57s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+    "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "initialFailure": {
+    "gate": "npm run lint",
+    "diagnostic": "no-useless-assignment: initial negativeOptions value overwritten in every calibration branch",
+    "correction": "Use definite branch-assigned typeof options declaration; corrected lint PASS."
+  },
+  "additionalStrictNewTestTypecheck": "PASS; app build excludes test/, so the new harness/fixture TypeScript was independently checked",
+  "diffCheck": "PASS",
+  "originalBlockElapsedSeconds": 134.9840828750166,
+  "correctedAndRemainingElapsedSeconds": 575.2460120829928,
+  "independentPushedHeadReview": "separate; not performed or certified",
+  "protectedPRCIAndMerge": "separate; not performed or certified"
+}

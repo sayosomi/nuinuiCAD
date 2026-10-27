@@ -1,0 +1,109 @@
+[
+  {
+    "check": "focused",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2",
+      "src/commands/bakeSourceRoundtrip.test.ts",
+      "src/commands/bakeGeometry.test.ts",
+      "src/commands/bakeFailureResults.test.ts",
+      "src/geometry/offsetPaths.test.ts",
+      "src/document/canonicalDocument.commitLineSplicePatch.test.ts",
+      "src/document/textPatch.test.ts",
+      "src/document/textPatch.property.test.ts",
+      "src/document/statementReconciler.test.ts"
+    ],
+    "exit": 0,
+    "seconds": 6.76,
+    "timeout_seconds": 120
+  },
+  {
+    "check": "rust-fmt",
+    "command": [
+      "cargo",
+      "fmt",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 1.07,
+    "timeout_seconds": 120
+  },
+  {
+    "check": "rust-check",
+    "command": [
+      "cargo",
+      "check",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "exit": 0,
+    "seconds": 0.08,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "rust-test",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "exit": 0,
+    "seconds": 6.61,
+    "timeout_seconds": 300
+  },
+  {
+    "check": "rust-clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0,
+    "seconds": 4.77,
+    "timeout_seconds": 300
+  },
+  {
+    "check": "build",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit": 0,
+    "seconds": 26.03,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "lint",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "exit": 0,
+    "seconds": 30.02,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "full-test",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2"
+    ],
+    "exit": 1,
+    "seconds": 300.37,
+    "timeout_seconds": 600
+  }
+]

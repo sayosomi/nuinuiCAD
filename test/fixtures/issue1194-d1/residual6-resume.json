@@ -1,0 +1,94 @@
+{
+  "status": "BLOCKED_PLATFORM_RESTRICTION_UNVERIFIED_WIP",
+  "checkpoint": "6c735ef4c3898846363f68ff7af46cfdf97625f3",
+  "humanAdmission": "LOCAL CHECK PASS mode=continue state=exact human_clear=yes",
+  "volatileRecheck": "fetch origin --prune; root/origin/push/main/remote main/remote topic/local HEAD/branch/clean/ownership all matched before mutation",
+  "issue": "#1194 open with D1 authorization; latest material comment 6317736524 requires diagnosis and safe stop on platform restriction",
+  "originalTimeout": {
+    "diagnosis": "OS execution policy delay/rejection, not evidence of DSL product nontermination",
+    "osTimeJst": "2026-10-21 22:39:31.564",
+    "amfi": "Unrecoverable CT signature issue, bailing out.",
+    "aspTimeJst": "2026-10-21 22:39:41.645",
+    "aspPid": 25079,
+    "qualification": "OS events match the original timeout interval and binary path. The original runner did not retain its PID; exact PID-to-run correlation is unavailable.",
+    "retainedWireReplay": {
+      "requests": 2,
+      "seconds": [
+        0.003386,
+        0.001209
+      ],
+      "samePersistentChild": true,
+      "cleanedUp": true,
+      "requestBoundSeconds": 10
+    }
+  },
+  "parameterRegression": {
+    "owner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+    "firstLoss": "supplied geometry argument can have null generic semantic value; emitting synthetic none shadows the canonical geometry collection producer",
+    "expected": 2,
+    "wipBefore": 0,
+    "after": 2,
+    "existingRegression": "src/dsl/moduleScalarRuntime.integration.test.ts: matches optional Module geometry collection parameters with required binders",
+    "novelFamily": false
+  },
+  "focused": {
+    "command": "ISSUE1194_RESIDUAL6_PHASE=resume-focused ISSUE1194_RESIDUAL6_EVIDENCE=/tmp/issue1194-residual6 npx vitest run test/issue1194Residual6D1Rust.integration.test.ts test/issue1194Residual5D1Rust.integration.test.ts test/issue1194Residual4D1Rust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/scalars/recordScalarIntegration.test.ts src/dsl/recordDocumentIntegration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/recordSemanticAnalysis.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/moduleGeometryRuntime.integration.test.ts src/dsl/geometryArrayRuntimeLowering.integration.test.ts src/dsl/geometryArraySemanticAnalysis.integration.test.ts",
+    "exitCode": 1,
+    "filesPassed": 11,
+    "filesFailed": 1,
+    "testsPassed": 348,
+    "testsFailed": 30,
+    "testsSkipped": 6,
+    "sixthResults": {
+      "pass": 22,
+      "contractInvalid": 2,
+      "deferred": 3
+    },
+    "failure": "Fourth runner first M2 request process exited SIGKILL; subsequent fourth tests aborted/EPIPE",
+    "osEvidence": {
+      "timeJst": "2026-10-21 23:28:46.928",
+      "pid": 36403,
+      "amfi": "Unrecoverable CT signature issue, bailing out.",
+      "asp": "Security policy would not allow process: 36403",
+      "binary": "rust-evaluator/target/debug/evaluation_stdio"
+    }
+  },
+  "stop": "No further evaluator requests, code fixes, Base replay or full gates after confirmed OS platform restriction. No timeout increase, policy change or bypass.",
+  "finalizedNewFamilies": 0,
+  "candidates": "C1–C7 remain UNRESOLVED_UNVERIFIED_CANDIDATE",
+  "accepted": 211,
+  "newAcceptedOnResume": 0,
+  "remaining": "Exact Base replay for all candidates, final focused rerun and ordered full gates still required after the platform blocker is resolved.",
+  "nextSafeAction": "Human resolves/authorizes resolution of local Rust binary execution-policy blocker; fresh same-branch continue admission then verify volatile state, complete Base proofs and all required gates before independent blocking review.",
+  "quota": "Human original weekly baseline 74%; end UNAVAILABLE; no inference from requests or tokens.",
+  "artifacts": [
+    {
+      "path": "/tmp/issue1194-r6-focused.log",
+      "sha256": "f56fd626dc5dfaf9d7b56d79ff2a7b00654c019bf88ade15290f9f33cea9b4e6"
+    },
+    {
+      "path": "/tmp/issue1194-r6-resume-focused.log",
+      "sha256": "64eee6eaf42bbec1901d31b115f12f4427384d27bebe25ddf0bb02baddb4dbea"
+    },
+    {
+      "path": "/tmp/issue1194-r6-param-debug.log",
+      "sha256": "4a8f6e5c5a7976748f72b7bc658b19c81f06df0089734a88f700c0da03203878"
+    },
+    {
+      "path": "/tmp/issue1194-r6-original-os-transport.log",
+      "sha256": "65be1a97b68407f4c52305deb013ff237dda046bfda50df5e59fe721d8ef8ec6"
+    },
+    {
+      "path": "/tmp/issue1194-r6-os-transport.log",
+      "sha256": "0c52e1aaafcc65f9e8af9667867e1af0906d5e349d46dbcae2a09794ccae96b2"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/retained-wire-replay.json",
+      "sha256": "1e800431d62a104664ec4028ee9bfb1d2c03aafb3cd18f6a55f2d7064aaf4451"
+    },
+    {
+      "path": "/tmp/issue1194-residual6/lifecycle.ndjson",
+      "sha256": "9bf54bfab610ed69138e40e662d1c45f6a905c07a7e7add37b16dd414a1df231"
+    }
+  ]
+}

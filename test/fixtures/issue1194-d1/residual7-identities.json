@@ -1,0 +1,76 @@
+[
+  {
+    "case": "A-saved-reexport",
+    "runId": "a-variants-1792632388822",
+    "instances": [
+      {
+        "instance": "One",
+        "ownerDocument": "/issue1194/lib.nui",
+        "recordDefinitions": {
+          "Inner": "statement:recordDefinition:mviv1g4c:100",
+          "Outer": "statement:recordDefinition:mviv1g4c:101"
+        },
+        "expectedAndActualRecordTypes": [
+          "statement:recordDefinition:mviv1g4c:100",
+          "statement:recordDefinition:mviv1g4c:101"
+        ],
+        "nestedInnerIdentity": "statement:recordDefinition:mviv1g4c:100"
+      },
+      {
+        "instance": "Two",
+        "ownerDocument": "/issue1194/right.nui",
+        "recordDefinitions": {
+          "Inner": "statement:recordDefinition:mviv1g4d:110",
+          "Outer": "statement:recordDefinition:mviv1g4d:111"
+        },
+        "expectedAndActualRecordTypes": [
+          "statement:recordDefinition:mviv1g4d:110",
+          "statement:recordDefinition:mviv1g4d:111"
+        ],
+        "nestedInnerIdentity": "statement:recordDefinition:mviv1g4d:110"
+      }
+    ]
+  },
+  {
+    "case": "B-saved-reexport",
+    "runId": "b-saved-1792632614369",
+    "instances": [
+      {
+        "instance": "One",
+        "ownerDocument": "/issue1194/lib.nui",
+        "recordDefinitions": {
+          "Seed": "statement:recordDefinition:mviv69t2:18",
+          "Shape": "statement:recordDefinition:mviv69t2:19"
+        },
+        "expectedAndActualMapTypePairs": [
+          [
+            "statement:recordDefinition:mviv69t2:18",
+            "statement:recordDefinition:mviv69t2:19"
+          ],
+          [
+            "statement:recordDefinition:mviv69t2:19",
+            "statement:recordDefinition:mviv69t2:19"
+          ]
+        ]
+      },
+      {
+        "instance": "Two",
+        "ownerDocument": "/issue1194/right.nui",
+        "recordDefinitions": {
+          "Seed": "statement:recordDefinition:mviv69t7:32",
+          "Shape": "statement:recordDefinition:mviv69t7:33"
+        },
+        "expectedAndActualMapTypePairs": [
+          [
+            "statement:recordDefinition:mviv69t7:32",
+            "statement:recordDefinition:mviv69t7:33"
+          ],
+          [
+            "statement:recordDefinition:mviv69t7:33",
+            "statement:recordDefinition:mviv69t7:33"
+          ]
+        ]
+      }
+    ]
+  }
+]

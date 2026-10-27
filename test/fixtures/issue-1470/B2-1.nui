@@ -1,0 +1,6 @@
+nui 1
+// Frozen #1470 B2
+curve Curve = bezier(start: (40, 0), end: (0, 0), startAngle: -110.13630342824813, startLength: 31.953090617340916, endAngle: -120.25643716352927, endLength: 13.892443989449804)
+point Result = bezierBulgePoint(source: @Curve)
+curve ControlCurve = bezier(start: (0, 0), end: (40, 0), startAngle: 85.236358309273825, startLength: 36.124783736376884, endAngle: -53.13010235415598, endLength: 15)
+point Control = bezierBulgePoint(source: @ControlCurve)

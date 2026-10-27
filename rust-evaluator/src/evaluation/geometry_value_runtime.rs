@@ -1398,6 +1398,19 @@ fn target_point(
             .ok()?;
         return point_from_input_target(&selected, state, None, None);
     };
+    if target.for_group_template_element_id.is_some() {
+        let geometry = super::scalar_expression_runtime::resolve_for_group_geometry_carry_target(
+            state,
+            resolver,
+            source_order,
+            target,
+        )
+        .ok()?;
+        let value = super::scalars::geometry_builtin_runtime::geometry_builtin_runtime_target_value(
+            &geometry,
+        );
+        return point_from_geometry_value(&value, None, state);
+    }
     if let Some(binder_id) = &target.geometry_value_binder_id {
         let source = state.geometry_value_binders.get(binder_id)?;
         return point_from_input_target(
@@ -1531,6 +1544,20 @@ fn target_geometry(
             .ok()?;
         return super::line_geometry_input::resolve_geometry_input_target(state, &selected);
     };
+    if target.for_group_template_element_id.is_some() {
+        let geometry = super::scalar_expression_runtime::resolve_for_group_geometry_carry_target(
+            state,
+            resolver,
+            source_order,
+            target,
+        )
+        .ok()?;
+        return Some(
+            super::scalars::geometry_builtin_runtime::geometry_builtin_runtime_target_value(
+                &geometry,
+            ),
+        );
+    }
     if let Some(binder_id) = &target.geometry_value_binder_id {
         let source = state.geometry_value_binders.get(binder_id)?;
         return match source {

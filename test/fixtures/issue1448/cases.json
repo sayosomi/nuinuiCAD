@@ -1,0 +1,549 @@
+[
+  {
+    "id": "G1",
+    "discriminator": "direct dependent geometry",
+    "source": "nui 1\n// 😀 Anchor stays in this comment.\npoint Anchor = coordinate(x: 3, y: 4)\npoint Observer = offset(from: @Anchor, dx: 7, dy: -2)\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 48,
+    "newName": "Origin",
+    "expectedEdits": [
+      {
+        "from": 48,
+        "to": 54,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      },
+      {
+        "from": 111,
+        "to": 117,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      }
+    ],
+    "points": [
+      [
+        "Anchor",
+        3,
+        4
+      ],
+      [
+        "Observer",
+        10,
+        2
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "G2",
+    "discriminator": "point collection indexed materialization",
+    "source": "nui 1\npoint Anchor = coordinate(x: 3, y: 4)\nconst Points: point[] = [@Anchor, (41, 52)]\npoint Observer = from(source: @Points[0])\npoint Control = from(source: @Points[1])\n",
+    "targetOffset": 12,
+    "newName": "Origin",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      },
+      {
+        "from": 70,
+        "to": 76,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      }
+    ],
+    "points": [
+      [
+        "Anchor",
+        3,
+        4
+      ],
+      [
+        "Observer",
+        3,
+        4
+      ],
+      [
+        "Control",
+        41,
+        52
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "G3",
+    "discriminator": "nested same-name distraction",
+    "source": "nui 1\npoint Anchor = coordinate(x: 3, y: 4)\npoint Observer = offset(from: @Anchor, dx: 7, dy: -2)\ngroup Nested {\n  point Anchor = coordinate(x: 41, y: 52)\n  point Control = offset(from: @Anchor, dx: 2, dy: 3)\n}\n",
+    "targetOffset": 12,
+    "newName": "Origin",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      },
+      {
+        "from": 75,
+        "to": 81,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      }
+    ],
+    "points": [
+      [
+        "Anchor",
+        3,
+        4
+      ],
+      [
+        "Observer",
+        10,
+        2
+      ],
+      [
+        "Anchor",
+        41,
+        52
+      ],
+      [
+        "Control",
+        43,
+        55
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "G4",
+    "discriminator": "geometry property through immutable scalar",
+    "source": "nui 1\npoint Anchor = coordinate(x: 3, y: 4)\nconst px: number = @Anchor.x\npoint Observer = coordinate(x: @Anchor.y * 2, y: @px)\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 12,
+    "newName": "Origin",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      },
+      {
+        "from": 64,
+        "to": 70,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      },
+      {
+        "from": 105,
+        "to": 111,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      }
+    ],
+    "points": [
+      [
+        "Anchor",
+        3,
+        4
+      ],
+      [
+        "Observer",
+        8,
+        3
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {
+      "px": 3
+    }
+  },
+  {
+    "id": "T1",
+    "discriminator": "scalar arithmetic multiple dependents",
+    "source": "nui 1\nconst width: number = 7\nconst doubled: number = @width * 2\nconst summed: number = @width + @doubled\npoint Observer = coordinate(x: @summed, y: @width - 1)\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 12,
+    "newName": "span",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 17,
+        "expectedText": "width",
+        "newText": "span"
+      },
+      {
+        "from": 55,
+        "to": 60,
+        "expectedText": "width",
+        "newText": "span"
+      },
+      {
+        "from": 89,
+        "to": 94,
+        "expectedText": "width",
+        "newText": "span"
+      },
+      {
+        "from": 150,
+        "to": 155,
+        "expectedText": "width",
+        "newText": "span"
+      }
+    ],
+    "points": [
+      [
+        "Observer",
+        21,
+        6
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {
+      "width": 7,
+      "doubled": 14,
+      "summed": 21
+    }
+  },
+  {
+    "id": "T2",
+    "discriminator": "number array indexed observer",
+    "source": "nui 1\nconst widths: number[] = [7, 19, 31]\nconst picked: number = @widths[1]\npoint Observer = coordinate(x: @picked, y: @widths[2])\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 12,
+    "newName": "spans",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "widths",
+        "newText": "spans"
+      },
+      {
+        "from": 67,
+        "to": 73,
+        "expectedText": "widths",
+        "newText": "spans"
+      },
+      {
+        "from": 121,
+        "to": 127,
+        "expectedText": "widths",
+        "newText": "spans"
+      }
+    ],
+    "points": [
+      [
+        "Observer",
+        19,
+        31
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {
+      "picked": 19
+    }
+  },
+  {
+    "id": "T3",
+    "discriminator": "immutable point materialization",
+    "source": "nui 1\nconst Anchor: point = coordinate(x: 3, y: 4)\npoint Observer = from(source: @Anchor)\npoint Control = coordinate(x: 91, y: 92)\n",
+    "targetOffset": 12,
+    "newName": "Origin",
+    "expectedEdits": [
+      {
+        "from": 12,
+        "to": 18,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      },
+      {
+        "from": 82,
+        "to": 88,
+        "expectedText": "Anchor",
+        "newText": "Origin"
+      }
+    ],
+    "points": [
+      [
+        "Observer",
+        3,
+        4
+      ],
+      [
+        "Control",
+        91,
+        92
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "T4",
+    "discriminator": "Module-local scalar dependency and shadow",
+    "source": "nui 1\nconst width: number = 99\nmodule Pattern(seed: number) {\n  const width: number = @seed + 2\n  export point Tip = coordinate(x: @width * 3, y: @seed)\n}\ninstance Left = Pattern(seed: 5)\ninstance Right = Pattern(seed: 11)\npoint Observer = from(source: @Left::Tip)\npoint Control = coordinate(x: @width, y: 92)\n",
+    "targetOffset": 70,
+    "newName": "span",
+    "expectedEdits": [
+      {
+        "from": 70,
+        "to": 75,
+        "expectedText": "width",
+        "newText": "span"
+      },
+      {
+        "from": 132,
+        "to": 137,
+        "expectedText": "width",
+        "newText": "span"
+      }
+    ],
+    "points": [
+      [
+        "Tip",
+        21,
+        5
+      ],
+      [
+        "Tip",
+        39,
+        11
+      ],
+      [
+        "Observer",
+        21,
+        5
+      ],
+      [
+        "Control",
+        99,
+        92
+      ]
+    ],
+    "scalars": {
+      "width": 99
+    }
+  },
+  {
+    "id": "M1",
+    "discriminator": "Module definition and callee",
+    "source": "nui 1\nmodule Pattern(seed: number) {\n  export point Tip = coordinate(x: @seed * 3, y: @seed + 2)\n}\ninstance Left = Pattern(seed: 5)\ninstance Right = Pattern(seed: 11)\npoint Observer = from(source: @Left::Tip)\npoint Control = from(source: @Right::Tip)\n",
+    "targetOffset": 13,
+    "newName": "Draft",
+    "expectedEdits": [
+      {
+        "from": 13,
+        "to": 20,
+        "expectedText": "Pattern",
+        "newText": "Draft"
+      },
+      {
+        "from": 115,
+        "to": 122,
+        "expectedText": "Pattern",
+        "newText": "Draft"
+      },
+      {
+        "from": 149,
+        "to": 156,
+        "expectedText": "Pattern",
+        "newText": "Draft"
+      }
+    ],
+    "points": [
+      [
+        "Tip",
+        15,
+        7
+      ],
+      [
+        "Tip",
+        33,
+        13
+      ],
+      [
+        "Observer",
+        15,
+        7
+      ],
+      [
+        "Control",
+        33,
+        13
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "M2",
+    "discriminator": "parameter explicit labels and body references",
+    "source": "nui 1\nmodule Pattern(seed: number) {\n  export point Tip = coordinate(x: @seed * 3, y: @seed + 2)\n}\ninstance Left = Pattern(seed: 5)\ninstance Right = Pattern(seed: 11)\npoint Observer = from(source: @Left::Tip)\npoint Control = from(source: @Right::Tip)\n",
+    "targetOffset": 21,
+    "newName": "size",
+    "expectedEdits": [
+      {
+        "from": 21,
+        "to": 25,
+        "expectedText": "seed",
+        "newText": "size"
+      },
+      {
+        "from": 73,
+        "to": 77,
+        "expectedText": "seed",
+        "newText": "size"
+      },
+      {
+        "from": 87,
+        "to": 91,
+        "expectedText": "seed",
+        "newText": "size"
+      },
+      {
+        "from": 123,
+        "to": 127,
+        "expectedText": "seed",
+        "newText": "size"
+      },
+      {
+        "from": 157,
+        "to": 161,
+        "expectedText": "seed",
+        "newText": "size"
+      }
+    ],
+    "points": [
+      [
+        "Tip",
+        15,
+        7
+      ],
+      [
+        "Tip",
+        33,
+        13
+      ],
+      [
+        "Observer",
+        15,
+        7
+      ],
+      [
+        "Control",
+        33,
+        13
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "M3",
+    "discriminator": "instance and qualified exported geometry",
+    "source": "nui 1\nmodule Pattern(seed: number) {\n  export point Tip = coordinate(x: @seed * 3, y: @seed + 2)\n}\ninstance Left = Pattern(seed: 5)\ninstance Right = Pattern(seed: 11)\npoint Observer = from(source: @Left::Tip)\npoint Control = from(source: @Right::Tip)\n",
+    "targetOffset": 108,
+    "newName": "Front",
+    "expectedEdits": [
+      {
+        "from": 108,
+        "to": 112,
+        "expectedText": "Left",
+        "newText": "Front"
+      },
+      {
+        "from": 198,
+        "to": 202,
+        "expectedText": "Left",
+        "newText": "Front"
+      }
+    ],
+    "points": [
+      [
+        "Tip",
+        15,
+        7
+      ],
+      [
+        "Tip",
+        33,
+        13
+      ],
+      [
+        "Observer",
+        15,
+        7
+      ],
+      [
+        "Control",
+        33,
+        13
+      ]
+    ],
+    "scalars": {}
+  },
+  {
+    "id": "M4",
+    "discriminator": "export source across asymmetric siblings qualified paths",
+    "source": "nui 1\nmodule Pattern(seed: number) {\n  export point Tip = coordinate(x: @seed * 3, y: @seed + 2)\n}\ninstance Left = Pattern(seed: 5)\ninstance Right = Pattern(seed: 11)\npoint Observer = from(source: @Left::Tip)\npoint Control = from(source: @Right::Tip)\n",
+    "targetOffset": 52,
+    "newName": "Apex",
+    "expectedEdits": [
+      {
+        "from": 52,
+        "to": 55,
+        "expectedText": "Tip",
+        "newText": "Apex"
+      },
+      {
+        "from": 204,
+        "to": 207,
+        "expectedText": "Tip",
+        "newText": "Apex"
+      },
+      {
+        "from": 246,
+        "to": 249,
+        "expectedText": "Tip",
+        "newText": "Apex"
+      }
+    ],
+    "points": [
+      [
+        "Tip",
+        15,
+        7
+      ],
+      [
+        "Tip",
+        33,
+        13
+      ],
+      [
+        "Observer",
+        15,
+        7
+      ],
+      [
+        "Control",
+        33,
+        13
+      ]
+    ],
+    "scalars": {}
+  }
+]

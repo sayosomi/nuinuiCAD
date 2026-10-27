@@ -1,0 +1,257 @@
+{
+  "issue": "sayosomi/nuinuiCAD#1452",
+  "base": "f77807763ddd5c1f0c9d7295951cd1535825fc3d",
+  "branch": "sayosomi/issue-1452-multidoc-freshness-hunt",
+  "admission": {
+    "humanProof": "LOCAL CHECK PASS mode=new issue=sayosomi/nuinuiCAD#1452 branch=sayosomi/issue-1452-multidoc-freshness-hunt main=f77807763ddd5c1f0c9d7295951cd1535825fc3d local_head=f77807763ddd5c1f0c9d7295951cd1535825fc3d ancestry=exact human_clear=yes",
+    "volatileCheck": "2026-10-24 JST: fresh Issue OPEN/body contract:ready/exact autonomous authorization; zero comments; expected main/HEAD/clean checkout/unused topic; no conflicting PR/live thread/process/active legacy/audit/E2E marker. Consumed Human proof; did not rerun full admission."
+  },
+  "budget": {
+    "primary": 10,
+    "additional": [
+      {
+        "id": "A1",
+        "trigger": "Q2: incompatible saved candidates hidden by preferred current view",
+        "kind": "minimal same-name/comment-shift reducer plus same-fingerprint nearest control"
+      }
+    ],
+    "accepted": 11,
+    "ceiling": 16,
+    "illegalSourceReplacements": 0,
+    "rejectedDraftOracleControls": 1,
+    "note": "Q2 draft rejected because one current plus one saved view does not establish incompatible saved snapshots. Not a production failure; replaced with two real incompatible saved graphs. Intentional missing/unreadable/nui99 inputs are T5 negative checkpoints."
+  },
+  "families": [
+    {
+      "id": "F1",
+      "novel": true,
+      "earliestOwner": "packages/nui-language/src/document/multiDocumentLanguageQueries.ts: preferredUniverse",
+      "minimalLegalSources": [
+        "root1",
+        "rootB",
+        "lib1",
+        "lib2",
+        "libDirty"
+      ],
+      "shortestFailingOrder": [
+        "compile root1 -> saved lib1",
+        "compile rootB -> saved lib2",
+        "compile current libDirty with reconciler-inherited library declaration ID",
+        "References/Rename over complete reverse universe [root1, rootB, libDirty]"
+      ],
+      "identity": {
+        "documentId": "library",
+        "localIdentity": "lib1:moduleDefinition:1"
+      },
+      "frozenExpected": {
+        "references": null,
+        "rename": {
+          "status": "rejected",
+          "reason": "stale-or-invalid"
+        }
+      },
+      "baseActual": {
+        "references": {
+          "declaration": {
+            "source": {
+              "kind": "root-current",
+              "documentId": "library",
+              "sourceRevision": 11
+            },
+            "range": {
+              "from": 41,
+              "to": 47
+            }
+          },
+          "references": [
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "root-a",
+                "sourceRevision": 1
+              },
+              "range": {
+                "from": 64,
+                "to": 70
+              }
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "root-b",
+                "sourceRevision": 1
+              },
+              "range": {
+                "from": 64,
+                "to": 70
+              }
+            }
+          ]
+        },
+        "rename": {
+          "status": "ok",
+          "documents": [
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "library",
+                "sourceRevision": 11
+              },
+              "edits": [
+                {
+                  "from": 41,
+                  "to": 47,
+                  "expectedText": "Pocket",
+                  "newText": "Pouch"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "root-a",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 64,
+                  "to": 70,
+                  "expectedText": "Pocket",
+                  "newText": "Pouch"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "root-b",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 64,
+                  "to": 70,
+                  "expectedText": "Pocket",
+                  "newText": "Pouch"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "baseEvidence": "Exact Base production source, pre-fix primary run: 10 passed/2 failed (Q2,A1); isolated A1: both References and Rename wrong acceptance independently asserted; same-fingerprint control passed. No provider agreement used as oracle.",
+      "nearestBasePass": [
+        "root1->lib1",
+        "rootB->lib1",
+        "current libDirty; exact two refs/full three-document Rename"
+      ],
+      "rootCause": "preferredUniverse discarded saved candidates whenever a root-current view existed, hiding incompatible saved graph owners. Both References and Rename share that owner, so count once.",
+      "repair": "Before choosing current ranges, compare exact dependency-saved snapshots in all participating graphs by DocumentId/fingerprint/text. Reject mixed saved owners. Preserve current dirty ranges over a coherent saved universe. Inspect underlying graphs even if index sourceByDocument already overlaid current views.",
+      "regressions": [
+        "Q2",
+        "A1: direct minimal sources",
+        "A1: overlays on both graphs cannot hide conflict",
+        "Q1/Q3/Q4: legitimate dirty-current controls"
+      ],
+      "fixed": "PASS: incoherent References null; Rename stale-or-invalid. Nearby coherent current-range controls remain PASS.",
+      "historicalDistinction": "Composed cross-root saved-version disagreement masked by a current view; not #256/#359 static capability or #749 native WorkspaceEdit behavior."
+    }
+  ],
+  "sensitivity": [
+    {
+      "class": "old fingerprint/source range",
+      "control": "T2 exact v3 fingerprint/artifact/range; Q1 shifted UTF-16 emoji range; sensitivity oracle intentionally substitutes lib1 fingerprint/saved location",
+      "detects": true
+    },
+    {
+      "class": "late request accepted",
+      "control": "T1/Q4 deterministic gates require late R1 stale and R2 installed; accepting current R1 fails status oracle",
+      "detects": true
+    },
+    {
+      "class": "wrong original declaration identity",
+      "control": "T3/Q2 library-qualified identity survives facade; sensitivity substitutes facade DocumentId",
+      "detects": true
+    },
+    {
+      "class": "missing/duplicated reverse reference",
+      "control": "Q2 duplicate discovery must yield exact locations once; sensitivity removes/adds location",
+      "detects": true
+    },
+    {
+      "class": "partial Rename footprint",
+      "control": "Q3 partial per-document proof rejected; sensitivity truncates accepted full plan",
+      "detects": true
+    },
+    {
+      "class": "capture/collision",
+      "control": "Q3 real libCapture has distinct existing Bag declaration; Pocket->Bag rejected atomically; Pocket->Pouch legitimate control succeeds",
+      "detects": true
+    },
+    {
+      "class": "incompatible saved source hidden by current view",
+      "control": "A1 mismatch Base fails, same-fingerprint Base passes; repaired mismatch rejects including both-index overlays",
+      "detects": true
+    }
+  ],
+  "physicalReplay": "Every accepted fixed Rename plan in Q3, Q4 (both schedules), A1 nearest control, and sensitivity verification is applied to exact physical source strings. Whole texts compared to independent Pocket->Pouch outputs, each participant recompiled through real graph/Module compiler after real reconciliation. Exact Definition/References re-queried; marker=7 and import-alias identities preserved.",
+  "oracleLocation": "frozen.json stores source text/SHA256/revisions/fingerprints/UTF-16 ranges/ordered ledgers. Integration assertions freeze exact topology, diagnostic ownership, original identities, source owners, query results and Rename footprints before running them.",
+  "verification": {
+    "focusedBeforeRequired": "13 task tests PASS plus renameSafety; focused eslint PASS",
+    "requiredBlock": "PASS, executed verbatim in required order, exit 0; source settled before run; full suite once",
+    "requiredCommands": "(\n  cd /Users/yosomi/Code/nuinuiCAD || exit 1\n\n  npx vitest run \\\n    src/document/multiDocumentImportGraph.test.ts \\\n    src/document/multiDocumentImportGraph.coordinator.test.ts \\\n    src/document/multiDocumentLanguageQueries.test.ts \\\n    src/document/multiDocumentLanguageQueries.renameSafety.test.ts \\\n    src/document/multiDocumentModuleLanguage.test.ts \\\n    test/issue1452MultiDocumentFreshness.integration.test.ts \\\n    --maxWorkers=2 || exit 1\n\n  npm run build || exit 1\n  npm run lint || exit 1\n  npm test -- --maxWorkers=2 || exit 1\n  git diff --check || exit 1\n)\n",
+    "requiredFocused": {
+      "status": "PASS",
+      "files": 6,
+      "tests": 44,
+      "durationSeconds": 3.11
+    },
+    "build": {
+      "status": "PASS",
+      "command": "npm run build"
+    },
+    "lint": {
+      "status": "PASS",
+      "command": "npm run lint"
+    },
+    "full": {
+      "status": "PASS",
+      "command": "npm test -- --maxWorkers=2",
+      "passedFiles": 685,
+      "skippedFiles": 2,
+      "passedTests": 10961,
+      "skippedTests": 183,
+      "durationSeconds": 284.3,
+      "runsOnSettledCandidate": 1
+    },
+    "diffCheck": {
+      "status": "PASS",
+      "command": "git diff --check"
+    },
+    "failures": "Only preserved deliberate Base conformance failures and rejected draft oracle expectation; no failed required gate and no retry-to-green.",
+    "processSafety": "Existing Vitest per-test timeouts; two workers; outer required-block process group timeout 1200s with owned-process cleanup. No timeout or resource failure.",
+    "completedAtJst": "2026-10-24 10:51:10 JST"
+  },
+  "unsupported": [],
+  "unresolved": [],
+  "notCovered": [],
+  "unverified": [
+    "Actual native VS Code watcher/dirty-buffer/WorkspaceEdit lifecycle: excluded; host-neutral snapshots only"
+  ],
+  "skips": [
+    "Rust parity: production evaluation and payload semantics unchanged/excluded",
+    "Human Manual GUI E2E: explicitly Not Required; not performed"
+  ],
+  "architecture": "Existing graph/compiler/reconciler/Module projection/query/rename owners reused. No new production abstraction, resolver, cache, scheduler, syntax, evaluator, host or source-edit path. ARCHITECTURE.md and DSL Reference unchanged because ownership and language contract unchanged.",
+  "documentationLifecycle": "Only reusable regression, frozen fixtures and compact evidence retained; no transient task plan introduced.",
+  "scopeDeviation": "NONE",
+  "blockers": "NONE",
+  "residualRisk": "Host-neutral reverse discovery trusts the host complete-discovery assertion; native lifecycle is not validated here. Mixed saved snapshots now conservatively reject until coherent rebuild.",
+  "weeklyRemaining": "UNAVAILABLE",
+  "fiveHourRemaining": "UNAVAILABLE",
+  "candidateFileSha256": {
+    "packages/nui-language/src/document/multiDocumentLanguageQueries.ts": "f5aebdab2ae3ecd8a6214a35f898665519fa053dffcb74e776a96e16cddd5627",
+    "test/issue1452MultiDocumentFreshness.integration.test.ts": "4b342d2f5e766c06647ccee06947bce2b0a46853aef83978db6f8ba6bc8f8cfd",
+    "test/fixtures/issue1452/frozen.json": "f3c4d74b9fb5aeb3e243bf5788641654cfaaea99c1481faf3538b36b588e90b9"
+  }
+}

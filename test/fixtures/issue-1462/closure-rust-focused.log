@@ -1,0 +1,32 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (rust-evaluator/target/debug/deps/nuinuicad_rust_evaluator-59ccadadf15a6640)
+
+running 11 tests
+test evaluation::offset_line_tests::evaluates_line_offset ... ok
+test evaluation::offset_line_tests::rejects_a_source_chain_that_does_not_follow_the_first_line ... ok
+test evaluation::offset_line_tests::evaluates_numeric_offset_parameter ... ok
+test evaluation::offset_line_tests::rejects_reversed_base_lines_without_an_explicit_reverse ... ok
+test evaluation::offset_line_tests::offset_line_can_feed_line_point_and_intersection_helpers ... ok
+test evaluation::offset_line_tests::reports_bezier_trim_warning ... ok
+test evaluation::offset_line_tests::evaluates_arc_offset_and_radius_error ... ok
+test evaluation::offset_line_tests::reports_too_late_base_dependency ... ok
+test evaluation::offset_line_tests::suppresses_bezier_trim_warning_when_requested ... ok
+test evaluation::offset_line_tests::evaluates_bezier_and_nested_offset ... ok
+test evaluation::offset_line_tests::issue1462_arc_offsets_follow_directed_side_and_radius_limits ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 616 filtered out; finished in 0.02s
+
+     Running unittests src/bin/evaluation_stdio.rs (rust-evaluator/target/debug/deps/evaluation_stdio-6fdde589c51237c6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/offset_hover_metadata.rs (rust-evaluator/target/debug/deps/offset_hover_metadata-015ef581f9025a69)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+
+rust-focused EXIT=0

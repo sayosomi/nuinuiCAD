@@ -1,0 +1,327 @@
+[
+  {
+    "id": "A-optional-source-constructor",
+    "sha256": "2970fb9a7b15c2cb1b3652a17b6584548907d100b78afc15441715b4c5d13b1e",
+    "classification": "UNRESOLVED",
+    "proposedTransferTo": "#1260",
+    "ownerDecision": "UNRESOLVED; transitive collection dependency loss is observed and map-free control fails, but exclusive first-owner adjudication remains pending",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/typedDependencyGraph.ts: referencesIn / addScalarProgramDependencies collectionIndex source closure",
+    "firstLoss": "The geometry scalar collectionIndex visits the index AST but does not traverse the referenced scalar collection producer to its binding prerequisites. The geometry-to-source binding edges are absent. The map-free residual7 control reproduces the same missing source dependency without nominal records or record maps.",
+    "independentControls": [
+      "B-map-free-scalar-source",
+      "G-map-free-construct"
+    ],
+    "invalidSourceRelations": [],
+    "collectionProducerPositions": [
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9tntx:1937:statement:typedDeclaration:mvj9tntx:9",
+        "kind": "if",
+        "sourceOrder": 2.500008
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9tntx:1938:statement:typedDeclaration:mvj9tntx:10",
+        "kind": "match",
+        "sourceOrder": 2.500009
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9tntx:1938:statement:typedDeclaration:mvj9tntx:12",
+        "kind": "recordMap",
+        "sourceOrder": 7
+      },
+      {
+        "valueId": "record-field-collection:[\"module-collection:36:statement:moduleInstance:mvj9tntx:1938:statement:typedDeclaration:mvj9tntx:12\",\"statement:recordDefinition:mvj9tntx:3\",1]",
+        "kind": "recordField",
+        "sourceOrder": 2
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9tntx:2037:statement:typedDeclaration:mvj9tntx:9",
+        "kind": "if",
+        "sourceOrder": 13.500008
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9tntx:2038:statement:typedDeclaration:mvj9tntx:10",
+        "kind": "match",
+        "sourceOrder": 13.500009
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9tntx:2038:statement:typedDeclaration:mvj9tntx:12",
+        "kind": "recordMap",
+        "sourceOrder": 18
+      },
+      {
+        "valueId": "record-field-collection:[\"module-collection:36:statement:moduleInstance:mvj9tntx:2038:statement:typedDeclaration:mvj9tntx:12\",\"statement:recordDefinition:mvj9tntx:3\",1]",
+        "kind": "recordField",
+        "sourceOrder": 13
+      },
+      {
+        "valueId": "record-field-collection:[\"module-collection:36:statement:moduleInstance:mvj9tntx:1938:statement:typedDeclaration:mvj9tntx:11\",\"statement:recordDefinition:mvj9tntx:2\",0]",
+        "kind": "recordField",
+        "sourceOrder": 2
+      },
+      {
+        "valueId": "record-field-collection:[\"module-collection:36:statement:moduleInstance:mvj9tntx:2038:statement:typedDeclaration:mvj9tntx:11\",\"statement:recordDefinition:mvj9tntx:2\",0]",
+        "kind": "recordField",
+        "sourceOrder": 13
+      }
+    ],
+    "geometryToBindingEdges": [],
+    "actualResultsFrom": "residual9-dispositions.json#A-optional-source-constructor"
+  },
+  {
+    "id": "A-map-free-optional-control",
+    "sha256": "5a8da03ec54e988adaafc0a1b6bfd1bb4e4d55ac4247f87345763215bf4e5b8e",
+    "classification": "UNRESOLVED",
+    "proposedTransferTo": "#1260",
+    "ownerDecision": "Proposed generic owner with concrete invalid collection-time products; independent transfer acceptance pending; no #1260 implementation or PASS claimed",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: executionPositionForValue versus runtimeEventPositionForValue for generic collection transport",
+    "firstLoss": "Generic collection target/controller boundaries contain the statement fraction after the half-step, while the consuming Module geometry value uses the half-step. A logically earlier producer is advertised as later than its consumer. Normal Rust collection visibility correctly rejects that malformed source-time relation. Map-free controls independently reproduce it.",
+    "independentControls": [
+      "G-map-free-dynamic",
+      "A-map-free-optional-control",
+      "G-map-free-construct"
+    ],
+    "invalidSourceRelations": [
+      {
+        "path": "geometryValueProgram[0].construction.end.x.targetSourceOrder",
+        "producerBoundary": 2.5,
+        "consumerBoundary": 2.5
+      },
+      {
+        "path": "geometryValueProgram[1].construction.end.x.targetSourceOrder",
+        "producerBoundary": 5.5,
+        "consumerBoundary": 5.5
+      }
+    ],
+    "collectionProducerPositions": [
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to5x:3838:statement:typedDeclaration:mvj9to5x:33",
+        "kind": "map",
+        "sourceOrder": 3
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to5x:3838:statement:typedDeclaration:mvj9to5x:34",
+        "kind": "if",
+        "sourceOrder": 2.500004
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to5x:3838:statement:typedDeclaration:mvj9to5x:35",
+        "kind": "match",
+        "sourceOrder": 2.500005
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to5x:3938:statement:typedDeclaration:mvj9to5x:33",
+        "kind": "map",
+        "sourceOrder": 6
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to5x:3938:statement:typedDeclaration:mvj9to5x:34",
+        "kind": "if",
+        "sourceOrder": 5.500004
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to5x:3938:statement:typedDeclaration:mvj9to5x:35",
+        "kind": "match",
+        "sourceOrder": 5.500005
+      }
+    ],
+    "geometryToBindingEdges": [],
+    "actualResultsFrom": "residual9-dispositions.json#A-map-free-optional-control"
+  },
+  {
+    "id": "G-map-free-dynamic",
+    "sha256": "a61cdb06a2f0fd4eb346b2c5038fa0ec193dd8ffc1a975a05785fe1a76eba014",
+    "classification": "UNRESOLVED",
+    "proposedTransferTo": "#1260",
+    "ownerDecision": "Proposed generic owner with concrete invalid collection-time products; independent transfer acceptance pending; no #1260 implementation or PASS claimed",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: executionPositionForValue versus runtimeEventPositionForValue for generic collection transport",
+    "firstLoss": "Generic collection target/controller boundaries contain the statement fraction after the half-step, while the consuming Module geometry value uses the half-step. A logically earlier producer is advertised as later than its consumer. Normal Rust collection visibility correctly rejects that malformed source-time relation. Map-free controls independently reproduce it.",
+    "independentControls": [
+      "G-map-free-dynamic",
+      "A-map-free-optional-control",
+      "G-map-free-construct"
+    ],
+    "invalidSourceRelations": [
+      {
+        "path": "geometryValueProgram[2].construction.target.target.targetSourceOrder",
+        "producerBoundary": 1.500002,
+        "consumerBoundary": 1.5
+      }
+    ],
+    "collectionProducerPositions": [],
+    "geometryToBindingEdges": [
+      {
+        "kind": "initializer",
+        "from": {
+          "kind": "geometry-value",
+          "id": "14:geometry-value38:statement:typedDeclaration:mvj9to6e:4636:statement:moduleInstance:mvj9to6e:49",
+          "name": "statement:typedDeclaration:mvj9to6e:46",
+          "statementIndex": 3
+        },
+        "to": {
+          "kind": "binding",
+          "id": "module-binding:9:parameter36:statement:moduleInstance:mvj9to6e:4938:statement:moduleDefinition:mvj9to6e:441:2",
+          "name": "which",
+          "statementIndex": 7,
+          "span": null
+        },
+        "span": {
+          "start": 33,
+          "end": 39
+        },
+        "requiredness": "required"
+      }
+    ],
+    "actualResultsFrom": "residual9-dispositions.json#G-map-free-dynamic"
+  },
+  {
+    "id": "B-min-forward-dynamic",
+    "sha256": "113202a229d39234618c98bf5036d04be7a567ed8e4320207cbe536fce9497fe",
+    "classification": "UNRESOLVED",
+    "proposedTransferTo": "#1260",
+    "ownerDecision": "Proposed generic owner with concrete invalid collection-time products; independent transfer acceptance pending; no #1260 implementation or PASS claimed",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: executionPositionForValue versus runtimeEventPositionForValue for generic collection transport",
+    "firstLoss": "Generic collection target/controller boundaries contain the statement fraction after the half-step, while the consuming Module geometry value uses the half-step. A logically earlier producer is advertised as later than its consumer. Normal Rust collection visibility correctly rejects that malformed source-time relation. Map-free controls independently reproduce it.",
+    "independentControls": [
+      "G-map-free-dynamic",
+      "A-map-free-optional-control",
+      "G-map-free-construct"
+    ],
+    "invalidSourceRelations": [
+      {
+        "path": "geometryValueProgram[2].construction.target.target.targetSourceOrder",
+        "producerBoundary": 1.500006,
+        "consumerBoundary": 1.5
+      }
+    ],
+    "collectionProducerPositions": [
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to6r:6238:statement:typedDeclaration:mvj9to6r:57",
+        "kind": "recordMap",
+        "sourceOrder": 2
+      }
+    ],
+    "geometryToBindingEdges": [
+      {
+        "kind": "initializer",
+        "from": {
+          "kind": "geometry-value",
+          "id": "14:geometry-value38:statement:typedDeclaration:mvj9to6r:5936:statement:moduleInstance:mvj9to6r:62",
+          "name": "statement:typedDeclaration:mvj9to6r:59",
+          "statementIndex": 8
+        },
+        "to": {
+          "kind": "binding",
+          "id": "module-binding:9:parameter36:statement:moduleInstance:mvj9to6r:6238:statement:moduleDefinition:mvj9to6r:531:2",
+          "name": "which",
+          "statementIndex": 12,
+          "span": null
+        },
+        "span": {
+          "start": 26,
+          "end": 32
+        },
+        "requiredness": "required"
+      }
+    ],
+    "actualResultsFrom": "residual9-dispositions.json#B-min-forward-dynamic"
+  },
+  {
+    "id": "A-min-optional-forward",
+    "sha256": "bedbfb0d0dc395f2037e3b71cd0194837c0572afb5e4e11382aa2e1b101dd0d7",
+    "classification": "UNRESOLVED",
+    "proposedTransferTo": "#1260",
+    "ownerDecision": "Proposed generic owner with concrete invalid collection-time products; independent transfer acceptance pending; no #1260 implementation or PASS claimed",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts: executionPositionForValue versus runtimeEventPositionForValue for generic collection transport",
+    "firstLoss": "Generic collection target/controller boundaries contain the statement fraction after the half-step, while the consuming Module geometry value uses the half-step. A logically earlier producer is advertised as later than its consumer. Normal Rust collection visibility correctly rejects that malformed source-time relation. Map-free controls independently reproduce it.",
+    "independentControls": [
+      "G-map-free-dynamic",
+      "A-map-free-optional-control",
+      "G-map-free-construct"
+    ],
+    "invalidSourceRelations": [
+      {
+        "path": "geometryValueProgram[2].construction.target.target.targetSourceOrder",
+        "producerBoundary": 1.500009,
+        "consumerBoundary": 1.5
+      },
+      {
+        "path": "geometryValueProgram[2].construction.target.target.value.sourceOrder",
+        "producerBoundary": 1.500009,
+        "consumerBoundary": 1.5
+      },
+      {
+        "path": "geometryValueProgram[2].construction.target.target.value.arms[1].value.sourceOrder",
+        "producerBoundary": 1.500009,
+        "consumerBoundary": 1.5
+      }
+    ],
+    "collectionProducerPositions": [
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to71:7838:statement:typedDeclaration:mvj9to71:71",
+        "kind": "if",
+        "sourceOrder": 1.500007
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to71:7838:statement:typedDeclaration:mvj9to71:72",
+        "kind": "match",
+        "sourceOrder": 1.500008
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to71:7838:statement:typedDeclaration:mvj9to71:73",
+        "kind": "recordMap",
+        "sourceOrder": 2
+      }
+    ],
+    "geometryToBindingEdges": [],
+    "actualResultsFrom": "residual9-dispositions.json#A-min-optional-forward"
+  },
+  {
+    "id": "B-map-free-scalar-source",
+    "sha256": "3b957e06b22d0f679d79bde8b38030fd3eeb16e8f866beaba7a79ede13075682",
+    "classification": "UNRESOLVED",
+    "proposedTransferTo": "#1260",
+    "ownerDecision": "Proposed generic owner with concrete invalid collection-time products; independent transfer acceptance pending; no #1260 implementation or PASS claimed",
+    "firstIncorrectOwner": "packages/nui-language/src/scalars/typedDependencyGraph.ts: referencesIn / addScalarProgramDependencies collectionIndex source closure",
+    "firstLoss": "The geometry scalar collectionIndex visits the index AST but does not traverse the referenced scalar collection producer to its binding prerequisites. The geometry-to-source binding edges are absent. The map-free residual7 control reproduces the same missing source dependency without nominal records or record maps.",
+    "independentControls": [
+      "B-map-free-scalar-source",
+      "G-map-free-construct"
+    ],
+    "invalidSourceRelations": [
+      {
+        "path": "geometryValueProgram[0].construction.start.x.targetSourceOrder",
+        "producerBoundary": 1.5,
+        "consumerBoundary": 1.5
+      },
+      {
+        "path": "geometryValueProgram[0].construction.end.x.left.targetSourceOrder",
+        "producerBoundary": 1.5,
+        "consumerBoundary": 1.5
+      },
+      {
+        "path": "geometryValueProgram[1].construction.start.x.targetSourceOrder",
+        "producerBoundary": 3.5,
+        "consumerBoundary": 3.5
+      },
+      {
+        "path": "geometryValueProgram[1].construction.end.x.left.targetSourceOrder",
+        "producerBoundary": 3.5,
+        "consumerBoundary": 3.5
+      }
+    ],
+    "collectionProducerPositions": [
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to7e:8438:statement:typedDeclaration:mvj9to7e:82",
+        "kind": "map",
+        "sourceOrder": 2
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvj9to7e:8538:statement:typedDeclaration:mvj9to7e:82",
+        "kind": "map",
+        "sourceOrder": 4
+      }
+    ],
+    "geometryToBindingEdges": [],
+    "actualResultsFrom": "residual9-dispositions.json#B-map-free-scalar-source"
+  }
+]

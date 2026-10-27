@@ -1,0 +1,6 @@
+{
+  "frozenBeforeExecutionUTC": "2026-10-26T06:08:57.321983+00:00",
+  "id": "X07",
+  "sourceSha256": "9bbbc17a7d58d9757f612b7bce70f4804a4f9ae7ba26f3ea1dc94e89db12c365",
+  "trigger": "R03 group can be removed to isolate absolute scalar identity check independently of lexical group"
+}

@@ -1,0 +1,2039 @@
+{
+  "base": "e65f1030e1c93743ac650ee999bdc77d8a5142a5",
+  "oracle": "Hand coordinates and explicit producer/request ownership; no product measurement used",
+  "sources": {
+    "D": {
+      "file": "D.nui",
+      "sha256": "1b58eece085c46df3428f6acf42b01377fde47f884ed065efa4328ba33fc0f56"
+    },
+    "F": {
+      "file": "F.nui",
+      "sha256": "e15aecab742aeb7a49af675cbd2dd17622d57e56d7658feaea0d677929932136"
+    },
+    "I": {
+      "file": "I.nui",
+      "sha256": "87094efb415fb39fa9fa53a6d3607b854436247063b91b0a926cbd24b2cfc32b"
+    },
+    "K": {
+      "file": "K.nui",
+      "sha256": "e9065c2ba75de73422ea05472019f0306afde555e372dcce6bd3ad92f6422f92"
+    },
+    "K2": {
+      "file": "K2.nui",
+      "sha256": "9d3d7bd71834b0c491c8ca74a000b3fe0be2204518b30ea531c0669c9ce6b89e"
+    },
+    "L": {
+      "file": "L.nui",
+      "sha256": "e60169f1f61216f116834e0b824012885f7c6ac57fa3462880d9228c6a5999e9"
+    },
+    "S": {
+      "file": "S.nui",
+      "sha256": "f1ef77850c41018a95bf5a46d4beb83500d552ed34773710eb49750accadd6c6"
+    },
+    "S2": {
+      "file": "S2.nui",
+      "sha256": "4c24b039252b51530021fdb5c605335a3e99da380c8f3633d19bc270f7b14b32"
+    }
+  },
+  "units": [
+    {
+      "id": "A1",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "A6 fatal edit retains compiled revision; B1 distinct key"
+    },
+    {
+      "id": "A2",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "unchanged render does not create a request; A1"
+    },
+    {
+      "id": "A3",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "L",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "K",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "B1 distinct-key success ownership"
+    },
+    {
+      "id": "A4",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "limit",
+          "value": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 2,
+            "status": "ready",
+            "geometry": "partial",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "limit",
+          "value": null,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "partial",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "A1 revision change vs same-revision input change"
+    },
+    {
+      "id": "A5",
+      "events": [
+        {
+          "op": "mount",
+          "file": "D",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "disabled",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "allow",
+          "value": true,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "disabled",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 2,
+            "status": "ready",
+            "geometry": "enabled",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "allow",
+          "value": false,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "enabled",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "ready",
+            "geometry": "disabled",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "unchanged disabled options rerender; A4 limit option"
+    },
+    {
+      "id": "A6",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "F",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "fatal source revision increments without compiled revision change"
+    },
+    {
+      "id": "B1",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "L",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "L",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "L",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "A2 same-key old completion first"
+    },
+    {
+      "id": "B2",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "L",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "L",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "reject",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "L",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "B1 older success instead of rejection"
+    },
+    {
+      "id": "B3",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "reject",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "failed",
+            "geometry": "K",
+            "source": "fallback",
+            "isStale": false,
+            "current": true,
+            "error": "request-1",
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "fallback",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "B4 scalar failure must withhold geometry"
+    },
+    {
+      "id": "B4",
+      "events": [
+        {
+          "op": "mount",
+          "file": "S",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "reject",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "failed",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": "request-1",
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "S2",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "B3 scalar-free fallback"
+    },
+    {
+      "id": "B5",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "transport",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "transport",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "unchanged transport/props rerender issues no request"
+    },
+    {
+      "id": "B6",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "I",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "idle",
+            "geometry": "invalid",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": false,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "idle",
+            "geometry": "invalid",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": false,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "K",
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "warning compile is legal; exact missing dependency error; B1"
+    },
+    {
+      "id": "C1",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "L",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "unmount"
+        },
+        {
+          "op": "remount",
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 4,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 4,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "reject",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 4,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 4,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 4,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 4,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "B2 cleanup while mounted; fresh remount identity must increase"
+    },
+    {
+      "id": "C2",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "parity",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "L",
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "L",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "L",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "ready",
+            "geometry": "L",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "unmount"
+        },
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "shadow",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "L",
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "L",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "L",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 3,
+            "request": 3,
+            "status": "ready",
+            "geometry": "L",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "unmount"
+        }
+      ],
+      "neighbor": "C2 non-scalar reference remains current; C3 scalar validation is deferred"
+    },
+    {
+      "id": "C3",
+      "events": [
+        {
+          "op": "mount",
+          "file": "S",
+          "mode": "parity",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "S2",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "transport",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "reject",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "reject",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 3,
+            "status": "failed",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": "request-3",
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "transport",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 4,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 4,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 4,
+            "status": "ready",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "unmount"
+        },
+        {
+          "op": "mount",
+          "file": "S",
+          "mode": "shadow",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "S2",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "transport",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "reject",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "reject",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 3,
+            "status": "failed",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": "request-3",
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "transport",
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 4,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 4,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 4,
+            "status": "ready",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "unmount"
+        }
+      ],
+      "neighbor": "C2 non-scalar reference remains current; C3 scalar validation is deferred"
+    },
+    {
+      "id": "C4",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "limit",
+          "value": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 2,
+            "status": "ready",
+            "geometry": "partial",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "limit",
+          "value": null,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 2,
+            "status": "evaluating",
+            "geometry": "partial",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 4,
+          "expected": {
+            "evaluationRevision": 2,
+            "request": 4,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "#295 existing Canvas stale selection/draw readiness controls"
+    },
+    {
+      "id": "X1",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "mode",
+          "value": "reference",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 2,
+            "status": "idle",
+            "geometry": "K",
+            "source": "reference",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "mode",
+          "value": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "trigger: B5 transport epoch failure; same-input mode retry epoch"
+    },
+    {
+      "id": "X2",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "limit",
+          "value": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "limit",
+          "value": null,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 2,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 3,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 3,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        }
+      ],
+      "neighbor": "trigger: A4 identity reuse; restore before intermediate completion"
+    },
+    {
+      "id": "R1",
+      "events": [
+        {
+          "op": "mount",
+          "file": "K",
+          "mode": "rust",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "empty",
+            "source": "rust",
+            "isStale": false,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        },
+        {
+          "op": "resolve",
+          "request": 1,
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "ready",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": false,
+            "current": true,
+            "error": null,
+            "rustEligible": true,
+            "interaction": true
+          }
+        },
+        {
+          "op": "source",
+          "file": "K2",
+          "expected": {
+            "evaluationRevision": 1,
+            "request": 1,
+            "status": "evaluating",
+            "geometry": "K",
+            "source": "rust",
+            "isStale": true,
+            "current": false,
+            "error": null,
+            "rustEligible": true,
+            "interaction": false
+          }
+        }
+      ],
+      "neighbor": "minimal temporal reducer: remove ABA, failures, options and second completion; A6 fatal edit passes"
+    }
+  ]
+}

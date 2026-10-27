@@ -1,0 +1,15 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2 src/commands/bakeSourceRoundtrip.test.ts src/commands/bakeGeometry.test.ts src/commands/bakeFailureResults.test.ts src/geometry/offsetPaths.test.ts src/document/canonicalDocument.commitLineSplicePatch.test.ts src/document/textPatch.test.ts src/document/textPatch.property.test.ts src/document/statementReconciler.test.ts
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  8 passed (8)
+      Tests  152 passed (152)
+   Start at  07:01:47
+   Duration  6.08s (transform 2.55s, setup 192ms, import 4.27s, tests 4.50s, environment 2.38s)
+
+
+focused EXIT=0

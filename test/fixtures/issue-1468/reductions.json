@@ -1,0 +1,44 @@
+[
+  {
+    "id": "R1",
+    "variant": "group",
+    "source": "nui 1\ngroup Other {\n  const n: number = 17\n  point Q = coordinate(x: @n, y: -2)\n}\nmodule Sleeve(width: number = 13) {\n  point P = coordinate(x: @width, y: 4)\n}\n",
+    "sha256": "dbb85f29a4a605ad0e0cf38d4f2134782cea5e82623af47836bb63a01578f436",
+    "expected": {
+      "P": {
+        "kind": "point",
+        "x": 13,
+        "y": 4
+      },
+      "Q": {
+        "kind": "point",
+        "x": 17,
+        "y": -2
+      }
+    },
+    "hypothesis": "Preview retains valid document-scope scalar bindings but its evaluation adapter omits source control metadata; group scope discriminates missing metadata from root default. No authored Module instance or pruned nested runtime exists, unlike #1460.",
+    "expectedBase": "FAIL",
+    "sensitivity": "remove source control merge; group throws before Rust while root still passes"
+  },
+  {
+    "id": "R1",
+    "variant": "root",
+    "source": "nui 1\nconst n: number = 17\npoint Q = coordinate(x: @n, y: -2)\nmodule Sleeve(width: number = 13) {\n  point P = coordinate(x: @width, y: 4)\n}\n",
+    "sha256": "ffb25f82e6d33f4bde56fde419fcecb5206fe98dc4232d869a4c6786e57367f6",
+    "expected": {
+      "P": {
+        "kind": "point",
+        "x": 13,
+        "y": 4
+      },
+      "Q": {
+        "kind": "point",
+        "x": 17,
+        "y": -2
+      }
+    },
+    "hypothesis": "Preview retains valid document-scope scalar bindings but its evaluation adapter omits source control metadata; group scope discriminates missing metadata from root default. No authored Module instance or pruned nested runtime exists, unlike #1460.",
+    "expectedBase": "PASS",
+    "sensitivity": "remove source control merge; group throws before Rust while root still passes"
+  }
+]

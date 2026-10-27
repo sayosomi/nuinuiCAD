@@ -1,0 +1,163 @@
+{
+  "base": "4a43b27fe969c0e33350c973842966525fe8bc1f",
+  "topic": "sayosomi/issue-1194-residual3-d1",
+  "authoritativeBasePhase": "base-exact",
+  "baseSourceTreeSha256": "68e8fef7ccd5063f2025e54c5da564e1a58f35fc29ea68c55c2791a69154123e",
+  "baseSourceOwnerSha256": [
+    [
+      "packages/nui-language/src/document/multiDocumentModuleSemantics.ts",
+      "1861205fc134ef863014969d0511cc0d67b34d58b0ec52675cfc452809839eb4"
+    ],
+    [
+      "packages/nui-language/src/dsl/dslDocument.ts",
+      "21a087178d1d15b5af9711b687a18ab5344d779f10fc4f18ca0cf27a24c8a945"
+    ],
+    [
+      "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+      "4ee9b173b3456af3a706acfd00483189e9b305b52e260cf22749c3539d504400"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "01085f9543fbd6fad821daaf564c2d988ee7ba2a55b38b8349787a2179e57d34"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleScalarExpression.ts",
+      "94239513e50a0b9af4aa31cae988077691a99393c124da98e3df3711402eb21c"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "977a5e04d3a9472bd521d165d6cdb769b66c5b601bf44b7240987de311f8d0f3"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+      "5815f218d8495cd4ebdf95d3233675fe66a75b01864bc2754b5c3ccbb6d1b7bf"
+    ],
+    [
+      "packages/nui-language/src/dsl/recordSemanticAnalysis.ts",
+      "723fb3dcb120b2629223b4c289623b5150fdea97a859f0fc30701a5451c15d18"
+    ],
+    [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "6cf3264219b03a0a94476491fd92cf8c46b9329e8982e8bbf4d4a16046d69c67"
+    ],
+    [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "d6ad9ae555f577d2826adfecfd940ffa133bb0454745ff06a6cc0c4d015fd7ae"
+    ],
+    [
+      "packages/nui-language/src/dsl/geometryArrayExpression.ts",
+      "d35fb3fb5c479cd98ff43df51ec0cecc2157e9a13ae47c560cfba16d7a720cc4"
+    ],
+    [
+      "packages/nui-language/src/dsl/geometryArraySemantics.ts",
+      "66dd3c1089b900732facf5e877cb1cbc01a0e2c109b25cda013147a243efda1e"
+    ],
+    [
+      "packages/nui-language/src/scalars/scalarExpressionCollection.ts",
+      "c73e0f6b71590617c8e8b5f9cc01479a2a87840382ebd7c7170721e667a1ee47"
+    ],
+    [
+      "src/geometry/evaluate.ts",
+      "f997332eb6e7980938acdd2bf5371315456275b0ee68cbece9b38d1f99316752"
+    ],
+    [
+      "rust-evaluator/src/evaluation/control_boolean_runtime.rs",
+      "b36dc41c203d280fcd5f7dd768b4a608d9b58ab1677ffed9d69c03d95f04d277"
+    ]
+  ],
+  "settledSourceOwnerSha256": [
+    [
+      "packages/nui-language/src/document/multiDocumentModuleSemantics.ts",
+      "1861205fc134ef863014969d0511cc0d67b34d58b0ec52675cfc452809839eb4"
+    ],
+    [
+      "packages/nui-language/src/dsl/dslDocument.ts",
+      "21a087178d1d15b5af9711b687a18ab5344d779f10fc4f18ca0cf27a24c8a945"
+    ],
+    [
+      "packages/nui-language/src/dsl/geometryArraySemanticAnalysis.ts",
+      "4ee9b173b3456af3a706acfd00483189e9b305b52e260cf22749c3539d504400"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleGeometryRuntimeLowering.ts",
+      "ac9eeaf285d5d2014d066060fad7917fe4c634e5a43f1d3c0e9caf8b923fce22"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleScalarExpression.ts",
+      "94239513e50a0b9af4aa31cae988077691a99393c124da98e3df3711402eb21c"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "d47e6881cdeb2dba31e193c286f64d9b4e3bb4b2b9cd7c1fae3fcbaf3f397ff2"
+    ],
+    [
+      "packages/nui-language/src/dsl/moduleSemanticTypes.ts",
+      "ec900a63a3fa588663a6488eaf272ded0e24d98d208228a93a0fe9358acf31ba"
+    ],
+    [
+      "packages/nui-language/src/dsl/recordSemanticAnalysis.ts",
+      "57f27134e8a1d0cdd1f992bd8a69a686f5cfa3127ebc891ed4e0df8631150ea4"
+    ],
+    [
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "a0c2861d2addd86c5c97e5d342f3f3d76e1dbe91142ce52e4324694959e153f2"
+    ],
+    [
+      "packages/nui-language/src/scalars/recordScalarLowering.ts",
+      "50a92e71c199e83630ddac4fd7bc15970281887ad13dc7db8a381b9647b59db1"
+    ],
+    [
+      "packages/nui-language/src/dsl/geometryArrayExpression.ts",
+      "d35fb3fb5c479cd98ff43df51ec0cecc2157e9a13ae47c560cfba16d7a720cc4"
+    ],
+    [
+      "packages/nui-language/src/dsl/geometryArraySemantics.ts",
+      "66dd3c1089b900732facf5e877cb1cbc01a0e2c109b25cda013147a243efda1e"
+    ],
+    [
+      "packages/nui-language/src/scalars/scalarExpressionCollection.ts",
+      "c73e0f6b71590617c8e8b5f9cc01479a2a87840382ebd7c7170721e667a1ee47"
+    ],
+    [
+      "src/geometry/evaluate.ts",
+      "9be8aab23011729317e5366a6d340c265ecd0793f924af359e215dab107f3302"
+    ],
+    [
+      "rust-evaluator/src/evaluation/control_boolean_runtime.rs",
+      "333d5e34d61c5bb077093b40aad192b2c5f6cbe22b43c805f7b1557e09f5446a"
+    ]
+  ],
+  "productionBinary": {
+    "path": "rust-evaluator/target/debug/evaluation_stdio",
+    "sha256": "d7735b5ef6400c31e1a11cad82550e20e2f8c2cd4baef6f5aebdd96c51845674"
+  },
+  "rawTraces": [
+    {
+      "path": "/tmp/issue1194-residual3/compiler.ndjson",
+      "bytes": 59412730,
+      "sha256": "773032ad97631d6dd6102be6a50595481eb7d29c2b8498fca0f8f7997ca786bc"
+    },
+    {
+      "path": "/tmp/issue1194-residual3/raw.ndjson",
+      "bytes": 8128660,
+      "sha256": "4461adba5f6004e89d11858025bfee33e54ee00e2256de585c09e95d98ffeeff"
+    },
+    {
+      "path": "/tmp/issue1194-residual3/runs.ndjson",
+      "bytes": 140383,
+      "sha256": "adb8e2661af73f3923a5beb0bdb8e0cacd1369b6999baa2f1b9d96fe8d8f2a61"
+    },
+    {
+      "path": "/tmp/issue1194-residual3/stderr.ndjson",
+      "bytes": 677,
+      "sha256": "d8796500d9abdf7f6e6df6494c7e3fe60ff279e2f3e0bc79a7e952cddd0f9dc0"
+    },
+    {
+      "path": "/tmp/issue1194-residual3/transport.ndjson",
+      "bytes": 1702605,
+      "sha256": "0ffd1ba444dde7555d39cc7d6725911f6df66d0a7f38e717bf5591934a466afc"
+    }
+  ],
+  "cleanup": "Every instrumented persistent Rust child joined its close event after dispose; no resourceError. Raw traces retained outside Git.",
+  "provenanceCorrection": "Intermediate base-* replays after the Rust adapter edit omitted that Rust owner; they are historical partial observations, not unchanged-Base proof. All before/after family dispositions use the complete base-exact replay, whose fingerprint is verified against git show Base for every fingerprinted owner."
+}

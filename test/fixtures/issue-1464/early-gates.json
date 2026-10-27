@@ -1,0 +1,164 @@
+[
+  {
+    "label": "base-first",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 6.799
+  },
+  {
+    "label": "base-second",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 3.643
+  },
+  {
+    "label": "base-third",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 3.74
+  },
+  {
+    "label": "base-reducers",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1",
+      "-t",
+      "R0"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 3.372
+  },
+  {
+    "label": "base-owner",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1",
+      "-t",
+      "R0"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 3.357
+  },
+  {
+    "label": "base-typing",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1",
+      "-t",
+      "R04"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 6.338
+  },
+  {
+    "label": "candidate-first",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 4.25
+  },
+  {
+    "label": "candidate-second",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 6.655
+  },
+  {
+    "label": "extensions-first",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1",
+      "-t",
+      "X0"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 4.06
+  },
+  {
+    "label": "x01-owner",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1464CompositeSourceTransform.integration.test.ts",
+      "--maxWorkers=1",
+      "-t",
+      "X01"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "bound_seconds": 120,
+    "seconds": 3.66
+  },
+  {
+    "label": "build-first",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "bound_seconds": 240,
+    "seconds": 25.900286167
+  }
+]

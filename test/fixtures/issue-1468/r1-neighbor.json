@@ -1,0 +1,23 @@
+[
+  {
+    "id": "R1",
+    "variant": "literal-neighbor",
+    "source": "nui 1\npoint Q = coordinate(x: 17, y: -2)\nmodule Sleeve(width: number = 13) {\n  point P = coordinate(x: @width, y: 4)\n}\n",
+    "sha256": "e6d9cf3900ebba053275f190c74044a3552c39c86fee10e4b0963d305a5b919a",
+    "expected": {
+      "P": {
+        "kind": "point",
+        "x": 13,
+        "y": 4
+      },
+      "Q": {
+        "kind": "point",
+        "x": 17,
+        "y": -2
+      }
+    },
+    "hypothesis": "No document-scope scalar binding: identical Q17,-2 and target P13,4. Root scalar also fails (retained original prediction was incorrect); absence of document scalar discriminates the actual omission.",
+    "expectedBase": "PASS",
+    "sensitivity": "remove source control merge; group throws before Rust while root still passes"
+  }
+]

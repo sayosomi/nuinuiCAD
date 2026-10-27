@@ -1,0 +1,55 @@
+{
+  "primary": {
+    "E1": "BASE_PASS",
+    "E2": "BASE_PASS",
+    "E3": "BASE_PASS",
+    "E4": "BASE_PASS",
+    "E5": "BASE_PASS",
+    "E6": "BASE_PASS",
+    "B1": "BASE_PASS",
+    "B2": "BASE_PASS",
+    "B3": "BASE_PASS",
+    "B4": "BASE_PASS",
+    "B5": "BASE_PASS",
+    "B6": "BASE_PASS",
+    "C1": "BASE_PASS",
+    "C2": "BASE_PASS",
+    "C3": "BASE_PASS",
+    "C4": "BASE_PASS",
+    "C5": "BASE_PASS",
+    "C6": "BASE_PASS"
+  },
+  "originalC6": "CONTRACT_INVALID; supported equivalent BASE_PASS",
+  "X": {
+    "X1": "BASE_PASS",
+    "X2": "BASE_PASS",
+    "X3": "NOT_TRIGGERED",
+    "X4": "NOT_TRIGGERED",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED",
+    "X7": "NOT_TRIGGERED",
+    "X8": "NOT_TRIGGERED"
+  },
+  "R": {
+    "R1": "NOT_TRIGGERED",
+    "R2": "NOT_TRIGGERED",
+    "R3": "NOT_TRIGGERED",
+    "R4": "NOT_TRIGGERED",
+    "R5": "NOT_TRIGGERED",
+    "R6": "NOT_TRIGGERED",
+    "R7": "NOT_TRIGGERED",
+    "R8": "NOT_TRIGGERED"
+  },
+  "acceptedExplorationUnits": 20,
+  "acceptedSourceRevisions": 56,
+  "primaryCompleted": 18,
+  "newDefectFamilies": 0,
+  "firstIncorrectOwners": [],
+  "productionRepairs": [],
+  "unresolvedDispositions": [],
+  "manualE2E": "Not Required",
+  "humanSuppliedQuotas": {
+    "weekly": "UNAVAILABLE",
+    "fiveHour": "UNAVAILABLE"
+  }
+}

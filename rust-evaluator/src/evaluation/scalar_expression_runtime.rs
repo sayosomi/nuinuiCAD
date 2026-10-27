@@ -255,6 +255,10 @@ fn geometry_collection_length_for_node(
         GeometryInputCollectionNode::Leaf { targets } => {
             GeometryCollectionLengthLookup::Present(targets.len() as f64)
         }
+        GeometryInputCollectionNode::CarryReference {
+            collection_value_id,
+            ..
+        } => lookup_geometry_collection_optional_length(state, resolver, collection_value_id, seen),
         GeometryInputCollectionNode::GeometryValueMap { source, .. } => match source {
             super::types::GeometryInputCollectionSource::Value(value_id) => {
                 lookup_geometry_collection_optional_length(state, resolver, value_id, seen)

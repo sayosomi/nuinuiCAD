@@ -1,0 +1,555 @@
+[
+  {
+    "id": "A-optional-forward",
+    "sha256": "eace8869a91d2fd8869e93926da6b77683c8d5a781e523a4744f938973aadc64",
+    "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+    "nominalDefinitions": [
+      {
+        "id": "statement:recordDefinition:mvizvhyp:57",
+        "name": "Seed"
+      },
+      {
+        "id": "statement:recordDefinition:mvizvhyp:58",
+        "name": "Shape"
+      }
+    ],
+    "moduleInstances": [
+      {
+        "name": "One",
+        "statementId": "statement:moduleInstance:mvizvhyp:73"
+      },
+      {
+        "name": "Two",
+        "statementId": "statement:moduleInstance:mvizvhyp:74"
+      }
+    ],
+    "recordMaps": [
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvizvhyp:7338:statement:typedDeclaration:mvizvhyp:66",
+        "sourceValueId": "module-collection:36:statement:moduleInstance:mvizvhyp:7338:statement:typedDeclaration:mvizvhyp:65",
+        "sourceTypeIdentity": "statement:recordDefinition:mvizvhyp:58",
+        "resultTypeIdentity": "statement:recordDefinition:mvizvhyp:58",
+        "binderId": "module-collection-binder:36:statement:moduleInstance:mvizvhyp:7355:value-for-binder:statement:typedDeclaration:mvizvhyp:66"
+      },
+      {
+        "valueId": "module-collection:36:statement:moduleInstance:mvizvhyp:7438:statement:typedDeclaration:mvizvhyp:66",
+        "sourceValueId": "module-collection:36:statement:moduleInstance:mvizvhyp:7438:statement:typedDeclaration:mvizvhyp:65",
+        "sourceTypeIdentity": "statement:recordDefinition:mvizvhyp:58",
+        "resultTypeIdentity": "statement:recordDefinition:mvizvhyp:58",
+        "binderId": "module-collection-binder:36:statement:moduleInstance:mvizvhyp:7455:value-for-binder:statement:typedDeclaration:mvizvhyp:66"
+      }
+    ],
+    "geometryProgramOccurrences": [
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvhyp:71",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvhyp:72",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvhyp:68",
+          "instancePath": [
+            "statement:moduleInstance:mvizvhyp:73"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvhyp:68",
+          "instancePath": [
+            "statement:moduleInstance:mvizvhyp:74"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvhyp:75",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvhyp:76",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      }
+    ],
+    "graphDocuments": [],
+    "compilerSha256": "a708bbdce7629598845e0b844bd8e978d4036a7d6d91470eaaaaf2640ed2621b",
+    "wireSha256": "8dafa39c911b1b89eae9455e76fc16297507e9fc9cf5877518f728a22091d8e9"
+  },
+  {
+    "id": "B-dynamic",
+    "sha256": "b5abc9b8403e0fb645887f71df9c86a193147f8fda94edc5b4f78419b4cdd21f",
+    "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+    "nominalDefinitions": [
+      {
+        "id": "statement:recordDefinition:mvizvi01:106",
+        "name": "Shape"
+      }
+    ],
+    "moduleInstances": [
+      {
+        "name": "One",
+        "statementId": "statement:moduleInstance:mvizvi01:117"
+      },
+      {
+        "name": "Two",
+        "statementId": "statement:moduleInstance:mvizvi01:118"
+      }
+    ],
+    "recordMaps": [
+      {
+        "valueId": "module-collection:37:statement:moduleInstance:mvizvi01:11739:statement:typedDeclaration:mvizvi01:111",
+        "sourceValueId": "module-collection:37:statement:moduleInstance:mvizvi01:11739:statement:typedDeclaration:mvizvi01:110",
+        "sourceTypeIdentity": "statement:recordDefinition:mvizvi01:106",
+        "resultTypeIdentity": "statement:recordDefinition:mvizvi01:106",
+        "binderId": "module-collection-binder:37:statement:moduleInstance:mvizvi01:11756:value-for-binder:statement:typedDeclaration:mvizvi01:111"
+      },
+      {
+        "valueId": "module-collection:37:statement:moduleInstance:mvizvi01:11839:statement:typedDeclaration:mvizvi01:111",
+        "sourceValueId": "module-collection:37:statement:moduleInstance:mvizvi01:11839:statement:typedDeclaration:mvizvi01:110",
+        "sourceTypeIdentity": "statement:recordDefinition:mvizvi01:106",
+        "resultTypeIdentity": "statement:recordDefinition:mvizvi01:106",
+        "binderId": "module-collection-binder:37:statement:moduleInstance:mvizvi01:11856:value-for-binder:statement:typedDeclaration:mvizvi01:111"
+      }
+    ],
+    "geometryProgramOccurrences": [
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi01:115",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi01:116",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi01:113",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi01:117"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi01:113",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi01:118"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi01:119",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi01:120",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      }
+    ],
+    "graphDocuments": [],
+    "compilerSha256": "bd0a18427afe4539a57286c7ed72e9861c29441ae49d025770c546b3fa4a69a6",
+    "wireSha256": "df4f219528d805b0c984f09ab35eba6b46d17e69755e6fd164c37b2d41b95d1b"
+  },
+  {
+    "id": "B-constructor-lazy",
+    "sha256": "ba0b3d7a46fd30804d29df339ad778470c70d90680fd4273aaaf1674ab44c8e9",
+    "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+    "nominalDefinitions": [
+      {
+        "id": "statement:recordDefinition:mvizvi7w:400",
+        "name": "Shape"
+      }
+    ],
+    "moduleInstances": [
+      {
+        "name": "One",
+        "statementId": "statement:moduleInstance:mvizvi7w:412"
+      },
+      {
+        "name": "Two",
+        "statementId": "statement:moduleInstance:mvizvi7w:413"
+      }
+    ],
+    "recordMaps": [
+      {
+        "valueId": "module-collection:37:statement:moduleInstance:mvizvi7w:41239:statement:typedDeclaration:mvizvi7w:406",
+        "sourceValueId": "module-collection:37:statement:moduleInstance:mvizvi7w:41239:statement:typedDeclaration:mvizvi7w:405",
+        "sourceTypeIdentity": "statement:recordDefinition:mvizvi7w:400",
+        "resultTypeIdentity": "statement:recordDefinition:mvizvi7w:400",
+        "binderId": "module-collection-binder:37:statement:moduleInstance:mvizvi7w:41256:value-for-binder:statement:typedDeclaration:mvizvi7w:406"
+      },
+      {
+        "valueId": "module-collection:37:statement:moduleInstance:mvizvi7w:41339:statement:typedDeclaration:mvizvi7w:406",
+        "sourceValueId": "module-collection:37:statement:moduleInstance:mvizvi7w:41339:statement:typedDeclaration:mvizvi7w:405",
+        "sourceTypeIdentity": "statement:recordDefinition:mvizvi7w:400",
+        "resultTypeIdentity": "statement:recordDefinition:mvizvi7w:400",
+        "binderId": "module-collection-binder:37:statement:moduleInstance:mvizvi7w:41356:value-for-binder:statement:typedDeclaration:mvizvi7w:406"
+      }
+    ],
+    "geometryProgramOccurrences": [
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi7w:410",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi7w:411",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizvi7w:4061:72:302:3639:statement:recordDefinition:mvizvi7w:4001:039:statement:recordDefinition:mvizvi7w:4001:0",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:412"
+          ]
+        },
+        "kind": "segment",
+        "lazy": true
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizvi7w:4061:72:302:3639:statement:recordDefinition:mvizvi7w:4001:139:statement:recordDefinition:mvizvi7w:4001:0",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:412"
+          ]
+        },
+        "kind": "segment",
+        "lazy": true
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizvi7w:4061:72:302:3639:statement:recordDefinition:mvizvi7w:4001:239:statement:recordDefinition:mvizvi7w:4001:0",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:412"
+          ]
+        },
+        "kind": "segment",
+        "lazy": true
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi7w:408",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:412"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizvi7w:4061:72:302:3639:statement:recordDefinition:mvizvi7w:4001:039:statement:recordDefinition:mvizvi7w:4001:0",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:413"
+          ]
+        },
+        "kind": "segment",
+        "lazy": true
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizvi7w:4061:72:302:3639:statement:recordDefinition:mvizvi7w:4001:139:statement:recordDefinition:mvizvi7w:4001:0",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:413"
+          ]
+        },
+        "kind": "segment",
+        "lazy": true
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "21:record-field-geometry21:recordCollectionIndex39:statement:typedDeclaration:mvizvi7w:4061:72:302:3639:statement:recordDefinition:mvizvi7w:4001:239:statement:recordDefinition:mvizvi7w:4001:0",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:413"
+          ]
+        },
+        "kind": "segment",
+        "lazy": true
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi7w:408",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi7w:413"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi7w:414",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi7w:415",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      }
+    ],
+    "graphDocuments": [],
+    "compilerSha256": "86e7328fe115d596105723f15037ad862cae649ecfceae0892027aa21a6a50df",
+    "wireSha256": "f885424c3a24c69df4e55da8fd50007a7de8060d0cd6d42ca0366519ce94498a"
+  },
+  {
+    "id": "C-deep-reexport",
+    "sha256": "3dbd379c9e6edf7c5e57bddff1ac21e63a16451a4760348e0b7316663d06728f",
+    "sourceTreeSha256": "8848c2cb2a32f0eaee2feab9ebb160a5cc747ed52cbae41bb50100ab9971ef8a",
+    "nominalDefinitions": [
+      {
+        "id": "statement:recordDefinition:mvizvi5q:358",
+        "name": "Inner",
+        "documentId": "/issue1194/lib.nui"
+      },
+      {
+        "id": "statement:recordDefinition:mvizvi5q:359",
+        "name": "Middle",
+        "documentId": "/issue1194/lib.nui"
+      },
+      {
+        "id": "statement:recordDefinition:mvizvi5q:360",
+        "name": "Outer",
+        "documentId": "/issue1194/lib.nui"
+      },
+      {
+        "id": "statement:recordDefinition:mvizvi5s:380",
+        "name": "Inner",
+        "documentId": "/issue1194/right.nui"
+      },
+      {
+        "id": "statement:recordDefinition:mvizvi5s:381",
+        "name": "Middle",
+        "documentId": "/issue1194/right.nui"
+      },
+      {
+        "id": "statement:recordDefinition:mvizvi5s:382",
+        "name": "Outer",
+        "documentId": "/issue1194/right.nui"
+      }
+    ],
+    "moduleInstances": [
+      {
+        "name": "One",
+        "statementId": "statement:moduleInstance:mvizvi5p:342"
+      },
+      {
+        "name": "Two",
+        "statementId": "statement:moduleInstance:mvizvi5p:343"
+      }
+    ],
+    "recordMaps": [],
+    "geometryProgramOccurrences": [
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5p:338",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5p:339",
+          "instancePath": []
+        },
+        "kind": "segment",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5p:346",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5p:347",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5q:364",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:342",
+            "statement:moduleInstance:mvizvi5q:373"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5q:365",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:342",
+            "statement:moduleInstance:mvizvi5q:373"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5q:374",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:342"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5q:375",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:342"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5p:344",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5p:345",
+          "instancePath": []
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5s:386",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:343",
+            "statement:moduleInstance:mvizvi5s:395"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5s:387",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:343",
+            "statement:moduleInstance:mvizvi5s:395"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5s:396",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:343"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      },
+      {
+        "occurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvizvi5s:397",
+          "instancePath": [
+            "statement:moduleInstance:mvizvi5p:343"
+          ]
+        },
+        "kind": "reference",
+        "lazy": false
+      }
+    ],
+    "graphDocuments": [
+      "/issue1194/root.nui",
+      "/issue1194/relay.nui",
+      "/issue1194/lib.nui",
+      "/issue1194/relay-right.nui",
+      "/issue1194/right.nui"
+    ],
+    "compilerSha256": "9fde6bd17bdfb97c76ccdede70bac035f8ec502df2787defc3d3957efc28ecce",
+    "wireSha256": "69e47ddf9a9eed7de512b9de896b92110c6e33b7ed22427449b5255a53762748",
+    "qualifiedCalleeOwners": [
+      {
+        "name": "One",
+        "definitionIdentity": {
+          "documentId": "/issue1194/lib.nui",
+          "localIdentity": "statement:moduleDefinition:mvizvi5q:368"
+        }
+      },
+      {
+        "name": "Two",
+        "definitionIdentity": {
+          "documentId": "/issue1194/right.nui",
+          "localIdentity": "statement:moduleDefinition:mvizvi5s:390"
+        }
+      }
+    ]
+  }
+]

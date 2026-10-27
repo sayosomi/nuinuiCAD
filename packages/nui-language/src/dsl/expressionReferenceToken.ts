@@ -49,6 +49,8 @@ export type ExpressionReferenceTokenMatch =
       readonly elementFrom: number;
       readonly elementTo: number;
       readonly query: string;
+      /** Optional indexed geometry collection occurrence. */
+      readonly occurrenceIndex?: string;
       /** True when the property follows the nui1 optional member operator. */
       readonly optional?: true;
     };
@@ -57,10 +59,11 @@ export type ExpressionReferenceTokenMatch =
 // no existing boundary behavior changes.
 const BOUNDARY_PREFIX = "(?:^|[\\s()+*/<>=!&|,-])";
 
-// Character classes mirror numericExpressionParser.ts's tokenizer exactly:
+// A new @ starts a source reference even after unary minus.
+// Character classes otherwise mirror numericExpressionParser.ts's tokenizer:
 // the element/binding head excludes `.`, the member/query run allows further
 // `.` (so a nested path like `startPoint.` still matches as one query).
-const HEAD_CHAR_CLASS = "[^\\s()+*/.<>!=&|?]";
+const HEAD_CHAR_CLASS = "[^@\\s()+*/.<>!=&|?]";
 const QUERY_CHAR_CLASS = "[^\\s()+*/<>!=&|?]";
 
 const referenceTokenPattern = new RegExp(
@@ -106,10 +109,10 @@ export const expressionReferenceTokenEndingAt = (
         query: ""
       };
     }
-    const parsed = parseDslSourceReferenceAt(text, sigilAt, pos);
+    const parsed = parseDslSourceReferenceAt(text, sigilAt, pos, { allowIncompleteProperty: true });
     if (parsed.kind === "valid" && parsed.end === pos) {
       const reference = parsed.reference;
-      if (reference.property && reference.propertyRange) {
+      if (reference.propertyRange) {
         return {
           kind: "elementProperty",
           tokenStart: sigilAt,
@@ -120,7 +123,8 @@ export const expressionReferenceTokenEndingAt = (
           elementToken: reference.pathText,
           elementFrom: reference.pathRange.start,
           elementTo: reference.pathRange.end,
-          query: reference.property
+          query: reference.property ?? "",
+          ...(reference.occurrenceIndex !== null ? { occurrenceIndex: reference.occurrenceIndex } : {})
         };
       }
       return {

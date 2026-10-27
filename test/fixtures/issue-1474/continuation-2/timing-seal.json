@@ -1,0 +1,60 @@
+{
+  "protocol": "original protocol.md; 15 frozen primary comparison pairs plus 3 declared historical control pairs; five warmups,21 alternating trials; no fixed timing thresholds",
+  "stageDefinitions": [
+    "canonical compile/graph",
+    "options/lowering",
+    "extra encoding probe",
+    "production Rust transport incl actual encode/JSON decode",
+    "result decode"
+  ],
+  "controls": [
+    {
+      "name": "dependency-chain-250-v1",
+      "sha256": "4be404700d0caa0f72e57b2738bc7b8a31942663dc9f60e75d181e8242d49c2d",
+      "bytes": 13969,
+      "graph": {
+        "V": 775,
+        "E": 775,
+        "edgeRecords": 775,
+        "maxPrerequisites": 3,
+        "maxDependents": 4,
+        "outputCount": 258,
+        "bindingCount": 2,
+        "evaluationOrderCount": 258
+      },
+      "rustEligible": true
+    },
+    {
+      "name": "dependency-chain-1000-v1",
+      "sha256": "e9659c0ec3195c88a985ffc7cbeabf3760e2f58428f955c5785a28c68d408461",
+      "bytes": 53719,
+      "graph": {
+        "V": 3025,
+        "E": 3025,
+        "edgeRecords": 3025,
+        "maxPrerequisites": 3,
+        "maxDependents": 4,
+        "outputCount": 1008,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1008
+      },
+      "rustEligible": true
+    },
+    {
+      "name": "interactive-large-v2",
+      "sha256": "765f1f060c7a56a6a3545a8755d9a45e89a32d0a02eb6cf684a33c52d2b082d6",
+      "bytes": 1232,
+      "graph": {
+        "V": 38,
+        "E": 40,
+        "edgeRecords": 40,
+        "maxPrerequisites": 3,
+        "maxDependents": 4,
+        "outputCount": 12,
+        "bindingCount": 2,
+        "evaluationOrderCount": 12
+      },
+      "rustEligible": true
+    }
+  ]
+}

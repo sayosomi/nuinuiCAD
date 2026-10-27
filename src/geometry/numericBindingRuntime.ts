@@ -61,10 +61,21 @@ export const buildNumericBindingRuntimeEntries = (
 ): NumericBindingRuntimeEntry[] => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
   const entries: NumericBindingRuntimeEntry[] = [];
+  const bindingsByStatementIndex = new Map<number, CompiledNumericBinding[]>();
+  for (const [key, binding] of source.numericBindings) {
+    const separator = key.indexOf(":");
+    if (separator < 0) continue;
+    const statementIndex = Number(key.slice(0, separator));
+    // The compiler occurrence key is an identity/integrity boundary. Do not
+    // accept a numeric prefix or parameter spelling that only normalizes to it.
+    if (key !== propertyBindingOccurrenceKey(statementIndex, binding.parameterKey)) continue;
+    const bucket = bindingsByStatementIndex.get(statementIndex);
+    if (bucket) bucket.push(binding);
+    else bindingsByStatementIndex.set(statementIndex, [binding]);
+  }
   for (const [statementIndex, elementId] of source.elementIdByStatementIndex) {
     if (!elementsById.has(elementId)) continue;
-    for (const [key, binding] of source.numericBindings) {
-      if (key !== propertyBindingOccurrenceKey(statementIndex, binding.parameterKey)) continue;
+    for (const binding of bindingsByStatementIndex.get(statementIndex) ?? []) {
       entries.push({
         elementId,
         parameterKey: binding.parameterKey,
@@ -182,7 +193,9 @@ export const materializeNumericBindingElement = (
   resolveGeometryProperty?: NumericBindingGeometryResolveFn,
   resolveGeometryTarget?: NumericBindingGeometryTargetResolveFn,
   resolveOptionalMember?: NumericBindingOptionalMemberResolveFn,
-  elements?: readonly CadElement[]
+  elements?: readonly CadElement[],
+  collectionLookup?: Pick<Parameters<typeof evaluateTypedExpression>[1],
+    "lookupCollectionIndex" | "lookupCollectionLength" | "lookupCollectionLengthEvaluation">
 ): NumericMaterializationResult => {
   if (!entries?.length) return { ok: true, element };
   let materialized = element;
@@ -196,6 +209,7 @@ export const materializeNumericBindingElement = (
     }
     if (entry.typedExpression) {
       const evaluation = evaluateTypedExpression(entry.typedExpression, {
+        ...collectionLookup,
         lookupBinding: resolveBinding,
         ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {}),
         ...(resolveGeometryTarget ? { lookupGeometryTarget: resolveGeometryTarget } : {}),

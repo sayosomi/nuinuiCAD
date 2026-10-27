@@ -1,0 +1,171 @@
+[
+  {
+    "check": "rust-binary",
+    "command": [
+      "cargo",
+      "build",
+      "--quiet",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--bin",
+      "evaluation_stdio"
+    ],
+    "exit": 0,
+    "seconds": 0.04,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "focused",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2",
+      "test/issue1406LineAngleResidualRust.integration.test.ts",
+      "src/commands/bakeSourceRoundtrip.test.ts",
+      "src/commands/bakeGeometry.test.ts",
+      "src/commands/bakeFailureResults.test.ts",
+      "src/geometry/offsetPaths.test.ts",
+      "src/document/canonicalDocument.commitLineSplicePatch.test.ts",
+      "src/document/textPatch.test.ts",
+      "src/document/textPatch.property.test.ts",
+      "src/document/statementReconciler.test.ts"
+    ],
+    "exit": 0,
+    "seconds": 8.12,
+    "timeout_seconds": 120
+  },
+  {
+    "check": "rust-fmt",
+    "command": [
+      "cargo",
+      "fmt",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 1.12,
+    "timeout_seconds": 120
+  },
+  {
+    "check": "rust-check",
+    "command": [
+      "cargo",
+      "check",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "exit": 0,
+    "seconds": 0.04,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "rust-focused",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "offset_line_tests"
+    ],
+    "exit": 0,
+    "seconds": 0.08,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "rust-test",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "exit": 0,
+    "seconds": 6.22,
+    "timeout_seconds": 300
+  },
+  {
+    "check": "rust-clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 0,
+    "seconds": 0.13,
+    "timeout_seconds": 300
+  },
+  {
+    "check": "build",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit": 0,
+    "seconds": 26.03,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "lint",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "exit": 0,
+    "seconds": 29.79,
+    "timeout_seconds": 180
+  },
+  {
+    "check": "full-test",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2"
+    ],
+    "exit": 0,
+    "seconds": 287.29,
+    "timeout_seconds": 600
+  },
+  {
+    "check": "parity",
+    "command": [
+      "npm",
+      "run",
+      "test:parity"
+    ],
+    "exit": 0,
+    "seconds": 58.89,
+    "timeout_seconds": 300
+  },
+  {
+    "check": "dsl-reference",
+    "command": [
+      "npm",
+      "run",
+      "docs:dsl:check"
+    ],
+    "exit": 0,
+    "seconds": 0.63,
+    "timeout_seconds": 120
+  },
+  {
+    "check": "diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 0.02,
+    "timeout_seconds": 30
+  }
+]

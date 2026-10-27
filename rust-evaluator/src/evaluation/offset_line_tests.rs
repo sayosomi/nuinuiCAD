@@ -277,7 +277,7 @@ fn evaluates_arc_offset_and_radius_error() {
         geometry(&result, "offset")["segments"][0]["radius"]
             .as_f64()
             .unwrap(),
-        5.0,
+        15.0,
     );
 
     let mut failing = vec![
@@ -289,7 +289,7 @@ fn evaluates_arc_offset_and_radius_error() {
         ),
     ];
     let mut failing_offset = offset_line("offset", vec!["arc"], json!(20));
-    failing_offset["side"] = json!("right");
+    failing_offset["side"] = json!("left");
     failing.push(failing_offset);
     let failing_result = evaluate_document_input(EvaluationInput {
         evaluation_order: None,
@@ -562,4 +562,70 @@ fn offset_line_can_feed_line_point_and_intersection_helpers() {
     assert_close(geometry(&result, "mid")["y"].as_f64().unwrap(), -10.0);
     assert_close(geometry(&result, "cross")["x"].as_f64().unwrap(), 50.0);
     assert_close(geometry(&result, "cross")["y"].as_f64().unwrap(), -10.0);
+}
+
+#[test]
+fn issue1462_arc_offsets_follow_directed_side_and_radius_limits() {
+    // At the CCW start the tangent points up: its left normal is inward.
+    // The CW traversal exchanges left/right without exchanging world endpoints.
+    for (direction, side, radii) in [
+        (
+            "counterclockwise",
+            "left",
+            [Some(4.0), Some(0.001), None, None],
+        ),
+        (
+            "counterclockwise",
+            "right",
+            [Some(6.0), Some(9.999), Some(10.0), Some(11.0)],
+        ),
+        (
+            "clockwise",
+            "left",
+            [Some(6.0), Some(9.999), Some(10.0), Some(11.0)],
+        ),
+        ("clockwise", "right", [Some(4.0), Some(0.001), None, None]),
+    ] {
+        for (distance, expected) in [1.0, 4.999, 5.0, 6.0].into_iter().zip(radii) {
+            let clockwise = direction == "clockwise";
+            let mut offset = offset_line("offset", vec!["arc"], json!(distance));
+            offset["side"] = json!(side);
+            let input = serde_json::from_value(json!({"elements": [
+                {"id": "arc", "name": "A", "type": "arcLine", "activity": "visible",
+                 "centerPoint": {"mode": "coordinate", "x": 2, "y": -3},
+                 "radius": 5, "startAngleDeg": if clockwise {90} else {0},
+                 "endAngleDeg": if clockwise {0} else {90}, "direction": direction},
+                offset
+            ]}))
+            .unwrap();
+            let result = evaluate_document_input(input);
+            let Some(radius) = expected else {
+                assert!(result
+                    .errors
+                    .iter()
+                    .any(|e| e.message.contains("円弧半径が0以下")));
+                assert!(!result
+                    .computed_geometry
+                    .iter()
+                    .any(|g| g["elementId"] == "offset"));
+                continue;
+            };
+            assert!(result.errors.is_empty());
+            let segment = &geometry(&result, "offset")["segments"][0];
+            assert_close(segment["radius"].as_f64().unwrap(), radius);
+            assert_close(
+                segment["sweepAngleDeg"].as_f64().unwrap(),
+                if clockwise { -90.0 } else { 90.0 },
+            );
+            let (sx, sy, ex, ey) = if clockwise {
+                (2.0, -3.0 + radius, 2.0 + radius, -3.0)
+            } else {
+                (2.0 + radius, -3.0, 2.0, -3.0 + radius)
+            };
+            for (endpoint, x, y) in [("start", sx, sy), ("end", ex, ey)] {
+                assert_close(segment[endpoint]["x"].as_f64().unwrap(), x);
+                assert_close(segment[endpoint]["y"].as_f64().unwrap(), y);
+            }
+        }
+    }
 }

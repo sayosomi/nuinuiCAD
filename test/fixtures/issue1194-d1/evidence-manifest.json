@@ -1,0 +1,30 @@
+{
+  "externalDirectory": "/tmp/nuinuicad-1194-d1-20261020",
+  "files": [
+    {
+      "name": "compiler.ndjson",
+      "bytes": 158427806,
+      "sha256": "a2b79e8196dbc04874ea19990612ccdddbb607f49aae59436a5b0354c38060d0"
+    },
+    {
+      "name": "raw.ndjson",
+      "bytes": 10937657,
+      "sha256": "70db2e4bf5f28296b9db21dde86d7c5acda5d9d219eac4c2add30301a4797364"
+    },
+    {
+      "name": "transport.ndjson",
+      "bytes": 1915180,
+      "sha256": "923c6372dd00296390903bd2e909711f172de481ceb6af819f384caf7d6bb5c5"
+    },
+    {
+      "name": "runs.ndjson",
+      "bytes": 300518,
+      "sha256": "e69a74baf5aa9f4733cd72d6526e5e103a02870245789b5e199c03570b0117fa"
+    },
+    {
+      "name": "accepted.sha256",
+      "bytes": 4810,
+      "sha256": "289fcd46b55976a6ae58b2025bcedc7b5fe9ef486d2f32241ef34f2f4606e4ad"
+    }
+  ]
+}

@@ -171,7 +171,10 @@ Assignability is intentionally narrow: `point[]` to `point[]`, `line[]` to
 and duplicates. Empty literals use the declared element type, and whole-value
 references retain their resolved source identity. Scalar, choice, geometry, and
 nominal-record members use the existing element assignability rules. Scalar and
-record collections are source-semantic values in this slice.
+record collections are source-semantic values in this slice. Scalar literal
+members may use typed expressions such as `[7 + 12, @width + 10]`. Members
+are evaluated only when requested, so an unselected member or collection
+branch does not evaluate an invalid dependency.
 
 Geometry members in `line[]` and `path[]` may select a whole immutable stage,
 such as `@L.base`, `@L.final`, or a valid named or nested stage. A selected

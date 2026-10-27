@@ -1,0 +1,491 @@
+{
+  "primaryUnits": 16,
+  "primarySourceRevisions": 24,
+  "triggeredReducerSlots": 4,
+  "conservativeAcceptedUnits": 20,
+  "ceiling": 32,
+  "finalSourceRevisionExecutions": 28,
+  "uniqueSourceHashes": 19,
+  "units": [
+    {
+      "unit": "A1",
+      "disposition": "BASE_PASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "A1-r1.nui",
+          "revision": 1,
+          "sha256": "517c7e7670e8b9de40e9d3d96ba0521fd8becb03a020d1a86b90709c433afeb6",
+          "V": 133,
+          "E": 131
+        }
+      ],
+      "causalEvidence": [],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "A2",
+      "disposition": "BASE_PASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "A2-r1.nui",
+          "revision": 1,
+          "sha256": "37ed944fecac731e6e15c3bb4d95b1db59d3148b2de9c48f0d718d5c3148d0f7",
+          "V": 517,
+          "E": 515
+        }
+      ],
+      "causalEvidence": [],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "A3",
+      "disposition": "BASE_PASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "A3-r1.nui",
+          "revision": 1,
+          "sha256": "88d2d62ba1782bc0e26844d7d4b069c8e1bb6b64a1c003ac1ba3edc7cbc8ba88",
+          "V": 2053,
+          "E": 2051
+        }
+      ],
+      "causalEvidence": [],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "A4",
+      "disposition": "BASE_PASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "A4-r1.nui",
+          "revision": 1,
+          "sha256": "88d2d62ba1782bc0e26844d7d4b069c8e1bb6b64a1c003ac1ba3edc7cbc8ba88",
+          "V": 2053,
+          "E": 2051
+        },
+        {
+          "file": "A4-r2.nui",
+          "revision": 2,
+          "sha256": "57a3296aa9e708f6e2f4ea83dd908746bacb4dc94aa7b5759df33095956dd2f2",
+          "V": 2053,
+          "E": 2051
+        },
+        {
+          "file": "A4-r3.nui",
+          "revision": 3,
+          "sha256": "88d2d62ba1782bc0e26844d7d4b069c8e1bb6b64a1c003ac1ba3edc7cbc8ba88",
+          "V": 2053,
+          "E": 2051
+        }
+      ],
+      "causalEvidence": [],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "B1",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "B1-r1.nui",
+          "revision": 1,
+          "sha256": "9718228236a2317d3ed9bcfc3a1641a5604774342511db328d9528d68cd50930",
+          "V": 199,
+          "E": 197
+        }
+      ],
+      "causalEvidence": [
+        "R2 empty readiness",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "B2",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "B2-r1.nui",
+          "revision": 1,
+          "sha256": "74b80541663319067de0f8d10fd495ccfe7fd5335b1144e2468476233878c9ca",
+          "V": 775,
+          "E": 773
+        }
+      ],
+      "causalEvidence": [
+        "R2 empty readiness",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "B3",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "B3-r1.nui",
+          "revision": 1,
+          "sha256": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+          "V": 3007,
+          "E": 3005
+        }
+      ],
+      "causalEvidence": [
+        "R2 empty readiness",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "B4",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "B4-r1.nui",
+          "revision": 1,
+          "sha256": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+          "V": 3007,
+          "E": 3005
+        },
+        {
+          "file": "B4-r2.nui",
+          "revision": 2,
+          "sha256": "559dbc60c80a0bff94526ba5e45c29f7b11c30b6a29c38e5c9c58d241c573e42",
+          "V": 3007,
+          "E": 3005
+        },
+        {
+          "file": "B4-r3.nui",
+          "revision": 3,
+          "sha256": "9fbc4372bdffc1cbb4949f8f1423351ce2e87ddcedc04824e25eeab836b408f1",
+          "V": 3007,
+          "E": 3005
+        }
+      ],
+      "causalEvidence": [
+        "R2 empty readiness",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "C1",
+      "disposition": "BASE_PASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "C1-r1.nui",
+          "revision": 1,
+          "sha256": "525e5efc131ad701b3091a6a58a83f86a733a5f25525453aa5b0ddb459d98763",
+          "V": 70,
+          "E": 110
+        }
+      ],
+      "causalEvidence": [],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "C2",
+      "disposition": "BASE_PASS",
+      "baseSemanticObservation": "BASE_PASS",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "C2-r1.nui",
+          "revision": 1,
+          "sha256": "d68a766617e018bed18fd258c2eb9854b69c7b4abd59ac3e17e46e726936caab",
+          "V": 262,
+          "E": 430
+        }
+      ],
+      "causalEvidence": [],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "C3",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "Base Rust C3 abort and later unchanged TS C3 RangeError",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "C3-r1.nui",
+          "revision": 1,
+          "sha256": "863a18f2795ceeadb31ec5ee0c31958259ec175048836aedad4677a19da214f9",
+          "V": 1006,
+          "E": 1670
+        }
+      ],
+      "causalEvidence": [
+        "R1 demanded-binding stack growth"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "C4",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "full Base runtime NOT_RUN after original C3 safety stop",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "C4-r1.nui",
+          "revision": 1,
+          "sha256": "863a18f2795ceeadb31ec5ee0c31958259ec175048836aedad4677a19da214f9",
+          "V": 1006,
+          "E": 1670
+        },
+        {
+          "file": "C4-r2.nui",
+          "revision": 2,
+          "sha256": "5ddf40587971075802616a62c0d153698f83c353d436d6cdf6757be9bd2a1a1d",
+          "V": 1006,
+          "E": 1670
+        },
+        {
+          "file": "C4-r3.nui",
+          "revision": 3,
+          "sha256": "863a18f2795ceeadb31ec5ee0c31958259ec175048836aedad4677a19da214f9",
+          "V": 1006,
+          "E": 1670
+        }
+      ],
+      "causalEvidence": [
+        "R1 demanded-binding stack growth"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "D1",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "full Base runtime NOT_RUN after original C3 safety stop",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "D1-r1.nui",
+          "revision": 1,
+          "sha256": "25401aeccd20d7bb69f4f94e029df0a818777cf1e40dbde326e81bd4db619758",
+          "V": 195,
+          "E": 214
+        }
+      ],
+      "causalEvidence": [
+        "R4 Cartesian numeric lowering",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "D2",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "full Base runtime NOT_RUN after original C3 safety stop",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "D2-r1.nui",
+          "revision": 1,
+          "sha256": "e9f8b736d5e02ffacd7dc5e0c5efd00a392baf161bddb1f85a0d20fe715205e9",
+          "V": 771,
+          "E": 854
+        }
+      ],
+      "causalEvidence": [
+        "R4 Cartesian numeric lowering",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "D3",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "full Base runtime NOT_RUN after original C3 safety stop",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "D3-r1.nui",
+          "revision": 1,
+          "sha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f",
+          "V": 3003,
+          "E": 3334
+        }
+      ],
+      "causalEvidence": [
+        "R4 Cartesian numeric lowering",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "D4",
+      "disposition": "BUG→FIXED→REPASS",
+      "baseSemanticObservation": "full Base runtime NOT_RUN after original C3 safety stop",
+      "corrected": "PASS in both engines against independent oracle",
+      "sourceRevisions": [
+        {
+          "file": "D4-r1.nui",
+          "revision": 1,
+          "sha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f",
+          "V": 3003,
+          "E": 3334
+        },
+        {
+          "file": "D4-r2.nui",
+          "revision": 2,
+          "sha256": "770ce4a37bd451fd34d40fba594e063e8419955c5ad2600d1a3695f05a4d7d81",
+          "V": 3003,
+          "E": 3334
+        },
+        {
+          "file": "D4-r3.nui",
+          "revision": 3,
+          "sha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f",
+          "V": 3003,
+          "E": 3334
+        }
+      ],
+      "causalEvidence": [
+        "R4 Cartesian numeric lowering",
+        "R3 discarded names"
+      ],
+      "performance": "complete frozen paired stage measurements; residual scaling classified separately"
+    },
+    {
+      "unit": "R1",
+      "disposition": "BUG→FIXED→REPASS",
+      "revisions": [
+        {
+          "file": "continuation-2/R1.nui",
+          "oracle": "continuation-2/R1-runtime-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "e704afe1f7026a8c330880bd4c4df79c3fc4c423f327ee6b019a7690d519b5aa",
+          "oracleSha256": "2be277c9f26a4a3bd6ad5f02667a505232b14be98f14a97cb98f58e830b286af",
+          "bytes": 946,
+          "semanticV": 25,
+          "semanticE": 40
+        }
+      ],
+      "sourceReuse": null
+    },
+    {
+      "unit": "R2",
+      "disposition": "BUG→FIXED→REPASS",
+      "revisions": [
+        {
+          "file": "continuation-2/R2.nui",
+          "oracle": "continuation-2/R2-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "fc1d72dc5f397db0d374319171e3d668e6216f569d5e73861d2dd4e5c0b35282",
+          "oracleSha256": "4944695bfbb3101e85bb7899c274ef9ebb021559a43c6679da1957220ad8bd52",
+          "bytes": 585,
+          "semanticV": 12,
+          "semanticE": 9
+        }
+      ],
+      "sourceReuse": null
+    },
+    {
+      "unit": "R3",
+      "disposition": "BUG→FIXED→REPASS",
+      "revisions": [
+        {
+          "file": "continuation-2/R3.nui",
+          "oracle": "continuation-2/R2-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "fc1d72dc5f397db0d374319171e3d668e6216f569d5e73861d2dd4e5c0b35282",
+          "oracleSha256": "4944695bfbb3101e85bb7899c274ef9ebb021559a43c6679da1957220ad8bd52",
+          "bytes": 585,
+          "semanticV": 12,
+          "semanticE": 9
+        }
+      ],
+      "sourceReuse": "R3 reuses R2 source for a distinct first-owner counter; no additional topology credit"
+    },
+    {
+      "unit": "R4",
+      "disposition": "BUG→FIXED→REPASS",
+      "revisions": [
+        {
+          "file": "continuation-2/R4.nui",
+          "oracle": "continuation-2/R4-oracle.json",
+          "transition": "initial",
+          "sourceRevisionBefore": 0,
+          "sourceRevisionAfter": 1,
+          "sha256": "86e6ae965093db251f5460788651826d499dfd149ffa3b7f8c46fd369de11886",
+          "oracleSha256": "24d9eab65c9da92b68e67e1d8784d4da9d3bbea382a9fdfe8b75e55c5761311a",
+          "bytes": 1861,
+          "semanticV": 27,
+          "semanticE": 32
+        }
+      ],
+      "sourceReuse": null
+    },
+    {
+      "unit": "X1",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X2",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X3",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X4",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X5",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X6",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X7",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "X8",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R5",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R6",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R7",
+      "disposition": "NOT_TRIGGERED"
+    },
+    {
+      "unit": "R8",
+      "disposition": "NOT_TRIGGERED"
+    }
+  ]
+}

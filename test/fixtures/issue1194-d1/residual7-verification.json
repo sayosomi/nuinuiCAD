@@ -1,0 +1,161 @@
+{
+  "base": "0aa5ffee5d7f283633c622741e843c4a784fa305",
+  "branch": "sayosomi/issue-1194-residual7-d1",
+  "status": "PASS; bounded slice ready for independent pushed-HEAD blocking review",
+  "requiredBlockVerbatim": "(\n  set -e\n  cd /Users/yosomi/Code/nuinuiCAD || {\n    echo \"BLOCKED: registered implementation checkout missing\"\n    exit 1\n  }\n\n  export VITEST_MAX_WORKERS=1\n\n  npx vitest run \\\n    test/issue1194Residual7D1Rust.integration.test.ts \\\n    test/issue1194Residual6D1Rust.integration.test.ts \\\n    test/issue1194Residual5D1Rust.integration.test.ts \\\n    test/issue1194Residual4D1Rust.integration.test.ts \\\n    test/issue1194Residual3D1Rust.integration.test.ts \\\n    test/issue1194ResidualD1Rust.integration.test.ts \\\n    test/issue1194StructuredD1Rust.integration.test.ts \\\n    test/issue1376RootRecordModuleFieldsRust.integration.test.ts \\\n    src/scalars/recordScalarLowering.test.ts \\\n    src/scalars/recordScalarIntegration.test.ts \\\n    src/dsl/recordDocumentIntegration.test.ts \\\n    src/dsl/moduleScalarRuntime.integration.test.ts \\\n    src/dsl/moduleGeometryArrayRuntime.integration.test.ts \\\n    src/dsl/geometryArraySemanticAnalysis.integration.test.ts \\\n    test/mappedGeometryOccurrenceIdentityRust.integration.test.ts\n\n  npx vitest run \\\n    test/issue1415ScalarMetamorphicRust.integration.test.ts \\\n    test/issue1417ControlFlowMetamorphicRust.integration.test.ts \\\n    test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts \\\n    test/issue1421EvaluatorStrategyRust.integration.test.ts \\\n    test/issue1423EvaluatorStrategyRust.integration.test.ts \\\n    test/issue1426MutationSensitiveRust.integration.test.ts \\\n    test/issue1428TargetedStage7Rust.integration.test.ts\n\n  npm run build\n  npm run lint\n  npm run test:parity\n  npm test\n  npm run docs:dsl:check\n\n  if [[ -n \"$(git diff --name-only 0aa5ffee5d7f283633c622741e843c4a784fa305 -- rust-evaluator/)\" ]]; then\n    cargo fmt --check --manifest-path rust-evaluator/Cargo.toml\n    cargo check --manifest-path rust-evaluator/Cargo.toml\n    cargo test --manifest-path rust-evaluator/Cargo.toml\n    cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings\n  fi\n\n  git diff --check\n)\n",
+  "requiredBlockExecution": {
+    "exitCode": 0,
+    "blocked": null,
+    "events": [
+      {
+        "event": "start",
+        "pid": 94600,
+        "command": "npm exec vitest run test/issue1194Residual7D1Rust.integration.test.ts test/issue1194Residual6D1Rust.integration.test.ts test/issue1194Residual5D1Rust.integration.test.ts test/issue1194Residual4D1Rust.integration.test.ts test/issue1194Residual3D1Rust.integration.test.ts test/issue1194ResidualD1Rust.integration.test.ts test/issue1194StructuredD1Rust.integration.test.ts test/issue1376RootRecordModuleFieldsRust.integration.test.ts src/scalars/recordScalarLowering.test.ts src/scalars/recordScalarIntegration.test.ts src/dsl/recordDocumentIntegration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/geometryArraySemanticAnalysis.integration.test.ts test/mappedGeometryOccurrenceIdentityRust.integration.test.ts",
+        "seconds": 1.04
+      },
+      {
+        "event": "start",
+        "pid": 95076,
+        "command": "npm exec vitest run test/issue1415ScalarMetamorphicRust.integration.test.ts test/issue1417ControlFlowMetamorphicRust.integration.test.ts test/issue1419EvaluatorBoundaryCalibrationRust.integration.test.ts test/issue1421EvaluatorStrategyRust.integration.test.ts test/issue1423EvaluatorStrategyRust.integration.test.ts test/issue1426MutationSensitiveRust.integration.test.ts test/issue1428TargetedStage7Rust.integration.test.ts",
+        "seconds": 18.77
+      },
+      {
+        "event": "start",
+        "pid": 95599,
+        "command": "npm run build",
+        "seconds": 43.73
+      },
+      {
+        "event": "start",
+        "pid": 95681,
+        "command": "npm run typecheck:nui-language",
+        "seconds": 60.42
+      },
+      {
+        "event": "start",
+        "pid": 95720,
+        "command": "npm run build:mcp",
+        "seconds": 64.58
+      },
+      {
+        "event": "start",
+        "pid": 95767,
+        "command": "npm run lint",
+        "seconds": 68.75
+      },
+      {
+        "event": "start",
+        "pid": 95916,
+        "command": "npm run test:parity",
+        "seconds": 98.99
+      },
+      {
+        "event": "start",
+        "pid": 1907,
+        "command": "npm test",
+        "seconds": 157.47
+      }
+    ],
+    "elapsedSeconds": 679.48
+  },
+  "results": {
+    "focusedRequired": {
+      "filesPassed": 15,
+      "passed": 529,
+      "skipped": 13
+    },
+    "historicalStageControls": {
+      "filesPassed": 7,
+      "passed": 320,
+      "skipped": 4
+    },
+    "build": "PASS",
+    "lint": "PASS",
+    "test:parity": {
+      "passed": 203,
+      "failed": 0
+    },
+    "npm test": {
+      "filesPassed": 676,
+      "filesSkipped": 2,
+      "passed": 10809,
+      "skipped": 170,
+      "failed": 0
+    },
+    "docs:dsl:check": "PASS",
+    "conditionalRustGates": "NOT_RUN: no rust-evaluator/ delta from exact Base",
+    "git diff --check": "PASS"
+  },
+  "focusedBeforeRequired": {
+    "command": "VITEST_MAX_WORKERS=1 npx vitest run test/issue1194Residual7D1Rust.integration.test.ts test/issue1194Residual6D1Rust.integration.test.ts src/dsl/moduleGeometryArrayRuntime.integration.test.ts src/dsl/moduleScalarRuntime.integration.test.ts test/mappedGeometryOccurrenceIdentityRust.integration.test.ts",
+    "passed": 243,
+    "skipped": 6,
+    "log": "/tmp/issue1194-r7-presettled-focused.log"
+  },
+  "focusedTypecheck": {
+    "command": "npm run typecheck:nui-language",
+    "result": "PASS",
+    "log": "/tmp/issue1194-r7-typecheck.log"
+  },
+  "baseRegression": {
+    "command": "ISSUE1194_RESIDUAL7_IDS=A-min-direct,A-min-alias,B-min-direct,B-min-alias,B-min-source,B-direct-map npx vitest run test/issue1194Residual7D1Rust.integration.test.ts",
+    "mode": "verify on exact production Base bytes, restored in finally",
+    "expectedExit": 1,
+    "actualExit": 1,
+    "expectedFailures": 3,
+    "adjacentPasses": 3,
+    "log": "/tmp/issue1194-r7-base-regression.log"
+  },
+  "seventhRunner": {
+    "passed": 21,
+    "deferredSkipped": 3,
+    "normallyEligible": true,
+    "realPersistentRust": true
+  },
+  "bounds": {
+    "cargoBuildSeconds": 120,
+    "rustRequestSeconds": 10,
+    "rustLifetimeSeconds": 600,
+    "rustCleanupSeconds": 5,
+    "individualTestSeconds": 60,
+    "requiredCommandSeconds": 180,
+    "fullNpmTestSeconds": 600,
+    "requiredBlockSeconds": 1200,
+    "timeoutIncreases": false
+  },
+  "acceptedLegalHashes": {
+    "historical": 215,
+    "new": 24,
+    "cumulative": 239
+  },
+  "caseDispositions": {
+    "PASS": 6,
+    "REPAIRED_THEN_PASS": 15,
+    "UNRESOLVED": 3,
+    "CONTRACT_INVALID": 2
+  },
+  "scope": {
+    "productionFilesChanged": 4,
+    "rustSourceChanged": false,
+    "normativeSpecChanged": false,
+    "architectureBoundaryChanged": false,
+    "manualE2E": "Not Required",
+    "newAbstractions": "Existing canonical typed record-field traversal extracted for its two existing runtime consumers; no new parser/resolver/evaluator/framework.",
+    "deviations": []
+  },
+  "residuals": [
+    "Three scalar-collection geometry scheduling rows remain UNRESOLVED under #1260, including a map-free Module discriminator; no scheduler repair.",
+    "File-public/qualified imported record type grammar remains CONTRACT_AMBIGUOUS/BLOCKED.",
+    "Optional selected whole-collection map sources, dynamic mapped-record selectors, arbitrary deeper combinations and unobserved geometry fields remain NOT_COVERED."
+  ],
+  "safety": {
+    "timeouts": 0,
+    "platformDenialsObserved": 0,
+    "unexpectedOwnedChildClosures": 0,
+    "automaticResigning": false,
+    "ownedChildrenClosed": true
+  },
+  "quotaAttribution": "CONFOUNDED; concurrent independent Human use; measurement intentionally waived",
+  "issueState": "OPEN",
+  "next": "Independent blocking review of exact pushed HEAD; PR/protected CI/merge remain separate and were not performed."
+}

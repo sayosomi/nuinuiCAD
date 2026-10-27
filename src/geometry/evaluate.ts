@@ -299,6 +299,8 @@ export const evaluateElements = (
   const evaluatedElementIds = new Set(evaluatedElements.map((element) => element.id));
   const computedGeometry = new Map<ElementId, ComputedGeometry>();
   const computedGeometryValues = new Map<import("@nuinuicad/nui-language").GeometryValueOccurrenceKey, ComputedGeometryValueEntry>();
+  const lazyFrameGeometryValues = new Map(options.geometryValueProgram?.filter(entry => entry.lazy && entry.occurrence.mappedMemberIndex === undefined)
+    .map(entry => [geometryValueOccurrenceKey(entry.occurrence), entry]));
   const geometryCarryValues = new Map<BindingId, GeometryBuiltinTargetLookupResult>();
   const geometryValueErrors: GeometryValueEvaluationError[] = [];
   const preMutationGeometry = new Map<ElementId, ComputedGeometry>();
@@ -480,6 +482,7 @@ export const evaluateElements = (
       return conditionalBranchSelections.get(guard.controllerId) === guard.branch;
     });
   };
+  let earlyNumericDependencyVersionIds = new Set<string>();
   const setTypedDependencyEndpointRanks = (dependencyOrder: readonly string[]) => {
     typedDependencyEndpointRankById = new Map(dependencyOrder.map((id, index) => [id, index] as const));
     const executionPositions = new Map<string, number>();
@@ -492,7 +495,7 @@ export const evaluateElements = (
       const prerequisites = (options.typedDependencyGraph.directByEndpointId.get(`binding:${version.bindingId}`) ?? [])
         .filter(graphEdgeIsActive);
       activePrerequisitesByVersionId.set(version.id, prerequisites);
-      const hasGeometryPrerequisite = prerequisites.some((edge) => edge.to.kind === "geometry-value" ||
+      const hasGeometryPrerequisite = prerequisites.some((edge) => edge.to.kind === "element" || edge.to.kind === "geometry-value" ||
         edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence");
       const hasForwardBindingPrerequisite = prerequisites.some((edge) => {
         if (edge.to.kind !== "binding") return false;
@@ -513,6 +516,37 @@ export const evaluateElements = (
           typedDependencyEndpointRankById.has(typedDependencyEndpointId(edge.to))) {
           dependencyScheduledVersionIds.add(targetVersion.id);
         }
+      }
+    }
+    // A numeric geometry consumer may precede a nested scalar-only instance.
+    // Project its already-resolved binding prerequisites into the existing
+    // schedule; do not advance unrelated authored events or control owners.
+    earlyNumericDependencyVersionIds = new Set<string>();
+    const numericInputs = (options.typedDependencyGraph?.edges ?? []).flatMap(edge => {
+      if (edge.from.kind !== "element" || edge.to.kind !== "binding" || !graphEdgeIsActive(edge)) return [];
+      const sourceOrder = options.scalarExecutionPositionByElementId?.get(edge.from.id) ?? options.statementInfoByElementId?.get(edge.from.id)?.statementIndex;
+      return sourceOrder === undefined ? [] : [{ bindingId: edge.to.id, sourceOrder }];
+    });
+    for (const input of numericInputs) {
+      const pending = [input.bindingId];
+      const closure = new Set<string>();
+      let hasForwardPrerequisite = false;
+      while (pending.length) {
+        const bindingId = pending.pop()!;
+        const versionId = options.bindingVersions?.versionIdsByBindingId.get(bindingId)?.at(-1);
+        const version = versionId ? options.bindingVersions?.versionsById.get(versionId) : undefined;
+        if (!version || version.control.kind !== "linear" || closure.has(version.id)) continue;
+        closure.add(version.id);
+        hasForwardPrerequisite ||= version.sourceOrder > input.sourceOrder;
+        for (const edge of activePrerequisitesByVersionId.get(version.id) ?? []) {
+          if (edge.to.kind === "binding") pending.push(edge.to.id);
+        }
+      }
+      // Keep the whole prerequisite closure together, including earlier
+      // parameters: source progression may not have reached them on entry.
+      if (hasForwardPrerequisite) for (const versionId of closure) {
+        earlyNumericDependencyVersionIds.add(versionId);
+        dependencyScheduledVersionIds.add(versionId);
       }
     }
     // A scalar consumer also has to join the dependency schedule when one of
@@ -543,7 +577,7 @@ export const evaluateElements = (
       if (rank === undefined) continue;
       executionPositions.set(version.id, rank);
       const scheduledPrerequisites = (activePrerequisitesByVersionId.get(version.id) ?? []).flatMap((edge) => {
-        const isGeometryPrerequisite = edge.to.kind === "geometry-value" ||
+        const isGeometryPrerequisite = edge.to.kind === "element" || edge.to.kind === "geometry-value" ||
           edge.to.kind === "geometry-stage" || edge.to.kind === "module-occurrence";
         if (isGeometryPrerequisite) return [typedDependencyEndpointId(edge.to)];
         if (edge.to.kind !== "binding") return [];
@@ -579,7 +613,8 @@ export const evaluateElements = (
         options.bindingVersions!,
         geometryRuntime,
         options.scalarProgram?.collectionValues,
-        options.typedDependencyGraph ? () => bindingVersionDependencyExecutionPositionById : undefined
+        options.typedDependencyGraph ? () => bindingVersionDependencyExecutionPositionById : undefined,
+        () => earlyNumericDependencyVersionIds
     )
     : undefined;
   const knownConditionalMutationOwnerIds = new Set(
@@ -684,6 +719,7 @@ export const evaluateElements = (
       };
 
   const isPointAnchorInput = (element: CadElement, parameterKey: string) =>
+    (element.type === "polyline" && /^points:(0|[1-9]\d*)$/.test(parameterKey)) ||
     (parameterKey === "source" && element.type === "materializedPoint") ||
     [
       "points", "start", "end", "startPoint", "endPoint", "from", "fromPoint", "base", "basePoint",
@@ -821,15 +857,11 @@ export const evaluateElements = (
       ? { status: "ok", type: reference.type, value: { kind: "number", value } }
       : { status: "error", type: reference.type, issueCode: "evaluation-geometry-property-unavailable" };
   };
-  const evaluateOccurrenceIndexForEvaluation = (
-    expression: TypedScalarExpression,
-    sourceOrder: number,
-    lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([])
-  ): ScalarEvaluation =>
-    evaluateTypedExpression(expression, {
-      lookupBinding,
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, lookupBinding),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, lookupBinding),
+  const collectionLookupsForEvaluation = (sourceOrder: number) => ({
+      ...(scalarBindingResolver?.resolveOptionalMember ? {
+        lookupOptionalMember: (target: import("@nuinuicad/nui-language").ScalarExpressionResolvedOptionalMemberTarget, type: import("@nuinuicad/nui-language").ScalarExpressionType) =>
+          scalarBindingResolver.resolveOptionalMember!(target, type, sourceOrder)
+      } : {}),
       ...(scalarBindingResolver?.resolveCollectionIndex ? {
         lookupCollectionIndex: (collectionValueId: string, index: number, elementType: import("@nuinuicad/nui-language").ScalarExpressionType, collectionLength: number | null, targetSourceOrder: number) =>
           scalarBindingResolver.resolveCollectionIndex!(collectionValueId, index, elementType, collectionLength, targetSourceOrder, sourceOrder)
@@ -841,6 +873,17 @@ export const evaluateElements = (
         lookupCollectionLengthEvaluation: (collectionValueId: string) =>
           scalarBindingResolver.resolveCollectionLengthEvaluation!(collectionValueId, sourceOrder)
       } : {})
+  });
+  const evaluateOccurrenceIndexForEvaluation = (
+    expression: TypedScalarExpression,
+    sourceOrder: number,
+    lookupBinding: (bindingId: BindingId) => ScalarEvaluation = scalarBindingLookupFor([])
+  ): ScalarEvaluation =>
+    evaluateTypedExpression(expression, {
+      lookupBinding,
+      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder, lookupBinding),
+      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder, lookupBinding),
+      ...collectionLookupsForEvaluation(sourceOrder)
     });
   const resolveGeometryPropertyForEvaluation = (
     reference: Parameters<typeof resolveDocumentGeometryProperty>[1],
@@ -932,11 +975,21 @@ export const evaluateElements = (
           scalarBindingResolver.resolveOptionalMember!(target, type, evaluationSourceOrder)
       } : {})
     });
-    const materializeCollectionNode = (node: import("../types/geometry").GeometryInputCollectionNode): GeometryInputTarget[] | null => {
+    const materializeCollectionNode = (
+      node: import("../types/geometry").GeometryInputCollectionNode,
+      seen: ReadonlySet<string> = new Set()
+    ): GeometryInputTarget[] | null => {
       if (node.kind === "none") return null;
       if (node.kind === "leaf") {
         const targets = node.targets.map((target) => materialize(target));
         return targets.some((target) => target === null) ? null : targets as GeometryInputTarget[];
+      }
+      if (node.kind === "carryReference") {
+        if (seen.has(node.collectionValueId)) return null;
+        const sourceNode = geometryCollectionNodesByValueId.get(node.collectionValueId);
+        return sourceNode
+          ? materializeCollectionNode(sourceNode, new Set([...seen, node.collectionValueId]))
+          : null;
       }
       if (node.kind === "geometryValueMap") {
         const collectionResolvers = {
@@ -969,11 +1022,11 @@ export const evaluateElements = (
         const environment = scalarEnvironmentFor(node.sourceOrder);
         const condition = evaluateTypedExpression(node.condition, environment);
         if (condition.status !== "ok" || condition.value.kind !== "boolean") return null;
-        return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch);
+        return materializeCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch, seen);
       }
       if (node.kind === "coalesce") {
-        const left = materializeCollectionNode(node.leftBranch);
-        return left ?? materializeCollectionNode(node.rightBranch);
+        const left = materializeCollectionNode(node.leftBranch, seen);
+        return left ?? materializeCollectionNode(node.rightBranch, seen);
       }
       const scrutinee = evaluateTypedExpression(node.scrutinee, scalarEnvironmentFor(node.sourceOrder));
       if (scrutinee.status !== "ok") return null;
@@ -982,22 +1035,47 @@ export const evaluateElements = (
         : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
       if (label === undefined) return null;
       const arm = node.arms.find((candidate) => candidate.label === label);
-      return arm ? materializeCollectionNode(arm.value) : null;
+      return arm ? materializeCollectionNode(arm.value, seen) : null;
     };
     const containsDeferredGeometryValueMap = (
-      node: import("../types/geometry").GeometryInputCollectionNode
+      node: import("../types/geometry").GeometryInputCollectionNode,
+      seen: ReadonlySet<string> = new Set()
     ): boolean => {
       if (node.kind === "geometryValueMap") return true;
-      if (node.kind === "if") {
-        return containsDeferredGeometryValueMap(node.thenBranch) || containsDeferredGeometryValueMap(node.elseBranch);
+      if (node.kind === "carryReference") {
+        if (seen.has(node.collectionValueId)) return false;
+        const sourceNode = geometryCollectionNodesByValueId.get(node.collectionValueId);
+        return sourceNode
+          ? containsDeferredGeometryValueMap(sourceNode, new Set([...seen, node.collectionValueId]))
+          : false;
       }
-      if (node.kind === "match") return node.arms.some((arm) => containsDeferredGeometryValueMap(arm.value));
+      if (node.kind === "if") {
+        return containsDeferredGeometryValueMap(node.thenBranch, seen) || containsDeferredGeometryValueMap(node.elseBranch, seen);
+      }
+      if (node.kind === "match") return node.arms.some((arm) => containsDeferredGeometryValueMap(arm.value, seen));
       if (node.kind === "coalesce") {
-        return containsDeferredGeometryValueMap(node.leftBranch) || containsDeferredGeometryValueMap(node.rightBranch);
+        return containsDeferredGeometryValueMap(node.leftBranch, seen) || containsDeferredGeometryValueMap(node.rightBranch, seen);
       }
       return false;
     };
     const materialize = (target: GeometryInputTarget, parameterKey?: string): GeometryInputTarget | null => {
+      if (target.kind === "drawable") {
+        return { ...target, elementId: activeForGroupElementIdMap.get(target.elementId) ?? target.elementId };
+      }
+      if (target.kind === "geometryValue" && target.occurrence.mappedMemberIndex === undefined) {
+        const key = geometryValueOccurrenceKey(target.occurrence);
+        const entry = lazyFrameGeometryValues.get(key);
+        if (entry) {
+          // A loop-local value is a frame template. Materialize it at the
+          // consuming statement with that iteration's binding snapshot.
+          computedGeometryValues.delete(key);
+          const previousLookup = activeGeometryValueBindingLookup;
+          activeGeometryValueBindingLookup = lookupBinding;
+          try { evaluateGeometryValueEntry(entry, sourceOrder, true); }
+          finally { activeGeometryValueBindingLookup = previousLookup; }
+        }
+        return target;
+      }
       if (target.kind === "geometryCarry") {
         const resolved = geometryCarryValues.get(target.bindingId);
         if (!resolved || resolved.kind === "unavailable") {
@@ -1074,7 +1152,8 @@ export const evaluateElements = (
           kind: "drawable",
           elementId: row!.generatedElementId,
           geometryType: target.geometryType,
-          ...(target.pointKey ? { pointKey: target.pointKey } : {})
+          ...(target.pointKey ? { pointKey: target.pointKey } : {}),
+          ...(target.stagePath ? { stagePath: target.stagePath } : {})
         };
       }
       if (target.kind !== "collectionIndex") return target;
@@ -1120,7 +1199,15 @@ export const evaluateElements = (
         }
         return mapped;
       }
-      const members = collectionNode ? materializeCollectionNode(collectionNode) : target.members.map((member) => materialize(member));
+      if (!collectionNode) {
+        // Explicit members may contain lazy record-field constructions.
+        // Materialize only the member selected by the validated index.
+        const selected = target.members[index];
+        if (selected) return materialize(selected, parameterKey);
+        invalid(target, "evaluation-collection-index-invalid");
+        return null;
+      }
+      const members = materializeCollectionNode(collectionNode);
       if (!members || members.some((member) => member === null)) {
         invalid(target, "evaluation-collection-index-invalid");
         return null;
@@ -1167,20 +1254,12 @@ export const evaluateElements = (
   const geometryValueBindingLookup = () => activeGeometryValueBindingLookup ?? scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding());
 
   const evaluateGeometryValueScalar = (expression: TypedScalarExpression, sourceOrder: number): number | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     return evaluation.status === "ok" && evaluation.value.kind === "number" ? evaluation.value.value : undefined;
   };
 
   const evaluateGeometryValueDirection = (expression: TypedScalarExpression, sourceOrder: number): ArcDirection | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "clockwise" || evaluation.value.value === "counterclockwise"
       ? evaluation.value.value
@@ -1188,11 +1267,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueSide = (expression: TypedScalarExpression, sourceOrder: number): "left" | "right" | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "left" || evaluation.value.value === "right"
       ? evaluation.value.value
@@ -1200,11 +1275,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueTangentKind = (expression: TypedScalarExpression, sourceOrder: number): "external" | "internal" | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "external" || evaluation.value.value === "internal"
       ? evaluation.value.value
@@ -1212,11 +1283,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueCurveSide = (expression: TypedScalarExpression, sourceOrder: number): "convex" | "concave" | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     if (evaluation.status !== "ok" || evaluation.value.kind !== "choice") return undefined;
     return evaluation.value.value === "convex" || evaluation.value.value === "concave"
       ? evaluation.value.value
@@ -1224,11 +1291,7 @@ export const evaluateElements = (
   };
 
   const evaluateGeometryValueBoolean = (expression: TypedScalarExpression, sourceOrder: number): boolean | undefined => {
-    const evaluation = evaluateTypedExpression(expression, {
-      lookupBinding: geometryValueBindingLookup(),
-      lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-      lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-    });
+    const evaluation = evaluateOccurrenceIndexForEvaluation(expression, sourceOrder, geometryValueBindingLookup());
     return evaluation.status === "ok" && evaluation.value.kind === "boolean" ? evaluation.value.value : undefined;
   };
 
@@ -1494,11 +1557,7 @@ export const evaluateElements = (
       return;
     }
     if (entry.construction.kind === "match") {
-      const evaluation = evaluateTypedExpression(entry.construction.scrutinee, {
-        lookupBinding: geometryValueBindingLookup(),
-        lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, sourceOrder),
-        lookupGeometryTarget: (target) => resolveGeometryTargetForEvaluation(target, sourceOrder)
-      });
+      const evaluation = evaluateOccurrenceIndexForEvaluation(entry.construction.scrutinee, sourceOrder, geometryValueBindingLookup());
       const label = evaluation.status === "ok"
         ? evaluation.type.kind === "optional"
           ? evaluation.value.kind === "none" ? "none" : "some"
@@ -2282,7 +2341,8 @@ export const evaluateElements = (
         numericSourceOrder === undefined || !scalarBindingResolver?.resolveOptionalMember
           ? undefined
           : (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, numericSourceOrder),
-        runtimeElements
+        runtimeElements,
+        collectionLookupsForEvaluation(numericSourceOrder ?? sourceOrder)
       );
       if (!materialized.ok) {
         errors.push(...materialized.errors);
@@ -2553,12 +2613,56 @@ export const evaluateElements = (
           if (initial && initial.kind !== "unavailable") geometryCarryValues.set(carry.bindingId, initial);
         }
       };
+      const captureGeometryCollectionTarget = (
+        target: Exclude<GeometryInputTarget, { kind: "collectionIndex" | "collectionValue" }>,
+        nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>,
+        seen: ReadonlySet<string> = new Set()
+      ): typeof target | undefined => {
+        if (target.kind === "drawable") {
+          const row = [...forGroupGeneratedRows].reverse().find(row => row.templateElementId === target.elementId);
+          return row ? { ...target, elementId: row.generatedElementId } : target;
+        }
+        if (target.kind !== "geometryValue" || target.pointKey || target.stagePath) return target;
+        const key = geometryValueOccurrenceKey(target.occurrence);
+        const entry = lazyFrameGeometryValues.get(key);
+        if (entry?.construction.kind !== "reference" || entry.construction.target.kind !== "geometryInputTarget") return target;
+        if (seen.has(key)) return undefined;
+        const indexed = entry.construction.target.target;
+        const lookupBinding = scalarBindingLookupFor(ancestorIterationVariables);
+        const environment = { lookupBinding };
+        const index = evaluateTypedExpression(indexed.index, environment);
+        if (index.status !== "ok" || index.value.kind !== "number" || !Number.isInteger(index.value.value) || index.value.value < 0) return undefined;
+        const source = indexed.value ?? nodes.get(indexed.collectionValueId);
+        const selected = source ? resolveGeometryCollectionMemberForNode(source, index.value.value, () => environment, {
+          resolveSourceCollectionNode: id => nodes.get(id)
+        }) : indexed.members[index.value.value];
+        if (!selected || selected.kind === "collectionIndex" || selected.kind === "collectionValue") return undefined;
+        // Capture the compiler-resolved member identity before installing next.
+        // Keep geometry lazy: do not evaluate an unrequested member or branch.
+        return captureGeometryCollectionTarget(selected, nodes, new Set([...seen, key]));
+      };
       const captureGeometryCollectionNode = (
         node: import("../types/geometry").GeometryInputCollectionNode,
         nodes: ReadonlyMap<string, import("../types/geometry").GeometryInputCollectionNode>,
         runtimeGeneration: number | undefined,
         seen: ReadonlySet<string>
       ): import("../types/geometry").GeometryInputCollectionNode | undefined => {
+        if (node.kind === "leaf") {
+          const targets = node.targets.map(target => captureGeometryCollectionTarget(target, nodes));
+          return targets.every((target): target is NonNullable<typeof target> => target !== undefined) ? { ...node, targets } : undefined;
+        }
+        if (node.kind === "carryReference") {
+          if (seen.has(node.collectionValueId)) return undefined;
+          const sourceNode = nodes.get(node.collectionValueId);
+          return sourceNode
+            ? captureGeometryCollectionNode(
+                sourceNode,
+                nodes,
+                runtimeGeneration,
+                new Set([...seen, node.collectionValueId])
+              )
+            : undefined;
+        }
         if (node.kind === "geometryValueMap") {
           if (node.source.kind === "node") return node;
           if (seen.has(node.source.valueId)) return undefined;
@@ -2579,15 +2683,20 @@ export const evaluateElements = (
             : undefined;
         }
         if (node.kind === "if") {
-          const thenBranch = captureGeometryCollectionNode(node.thenBranch, nodes, runtimeGeneration, seen);
-          const elseBranch = captureGeometryCollectionNode(node.elseBranch, nodes, runtimeGeneration, seen);
-          return thenBranch && elseBranch ? { ...node, thenBranch, elseBranch } : undefined;
+          // Freeze the selected identity against the incoming snapshot; an
+          // unselected indexed alias must never invalidate this capture.
+          const condition = evaluateTypedExpression(node.condition, { lookupBinding: scalarBindingLookupFor(ancestorIterationVariables) });
+          if (condition.status !== "ok" || condition.value.kind !== "boolean") return undefined;
+          return captureGeometryCollectionNode(condition.value.value ? node.thenBranch : node.elseBranch, nodes, runtimeGeneration, seen);
         }
         if (node.kind === "match") {
-          const arms = node.arms.map((arm) => ({ ...arm, value: captureGeometryCollectionNode(arm.value, nodes, runtimeGeneration, seen) }));
-          return arms.every((arm) => arm.value !== undefined)
-            ? { ...node, arms: arms as { label: string; value: import("../types/geometry").GeometryInputCollectionNode }[] }
-            : undefined;
+          const scrutinee = evaluateTypedExpression(node.scrutinee, { lookupBinding: scalarBindingLookupFor(ancestorIterationVariables) });
+          if (scrutinee.status !== "ok") return undefined;
+          const label = scrutinee.type.kind === "optional"
+            ? scrutinee.value.kind === "none" ? "none" : "some"
+            : scrutinee.value.kind === "choice" ? scrutinee.value.value : undefined;
+          const arm = node.arms.find(candidate => candidate.label === label);
+          return arm ? captureGeometryCollectionNode(arm.value, nodes, runtimeGeneration, seen) : undefined;
         }
         if (node.kind === "coalesce") {
           const leftBranch = captureGeometryCollectionNode(node.leftBranch, nodes, runtimeGeneration, seen);
@@ -2668,6 +2777,17 @@ export const evaluateElements = (
             };
           } else if (selectedTarget) {
             resolvedTarget = selectedTarget;
+          }
+          if (resolvedTarget?.kind === "geometryValue") {
+            const key = geometryValueOccurrenceKey(resolvedTarget.occurrence);
+            const entry = lazyFrameGeometryValues.get(key);
+            if (entry) {
+              computedGeometryValues.delete(key);
+              const previousLookup = activeGeometryValueBindingLookup;
+              activeGeometryValueBindingLookup = (bindingId) => incomingBindings.get(bindingId) ?? lookupBinding(bindingId);
+              try { evaluateGeometryValueEntry(entry, carry.nextSourceOrder, true); }
+              finally { activeGeometryValueBindingLookup = previousLookup; }
+            }
           }
           const next = resolvedTarget
             ? resolveGeometryTargetForEvaluation(resolvedTarget, carry.nextSourceOrder, lookupBinding, snapshot)
@@ -2788,6 +2908,7 @@ export const evaluateElements = (
             childAncestorElementIdMap,
             childAncestorOccurrencePath
           );
+          evaluateReadyTransformationRecipes(childAncestorElementIdMap, scalarBindingLookupFor(childAncestorIterationVariables));
           activeStatementForGeometryBinder = previousStatementForGeometryBinder;
           return "completed";
         });
@@ -2837,6 +2958,7 @@ export const evaluateElements = (
             childAncestorElementIdMap,
             occurrencePath
           );
+          evaluateReadyTransformationRecipes(childAncestorElementIdMap, scalarBindingLookupFor(childAncestorIterationVariables));
         }
         commitGeometryCollectionCarries(iterationIndex);
         commitGeometryCarries();
@@ -2970,6 +3092,7 @@ export const evaluateElements = (
   const recipeList = [...(options.transformationRecipes ?? [])];
   const pendingTransformationRecipes = new Set(recipeList.map((_, index) => index));
   const completedTransformationRecipeIndices = new Set<number>();
+  const completedTransformationTargets = new Map<number, Set<ElementId>>();
   const transformationPlanByRecipeIndex = new Map(
     transformationDependencyPlans.map((plan) => [plan.recipeIndex, plan])
   );
@@ -3006,22 +3129,25 @@ export const evaluateElements = (
 
   const runtimeTargetsFor = (
     recipe: TransformationRecipe,
-    target: TransformationTargetSelector
+    target: TransformationTargetSelector,
+    scope?: ReadonlyMap<ElementId, ElementId>
   ): RuntimeRecipeTarget[] => {
     const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === target.ownerId);
     if (target.occurrenceIndex !== undefined) {
       const occurrenceIndex = Number(target.occurrenceIndex);
       const row = Number.isInteger(occurrenceIndex) && occurrenceIndex >= 0 ? rows[occurrenceIndex] : undefined;
       if (!row) {
+        if (scope) return [];
         recipeError(recipe, target, `generated occurrence「${target.source}」はこの評価位置では利用できません。`);
         return [];
       }
-      return [{ ...target, runtimeOwnerId: row.generatedElementId }];
+      return scope && scope.get(target.ownerId) !== row.generatedElementId ? [] : [{ ...target, runtimeOwnerId: row.generatedElementId }];
     }
     if (generatedOwnerIds.has(target.ownerId)) {
       // Bulk selection of a generated owner is deliberately a no-op when the
       // owner produced no rows; it never falls back to the template geometry.
-      return rows.map((row) => ({ ...target, runtimeOwnerId: row.generatedElementId }));
+      return rows.filter(row => !scope || scope.get(target.ownerId) === row.generatedElementId)
+        .map((row) => ({ ...target, runtimeOwnerId: row.generatedElementId }));
     }
     return [{ ...target, runtimeOwnerId: target.ownerId }];
   };
@@ -3073,7 +3199,8 @@ export const evaluateElements = (
 
   const executeTransformationInvocation = (
     recipe: TransformationRecipe,
-    targets: readonly RuntimeRecipeTarget[]
+    targets: readonly RuntimeRecipeTarget[],
+    bindingLookup = scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding())
   ) => {
     if (targets.length === 0) return;
     const inputByRuntimeId = new Map<ElementId, ComputedGeometry>();
@@ -3137,17 +3264,18 @@ export const evaluateElements = (
     const numericMaterialization = materializeNumericBindingElement(
       rawSynthetic,
       recipeEntries,
-      scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding()),
+      bindingLookup,
       (reference) => resolveGeometryPropertyForEvaluation(reference, scalarSourceOrder),
       (target) => resolveGeometryTargetForEvaluation(
         target,
         scalarSourceOrder,
-        scalarBindingResolver?.resolveBinding ?? (() => unavailableScalarBinding())
+        bindingLookup
       ),
       scalarBindingResolver?.resolveOptionalMember
         ? (target, type) => scalarBindingResolver.resolveOptionalMember!(target, type, scalarSourceOrder)
         : undefined,
-      runtimeElements
+      runtimeElements,
+      collectionLookupsForEvaluation(scalarSourceOrder)
     );
     if (!numericMaterialization.ok) {
       errors.push(...numericMaterialization.errors);
@@ -3222,12 +3350,20 @@ export const evaluateElements = (
     }
   };
 
-  const executeTransformationRecipe = (recipe: TransformationRecipe) => {
-    const expandedTargets = recipe.targets.map((target) => runtimeTargetsFor(recipe, target));
+  const executeTransformationRecipe = (recipe: TransformationRecipe, recipeIndex: number,
+    scope?: ReadonlyMap<ElementId, ElementId>, bindingLookup?: (bindingId: BindingId) => ScalarEvaluation) => {
+    const completed = completedTransformationTargets.get(recipeIndex) ?? new Set<ElementId>();
+    const expandedTargets = recipe.targets.map((target) => runtimeTargetsFor(recipe, target, scope)
+      .filter(target => !completed.has(target.runtimeOwnerId)));
     if (expandedTargets.some((targets) => targets.length === 0)) return;
+    const invoke = (targets: readonly RuntimeRecipeTarget[]) => {
+      executeTransformationInvocation(recipe, targets, bindingLookup);
+      for (const target of targets) completed.add(target.runtimeOwnerId);
+      completedTransformationTargets.set(recipeIndex, completed);
+    };
     if (recipe.operation.kind === "reverse") {
       for (const targets of expandedTargets) {
-        for (const target of targets) executeTransformationInvocation(recipe, [target]);
+        for (const target of targets) invoke([target]);
       }
       return;
     }
@@ -3239,11 +3375,11 @@ export const evaluateElements = (
           recipeError(recipe, recipe.targets[0]!, "coupled generated occurrences が対応付けできません。");
           continue;
         }
-        executeTransformationInvocation(recipe, pair as RuntimeRecipeTarget[]);
+        invoke(pair as RuntimeRecipeTarget[]);
       }
       return;
     }
-    executeTransformationInvocation(recipe, expandedTargets.flat());
+    invoke(expandedTargets.flat());
   };
 
   const transformationDependencyRuntimeIds = (dependency: { ownerId: ElementId; occurrenceIndex?: string }): ElementId[] => {
@@ -3279,7 +3415,13 @@ export const evaluateElements = (
     return generatedOwnerIds.has(outermostGroupId) ||
       (completedElementIds.has(outermostGroupId) && !failedElementIds.has(outermostGroupId));
   };
-  const transformationDependencyAvailable = (dependency: { ownerId: ElementId; stagePath: readonly string[]; occurrenceIndex?: string }): boolean => {
+  const transformationDependencyAvailable = (dependency: { ownerId: ElementId; stagePath: readonly string[]; occurrenceIndex?: string }, scope?: ReadonlyMap<ElementId, ElementId>): boolean => {
+    const currentId = scope?.get(dependency.ownerId);
+    if (currentId && dependency.occurrenceIndex === undefined) {
+      if (dependency.stagePath.length === 0 || (dependency.stagePath.length === 1 && dependency.stagePath[0] === "final")) return computedGeometry.has(currentId);
+      if (dependency.stagePath.length === 1 && dependency.stagePath[0] === "base") return baseTransformationGeometry.has(currentId);
+      return transformationStageGeometry.has(transformationStageKey(currentId, undefined, dependency.stagePath));
+    }
     if (generatedOwnerIds.has(dependency.ownerId)) {
       const rows = forGroupGeneratedRows.filter((row) => row.templateElementId === dependency.ownerId);
       const expectedCount = forGroupExpectedOccurrenceCountByTemplateId.get(dependency.ownerId);
@@ -3321,28 +3463,39 @@ export const evaluateElements = (
       );
     });
   };
-  const transformationRecipeReady = (recipeIndex: number, recipe: TransformationRecipe): boolean => {
+  const transformationRecipeReady = (recipeIndex: number, recipe: TransformationRecipe, scope?: ReadonlyMap<ElementId, ElementId>, bindingLookup?: (bindingId: BindingId) => ScalarEvaluation): boolean => {
     const plan = transformationPlanByRecipeIndex.get(recipeIndex);
     if (plan) {
-      if (plan.predecessorRecipeIndices.some((priorIndex) => !completedTransformationRecipeIndices.has(priorIndex))) return false;
-      if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
-      if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency))) return false;
-      if (plan.scalarPrerequisites.some((bindingId) => !endpointIsReady(`binding:${bindingId}`))) return false;
+      if (plan.predecessorRecipeIndices.some((priorIndex) => !completedTransformationRecipeIndices.has(priorIndex) &&
+        (!scope || recipeList[priorIndex]!.targets.some(target => {
+          const runtimeId = scope.get(target.ownerId);
+          return !runtimeId || !completedTransformationTargets.get(priorIndex)?.has(runtimeId);
+        })))) return false;
+      if (plan.prerequisites.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
+      if (plan.argumentDependencies.some((dependency) => !transformationDependencyAvailable(dependency, scope))) return false;
+      if (plan.scalarPrerequisites.some((bindingId) => bindingLookup
+        ? bindingLookup(bindingId).status !== "ok" : !endpointIsReady(`binding:${bindingId}`))) return false;
     }
     for (const target of recipe.targets) {
-      if (!transformationDependencyAvailable(target)) return false;
+      if (!transformationDependencyAvailable(target, scope)) return false;
     }
     return true;
   };
-  const evaluateReadyTransformationRecipes = () => {
+  const evaluateReadyTransformationRecipes = (scope?: ReadonlyMap<ElementId, ElementId>, bindingLookup?: (bindingId: BindingId) => ScalarEvaluation) => {
     let progressed = true;
     while (progressed) {
       progressed = false;
       for (const [recipeIndex, recipe] of recipeList.entries()) {
-        if (!pendingTransformationRecipes.has(recipeIndex) || !transformationRecipeReady(recipeIndex, recipe)) continue;
-        executeTransformationRecipe(recipe);
-        pendingTransformationRecipes.delete(recipeIndex);
-        completedTransformationRecipeIndices.add(recipeIndex);
+        if (!pendingTransformationRecipes.has(recipeIndex)) continue;
+        if (scope && (recipe.targets.some(target => !scope.has(target.ownerId)) ||
+          recipe.targets.some(target => runtimeTargetsFor(recipe, target, scope).length === 0) ||
+          recipe.targets.every(target => completedTransformationTargets.get(recipeIndex)?.has(scope.get(target.ownerId)!)))) continue;
+        if (!transformationRecipeReady(recipeIndex, recipe, scope, bindingLookup)) continue;
+        executeTransformationRecipe(recipe, recipeIndex, scope, bindingLookup);
+        if (!scope) {
+          pendingTransformationRecipes.delete(recipeIndex);
+          completedTransformationRecipeIndices.add(recipeIndex);
+        }
         progressed = true;
       }
     }
@@ -3377,7 +3530,8 @@ export const evaluateElements = (
       return evaluatedGeometryValueEntries.has(geometryValueIndexByEndpointId.get(endpointId) ?? -1);
     }
     if (endpoint.kind === "element") {
-      return completedElementIds.has(endpoint.id) && computedGeometry.has(endpoint.id);
+      return completedElementIds.has(endpoint.id) &&
+        (runtimeElementsById.get(endpoint.id)?.type === "forGroup" || computedGeometry.has(endpoint.id));
     }
     if (endpoint.kind === "transformation-recipe") {
       const recipeIndex = recipeList.findIndex((recipe) => `recipe:${recipe.id}` === endpoint.id);
@@ -3420,7 +3574,7 @@ export const evaluateElements = (
   };
   dependencyReadyVersionIdsForSourceOrder = (sourceOrder: number) => {
     const candidateVersions = (options.bindingVersions?.versions ?? []).filter((version) =>
-      version.sourceOrder < sourceOrder && bindingVersionDependencyExecutionPositionById.has(version.id)
+      (version.sourceOrder < sourceOrder || earlyNumericDependencyVersionIds.has(version.id)) && bindingVersionDependencyExecutionPositionById.has(version.id)
     );
     const readyVersionIds = new Set<string>();
     let progressed = true;
@@ -3495,7 +3649,7 @@ export const evaluateElements = (
         endpoint.kind === "element" || endpoint.kind === "geometry-stage" ||
         endpoint.kind === "module-occurrence" || endpoint.kind === "transformation-recipe"
       ) return endpointIsReady(dependencyId);
-      if (endpoint.kind === "geometry-value") return true;
+      if (endpoint.kind === "geometry-value") return endpointIsReady(dependencyId);
       if (endpoint.kind !== "binding") return true;
       const nextVisiting = new Set(visiting).add(dependencyId);
       return (options.typedDependencyGraph?.edges ?? []).filter((edge) =>
@@ -3560,7 +3714,8 @@ export const evaluateElements = (
         if (candidate.prerequisiteEndpointIds.some((id) => !endpointIsReady(id)) || !candidate.expression) continue;
         const evaluation = evaluateTypedExpression(candidate.expression, {
           lookupBinding: scalarBindingResolver.resolveBinding,
-          lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY)
+          lookupGeometryProperty: (reference) => resolveGeometryPropertyForEvaluation(reference, Number.POSITIVE_INFINITY),
+          ...collectionLookupsForEvaluation(Number.POSITIVE_INFINITY)
         });
         if (evaluation.status !== "ok") continue;
         const branch = evaluation.value.kind === "boolean"
@@ -3616,6 +3771,31 @@ export const evaluateElements = (
     );
   };
 
+  const discardModuleInstanceGeometry = (snapshot: (typeof instanceSnapshots)[number], runtimeDescendantIds: readonly ElementId[], instancePath: readonly string[]) => {
+  instanceBaseGeometry.delete(snapshot.instanceId);
+  const descendantIds = new Set([...snapshot.descendantIds, ...runtimeDescendantIds]);
+  for (const id of descendantIds) {
+    computedGeometry.delete(id);
+    preMutationGeometry.delete(id);
+    baseTransformationGeometry.delete(id);
+  }
+  for (const key of transformationStageGeometry.keys()) {
+    if ([...descendantIds].some((id) => key.startsWith(`${id}\u0000`))) transformationStageGeometry.delete(key);
+  }
+  for (const [key, entry] of computedGeometryValues) {
+    const path = entry.occurrence.instancePath;
+    if (path.length >= instancePath.length && instancePath.every((part, index) => path[index] === part)) {
+      computedGeometryValues.delete(key);
+    }
+  }
+  for (let index = geometryMutationExecutions.length - 1; index >= 0; index -= 1) {
+    const execution = geometryMutationExecutions[index]!;
+    if (descendantIds.has(execution.mutationElementId) || execution.targetElementIds.some((id) => descendantIds.has(id))) {
+      geometryMutationExecutions.splice(index, 1);
+    }
+  }
+  };
+
   const captureReadyModuleInstanceBases = () => {
     for (const snapshot of instanceSnapshots) {
       if (capturedInstanceIds.has(snapshot.instanceId)) continue;
@@ -3625,7 +3805,21 @@ export const evaluateElements = (
         capturedInstanceIds.add(snapshot.instanceId);
         continue;
       }
-      if (!snapshot.descendantIds.every((id) => completedElementIds.has(id))) continue;
+      const completionIds = snapshot.descendantIds.map((id) => {
+        let completionId = id;
+        let parentId = elementsById.get(id)?.parentGroupId;
+        while (parentId) {
+          const parent = elementsById.get(parentId);
+          if (!parent) break;
+          if (isForGroupElement(parent)) completionId = parent.id;
+          parentId = parent.parentGroupId;
+        }
+        return completionId;
+      });
+      if (!completionIds.every((id) => completedElementIds.has(id))) continue;
+      const runtimeDescendantIds = snapshot.descendantIds.flatMap((id) => templateDescendantIds.has(id)
+        ? forGroupGeneratedRows.filter(row => row.templateElementId === id).map(row => row.generatedElementId)
+        : [id]);
       const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
         options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
       const hasUnevaluatedGeometryValue = geometryValueProgram.some((entry, index) =>
@@ -3633,41 +3827,22 @@ export const evaluateElements = (
         instancePath.every((part, pathIndex) => entry.occurrence.instancePath[pathIndex] === part) &&
         !evaluatedGeometryValueEntries.has(index)
       );
-      if (hasUnevaluatedGeometryValue) continue;
       const hasGeometryValueFailure = instancePath.length > 0 && geometryValueErrors.some((error) =>
         error.occurrence.instancePath.length >= instancePath.length &&
         instancePath.every((part, index) => error.occurrence.instancePath[index] === part)
       );
-      const failed = snapshot.descendantIds.some((id) => failedElementIds.has(id)) || hasGeometryValueFailure;
+      const failed = [...completionIds, ...runtimeDescendantIds].some((id) => failedElementIds.has(id)) || hasGeometryValueFailure;
+      // Consumers must see failure as soon as the body has failed, even when
+      // private alias programs still need their ordinary completion/cleanup.
+      if (failed) failedModuleInstanceIds.add(snapshot.instanceId);
+      if (hasUnevaluatedGeometryValue) continue;
       if (failed) {
-        failedModuleInstanceIds.add(snapshot.instanceId);
         completedModuleInstanceIds.add(snapshot.instanceId);
-        instanceBaseGeometry.delete(snapshot.instanceId);
-        const descendantIds = new Set(snapshot.descendantIds);
-        for (const id of descendantIds) {
-          computedGeometry.delete(id);
-          preMutationGeometry.delete(id);
-          baseTransformationGeometry.delete(id);
-        }
-        for (const key of transformationStageGeometry.keys()) {
-          if ([...descendantIds].some((id) => key.startsWith(`${id}\u0000`))) transformationStageGeometry.delete(key);
-        }
-        for (const [key, entry] of computedGeometryValues) {
-          const path = entry.occurrence.instancePath;
-          if (path.length >= instancePath.length && instancePath.every((part, index) => path[index] === part)) {
-            computedGeometryValues.delete(key);
-          }
-        }
-        for (let index = geometryMutationExecutions.length - 1; index >= 0; index -= 1) {
-          const execution = geometryMutationExecutions[index]!;
-          if (descendantIds.has(execution.mutationElementId) || execution.targetElementIds.some((id) => descendantIds.has(id))) {
-            geometryMutationExecutions.splice(index, 1);
-          }
-        }
+        discardModuleInstanceGeometry(snapshot, runtimeDescendantIds, instancePath);
         capturedInstanceIds.add(snapshot.instanceId);
         continue;
       }
-      const geometry = snapshot.descendantIds
+      const geometry = runtimeDescendantIds
         .map((id) => computedGeometry.get(id))
         .filter((value): value is ComputedGeometry => Boolean(value))
         .map((value) => structuredClone(value));
@@ -3750,6 +3925,8 @@ export const evaluateElements = (
   for (const snapshot of unavailableModuleSnapshots) {
     const instancePath = snapshot.instancePath ?? options.moduleMaterialization?.runtimeIdentityByElementId.get(snapshot.instanceId)?.path ??
       options.moduleMaterialization?.originByRuntimeElementId.get(snapshot.instanceId)?.instancePath ?? [];
+    discardModuleInstanceGeometry(snapshot, forGroupGeneratedRows
+      .filter(row => snapshot.descendantIds.includes(row.templateElementId)).map(row => row.generatedElementId), instancePath);
     if (instancePath.length > 0) {
       const localBindingPrefix = `module-binding:${encodeIdentityTuple(["local", ...instancePath])}`;
       for (const bindingId of bindingIdsToWithhold) {

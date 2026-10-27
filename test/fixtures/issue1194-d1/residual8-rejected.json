@@ -1,0 +1,54 @@
+[
+  {
+    "id": "C-deep-local",
+    "domain": "deep-forward",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = @packet\n const Alias: path[] = @Whole.middle.inner.paths\n export const out: path = @Alias[1]\n export const p: path = @Whole.middle.inner.p\n export const size: number = @Alias.length\n export const tag: number = @Whole.middle.inner.n + @Whole.middle.n + @Whole.n\n}\nmodule Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: @items, p: @p, n: @n)\n const M: Middle = Middle(inner: @I, n: @n + 100)\n const O: Outer = Outer(middle: @M, n: @n + 200)\n const Whole: Outer = @O\n instance Forward = Relay(packet: @Whole)\n export const out: path = @Forward::out\n export const p: path = @Forward::p\n export const size: number = @Forward::size\n export const tag: number = @Forward::tag\n}\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nconst Reverse: path[] = [@Q, @P, @Q]\ninstance One = Make(items: @Values, p: @P, n: 17)\ninstance Two = Make(items: @Reverse, p: @Q, n: 41)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst Third: path = @One::p\nconst Fourth: path = @Two::p\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @Third.length\nconst Y: number = @Fourth.length\nconst C: number = @One::size\nconst D: number = @Two::size\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 13,
+      "C": 2,
+      "D": 3,
+      "N": 351,
+      "O": 423
+    },
+    "classification": "CONTRACT_INVALID",
+    "reason": "Module Make exported p collides with parameter p; consequent unresolved declarations are not discovery families.",
+    "sha256": "759194edb4397a21e84e5785734461b1d963b1bf6c60dede9f9747884d147927"
+  },
+  {
+    "id": "C-deep-reexport",
+    "domain": "deep-forward",
+    "axes": [
+      0,
+      0,
+      0
+    ],
+    "source": "nui 1\nimport \"./relay.nui\" as left\nimport \"./relay-right.nui\" as right\nconst P: path = segment(start: (0, 0), end: (3, 4))\nconst Q: path = segment(start: (0, 0), end: (5, 12))\nconst Values: path[] = [@P, @Q]\nconst Reverse: path[] = [@Q, @P, @Q]\ninstance One = left::Make(items: @Values, p: @P, n: 17)\ninstance Two = right::Make(items: @Reverse, p: @Q, n: 41)\nconst First: path = @One::out\nconst Second: path = @Two::out\nconst Third: path = @One::p\nconst Fourth: path = @Two::p\nconst L: number = @First.length\nconst M: number = @Second.length\nconst X: number = @Third.length\nconst Y: number = @Fourth.length\nconst C: number = @One::size\nconst D: number = @Two::size\nconst N: number = @One::tag\nconst O: number = @Two::tag",
+    "expected": {
+      "L": 13,
+      "M": 5,
+      "X": 5,
+      "Y": 13,
+      "C": 2,
+      "D": 3,
+      "N": 351,
+      "O": 423
+    },
+    "saved": {
+      "lib.nui": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = @packet\n const Alias: path[] = @Whole.middle.inner.paths\n export const out: path = @Alias[1]\n export const p: path = @Whole.middle.inner.p\n export const size: number = @Alias.length\n export const tag: number = @Whole.middle.inner.n + @Whole.middle.n + @Whole.n\n}\nexport module Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: @items, p: @p, n: @n)\n const M: Middle = Middle(inner: @I, n: @n + 100)\n const O: Outer = Outer(middle: @M, n: @n + 200)\n const Whole: Outer = @O\n instance Forward = Relay(packet: @Whole)\n export const out: path = @Forward::out\n export const p: path = @Forward::p\n export const size: number = @Forward::size\n export const tag: number = @Forward::tag\n}",
+      "right.nui": "nui 1\nrecord Inner(paths: path[], p: path, n: number)\nrecord Middle(inner: Inner, n: number)\nrecord Outer(middle: Middle, n: number)\nmodule Relay(packet: Outer) {\n const Whole: Outer = @packet\n const Alias: path[] = @Whole.middle.inner.paths\n export const out: path = @Alias[1]\n export const p: path = @Whole.middle.inner.p\n export const size: number = @Alias.length\n export const tag: number = @Whole.middle.inner.n + @Whole.middle.n + @Whole.n\n}\nexport module Make(items: path[], p: path, n: number) {\n const I: Inner = Inner(paths: @items, p: @p, n: @n)\n const M: Middle = Middle(inner: @I, n: @n + 100)\n const O: Outer = Outer(middle: @M, n: @n + 200)\n const Whole: Outer = @O\n instance Forward = Relay(packet: @Whole)\n export const out: path = @Forward::out\n export const p: path = @Forward::p\n export const size: number = @Forward::size\n export const tag: number = @Forward::tag\n}",
+      "relay.nui": "nui 1\nimport \"./lib.nui\" as impl\nexport @impl::Make",
+      "relay-right.nui": "nui 1\nimport \"./right.nui\" as impl\nexport @impl::Make"
+    },
+    "classification": "CONTRACT_INVALID",
+    "reason": "Module Make exported p collides with parameter p; consequent unresolved declarations are not discovery families.",
+    "sha256": "0825bc5ab870be41e0d62dade445304315112e8b2db2b04689075bb23297ca97"
+  }
+]

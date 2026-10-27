@@ -1,0 +1,6 @@
+{
+  "frozenBeforeExecutionUTC": "2026-10-26T06:18:57.290410+00:00",
+  "id": "X08",
+  "sourceSha256": "8345711bf65d29e53a684ae3ff98f874a76da9f69240332b6715ca6bc20850e4",
+  "trigger": "C03/R05 stages direct forward input only; typed alias control distinguishes transitive future prerequisite and unmasked Base defect"
+}

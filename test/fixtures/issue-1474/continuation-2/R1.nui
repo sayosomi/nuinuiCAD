@@ -1,0 +1,26 @@
+nui 1
+const Root: number = 7
+const Left0: number = @Root + 1
+const Right0: number = @Root + 2
+const Join0: number = @Left0 + @Right0 - @Root
+const Left1: number = @Join0 + 1
+const Right1: number = @Join0 + 2
+const Join1: number = @Left1 + @Right1 - @Join0
+const Left2: number = @Join1 + 1
+const Right2: number = @Join1 + 2
+const Join2: number = @Left2 + @Right2 - @Join1
+const Left3: number = @Join2 + 1
+const Right3: number = @Join2 + 2
+const Join3: number = @Left3 + @Right3 - @Join2
+const Left4: number = @Join3 + 1
+const Right4: number = @Join3 + 2
+const Join4: number = @Left4 + @Right4 - @Join3
+const Left5: number = @Join4 + 1
+const Right5: number = @Join4 + 2
+const Join5: number = @Left5 + @Right5 - @Join4
+const Left6: number = @Join5 + 1
+const Right6: number = @Join5 + 2
+const Join6: number = @Left6 + @Right6 - @Join5
+const Left7: number = @Join6 + 1
+const Right7: number = @Join6 + 2
+const Join7: number = @Left7 + @Right7 - @Join6

@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createElementNameContext } from "@nuinuicad/nui-language";
 import {
   addToNumericValue,
@@ -70,6 +70,92 @@ describe("makeNumericExpression", () => {
 });
 
 describe("normalizeNumericExpressionInput", () => {
+  it("skips unrelated element-name candidate searches for ordinary numeric literals", () => {
+    const source = "123456789";
+    let activeInput: string | null = null;
+    let candidateSearches = 0;
+    const observations: Array<{
+      elementCount: number;
+      output: string;
+      candidateSearches: number;
+    }> = [];
+    const nativeIncludes = String.prototype.includes;
+    const includesSpy = vi.spyOn(String.prototype, "includes").mockImplementation(function (
+      this: string,
+      searchString: string,
+      position?: number
+    ) {
+      if (this === activeInput) candidateSearches += 1;
+      return nativeIncludes.call(this, searchString, position);
+    });
+
+    try {
+      for (const elementCount of [0, 32, 256]) {
+        const elements: CadElement[] = Array.from({ length: elementCount }, (_, index) => ({
+          id: `unrelated-element-${index}`,
+          name: `UnrelatedElement${index}`,
+          type: "freePoint",
+          activity: "visible",
+          x: 0,
+          y: 0
+        }));
+        activeInput = source;
+        candidateSearches = 0;
+        const output = normalizeNumericExpressionInput(source, elements);
+        observations.push({ elementCount, output, candidateSearches });
+      }
+    } finally {
+      activeInput = null;
+      includesSpy.mockRestore();
+    }
+
+    expect(observations).toEqual([
+      { elementCount: 0, output: source, candidateSearches: 0 },
+      { elementCount: 32, output: source, candidateSearches: 0 },
+      { elementCount: 256, output: source, candidateSearches: 0 }
+    ]);
+  });
+
+  it("preserves signed and decimal numeric literal text without candidate searches", () => {
+    const sources = ["+42", "-42", "12.5", ".75", "-.25", "+0.5"];
+    const elements: CadElement[] = Array.from({ length: 32 }, (_, index) => ({
+      id: `unrelated-element-${index}`,
+      name: `UnrelatedElement${index}`,
+      type: "freePoint",
+      activity: "visible",
+      x: 0,
+      y: 0
+    }));
+    let activeInput: string | null = null;
+    let candidateSearches = 0;
+    const observations: Array<{ source: string; output: string; candidateSearches: number }> = [];
+    const nativeIncludes = String.prototype.includes;
+    const includesSpy = vi.spyOn(String.prototype, "includes").mockImplementation(function (
+      this: string,
+      searchString: string,
+      position?: number
+    ) {
+      if (this === activeInput) candidateSearches += 1;
+      return nativeIncludes.call(this, searchString, position);
+    });
+
+    try {
+      for (const source of sources) {
+        activeInput = source;
+        candidateSearches = 0;
+        const output = normalizeNumericExpressionInput(source, elements);
+        observations.push({ source, output, candidateSearches });
+      }
+    } finally {
+      activeInput = null;
+      includesSpy.mockRestore();
+    }
+
+    expect(observations).toEqual(
+      sources.map((source) => ({ source, output: source, candidateSearches: 0 }))
+    );
+  });
+
   it("resolves duplicate names from the current group namespace and qualified paths", () => {
     const elements: CadElement[] = [
       {
