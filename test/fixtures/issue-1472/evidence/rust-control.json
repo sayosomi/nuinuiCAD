@@ -1,0 +1,13 @@
+{
+  "binary": "/Users/yosomi/Code/nuinuiCAD/rust-evaluator/target/debug/evaluation_stdio",
+  "sha256": "8ce18898b0365941c96555c772636333bc6eef592df9149bb9e0337fd94ac7f4",
+  "rustSourcesChanged": false,
+  "sourceGeometryControls": [
+    "K",
+    "L",
+    "S"
+  ],
+  "processesPerControlTest": 1,
+  "requestsPerControlTest": 3,
+  "requestAndCloseTimeoutSeconds": 15
+}

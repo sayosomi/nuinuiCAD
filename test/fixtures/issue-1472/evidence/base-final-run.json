@@ -1,0 +1,14 @@
+{
+  "command": [
+    "npx",
+    "vitest",
+    "run",
+    "test/issue1472AsyncPublication.test.ts",
+    "--maxWorkers=1",
+    "--no-file-parallelism",
+    "--disableConsoleIntercept"
+  ],
+  "exitCode": 1,
+  "productionDiffFromBase": false,
+  "candidateRestored": true
+}
