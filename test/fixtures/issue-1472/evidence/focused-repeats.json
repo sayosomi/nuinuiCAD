@@ -1,0 +1,30 @@
+[
+  {
+    "iteration": 2,
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1472AsyncPublication.test.ts",
+      "src/geometry/useEvaluationEngine.test.ts",
+      "--maxWorkers=1",
+      "--no-file-parallelism",
+      "--disableConsoleIntercept"
+    ],
+    "exitCode": 0
+  },
+  {
+    "iteration": 3,
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1472AsyncPublication.test.ts",
+      "src/geometry/useEvaluationEngine.test.ts",
+      "--maxWorkers=1",
+      "--no-file-parallelism",
+      "--disableConsoleIntercept"
+    ],
+    "exitCode": 0
+  }
+]

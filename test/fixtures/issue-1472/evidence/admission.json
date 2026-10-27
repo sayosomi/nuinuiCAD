@@ -1,0 +1,16 @@
+{
+  "repository": "sayosomi/nuinuiCAD",
+  "checkout": "/Users/yosomi/Code/nuinuiCAD",
+  "humanLocalCheck": "PASS mode=new issue=sayosomi/nuinuiCAD#1472 branch=sayosomi/issue-1472-async-evaluation-publication main=e65f1030e1c93743ac650ee999bdc77d8a5142a5 local_head=e65f1030e1c93743ac650ee999bdc77d8a5142a5 ancestry=exact human_clear=yes",
+  "agentFetch": "git fetch origin --prune",
+  "observedMainAndHead": "e65f1030e1c93743ac650ee999bdc77d8a5142a5",
+  "observedBranchBeforeMutation": "main",
+  "approvedTopicUnusedLocallyAndRemotely": true,
+  "trackedAndUntrackedCleanBeforeMutation": true,
+  "issueOpenAndExactOptInVerified": true,
+  "existingTopicPr": false,
+  "activeOwnershipMarkers": false,
+  "openAuditStartSearchResults": [],
+  "humanE2eCheckoutMutated": false,
+  "subagentsUsed": false
+}
