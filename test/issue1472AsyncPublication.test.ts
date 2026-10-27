@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CadElement, ComputedGeometry, EvaluationResult } from "../src/types/geometry";
 import type { EvaluateElementsOptions } from "../src/geometry/evaluate";
 import type { EvaluationPayload } from "../src/geometry/evaluationPayload";
@@ -97,6 +97,10 @@ afterEach(()=>{cleanup();vi.unstubAllEnvs();vi.restoreAllMocks();});
 afterAll(()=>{if(process.env.ISSUE1472_RECORD)writeFileSync(process.env.ISSUE1472_RECORD,JSON.stringify(records,null,2)+"\n");});
 
 describe("#1472 frozen real React publication traces",()=>{
+  beforeAll(() => {
+    execFileSync("cargo", ["build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], { timeout: 120000, stdio: "inherit" });
+  }, 125000);
+
   it.each(manifest.units)("$id",async unit=>{
     let requests: Deferred[]=[];
     let props: Props;

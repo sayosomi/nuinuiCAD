@@ -1,0 +1,41 @@
+[
+  {
+    "file": "README.md",
+    "bytes": 2027,
+    "sha256": "e55e0cb2a8dd0ecc7e947edfa00b3969cb8787e4f83f846f98023bb2cf02ae3b"
+  },
+  {
+    "file": "focused-events.json.gz",
+    "bytes": 6623,
+    "sha256": "b27b1ced3901435d4771528ae5791096d799a3e91c9248d275aab9a93b2f33d8",
+    "originalSha256": "a2c2640994e14fc0559d5012f25941dcdecc0cef8bde0955833c1ba9eff77969"
+  },
+  {
+    "file": "focused.log.gz",
+    "bytes": 184,
+    "sha256": "e61658d8e1e8b2f047d04e0ce7ab8e93e2a0fb927ba1822dc963fcdc1a706c82",
+    "originalSha256": "56461b74a8dda51ea336b63b453f56f3a988d3de83ecab41e1e87b37cf4746d9"
+  },
+  {
+    "file": "gate-result.json",
+    "bytes": 858,
+    "sha256": "56e50293a2b98ab2efaf6256cb4aa810e4833966acfdd85305e4ae075799b04c"
+  },
+  {
+    "file": "gate.log.gz",
+    "bytes": 566,
+    "sha256": "075865d1ebffd0f75e2676aa1447a43eab9bdf1babb5c5ac47e1ca6e4871ad84",
+    "originalSha256": "d9c308473393c2e45bf9e5c7ce63738a94152ae42236921fda671b2dccdf94a0"
+  },
+  {
+    "file": "preservation.json",
+    "bytes": 6180,
+    "sha256": "c48b305ef51e96c7b7a815b7edd51a59134f261cc117cbc981adce2363938ed4"
+  },
+  {
+    "file": "standalone.log.gz",
+    "bytes": 184,
+    "sha256": "a2515ee356a285c0bbcfbca2fde5eaddb7e194bf93990aa622379bedf9435fb1",
+    "originalSha256": "9168628ef5321b51a47cbf8d38173967d389076c30960dbcce1abf5afbf786f3"
+  }
+]
