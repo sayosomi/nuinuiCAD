@@ -5,6 +5,7 @@
 //! then projects the single canonical edge set into the selected runtime
 //! branch for readiness and cycle diagnostics.
 
+use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 
 use serde::Deserialize;
@@ -19,6 +20,8 @@ use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOcc
 #[cfg(test)]
 thread_local! {
     static READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static SCHEDULED_NONEMPTY_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static EARLY_PROJECTION_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static MODULE_PREREQUISITE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static CONTROLLER_CANDIDATE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
@@ -146,14 +149,22 @@ struct GeometryDependencyReadinessContext<'a> {
 }
 
 struct GeometryPropertyReadinessContext<'a> {
-    outgoing_edges: HashMap<String, Vec<&'a ConditionalDependencyEdge>>,
-    endpoints: HashMap<String, &'a ConditionalDependencyEndpoint>,
+    outgoing_edges: &'a HashMap<String, Vec<&'a ConditionalDependencyEdge>>,
+    endpoints: &'a HashMap<String, &'a ConditionalDependencyEndpoint>,
+    branch_selections: &'a HashMap<String, String>,
     resolver: &'a dyn ScalarDocumentBindingResolver,
     state: &'a EvaluationState,
     completed_element_ids: Option<&'a HashSet<ElementId>>,
     evaluated_geometry_values: &'a [bool],
     geometry_value_index_by_endpoint_id: &'a HashMap<String, usize>,
     source_order_by_binding_id: Option<&'a HashMap<String, usize>>,
+}
+
+/// A borrowed projection of the canonical edges, scoped to one evaluation.
+/// Branch activation and all readiness state remain query-time facts.
+pub(crate) struct DependencyScheduledBindingTopology<'a> {
+    outgoing_edges: HashMap<String, Vec<&'a ConditionalDependencyEdge>>,
+    endpoints: HashMap<String, &'a ConditionalDependencyEndpoint>,
 }
 
 pub(crate) struct DependencyScheduledBindingReadiness<'a> {
@@ -423,6 +434,7 @@ fn geometry_property_prerequisites_are_ready(
                         .get(endpoint_id)
                         .into_iter()
                         .flatten()
+                        .filter(|edge| edge_is_active(edge, context.branch_selections))
                         .all(|edge| {
                             geometry_property_prerequisites_are_ready(
                                 &endpoint_key(&edge.to),
@@ -553,6 +565,8 @@ impl ConditionalDependencyGraph {
     ) -> HashSet<String> {
         let mut prerequisites = HashMap::<&str, Vec<&str>>::new();
         for edge in &self.edges {
+            #[cfg(test)]
+            EARLY_PROJECTION_EDGE_VISITS.with(|count| count.set(count.get() + 1));
             if edge.from.kind == "binding"
                 && edge.to.kind == "binding"
                 && edge_is_active(edge, branch_selections)
@@ -565,6 +579,8 @@ impl ConditionalDependencyGraph {
         }
         let mut early = HashSet::new();
         for edge in &self.edges {
+            #[cfg(test)]
+            EARLY_PROJECTION_EDGE_VISITS.with(|count| count.set(count.get() + 1));
             if edge.from.kind != "element"
                 || edge.to.kind != "binding"
                 || !edge_is_active(edge, branch_selections)
@@ -670,30 +686,38 @@ impl ConditionalDependencyGraph {
         prerequisites_by_binding_id
     }
 
-    pub(crate) fn ready_dependency_scheduled_binding_ids(
-        &self,
+    pub(crate) fn ready_dependency_scheduled_binding_ids<'graph>(
+        &'graph self,
         readiness: DependencyScheduledBindingReadiness<'_>,
+        topology: &OnceCell<DependencyScheduledBindingTopology<'graph>>,
     ) -> HashSet<String> {
         if readiness.candidate_binding_ids.is_empty() {
             return HashSet::new();
         }
-        let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
-        let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
-        for edge in &self.edges {
-            #[cfg(test)]
-            READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
-            let from_id = endpoint_key(&edge.from);
-            let to_id = endpoint_key(&edge.to);
-            endpoints.entry(from_id.clone()).or_insert(&edge.from);
-            endpoints.entry(to_id.clone()).or_insert(&edge.to);
-            if edge_is_active(edge, readiness.branch_selections) {
+        #[cfg(test)]
+        SCHEDULED_NONEMPTY_CALLS.with(|count| count.set(count.get() + 1));
+        let topology = topology.get_or_init(|| {
+            let mut outgoing_edges = HashMap::<String, Vec<&ConditionalDependencyEdge>>::new();
+            let mut endpoints = HashMap::<String, &ConditionalDependencyEndpoint>::new();
+            for edge in &self.edges {
+                #[cfg(test)]
+                READINESS_EDGE_VISITS.with(|count| count.set(count.get() + 1));
+                let from_id = endpoint_key(&edge.from);
+                let to_id = endpoint_key(&edge.to);
+                endpoints.entry(from_id.clone()).or_insert(&edge.from);
+                endpoints.entry(to_id.clone()).or_insert(&edge.to);
                 outgoing_edges.entry(from_id).or_default().push(edge);
             }
-        }
+            DependencyScheduledBindingTopology {
+                outgoing_edges,
+                endpoints,
+            }
+        });
 
         let context = GeometryPropertyReadinessContext {
-            outgoing_edges,
-            endpoints,
+            outgoing_edges: &topology.outgoing_edges,
+            endpoints: &topology.endpoints,
+            branch_selections: readiness.branch_selections,
             resolver: readiness.resolver,
             state: readiness.state,
             completed_element_ids: readiness.completed_element_ids,
@@ -722,35 +746,38 @@ impl ConditionalDependencyGraph {
                 let endpoint_id = format!("binding:{binding_id}");
                 let prerequisites = context.outgoing_edges.get(&endpoint_id);
                 let prerequisites_ready = prerequisites.map_or(true, |edges| {
-                    edges.iter().all(|edge| {
-                        if edge.to.kind == "binding"
-                            && candidate_ids.contains(&edge.to.id)
-                            && ready.contains(&edge.to.id)
-                        {
-                            return true;
-                        }
-                        if edge.to.kind == "binding"
-                            && !candidate_ids.contains(&edge.to.id)
-                            && context.source_order_by_binding_id.is_some_and(
-                                |source_order_by_binding_id| {
-                                    source_order_by_binding_id
-                                        .get(&edge.to.id)
-                                        .zip(source_order_by_binding_id.get(binding_id))
-                                        .is_some_and(|(prerequisite, dependent)| {
-                                            prerequisite < dependent
-                                        })
-                                },
+                    edges
+                        .iter()
+                        .filter(|edge| edge_is_active(edge, context.branch_selections))
+                        .all(|edge| {
+                            if edge.to.kind == "binding"
+                                && candidate_ids.contains(&edge.to.id)
+                                && ready.contains(&edge.to.id)
+                            {
+                                return true;
+                            }
+                            if edge.to.kind == "binding"
+                                && !candidate_ids.contains(&edge.to.id)
+                                && context.source_order_by_binding_id.is_some_and(
+                                    |source_order_by_binding_id| {
+                                        source_order_by_binding_id
+                                            .get(&edge.to.id)
+                                            .zip(source_order_by_binding_id.get(binding_id))
+                                            .is_some_and(|(prerequisite, dependent)| {
+                                                prerequisite < dependent
+                                            })
+                                    },
+                                )
+                            {
+                                return true;
+                            }
+                            geometry_property_prerequisites_are_ready(
+                                &endpoint_key(&edge.to),
+                                &context,
+                                &mut readiness_by_endpoint,
+                                &mut visiting,
                             )
-                        {
-                            return true;
-                        }
-                        geometry_property_prerequisites_are_ready(
-                            &endpoint_key(&edge.to),
-                            &context,
-                            &mut readiness_by_endpoint,
-                            &mut visiting,
-                        )
-                    })
+                        })
                 });
                 if !prerequisites_ready {
                     continue;
@@ -978,8 +1005,9 @@ impl ConditionalDependencyGraph {
         }
 
         let context = GeometryPropertyReadinessContext {
-            outgoing_edges,
-            endpoints,
+            outgoing_edges: &outgoing_edges,
+            endpoints: &endpoints,
+            branch_selections,
             resolver,
             state,
             evaluated_geometry_values,
@@ -1003,14 +1031,17 @@ impl ConditionalDependencyGraph {
                 continue;
             };
             if !prerequisites.is_empty()
-                && prerequisites.iter().all(|edge| {
-                    geometry_property_prerequisites_are_ready(
-                        &endpoint_key(&edge.to),
-                        context,
-                        &mut readiness_by_endpoint,
-                        &mut visiting,
-                    )
-                })
+                && prerequisites
+                    .iter()
+                    .filter(|edge| edge_is_active(edge, context.branch_selections))
+                    .all(|edge| {
+                        geometry_property_prerequisites_are_ready(
+                            &endpoint_key(&edge.to),
+                            context,
+                            &mut readiness_by_endpoint,
+                            &mut visiting,
+                        )
+                    })
             {
                 ready.insert(binding_id.clone());
             }
@@ -1855,25 +1886,8 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(empty
-            .ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
-                candidate_binding_ids: &[],
-                source_order_by_binding_id: &source_orders,
-                branch_selections: &selections,
-                resolver: &resolver,
-                state: &state,
-                completed_element_ids: None,
-                evaluated_geometry_values: &[],
-                geometry_value_index_by_endpoint_id: &geometry_indices,
-            })
-            .is_empty());
-        assert_eq!(
-            READINESS_EDGE_VISITS.with(|count| count.get()),
-            0,
-            "adjacent empty graph control"
-        );
-        for _ in 0..8 {
-            assert!(graph
-                .ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
+            .ready_dependency_scheduled_binding_ids(
+                DependencyScheduledBindingReadiness {
                     candidate_binding_ids: &[],
                     source_order_by_binding_id: &source_orders,
                     branch_selections: &selections,
@@ -1882,7 +1896,30 @@ mod tests {
                     completed_element_ids: None,
                     evaluated_geometry_values: &[],
                     geometry_value_index_by_endpoint_id: &geometry_indices,
-                })
+                },
+                &OnceCell::new()
+            )
+            .is_empty());
+        assert_eq!(
+            READINESS_EDGE_VISITS.with(|count| count.get()),
+            0,
+            "adjacent empty graph control"
+        );
+        for _ in 0..8 {
+            assert!(graph
+                .ready_dependency_scheduled_binding_ids(
+                    DependencyScheduledBindingReadiness {
+                        candidate_binding_ids: &[],
+                        source_order_by_binding_id: &source_orders,
+                        branch_selections: &selections,
+                        resolver: &resolver,
+                        state: &state,
+                        completed_element_ids: None,
+                        evaluated_geometry_values: &[],
+                        geometry_value_index_by_endpoint_id: &geometry_indices,
+                    },
+                    &OnceCell::new()
+                )
                 .is_empty());
             assert!(graph
                 .ready_geometry_dependent_binding_ids(
@@ -1901,6 +1938,150 @@ mod tests {
             visits, 0,
             "an empty query must not scan or allocate a copy of the topology"
         );
+    }
+
+    #[test]
+    fn issue_1476_stage7_source_backed_readiness_builds_topology_at_most_once() {
+        let input: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1476/stage7/R4-S0-input.json"
+        ))
+        .unwrap();
+        let edge_count = input["scalarExpressionPayload"]["conditionalDependencyGraph"]["edges"]
+            .as_array()
+            .unwrap()
+            .len();
+        READINESS_EDGE_VISITS.with(|count| count.set(0));
+        SCHEDULED_NONEMPTY_CALLS.with(|count| count.set(0));
+        let result = crate::evaluate_document(serde_json::from_value(input).unwrap()).unwrap();
+        let payload = serde_json::to_value(result).unwrap();
+        assert_eq!(payload["errors"], serde_json::json!([]));
+        assert_eq!(payload["computedGeometry"].as_array().unwrap().len(), 13);
+        assert_eq!(
+            payload["forGroupGeneratedRows"].as_array().unwrap().len(),
+            12
+        );
+        let calls = SCHEDULED_NONEMPTY_CALLS.with(|count| count.get());
+        let visits = READINESS_EDGE_VISITS.with(|count| count.get());
+        assert!(calls > 1, "must reach repeated nonempty production calls");
+        eprintln!("Stage7 R4-S0 nonempty={calls} topology_edge_visits={visits} E={edge_count}");
+        assert!(
+            visits <= edge_count,
+            "an evaluation must not reconstruct graph-wide topology for every readiness query: {visits} > {edge_count}"
+        );
+    }
+
+    #[test]
+    fn issue_1476_stage7_typed_text_reads_available_arc_direction() {
+        READINESS_EDGE_VISITS.with(|count| count.set(0));
+        let input = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1476/stage7/R6-S0-input.json"
+        ))
+        .unwrap();
+        let payload = serde_json::to_value(crate::evaluate_document(input).unwrap()).unwrap();
+        let values = payload["computedScalarBindings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["evaluation"]["value"]["value"].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            values,
+            vec![
+                serde_json::json!("clockwise"),
+                serde_json::json!(true),
+                serde_json::json!("clockwise")
+            ]
+        );
+        assert_eq!(payload["errors"], serde_json::json!([]));
+        let geometry = payload["computedGeometry"].as_array().unwrap();
+        assert_eq!(geometry.len(), 7);
+        let note = geometry.iter().find(|g| g["name"] == "Note").unwrap();
+        assert_eq!(note["text"], "clockwise=true");
+        assert_eq!(note["fontSize"], 3.0);
+        assert!(note["anchor"].is_null());
+        READINESS_EDGE_VISITS.with(|count| assert_eq!(count.get(), 0));
+    }
+
+    #[test]
+    fn issue_1476_stage7_source_backed_queries_reuse_current_early_projection() {
+        let input: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/issue-1476/stage7/R4-S0-input.json"
+        ))
+        .unwrap();
+        let edge_count = input["scalarExpressionPayload"]["conditionalDependencyGraph"]["edges"]
+            .as_array()
+            .unwrap()
+            .len();
+        // This source has no graph activation guards. Its initial early set and
+        // execution-position projection are the only two necessary projections.
+        assert!(
+            input["scalarExpressionPayload"]["conditionalDependencyGraph"]["edges"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|edge| edge.get("activation").is_none())
+        );
+        EARLY_PROJECTION_EDGE_VISITS.with(|count| count.set(0));
+        let payload = serde_json::to_value(
+            crate::evaluate_document(serde_json::from_value(input).unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(payload["errors"], serde_json::json!([]));
+        let visits = EARLY_PROJECTION_EDGE_VISITS.with(|count| count.get());
+        eprintln!("Stage7 R4-S0 early_projection_edge_visits={visits} E={edge_count}");
+        assert!(
+            visits <= 4 * edge_count,
+            "queries must reuse the current early-binding projection: {visits} > {}",
+            4 * edge_count
+        );
+    }
+
+    #[test]
+    fn issue_1476_stage7_reused_topology_reads_current_branch_and_availability() {
+        let payload = serde_json::json!({"edges":[{
+            "from":{"kind":"binding","id":"value","name":"value"},
+            "to":{"kind":"element","id":"point","name":"point"},
+            "requiredness":"conditional",
+            "activation":{"guards":[{"controllerId":"gate","branch":"then"}]}
+        }]});
+        let graph = decode_conditional_dependency_graph(Some(&payload))
+            .unwrap()
+            .unwrap();
+        let topology = OnceCell::new();
+        let candidates = vec!["value".to_owned()];
+        let source_orders = HashMap::new();
+        let geometry_indices = HashMap::new();
+        let resolver = AvailabilityResolver {
+            available_binding_ids: HashSet::new(),
+        };
+        let mut state = empty_evaluation_state();
+        let query = |branch: &str, state: &EvaluationState| {
+            graph.ready_dependency_scheduled_binding_ids(
+                DependencyScheduledBindingReadiness {
+                    candidate_binding_ids: &candidates,
+                    source_order_by_binding_id: &source_orders,
+                    branch_selections: &HashMap::from([("gate".to_owned(), branch.to_owned())]),
+                    resolver: &resolver,
+                    state,
+                    completed_element_ids: None,
+                    evaluated_geometry_values: &[],
+                    geometry_value_index_by_endpoint_id: &geometry_indices,
+                },
+                &topology,
+            )
+        };
+        READINESS_EDGE_VISITS.with(|count| count.set(0));
+        assert_eq!(query("else", &state), HashSet::from(["value".to_owned()]));
+        assert!(query("then", &state).is_empty());
+        state.computed_geometry.insert(
+            "point".to_owned(),
+            serde_json::json!({"kind":"point","x":1,"y":2}),
+        );
+        assert_eq!(query("then", &state), HashSet::from(["value".to_owned()]));
+        state.computed_geometry.clear();
+        assert!(query("then", &state).is_empty());
+        assert_eq!(query("else", &state), HashSet::from(["value".to_owned()]));
+        READINESS_EDGE_VISITS.with(|count| assert_eq!(count.get(), 1));
     }
 
     struct AvailabilityResolver {
@@ -2729,8 +2910,8 @@ mod tests {
         let candidate_binding_ids = [outer.to_owned(), child.to_owned()];
         let state = empty_evaluation_state();
         let geometry_value_index_by_endpoint_id = HashMap::new();
-        let ready =
-            graph.ready_dependency_scheduled_binding_ids(DependencyScheduledBindingReadiness {
+        let ready = graph.ready_dependency_scheduled_binding_ids(
+            DependencyScheduledBindingReadiness {
                 candidate_binding_ids: &candidate_binding_ids,
                 source_order_by_binding_id: &source_order_by_binding_id,
                 branch_selections: &branch_selections,
@@ -2739,7 +2920,9 @@ mod tests {
                 completed_element_ids: None,
                 evaluated_geometry_values: &[],
                 geometry_value_index_by_endpoint_id: &geometry_value_index_by_endpoint_id,
-            });
+            },
+            &OnceCell::new(),
+        );
         assert_eq!(ready, HashSet::from([outer.to_owned(), child.to_owned()]));
 
         let conditional_graph =

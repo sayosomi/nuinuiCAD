@@ -1,0 +1,120 @@
+{
+  "result": "PASS",
+  "checks": 64,
+  "originalOutputOrders": {
+    "R1-actual": [
+      "A",
+      "B",
+      "Later",
+      "C"
+    ],
+    "R1-reference": [
+      "A",
+      "B",
+      "Later",
+      "C"
+    ],
+    "R2-actual": [
+      "Source",
+      "Use",
+      "EarlierA",
+      "EarlierB",
+      "EarlierC"
+    ],
+    "R2-reference": [
+      "Source",
+      "Use",
+      "EarlierA",
+      "EarlierB",
+      "EarlierC"
+    ],
+    "R3-actual": [
+      "Use"
+    ],
+    "R3-reference": [
+      "Use"
+    ],
+    "R4-actual": [
+      "Base",
+      "A",
+      "P",
+      "Q",
+      "[i=1] P",
+      "[i=2] P",
+      "[i=1] NestedPoint",
+      "[i=2] NestedPoint",
+      "[i=1] CallerPoint",
+      "[i=2] CallerPoint",
+      "CallerPoint",
+      "[i=1] MixedPoint",
+      "[i=2] MixedPoint"
+    ],
+    "R4-reference": [
+      "Base",
+      "A",
+      "P",
+      "Q",
+      "[i=1] P",
+      "[i=2] P",
+      "[i=1] NestedPoint",
+      "[i=2] NestedPoint",
+      "[i=1] CallerPoint",
+      "[i=2] CallerPoint",
+      "CallerPoint",
+      "[i=1] MixedPoint",
+      "[i=2] MixedPoint"
+    ],
+    "R5-actual": [
+      "A",
+      "B",
+      "AB",
+      "Active",
+      "AlwaysShown"
+    ],
+    "R5-reference": [
+      "A",
+      "B",
+      "AB",
+      "Active",
+      "AlwaysShown"
+    ],
+    "R6-actual": [
+      "A",
+      "B",
+      "Base",
+      "Arc",
+      "Off",
+      "Off2",
+      "Note"
+    ],
+    "R6-reference": [
+      "A",
+      "B",
+      "Base",
+      "Arc",
+      "Off",
+      "Off2",
+      "Note"
+    ],
+    "R7-actual": [
+      "A",
+      "B",
+      "AB",
+      "Marker",
+      "Label"
+    ],
+    "R7-reference": [
+      "A",
+      "B",
+      "AB",
+      "Marker",
+      "Label"
+    ],
+    "R8-actual": [
+      "L"
+    ],
+    "R8-reference": [
+      "L"
+    ]
+  }
+}

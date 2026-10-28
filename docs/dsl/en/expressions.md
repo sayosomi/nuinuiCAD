@@ -198,6 +198,8 @@ Text templates use `${...}`. A hole may evaluate to a string, number, or
 boolean. Booleans render as lowercase `true` or `false` inside a template;
 that rendering rule is local to templates and is not a general implicit
 conversion. A choice must first be converted with `string(...)`.
+Typed boolean holes can compare available geometry properties directly, such
+as `${@Arc.direction == clockwise}`; the result renders as `true` or `false`.
 
 <!-- dsl-example: compile-success -->
 ```nui

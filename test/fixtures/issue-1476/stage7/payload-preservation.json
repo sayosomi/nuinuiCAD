@@ -1,0 +1,386 @@
+[
+  {
+    "id": "R1-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R1-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R1-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R1-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R1-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R1-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R1-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R1-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R2-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R3-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R4-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R5-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R6-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R6-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R6-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R6-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R6-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R6-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R6-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R6-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "Note geometry/snapshot restored and its unavailable error removed"
+  },
+  {
+    "id": "R7-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R7-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R7-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R7-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R7-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R7-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R7-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R7-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S0",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S0",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S1",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S1",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S2",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S2",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S3",
+    "boundary": "actual",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  },
+  {
+    "id": "R8-S3",
+    "boundary": "reference",
+    "result": "PASS",
+    "allowedDelta": "NONE"
+  }
+]

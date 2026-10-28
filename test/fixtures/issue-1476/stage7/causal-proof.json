@@ -1,0 +1,129 @@
+{
+  "base": "d69e1baf31bf48344f7da8df5118e5944f073e3e",
+  "frozenTestBodyHashes": {
+    "issue_1476_stage7_source_backed_readiness_builds_topology_at_most_once": "46fbdc98914a92677aeabd5ef55601b1c697500f2492d323fc18f637a7d3aa05",
+    "issue_1476_stage7_typed_text_reads_available_arc_direction": "19bdb8a8c46c97d57cd11f8dfc567b9a42f9ca57182aa7fa36de6cb80b6ace9d",
+    "typescript": "50182e61827c148e2369fd14a0fe4ef4c2d0e45659d64553b7f20dd6da43bb85",
+    "issue_1476_stage7_source_backed_queries_reuse_current_early_projection": "4f1438d41d7bc229a067ca73280663fac62894469b0b025d2c14b96a04c3cff5"
+  },
+  "exactBaseProductionProof": {
+    "command": "exact-Base-all-three-frozen",
+    "result": "3 expected FAIL; production owners restored from exact Base with only cfg(test) observation and identical frozen tests",
+    "sourceFingerprints": {
+      "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": {
+        "fixedSha256": "9f2b97c5b57151398b4348f73541fed328731743bcbf165e2bf1c1c22890988f",
+        "baseProofSha256": "063f921bb39b82f6f44dcd46ac3362fa07691fb0abbb3c185bd790dfeb281ced"
+      },
+      "rust-evaluator/src/evaluation/mod.rs": {
+        "fixedSha256": "62e73f00b87e0d8662083dbed37ffd151a1e65c5b9e68f621994c361c7059b9b",
+        "baseProofSha256": "6b1c2e4f1dc0f1290673fc3a94bb908441646d9a0a575967f84e819c8678131e"
+      },
+      "rust-evaluator/src/evaluation/text_template_runtime.rs": {
+        "fixedSha256": "70d51d78780bdcc0bd6d788ac871ede61def0937f24fc4d530773a7270efaa73",
+        "baseProofSha256": "23bd54d661c15c50ea9bc684a2982042658177b5fec375ce569bc2c54671c693"
+      },
+      "src/geometry/elementEvaluatorTypes.ts": {
+        "fixedSha256": "2e723792ba95ccf8304005fb038a5f2453cdc3ccebcee9b0284e9f5d46678757",
+        "baseProofSha256": "1a8278a17664500f5555bad7b0e64d25bd7af8cca71eddfb7553906759690ee5"
+      },
+      "src/geometry/evaluate.ts": {
+        "fixedSha256": "6f0bb34a1d3f05b12790daa6a698cf196dcecd777fbfb63758e298f2aed0be7c",
+        "baseProofSha256": "c8d49ae0533b2a4e3f765aa29bd6d89813886ababee529f5cf6f74d715624303"
+      },
+      "src/geometry/textEvaluator.ts": {
+        "fixedSha256": "bdc5b96115fce7131c3788e10b67d52f7e423f41ecc0cde13a003f34a949f89c",
+        "baseProofSha256": "8a3e8fa3defe6c152f4bddf0e5aed15d8bca7c4523ebf0e5b509a86ec9857184"
+      },
+      "src/geometry/textTemplateRuntime.ts": {
+        "fixedSha256": "1b78abcc53dda71dd650c09bb5bf9f3f0618361e75edcb784bece495d2b24fa6",
+        "baseProofSha256": "5c4af2491708a72a3bc70303cfcd306f21c147c85fc655cb308bd68ab002d1d0"
+      }
+    }
+  },
+  "families": [
+    {
+      "id": "F1",
+      "earliestIncorrectOwner": "conditional_dependency_runtime.rs::ready_dependency_scheduled_binding_ids topology reconstruction",
+      "root": "R4",
+      "baseFail": {
+        "visits": 3555,
+        "bound": 79,
+        "command": "exact-Base-all-three-frozen"
+      },
+      "fixedPass": {
+        "visits": 79,
+        "bound": 79,
+        "command": "restored-F1-rust"
+      },
+      "removalFail": {
+        "visits": 3555,
+        "command": "removed-F1-rust"
+      },
+      "restoredPass": "final-restored-rust",
+      "neighborControls": [
+        "#1474 empty candidate and empty graph controls",
+        "current branch/availability control with one borrowed topology",
+        "remaining nonempty/empty production matrix"
+      ]
+    },
+    {
+      "id": "F2",
+      "earliestIncorrectOwner": "typed text runtime ScalarEvaluationEnvironment/lookupGeometryProperty adapter",
+      "root": "R6",
+      "baseFail": {
+        "error": "evaluation-geometry-property-unavailable",
+        "missingOutput": "Note",
+        "commands": [
+          "exact-Base-all-three-frozen",
+          "exact-Base-TS-frozen"
+        ]
+      },
+      "fixedPass": "Note text=clockwise=true, fontSize=3, anchor=null; all source-derived geometry and scalars preserved",
+      "removalFail": [
+        "removed-F2-rust",
+        "removed-F2-ts"
+      ],
+      "restoredPass": [
+        "final-restored-rust",
+        "final-restored-ts",
+        "final-restored-parity"
+      ],
+      "neighborControls": [
+        "same Base source arc and three scalar properties PASS",
+        "reference text runtime and text integration controls",
+        "unavailable prerequisites remain errors in existing controls"
+      ]
+    },
+    {
+      "id": "F3",
+      "earliestIncorrectOwner": "mod.rs::ready_binding_ids_for_source_order recomputes project_early_binding_ids instead of current early_binding_ids",
+      "root": "R4",
+      "baseFail": {
+        "visits": 8374,
+        "bound": 316,
+        "command": "exact-Base-all-three-frozen"
+      },
+      "fixedPass": {
+        "visits": 316,
+        "bound": 316,
+        "command": "restored-F3-rust"
+      },
+      "removalFail": {
+        "visits": 8374,
+        "command": "removed-F3-rust"
+      },
+      "restoredPass": "final-restored-rust",
+      "neighborControls": [
+        "R7/R8 empty-candidate sources",
+        "existing conditional activation/parity regressions"
+      ]
+    }
+  ],
+  "reducers": "NOT_REQUIRED",
+  "regressionScope": "All 32 final primary sources; 64 independent oracle comparisons; 64 complete payload preservation comparisons; full Rust, parity, required #1474 gate and full npm suite",
+  "unprovedClaims": [
+    "No whole-application or wall-clock speedup claim",
+    "No global dead-code or universal reachability claim",
+    "No Human GUI E2E"
+  ]
+}

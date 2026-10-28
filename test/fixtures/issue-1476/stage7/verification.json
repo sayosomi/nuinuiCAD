@@ -1,0 +1,445 @@
+{
+  "result": "PASS",
+  "completedAt": "2026-10-28T09:05:08.078997+00:00",
+  "requiredCommands": [
+    "cargo fmt --manifest-path rust-evaluator/Cargo.toml --check",
+    "cargo check --manifest-path rust-evaluator/Cargo.toml",
+    "cargo test --manifest-path rust-evaluator/Cargo.toml",
+    "cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings",
+    "npm run test:parity",
+    "VITE_RUN_PERFORMANCE_GATES=1 npm test -- test/issue1474DependencyTopology.performance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism --disableConsoleIntercept",
+    "npm test",
+    "git diff --check"
+  ],
+  "finalRequiredBlock": "required-block-final",
+  "requiredCommandsUnmodified": true,
+  "environmentControls": {
+    "VITEST_MAX_WORKERS": "1",
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "CARGO_BUILD_JOBS": "2",
+    "coreDumpLimit": 0,
+    "openFileLimit": 1024,
+    "outerTimeoutSeconds": 2400
+  },
+  "previousRequiredBlock": "PASS with environment maxWorkers=2; repeated with 1 because local Vitest environment overrides CLI configuration",
+  "rust": "637 library tests + 6 stdio + 1 integration PASS; 9 existing ignored tests",
+  "parity": "207 PASS",
+  "required1474Performance": "20 PASS",
+  "fullNpm": "700 files PASS, 2 skipped; 11247 tests PASS, 187 skipped",
+  "additionalGates": [
+    "npm run build PASS",
+    "npm run lint PASS",
+    "npm run docs:dsl:check PASS"
+  ],
+  "focusedRustSummary": [
+    "test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 629 filtered out; finished in 0.15s",
+    "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s",
+    "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s"
+  ],
+  "focusedReferenceSummary": [
+    "Test Files  3 passed (3)",
+    "Tests  21 passed (21)"
+  ],
+  "commands": {
+    "exact-Base-all-three-frozen": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 70938,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 101,
+      "elapsedSeconds": 7.547996997833252,
+      "startedAtUnix": 1793177455.879848,
+      "finishedAtUnix": 1793177463.427845
+    },
+    "exact-Base-TS-frozen": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1476TypedTextGeometry.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--disableConsoleIntercept"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 70957,
+      "timeoutSeconds": 90,
+      "timedOut": false,
+      "exitCode": 1,
+      "elapsedSeconds": 3.0055418014526367,
+      "startedAtUnix": 1793177456.872332,
+      "finishedAtUnix": 1793177459.8778749
+    },
+    "removed-F1-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7_source_backed_readiness",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 56693,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 101,
+      "elapsedSeconds": 3.2976646423339844,
+      "startedAtUnix": 1793176565.8956642,
+      "finishedAtUnix": 1793176569.1933298
+    },
+    "removed-F2-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7_typed_text",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 57007,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 101,
+      "elapsedSeconds": 6.719257116317749,
+      "startedAtUnix": 1793176621.907755,
+      "finishedAtUnix": 1793176628.627014
+    },
+    "removed-F2-ts": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1476TypedTextGeometry.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--disableConsoleIntercept"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 57109,
+      "timeoutSeconds": 90,
+      "timedOut": false,
+      "exitCode": 1,
+      "elapsedSeconds": 2.579051971435547,
+      "startedAtUnix": 1793176634.3430579,
+      "finishedAtUnix": 1793176636.922111
+    },
+    "before-F3-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7_source_backed_queries",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 58186,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 101,
+      "elapsedSeconds": 6.029521942138672,
+      "startedAtUnix": 1793176835.092587,
+      "finishedAtUnix": 1793176841.122109
+    },
+    "removed-F3-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7_source_backed_queries",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 58463,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 101,
+      "elapsedSeconds": 3.4479119777679443,
+      "startedAtUnix": 1793176880.7624671,
+      "finishedAtUnix": 1793176884.21038
+    },
+    "restored-F1-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 56831,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 4.475376129150391,
+      "startedAtUnix": 1793176592.546898,
+      "finishedAtUnix": 1793176597.022275
+    },
+    "restored-F2-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 57255,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 5.057547092437744,
+      "startedAtUnix": 1793176665.298711,
+      "finishedAtUnix": 1793176670.3562582
+    },
+    "restored-F2-ts": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1476TypedTextGeometry.test.ts",
+        "src/geometry/textTemplateRuntime.test.ts",
+        "src/geometry/textTemplateEvaluationIntegration.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--disableConsoleIntercept"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 57728,
+      "timeoutSeconds": 120,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 4.449571132659912,
+      "startedAtUnix": 1793176715.1780999,
+      "finishedAtUnix": 1793176719.627671
+    },
+    "restored-F3-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "issue_1476_stage7",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 58584,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 5.1571431159973145,
+      "startedAtUnix": 1793176899.795753,
+      "finishedAtUnix": 1793176904.952898
+    },
+    "final-restored-rust": {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "conditional_dependency_runtime",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 71222,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 9.198967218399048,
+      "startedAtUnix": 1793177514.987021,
+      "finishedAtUnix": 1793177524.1859891
+    },
+    "final-restored-ts": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1476TypedTextGeometry.test.ts",
+        "src/geometry/textTemplateRuntime.test.ts",
+        "src/geometry/textTemplateEvaluationIntegration.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--disableConsoleIntercept"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 71248,
+      "timeoutSeconds": 120,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 4.901437997817993,
+      "startedAtUnix": 1793177517.2720141,
+      "finishedAtUnix": 1793177522.173453
+    },
+    "final-restored-parity": {
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 71226,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 58.51892304420471,
+      "startedAtUnix": 1793177516.1072571,
+      "finishedAtUnix": 1793177574.6261802
+    },
+    "required-block": {
+      "command": [
+        "sh",
+        "/Users/yosomi/Library/Logs/nuinuiCAD/issue-1476-stage7-20261028/required-verification.sh"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 59116,
+      "timeoutSeconds": 2400,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 405.2437150478363,
+      "startedAtUnix": 1793177011.326844,
+      "finishedAtUnix": 1793177416.570559
+    },
+    "required-block-final": {
+      "command": [
+        "sh",
+        "/Users/yosomi/Library/Logs/nuinuiCAD/issue-1476-stage7-20261028/required-verification.sh"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 76886,
+      "timeoutSeconds": 2400,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 656.5810849666595,
+      "startedAtUnix": 1793177596.474273,
+      "finishedAtUnix": 1793178253.055359
+    },
+    "build-lint-dsl": {
+      "command": [
+        "sh",
+        "-c",
+        "set -e\nnpm run build\nnpm run lint\nnpm run docs:dsl:check"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 59124,
+      "timeoutSeconds": 600,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 58.90579915046692,
+      "startedAtUnix": 1793177012.45699,
+      "finishedAtUnix": 1793177071.3627899
+    },
+    "base-observe": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1476Stage7Investigation.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--disableConsoleIntercept"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 54213,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 8.964891910552979,
+      "startedAtUnix": 1793175973.41696,
+      "finishedAtUnix": 1793175982.3818529
+    },
+    "fixed-observe": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1476Stage7Investigation.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--disableConsoleIntercept"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 57822,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 7.26226806640625,
+      "startedAtUnix": 1793176723.973918,
+      "finishedAtUnix": 1793176731.236187
+    },
+    "final-observe": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1476Stage7Investigation.test.ts",
+        "--pool=forks",
+        "--maxWorkers=1",
+        "--no-file-parallelism",
+        "--disableConsoleIntercept"
+      ],
+      "cwd": "/Users/yosomi/Code/nuinuiCAD",
+      "pid": 58799,
+      "timeoutSeconds": 180,
+      "timedOut": false,
+      "exitCode": 0,
+      "elapsedSeconds": 7.678346157073975,
+      "startedAtUnix": 1793176939.242181,
+      "finishedAtUnix": 1793176946.920528
+    }
+  },
+  "resourceFaults": [],
+  "processClosure": {
+    "base": {
+      "faults": [],
+      "requests": 32,
+      "closed": true
+    },
+    "fixed": {
+      "faults": [],
+      "requests": 32,
+      "closed": true
+    },
+    "final": {
+      "faults": [],
+      "requests": 32,
+      "closed": true
+    }
+  }
+}

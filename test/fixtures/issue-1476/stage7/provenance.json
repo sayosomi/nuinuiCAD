@@ -1,0 +1,28 @@
+{
+  "repository": "sayosomi/nuinuiCAD",
+  "base": "d69e1baf31bf48344f7da8df5118e5944f073e3e",
+  "branch": "sayosomi/issue-1476-stage7-scheduled-readiness",
+  "rawEvidenceDirectory": "/Users/yosomi/Library/Logs/nuinuiCAD/issue-1476-stage7-20261028",
+  "rootFixtureDirectory": "test/fixtures/evaluation",
+  "compilerClockMillis": 1793150000000,
+  "inputPreparation": "compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source) -> optionsFor/buildEvaluationOptions -> prepareRustEvaluation; no eligibility override",
+  "graphV": "unique Rust endpoint keys kind:id; initial endpointRecordsV is retained separately in input-seal",
+  "graphBytes": "UTF-8 bytes of JSON.stringify(input.scalarExpressionPayload.conditionalDependencyGraph)",
+  "productionTransport": "RustEvaluationProcess -> evaluation_stdio -> evaluate_document; 32 sequential requests per bounded process",
+  "fixtures": {
+    "R4-S0-input.json": {
+      "sha256": "dcfe1a9506baac3df70a9d71e248953a056225d01de6c1075253d4d9dd4c4594",
+      "bytes": 78032
+    },
+    "R6-S0-input.json": {
+      "sha256": "b335888934dee7f6e608ada354c6290430a805088a0cb851b91536e2ffe05a6d",
+      "bytes": 13110
+    }
+  },
+  "observerNotes": [
+    "Initial compiler-only preparation used wall-clock IDs. No evaluators executed from that seal. Fixed compiler clock inputs were sealed separately and hash-verified before all Base/fixed/final requests.",
+    "A new synthetic activation control initially omitted requiredness:conditional. Correcting that test payload restored its intended branch control; no primary source/oracle or frozen failure regression changed.",
+    "Arc/offset oracle kind names are semantic shapes; the independent checker maps these to arcLine/offsetLine and asserts all coordinates, angles, lengths and scalar values.",
+    "F3 original Base failure is also visible in original Base per-call counters; the isolated pre-F3/removal runs leave the other repairs present and reproduce exactly the same 8374 edge visits."
+  ]
+}

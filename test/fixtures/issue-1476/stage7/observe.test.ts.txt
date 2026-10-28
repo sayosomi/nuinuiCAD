@@ -1,0 +1,112 @@
+// Temporary Stage 7 observer; retained in external evidence and removed before completion.
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from "node:fs";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { createHash } from "node:crypto";
+import { it, expect, vi } from "vitest";
+import { emptyDocument } from "@nuinuicad/nui-language";
+import { compileCanonicalText, regenerateCanonicalFromModel } from "@nuinuicad/nui-language/document";
+import { optionsFor } from "./evaluationParitySupport";
+import { prepareRustEvaluation } from "../src/geometry/rustEvaluationRunner";
+import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
+import { RustEvaluationProcess } from "../src/node/rustEvaluationProcess";
+import { normalizeParityPayload } from "./evaluationParitySupport";
+const evidence = "/Users/yosomi/Library/Logs/nuinuiCAD/issue-1476-stage7-20261028";
+const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+it("seals all 32 compiler/preparation inputs before evaluator execution", () => {
+  if (process.env.STAGE7_MODE === "observe") return;
+  vi.spyOn(Date, "now").mockReturnValue(1793150000000);
+  expect(existsSync(`${evidence}/input-seal-deterministic.json`)).toBe(false);
+  mkdirSync(`${evidence}/inputs`, { recursive: true });
+  const seal = JSON.parse(readFileSync(`${evidence}/source-oracle-seal.json`, "utf8"));
+  const records = [];
+  for (const c of seal.cells) {
+    const source = readFileSync(`${evidence}/sources/${c.id}.nui`, "utf8");
+    expect(hash(source)).toBe(c.sourceSha256);
+    expect(hash(readFileSync(`${evidence}/oracles/${c.id}.json`, "utf8"))).toBe(c.oracleSha256);
+    const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
+    const diagnostics = [...compiled.diagnostics, ...compiled.bindingIssueDiagnostics];
+    const legal = compiled.status !== "fatal" && !diagnostics.some(d => d.severity === "error");
+    if (!legal) { records.push({ ...c, disposition: "COMPILER_INVALID", status: compiled.status, diagnostics }); continue; }
+    const elements = compiled.doc.document.elements;
+    const options = optionsFor({ compiled, elements });
+    const prepared = prepareRustEvaluation(elements, options);
+    const inputText = JSON.stringify(prepared.input);
+    writeFileSync(`${evidence}/inputs/${c.id}.json`, inputText);
+    const graph = prepared.input.scalarExpressionPayload?.conditionalDependencyGraph;
+    const graphText = JSON.stringify(graph ?? null);
+    const nodes = new Set<string>();
+    for (const edge of graph?.edges ?? []) for (const endpoint of [edge.from, edge.to]) nodes.add(JSON.stringify(endpoint));
+    records.push({ ...c, disposition: "SEALED", status: compiled.status, diagnostics, rustEligible: prepared.rustEligible,
+      inputSha256: hash(inputText), inputBytes: Buffer.byteLength(inputText),
+      graph: { endpointRecordsV: nodes.size, E: graph?.edges.length ?? 0, bytes: Buffer.byteLength(graphText), sha256: hash(graphText) } });
+    if (c.id.endsWith("S0")) writeFileSync(`${evidence}/${c.id}-compiler.json`, JSON.stringify({
+      elements, scalarProgram: prepared.input.scalarProgram, scalarExpressionPayload: prepared.input.scalarExpressionPayload,
+      bindings: compiled.doc.bindingAnalysis?.catalog.bindings, geometryValueProgram: compiled.doc.geometryValueProgram,
+      modules: compiled.doc.moduleSemanticAnalysis, statementMap: compiled.doc.statementMap
+    }, (_k,v) => v instanceof Map ? [...v] : v, 2));
+  }
+  writeFileSync(`${evidence}/input-seal-deterministic.json`, JSON.stringify({ sealedAt: new Date().toISOString(), records }, null, 2) + "\n");
+  console.info(records.map(r => ({ id:r.id, disposition:r.disposition, eligible:r.rustEligible, graph:r.graph })));
+}, 60_000);
+it("observes exactly the sealed sources through reference and production persistent Rust", async () => {
+  if (process.env.STAGE7_MODE !== "observe") return;
+  vi.spyOn(Date, "now").mockReturnValue(1793150000000);
+  const records = JSON.parse(readFileSync(`${evidence}/input-seal-deterministic.json`, "utf8")).records;
+  const phase = process.env.STAGE7_PHASE ?? "base";
+  expect(existsSync(`${evidence}/${phase}-observations.json`)).toBe(false);
+  let child: ChildProcessWithoutNullStreams | undefined;
+  let closed: Promise<void> | undefined;
+  let disposing = false;
+  const faults: string[] = [], observations = [];
+  const rust = new RustEvaluationProcess(`${process.cwd()}/rust-evaluator/target/debug/evaluation_stdio`, {
+    spawnProcess: ((...args: Parameters<typeof spawn>) => {
+      child = spawn(...args) as ChildProcessWithoutNullStreams;
+      closed = new Promise(resolve => {
+        child!.once("close", (code, signal) => {
+          if (!disposing) faults.push(`unexpected close ${code}/${signal}`);
+          resolve();
+        });
+      });
+      child.on("error", e => faults.push(`child error ${e.message}`));
+      for (const stream of [child.stdin, child.stdout, child.stderr]) stream.on("error", (e: NodeJS.ErrnoException) => {
+        if (!disposing || !["EPIPE", "ERR_STREAM_DESTROYED"].includes(e.code ?? "")) faults.push(`stream ${e.code}:${e.message}`);
+        else appendFileSync(`${evidence}/${phase}-teardown.log`, `${e.code}:${e.message}\n`);
+      });
+      child.stderr.on("data", (chunk) => appendFileSync(`${evidence}/${phase}-trace.ndjson`, String(chunk)));
+      return child;
+    }) as typeof spawn,
+    reportDiagnostic: () => undefined
+  });
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  try {
+    watchdog = setTimeout(() => { faults.push("process exceeded 120 seconds"); rust.dispose(); }, 120_000);
+    for (const c of records) {
+      expect(faults).toEqual([]);
+      const source = readFileSync(`${evidence}/sources/${c.id}.nui`, "utf8");
+      expect(hash(source)).toBe(c.sourceSha256);
+      const compiled = compileCanonicalText(regenerateCanonicalFromModel(emptyDocument(), 1), source);
+      const elements = compiled.doc.document.elements;
+      const options = optionsFor({ compiled, elements });
+      const prepared = prepareRustEvaluation(elements, options);
+      expect(hash(JSON.stringify(prepared.input)), `${c.id} exact deterministic production input`).toBe(c.inputSha256);
+      expect(prepared.rustEligible).toBe(true);
+      const reference = evaluateElementsReferencePayload(elements, options);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const actual = await Promise.race([rust.request(prepared.input), new Promise<never>((_, reject) => {
+        timer = setTimeout(() => { faults.push(`${c.id} request timed out`); rust.dispose(); reject(new Error("Rust request exceeded 20 seconds")); }, 20_000);
+      })]).finally(() => clearTimeout(timer));
+      observations.push({ id:c.id, inputSha256:c.inputSha256, reference, actual,
+        parity: JSON.stringify(normalizeParityPayload(reference)) === JSON.stringify(normalizeParityPayload(actual)) });
+      writeFileSync(`${evidence}/${phase}-observations.json`, JSON.stringify(observations, null, 2) + "\n");
+    }
+  } finally {
+    clearTimeout(watchdog);
+    disposing = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { child?.kill("SIGKILL"); reject(new Error("teardown exceeded 5 seconds")); }, 5000); });
+    try { rust.dispose(); await Promise.race([closed, timeout]); } finally { clearTimeout(timer); }
+    writeFileSync(`${evidence}/${phase}-process.json`, JSON.stringify({ faults, requests:observations.length, closed:true }, null, 2));
+  }
+  expect(faults).toEqual([]);
+  expect(observations).toHaveLength(32);
+}, 150_000);
