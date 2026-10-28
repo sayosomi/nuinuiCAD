@@ -1346,61 +1346,70 @@ struct DependencyTraversal<'a> {
 
 impl<'a> DependencyTraversal<'a> {
     fn visit(&mut self, node_id: &str) {
-        match self.visit_state.get(node_id).copied() {
-            Some(2) => return,
-            Some(1) => {
-                let start = self.stack.iter().position(|id| id == node_id).unwrap_or(0);
-                let cycle_ids = self.stack[start..]
-                    .iter()
-                    .cloned()
-                    .chain(std::iter::once(node_id.to_owned()))
-                    .collect::<Vec<_>>();
-                let key = cycle_ids.join("|");
-                if self.cycle_keys.insert(key) {
-                    let cycle_endpoints = cycle_ids
-                        .iter()
-                        .filter_map(|id| self.endpoint_by_id.get(id))
-                        .collect::<Vec<_>>();
-                    let first = cycle_endpoints.first();
-                    let second = cycle_endpoints.get(1).or(first);
-                    if let Some(first) = first {
-                        self.cycles.push(DependencyError {
-                            code: Some("dependency-cycle".into()),
-                            element_id: diagnostic_endpoint_id(first),
-                            element_name: first.name.clone(),
-                            missing_dependency_id: second
-                                .map(|endpoint| endpoint_key(endpoint))
-                                .unwrap_or_default(),
-                            missing_dependency_name: second
-                                .map(|endpoint| endpoint.name.clone().into()),
-                            message: format!(
-                                "依存関係 cycle: {}",
-                                cycle_endpoints
-                                    .iter()
-                                    .map(|endpoint| endpoint.name.as_str())
-                                    .collect::<Vec<_>>()
-                                    .join(" -> ")
-                            ),
-                        });
-                    }
-                }
-                return;
+        // Enter/exit frames preserve the recursive edge encounter order and
+        // active cycle path without consuming one native stack frame per node.
+        let mut pending = vec![(node_id.to_owned(), false)];
+        while let Some((node_id, exiting)) = pending.pop() {
+            if exiting {
+                self.stack.pop();
+                self.visit_state.insert(node_id.clone(), 2);
+                self.ordered_endpoints.push(node_id);
+                continue;
             }
-            _ => {}
+            match self.visit_state.get(&node_id).copied() {
+                Some(2) => continue,
+                Some(1) => {
+                    let start = self.stack.iter().position(|id| id == &node_id).unwrap_or(0);
+                    let cycle_ids = self.stack[start..]
+                        .iter()
+                        .cloned()
+                        .chain(std::iter::once(node_id.to_owned()))
+                        .collect::<Vec<_>>();
+                    let key = cycle_ids.join("|");
+                    if self.cycle_keys.insert(key) {
+                        let cycle_endpoints = cycle_ids
+                            .iter()
+                            .filter_map(|id| self.endpoint_by_id.get(id))
+                            .collect::<Vec<_>>();
+                        let first = cycle_endpoints.first();
+                        let second = cycle_endpoints.get(1).or(first);
+                        if let Some(first) = first {
+                            self.cycles.push(DependencyError {
+                                code: Some("dependency-cycle".into()),
+                                element_id: diagnostic_endpoint_id(first),
+                                element_name: first.name.clone(),
+                                missing_dependency_id: second
+                                    .map(|endpoint| endpoint_key(endpoint))
+                                    .unwrap_or_default(),
+                                missing_dependency_name: second
+                                    .map(|endpoint| endpoint.name.clone().into()),
+                                message: format!(
+                                    "依存関係 cycle: {}",
+                                    cycle_endpoints
+                                        .iter()
+                                        .map(|endpoint| endpoint.name.as_str())
+                                        .collect::<Vec<_>>()
+                                        .join(" -> ")
+                                ),
+                            });
+                        }
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+            self.visit_state.insert(node_id.clone(), 1);
+            self.stack.push(node_id.clone());
+            let dependencies = self
+                .dependencies_by_node
+                .get(&node_id)
+                .cloned()
+                .unwrap_or_default();
+            pending.push((node_id, true));
+            for dependency_id in dependencies.into_iter().rev() {
+                pending.push((dependency_id, false));
+            }
         }
-        self.visit_state.insert(node_id.to_owned(), 1);
-        self.stack.push(node_id.to_owned());
-        let dependencies = self
-            .dependencies_by_node
-            .get(node_id)
-            .cloned()
-            .unwrap_or_default();
-        for dependency_id in dependencies {
-            self.visit(&dependency_id);
-        }
-        self.stack.pop();
-        self.visit_state.insert(node_id.to_owned(), 2);
-        self.ordered_endpoints.push(node_id.to_owned());
     }
 }
 
@@ -1736,6 +1745,93 @@ mod tests {
             &selections,
             &state
         ));
+    }
+
+    #[test]
+    fn issue_1476_diamond_projection_preserves_order_on_default_stack() {
+        for (name, fixture) in [
+            (
+                "D1",
+                include_str!("../../../test/fixtures/issue-1476/stage6/D1-r1-projection.json"),
+            ),
+            (
+                "D3",
+                include_str!("../../../test/fixtures/issue-1476/stage6/D3-r1-projection.json"),
+            ),
+        ] {
+            let payload: Value = serde_json::from_str(fixture).unwrap();
+            let graph = decode_conditional_dependency_graph(Some(&payload["graph"]))
+                .unwrap()
+                .unwrap();
+            let element_ids: Vec<String> =
+                serde_json::from_value(payload["elementIds"].clone()).unwrap();
+            let expected: Vec<String> =
+                serde_json::from_value(payload["expectedDependencyOrder"].clone()).unwrap();
+            eprintln!("#1476 projecting {name} with {} edges", graph.edges.len());
+            let projected = graph.project(&element_ids, element_ids.len(), &HashMap::new());
+            assert!(projected.cycles.is_empty());
+            assert_eq!(
+                projected.dependency_order, expected,
+                "frozen edge encounter order"
+            );
+            let ranks = projected
+                .dependency_order
+                .iter()
+                .enumerate()
+                .map(|(rank, id)| (id.as_str(), rank))
+                .collect::<HashMap<_, _>>();
+            for edge in &graph.edges {
+                assert!(
+                    ranks[endpoint_key(&edge.to).as_str()]
+                        < ranks[endpoint_key(&edge.from).as_str()],
+                    "every prerequisite precedes its dependent"
+                );
+            }
+            assert_eq!(projected.evaluation_order.len(), element_ids.len());
+            assert_eq!(
+                projected.evaluation_order.iter().collect::<HashSet<_>>(),
+                element_ids.iter().collect::<HashSet<_>>()
+            );
+            eprintln!("#1476 {name} projection order and dependency controls PASS");
+        }
+    }
+
+    #[test]
+    fn issue_1476_projection_preserves_conditional_cycle_diagnostics() {
+        let graph = ConditionalDependencyGraph::from_edges(vec![
+            required_edge(endpoint("element", "a", "A"), endpoint("element", "b", "B")),
+            ConditionalDependencyEdge {
+                from: endpoint("element", "b", "B"),
+                to: endpoint("element", "a", "A"),
+                span: None,
+                requiredness: Some("conditional".to_owned()),
+                activation: Some(ConditionalDependencyActivation {
+                    guards: vec![ConditionalDependencyGuard {
+                        controller_id: "controller".to_owned(),
+                        branch: "then".to_owned(),
+                        controller_kind: None,
+                        static_selection: None,
+                        controller_expression: None,
+                    }],
+                }),
+            },
+        ]);
+        let ids = vec!["a".to_owned(), "b".to_owned(), "unconnected".to_owned()];
+        let inactive = graph.project(&ids, ids.len(), &HashMap::new());
+        assert!(inactive.cycles.is_empty());
+        assert_eq!(inactive.evaluation_order, ["b", "a", "unconnected"]);
+        let active = graph.project(
+            &ids,
+            ids.len(),
+            &HashMap::from([("controller".to_owned(), "then".to_owned())]),
+        );
+        assert_eq!(active.evaluation_order, inactive.evaluation_order);
+        assert_eq!(active.cycles.len(), 1);
+        let cycle = &active.cycles[0];
+        assert_eq!(cycle.code.as_deref(), Some("dependency-cycle"));
+        assert_eq!(cycle.element_id, "a");
+        assert_eq!(cycle.missing_dependency_id, "element:b");
+        assert_eq!(cycle.message, "依存関係 cycle: A -> B -> A");
     }
 
     #[test]

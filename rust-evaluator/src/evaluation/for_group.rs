@@ -417,32 +417,68 @@ fn generated_for_element_id(
     format!("{template_element_id}@{for_group_id}:{iteration_index}")
 }
 
-fn descendant_ids_for_group(elements: &[Value], group_id: &str) -> Vec<ElementId> {
-    let mut descendants = Vec::new();
-    let mut stack = elements
-        .iter()
-        .filter(|element| element.get("parentGroupId").and_then(Value::as_str) == Some(group_id))
-        .filter_map(element_id)
-        .collect::<Vec<_>>();
-    while let Some(id) = stack.pop() {
-        descendants.push(id.clone());
-        for child_id in elements
-            .iter()
-            .filter(|element| {
-                element.get("parentGroupId").and_then(Value::as_str) == Some(id.as_str())
-            })
-            .filter_map(element_id)
-        {
-            stack.push(child_id);
+#[cfg(test)]
+thread_local! {
+    static TEMPLATE_HIERARCHY_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static TEMPLATE_MEMBERSHIP_CHECKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+struct ForGroupTemplateIndex<'a> {
+    elements_by_id: HashMap<&'a str, &'a Value>,
+    children_by_parent: HashMap<&'a str, Vec<&'a str>>,
+    order: HashMap<&'a str, usize>,
+}
+
+impl<'a> ForGroupTemplateIndex<'a> {
+    fn new(elements: &'a [Value]) -> Self {
+        let mut index = Self {
+            elements_by_id: HashMap::new(),
+            children_by_parent: HashMap::new(),
+            order: HashMap::new(),
+        };
+        for (position, element) in elements.iter().enumerate() {
+            #[cfg(test)]
+            TEMPLATE_HIERARCHY_VISITS.with(|count| count.set(count.get() + 1));
+            let Some(id) = element.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            index.elements_by_id.entry(id).or_insert(element);
+            index.order.insert(id, position);
+            if let Some(parent) = element.get("parentGroupId").and_then(Value::as_str) {
+                index.children_by_parent.entry(parent).or_default().push(id);
+            }
         }
+        index
     }
-    let order = elements
-        .iter()
-        .enumerate()
-        .filter_map(|(index, element)| element_id(element).map(|id| (id, index)))
-        .collect::<HashMap<_, _>>();
-    descendants.sort_by_key(|id| order.get(id).copied().unwrap_or_default());
-    descendants
+
+    fn element(&self, id: &str) -> Option<&'a Value> {
+        #[cfg(test)]
+        TEMPLATE_HIERARCHY_VISITS.with(|count| count.set(count.get() + 1));
+        self.elements_by_id.get(id).copied()
+    }
+
+    fn descendants(&self, group_id: &str) -> Vec<ElementId> {
+        let mut descendants = Vec::new();
+        let mut stack = self
+            .children_by_parent
+            .get(group_id)
+            .cloned()
+            .unwrap_or_default();
+        while let Some(id) = stack.pop() {
+            #[cfg(test)]
+            TEMPLATE_HIERARCHY_VISITS.with(|count| count.set(count.get() + 1));
+            descendants.push(id.to_owned());
+            if let Some(children) = self.children_by_parent.get(id) {
+                stack.extend(children.iter().copied());
+            }
+        }
+        descendants.sort_by_key(|id| self.order.get(id.as_str()).copied().unwrap_or_default());
+        descendants
+    }
+}
+
+fn descendant_ids_for_group(elements: &[Value], group_id: &str) -> Vec<ElementId> {
+    ForGroupTemplateIndex::new(elements).descendants(group_id)
 }
 
 pub(crate) fn for_group_template_descendant_ids(elements: &[Value]) -> HashSet<ElementId> {
@@ -468,28 +504,24 @@ pub(crate) fn for_group_owned_template_ids(
     elements: &[Value],
     for_group_id: &str,
 ) -> Vec<ElementId> {
-    descendant_ids_for_group(elements, for_group_id)
+    let index = ForGroupTemplateIndex::new(elements);
+    index
+        .descendants(for_group_id)
         .into_iter()
         .filter(|template_id| {
-            let mut parent_id = elements
-                .iter()
-                .find(|element| element_id(element).as_deref() == Some(template_id.as_str()))
+            let mut parent_id = index
+                .element(template_id)
                 .and_then(|element| element.get("parentGroupId"))
                 .and_then(Value::as_str);
             while let Some(id) = parent_id {
                 if id == for_group_id {
                     return true;
                 }
-                if elements
-                    .iter()
-                    .find(|element| element_id(element).as_deref() == Some(id))
-                    .is_some_and(|element| element_type(element) == Some("forGroup"))
-                {
+                let parent = index.element(id);
+                if parent.is_some_and(|element| element_type(element) == Some("forGroup")) {
                     return false;
                 }
-                parent_id = elements
-                    .iter()
-                    .find(|element| element_id(element).as_deref() == Some(id))
+                parent_id = parent
                     .and_then(|element| element.get("parentGroupId"))
                     .and_then(Value::as_str);
             }
@@ -630,10 +662,18 @@ pub(crate) fn expand_for_group_iteration_from_template(
         "name": variable_name,
         "value": variable_value
     });
-    let template_ids = descendant_ids_for_group(elements, template_for_group_id);
+    let template_ids = descendant_ids_for_group(elements, template_for_group_id)
+        .into_iter()
+        .collect::<HashSet<_>>();
     let template_elements = elements
         .iter()
-        .filter(|element| element_id(element).is_some_and(|id| template_ids.contains(&id)))
+        .filter(|element| {
+            element_id(element).is_some_and(|id| {
+                #[cfg(test)]
+                TEMPLATE_MEMBERSHIP_CHECKS.with(|count| count.set(count.get() + 1));
+                template_ids.contains(&id)
+            })
+        })
         .cloned()
         .collect::<Vec<_>>();
     let id_map = template_elements
@@ -718,7 +758,11 @@ pub(crate) fn expand_for_group_iteration_from_template(
 #[cfg(test)]
 mod tests {
     use super::for_group_loop_values;
-    use crate::evaluation::types::EvaluationState;
+    use super::{
+        descendant_ids_for_group, expand_for_group_iteration_from_template,
+        for_group_owned_template_ids, TEMPLATE_HIERARCHY_VISITS, TEMPLATE_MEMBERSHIP_CHECKS,
+    };
+    use crate::evaluation::types::{element_id, element_type, EvaluationState};
     use serde_json::{json, Value};
     use std::collections::HashMap;
 
@@ -766,6 +810,117 @@ mod tests {
             "step": step,
             "showGenerated": false
         })
+    }
+
+    fn issue1476_chain_elements(large: bool) -> Vec<Value> {
+        serde_json::from_str(if large {
+            include_str!(
+                "../../../test/fixtures/issue-1476/stage6/dependency-chain-1000-v1-elements.json"
+            )
+        } else {
+            include_str!(
+                "../../../test/fixtures/issue-1476/stage6/dependency-chain-250-v1-elements.json"
+            )
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn issue_1476_template_hierarchy_skips_repeated_unrelated_scans() {
+        let mut counts = Vec::new();
+        for large in [false, true] {
+            let elements = issue1476_chain_elements(large);
+            let group = elements
+                .iter()
+                .find(|e| element_type(e) == Some("forGroup"))
+                .unwrap();
+            let group_id = element_id(group).unwrap();
+            let expected = elements
+                .iter()
+                .filter(|e| e.get("parentGroupId").and_then(Value::as_str) == Some(&group_id))
+                .filter_map(element_id)
+                .collect::<Vec<_>>();
+            assert_eq!(expected.len(), if large { 1000 } else { 250 });
+            TEMPLATE_HIERARCHY_VISITS.with(|count| count.set(0));
+            for _ in 0..8 {
+                assert_eq!(descendant_ids_for_group(&elements, &group_id), expected);
+                assert_eq!(for_group_owned_template_ids(&elements, &group_id), expected);
+                assert!(descendant_ids_for_group(&elements, "not-a-group").is_empty());
+            }
+            let visits = TEMPLATE_HIERARCHY_VISITS.with(|count| count.get());
+            assert!(
+                visits > expected.len(),
+                "positive control: hierarchy work must be observed"
+            );
+            eprintln!(
+                "#1476 hierarchy elements={} descendants={} queries=24 visits={visits}",
+                elements.len(),
+                expected.len()
+            );
+            counts.push((visits, elements.len() * 8 * 8));
+        }
+        assert!(counts.iter().all(|(visits, bound)| visits <= bound), "hierarchy queries must inspect only their index construction and reachable ancestry: {counts:?}");
+    }
+
+    #[test]
+    fn issue_1476_template_membership_avoids_linear_search_per_element() {
+        let mut counts = Vec::new();
+        for large in [false, true] {
+            let elements = issue1476_chain_elements(large);
+            let group = elements
+                .iter()
+                .find(|e| element_type(e) == Some("forGroup"))
+                .unwrap();
+            let group_id = element_id(group).unwrap();
+            let templates = elements
+                .iter()
+                .filter(|e| e.get("parentGroupId").and_then(Value::as_str) == Some(&group_id))
+                .filter_map(element_id)
+                .collect::<Vec<_>>();
+            TEMPLATE_MEMBERSHIP_CHECKS.with(|count| count.set(0));
+            let (generated, rows, _, path) = expand_for_group_iteration_from_template(
+                &elements,
+                group,
+                Some(&group_id),
+                0,
+                0.0,
+                &HashMap::new(),
+                &[],
+            );
+            assert_eq!(rows.len(), templates.len());
+            assert_eq!(
+                generated.iter().map(|(_, id)| id).collect::<Vec<_>>(),
+                templates.iter().collect::<Vec<_>>()
+            );
+            for (index, row) in rows.iter().enumerate() {
+                assert_eq!(row.template_element_id, templates[index]);
+                assert_eq!(
+                    row.generated_element_id,
+                    format!("{}@{group_id}:0", templates[index])
+                );
+                assert_eq!(row.for_group_id, group_id);
+                assert_eq!(row.iteration_index, 0);
+                assert_eq!(row.occurrence_path.len(), 1);
+                assert_eq!(row.occurrence_path[0].template_for_group_id, group_id);
+                assert_eq!(generated[index].0["parentGroupId"], group_id);
+            }
+            assert_eq!(path.len(), 1);
+            let checks = TEMPLATE_MEMBERSHIP_CHECKS.with(|count| count.get());
+            assert!(
+                checks > 0,
+                "positive control: actual membership checks are counted"
+            );
+            eprintln!(
+                "#1476 membership elements={} descendants={} checks={checks}",
+                elements.len(),
+                templates.len()
+            );
+            counts.push((checks, elements.len()));
+        }
+        assert!(
+            counts.iter().all(|(checks, bound)| checks <= bound),
+            "one membership lookup per source element is sufficient: {counts:?}"
+        );
     }
 
     #[test]
