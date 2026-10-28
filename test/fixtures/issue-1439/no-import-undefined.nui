@@ -1,0 +1,2 @@
+nui 1
+const x: ghost::R = ghost::R(x: 1)

@@ -248,10 +248,6 @@ export const analyzeMultiDocumentSource = <Metadata = unknown>(
     source.normalizedSource,
     options.statementIdByStatementIndex
   );
-  const sourceLexicalNamespace = buildSourceLexicalNamespaceIndex(parsed.statements, statementIdByStatementIndex, { recordTypes: {
-    deferImportedTypes: true,
-    identityForDefinition: id => documentRecordTypeIdentity(source.documentId, id)
-  } });
   const imports: MultiDocumentImportDirective[] = [];
   const reExports: FileReExportDescriptor[] = [];
 
@@ -276,6 +272,12 @@ export const analyzeMultiDocumentSource = <Metadata = unknown>(
     }
   });
 
+  // Only documents with imports receive the dependency-first strict pass.
+  // Leaf artifacts must diagnose unresolved qualified names immediately.
+  const sourceLexicalNamespace = buildSourceLexicalNamespaceIndex(parsed.statements, statementIdByStatementIndex, { recordTypes: {
+    deferImportedTypes: imports.length > 0,
+    identityForDefinition: id => documentRecordTypeIdentity(source.documentId, id)
+  } });
   const declarations = [recordDeclarationContributor, ...(options.declarationContributors ?? [])].flatMap((contributor) =>
     contributor({ source, parsed, statementIdByStatementIndex })
   );

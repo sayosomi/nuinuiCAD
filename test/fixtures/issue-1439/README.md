@@ -21,6 +21,10 @@ These fixtures are retained as executable language regressions.
   facade members, import cycles, lexical shadowing, saved fingerprint changes,
   nominal mismatch through Modules/arrays and forwarded parameters, repeated local IDs in different
   documents, optional-to-required rejection, and caller source ownership.
+- `no-import-undefined.nui` freezes F-01's unresolved qualified type and
+  constructor without an import. It must fail source-graph validation with
+  diagnostics on the authored names. Tests also reject an invalid saved leaf,
+  cover other record type positions, and retain a real-import positive control.
 
 `issue1439RecordImportsRust.integration.test.ts` asserts observations separately
 on the TypeScript reference and normal persistent Rust stdio payloads, then

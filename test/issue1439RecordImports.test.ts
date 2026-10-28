@@ -25,6 +25,78 @@ const width: number = @use::out.width
 const angle: number = @inline::out.cornerAngle`;
 
 describe("Issue 1439 shared nominal records", () => {
+  it("rejects qualified record types and constructors without an import at the source graph boundary", async () => {
+    const source = readFileSync("test/fixtures/issue-1439/no-import-undefined.nui", "utf8");
+    const result = await buildRecordImport(source, {});
+    const node = result.graph.nodes.get(result.graph.rootDocumentId)!;
+    expect(node.imports).toEqual([]);
+    expect(result.graph.valid).toBe(false);
+    expect(node.artifact.syntaxValid).toBe(false);
+    expect(node.valid).toBe(false);
+    expect(result.analysis.valid).toBe(false);
+    expect(result.context.valid).toBe(false);
+    for (const code of ["record-type-undefined", "record-constructor-undefined"]) {
+      const diagnostic = node.sourceDiagnostics.find(candidate => candidate.code === code);
+      expect(diagnostic, code).toBeDefined();
+      expect(diagnostic!.line).toBe(2);
+      expect(diagnostic!.physicalSpan?.segments.map(segment => source.slice(segment.from, segment.to))).toEqual(["ghost::R"]);
+    }
+  });
+  it.each([
+    ["record Parent(child: ghost::R)", "ghost::R"],
+    ["module Read(value: ghost::R) {\n}", "ghost::R"],
+    ["const rows: ghost::R[] = []", "ghost::R[]"],
+    ["const value: ghost::R? = none", "ghost::R?"]
+  ])("strictly validates no-import record type positions: %s", async (statement, typeText) => {
+    const source = `nui 1\n${statement}`;
+    const result = await buildRecordImport(source, {});
+    const node = result.graph.nodes.get(result.graph.rootDocumentId)!;
+    expect(result.graph.valid).toBe(false);
+    expect(node.valid).toBe(false);
+    const diagnostic = node.sourceDiagnostics.find(candidate => candidate.code === "record-type-undefined");
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.line).toBe(2);
+    expect(diagnostic!.physicalSpan?.segments.map(segment => source.slice(segment.from, segment.to))).toEqual([typeText]);
+  });
+  it("rejects a no-import qualified constructor independently of a valid local type", async () => {
+    const result = await buildRecordImport("nui 1\nrecord R(x: number)\nconst x: R = ghost::R(x: 1)", {});
+    expect(result.graph.valid).toBe(false);
+    expect(result.graph.nodes.get(result.graph.rootDocumentId)!.sourceDiagnostics).toContainEqual(
+      expect.objectContaining({ code: "record-constructor-undefined", line: 3 })
+    );
+  });
+  it("rejects a no-import invalid saved dependency before publishing its node", async () => {
+    const invalid = readFileSync("test/fixtures/issue-1439/no-import-undefined.nui", "utf8");
+    const result = await buildRecordImport('nui 1\nimport "./invalid.nui" as invalid', { "invalid.nui": invalid });
+    expect(result.graph.valid).toBe(false);
+    expect(result.graph.nodes.has(documentIdFromHost("/issue1439/invalid.nui"))).toBe(false);
+    expect(result.graph.diagnostics).toContainEqual(expect.objectContaining({
+      code: "import-invalid-source", location: expect.objectContaining({
+        source: { kind: "root-current", documentId: result.graph.rootDocumentId, sourceRevision: 1 }
+      })
+    }));
+  });
+  it("does not let an unrelated import resolve an undefined qualified record", async () => {
+    const invalid = readFileSync("test/fixtures/issue-1439/no-import-undefined.nui", "utf8")
+      .replace("nui 1\n", 'nui 1\nimport "./library.nui" as real\n');
+    const result = await buildRecordImport(invalid, { "library.nui": "nui 1\nexport record R(x: number)" });
+    expect(result.graph.valid).toBe(false);
+    const node = result.graph.nodes.get(result.graph.rootDocumentId)!;
+    expect(node.valid).toBe(false);
+    expect(node.sourceDiagnostics).toContainEqual(expect.objectContaining({ code: "record-type-undefined", line: 3 }));
+  });
+  it("resolves the neighboring qualified record type and constructor when its saved import exists", async () => {
+    const source = readFileSync("test/fixtures/issue-1439/no-import-undefined.nui", "utf8")
+      .replace("nui 1\n", 'nui 1\nimport "./library.nui" as ghost\n');
+    const result = await buildRecordImport(source, { "library.nui": "nui 1\nexport record R(x: number)" });
+    const node = result.graph.nodes.get(result.graph.rootDocumentId)!;
+    expect(node.valid).toBe(true);
+    expect(result.graph.valid).toBe(true);
+    expect(result.analysis.valid).toBe(true);
+    expect(result.context.valid).toBe(true);
+    expect(node.sourceDiagnostics).toEqual([]);
+    expect(result.errors).toEqual([]);
+  });
   it("parses exact export/type/constructor spelling without changing spans", () => {
     const source = `nui 1\nexport record 設定(width: number)\nimport "./seam.nui" as seam\nconst s: seam::SeamSettings = seam::SeamSettings(width: 5, cornerAngle: 45)`;
     const parsed = parseDsl(source);
