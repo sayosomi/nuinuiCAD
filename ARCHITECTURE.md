@@ -285,6 +285,11 @@ visibility across imported documents.
 Cross-document semantics preserve the defining document identity. Re-exporting a
 declaration does not create a new semantic identity.
 
+`multiDocumentRecordSemantics.ts` contributes record definitions through that
+same catalog and binds their nominal types after saved dependency catalogs are
+resolved. It reuses the shared record analyzer and lexical namespace; cached
+file-local artifacts remain separate from graph-bound semantic results.
+
 Import aliases participate in the ordinary lexical namespace. Imported member
 lookup extends the existing resolver through a narrow external namespace
 boundary.

@@ -1,0 +1,33 @@
+nui 1
+import "./seam.nui" as types
+export module Forward(setting: types::Settings) {
+  const local: types::Settings = @setting
+  export const out: types::Settings = @local
+  export const width: number = @setting.inner.width
+  export const anchor: point = @setting.origin
+}
+export module Rows(rows: types::Corner[]) {
+  export const out: types::Corner[] = @rows
+}
+export module Relay(rows: types::Corner[]) {
+  instance nested = Rows(rows: @rows)
+  export const out: types::Corner[] = @nested::out
+}
+export module Optional(setting: types::Corner?) {
+  export const out: types::Corner? = @setting
+}
+export module Factory() {
+  export const out: types::Corner = types::Corner(width: 67)
+}
+export module MaybeRows(rows: types::Corner?[]) {
+  export const out: types::Corner?[] = @rows
+}
+export module OptionalRows(rows: types::Corner[]?) {
+  export const out: types::Corner[]? = @rows
+}
+export module NestedFactory() {
+  const inner: types::Corner = types::Corner(width: 79)
+  point Origin = coordinate(x: 89, y: 97)
+  const setting: types::Settings = types::Settings(inner: @inner, corners: [@inner], origin: @Origin, xs: [83])
+  export const out: types::Settings = @setting
+}

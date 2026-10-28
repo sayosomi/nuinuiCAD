@@ -162,6 +162,8 @@ export const collectionLengthForValueId = (
 export type GeometryArraySemanticAnalysisInput = {
   statements: readonly DslStatement[];
   stableStatementIdByIndex: ReadonlyMap<number, string>;
+  resolveExternalRecordDefinition?: import("./recordSemanticAnalysis").RecordSemanticAnalysisInput["resolveExternalDefinition"];
+  deferImportedTypes?: boolean;
   resolvePath: (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => SourceLexicalLookupWithExternal;
   /** Uses the compiler's canonical transformation-stage resolver for source
    * geometry references. The property suffix remains unresolved until this
@@ -340,11 +342,14 @@ const recordIdentityForType = (
   type: DslNonArrayValueType,
   statementIndex: number,
   recordSemanticAnalysis: RecordSemanticAnalysis | undefined,
-  resolvePath: GeometryArraySemanticAnalysisInput["resolvePath"]
+  resolvePath: GeometryArraySemanticAnalysisInput["resolvePath"],
+  resolveExternalDefinition?: GeometryArraySemanticAnalysisInput["resolveExternalRecordDefinition"]
 ): string | null => {
-  if (type.kind === "optional") return recordIdentityForType(type.valueType as DslNonArrayValueType, statementIndex, recordSemanticAnalysis, resolvePath);
+  if (type.kind === "optional") return recordIdentityForType(type.valueType as DslNonArrayValueType, statementIndex, recordSemanticAnalysis, resolvePath, resolveExternalDefinition);
   if (type.kind !== "record") return null;
+  if (type.identity) return type.identity;
   const lookup = resolvePath(statementIndex, parseDslReferenceToken(type.name));
+  if (lookup.kind === "external") return resolveExternalDefinition?.(lookup.member)?.statementId ?? null;
   if (lookup.kind === "resolved" && lookup.declaration.kind === "recordDefinition") {
     return recordSemanticAnalysis?.definitionsByStatementIndex.get(lookup.declaration.statementIndex)?.statementId ?? null;
   }
@@ -388,7 +393,13 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
     span: DslSpan
   ): string | null => {
     if (type.kind !== "record") return null;
+    if (type.identity) return type.identity;
     const lookup = input.resolvePath(statementIndex, parseDslReferenceToken(type.name));
+    if (lookup.kind === "external") {
+      const definition = input.resolveExternalRecordDefinition?.(lookup.member);
+      if (definition) return definition.statementId;
+    }
+    if (input.deferImportedTypes && type.name.includes("::")) return null;
     if (lookup.kind === "resolved" && lookup.declaration.kind === "recordDefinition") {
       return input.recordSemanticAnalysis?.definitionsByStatementIndex.get(lookup.declaration.statementIndex)?.statementId ?? null;
     }
@@ -486,7 +497,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
         elementType: recordTypeWithIdentity(
           requiredValueType.elementType,
           dslRequiredValueTypeOf(requiredValueType.elementType)?.kind === "record"
-            ? recordIdentityForType(requiredValueType.elementType, statementIndex, input.recordSemanticAnalysis, input.resolvePath)
+            ? recordIdentityForType(requiredValueType.elementType, statementIndex, input.recordSemanticAnalysis, input.resolvePath, input.resolveExternalRecordDefinition)
             ?? resolvedArrayRecordIdentity(dslRequiredValueTypeOf(requiredValueType.elementType) as Extract<DslNonArrayValueType, { kind: "record" }>, statementIndex, statement, statement.payloadSpans.type ?? statement.nameSpan ?? statement.keywordSpan)
             : null
         )
@@ -496,6 +507,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       exported: Boolean(statement.exported),
       value: null
     };
+    semantic.declaredValueType = isDslOptionalValueType(declaredValueType)
+      ? { kind: "optional", valueType: semantic.valueType } : semantic.valueType;
     genericValues.push(semantic);
     genericValuesByStatementId.set(statementId, semantic);
     genericValuesByStatementIndex.set(statementIndex, semantic);
@@ -1304,7 +1317,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       ...expectedType,
       elementType: recordTypeWithIdentity(
         expectedType.elementType,
-        recordIdentityForType(expectedType.elementType, statementIndex, input.recordSemanticAnalysis, input.resolvePath)
+        recordIdentityForType(expectedType.elementType, statementIndex, input.recordSemanticAnalysis, input.resolvePath, input.resolveExternalRecordDefinition)
       )
     };
     const resolveArrayReference: ResolveDslArrayExpressionInput<GenericArraySourceTarget>["resolveArrayReference"] = (sourceText, sourceSpan, localBindings) => {
@@ -1379,7 +1392,13 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
               targetValueId: immutableCarryCollectionValueId(
                 bindingIdForStableStatementId(lookup.declaration.statementId)
               ),
-              valueType: carry.valueType
+              valueType: {
+                ...carry.valueType,
+                elementType: recordTypeWithIdentity(carry.valueType.elementType, recordIdentityForType(
+                  carry.valueType.elementType, lookup.declaration.statementIndex,
+                  input.recordSemanticAnalysis, input.resolvePath, input.resolveExternalRecordDefinition
+                ))
+              }
             };
           }
         }
@@ -1399,7 +1418,8 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
       };
     return resolveDslArrayExpression<GenericArraySourceTarget>({
       expectedType: enrichedExpectedType,
-      expectedValueType,
+      expectedValueType: isDslOptionalValueType(expectedValueType)
+        ? { kind: "optional", valueType: enrichedExpectedType } : enrichedExpectedType,
       expression,
       resolveMember: (member, localBindings) => resolveGenericArrayMember(
         statementIndex, statementId, enrichedExpectedType.elementType, member, localBindings
@@ -1478,7 +1498,7 @@ export const analyzeGeometryArraySemantics = (input: GeometryArraySemanticAnalys
                     carry.valueType.elementType,
                     lookup.declaration.statementIndex,
                     input.recordSemanticAnalysis,
-                    input.resolvePath
+                    input.resolvePath, input.resolveExternalRecordDefinition
                   ) ?? carry.valueType.elementType.identity ?? null
                 : null;
               sourceValueType = {

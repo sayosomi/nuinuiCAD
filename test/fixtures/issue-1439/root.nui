@@ -1,0 +1,28 @@
+nui 1
+import "./seam.nui" as seam
+import "./facade.nui" as facade
+import "./modules.nui" as lib
+const a: seam::Corner = facade::Corner(width: 7)
+const b: facade::Corner = seam::Corner(width: 19)
+point OriginLeft = coordinate(x: 3, y: 4)
+point OriginRight = coordinate(x: 23, y: 29)
+const short: seam::Settings = facade::Settings(inner: @a, corners: [@a], origin: @OriginLeft, xs: [13])
+const long: facade::Settings = seam::Settings(inner: @b, maybe: @a, corners: [@b, @a], origin: @OriginRight, xs: [31, 37])
+instance left = lib::Forward(setting: @short)
+instance right = lib::Forward(setting: @long)
+instance rows = lib::Rows(rows: [@b, @a])
+instance missing = lib::Optional()
+instance present = lib::Optional(setting: @a)
+const leftWidth: number = @left::out.inner.width
+const rightWidth: number = @right::width
+const leftLength: number = @left::out.xs.length
+const rightLength: number = @right::out.xs.length
+const rightSecond: number = @right::out.xs[1]
+const selected: facade::Corner = @rows::out[1]
+const selectedWidth: number = @selected.width
+const absentWidth: number = @missing::out?.width ?? 101
+const presentWidth: number = @present::out?.width ?? 103
+const nestedAbsent: number = @left::out.maybe?.width ?? 107
+const nestedPresent: number = @right::out.maybe?.width ?? 109
+const anchorX: number = @left::anchor.x
+point Result = offset(from: @right::anchor, dx: @selected.width, dy: @left::out.inner.width)

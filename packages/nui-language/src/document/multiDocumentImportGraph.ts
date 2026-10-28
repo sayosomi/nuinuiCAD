@@ -1,3 +1,5 @@
+import { recordDeclarationContributor, bindDocumentRecordSemantics } from "./multiDocumentRecordSemantics";
+import { documentRecordTypeIdentity } from "../dsl/recordSemanticAnalysis";
 import { parseDslSnapshot } from "../dsl/dslParser";
 import {
   buildSourceLexicalNamespaceIndex,
@@ -246,7 +248,6 @@ export const analyzeMultiDocumentSource = <Metadata = unknown>(
     source.normalizedSource,
     options.statementIdByStatementIndex
   );
-  const sourceLexicalNamespace = buildSourceLexicalNamespaceIndex(parsed.statements, statementIdByStatementIndex);
   const imports: MultiDocumentImportDirective[] = [];
   const reExports: FileReExportDescriptor[] = [];
 
@@ -271,13 +272,23 @@ export const analyzeMultiDocumentSource = <Metadata = unknown>(
     }
   });
 
-  const declarations = (options.declarationContributors ?? []).flatMap((contributor) =>
+  // Only documents with imports receive the dependency-first strict pass.
+  // Leaf artifacts must diagnose unresolved qualified names immediately.
+  const sourceLexicalNamespace = buildSourceLexicalNamespaceIndex(parsed.statements, statementIdByStatementIndex, { recordTypes: {
+    deferImportedTypes: imports.length > 0,
+    identityForDefinition: id => documentRecordTypeIdentity(source.documentId, id)
+  } });
+  const declarations = [recordDeclarationContributor, ...(options.declarationContributors ?? [])].flatMap((contributor) =>
     contributor({ source, parsed, statementIdByStatementIndex })
   );
   const syntaxValid =
     hasCurrentSupportedVersion(parsed) &&
     !parsed.diagnostics.some((diagnostic) => diagnostic.severity === "error") &&
-    !sourceLexicalNamespace.diagnostics.some((diagnostic) => diagnostic.severity === "error");
+    // Import-dependent value/type diagnostics are authoritative only after
+    // the saved dependency catalogs have been resolved below. Lexical
+    // collisions remain decidable in the file-local artifact.
+    !sourceLexicalNamespace.diagnostics.some((diagnostic) => diagnostic.severity === "error" &&
+      (imports.length === 0 || diagnostic.code === "source-namespace-collision"));
 
   return {
     source,
@@ -498,7 +509,20 @@ export const buildMultiDocumentImportGraph = async <Metadata = unknown>(
       }
     });
     node.publicApi = publicApi;
-    node.valid = node.valid && publicApi.valid;
+    // Resolve record semantics in the existing dependency-first graph traversal.
+    // Cached saved artifacts remain file-local; graph-bound results are new artifacts.
+    const dependencyArtifacts = node.imports.flatMap(edge => {
+      const target = edge.status === "resolved" && edge.targetDocumentId ? nodes.get(edge.targetDocumentId) : null;
+      return target ? [target.artifact] : [];
+    });
+    const externalNamespaceResolver = createPublicApiExternalNamespaceResolver((declaration) => {
+      const edge = node.imports.find(candidate => candidate.importIdentity.localIdentity === declaration.statementId && candidate.status === "resolved");
+      return edge?.targetDocumentId ? nodes.get(edge.targetDocumentId)?.publicApi ?? null : null;
+    });
+    const sourceLexicalNamespace = artifact.imports.length === 0 ? artifact.sourceLexicalNamespace
+      : bindDocumentRecordSemantics(artifact, dependencyArtifacts, externalNamespaceResolver);
+    if (sourceLexicalNamespace !== artifact.sourceLexicalNamespace) node.artifact = { ...artifact, sourceLexicalNamespace };
+    node.valid = node.valid && publicApi.valid && !sourceLexicalNamespace.diagnostics.some(item => item.severity === "error");
     return node;
   };
 

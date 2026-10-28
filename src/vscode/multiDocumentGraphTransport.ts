@@ -43,7 +43,7 @@ export type VscodeMultiDocumentGraphSnapshot = {
     valid: boolean;
     publicEntries: readonly {
       name: string;
-      family: "module" | "modifier" | "profile" | "layout" | "layoutTemplate";
+      family: "record" | "module" | "modifier" | "profile" | "layout" | "layoutTemplate";
       identity: VscodeMultiDocumentSemanticIdentity;
       declaration: VscodeMultiDocumentSourceLocation;
       reExportPath: readonly VscodeMultiDocumentSourceLocation[];

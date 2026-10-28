@@ -21,8 +21,37 @@ may be scalar or `choice(...)`,
 `number[]`, `point[]`, or `Metadata[]`, or another named record type. Collection
 element types cannot themselves be arrays. Field defaults are not supported,
 and omission does not create field-specific presence state. A
-record definition's name is its type
-identity: two definitions with the same fields are still different types.
+record definition's original defining-document identity is its nominal type
+identity: two definitions with the same name and fields are still different types.
+
+## Sharing types between saved documents
+
+A top-level `export record` publishes a type. A plain `record` remains private.
+
+<!-- dsl-example: compile-success -->
+```nui
+nui 1
+export record SeamSettings(width: number, cornerAngle: number)
+```
+
+Save that definition in `seam.nui`. In another saved document, qualify both the
+type and its constructor with the import alias. Keep `@` on value references.
+
+<!-- dsl-example: syntax-fragment -->
+```nui
+nui 1
+import "./seam.nui" as seam
+const s: seam::SeamSettings = seam::SeamSettings(width: 5, cornerAngle: 45)
+const width: number = @s.width
+```
+
+A facade can write `export @seam::SeamSettings`; downstream constructors and
+Module arguments still use the original type. Different files' same-shaped
+records remain incompatible. Qualified types work in fields, Module parameters,
+locals and exports, and legal optional/array forms such as `seam::SeamSettings?`
+and `seam::SeamSettings[]`. The existing one-dimensional and optional wrapper
+rules apply. Imports use saved dependency contents, and never publish private
+or transitive names implicitly. See [Modules](modules.md) for value forwarding.
 
 ## Description and access
 

@@ -1,0 +1,4 @@
+nui 1
+export record Corner(width: number)
+export record Settings(inner: Corner, maybe: Corner?, corners: Corner[], origin: point, xs: number[])
+record Private(secret: number)

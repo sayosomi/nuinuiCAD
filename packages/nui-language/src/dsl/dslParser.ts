@@ -22,7 +22,7 @@ export {
   dslStatementKeywords
 } from "./dslParserCore";
 
-const recordHead = /^record(?:\s|$)/;
+const recordHead = /^(?:export\s+)?record(?:\s|$)/;
 
 const recordStatementToDslStatement = (
   parsed: DslRecordDefinitionStatement,
@@ -48,6 +48,9 @@ const recordStatementToDslStatement = (
     Object.entries(parsed.payloadSpans).map(([key, span]) => [key, project(span)])
   ),
   kind: "recordDefinition",
+  exported: parsed.exported,
+  exportSpan: parsed.exportSpan,
+  exportPhysicalSpan: parsed.exportSpan ? project(parsed.exportSpan) : null,
   fields: parsed.fields.map((field) => ({
     ...field,
     namePhysicalSpan: project(field.nameSpan),
@@ -156,7 +159,7 @@ const unknownRecordTypeDiagnostics = (
 
   const diagnostics: DslDiagnostic[] = [];
   const add = (statement: DslStatement, span: DslSpan, name: string, moduleParameter: boolean) => {
-    if (declarationNames.has(name)) return;
+    if (declarationNames.has(name) || name.includes("::")) return;
     const logical = base.logicalStatementByRangeFrom.get(statement.documentRange.from);
     const physicalSpan = logical ? physicalSpanForLogicalRange(base.sourceMap, logical, span) : null;
     diagnostics.push({

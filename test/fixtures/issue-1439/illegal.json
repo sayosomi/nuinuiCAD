@@ -1,0 +1,62 @@
+[
+  {
+    "name": "private type",
+    "source": "const x: lib::Private = lib::Private(x: 1)",
+    "code": "record-type-undefined"
+  },
+  {
+    "name": "missing type",
+    "source": "const x: lib::Missing = lib::Missing(x: 1)",
+    "code": "record-type-undefined"
+  },
+  {
+    "name": "wrong declaration family",
+    "source": "const x: lib::M = lib::M()",
+    "code": "record-type-not-record"
+  },
+  {
+    "name": "private constructor",
+    "source": "const x: lib::R = lib::Private(x: 1)",
+    "code": "record-constructor-undefined"
+  },
+  {
+    "name": "missing constructor field",
+    "source": "const x: lib::R = lib::R()",
+    "code": "record-constructor-missing-field"
+  },
+  {
+    "name": "unknown constructor field",
+    "source": "const x: lib::R = lib::R(x: 1, other: 2)",
+    "code": "record-constructor-unknown-field"
+  },
+  {
+    "name": "duplicate constructor field",
+    "source": "const x: lib::R = lib::R(x: 1, x: 2)",
+    "code": "record-constructor-duplicate-field"
+  },
+  {
+    "name": "positional constructor field",
+    "source": "const x: lib::R = lib::R(1)",
+    "code": "record-constructor-positional-argument"
+  },
+  {
+    "name": "wrong field type",
+    "source": "const x: lib::R = lib::R(x: \"wrong\")",
+    "code": "scalar-type-mismatch"
+  },
+  {
+    "name": "private field type cannot be named by caller",
+    "source": "record Local(secret: lib::Private)",
+    "code": "record-type-undefined"
+  },
+  {
+    "name": "parameter shadows imported type namespace",
+    "source": "module Bad(lib: number) {\n  const x: lib::R = lib::R(x: 1)\n}",
+    "code": "record-type-undefined"
+  },
+  {
+    "name": "local shadows imported type namespace",
+    "source": "module Bad() {\n  const lib: number = 1\n  const x: lib::R = lib::R(x: 1)\n}",
+    "code": "record-type-undefined"
+  }
+]

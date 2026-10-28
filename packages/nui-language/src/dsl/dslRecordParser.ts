@@ -7,6 +7,8 @@ export type DslRecordDiagnostic = DslTypeDiagnostic;
 
 export type DslRecordDefinitionStatement = {
   kind: "recordDefinition";
+  exported: boolean;
+  exportSpan: DslSpan | null;
   name: string;
   nameSpan: DslSpan | null;
   keywordSpan: DslSpan;
@@ -124,11 +126,13 @@ const fieldFromArg = (
 
 export const parseDslRecordDefinitionStatement = (logicalText: string): DslRecordParseResult => {
   const diagnostics: DslRecordDiagnostic[] = [];
-  if (!logicalText.startsWith("record") || (logicalText.length > "record".length && !whitespace.test(logicalText["record".length]!))) {
+  const head = /^(export\s+)?record(?:\s|$)/.exec(logicalText);
+  if (!head) {
     return { statement: null, diagnostics };
   }
 
-  const keywordSpan: DslSpan = { start: 0, end: "record".length };
+  const keywordStart = head[1]?.length ?? 0;
+  const keywordSpan: DslSpan = { start: keywordStart, end: keywordStart + "record".length };
   const afterKeyword = trimSpan(logicalText, keywordSpan.end, logicalText.length);
   const open = logicalText.indexOf("(", afterKeyword.start);
   const nameSpan = trimSpan(logicalText, afterKeyword.start, open >= 0 ? open : logicalText.length);
@@ -197,6 +201,8 @@ export const parseDslRecordDefinitionStatement = (logicalText: string): DslRecor
   return {
     statement: {
       kind: "recordDefinition",
+      exported: !!head[1],
+      exportSpan: head[1] ? { start: 0, end: "export".length } : null,
       name,
       nameSpan: validNameSpan,
       keywordSpan,

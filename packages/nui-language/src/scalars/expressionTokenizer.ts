@@ -241,6 +241,16 @@ export const tokenizeScalarExpression = (source: string, span: ScalarSpan): Scal
         error: { code: remapLiteralIssueCode(result.issueCode), span: result.span, message: result.message }
       };
     }
+    // Imported record constructors retain a qualified call name. Only call
+    // heads use this spelling; ordinary values still require their @ sigil.
+    if (result.kind === "choice" && source.startsWith("::", result.span.end)) {
+      const member = scanScalarLiteral(source, { start: result.span.end + 2, end });
+      if (member.kind === "choice" && /^\s*\(/.test(source.slice(member.span.end, end))) {
+        tokens.push({ kind: "literal", literal: { kind: "choice", raw: source.slice(index, member.span.end), span: { start: index, end: member.span.end } } });
+        index = member.span.end;
+        continue;
+      }
+    }
     tokens.push({ kind: "literal", literal: result });
     index = result.span.end;
   }
