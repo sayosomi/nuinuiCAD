@@ -11,6 +11,7 @@ import {
 import {
   resolveSourceLexicalDeclaration,
   resolveSourceLexicalPath,
+  resolveSourceLexicalPathFromDeclaration,
   type SourceLexicalDeclaration,
   type SourceLexicalLookup,
   type SourceLexicalNamespaceIndex
@@ -136,7 +137,7 @@ import type {
   RecordTypeIdentity,
   RecordValueExpressionSemantic
 } from "./recordSemanticAnalysis";
-import { parseRecordConstructorFields, resolveRecordMember } from "./recordSemanticAnalysis";
+import { documentRecordTypeIdentity, parseRecordConstructorFields, resolveRecordMember } from "./recordSemanticAnalysis";
 import {
   qualifySemanticIdentity,
   qualifySourceLocation,
@@ -500,7 +501,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
   // nested-record validation to report from this semantic pass.
   let suppressScalarRecordFieldDiagnostics = false;
   const addLocal = (statementIndex: number, local: LocalDiagnostic) => {
-    if (suppressLocalDiagnostics && local.code !== "module-collection-index-type") return;
+    if (suppressLocalDiagnostics && local.code !== "module-collection-index-type" &&
+      !local.code.startsWith("module-record-") && local.code !== "module-optional-value-required") return;
     const bucket = localDiagnosticsByStatement.get(statementIndex) ?? [];
     bucket.push(local);
     localDiagnosticsByStatement.set(statementIndex, bucket);
@@ -542,7 +544,12 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ...(definitionIdentity ? { definitionIdentity } : {}),
       name: parameter.name,
       type: parameter.type,
-      valueType: parameter.valueType,
+      valueType: recordAnalysis?.moduleParameters.find(p => p.definitionStatementId === statementId && p.parameterIndex === parameterIndex)?.valueType
+        ?? (() => {
+          const array = sourceNamespace.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(`${statementId}:${parameterIndex}`)?.valueType;
+          return array && isDslOptionalValueType(parameter.valueType) ? { kind: "optional" as const, valueType: array } : array;
+        })()
+        ?? parameter.valueType,
       ...(parameter.numericTypeOptions ? { numericTypeOptions: parameter.numericTypeOptions } : {}),
       recordTypeIdentity: recordTypeIdentityByParameter.get(`${statementId}:${parameterIndex}`) ?? null,
       optional: isDslOptionalValueType(parameter.valueType),
@@ -1811,7 +1818,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
 
   const qualifiedCollectionExportFor = (
     qualified: Extract<QualifiedModuleExportLookup, { kind: "deferred" }>
-  ): { kind: "collection"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; valueType: import("./dslValueTypes").DslArrayValueType }
+  ): { kind: "collection"; exportedStatementId: StatementIdentity; exportedStatementIndex: number; valueType: import("./dslValueTypes").DslArrayValueType; declaredValueType?: DslValueType }
     | { kind: "private"; exportedStatementIndex: number }
     | null => {
     const instance = instances.find((candidate) => candidate.statementId === qualified.instance.statementId);
@@ -1823,7 +1830,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             kind: "collection",
             exportedStatementId: exported.exportedStatementId,
             exportedStatementIndex: exported.exportedStatementIndex,
-            valueType: exported.valueType
+            valueType: exported.valueType,
+            ...(exported.declaredValueType ? { declaredValueType: exported.declaredValueType } : {})
           }
         : null;
     }
@@ -1838,13 +1846,14 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (!named) return null;
     if (named.statement.kind !== "typedDeclaration") return null;
     if (!named.statement.exported) return { kind: "private", exportedStatementIndex: named.statementIndex };
-    if (!isDslArrayValueType(named.statement.valueType)) return null;
+    if (!isDslArrayValueType(dslRequiredValueTypeOf(named.statement.valueType))) return null;
     const value = collectionValueSemanticForStatement(sourceNamespace.geometryArraySemanticAnalysis!, named.statementIndex);
     return value
       ? {
           kind: "collection",
           exportedStatementId: value.statementId,
           exportedStatementIndex: named.statementIndex,
+          ...(isDslOptionalValueType(named.statement.valueType) ? { declaredValueType: named.statement.valueType } : {}),
           valueType: "valueType" in value ? value.valueType : { kind: "array" as const, elementType: { kind: value.type.elementType as "point" | "line" | "path" } }
         }
       : null;
@@ -1954,8 +1963,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     if (lookup.kind === "iteration") {
       const valueType = dslRequiredValueTypeOf(lookup.valueType);
       if (!isDslRecordValueType(valueType)) return { kind: "notRecord" };
-      const definition = recordDefinitionFor(valueType.identity ?? null) ??
-        [...(recordAnalysis?.definitionsByStatementId.values() ?? [])].find((candidate) => candidate.name === valueType.name);
+      const typeLookup = valueType.identity ? null : resolveSourceLexicalPath(sourceNamespace, statementIndex, parseDslReferenceToken(valueType.name));
+      const definition = recordDefinitionFor(valueType.identity ?? null) ?? (typeLookup?.kind === "resolved" && typeLookup.declaration.kind === "recordDefinition"
+        ? recordAnalysis?.definitionsByStatementIndex.get(typeLookup.declaration.statementIndex) : undefined);
       return definition
         ? {
             kind: "record",
@@ -4266,6 +4276,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       if (qualified?.kind === "deferred") {
         const exported = qualifiedCollectionExportFor(qualified);
         if (exported?.kind === "collection") {
+          if (isDslOptionalValueType(exported.declaredValueType) && !reference.allowOptionalTraversal) return {
+            target: null, type: null, resolution: "invalid",
+            diagnostic: issue("module-optional-value-required", reference.span, "optional collection は使用前に optional value を解決してください。",
+              { presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: reference.elementName } } })
+          };
           return {
             target: {
               kind: "deferredModuleCollectionExportLength",
@@ -4877,6 +4892,11 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         return { kind: "record", name: record.definition.name, identity: record.typeIdentity };
       }
       const path = parseDslReferenceToken(name);
+      if (path.segments.length > 1) {
+        const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, name, span);
+        const exported = qualified?.kind === "deferred" ? qualifiedCollectionExportFor(qualified) : null;
+        if (exported?.kind === "collection") return exported.declaredValueType ?? exported.valueType;
+      }
       const lookup = path.segments.length > 1
         ? resolveModuleLexicalPath(statementIndex, ownerIndex, path)
         : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, name);
@@ -5093,6 +5113,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         : parameter
           ? collectionAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType ?? null
           : carryValueType ?? (collectionAnalysis ? collectionValueTypeFor(value) : null);
+      if (isDslOptionalValueType(exported?.kind === "collection" ? exported.declaredValueType :
+        parameter?.parameter.valueType ?? (value && "declaredValueType" in value ? value.declaredValueType : null))) {
+        return invalid("invalid", "optional record collection は indexing 前に optional value を解決してください。", baseSpan);
+      }
       const requiredElement = dslRequiredValueTypeOf(valueType?.elementType);
       const element = requiredElement?.kind === "record" ? requiredElement : null;
       const indexSource = input.logicalTextByStatementIndex?.get(statementIndex) ?? trimmed;
@@ -5278,10 +5302,18 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return invalid("invalid", "record argument には同型 record の `@name` または `RecordName(field: value, ...)` を指定してください。");
     }
     for (const constructorIssue of constructor.issues) addLocal(statementIndex, constructorIssue);
-    const targetLookup = sourceDeclarationResolution(sourceNamespace, statementIndex, constructor.name);
-    const targetDefinition = targetLookup.kind === "resolved" && targetLookup.declaration.kind === "recordDefinition"
-      ? recordAnalysis!.definitionsByStatementIndex.get(targetLookup.declaration.statementIndex)
-      : undefined;
+    const constructorPath = parseDslReferenceToken(constructor.name);
+    const first = resolveModuleLexicalDeclaration(statementIndex, ownerIndex, constructorPath.segments[0]!);
+    const targetLookup = first.kind === "resolved"
+      ? resolveSourceLexicalPathFromDeclaration(sourceNamespace, first.declaration, constructorPath.segments.slice(1), { externalNamespaceResolver: input.externalNamespaceResolver }) : first;
+    const targetDefinition = targetLookup.kind === "external"
+      ? (() => {
+          const entry = targetLookup.member.value as import("../document/multiDocumentPublicApi").MultiDocumentPublicApiEntry;
+          return entry.family === "record" ? input.externalRecordDefinitionResolver?.(entry.identity.documentId, documentRecordTypeIdentity(entry.identity.documentId, entry.identity.localIdentity)) : undefined;
+        })()
+      : targetLookup.kind === "resolved" && targetLookup.declaration.kind === "recordDefinition"
+        ? recordAnalysis!.definitionsByStatementIndex.get(targetLookup.declaration.statementIndex)
+        : undefined;
     if (!targetDefinition) {
       return invalid("invalid", `record constructor「${constructor.name}」は expected record definition ではありません。`, constructor.nameSpan, [], { key: "diagnostic.module-record-invalid-reference", parameters: { name: constructor.name } });
     }
@@ -5606,7 +5638,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       return reference.target ? { kind: "reference", span: expression.span, reference, valueType: expression.valueType ?? reference.valueType } : null;
     }
     if (expression.kind === "collectionIndex") {
-      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, false, localBindings);
+      const reference = recordReferenceSemantic(statementIndex, ownerIndex, raw, expression.span, expectedTypeIdentity, allowOptionalReference || isDslOptionalValueType(expression.valueType), localBindings);
       return reference.target?.kind === "recordCollectionIndex"
         ? { kind: "collectionIndex", span: expression.span, reference, valueType: expression.valueType }
         : null;
@@ -6631,11 +6663,27 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     argumentIndex: number,
     source: string,
     span: DslSpan,
-    expectedType: import("./dslValueTypes").DslArrayValueType
+    expectedType: import("./dslValueTypes").DslArrayValueType,
+    allowOptionalReference = false
   ): ModuleArgumentSemantic | null => {
-    const literal = sourceNamespace.geometryArraySemanticAnalysis
+    const preanalyzedLiteral = sourceNamespace.geometryArraySemanticAnalysis
       ?.moduleArgumentCollectionLiteralsByStatementIndex.get(statementIndex)
       ?.get(argumentIndex);
+    // Imported callees become available after the graph catalogs are resolved.
+    // Reuse the collection owner's expression resolver with the callee's
+    // already-resolved parameter type in the caller's lexical environment.
+    const literal = preanalyzedLiteral ?? (() => {
+      if (isDslGeometryValueType(expectedType.elementType)) return null;
+      const parsed = parseGeometryArrayExpression(source);
+      if (parsed.expression?.kind !== "literal") return null;
+      const resolved = sourceNamespace.geometryArraySemanticAnalysis?.resolveGenericArrayExpressionAt({
+        statementIndex, statementId: statementIdAt(stableStatementIdByIndex, statementIndex),
+        expectedValueType: expectedType, expectedArrayType: expectedType,
+        expression: parsed.expression, expressionOffset: span.start
+      });
+      for (const diagnostic of resolved?.diagnostics ?? []) addLocal(statementIndex, diagnostic);
+      return resolved?.value?.kind === "literal" ? resolved.value : null;
+    })();
     if (literal) {
       analyzeCollectionControlFlow(statementIndex, ownerIndex, input.logicalTextByStatementIndex?.get(statementIndex) ?? source, literal,
         (raw, memberSpan, expected, bindings) => analyzeExpression(statementIndex, ownerIndex, raw, memberSpan, expected,
@@ -6651,9 +6699,13 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const path = parseDslReferenceToken(parsed.reference.pathText);
     if (path.segments.length === 1 && !path.absolute) {
       const parameter = moduleParameterByName(statements, stableStatementIdByIndex, statementIndex, path.segments[0]!);
-      const parameterValueType = dslRequiredValueTypeOf(parameter?.parameter.valueType);
+      const parameterValueType = parameter
+        ? sourceNamespace.geometryArraySemanticAnalysis?.genericModuleParametersBySlot.get(`${parameter.definitionStatementId}:${parameter.parameterIndex}`)?.valueType
+          ?? dslRequiredValueTypeOf(parameter.parameter.valueType)
+        : null;
       if (parameter && parameterValueType && isDslArrayValueType(parameterValueType)) {
-        if (isDslOptionalValueType(parameter.parameter.valueType)) return null;
+        if (isDslOptionalValueType(parameter.parameter.valueType) && !allowOptionalReference) return null;
+        if (!isDslNonArrayValueTypeAssignable(parameterValueType.elementType, expectedType.elementType)) return null;
         return {
           kind: "collection",
           source,
@@ -6668,6 +6720,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       const qualified = resolveQualifiedModuleExport(statementIndex, ownerIndex, parsed.reference.pathText, span, parsed.reference.pathRange.start);
       if (qualified?.kind === "deferred") {
         const exported = qualifiedCollectionExportFor(qualified);
+        if (exported?.kind === "collection" && isDslOptionalValueType(exported.declaredValueType) && !allowOptionalReference) return null;
         if (exported?.kind === "collection" && isDslNonArrayValueTypeAssignable(exported.valueType.elementType, expectedType.elementType)) {
           return {
             kind: "collection",
@@ -6685,6 +6738,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       ? collectionValueSemanticForStatement(sourceNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
       : null;
     if (!value) return null;
+    if ("declaredValueType" in value && isDslOptionalValueType(value.declaredValueType) && !allowOptionalReference) return null;
     const valueType = "valueType" in value ? value.valueType : { kind: "array" as const, elementType: { kind: value.type.elementType as "point" | "line" | "path" } };
     if (!isDslNonArrayValueTypeAssignable(valueType.elementType, expectedType.elementType)) return null;
     return {
@@ -6828,7 +6882,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
               argumentIndex!,
               argument.value,
               argument.valueSpan,
-              parameterArrayType
+              parameterArrayType,
+              isDslOptionalValueType(parameter.valueType)
             );
             if (!value) {
               const sourceReference = parseDslSourceReference(argument.value.trim());
@@ -6845,6 +6900,10 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
                   `optional module parameter「${sourceParameter.parameter.name}」は optional value を解決してから参照してください。`,
                   { relatedSources: owner ? relatedForParameter(owner, sourceParameter.parameterIndex) : [], presentation: { key: "diagnostic.module-optional-value-required", parameters: { name: sourceParameter.parameter.name } } }
                 ));
+              } else if (!isDslGeometryValueType(parameterArrayType.elementType)) {
+                addLocal(statementIndex, issue("array-argument-type-mismatch", argument.valueSpan,
+                  `array argument「${argument.value}」の型が parameter「${parameter.name}」と一致しません。`,
+                  { presentation: { key: "diagnostic.array-argument-type-mismatch", parameters: { argument: argument.value, parameter: parameter.name } } }));
               }
             }
           } else if (parameterScalarType) {
@@ -6980,7 +7039,8 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     const diagnostics = localDiagnosticsByStatement.get(statementIndex);
     if (diagnostics && diagnostics.length > diagnosticsBefore) {
       const added = diagnostics.splice(diagnosticsBefore);
-      const retained = expression?.optionalMembers?.length ? added : [];
+      const retained = expression?.optionalMembers?.length ? added
+        : added.filter(diagnostic => diagnostic.code === "module-optional-value-required");
       if (retained.length > 0) diagnostics.push(...retained);
       if (diagnostics.length === 0) localDiagnosticsByStatement.delete(statementIndex);
     }
@@ -7740,7 +7800,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
         exportedStatementIndex: collectionValue.statementIndex,
         sourceOrder: collectionValue.statementIndex,
         name: collectionValue.name,
-        valueType: collectionValue.valueType
+        valueType: collectionValue.valueType,
+        ...("declaredValueType" in collectionValue && isDslOptionalValueType(collectionValue.declaredValueType)
+          ? { declaredValueType: collectionValue.declaredValueType } : {})
       });
       exportedNames.add(collectionValue.name);
     }

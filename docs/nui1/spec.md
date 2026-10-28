@@ -63,7 +63,7 @@ must end in `.nui`. nui1 does not provide package search, URL imports,
 absolute-path imports, or extension inference.
 
 An import alias participates in the ordinary lexical namespace of the importing
-document. The alias is traversed with `::` and the `@` reference marker:
+document. Value references traverse the alias with `::` and the `@` reference marker:
 
 ```text
 @alias::Name
@@ -722,8 +722,39 @@ type vocabulary: scalar types (`number`, `string`, `boolean`, and
 `choice(...)`), `point`, `line`, `path`, a supported one-dimensional `T[]`
 collection whose element type is not an array, one optional wrapper around any
 of those, or another named record type.
-Record type identity is the identity of the record definition statement; two
-definitions with the same field names and types are still different types.
+Record type identity is the original defining-document-qualified definition
+identity; two definitions with the same name, field names, and field types in
+different documents remain different types. A top-level record is private
+unless its definition has the explicit `export` modifier:
+
+```nui
+// seam.nui
+nui 1
+export record SeamSettings(width: number, cornerAngle: number)
+```
+
+An importer names the public type and its constructor as `alias::Name`, without
+`@`. Ordinary value references retain their `@` marker:
+
+```nui
+// body.nui
+nui 1
+import "./seam.nui" as seam
+const s: seam::SeamSettings = seam::SeamSettings(width: 5, cornerAngle: 45)
+const width: number = @s.width
+```
+
+A facade may use `export @seam::SeamSettings`. Re-export preserves the original
+defining-document identity; it does not define a new record. Direct imports,
+multiple aliases, and facade imports of that original definition are compatible.
+The same resolved identity is retained in record fields, typed values,
+constructors, Module parameters/locals/exports, and permitted optional and
+one-dimensional array wrappers (`R?`, `R[]`, `R?[]`, `R[]?`). Existing optional
+wrapper restrictions still apply. Qualified type names and constructors do not
+make private or transitively imported declarations visible. Lexical shadowing,
+legal dependency ordering, constructor field checks, saved dependency authority,
+and source attribution use their ordinary owners. Nested/exported record
+definitions inside a Module or other block remain invalid.
 Definitions and values use the same legal lexical scope and dependency graph.
 Nested arrays and field defaults are not part of nui1 v1. Optional field omission does not
 create field-specific presence state or defaults; it uses the generic `T?` value

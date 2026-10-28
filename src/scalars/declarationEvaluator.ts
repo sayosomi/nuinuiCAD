@@ -73,7 +73,7 @@ export type ScalarProgramCollectionResolver = {
   recordFieldFor: (
     collectionValueId: string,
     index: number,
-    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType },
+    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType; fieldPath?: readonly { recordStatementId: string; fieldIndex: number }[] },
     sourceOrder: number
   ) => ScalarEvaluation;
 };
@@ -107,6 +107,17 @@ const isTransientUnavailableEvaluation = (evaluation: ScalarEvaluation): boolean
     evaluation.issueCode === "evaluation-collection-index-unavailable" ||
     evaluation.issueCode === "evaluation-optional-member-unavailable"
   );
+
+const recordFieldPathMatches = (
+  candidate: { recordStatementId: string; fieldIndex: number; fieldPath?: readonly { recordStatementId: string; fieldIndex: number }[] },
+  expected: { recordStatementId: string; fieldIndex: number; fieldPath?: readonly { recordStatementId: string; fieldIndex: number }[] }
+) => {
+  const actualPath = candidate.fieldPath ?? [candidate];
+  const expectedPath = expected.fieldPath ?? [expected];
+  return actualPath.length === expectedPath.length && actualPath.every((part, index) =>
+    part.recordStatementId === expectedPath[index]!.recordStatementId && part.fieldIndex === expectedPath[index]!.fieldIndex
+  );
+};
 
 /**
  * Shared runtime boundary for collection members and cardinality. The
@@ -308,7 +319,7 @@ export const createScalarProgramCollectionResolver = (
   const recordFieldFor = (
     collectionValueId: string,
     index: number,
-    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType },
+    field: { recordStatementId: string; fieldIndex: number; type: ScalarExpressionType; fieldPath?: readonly { recordStatementId: string; fieldIndex: number }[] },
     sourceOrder: number,
     seen: ReadonlySet<string> = new Set(),
     localBindings: CollectionLocalBindings = new Map(),
@@ -353,7 +364,7 @@ export const createScalarProgramCollectionResolver = (
     }
     if (collection.kind === "recordField") return recordFieldFor(collection.sourceValueId, index, collection.field, sourceOrder, nextSeen, localBindings, collectionCarrySnapshots);
     if (collection.kind === "recordMap") {
-      const mappedField = collection.fields.find((candidate) => candidate.recordStatementId === field.recordStatementId && candidate.fieldIndex === field.fieldIndex);
+      const mappedField = collection.fields.find((candidate) => recordFieldPathMatches(candidate, field));
       if (!mappedField) return { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
       const binderFields = new Map(collection.binderFields.map((candidate) => [candidate.bindingId, candidate] as const));
       const mapped = evaluateTypedExpression(mappedField.body, {
@@ -375,7 +386,7 @@ export const createScalarProgramCollectionResolver = (
     if (collection.kind !== "literal") return { status: "error", type: field.type, issueCode: "evaluation-collection-index-unavailable" };
     const member = collection.members[index];
     if (!member || member.kind !== "record") return { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
-    const memberField = member.fields.find((candidate) => candidate.recordStatementId === field.recordStatementId && candidate.fieldIndex === field.fieldIndex);
+    const memberField = member.fields.find((candidate) => recordFieldPathMatches(candidate, field));
     if (!memberField) return { status: "error", type: field.type, issueCode: "evaluation-runtime-value-type-mismatch" };
     const value = localBindings.get(memberField.bindingId) ?? resolveBinding(memberField.bindingId);
     if (value.status === "error") return value;

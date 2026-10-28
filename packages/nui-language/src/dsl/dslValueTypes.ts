@@ -45,6 +45,14 @@ export type DslRequiredValueType = DslRequiredNonArrayValueType | DslArrayValueT
 /** Canonical host-neutral source-level immutable declaration value type. */
 export type DslValueType = DslNonArrayValueType | DslArrayValueType;
 
+/** Enrich a parsed record type without changing its authored qualified name. */
+export const dslValueTypeWithRecordIdentity = (type: DslValueType, identity: string): DslValueType => {
+  if (type.kind === "record") return { ...type, identity };
+  if (type.kind === "optional") return { ...type, valueType: dslValueTypeWithRecordIdentity(type.valueType, identity) as DslOptionalValueType["valueType"] };
+  if (type.kind === "array") return { ...type, elementType: dslValueTypeWithRecordIdentity(type.elementType, identity) as DslNonArrayValueType };
+  return type;
+};
+
 const scalarKinds = new Set<ScalarType["kind"]>(["number", "string", "boolean", "choice"]);
 
 export const isDslScalarValueType = (valueType: DslValueType | null | undefined): valueType is ScalarType =>
@@ -156,7 +164,7 @@ export const isDslValueTypeAssignable = (actual: DslValueType, expected: DslValu
     return isModuleGeometryInterfaceAssignable(actual.kind, expected.kind);
   }
   if (isDslRecordValueType(actual) && isDslRecordValueType(expected)) {
-    return actual.identity !== undefined && expected.identity !== undefined
+    return actual.identity !== undefined || expected.identity !== undefined
       ? actual.identity === expected.identity
       : actual.name === expected.name;
   }

@@ -1,3 +1,4 @@
+import { parseDslRecordDefinitionStatement, type DslRecordParseResult } from "./dslRecordParser";
 import type { DslCallParseResult, DslCallStatement, ParseDslCallOptions } from "./dslCallParser";
 import { parseDslCallStatement } from "./dslCallParser";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
@@ -27,10 +28,11 @@ export type DslExportDiagnostic = {
 
 export type DslExportParseResult = {
   exportSpan: DslSpan;
-  kind: "geometry" | "typedDeclaration" | "module" | null;
+  kind: "geometry" | "typedDeclaration" | "module" | "record" | null;
   call: DslCallParseResult | null;
   declaration: DslDeclarationParseResult | null;
   module: DslModuleParseResult | null;
+  record?: DslRecordParseResult;
   diagnostics: DslExportDiagnostic[];
 };
 
@@ -194,6 +196,10 @@ export const parseDslExportStatement = (
       module: null,
       diagnostics: []
     };
+  }
+  if (category === "record") {
+    return { exportSpan, kind: "record", call: null, declaration: null, module: null,
+      record: parseDslRecordDefinitionStatement(logicalText), diagnostics: [] };
   }
   if (category === "module") {
     return {

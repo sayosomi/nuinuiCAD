@@ -278,6 +278,9 @@ export const recordScalarDeclarationVersionIdFor = (
   ...fieldIdentityTuple(field)
 ])}`;
 
+const recordScalarDeclarationVersionIdForPath = (statementId: string, path: readonly RecordFieldIdentity[]) =>
+  path.length === 1 ? recordScalarDeclarationVersionIdFor(statementId, path[0]!)
+    : `record-field-declaration-path:${encodeIdentityTuple([statementId, ...path.flatMap(field => [field.recordStatementId, String(field.fieldIndex)])])}`;
 const syntheticRecordField = (
   reference: { name: string; span: DslSpan },
   fieldName: string
@@ -431,7 +434,10 @@ export const planRecordScalarLowering = ({
     const recordType = dslRequiredValueTypeOf(field.type);
     if (!isDslRecordValueType(recordType)) return [];
     const nested = analysis.definitionsByStatementId.get(recordType.identity ?? "");
-    return nested ? scalarFieldPathsFor(nested, path) : [];
+    return nested ? scalarFieldPathsFor(nested, path).map(entry => ({ ...entry,
+      type: isDslOptionalValueType(field.type) && entry.type.kind !== "optional"
+        ? { kind: "optional" as const, valueType: entry.type } : entry.type
+    })) : [];
   });
 
   const constructorFieldAtPath = (
@@ -444,6 +450,7 @@ export const planRecordScalarLowering = ({
       current = fields.find((candidate) => candidate.field.fieldIndex === wanted.fieldIndex) ?? null;
       if (!current) return null;
       if (index === path.length - 1) return { field: current, path };
+      if (current.value === "none") return { field: current, path, ast: { kind: "noneLiteral", span: current.valueSpan } };
       const recordType = dslRequiredValueTypeOf(current.expectedType);
       const definition = isDslRecordValueType(recordType)
         ? analysis.definitionsByStatementId.get(recordType.identity ?? "")
@@ -532,7 +539,7 @@ export const planRecordScalarLowering = ({
           visibility: { kind: "typed", scopeId },
           mutability: "const",
           declaredType: expectedType,
-          declarationVersionId: recordScalarDeclarationVersionIdFor(value.statementId, field.identity),
+          declarationVersionId: recordScalarDeclarationVersionIdForPath(value.statementId, path),
           resolutionMode: "preResolvedOnly",
           catalogOrder: "source"
         });
@@ -588,7 +595,7 @@ export const planRecordScalarLowering = ({
           visibility: { kind: "typed", scopeId },
           mutability: "const",
           declaredType: expectedType,
-          declarationVersionId: recordScalarDeclarationVersionIdFor(value.statementId, path[path.length - 1]!),
+          declarationVersionId: recordScalarDeclarationVersionIdForPath(value.statementId, path),
           resolutionMode: "preResolvedOnly",
           catalogOrder: "source"
         });
@@ -1469,7 +1476,9 @@ export const moduleRecordFieldExpressionFor = (
         }
       : null;
   }
-  if (expression.kind === "none" || expression.kind === "coalesce") return null;
+  if (expression.kind === "none") return { ast: { kind: "noneLiteral", span: expression.span }, type: field.type,
+    references: [], geometryProperties: [], geometryBuiltinArguments: [] };
+  if (expression.kind === "coalesce") return null;
   const arms = expression.arms.map((arm) => ({
     label: arm.label,
     labelSpan: arm.labelSpan,

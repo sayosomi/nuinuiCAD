@@ -615,7 +615,7 @@ const addRecordOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence)
   const namespace = compiled.sourceLexicalNamespace;
   const records = namespace?.recordSemanticAnalysis;
   if (!namespace || !records) return;
-  for (const definition of records.definitionsByStatementId.values()) {
+  for (const definition of records.definitionsByStatementIndex.values()) {
     const statement = compiled.statements[definition.statementIndex];
     if (!statement) continue;
     if (statement.nameSpan) addPhysicalOccurrence(add, compiled, definition.statementIndex, statement.nameSpan, recordTypeIdentityOccurrence(definition.statementId), "declaration");

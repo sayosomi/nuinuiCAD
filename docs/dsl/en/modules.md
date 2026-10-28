@@ -9,7 +9,8 @@ be declared as a parameter. Definitions and instances are resolved in their
 legal lexical scopes, and runtime dependencies use the document dependency
 graph.
 
-Module parameters may use scalar types, `point`, `line`, `path`, record types,
+Module parameters may use scalar types, `point`, `line`, `path`, record types
+(including exported imported types such as `seam::SeamSettings`),
 or the immutable one-dimensional collection type `T[]` for any currently valid
 non-array element type. The singular geometry interfaces are read-only inside
 a module. Collection parameters and locals use the same source semantic owner

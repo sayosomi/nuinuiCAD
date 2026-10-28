@@ -10,6 +10,7 @@ import type {
 import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
 
 export type FileExportableDeclarationFamily =
+  | "record"
   | "module"
   | "modifier"
   | "profile"

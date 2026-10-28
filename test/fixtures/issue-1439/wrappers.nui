@@ -1,0 +1,38 @@
+nui 1
+import "./seam.nui" as seam
+import "./facade.nui" as facade
+const a: seam::Corner = seam::Corner(width: 17)
+const absent: seam::Corner? = none
+const selected: facade::Corner = @absent ?? facade::Corner(width: 31)
+const selectedWidth: number = @selected.width
+const conditional: seam::Corner = if (true) { facade::Corner(width: 41) } else { seam::Corner(width: 43) }
+const conditionalWidth: number = @conditional.width
+const rows: seam::Corner?[] = [none, @a]
+const first: facade::Corner? = @rows[0]
+const second: facade::Corner? = @rows[1]
+const firstWidth: number = @first?.width ?? 47
+const secondWidth: number = @second?.width ?? 53
+const optionalRows: facade::Corner[]? = [@a]
+const requiredRows: seam::Corner[] = @optionalRows ?? []
+const row: facade::Corner = @requiredRows[0]
+const rowWidth: number = @row.width
+record Local(setting: seam::Corner)
+const nested: Local = Local(setting: facade::Corner(width: 59))
+const nestedWidth: number = @nested.setting.width
+import "./modules.nui" as lib
+instance factory = lib::Factory()
+const factoryWidth: number = @factory::out.width
+instance maybeRows = lib::MaybeRows(rows: [none, @a])
+const forwardedMaybe: facade::Corner? = @maybeRows::out[1]
+const forwardedMaybeWidth: number = @forwardedMaybe?.width ?? 61
+instance absentRows = lib::OptionalRows()
+instance presentRows = lib::OptionalRows(rows: [@a])
+const absentRowsLength: number = @absentRows::out?.length ?? 71
+const presentRowsLength: number = @presentRows::out?.length ?? 73
+instance nestedFactory = lib::NestedFactory()
+const nestedFactoryWidth: number = @nestedFactory::out.inner.width
+const nestedFactoryAbsent: number = @nestedFactory::out.maybe?.width ?? 101
+const nestedFactoryLength: number = @nestedFactory::out.xs.length
+instance relay = lib::Relay(rows: [@a])
+const relayed: facade::Corner = @relay::out[0]
+const relayedWidth: number = @relayed.width

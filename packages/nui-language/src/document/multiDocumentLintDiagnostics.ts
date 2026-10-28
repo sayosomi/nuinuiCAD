@@ -1,3 +1,5 @@
+import type { DslValueType } from "../dsl/dslValueTypes";
+import type { ModuleRecordValueExpressionSemantic } from "../dsl/moduleSemanticTypes";
 import { parseDslReferenceToken } from "../dsl/dslReferenceTokens";
 import { resolveSourceLexicalPath } from "../dsl/sourceLexicalNamespaceIndex";
 import type { DslDiagnosticPresentation } from "../dsl/dslTypes";
@@ -179,6 +181,50 @@ const addDirectModuleUses = (
   }
 };
 
+/** Type/constructor names have no @ value-reference occurrence. Account for
+ * them from the canonical parsed types and checked record expressions. */
+const addRecordUses = (graph: MultiDocumentImportGraph, analysis: MultiDocumentModuleSemanticAnalysis, used: Set<string>) => {
+  for (const [documentId, node] of graph.nodes) {
+    const resolver = createGraphExternalNamespaceResolver(graph, documentId);
+    const markRecordName = (statementIndex: number, name: string) => {
+      const path = parseDslReferenceToken(name);
+      if (path.segments.length !== 2) return;
+      const lookup = resolveSourceLexicalPath(node.artifact.sourceLexicalNamespace, statementIndex, path, { externalNamespaceResolver: resolver });
+      if (lookup.kind === "external" && (lookup.member.value as { family?: string }).family === "record") {
+        used.add(identityKey({ documentId, localIdentity: lookup.namespace.statementId }));
+      }
+    };
+    const markRecordType = (index: number, type: DslValueType | null | undefined): void => {
+      if (type?.kind === "record") markRecordName(index, type.name);
+      else if (type?.kind === "array") markRecordType(index, type.elementType);
+      else if (type?.kind === "optional") markRecordType(index, type.valueType);
+    };
+    for (const [index, statement] of node.artifact.parsed.statements.entries()) {
+      if (statement.kind === "typedDeclaration") markRecordType(index, statement.valueType);
+      else if (statement.kind === "recordDefinition") for (const field of statement.fields) markRecordType(index, field.type);
+      else if (statement.kind === "moduleDefinition") for (const parameter of statement.parameters) markRecordType(index, parameter.valueType);
+      else if (statement.kind === "element") for (const carry of statement.forCarries ?? []) markRecordType(index, carry.valueType);
+    }
+    const markRecordExpression = (index: number, expression: ModuleRecordValueExpressionSemantic | null | undefined): void => {
+      if (expression?.kind === "constructor") {
+        markRecordName(index, expression.constructor.name);
+        for (const field of expression.constructor.fields) if (field.valueExpression?.kind === "record") markRecordExpression(index, field.valueExpression.expression);
+      } else if (expression?.kind === "if") {
+        markRecordExpression(index, expression.thenBranch); markRecordExpression(index, expression.elseBranch);
+      } else if (expression?.kind === "match") for (const arm of expression.arms) markRecordExpression(index, arm.expression);
+      else if (expression?.kind === "coalesce") { markRecordExpression(index, expression.left); markRecordExpression(index, expression.right); }
+    };
+    const semantic = analysis.analysesByDocument.get(documentId);
+    for (const value of semantic?.rootRecordValuesByStatementId.values() ?? []) markRecordExpression(value.value.statementIndex, value.valueExpression);
+    for (const definition of semantic?.definitions ?? []) for (const value of definition.recordValues) markRecordExpression(value.value.statementIndex, value.valueExpression);
+    for (const instance of semantic?.instances ?? []) for (const binding of instance.parameterBindings) {
+      if (binding.value?.kind === "record" && binding.value.reference.constructor) markRecordExpression(instance.statementIndex, {
+        kind: "constructor", span: binding.value.reference.span, constructor: binding.value.reference.constructor
+      });
+    }
+  }
+};
+
 /**
  * Analyze exact graph-backed import usage. The analyzer deliberately keeps
  * direct Module alias proof separate from the generic occurrence universe so
@@ -196,6 +242,7 @@ export const analyzeMultiDocumentLintDiagnostics = (
     const used = new Set<string>();
     addReExportUses(input.graph, occurrenceIndex, used);
     addDirectModuleUses(input.graph, moduleAnalysis, used);
+    addRecordUses(input.graph, moduleAnalysis, used);
 
     return [...input.graph.nodes.values()].flatMap((node) => node.artifact.imports.flatMap((directive) => {
       if (used.has(identityKey(directive.identity))) return [];

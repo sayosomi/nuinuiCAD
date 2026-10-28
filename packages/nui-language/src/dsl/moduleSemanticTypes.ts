@@ -933,6 +933,7 @@ export type ResolvedModuleRecordExport = ResolvedModuleExportBase & {
 export type ResolvedModuleCollectionExport = ResolvedModuleExportBase & {
   kind: "collection";
   valueType: DslArrayValueType;
+  declaredValueType?: DslValueType;
 };
 
 export type ResolvedModuleExport = ResolvedModuleGeometryExport | ResolvedModuleScalarExport | ResolvedModuleRecordExport | ResolvedModuleCollectionExport;

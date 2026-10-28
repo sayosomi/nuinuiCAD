@@ -376,7 +376,7 @@ export const parseDslDeclaredValueType = (
     Object.prototype.hasOwnProperty.call(KNOWN_SIMPLE_TYPES, elementText) ||
     NUMBER_HEAD.test(elementText) ||
     CHOICE_HEAD.test(elementText);
-  if (builtInScalarSyntax || !isBareTypeName(elementText)) {
+  if (builtInScalarSyntax || !elementText.split("::").every(isBareTypeName)) {
     const parsed = parseDslScalarType(source, elementTypeSpan, diagnostics, {
       acceptedTypeDescription: "number/string/boolean/choice(...)/point/line/path/T[]"
     });

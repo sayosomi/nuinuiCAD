@@ -285,6 +285,9 @@ export type DslStatement =
     })
   | (DslStatementBase & {
       kind: "recordDefinition";
+      exported: boolean;
+      exportSpan: DslSpan | null;
+      exportPhysicalSpan?: DslPhysicalSpan | null;
       fields: readonly DslRecordField[];
     })
   | (DslStatementBase & {

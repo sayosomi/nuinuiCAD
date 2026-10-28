@@ -1,9 +1,11 @@
+import { resolveModuleLexicalDeclaration } from "./moduleLexicalResolution";
 import { isGeometryDeclarationCategory } from "./dslConstructions";
 import { isInUnloweredModuleSubtree } from "./dslCompilationGuard";
+import { parseDslReferenceToken } from "./dslReferenceTokens";
 import type { DslReferencePath } from "./dslReferenceTokens";
 import { buildLexicalScopeIndexFromStatements } from "./lexicalScopeIndexAdapter";
 import type { DslDiagnostic, DslSpan, DslStatement } from "./dslTypes";
-import { analyzeRecordSemantics, type RecordSemanticAnalysis } from "./recordSemanticAnalysis";
+import { analyzeRecordSemantics, type RecordSemanticAnalysis, type RecordSemanticAnalysisInput } from "./recordSemanticAnalysis";
 import { analyzeGeometryArraySemantics, type GeometryArraySemanticAnalysis, type GeometryArraySemanticAnalysisInput } from "./geometryArraySemanticAnalysis";
 import { scopeChain, type IncludeStatement, type LexicalScopeIndex, type ScopeId } from "../scalars/lexicalScopeIndex";
 import { dslRequiredValueTypeOf, isDslArrayValueType, isDslGeometryValueType, nominalRecordTypeOfDslValueType, scalarTypeOfDslValueType } from "./dslValueTypes";
@@ -97,6 +99,9 @@ export type SourceLexicalPathResolution = {
 };
 
 export type BuildSourceLexicalNamespaceOptions = {
+  recordSemanticAnalysis?: RecordSemanticAnalysis;
+  recordTypes?: Pick<RecordSemanticAnalysisInput, "identityForDefinition" | "externalDefinitions" | "resolveExternalDefinition" | "deferImportedTypes">;
+  externalNamespaceResolver?: SourceLexicalExternalNamespaceResolver;
   includeStatement?: IncludeStatement;
   scopeIndex?: LexicalScopeIndex;
   resolveGeometryStageSelection?: GeometryArraySemanticAnalysisInput["resolveGeometryStageSelection"];
@@ -333,15 +338,30 @@ export const buildSourceLexicalNamespaceIndex = (
     recordSemanticAnalysis: null,
     geometryArraySemanticAnalysis: null
   };
-  const recordSemanticAnalysis = analyzeRecordSemantics({
+  const recordTypeParameterOverlays = statements.flatMap((statement, statementIndex) => statement.kind === "moduleDefinition"
+    ? [{ bodyScopeId: `module:${stableStatementIdByIndex.get(statementIndex)}`, value: statement,
+        parameters: statement.parameters.map((parameter, index) => ({ index, name: parameter.name, value: parameter })) }]
+    : []);
+  const resolveRecordPath = (statementIndex: number, path: DslReferencePath): SourceLexicalLookupWithExternal => {
+    if (path.segments.length < 2 || path.absolute) return resolveSourceLexicalPath(baseIndex, statementIndex, path, options);
+    const first = resolveModuleLexicalDeclaration({ sourceNamespace: baseIndex, stableStatementIdByIndex,
+      parameterOverlays: recordTypeParameterOverlays }, statementIndex, path.segments[0]!);
+    if (first.kind === "parameter" || first.kind === "iteration") return { kind: "undefined" };
+    return first.kind === "resolved"
+      ? resolveSourceLexicalPathFromDeclaration(baseIndex, first.declaration, path.segments.slice(1), options) : first;
+  };
+  const recordSemanticAnalysis = options.recordSemanticAnalysis ?? analyzeRecordSemantics({
     statements,
     stableStatementIdByIndex,
-    resolveDeclaration: (statementIndex, name) => resolveSourceLexicalDeclaration(baseIndex, statementIndex, name)
+    ...options.recordTypes,
+    resolveDeclaration: (statementIndex, name) => resolveRecordPath(statementIndex, parseDslReferenceToken(name))
   });
   const geometryArraySemanticAnalysis = analyzeGeometryArraySemantics({
     statements,
     stableStatementIdByIndex,
-    resolvePath: (statementIndex, path) => resolveSourceLexicalPath(baseIndex, statementIndex, path),
+    resolvePath: resolveRecordPath,
+    resolveExternalRecordDefinition: options.recordTypes?.resolveExternalDefinition,
+    deferImportedTypes: options.recordTypes?.deferImportedTypes,
     resolveGeometryStageSelection: options.resolveGeometryStageSelection,
     recordSemanticAnalysis
   });

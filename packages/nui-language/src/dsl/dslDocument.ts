@@ -1,3 +1,5 @@
+import { createGraphExternalNamespaceResolver } from "../document/multiDocumentImportGraph";
+import { documentRecordTypeIdentity } from "./recordSemanticAnalysis";
 import {
   createElementNameContext,
   elementQualifiedNameParts,
@@ -1329,8 +1331,14 @@ export const compileDslDocument = (
     parsed.statements.every(
       (statement, statementIndex) => !sourceNamespaceRequiresIdentity(statement) || stableStatementIdByIndex.has(statementIndex)
     );
+  const graphRoot = options.moduleRuntimeContext?.valid
+    ? options.moduleRuntimeContext.documentFor(options.moduleRuntimeContext.rootDocumentId) : undefined;
+  const graphNamespace = graphRoot?.source.kind === "root-current" &&
+    graphRoot.source.normalizedSource === normalized && graphRoot.source.sourceRevision === parsed.sourceRevision &&
+    stableStatementIdByIndex && [...graphRoot.statementIdByStatementIndex].every(([index, id]) => stableStatementIdByIndex.get(index) === id)
+      ? graphRoot.sourceLexicalNamespace : undefined;
   const initialBaseSourceLexicalNamespace = sourceNamespaceHasCompleteIdentity
-    ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
+    ? graphNamespace ?? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!)
     : undefined;
   const moduleTransformationStageDeclarationsByOwnerId = initialBaseSourceLexicalNamespace && stableStatementIdByIndex
     ? collectModuleTransformationStageDeclarationsForSource({
@@ -1355,7 +1363,16 @@ export const compileDslDocument = (
     : undefined;
   const baseSourceLexicalNamespace = initialBaseSourceLexicalNamespace && resolveGeometryArrayStageSelection
     ? buildSourceLexicalNamespaceIndex(parsed.statements, stableStatementIdByIndex!, {
-        resolveGeometryStageSelection: resolveGeometryArrayStageSelection
+        resolveGeometryStageSelection: resolveGeometryArrayStageSelection,
+        ...(graphNamespace && options.moduleRuntimeContext ? {
+          recordSemanticAnalysis: graphNamespace.recordSemanticAnalysis ?? undefined,
+          externalNamespaceResolver: createGraphExternalNamespaceResolver(options.moduleRuntimeContext.graph, options.moduleRuntimeContext.rootDocumentId),
+          recordTypes: { resolveExternalDefinition: (member: import("./sourceLexicalNamespaceIndex").SourceLexicalExternalNamespaceMember) => {
+            const entry = member.value as import("../document/multiDocumentPublicApi").MultiDocumentPublicApiEntry;
+            return entry.family === "record" ? graphNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(
+              documentRecordTypeIdentity(entry.identity.documentId, entry.identity.localIdentity)) ?? null : null;
+          } }
+        } : {})
       })
     : initialBaseSourceLexicalNamespace;
   const collectionSourceDiagnostics: DslDiagnostic[] = [];
@@ -1441,6 +1458,23 @@ export const compileDslDocument = (
     }
     return candidate;
   })();
+  // Parsed annotations keep their authored name; consumers use the canonical
+  // lexical/public-catalog lookup until the semantic owner has attached an ID.
+  // Once an ID exists, never fall back to a same-named definition.
+  const recordDefinitionForValueType = (type: import("./dslValueTypes").DslRecordTypeReference, statementIndex = 0) => {
+    const records = sourceLexicalNamespace?.recordSemanticAnalysis;
+    if (!records || !sourceLexicalNamespace) return undefined;
+    if (type.identity !== undefined) return records.definitionsByStatementId.get(type.identity);
+    const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, parseDslReferenceToken(type.name), {
+      ...(moduleRuntimeContext ? { externalNamespaceResolver: createGraphExternalNamespaceResolver(moduleRuntimeContext.graph, moduleRuntimeContext.rootDocumentId) } : {})
+    });
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "recordDefinition") return records.definitionsByStatementIndex.get(lookup.declaration.statementIndex);
+    if (lookup.kind === "external") {
+      const entry = lookup.member.value as import("../document/multiDocumentPublicApi").MultiDocumentPublicApiEntry;
+      return entry.family === "record" ? records.definitionsByStatementId.get(documentRecordTypeIdentity(entry.identity.documentId, entry.identity.localIdentity)) : undefined;
+    }
+    return undefined;
+  };
   if (sourceLexicalNamespace && stableStatementIdByIndex) {
     // The first compile establishes reconciler-owned element identities &&
     // structural metadata. Re-run the same compiler with the source
@@ -1764,8 +1798,7 @@ export const compileDslDocument = (
         const sourceStatement = lookup.declaration.statement as Extract<DslStatement, { kind: "typedDeclaration" }>;
         const recordType = dslRequiredValueTypeOf(sourceStatement.valueType);
         if (recordType?.kind === "record") {
-          const recordDefinition = sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(recordType.identity ?? "") ??
-            [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])].find((candidate) => candidate.name === recordType.name);
+          const recordDefinition = recordDefinitionForValueType(recordType, lookup.declaration.statementIndex);
           if (recordDefinition) {
             let currentDefinition = recordDefinition;
             let currentRaw = sourceStatement.initializer;
@@ -1803,8 +1836,7 @@ export const compileDslDocument = (
         const sourceStatement = lookup.declaration.statement as Extract<DslStatement, { kind: "typedDeclaration" }>;
         const recordType = dslRequiredValueTypeOf(sourceStatement.valueType);
         if (recordType?.kind === "record" && (path.segments.length > 1 || propertyPath.length > 0)) {
-          const recordDefinition = sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(recordType.identity ?? "") ??
-            [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])].find((candidate) => candidate.name === recordType.name);
+          const recordDefinition = recordDefinitionForValueType(recordType, lookup.declaration.statementIndex);
           if (recordDefinition) {
             let currentDefinition = recordDefinition;
             let currentRaw = sourceStatement.initializer;
@@ -2303,6 +2335,53 @@ export const compileDslDocument = (
       }
     : undefined;
 
+  // Both ordinary indexes and compiler-projected record field indexes use
+  // this same source/Module collection owner and deferred runtime identity.
+  const rootCollectionSourceForPath = (statementIndex: number, path: ReturnType<typeof parseDslReferenceToken>) => {
+    if (!sourceLexicalNamespace) return null;
+    const lookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, path);
+    let value: ReturnType<typeof collectionValueSemanticForStatement> = null;
+    let targetSourceOrder: number | null = null;
+    let collectionValueId: string | null = null;
+    if (lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration") {
+      value = sourceLexicalNamespace.geometryArraySemanticAnalysis
+        ? collectionValueSemanticForStatement(sourceLexicalNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
+        : null;
+      targetSourceOrder = lookup.declaration.statementIndex;
+      collectionValueId = value?.statementId ?? null;
+    } else if (path.segments.length === 2 && lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance") {
+      const instance = lookup.declaration.statement;
+      if (instance.kind !== "moduleInstance") return null;
+      const localDefinitionLookup = resolveSourceLexicalPath(sourceLexicalNamespace, lookup.declaration.statementIndex, parseDslReferenceToken(instance.moduleName));
+      const runtimeInstance = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId)?.instancesByStatementId.get(lookup.declaration.statementId);
+      const runtimeDefinition = moduleRuntimeContext && runtimeInstance?.callee
+        ? moduleRuntimeContext.definitionFor(runtimeInstance.callee.definitionIdentity)
+        : undefined;
+      if (runtimeDefinition && moduleRuntimeContext) {
+        const definingAnalysis = moduleRuntimeContext.documentFor(runtimeDefinition.documentId ?? moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace.geometryArraySemanticAnalysis;
+        const exported = runtimeDefinition.exports.find((candidate) => candidate.kind === "collection" && candidate.name === path.segments[1]);
+        if (exported?.kind === "collection" && definingAnalysis) {
+          value = definingAnalysis.genericValuesByStatementId.get(exported.exportedStatementId) ?? null;
+          targetSourceOrder = lookup.declaration.statementIndex;
+          collectionValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!);
+        }
+      } else if (localDefinitionLookup.kind === "resolved" && localDefinitionLookup.declaration.statement.kind === "moduleDefinition") {
+        const exportedIndex = parsed.statements.findIndex((candidate) =>
+          candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === path.segments[1] &&
+          candidate.enclosing?.statementIndex === localDefinitionLookup.declaration.statementIndex
+        );
+        if (exportedIndex >= 0) {
+          value = sourceLexicalNamespace.geometryArraySemanticAnalysis
+            ? collectionValueSemanticForStatement(sourceLexicalNamespace.geometryArraySemanticAnalysis, exportedIndex)
+            : null;
+          targetSourceOrder = lookup.declaration.statementIndex;
+          collectionValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!);
+        }
+      }
+    }
+    return value ? { value, targetSourceOrder, collectionValueId: collectionValueId ?? value.statementId } : null;
+  };
+
   const rootCollectionIndexResolver = sourceLexicalNamespace
     ? ({ statementIndex, node }: {
         statementIndex: number;
@@ -2323,9 +2402,8 @@ export const compileDslDocument = (
             if (Array.isArray(encoded) && encoded.length === 3 && typeof encoded[0] === "string" && encodedPath && encodedPath.length > 0 && (encoded[1] !== "path" || Array.isArray(encoded[2]))) {
               const basePath = parseDslReferenceToken(encoded[0]);
               const baseLookup = resolveSourceLexicalPath(sourceLexicalNamespace, statementIndex, basePath);
-              const baseValue = baseLookup.kind === "resolved" && baseLookup.declaration.kind === "typedDeclaration"
-                ? sourceLexicalNamespace.geometryArraySemanticAnalysis?.genericValuesByStatementIndex.get(baseLookup.declaration.statementIndex) ?? null
-                : null;
+              const baseSource = rootCollectionSourceForPath(statementIndex, basePath);
+              const baseValue = baseSource?.value && "valueType" in baseSource.value ? baseSource.value : null;
               const carryDeclaration = baseLookup.kind === "resolved" && baseLookup.declaration.kind === "carry"
                 ? baseLookup.declaration
                 : null;
@@ -2361,7 +2439,7 @@ export const compileDslDocument = (
                 if (!field) break;
                 valueType = index === encodedPath.length - 1 ? field.type : field.type.kind === "record" ? field.type : null;
               }
-              const baseCollectionValueId = baseValue?.statementId ?? (carryDeclaration
+              const baseCollectionValueId = baseSource?.collectionValueId ?? (carryDeclaration
                 ? immutableCarryCollectionValueId(bindingIdForStableStatementId(carryDeclaration.statementId))
                 : null);
               if (baseCollectionValueId && field) {
@@ -2373,7 +2451,7 @@ export const compileDslDocument = (
                 return {
                   kind: "resolvedCollectionIndex" as const,
                   collectionValueId,
-                  collectionLength: carryDeclaration
+                  collectionLength: carryDeclaration || baseSource?.collectionValueId !== baseValue?.statementId
                     ? null
                     : collectionLengthForValueId(sourceLexicalNamespace.geometryArraySemanticAnalysis!, baseValue!.statementId),
                   // The record field backing slot is ordered within its
@@ -2404,9 +2482,6 @@ export const compileDslDocument = (
           : carryLookup
             ? { kind: "resolved" as const, declaration: carryLookup }
             : lexicalLookup;
-        let value: ReturnType<typeof collectionValueSemanticForStatement> = null;
-        let targetSourceOrder: number | null = null;
-        let collectionValueId: string | null = null;
         if (lookup.kind === "resolved" && lookup.declaration.kind === "carry") {
           const carry = lookup.declaration.statement.kind === "element"
             ? lookup.declaration.statement.forCarries?.find((candidate) => candidate.name === lookup.declaration.name)
@@ -2436,42 +2511,10 @@ export const compileDslDocument = (
             };
           }
         }
-        if (lookup.kind === "resolved" && lookup.declaration.kind === "typedDeclaration") {
-          value = sourceLexicalNamespace.geometryArraySemanticAnalysis
-            ? collectionValueSemanticForStatement(sourceLexicalNamespace.geometryArraySemanticAnalysis, lookup.declaration.statementIndex)
-            : null;
-          targetSourceOrder = lookup.declaration.statementIndex;
-          collectionValueId = value?.statementId ?? null;
-        } else if (path.segments.length === 2 && lookup.kind === "invalidTraversal" && lookup.declaration.kind === "moduleInstance") {
-          const instance = lookup.declaration.statement;
-          if (instance.kind !== "moduleInstance") return null;
-          const localDefinitionLookup = resolveSourceLexicalPath(sourceLexicalNamespace, lookup.declaration.statementIndex, parseDslReferenceToken(instance.moduleName));
-          const runtimeInstance = moduleRuntimeContext?.analysisFor(moduleRuntimeContext.rootDocumentId)?.instancesByStatementId.get(lookup.declaration.statementId);
-          const runtimeDefinition = moduleRuntimeContext && runtimeInstance?.callee
-            ? moduleRuntimeContext.definitionFor(runtimeInstance.callee.definitionIdentity)
-            : undefined;
-          if (runtimeDefinition && moduleRuntimeContext) {
-            const definingAnalysis = moduleRuntimeContext.documentFor(runtimeDefinition.documentId ?? moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace.geometryArraySemanticAnalysis;
-            const exported = runtimeDefinition.exports.find((candidate) => candidate.kind === "collection" && candidate.name === path.segments[1]);
-            if (exported?.kind === "collection" && definingAnalysis) {
-              value = definingAnalysis.genericValuesByStatementId.get(exported.exportedStatementId) ?? null;
-              targetSourceOrder = lookup.declaration.statementIndex;
-              collectionValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!);
-            }
-          } else if (localDefinitionLookup.kind === "resolved" && localDefinitionLookup.declaration.statement.kind === "moduleDefinition") {
-            const exportedIndex = parsed.statements.findIndex((candidate) =>
-              candidate.kind === "typedDeclaration" && candidate.exported && candidate.name === path.segments[1] &&
-              candidate.enclosing?.statementIndex === localDefinitionLookup.declaration.statementIndex
-            );
-            if (exportedIndex >= 0) {
-              value = sourceLexicalNamespace.geometryArraySemanticAnalysis
-                ? collectionValueSemanticForStatement(sourceLexicalNamespace.geometryArraySemanticAnalysis, exportedIndex)
-                : null;
-              targetSourceOrder = lookup.declaration.statementIndex;
-              collectionValueId = geometryArrayDeferredModuleExportId(lookup.declaration.statementId, path.segments[1]!);
-            }
-          }
-        }
+        const source = rootCollectionSourceForPath(statementIndex, path);
+        const value = source?.value ?? null;
+        const targetSourceOrder = source?.targetSourceOrder ?? null;
+        const collectionValueId = source?.collectionValueId ?? null;
         if (!value || !sourceLexicalNamespace.geometryArraySemanticAnalysis || !("valueType" in value)) return null;
         const scalarElementType = scalarExpressionTypeOfDslValueType(value.valueType.elementType);
         if (!scalarElementType) return null;
@@ -2603,10 +2646,7 @@ export const compileDslDocument = (
           : null;
         const elementType = sourceStatement?.valueType?.kind === "array" ? sourceStatement.valueType.elementType : null;
         if (!elementType || elementType.kind !== "record") return [];
-        const definition = (elementType.identity
-          ? sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.get(elementType.identity)
-          : undefined) ?? [...(sourceLexicalNamespace.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])]
-            .find((candidate) => candidate.name === elementType.name);
+        const definition = recordDefinitionForValueType(elementType, lookup.kind === "resolved" ? lookup.declaration.statementIndex : statementIndex);
         if (!definition) return [];
         const stableId = stableStatementIdByIndex.get(statementIndex);
         if (!stableId) return [];
@@ -2658,11 +2698,7 @@ export const compileDslDocument = (
         const fieldPath: import("./recordSemanticAnalysis").RecordFieldIdentity[] = [];
         for (const part of node.property.split(".")) {
           if (currentType.kind !== "record") return null;
-          const definition: import("./recordSemanticAnalysis").RecordDefinitionSemantic | undefined = (currentType.identity
-            ? sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(currentType.identity)
-            : undefined) ??
-            [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])]
-              .find((candidate) => candidate.name === (currentType.kind === "record" ? currentType.name : ""));
+          const definition: import("./recordSemanticAnalysis").RecordDefinitionSemantic | undefined = recordDefinitionForValueType(currentType, slot.statementIndex);
           const field: import("./recordSemanticAnalysis").RecordFieldSemantic | null = definition
             ? definition.fields.find((candidate) => candidate.name === part) ?? null
             : null;
@@ -2990,10 +3026,7 @@ export const compileDslDocument = (
       const collectionRecordType = collectionValue.valueType.elementType;
       if (collectionRecordType.kind === "record") {
         if (collectionValue.kind !== "literal") return;
-        const definition = (collectionRecordType.identity
-          ? sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(collectionRecordType.identity)
-          : undefined) ?? [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])]
-            .find((candidate) => candidate.name === collectionRecordType.name);
+        const definition = recordDefinitionForValueType(collectionRecordType);
         if (!definition) return;
         const leafFields = (current: typeof definition, prefix: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[] = []): Array<{ path: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[]; field: import("./recordSemanticAnalysis").RecordFieldSemantic; type: ScalarExpressionType }> => current.fields.flatMap((field) => {
           const path = [...prefix, field.identity];
@@ -3273,8 +3306,7 @@ export const compileDslDocument = (
     const recordDefinitionFor = (valueType: DslValueType) => {
       const required = dslRequiredValueTypeOf(valueType);
       if (!isDslRecordValueType(required)) return undefined;
-      return sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(required.identity ?? "") ??
-        [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])].find((candidate) => candidate.name === required.name);
+      return recordDefinitionForValueType(required);
     };
     const recordFieldsFor = (definition: NonNullable<ReturnType<typeof recordDefinitionFor>>, prefix: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[] = []): Array<{ path: readonly import("./recordSemanticAnalysis").RecordFieldIdentity[]; type: ScalarExpressionType }> => definition.fields.flatMap((field) => {
       const path = [...prefix, field.identity];
@@ -5248,8 +5280,7 @@ export const compileDslDocument = (
       const sourceStatement = lookup.declaration.statement as Extract<DslStatement, { kind: "typedDeclaration" }>;
       const recordType = dslRequiredValueTypeOf(sourceStatement.valueType);
       if (recordType?.kind === "record") {
-        const recordDefinition = sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(recordType.identity ?? "") ??
-          [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])].find((candidate) => candidate.name === recordType.name);
+        const recordDefinition = recordDefinitionForValueType(recordType, lookup.declaration.statementIndex);
         if (recordDefinition) {
           let currentDefinition = recordDefinition;
           let currentRaw = sourceStatement.initializer;
@@ -5321,8 +5352,7 @@ export const compileDslDocument = (
       const sourceStatement = lookup.declaration.statement as Extract<DslStatement, { kind: "typedDeclaration" }>;
       const recordType = dslRequiredValueTypeOf(sourceStatement.valueType);
       if (recordType?.kind === "record") {
-        const recordDefinition = sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.get(recordType.identity ?? "") ??
-          [...(sourceLexicalNamespace!.recordSemanticAnalysis?.definitionsByStatementId.values() ?? [])].find((candidate) => candidate.name === recordType.name);
+        const recordDefinition = recordDefinitionForValueType(recordType, lookup.declaration.statementIndex);
         if (recordDefinition) {
           let currentDefinition = recordDefinition;
           let currentRaw = sourceStatement.initializer;
