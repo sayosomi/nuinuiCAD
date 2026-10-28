@@ -1,0 +1,695 @@
+{
+  "base": "e30629e08e614b174a3d98d360a384e0f46a1440",
+  "fixedCells": [
+    {
+      "id": "B-64-e-s",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "36d43cd73c9740e5c0bb0b91701185ccfe8ccfef5f006f9ce8646f56c7a3e13e",
+      "inputSha256": "42e1ad5b87468b02a0e76244068b3ce8d20b0398dcecde69fdadcbcb711adb34",
+      "graph": {
+        "V": 199,
+        "E": 197,
+        "edgeRecords": 197,
+        "maxPrerequisites": 1,
+        "maxDependents": 64,
+        "outputCount": 66,
+        "bindingCount": 2,
+        "evaluationOrderCount": 66
+      },
+      "payloadBytes": 88376,
+      "geometryCount": 66,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-64-e-l",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "15b75103ceb137e260e437fb41963191b2558db750fd86a15b4b6a182cd54376",
+      "inputSha256": "3161b3367fad965750f67e7613b10b98162517d5823027a65ac8bdc00db197d1",
+      "graph": {
+        "V": 199,
+        "E": 133,
+        "edgeRecords": 133,
+        "maxPrerequisites": 1,
+        "maxDependents": 1,
+        "outputCount": 66,
+        "bindingCount": 2,
+        "evaluationOrderCount": 66
+      },
+      "payloadBytes": 67191,
+      "geometryCount": 66,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-64-l-s",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "8587a82927bd5e6da3723358d332e7dff26ecf42168b8693922436f1d9237d28",
+      "inputSha256": "99068f879c5e5d673e0787a8bd2bd9eee02313f80f27dcdc8fdbefdf937a0dec",
+      "graph": {
+        "V": 199,
+        "E": 197,
+        "edgeRecords": 197,
+        "maxPrerequisites": 1,
+        "maxDependents": 64,
+        "outputCount": 66,
+        "bindingCount": 2,
+        "evaluationOrderCount": 66
+      },
+      "payloadBytes": 89637,
+      "geometryCount": 66,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-64-l-l",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "259e4736f4df2e0e061e7ff119094388ae54c03e4f0739e914ac67c4c0359e7c",
+      "inputSha256": "741186b64f34a98f2cdbd28c2c747721d430013a05fae540983327ac8e28bb80",
+      "graph": {
+        "V": 199,
+        "E": 133,
+        "edgeRecords": 133,
+        "maxPrerequisites": 1,
+        "maxDependents": 1,
+        "outputCount": 66,
+        "bindingCount": 2,
+        "evaluationOrderCount": 66
+      },
+      "payloadBytes": 67512,
+      "geometryCount": 66,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-256-e-s",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "0a928cbe01793a6e2e19b16169edd59ed79c4e39f51484adf5618994b9ce476e",
+      "inputSha256": "483bf79fa50bce1fae73bde23232339e127bd109ed2d9c04c5c3ecf28cbc1ec4",
+      "graph": {
+        "V": 775,
+        "E": 773,
+        "edgeRecords": 773,
+        "maxPrerequisites": 1,
+        "maxDependents": 256,
+        "outputCount": 258,
+        "bindingCount": 2,
+        "evaluationOrderCount": 258
+      },
+      "payloadBytes": 348184,
+      "geometryCount": 258,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-256-e-l",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "72f2ff145ed6f43e29d6b876013343c2aa1f41f16443b461100ba8bb84087980",
+      "inputSha256": "6b42fa83a5042f6e9ae164947aa35f829dae472b09157818281d745e0edb756a",
+      "graph": {
+        "V": 775,
+        "E": 517,
+        "edgeRecords": 517,
+        "maxPrerequisites": 1,
+        "maxDependents": 1,
+        "outputCount": 258,
+        "bindingCount": 2,
+        "evaluationOrderCount": 258
+      },
+      "payloadBytes": 259566,
+      "geometryCount": 258,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-256-l-s",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "e63ff7d07df27d20c5dc55f46b927f2c6914909425b579346c66a4756ff17665",
+      "inputSha256": "a71902880a7030b4290b1a4442c3e68f7d214aa42a9fe2d1803879f66fca208a",
+      "graph": {
+        "V": 775,
+        "E": 773,
+        "edgeRecords": 773,
+        "maxPrerequisites": 1,
+        "maxDependents": 256,
+        "outputCount": 258,
+        "bindingCount": 2,
+        "evaluationOrderCount": 258
+      },
+      "payloadBytes": 349897,
+      "geometryCount": 258,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-256-l-l",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "60f25e30f66a419f1db4bf67b5e5f1277a05785518f4ad9ff279c503352a7035",
+      "inputSha256": "2cda2be2eb168e579e75a97b4cef6859f1974e1ea3baca73f71aaf699ef85958",
+      "graph": {
+        "V": 775,
+        "E": 517,
+        "edgeRecords": 517,
+        "maxPrerequisites": 1,
+        "maxDependents": 1,
+        "outputCount": 258,
+        "bindingCount": 2,
+        "evaluationOrderCount": 258
+      },
+      "payloadBytes": 262145,
+      "geometryCount": 258,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-e-s",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "c3e1e1fb38bed00f01aa5808f65b1f053939308bd0ad408418dc0db287f24932",
+      "inputSha256": "a467364f5a4bda75d0778543ba103b8324b3753b02f2828583a9924394b70c70",
+      "graph": {
+        "V": 3007,
+        "E": 3005,
+        "edgeRecords": 3005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1000,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1366187,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-e-l",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "e32d6a3ed42cf52890e20f71358ddc2784bab3edc55fefd51aae1d19b7369b53",
+      "inputSha256": "2c922d961457fea0299434dd7b6d0acaa667e06e88a36f8feb0cab9158f4715f",
+      "graph": {
+        "V": 3007,
+        "E": 2005,
+        "edgeRecords": 2005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1015398,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-l-s",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "8d3457854d2a6b4ae4ab2f8c7185b3208bd4d85a354498edaffcf08da9a708b8",
+      "inputSha256": "36613d6a6244b7fb4acfbaa5c972ac9c19a82b5088670318c6b4e2538afcfdfb",
+      "graph": {
+        "V": 3007,
+        "E": 3005,
+        "edgeRecords": 3005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1000,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1369175,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-l-l",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "787ab0c81bb77450dae8168195a62edfb3ec8589508a470a03a12697e3559b10",
+      "inputSha256": "1e1f5ef890e559716c4460d82bcf5dc5fc89e820307d27683b3337f0a9bc19cb",
+      "graph": {
+        "V": 3007,
+        "E": 2005,
+        "edgeRecords": 2005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1015392,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-e-s-seed18",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "5de80ce565706cf09e8a09937759f6548dc32810462419a0fc5aedcfdc8a408e",
+      "inputSha256": "75f157e9a1cbc6f102dc940455493c037981ec1717a7415a9a4a082ee5ed2a1a",
+      "graph": {
+        "V": 3007,
+        "E": 3005,
+        "edgeRecords": 3005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1000,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1366188,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-e-s-control24",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "54c37b2c4210ff2e00bb1c80b82860e2ea2407544b5ae0c835c342432393afc6",
+      "inputSha256": "ac3f18069417819ae96fae3b3d43a973e709a77365677c8178e2a1a89f9b310a",
+      "graph": {
+        "V": 3007,
+        "E": 3005,
+        "edgeRecords": 3005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1000,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1366187,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-l-s-seed18",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "70eb801e015f0fe5a83c64f863f04e4f9024ea941e6323871f70dccb6c8f2f54",
+      "inputSha256": "d575e213e91e707729d8280673b3c3358c6351b67039783812f15ebdecc5a321",
+      "graph": {
+        "V": 3007,
+        "E": 3005,
+        "edgeRecords": 3005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1000,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1369176,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "B-1000-l-s-control24",
+      "status": "INCONCLUSIVE",
+      "sourceSha256": "2205fb6a4741d9bb598d87e1882bcab12606a37296688cbebcb3aabc342fc0b3",
+      "inputSha256": "e4ec9b8cb399559db6b6187053a8f4957944497bb06f7ca1ee43a3d838dc3138",
+      "graph": {
+        "V": 3007,
+        "E": 3005,
+        "edgeRecords": 3005,
+        "maxPrerequisites": 1,
+        "maxDependents": 1000,
+        "outputCount": 1002,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1002
+      },
+      "payloadBytes": 1369175,
+      "geometryCount": 1002,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "D1-r1",
+      "status": "PASS",
+      "sourceSha256": "25401aeccd20d7bb69f4f94e029df0a818777cf1e40dbde326e81bd4db619758",
+      "inputSha256": "26b7091c5774922ad8ea8600662fb33c3ee1a63b68d2228a1464f1fab20a084b",
+      "graph": {
+        "V": 195,
+        "E": 214,
+        "edgeRecords": 214,
+        "maxPrerequisites": 2,
+        "maxDependents": 2,
+        "outputCount": 65,
+        "bindingCount": 1,
+        "evaluationOrderCount": 65
+      },
+      "payloadBytes": 132661,
+      "geometryCount": 65,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "D2-r1",
+      "status": "PASS",
+      "sourceSha256": "e9f8b736d5e02ffacd7dc5e0c5efd00a392baf161bddb1f85a0d20fe715205e9",
+      "inputSha256": "87a16627602c27db02a2f8d83c6f5803a188fd762f2b7fe6ab8ed1c3558309a6",
+      "graph": {
+        "V": 771,
+        "E": 854,
+        "edgeRecords": 854,
+        "maxPrerequisites": 2,
+        "maxDependents": 2,
+        "outputCount": 257,
+        "bindingCount": 1,
+        "evaluationOrderCount": 257
+      },
+      "payloadBytes": 532030,
+      "geometryCount": 257,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": []
+    },
+    {
+      "id": "D3-r1",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f",
+      "inputSha256": "f4906d4f222c95f346c54e5bcee85438eccbb9bfaf098987a8746cc9c8fb3681",
+      "graph": {
+        "V": 3003,
+        "E": 3334,
+        "edgeRecords": 3334,
+        "maxPrerequisites": 2,
+        "maxDependents": 2,
+        "outputCount": 1001,
+        "bindingCount": 1,
+        "evaluationOrderCount": 1001
+      },
+      "payloadBytes": 2100332,
+      "geometryCount": 1001,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F1"
+      ]
+    },
+    {
+      "id": "D4-r1",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f",
+      "inputSha256": "fadcaea530ec0232ac0744e8d482247e30fd2032a36f3d64af723d675600c3de",
+      "graph": {
+        "V": 3003,
+        "E": 3334,
+        "edgeRecords": 3334,
+        "maxPrerequisites": 2,
+        "maxDependents": 2,
+        "outputCount": 1001,
+        "bindingCount": 1,
+        "evaluationOrderCount": 1001
+      },
+      "payloadBytes": 2107364,
+      "geometryCount": 1001,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F1"
+      ]
+    },
+    {
+      "id": "D4-r2",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "770ce4a37bd451fd34d40fba594e063e8419955c5ad2600d1a3695f05a4d7d81",
+      "inputSha256": "f36e8fc98ba5c72698053ce937015b773295aeea9594a3ff196c81e7986d0b2e",
+      "graph": {
+        "V": 3003,
+        "E": 3334,
+        "edgeRecords": 3334,
+        "maxPrerequisites": 2,
+        "maxDependents": 2,
+        "outputCount": 1001,
+        "bindingCount": 1,
+        "evaluationOrderCount": 1001
+      },
+      "payloadBytes": 2107366,
+      "geometryCount": 1001,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F1"
+      ]
+    },
+    {
+      "id": "D4-r3",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f",
+      "inputSha256": "fadcaea530ec0232ac0744e8d482247e30fd2032a36f3d64af723d675600c3de",
+      "graph": {
+        "V": 3003,
+        "E": 3334,
+        "edgeRecords": 3334,
+        "maxPrerequisites": 2,
+        "maxDependents": 2,
+        "outputCount": 1001,
+        "bindingCount": 1,
+        "evaluationOrderCount": 1001
+      },
+      "payloadBytes": 2107364,
+      "geometryCount": 1001,
+      "generatedRows": 0,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F1"
+      ]
+    },
+    {
+      "id": "dependency-chain-250-v1",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "4be404700d0caa0f72e57b2738bc7b8a31942663dc9f60e75d181e8242d49c2d",
+      "inputSha256": "ff9c8e8b6abee0938b54140a168026ff409dd9b19e8214cff97cf1ce271c402f",
+      "graph": {
+        "V": 775,
+        "E": 775,
+        "edgeRecords": 775,
+        "maxPrerequisites": 3,
+        "maxDependents": 4,
+        "outputCount": 258,
+        "bindingCount": 2,
+        "evaluationOrderCount": 258
+      },
+      "payloadBytes": 386256,
+      "geometryCount": 255,
+      "generatedRows": 250,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F2",
+        "F3"
+      ]
+    },
+    {
+      "id": "dependency-chain-1000-v1",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "e9659c0ec3195c88a985ffc7cbeabf3760e2f58428f955c5785a28c68d408461",
+      "inputSha256": "9b82bd2d9fa70d2e71448c3b8f4404b99695313288f6cf748fa6671b7be4c40f",
+      "graph": {
+        "V": 3025,
+        "E": 3025,
+        "edgeRecords": 3025,
+        "maxPrerequisites": 3,
+        "maxDependents": 4,
+        "outputCount": 1008,
+        "bindingCount": 2,
+        "evaluationOrderCount": 1008
+      },
+      "payloadBytes": 1506082,
+      "geometryCount": 1005,
+      "generatedRows": 1000,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F2",
+        "F3"
+      ]
+    },
+    {
+      "id": "interactive-medium-v2",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "9a14f2380a55b47e78b21cc6c2b189e0dc6c0951a58524a7ca7ecbf2f87c755a",
+      "inputSha256": "61795888ea63f383951c52fc233eaf5d9eca6fe63d401f4cd9044604a8b42fa4",
+      "graph": {
+        "V": 38,
+        "E": 40,
+        "edgeRecords": 40,
+        "maxPrerequisites": 3,
+        "maxDependents": 4,
+        "outputCount": 12,
+        "bindingCount": 2,
+        "evaluationOrderCount": 12
+      },
+      "payloadBytes": 23124,
+      "geometryCount": 205,
+      "generatedRows": 200,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F2",
+        "F3"
+      ]
+    },
+    {
+      "id": "interactive-large-v2",
+      "status": "BUG_FIXED_REPASS",
+      "sourceSha256": "765f1f060c7a56a6a3545a8755d9a45e89a32d0a02eb6cf684a33c52d2b082d6",
+      "inputSha256": "aeb4608837e9ff755e701f0e818dbb16b913f46ce45618bacd95ca9ee22bfaa7",
+      "graph": {
+        "V": 38,
+        "E": 40,
+        "edgeRecords": 40,
+        "maxPrerequisites": 3,
+        "maxDependents": 4,
+        "outputCount": 12,
+        "bindingCount": 2,
+        "evaluationOrderCount": 12
+      },
+      "payloadBytes": 23125,
+      "geometryCount": 1005,
+      "generatedRows": 1000,
+      "bindingVersions": false,
+      "semanticOracle": "PASS",
+      "families": [
+        "F2",
+        "F3"
+      ]
+    }
+  ],
+  "optionalD8": "NOT_REQUIRED: exact D3 failure isolated by debugger and default-stack regression without source variants",
+  "optionalG8": "NOT_REQUIRED: immutable 250/1000 chain and 50/250-iteration interactive controls discriminate the first owners",
+  "counterexampleReducers": 0,
+  "fixedCellCount": 26,
+  "distinctFixedSourceHashes": 24,
+  "newOptionalPrograms": 0,
+  "families": [
+    {
+      "id": "F1",
+      "name": "Native stack depth in canonical dependency DFS",
+      "testBodySha256": "d14cb8955d5769293011a463f4ef020b688c2bc4b49e8d4f634957a36c134a71",
+      "base": "FAIL",
+      "fixed": "PASS",
+      "productionRepairRemoval": "FAIL",
+      "restored": "PASS",
+      "failure": "Default Rust unit-test worker reaches stack guard in DependencyTraversal::visit; no stdio host crash claimed",
+      "neighbor": "D1 full projection order and prerequisite rank controls PASS on Base and fixed",
+      "D3StaticVisitDepth": 1996
+    },
+    {
+      "id": "F2",
+      "name": "Repeated full-element hierarchy and ancestry scans",
+      "testBodySha256": "0357a4ddd3da1f2e8c27cf7b85e53f6839c5e3360de53b5e6de8d0de5063abb6",
+      "base": "FAIL",
+      "fixed": "PASS",
+      "productionRepairRemoval": "FAIL",
+      "restored": "PASS",
+      "baseVisits": [
+        1311384,
+        20244384
+      ],
+      "fixedVisits": [
+        12192,
+        48192
+      ],
+      "sourceElements": [
+        258,
+        1008
+      ],
+      "descendants": [
+        250,
+        1000
+      ],
+      "queryMix": "8 repeats each of descendants, owned templates, absent group",
+      "controls": "exact ordered returned IDs; absent group; live nonzero counter"
+    },
+    {
+      "id": "F3",
+      "name": "Linear template-membership scan per source element",
+      "testBodySha256": "6850cccfa0538a59103db547f1e3a253d9ae4277b05d09dcab73787b942cb141",
+      "base": "FAIL",
+      "fixed": "PASS",
+      "productionRepairRemoval": "FAIL",
+      "restored": "PASS",
+      "baseMembershipChecks": [
+        33375,
+        508500
+      ],
+      "fixedMembershipChecks": [
+        258,
+        1008
+      ],
+      "sourceElements": [
+        258,
+        1008
+      ],
+      "controls": "exact generated IDs, template ordering, parent links and occurrence metadata; live nonzero counter",
+      "counterDefinition": "Base counts actual linear candidate equality tests; fixed counts one actual hash membership lookup per source element. These are structural work counters, not CPU timing."
+    }
+  ],
+  "verification": {
+    "status": "PASS",
+    "fixedMatrix": "26/26 numeric and geometry oracles plus reference parity PASS",
+    "focused": "5 issue-focused tests PASS; 39 for-group owner tests PASS; 14 graph-owner tests PASS before observation-only harness removal",
+    "benchmarkFoundation": "32 PASS",
+    "cargoFmtCheck": "PASS",
+    "cargoCheck": "PASS",
+    "cargoTest": "633 library tests PASS, 9 existing ignored; 6 stdio tests PASS; 1 integration test PASS",
+    "cargoClippyAllTargetsDenyWarnings": "PASS",
+    "rustParity": "207 PASS",
+    "immutableIssue1474Gate": "20 PASS; original command and single-worker settings unchanged",
+    "defaultNpmTest": "699 files PASS, 2 existing skipped; 11246 tests PASS, 187 existing skipped",
+    "gitDiffCheck": "PASS",
+    "gateExit": 0,
+    "retriesOfRequiredGate": 0
+  },
+  "productionFilesSha256": {
+    "rust-evaluator/src/evaluation/conditional_dependency_runtime.rs": "18d973d2737a220bfc6d364af570d9ffe72a142e71616a80b35e8c6a21be03b3",
+    "rust-evaluator/src/evaluation/for_group.rs": "c2fe430d15e67cafc8d40ff908318437866fb5e5add071d46184344180fb6fec"
+  },
+  "diagnostic": {
+    "method": "One isolated unchanged observation-binary D3 launch under LLDB; no stack setting changed",
+    "stop": "EXC_BAD_ACCESS on test worker",
+    "stackPointer": "0x16fa33f50",
+    "stackRegion": "[0x16fa30000-0x16fa34000) ---",
+    "backtrace": "DependencyTraversal::visit recursively repeated beneath HashMap::get/build_hasher",
+    "interpretation": "Shared graph recursion exhausts the default test worker stack; no stdio-host crash claimed"
+  }
+}

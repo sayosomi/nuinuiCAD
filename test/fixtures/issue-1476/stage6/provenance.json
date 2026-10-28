@@ -1,0 +1,30 @@
+[
+  {
+    "sourceFile": "test/fixtures/issue-1474/D1-r1.nui",
+    "sourceSha256": "25401aeccd20d7bb69f4f94e029df0a818777cf1e40dbde326e81bd4db619758",
+    "inputSha256": "28f8aaa3bb11656ed59f57a711918ed0846a73d851993cedb931de8983f9906d",
+    "file": "D1-r1-projection.json",
+    "sha256": "ccc55e97bfd6b87ce30f2360dbbe998f868b8287c35653bd07e9d90f06372529"
+  },
+  {
+    "sourceFile": "test/fixtures/issue-1474/D3-r1.nui",
+    "sourceSha256": "166338d875b513f24e33fd7804c37b42b1afddcd5ce194d2ed0129cdd140e03f",
+    "inputSha256": "d3437350dd8d17530357481dbc78308513317bc525ab99c37ddf6cca8b2feaf6",
+    "file": "D3-r1-projection.json",
+    "sha256": "bec3100fc91250d236e77b92c764285cbe538913dbca6046a89f3929ded54afa"
+  },
+  {
+    "sourceFile": "performance/fixtures/dependency-chain-1000-v1.nui",
+    "sourceSha256": "e9659c0ec3195c88a985ffc7cbeabf3760e2f58428f955c5785a28c68d408461",
+    "inputSha256": "1cb6862128fb5adf230ed768d9af09acf77e7c06fcd1d691c64e7082365bd3e0",
+    "file": "dependency-chain-1000-v1-elements.json",
+    "sha256": "662e73a1531fa3d289bd6782b36e2922f6bf2808ab5d575ccfeb62aa99ed7e12"
+  },
+  {
+    "sourceFile": "performance/fixtures/dependency-chain-250-v1.nui",
+    "sourceSha256": "4be404700d0caa0f72e57b2738bc7b8a31942663dc9f60e75d181e8242d49c2d",
+    "inputSha256": "a649a92f153cdf9283c21cfd7c44050eb61e5e6d523254401fb56844291024a8",
+    "file": "dependency-chain-250-v1-elements.json",
+    "sha256": "bf5a60da239a2924021467d0795423ae1a79940c367874cd7431aafa905dad4b"
+  }
+]
