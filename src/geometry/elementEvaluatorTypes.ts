@@ -11,6 +11,7 @@ import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import type { TextTemplateAst } from "@nuinuicad/nui-language";
 import type { ComputedGeometryValueEntry } from "./evaluationTypes";
 import type { GeometryValueOccurrenceKey } from "@nuinuicad/nui-language";
+import type { ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 
 export type LocalVariableEvaluation = {
   localVariableValues: Map<string, number>;
@@ -43,4 +44,5 @@ export type ElementEvaluationContext = {
    */
   textTemplate?: TextTemplateAst;
   resolveScalarBinding?: (bindingId: BindingId) => ScalarEvaluation;
+  resolveScalarGeometryProperty?: ScalarEvaluationEnvironment["lookupGeometryProperty"];
 };

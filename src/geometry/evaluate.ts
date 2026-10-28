@@ -3055,7 +3055,7 @@ export const evaluateElements = (
         ? { geometryInputTargets: materializedGeometryInputTargets }
         : {}),
       ...(textTemplateForElement
-        ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText }
+        ? { textTemplate: textTemplateForElement, resolveScalarBinding: resolveScalarBindingForText, resolveScalarGeometryProperty }
         : {})
     });
     if (errors.length > errorCountBeforeElementEvaluation) {

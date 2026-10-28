@@ -27,6 +27,7 @@ import { findParameterDefinition, scalarTypeForParameterDefinition } from "@nuin
 import type { NumericExpressionError } from "@nuinuicad/nui-language";
 import { evaluateNumericValue, normalizeNumericExpressionInput, textNumber } from "./numericExpressions";
 import type { PropertyBindingRuntimeEntry } from "./propertyBindingRuntime";
+import type { ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 
 export type TextTemplateRuntimeSource = {
   textTemplates: ReadonlyMap<string, TextTemplateAst>;
@@ -139,6 +140,7 @@ export type TextTemplateElementContext = {
   localVariableNames?: Map<string, string>;
   currentElement: CadElement;
   elements?: CadElement[];
+  resolveGeometryProperty?: ScalarEvaluationEnvironment["lookupGeometryProperty"];
 };
 
 /** Evaluation result consumed by textEvaluator.ts. */
@@ -178,7 +180,10 @@ export const evaluateElementTextTemplate = (
     return { ok: true, text: textNumber(result.value ?? 0) };
   };
 
-  const result = evaluateTextTemplate(ast, { lookupBinding: resolveBinding }, evaluateNumericExpressionHole, textNumber);
+  const result = evaluateTextTemplate(ast, {
+    lookupBinding: resolveBinding,
+    lookupGeometryProperty: context.resolveGeometryProperty
+  }, evaluateNumericExpressionHole, textNumber);
   if (result.status === "ok") return { text: result.text };
 
   if (result.error.origin === "numeric") {

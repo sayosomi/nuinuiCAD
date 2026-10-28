@@ -22,7 +22,8 @@ use serde_json::{json, Value};
 use super::numeric_expression::numeric_value;
 use super::scalars::{
     evaluate_text_template_segments, NumericExpressionHoleEvaluator, ScalarDocumentBindingResolver,
-    ScalarEvaluation, ScalarEvaluationEnvironment, TextTemplateHoleOrigin, ValidatedTextTemplate,
+    ScalarEvaluation, ScalarEvaluationEnvironment, ScalarType, TextTemplateHoleOrigin,
+    ValidatedTextTemplate,
 };
 use super::text_evaluator::{normalize_text_expression, text_number};
 use super::types::{element_id, element_name, find_element_name, DependencyError, EvaluationState};
@@ -82,6 +83,25 @@ impl ScalarEvaluationEnvironment for TextTemplateRuntimeContext<'_> {
             .resolver
             .expect("scalar binding resolver must exist when typed text evaluation reaches a binding reference");
         resolver.resolve_binding(binding_id, self.state)
+    }
+
+    fn lookup_geometry_property_at_stage(
+        &self,
+        element_id: &str,
+        stage_path: Option<&[String]>,
+        property: &str,
+        target_source_order: f64,
+        property_type: &ScalarType,
+    ) -> ScalarEvaluation {
+        super::scalar_expression_runtime::lookup_geometry_property_at_stage(
+            self.state,
+            element_id,
+            stage_path,
+            property,
+            target_source_order,
+            None,
+            property_type,
+        )
     }
 }
 

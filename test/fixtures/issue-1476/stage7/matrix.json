@@ -1,0 +1,1777 @@
+{
+  "base": "d69e1baf31bf48344f7da8df5118e5944f073e3e",
+  "disposition": "PASS / PRODUCTION_REACHABILITY_CONFIRMED",
+  "primaryRevisions": 32,
+  "compilerAcceptedDistinctExploratoryRevisions": 32,
+  "reducers": "NOT_REQUIRED",
+  "rows": [
+    {
+      "sourceSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "inputSha256": "55be7d06362baaec026344afb75a57eb7ba11d5f10efff0991bc1d9183d04e61",
+      "oracleSha256": "0d243791d05ad8b171e879d22fc12cb54b379b21fa05622b2a6f903965ffa958",
+      "graph": {
+        "V": 13,
+        "E": 12,
+        "bytes": 4095
+      },
+      "sourceOrderQueries": 5,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 5
+      },
+      "candidateHistogram": {
+        "0": 5
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 5,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R1-S0",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 4,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 4,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "28120c05d99c2deb078592006c7dad7516e895c9f8b2cdbf6dedee9f8b26a867",
+      "inputSha256": "3fe6a268469d33e29e6fd47bb4ae0b08889bc9d485450276a84092efde8c856a",
+      "oracleSha256": "d5181c66b9367cb4b7c4b0c26370ca1dcd839dd199bc006f1f6e8f60c9d5dda0",
+      "graph": {
+        "V": 205,
+        "E": 140,
+        "bytes": 52412
+      },
+      "sourceOrderQueries": 69,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 69
+      },
+      "candidateHistogram": {
+        "0": 69
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 69,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R1-S1",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 68,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 68,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "ba3b3577da91817b11313a05198232e8dd9c9abf1ffaa110f8643a1d179de0a3",
+      "inputSha256": "3f00d4964b6ef40563d1013695964e81d3a712442b8228bc528ae87023ede1cb",
+      "oracleSha256": "d5181c66b9367cb4b7c4b0c26370ca1dcd839dd199bc006f1f6e8f60c9d5dda0",
+      "graph": {
+        "V": 205,
+        "E": 140,
+        "bytes": 52730
+      },
+      "sourceOrderQueries": 69,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 69
+      },
+      "candidateHistogram": {
+        "0": 69
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 69,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R1-S2",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 68,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 68,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "ed0c876810cfaea84f9fbc112f5dc4ccc0533459865b126bf690bf1850a559d9",
+      "inputSha256": "707502946dbdcd9496b604e24f72c8e84f06e73a9972d28468f2a023a0f37645",
+      "oracleSha256": "e5c10c1db62f7695d8965bc15aff043226b1dfd2b39e1239962d4430415ba45e",
+      "graph": {
+        "V": 781,
+        "E": 524,
+        "bytes": 199873
+      },
+      "sourceOrderQueries": 261,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 261
+      },
+      "candidateHistogram": {
+        "0": 261
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 261,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R1-S3",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 260,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 260,
+          "scalarCount": 1,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "inputSha256": "cb4184ad0010f4360f02173c74523a87a1bda88aeb9cec7a2dd75343d10bb206",
+      "oracleSha256": "308d68d89d9b691557a0cb37104ca8905be4d91dd3834b06d92fc3885d320259",
+      "graph": {
+        "V": 20,
+        "E": 16,
+        "bytes": 6370
+      },
+      "sourceOrderQueries": 6,
+      "noResolverQueries": 6,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 6
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R2-S0",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 5,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 5,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "7dca90a2c38d609d07e517b1774ce753ed3aab0f58eae507d337a5cd5b3318f5",
+      "inputSha256": "6da232bf40287360972b64fabd8da72d9dc0ac04468eb7f21931c770d64d740e",
+      "oracleSha256": "30f0b6ec34dce859951d71b2f4c58239830c18a714d8f55a4f72b4aae8b3e36e",
+      "graph": {
+        "V": 212,
+        "E": 144,
+        "bytes": 55148
+      },
+      "sourceOrderQueries": 70,
+      "noResolverQueries": 70,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 70
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R2-S1",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "6af0bc34d0e7eaa15849c6e2fd64cc7b821ac16a026914515cdf03c33c80ab9e",
+      "inputSha256": "eaf64d7dc1540bcf3687b9ce8eebddcb1d73e77f635dee8270d10afb20e233b6",
+      "oracleSha256": "30f0b6ec34dce859951d71b2f4c58239830c18a714d8f55a4f72b4aae8b3e36e",
+      "graph": {
+        "V": 212,
+        "E": 144,
+        "bytes": 55157
+      },
+      "sourceOrderQueries": 70,
+      "noResolverQueries": 70,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 70
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R2-S2",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "769c7be096041d6af8a5e4403c7d178d34579054f7f448829eaf510e65b3df53",
+      "inputSha256": "ac0d22f1ab2cc5df704f792e7711a0449d56baa0beb24d128e86f45154fe40ab",
+      "oracleSha256": "736bcbed9a5876b35f7e5e3060e9f08d9449ac38215311bd3229690641857b2c",
+      "graph": {
+        "V": 788,
+        "E": 528,
+        "bytes": 202125
+      },
+      "sourceOrderQueries": 262,
+      "noResolverQueries": 262,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 262
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R2-S3",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 261,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 261,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "inputSha256": "7774be6a52c9dfa45f49fabd5c15b570f1d00901471fa88cb9a1f72f65bbbb60",
+      "oracleSha256": "38c5119f953358c811e0695601c207b7c0b7de3ff42d9c8a6b60fec38c49730f",
+      "graph": {
+        "V": 9,
+        "E": 9,
+        "bytes": 4001
+      },
+      "sourceOrderQueries": 2,
+      "noResolverQueries": 2,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 2
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R3-S0",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 1,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 1,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "b4fc244d2137e8a13766e15b36031ce5ea08555233e688822010176685258dfe",
+      "inputSha256": "751c6c980c06d0ddf80766584aa2c5493aa3ebce30334a7d206f7b25b57e014a",
+      "oracleSha256": "a2a02b05a5927d68bd97aaaf9569077c3fc8c045b60c2b156862363cc99e1ea5",
+      "graph": {
+        "V": 201,
+        "E": 137,
+        "bytes": 52745
+      },
+      "sourceOrderQueries": 66,
+      "noResolverQueries": 66,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 66
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R3-S1",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "e341dd4e2678ac6dfba2ff0461ba25d6e4b5d2221d6306aa35a170831491ccf1",
+      "inputSha256": "6d4682b6e439f1c30513426651740f6cfa3b440f46d2e49994e6e7f6f9f3c876",
+      "oracleSha256": "a2a02b05a5927d68bd97aaaf9569077c3fc8c045b60c2b156862363cc99e1ea5",
+      "graph": {
+        "V": 201,
+        "E": 137,
+        "bytes": 52757
+      },
+      "sourceOrderQueries": 66,
+      "noResolverQueries": 66,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 66
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R3-S2",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "2a91c4bc04f85ef9aed9c899c9800b3bf907647685f24c120244eef2927c0197",
+      "inputSha256": "dd0ad64c33f950672badec7891d032e77cc727b06ea3f505e954ccd7b5edbdbf",
+      "oracleSha256": "21974cae9cc3341bbb005b2e99437d16e4e3f783749ce4fa36c37c68437a16c8",
+      "graph": {
+        "V": 777,
+        "E": 521,
+        "bytes": 201071
+      },
+      "sourceOrderQueries": 258,
+      "noResolverQueries": 258,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 258
+      },
+      "candidateHistogram": {},
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 0,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R3-S3",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 257,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 257,
+          "scalarCount": 0,
+          "pureCount": 2,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "inputSha256": "dcfe1a9506baac3df70a9d71e248953a056225d01de6c1075253d4d9dd4c4594",
+      "oracleSha256": "5c94f679ae0bb181670d8e78ffa1e8918955c1426b6f24f27760487632155cee",
+      "graph": {
+        "V": 97,
+        "E": 79,
+        "bytes": 40879
+      },
+      "sourceOrderQueries": 51,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 9,
+      "linearBindingVersionCount": 3,
+      "executionPositionCounts": {
+        "2": 51
+      },
+      "candidateHistogram": {
+        "0": 6,
+        "1": 4,
+        "2": 41
+      },
+      "candidateCountTotal": 86,
+      "maxCandidates": 2,
+      "readinessCalls": 51,
+      "nonemptyCalls": 45,
+      "dependencyEdgeVisits": 86,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R4-S0",
+      "baseDisposition": "FAIL_GRAPH_WORK",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 13,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        },
+        "actual": {
+          "geometryCount": 13,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 3555,
+      "finalTopologyEdgeVisits": 79,
+      "baseEarlyProjectionEdgeVisits": 8374,
+      "finalEarlyProjectionEdgeVisits": 316,
+      "baseEarlyProjectionCalls": 53,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "d6e3500b0dc041470f1d6dc0833d3b3dfb27c8f16379b67c5b84414824e7ebb8",
+      "inputSha256": "49ab20b16705b34ec9af3458584487c37b893f24807100b19472c3d30d958c29",
+      "oracleSha256": "3426bff9d2769cc41242d13ac925012d15517ce1b1bc700bc76abd518b3834b5",
+      "graph": {
+        "V": 289,
+        "E": 207,
+        "bytes": 90077
+      },
+      "sourceOrderQueries": 179,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 9,
+      "linearBindingVersionCount": 3,
+      "executionPositionCounts": {
+        "2": 179
+      },
+      "candidateHistogram": {
+        "0": 134,
+        "1": 4,
+        "2": 41
+      },
+      "candidateCountTotal": 86,
+      "maxCandidates": 2,
+      "readinessCalls": 179,
+      "nonemptyCalls": 45,
+      "dependencyEdgeVisits": 86,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R4-S1",
+      "baseDisposition": "FAIL_GRAPH_WORK",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 77,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        },
+        "actual": {
+          "geometryCount": 77,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 9315,
+      "finalTopologyEdgeVisits": 207,
+      "baseEarlyProjectionEdgeVisits": 74934,
+      "finalEarlyProjectionEdgeVisits": 828,
+      "baseEarlyProjectionCalls": 181,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "44fc6dc4f6c29f4d1c94aea815b9955e5b624a8b58b6b34d70c2a88f29532da9",
+      "inputSha256": "89cb2c237f12888f463cfbca0bb0c5840eec3ddda85d1921a945a35f6b0569e5",
+      "oracleSha256": "3426bff9d2769cc41242d13ac925012d15517ce1b1bc700bc76abd518b3834b5",
+      "graph": {
+        "V": 289,
+        "E": 207,
+        "bytes": 90139
+      },
+      "sourceOrderQueries": 179,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 9,
+      "linearBindingVersionCount": 3,
+      "executionPositionCounts": {
+        "2": 179
+      },
+      "candidateHistogram": {
+        "0": 6,
+        "1": 4,
+        "2": 169
+      },
+      "candidateCountTotal": 342,
+      "maxCandidates": 2,
+      "readinessCalls": 179,
+      "nonemptyCalls": 173,
+      "dependencyEdgeVisits": 342,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R4-S2",
+      "baseDisposition": "FAIL_GRAPH_WORK",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 77,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        },
+        "actual": {
+          "geometryCount": 77,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 35811,
+      "finalTopologyEdgeVisits": 207,
+      "baseEarlyProjectionEdgeVisits": 74934,
+      "finalEarlyProjectionEdgeVisits": 828,
+      "baseEarlyProjectionCalls": 181,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "084fa6860c6471cda3796a195ae3d75d14c0a3c447935167c6665da4eaed0024",
+      "inputSha256": "fd2af109127ffe421bbf089c91d8f4b296b9d816ff6597ae2289184ff077d618",
+      "oracleSha256": "a17dea80794631a45cca011ed5d58ce4eae19f6691d16a28a51d1508a027e086",
+      "graph": {
+        "V": 865,
+        "E": 591,
+        "bytes": 238715
+      },
+      "sourceOrderQueries": 563,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 9,
+      "linearBindingVersionCount": 3,
+      "executionPositionCounts": {
+        "2": 563
+      },
+      "candidateHistogram": {
+        "0": 6,
+        "1": 4,
+        "2": 553
+      },
+      "candidateCountTotal": 1110,
+      "maxCandidates": 2,
+      "readinessCalls": 563,
+      "nonemptyCalls": 557,
+      "dependencyEdgeVisits": 1110,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R4-S3",
+      "baseDisposition": "FAIL_GRAPH_WORK",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 269,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        },
+        "actual": {
+          "geometryCount": 269,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 12,
+          "conditions": [
+            false,
+            true
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 329187,
+      "finalTopologyEdgeVisits": 591,
+      "baseEarlyProjectionEdgeVisits": 667830,
+      "finalEarlyProjectionEdgeVisits": 2364,
+      "baseEarlyProjectionCalls": 565,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "inputSha256": "feac79addbc430a38f77e18cfe6950e70e489d7170a6b17e321f35721317f0a0",
+      "oracleSha256": "86e8ce68b00fcd57c965be7cf5bdab9d0ca798e0323caa734715d82742f50e86",
+      "graph": {
+        "V": 27,
+        "E": 26,
+        "bytes": 8980
+      },
+      "sourceOrderQueries": 10,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 10
+      },
+      "candidateHistogram": {
+        "0": 10
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 10,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R5-S0",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 5,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        },
+        "actual": {
+          "geometryCount": 5,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "8439f40fcd96d0cb5da258e13dbfa4ebfa5733f2d4c08e394dd0a917f905dc58",
+      "inputSha256": "3493c1f03db9ce075865379baffb8addc29f5b098af72d2f07a5d5b938229924",
+      "oracleSha256": "638504d86db09122acdeca55a2d597ae15d42eeb0523410f7e3ac9b4505c7849",
+      "graph": {
+        "V": 219,
+        "E": 154,
+        "bytes": 58202
+      },
+      "sourceOrderQueries": 74,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 74
+      },
+      "candidateHistogram": {
+        "0": 74
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 74,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R5-S1",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        },
+        "actual": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "eec921b44cd28c70e6b193412ab4f8d8771a9520b99c5f9c1b4da64100bbbb72",
+      "inputSha256": "5c405d0f70a6ca1a87739f6b4d6298791d39ce4722edfc0b9bd9fffb1ba0eff6",
+      "oracleSha256": "638504d86db09122acdeca55a2d597ae15d42eeb0523410f7e3ac9b4505c7849",
+      "graph": {
+        "V": 219,
+        "E": 154,
+        "bytes": 58196
+      },
+      "sourceOrderQueries": 74,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 74
+      },
+      "candidateHistogram": {
+        "0": 74
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 74,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R5-S2",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        },
+        "actual": {
+          "geometryCount": 69,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "22f75aca96a3291dfd9b661f4f2f6262162968f7e38ce1347bc80ce6e22b2a94",
+      "inputSha256": "41cb6f223418c17e568787d9e70f1b1ab8ea0e48f9025d8f50ce5fd2a286f3c5",
+      "oracleSha256": "49229a52e865a320ef8ac75431a528adb1c52259d410db2369738dd788b0b27f",
+      "graph": {
+        "V": 795,
+        "E": 538,
+        "bytes": 206524
+      },
+      "sourceOrderQueries": 266,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 266
+      },
+      "candidateHistogram": {
+        "0": 266
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 266,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R5-S3",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 261,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        },
+        "actual": {
+          "geometryCount": 261,
+          "scalarCount": 0,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": [
+            true,
+            false
+          ]
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "inputSha256": "b335888934dee7f6e608ada354c6290430a805088a0cb851b91536e2ffe05a6d",
+      "oracleSha256": "39f623b599cb6381a2a477bdfd67bb9087a0daeda10c56438b3a4799dabd27f5",
+      "graph": {
+        "V": 24,
+        "E": 22,
+        "bytes": 7870
+      },
+      "sourceOrderQueries": 8,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 8
+      },
+      "candidateHistogram": {
+        "0": 8
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 8,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R6-S0",
+      "baseDisposition": "FAIL_SEMANTIC",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "FAIL",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 7,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 7,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "f1ef8d389a20bb045c392341db49289464735b7403bc4fcd12485e210fda80af",
+      "inputSha256": "aaddabcd93760be545c52b4c4d9b90e1f6193f0e7715bfb240bcc0b30cfae296",
+      "oracleSha256": "1958ee1f75fadf97443e86480c1ae274a17f1a176284435e11c16912a19602fc",
+      "graph": {
+        "V": 216,
+        "E": 150,
+        "bytes": 57090
+      },
+      "sourceOrderQueries": 72,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 72
+      },
+      "candidateHistogram": {
+        "0": 72
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 72,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R6-S1",
+      "baseDisposition": "FAIL_SEMANTIC",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "FAIL",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 71,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 71,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "80036f98935dba4323f117e300fb1019e9def8352e2e72bde946580c0add4457",
+      "inputSha256": "f3d15cc7113d8db892806b41b330e76114b940f7cd4f9ffaed7a2fcabd05b5ef",
+      "oracleSha256": "1958ee1f75fadf97443e86480c1ae274a17f1a176284435e11c16912a19602fc",
+      "graph": {
+        "V": 216,
+        "E": 150,
+        "bytes": 57086
+      },
+      "sourceOrderQueries": 72,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 72
+      },
+      "candidateHistogram": {
+        "0": 72
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 72,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R6-S2",
+      "baseDisposition": "FAIL_SEMANTIC",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "FAIL",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 71,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 71,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "913fdf65dd45564cc7a0e7556581e28675932f4f9f9c2ed70799505eff09d5b6",
+      "inputSha256": "10b6dfa240c1068e32766d7f140b5d7fd2ceb47b21187b5e07c2f553f5822076",
+      "oracleSha256": "e3faa2d5f892aa0ba070a0803a5ab230ed3efc7b91cdbe2b5dd5466263ab2b74",
+      "graph": {
+        "V": 792,
+        "E": 534,
+        "bytes": 205402
+      },
+      "sourceOrderQueries": 264,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 264
+      },
+      "candidateHistogram": {
+        "0": 264
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 264,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R6-S3",
+      "baseDisposition": "FAIL_SEMANTIC",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "FAIL",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 263,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 263,
+          "scalarCount": 3,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 0,
+      "finalEarlyProjectionEdgeVisits": 0,
+      "baseEarlyProjectionCalls": 0,
+      "finalEarlyProjectionCalls": 0
+    },
+    {
+      "sourceSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "inputSha256": "972f5a2ecb99defcb8b22eb4840620a9753879a5febb0a41d8a95da2a84907eb",
+      "oracleSha256": "2f69cfaa9a2db745705afe1cdfa8445af32d4e2929f3fefeb76fac96e7cca43e",
+      "graph": {
+        "V": 22,
+        "E": 20,
+        "bytes": 6929
+      },
+      "sourceOrderQueries": 13,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 13
+      },
+      "candidateHistogram": {
+        "0": 13
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 13,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R7-S0",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 5,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 5,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 600,
+      "finalEarlyProjectionEdgeVisits": 80,
+      "baseEarlyProjectionCalls": 15,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "931f238444ab702898a2256084021c4d88a172363002c3b886ca6951b02fe9f2",
+      "inputSha256": "8c3526e12c920acda1a8e2b92f3b0963c107b2f8c421afa297dec13204fb3357",
+      "oracleSha256": "83122b19a4934b27706783bff102859875c31d7a5a7f47709685db036959186d",
+      "graph": {
+        "V": 214,
+        "E": 148,
+        "bytes": 56142
+      },
+      "sourceOrderQueries": 141,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 141
+      },
+      "candidateHistogram": {
+        "0": 141
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 141,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R7-S1",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 69,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 69,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 42328,
+      "finalEarlyProjectionEdgeVisits": 592,
+      "baseEarlyProjectionCalls": 143,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "85fed7285f83bd2a780c0991ab57cf5ff72984d0df3fbcb33273e3dcc2c54810",
+      "inputSha256": "c674ff5f2aff46529915b1f2aaef42d89124e10cdc742916f24145a5b98a7b5e",
+      "oracleSha256": "83122b19a4934b27706783bff102859875c31d7a5a7f47709685db036959186d",
+      "graph": {
+        "V": 214,
+        "E": 148,
+        "bytes": 56145
+      },
+      "sourceOrderQueries": 141,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 141
+      },
+      "candidateHistogram": {
+        "0": 141
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 141,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R7-S2",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 69,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 69,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 42328,
+      "finalEarlyProjectionEdgeVisits": 592,
+      "baseEarlyProjectionCalls": 143,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "7980d61b1d8191bfe0fbbe57a9fa754bf989c4842600fa1e79ed02d2337d0686",
+      "inputSha256": "178b96df3b1072dd1fe2daf7c0abb4c608c9989cc54df0e9effe60f4a7e43439",
+      "oracleSha256": "365ef1e407d6b8d6464aaf7f8cfb109e6b72ea30f79a7bceca81d858d983611a",
+      "graph": {
+        "V": 790,
+        "E": 532,
+        "bytes": 204469
+      },
+      "sourceOrderQueries": 525,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 525
+      },
+      "candidateHistogram": {
+        "0": 525
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 525,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R7-S3",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 261,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 261,
+          "scalarCount": 5,
+          "pureCount": 0,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 560728,
+      "finalEarlyProjectionEdgeVisits": 2128,
+      "baseEarlyProjectionCalls": 527,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "inputSha256": "c7c176acb4d26aab17de5782cc8c647879a8274de663d216397260278ba9e03c",
+      "oracleSha256": "c76dbea57d2a1126981b1f839cd0b7bbfa6edd28d5e26678d17df5130bbb3c76",
+      "graph": {
+        "V": 4,
+        "E": 3,
+        "bytes": 1003
+      },
+      "sourceOrderQueries": 3,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 3
+      },
+      "candidateHistogram": {
+        "0": 3
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 3,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R8-S0",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 1,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 1,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 30,
+      "finalEarlyProjectionEdgeVisits": 12,
+      "baseEarlyProjectionCalls": 5,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "578af61a1699d16a64d6caaf2c429fa0bfd8882e87f4b3081d80e26e23581214",
+      "inputSha256": "8aed46b9b46409f21c1aceb72c4cc31639040c015edf1e8e1e1c619bfc60d97d",
+      "oracleSha256": "b4caece70ebf015675dc6067130d3fa7d9bd7c5c159170ce5224df108a61964f",
+      "graph": {
+        "V": 196,
+        "E": 131,
+        "bytes": 50189
+      },
+      "sourceOrderQueries": 131,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 131
+      },
+      "candidateHistogram": {
+        "0": 131
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 131,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R8-S1",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 34846,
+      "finalEarlyProjectionEdgeVisits": 524,
+      "baseEarlyProjectionCalls": 133,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "d210a8c9a19166553b6796e472d2ad80ec0ca525453806e86e2c4d0b3e43db13",
+      "inputSha256": "82e080163cf6bc199fe520ae4edc06e815a27da5675833e8aa3efd66bb192740",
+      "oracleSha256": "b4caece70ebf015675dc6067130d3fa7d9bd7c5c159170ce5224df108a61964f",
+      "graph": {
+        "V": 196,
+        "E": 131,
+        "bytes": 50191
+      },
+      "sourceOrderQueries": 131,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 131
+      },
+      "candidateHistogram": {
+        "0": 131
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 131,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R8-S2",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 65,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 34846,
+      "finalEarlyProjectionEdgeVisits": 524,
+      "baseEarlyProjectionCalls": 133,
+      "finalEarlyProjectionCalls": 2
+    },
+    {
+      "sourceSha256": "3e2d8c6618862d524b5675e86979c633b4ff034704b0d24899c9683dbd28db2d",
+      "inputSha256": "2982352287e8a4705e05a0ae01d55267c120bdff9e42311e67a1e1533cbd2579",
+      "oracleSha256": "dbbb5663a5a2d5d2bbf5b55f366be681623cfa20c827dd04bdb0237cf2754665",
+      "graph": {
+        "V": 772,
+        "E": 515,
+        "bytes": 198475
+      },
+      "sourceOrderQueries": 515,
+      "noResolverQueries": 0,
+      "bindingVersionCount": 0,
+      "linearBindingVersionCount": 0,
+      "executionPositionCounts": {
+        "0": 515
+      },
+      "candidateHistogram": {
+        "0": 515
+      },
+      "candidateCountTotal": 0,
+      "maxCandidates": 0,
+      "readinessCalls": 515,
+      "nonemptyCalls": 0,
+      "dependencyEdgeVisits": 0,
+      "compiler": "LEGAL",
+      "normalRustEligible": true,
+      "id": "R8-S3",
+      "baseDisposition": "PASS",
+      "finalDisposition": "PASS",
+      "baseIndependentOracle": "PASS",
+      "finalIndependentOracle": "PASS",
+      "finalProof": {
+        "reference": {
+          "geometryCount": 257,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        },
+        "actual": {
+          "geometryCount": 257,
+          "scalarCount": 0,
+          "pureCount": 1,
+          "rowCount": 0,
+          "conditions": []
+        }
+      },
+      "baseTopologyEdgeVisits": 0,
+      "finalTopologyEdgeVisits": 0,
+      "baseEarlyProjectionEdgeVisits": 532510,
+      "finalEarlyProjectionEdgeVisits": 2060,
+      "baseEarlyProjectionCalls": 517,
+      "finalEarlyProjectionCalls": 2
+    }
+  ]
+}

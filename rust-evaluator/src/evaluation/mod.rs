@@ -2816,18 +2816,20 @@ fn evaluate_document_input_with_scalar_program(
     );
     let mut binding_prerequisites_by_id =
         project_binding_prerequisites(&conditional_branch_selections, &binding_execution_positions);
+    // Lazily borrow topology once per evaluation; never retain it across documents.
+    let scheduled_binding_topology = std::cell::OnceCell::new();
     let ready_binding_ids_for_source_order =
         |source_order: usize,
          branch_selections: &HashMap<String, String>,
          state: &EvaluationState,
          execution_positions: &HashMap<String, f64>,
+         early: &HashSet<String>,
          evaluated_geometry_values: &[bool],
          resolver: Option<&dyn ScalarDocumentBindingResolver>,
          completed: &HashSet<ElementId>| {
             let Some(resolver) = resolver else {
                 return HashSet::new();
             };
-            let early = project_early_binding_ids(branch_selections);
             let candidate_binding_ids = binding_versions
                 .as_ref()
                 .into_iter()
@@ -2853,6 +2855,7 @@ fn evaluate_document_input_with_scalar_program(
                             geometry_value_index_by_endpoint_id:
                                 &geometry_value_index_by_endpoint_id,
                         },
+                        &scheduled_binding_topology,
                     )
                 })
                 .unwrap_or_default()
@@ -2961,6 +2964,7 @@ fn evaluate_document_input_with_scalar_program(
                 &conditional_branch_selections,
                 &state,
                 &binding_execution_positions,
+                &early_binding_ids,
                 &evaluated_geometry_value_entries,
                 readiness_resolver,
                 &completed_element_ids,
@@ -3065,6 +3069,7 @@ fn evaluate_document_input_with_scalar_program(
                             &conditional_branch_selections,
                             &state,
                             &binding_execution_positions,
+                            &early_binding_ids,
                             &evaluated_geometry_value_entries,
                             readiness_resolver,
                             &completed_element_ids,
@@ -3281,6 +3286,7 @@ fn evaluate_document_input_with_scalar_program(
                 &conditional_branch_selections,
                 &state,
                 &binding_execution_positions,
+                &early_binding_ids,
                 &evaluated_geometry_value_entries,
                 readiness_resolver,
                 &completed_element_ids,
@@ -3836,6 +3842,7 @@ fn evaluate_document_input_with_scalar_program(
             &conditional_branch_selections,
             &state,
             &binding_execution_positions,
+            &early_binding_ids,
             &evaluated_geometry_value_entries,
             readiness_resolver,
             &completed_element_ids,
@@ -3991,6 +3998,7 @@ fn evaluate_document_input_with_scalar_program(
         &conditional_branch_selections,
         &state,
         &binding_execution_positions,
+        &early_binding_ids,
         &evaluated_geometry_value_entries,
         final_readiness_resolver,
         &completed_element_ids,

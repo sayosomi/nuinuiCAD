@@ -1,0 +1,645 @@
+{
+  "sealedAt": "2026-10-28T08:24:09.121Z",
+  "records": [
+    {
+      "id": "R1-S0",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "oracleSha256": "0d243791d05ad8b171e879d22fc12cb54b379b21fa05622b2a6f903965ffa958",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "55be7d06362baaec026344afb75a57eb7ba11d5f10efff0991bc1d9183d04e61",
+      "inputBytes": 6105,
+      "graph": {
+        "endpointRecordsV": 13,
+        "E": 12,
+        "bytes": 4095,
+        "sha256": "0d4f2ba4d03c17c01d5db23238985374d9e76053451935561fa705139f0f1224"
+      }
+    },
+    {
+      "id": "R1-S1",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "28120c05d99c2deb078592006c7dad7516e895c9f8b2cdbf6dedee9f8b26a867",
+      "oracleSha256": "d5181c66b9367cb4b7c4b0c26370ca1dcd839dd199bc006f1f6e8f60c9d5dda0",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "3fe6a268469d33e29e6fd47bb4ae0b08889bc9d485450276a84092efde8c856a",
+      "inputBytes": 95855,
+      "graph": {
+        "endpointRecordsV": 205,
+        "E": 140,
+        "bytes": 52412,
+        "sha256": "7947a4cfc70414f8f6a726d4596e66d3441789e53e62e74eb66904ef787005a5"
+      }
+    },
+    {
+      "id": "R1-S2",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "ba3b3577da91817b11313a05198232e8dd9c9abf1ffaa110f8643a1d179de0a3",
+      "oracleSha256": "d5181c66b9367cb4b7c4b0c26370ca1dcd839dd199bc006f1f6e8f60c9d5dda0",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "3f00d4964b6ef40563d1013695964e81d3a712442b8228bc528ae87023ede1cb",
+      "inputBytes": 96356,
+      "graph": {
+        "endpointRecordsV": 205,
+        "E": 140,
+        "bytes": 52730,
+        "sha256": "6752a2cb2f9167b4916ec51698dfaed0be9abdf7cf2fefbeb360ed2ac913744d"
+      }
+    },
+    {
+      "id": "R1-S3",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "ed0c876810cfaea84f9fbc112f5dc4ccc0533459865b126bf690bf1850a559d9",
+      "oracleSha256": "e5c10c1db62f7695d8965bc15aff043226b1dfd2b39e1239962d4430415ba45e",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "707502946dbdcd9496b604e24f72c8e84f06e73a9972d28468f2a023a0f37645",
+      "inputBytes": 369577,
+      "graph": {
+        "endpointRecordsV": 781,
+        "E": 524,
+        "bytes": 199873,
+        "sha256": "7675f0a13f08dd0a6f747f7359ada0f52d3554d5ab9542348450d9c28ee8768a"
+      }
+    },
+    {
+      "id": "R2-S0",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "oracleSha256": "308d68d89d9b691557a0cb37104ca8905be4d91dd3834b06d92fc3885d320259",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "cb4184ad0010f4360f02173c74523a87a1bda88aeb9cec7a2dd75343d10bb206",
+      "inputBytes": 9222,
+      "graph": {
+        "endpointRecordsV": 21,
+        "E": 16,
+        "bytes": 6370,
+        "sha256": "5bccccfe5c415322ce17d0de93fc8dcc70215ac722dee89ff796dd8a85a9038d"
+      }
+    },
+    {
+      "id": "R2-S1",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "7dca90a2c38d609d07e517b1774ce753ed3aab0f58eae507d337a5cd5b3318f5",
+      "oracleSha256": "30f0b6ec34dce859951d71b2f4c58239830c18a714d8f55a4f72b4aae8b3e36e",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "6da232bf40287360972b64fabd8da72d9dc0ac04468eb7f21931c770d64d740e",
+      "inputBytes": 74823,
+      "graph": {
+        "endpointRecordsV": 213,
+        "E": 144,
+        "bytes": 55148,
+        "sha256": "23244e2f0752d6f12b5a91f686c17f98786942dec8197b3c7ab4cf851581325c"
+      }
+    },
+    {
+      "id": "R2-S2",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "6af0bc34d0e7eaa15849c6e2fd64cc7b821ac16a026914515cdf03c33c80ab9e",
+      "oracleSha256": "30f0b6ec34dce859951d71b2f4c58239830c18a714d8f55a4f72b4aae8b3e36e",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "eaf64d7dc1540bcf3687b9ce8eebddcb1d73e77f635dee8270d10afb20e233b6",
+      "inputBytes": 74832,
+      "graph": {
+        "endpointRecordsV": 213,
+        "E": 144,
+        "bytes": 55157,
+        "sha256": "ad4634fe02b5bb2aeee608aecb4b70dbaddd81922f3bd4bde66e0b2ed83dd1b1"
+      }
+    },
+    {
+      "id": "R2-S3",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "769c7be096041d6af8a5e4403c7d178d34579054f7f448829eaf510e65b3df53",
+      "oracleSha256": "736bcbed9a5876b35f7e5e3060e9f08d9449ac38215311bd3229690641857b2c",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "ac0d22f1ab2cc5df704f792e7711a0449d56baa0beb24d128e86f45154fe40ab",
+      "inputBytes": 272776,
+      "graph": {
+        "endpointRecordsV": 789,
+        "E": 528,
+        "bytes": 202125,
+        "sha256": "196da401b2d02a2c61a335befdba64c7e876574bce1ae0a9e4e9cb5a2950228b"
+      }
+    },
+    {
+      "id": "R3-S0",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "oracleSha256": "38c5119f953358c811e0695601c207b7c0b7de3ff42d9c8a6b60fec38c49730f",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "7774be6a52c9dfa45f49fabd5c15b570f1d00901471fa88cb9a1f72f65bbbb60",
+      "inputBytes": 6559,
+      "graph": {
+        "endpointRecordsV": 10,
+        "E": 9,
+        "bytes": 4001,
+        "sha256": "29e1485e741840329a00a2c2d517170646094ca6b51a7b0e7aa7a76a282091ed"
+      }
+    },
+    {
+      "id": "R3-S1",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "b4fc244d2137e8a13766e15b36031ce5ea08555233e688822010176685258dfe",
+      "oracleSha256": "a2a02b05a5927d68bd97aaaf9569077c3fc8c045b60c2b156862363cc99e1ea5",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "751c6c980c06d0ddf80766584aa2c5493aa3ebce30334a7d206f7b25b57e014a",
+      "inputBytes": 72116,
+      "graph": {
+        "endpointRecordsV": 202,
+        "E": 137,
+        "bytes": 52745,
+        "sha256": "6a0a1f5bc77d9f60452045b20668af3ea3bc1cecbfdcba91c1846707a8197182"
+      }
+    },
+    {
+      "id": "R3-S2",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "e341dd4e2678ac6dfba2ff0461ba25d6e4b5d2221d6306aa35a170831491ccf1",
+      "oracleSha256": "a2a02b05a5927d68bd97aaaf9569077c3fc8c045b60c2b156862363cc99e1ea5",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "6d4682b6e439f1c30513426651740f6cfa3b440f46d2e49994e6e7f6f9f3c876",
+      "inputBytes": 72126,
+      "graph": {
+        "endpointRecordsV": 202,
+        "E": 137,
+        "bytes": 52757,
+        "sha256": "816c7f07a91262d85e7a14052704cadd6390ff0886c9bd3f6281122723aa5152"
+      }
+    },
+    {
+      "id": "R3-S3",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "2a91c4bc04f85ef9aed9c899c9800b3bf907647685f24c120244eef2927c0197",
+      "oracleSha256": "21974cae9cc3341bbb005b2e99437d16e4e3f783749ce4fa36c37c68437a16c8",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "dd0ad64c33f950672badec7891d032e77cc727b06ea3f505e954ccd7b5edbdbf",
+      "inputBytes": 271995,
+      "graph": {
+        "endpointRecordsV": 778,
+        "E": 521,
+        "bytes": 201071,
+        "sha256": "3c58a1fdf8c08dc6d92d72c7e6c7f562342a940a7910a6226319be5d64b19297"
+      }
+    },
+    {
+      "id": "R4-S0",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "oracleSha256": "5c94f679ae0bb181670d8e78ffa1e8918955c1426b6f24f27760487632155cee",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "dcfe1a9506baac3df70a9d71e248953a056225d01de6c1075253d4d9dd4c4594",
+      "inputBytes": 78032,
+      "graph": {
+        "endpointRecordsV": 97,
+        "E": 79,
+        "bytes": 40879,
+        "sha256": "147c95f12d29b024f7333fe2ed25410cf84ed9beccc0949435f9abfbdc2fea5d"
+      }
+    },
+    {
+      "id": "R4-S1",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "d6e3500b0dc041470f1d6dc0833d3b3dfb27c8f16379b67c5b84414824e7ebb8",
+      "oracleSha256": "3426bff9d2769cc41242d13ac925012d15517ce1b1bc700bc76abd518b3834b5",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "49ab20b16705b34ec9af3458584487c37b893f24807100b19472c3d30d958c29",
+      "inputBytes": 176605,
+      "graph": {
+        "endpointRecordsV": 289,
+        "E": 207,
+        "bytes": 90077,
+        "sha256": "ff43e54f93dbf819ab23d49ae641a3461e3a0c89445d3cf960b279520410f0cc"
+      }
+    },
+    {
+      "id": "R4-S2",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "44fc6dc4f6c29f4d1c94aea815b9955e5b624a8b58b6b34d70c2a88f29532da9",
+      "oracleSha256": "3426bff9d2769cc41242d13ac925012d15517ce1b1bc700bc76abd518b3834b5",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "89cb2c237f12888f463cfbca0bb0c5840eec3ddda85d1921a945a35f6b0569e5",
+      "inputBytes": 176686,
+      "graph": {
+        "endpointRecordsV": 289,
+        "E": 207,
+        "bytes": 90139,
+        "sha256": "4ed42fc4d91c407c0ee412110bc36b0b39e71f52f75b42b748261d029d61cf92"
+      }
+    },
+    {
+      "id": "R4-S3",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "084fa6860c6471cda3796a195ae3d75d14c0a3c447935167c6665da4eaed0024",
+      "oracleSha256": "a17dea80794631a45cca011ed5d58ce4eae19f6691d16a28a51d1508a027e086",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "fd2af109127ffe421bbf089c91d8f4b296b9d816ff6597ae2289184ff077d618",
+      "inputBytes": 474887,
+      "graph": {
+        "endpointRecordsV": 865,
+        "E": 591,
+        "bytes": 238715,
+        "sha256": "6d4f1f2099282e2fcebc44761920fd8a16237f2c151a137a520ba0fa96736fc7"
+      }
+    },
+    {
+      "id": "R5-S0",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "oracleSha256": "86e8ce68b00fcd57c965be7cf5bdab9d0ca798e0323caa734715d82742f50e86",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "feac79addbc430a38f77e18cfe6950e70e489d7170a6b17e321f35721317f0a0",
+      "inputBytes": 12786,
+      "graph": {
+        "endpointRecordsV": 27,
+        "E": 26,
+        "bytes": 8980,
+        "sha256": "e4c67dc6f58d63c827d8b9761aa43913d04f44facf2bd87d58c706110df7e786"
+      }
+    },
+    {
+      "id": "R5-S1",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "8439f40fcd96d0cb5da258e13dbfa4ebfa5733f2d4c08e394dd0a917f905dc58",
+      "oracleSha256": "638504d86db09122acdeca55a2d597ae15d42eeb0523410f7e3ac9b4505c7849",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "3493c1f03db9ce075865379baffb8addc29f5b098af72d2f07a5d5b938229924",
+      "inputBytes": 103955,
+      "graph": {
+        "endpointRecordsV": 219,
+        "E": 154,
+        "bytes": 58202,
+        "sha256": "9dc3462200357712edc61bcfba35645a6250416a632f09533110ac90904de07d"
+      }
+    },
+    {
+      "id": "R5-S2",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "eec921b44cd28c70e6b193412ab4f8d8771a9520b99c5f9c1b4da64100bbbb72",
+      "oracleSha256": "638504d86db09122acdeca55a2d597ae15d42eeb0523410f7e3ac9b4505c7849",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "5c405d0f70a6ca1a87739f6b4d6298791d39ce4722edfc0b9bd9fffb1ba0eff6",
+      "inputBytes": 103949,
+      "graph": {
+        "endpointRecordsV": 219,
+        "E": 154,
+        "bytes": 58196,
+        "sha256": "528151148abc554036c8630fd4950f02a8bb496347d55efa9584af187aa3ad5b"
+      }
+    },
+    {
+      "id": "R5-S3",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "22f75aca96a3291dfd9b661f4f2f6262162968f7e38ce1347bc80ce6e22b2a94",
+      "oracleSha256": "49229a52e865a320ef8ac75431a528adb1c52259d410db2369738dd788b0b27f",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "41cb6f223418c17e568787d9e70f1b1ab8ea0e48f9025d8f50ce5fd2a286f3c5",
+      "inputBytes": 379027,
+      "graph": {
+        "endpointRecordsV": 795,
+        "E": 538,
+        "bytes": 206524,
+        "sha256": "3ade65df5bc940f89e6aa644a459e2cecc1df47a14174110cf4ea4877ddfd438"
+      }
+    },
+    {
+      "id": "R6-S0",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "oracleSha256": "39f623b599cb6381a2a477bdfd67bb9087a0daeda10c56438b3a4799dabd27f5",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "b335888934dee7f6e608ada354c6290430a805088a0cb851b91536e2ffe05a6d",
+      "inputBytes": 13110,
+      "graph": {
+        "endpointRecordsV": 24,
+        "E": 22,
+        "bytes": 7870,
+        "sha256": "c0b907ed2009da8e43b86b24925a8ae88087254866aa5426435e759127ab21fa"
+      }
+    },
+    {
+      "id": "R6-S1",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "f1ef8d389a20bb045c392341db49289464735b7403bc4fcd12485e210fda80af",
+      "oracleSha256": "1958ee1f75fadf97443e86480c1ae274a17f1a176284435e11c16912a19602fc",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "aaddabcd93760be545c52b4c4d9b90e1f6193f0e7715bfb240bcc0b30cfae296",
+      "inputBytes": 104282,
+      "graph": {
+        "endpointRecordsV": 216,
+        "E": 150,
+        "bytes": 57090,
+        "sha256": "a2a92cd5de0d397efb2b3b79e370476603d5436743e3fb5386fcc9079fc0f869"
+      }
+    },
+    {
+      "id": "R6-S2",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "80036f98935dba4323f117e300fb1019e9def8352e2e72bde946580c0add4457",
+      "oracleSha256": "1958ee1f75fadf97443e86480c1ae274a17f1a176284435e11c16912a19602fc",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "f3d15cc7113d8db892806b41b330e76114b940f7cd4f9ffaed7a2fcabd05b5ef",
+      "inputBytes": 104273,
+      "graph": {
+        "endpointRecordsV": 216,
+        "E": 150,
+        "bytes": 57086,
+        "sha256": "5d7b08c45be39788ae032a64a1188ad92d640306189f4d364a2aa845015ee4ec"
+      }
+    },
+    {
+      "id": "R6-S3",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "913fdf65dd45564cc7a0e7556581e28675932f4f9f9c2ed70799505eff09d5b6",
+      "oracleSha256": "e3faa2d5f892aa0ba070a0803a5ab230ed3efc7b91cdbe2b5dd5466263ab2b74",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "10b6dfa240c1068e32766d7f140b5d7fd2ceb47b21187b5e07c2f553f5822076",
+      "inputBytes": 379336,
+      "graph": {
+        "endpointRecordsV": 792,
+        "E": 534,
+        "bytes": 205402,
+        "sha256": "206a5a9f3b1b2717bc34ffe35078c7a12b19e53c33753f910539a290eb05bb3f"
+      }
+    },
+    {
+      "id": "R7-S0",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "oracleSha256": "2f69cfaa9a2db745705afe1cdfa8445af32d4e2929f3fefeb76fac96e7cca43e",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "972f5a2ecb99defcb8b22eb4840620a9753879a5febb0a41d8a95da2a84907eb",
+      "inputBytes": 12818,
+      "graph": {
+        "endpointRecordsV": 22,
+        "E": 20,
+        "bytes": 6929,
+        "sha256": "c9ed8142dfc459054958fb27f7ad37d054d5571dbf76e2ad3c59702bd1c0610a"
+      }
+    },
+    {
+      "id": "R7-S1",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "931f238444ab702898a2256084021c4d88a172363002c3b886ca6951b02fe9f2",
+      "oracleSha256": "83122b19a4934b27706783bff102859875c31d7a5a7f47709685db036959186d",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "8c3526e12c920acda1a8e2b92f3b0963c107b2f8c421afa297dec13204fb3357",
+      "inputBytes": 107624,
+      "graph": {
+        "endpointRecordsV": 214,
+        "E": 148,
+        "bytes": 56142,
+        "sha256": "7c7abced0e9495cb53ddd4eee5c2cbb238c3c237dd4cb2d6086aae8f6573fb8a"
+      }
+    },
+    {
+      "id": "R7-S2",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "85fed7285f83bd2a780c0991ab57cf5ff72984d0df3fbcb33273e3dcc2c54810",
+      "oracleSha256": "83122b19a4934b27706783bff102859875c31d7a5a7f47709685db036959186d",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "c674ff5f2aff46529915b1f2aaef42d89124e10cdc742916f24145a5b98a7b5e",
+      "inputBytes": 107629,
+      "graph": {
+        "endpointRecordsV": 214,
+        "E": 148,
+        "bytes": 56145,
+        "sha256": "b502ce12e36271b6a945f5287c283f164dce9b6fa94ddc3e057ad16d3203899f"
+      }
+    },
+    {
+      "id": "R7-S3",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "7980d61b1d8191bfe0fbbe57a9fa754bf989c4842600fa1e79ed02d2337d0686",
+      "oracleSha256": "365ef1e407d6b8d6464aaf7f8cfb109e6b72ea30f79a7bceca81d858d983611a",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "178b96df3b1072dd1fe2daf7c0abb4c608c9989cc54df0e9effe60f4a7e43439",
+      "inputBytes": 393826,
+      "graph": {
+        "endpointRecordsV": 790,
+        "E": 532,
+        "bytes": 204469,
+        "sha256": "066b2a453b9e5a697fda5fcd19c0c00525411a12168f6a575ea7fb547cbab3a5"
+      }
+    },
+    {
+      "id": "R8-S0",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "oracleSha256": "c76dbea57d2a1126981b1f839cd0b7bbfa6edd28d5e26678d17df5130bbb3c76",
+      "pads": 0,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "c7c176acb4d26aab17de5782cc8c647879a8274de663d216397260278ba9e03c",
+      "inputBytes": 2534,
+      "graph": {
+        "endpointRecordsV": 4,
+        "E": 3,
+        "bytes": 1003,
+        "sha256": "1b56d68e6ee310a5e6fe0cedb6c10fb2cf50ddc59387118e3a5176ed07935f6d"
+      }
+    },
+    {
+      "id": "R8-S1",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "578af61a1699d16a64d6caaf2c429fa0bfd8882e87f4b3081d80e26e23581214",
+      "oracleSha256": "b4caece70ebf015675dc6067130d3fa7d9bd7c5c159170ce5224df108a61964f",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "8aed46b9b46409f21c1aceb72c4cc31639040c015edf1e8e1e1c619bfc60d97d",
+      "inputBytes": 101071,
+      "graph": {
+        "endpointRecordsV": 196,
+        "E": 131,
+        "bytes": 50189,
+        "sha256": "6c8809898452a827beded269a6175678679d50fd7b5e3eac97f53291136b926b"
+      }
+    },
+    {
+      "id": "R8-S2",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "d210a8c9a19166553b6796e472d2ad80ec0ca525453806e86e2c4d0b3e43db13",
+      "oracleSha256": "b4caece70ebf015675dc6067130d3fa7d9bd7c5c159170ce5224df108a61964f",
+      "pads": 64,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "82e080163cf6bc199fe520ae4edc06e815a27da5675833e8aa3efd66bb192740",
+      "inputBytes": 101070,
+      "graph": {
+        "endpointRecordsV": 196,
+        "E": 131,
+        "bytes": 50191,
+        "sha256": "b57ca378c3951395495eeb4aca91d406151cb32453ed1d4d9cbaf5b42e3f58b7"
+      }
+    },
+    {
+      "id": "R8-S3",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "3e2d8c6618862d524b5675e86979c633b4ff034704b0d24899c9683dbd28db2d",
+      "oracleSha256": "dbbb5663a5a2d5d2bbf5b55f366be681623cfa20c827dd04bdb0237cf2754665",
+      "pads": 256,
+      "disposition": "SEALED",
+      "status": "valid",
+      "diagnostics": [],
+      "rustEligible": true,
+      "inputSha256": "2982352287e8a4705e05a0ae01d55267c120bdff9e42311e67a1e1533cbd2579",
+      "inputBytes": 398681,
+      "graph": {
+        "endpointRecordsV": 772,
+        "E": 515,
+        "bytes": 198475,
+        "sha256": "a929b5245442e2c8e7bbea0736a0951613f0f46b84b9a2c2f0161993bb5d5e40"
+      }
+    }
+  ]
+}

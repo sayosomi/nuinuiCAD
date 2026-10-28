@@ -1,0 +1,516 @@
+{
+  "R1": {
+    "geometry": {
+      "A": {
+        "kind": "point",
+        "x": 0,
+        "y": 0
+      },
+      "B": {
+        "kind": "point",
+        "x": 10,
+        "y": 0
+      },
+      "Later": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "kind": "point",
+          "x": 10,
+          "y": 0
+        }
+      },
+      "C": {
+        "kind": "point",
+        "x": 10,
+        "y": 0
+      }
+    },
+    "scalars": {
+      "x": 10
+    },
+    "lengths": {
+      "Later": 10
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  },
+  "R2": {
+    "geometry": {
+      "EarlierA": {
+        "kind": "point",
+        "x": -10,
+        "y": 1
+      },
+      "EarlierB": {
+        "kind": "point",
+        "x": -20,
+        "y": 2
+      },
+      "EarlierC": {
+        "kind": "point",
+        "x": -30,
+        "y": 3
+      },
+      "Source": {
+        "kind": "point",
+        "x": 0,
+        "y": 42
+      },
+      "Use": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 7,
+          "y": 42
+        },
+        "end": {
+          "kind": "point",
+          "x": 0,
+          "y": 42
+        }
+      }
+    },
+    "pure": {
+      "I::P": {
+        "kind": "point",
+        "x": 7,
+        "y": 42
+      }
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  },
+  "R3": {
+    "geometry": {
+      "Use": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 10,
+          "y": 20
+        },
+        "end": {
+          "kind": "point",
+          "x": 30,
+          "y": 20
+        }
+      }
+    },
+    "pure": {
+      "I::P": {
+        "kind": "point",
+        "x": 10,
+        "y": 20
+      },
+      "I::L": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 10,
+          "y": 20
+        },
+        "end": {
+          "kind": "point",
+          "x": 30,
+          "y": 20
+        }
+      }
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  },
+  "R4": {
+    "geometry": {
+      "Base": {
+        "kind": "point",
+        "x": 10,
+        "y": 0
+      },
+      "X::A": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "kind": "point",
+          "x": 10,
+          "y": 0
+        }
+      },
+      "X::P": {
+        "kind": "point",
+        "x": 10,
+        "y": 0
+      },
+      "Y::Q": {
+        "kind": "point",
+        "x": 10,
+        "y": 0
+      },
+      "LoopInstance::P": [
+        {
+          "kind": "point",
+          "x": 1,
+          "y": 1
+        },
+        {
+          "kind": "point",
+          "x": 2,
+          "y": 1
+        }
+      ],
+      "OuterInstance::Nested::NestedPoint": [
+        {
+          "kind": "point",
+          "x": 1,
+          "y": 2
+        },
+        {
+          "kind": "point",
+          "x": 2,
+          "y": 2
+        }
+      ],
+      "CallerInstance::CallerPoint": [
+        {
+          "kind": "point",
+          "x": 1,
+          "y": 3
+        },
+        {
+          "kind": "point",
+          "x": 2,
+          "y": 3
+        }
+      ],
+      "ConditionalTrue::CallerPoint": {
+        "kind": "point",
+        "x": 40,
+        "y": 3
+      },
+      "MixedInstance::MixedPoint": [
+        {
+          "kind": "point",
+          "x": 11,
+          "y": 4
+        },
+        {
+          "kind": "point",
+          "x": 12,
+          "y": 4
+        }
+      ]
+    },
+    "absent": [
+      "ConditionalFalse::CallerPoint"
+    ],
+    "moduleScalars": {
+      "X::length": 10,
+      "Y::width": 10,
+      "LoopInstance::local": [
+        1,
+        2
+      ],
+      "OuterInstance::Nested::width": [
+        1,
+        2
+      ],
+      "CallerInstance::x": [
+        1,
+        2
+      ],
+      "ConditionalTrue::x": 40,
+      "MixedInstance::base": 10,
+      "MixedInstance::local": [
+        10,
+        10
+      ]
+    },
+    "iterationValues": [
+      1,
+      2
+    ],
+    "lengths": {
+      "X::A": 10
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  },
+  "R5": {
+    "geometry": {
+      "A": {
+        "kind": "point",
+        "x": 0,
+        "y": 0
+      },
+      "B": {
+        "kind": "point",
+        "x": 30,
+        "y": 40
+      },
+      "AB": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "kind": "point",
+          "x": 30,
+          "y": 40
+        }
+      },
+      "Active": {
+        "kind": "point",
+        "x": 1,
+        "y": 1
+      },
+      "AlwaysShown": {
+        "kind": "point",
+        "x": 4,
+        "y": 4
+      }
+    },
+    "absent": [
+      "Inactive",
+      "NeverShown"
+    ],
+    "conditions": [
+      true,
+      false
+    ],
+    "lengths": {
+      "AB": 50
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  },
+  "R6": {
+    "geometry": {
+      "A": {
+        "kind": "point",
+        "x": 0,
+        "y": 0
+      },
+      "B": {
+        "kind": "point",
+        "x": 10,
+        "y": 0
+      },
+      "Base": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "kind": "point",
+          "x": 10,
+          "y": 0
+        }
+      },
+      "Arc": {
+        "kind": "arc",
+        "center": {
+          "kind": "point",
+          "x": 0,
+          "y": 0
+        },
+        "radius": 40,
+        "startDeg": 15,
+        "endDeg": 155,
+        "direction": "clockwise"
+      },
+      "Off": {
+        "kind": "polyline",
+        "points": [
+          {
+            "kind": "point",
+            "x": 0,
+            "y": -10
+          },
+          {
+            "kind": "point",
+            "x": 10,
+            "y": -10
+          }
+        ],
+        "closed": false
+      },
+      "Off2": {
+        "kind": "polyline",
+        "points": [
+          {
+            "kind": "point",
+            "x": 0,
+            "y": -20
+          },
+          {
+            "kind": "point",
+            "x": 10,
+            "y": -20
+          }
+        ],
+        "closed": false
+      },
+      "Note": {
+        "kind": "text",
+        "text": "clockwise=true",
+        "fontSize": 3
+      }
+    },
+    "scalars": {
+      "direction": "clockwise",
+      "isClockwise": true,
+      "copied": "clockwise"
+    },
+    "lengths": {
+      "Base": 10
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  },
+  "R7": {
+    "geometry": {
+      "A": {
+        "kind": "point",
+        "x": 0,
+        "y": 0
+      },
+      "B": {
+        "kind": "point",
+        "x": 3,
+        "y": 4
+      },
+      "AB": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 0,
+          "y": 0
+        },
+        "end": {
+          "kind": "point",
+          "x": 3,
+          "y": 4
+        }
+      },
+      "Marker": {
+        "kind": "point",
+        "x": 1,
+        "y": 1
+      },
+      "Label": {
+        "kind": "text",
+        "text": "new 7",
+        "fontSize": 3
+      }
+    },
+    "scalars": {
+      "value": 7,
+      "mirror": 7,
+      "label": "new",
+      "flag": true,
+      "side": "left"
+    },
+    "carryInitial": {
+      "value": 5,
+      "mirror": 0,
+      "label": "old",
+      "flag": false,
+      "side": "right"
+    },
+    "carryIncoming": [
+      {
+        "value": 5,
+        "mirror": 0,
+        "label": "old",
+        "flag": false,
+        "side": "right"
+      },
+      {
+        "value": 7,
+        "mirror": 5,
+        "label": "new",
+        "flag": true,
+        "side": "left"
+      }
+    ],
+    "carryNext": [
+      {
+        "value": 7,
+        "mirror": 5,
+        "label": "new",
+        "flag": true,
+        "side": "left"
+      },
+      {
+        "value": 7,
+        "mirror": 7,
+        "label": "new",
+        "flag": true,
+        "side": "left"
+      }
+    ],
+    "iterationValues": [
+      0,
+      1
+    ],
+    "lengths": {
+      "AB": 5
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  },
+  "R8": {
+    "geometry": {
+      "L": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "x": 10,
+          "y": 20
+        },
+        "end": {
+          "kind": "point",
+          "x": 30,
+          "y": 20
+        }
+      }
+    },
+    "pure": {
+      "P": {
+        "kind": "point",
+        "x": 10,
+        "y": 20
+      }
+    },
+    "padPoints": {},
+    "errors": [],
+    "warnings": [],
+    "relativeOrder": "authored original declarations and deterministic zero-based loop occurrences; prefix padding may shift absolute indices"
+  }
+}

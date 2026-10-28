@@ -38,6 +38,7 @@ export const evaluateTextElement = (
           localVariables: context.localVariables.localVariableValues,
           localVariableNames: context.localVariables.localVariableNames,
           currentElement: element,
+          resolveGeometryProperty: context.resolveScalarGeometryProperty,
           elements: context.elements
         },
         context.resolveScalarBinding!

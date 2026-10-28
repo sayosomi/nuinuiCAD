@@ -1,0 +1,263 @@
+{
+  "base": "d69e1baf31bf48344f7da8df5118e5944f073e3e",
+  "sealedAt": "2026-10-28T08:23:07.286735+00:00",
+  "normativeSpecSha256": "1e1e9f255d573b969735113f68048ee7e5da1d4ed8f0ac7ada278810238d4ab5",
+  "cells": [
+    {
+      "id": "R1-S0",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "oracleSha256": "0d243791d05ad8b171e879d22fc12cb54b379b21fa05622b2a6f903965ffa958",
+      "pads": 0
+    },
+    {
+      "id": "R1-S1",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "28120c05d99c2deb078592006c7dad7516e895c9f8b2cdbf6dedee9f8b26a867",
+      "oracleSha256": "d5181c66b9367cb4b7c4b0c26370ca1dcd839dd199bc006f1f6e8f60c9d5dda0",
+      "pads": 64
+    },
+    {
+      "id": "R1-S2",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "ba3b3577da91817b11313a05198232e8dd9c9abf1ffaa110f8643a1d179de0a3",
+      "oracleSha256": "d5181c66b9367cb4b7c4b0c26370ca1dcd839dd199bc006f1f6e8f60c9d5dda0",
+      "pads": 64
+    },
+    {
+      "id": "R1-S3",
+      "root": "nui1-typed-geometry-property-forward.nui",
+      "originalSha256": "535b2a032181000493c2490cd7a47cd6f69d4f7d6a496d86e913df7b9e1e02e1",
+      "sourceSha256": "ed0c876810cfaea84f9fbc112f5dc4ccc0533459865b126bf690bf1850a559d9",
+      "oracleSha256": "e5c10c1db62f7695d8965bc15aff043226b1dfd2b39e1239962d4430415ba45e",
+      "pads": 256
+    },
+    {
+      "id": "R2-S0",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "oracleSha256": "308d68d89d9b691557a0cb37104ca8905be4d91dd3834b06d92fc3885d320259",
+      "pads": 0
+    },
+    {
+      "id": "R2-S1",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "7dca90a2c38d609d07e517b1774ce753ed3aab0f58eae507d337a5cd5b3318f5",
+      "oracleSha256": "30f0b6ec34dce859951d71b2f4c58239830c18a714d8f55a4f72b4aae8b3e36e",
+      "pads": 64
+    },
+    {
+      "id": "R2-S2",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "6af0bc34d0e7eaa15849c6e2fd64cc7b821ac16a026914515cdf03c33c80ab9e",
+      "oracleSha256": "30f0b6ec34dce859951d71b2f4c58239830c18a714d8f55a4f72b4aae8b3e36e",
+      "pads": 64
+    },
+    {
+      "id": "R2-S3",
+      "root": "nui1-geometry-value-module-runtime-order.nui",
+      "originalSha256": "e901b22c839c31bbf6fbe2ae102a7065c9cc13148f64bd96de1e7cb88972cbe5",
+      "sourceSha256": "769c7be096041d6af8a5e4403c7d178d34579054f7f448829eaf510e65b3df53",
+      "oracleSha256": "736bcbed9a5876b35f7e5e3060e9f08d9449ac38215311bd3229690641857b2c",
+      "pads": 256
+    },
+    {
+      "id": "R3-S0",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "oracleSha256": "38c5119f953358c811e0695601c207b7c0b7de3ff42d9c8a6b60fec38c49730f",
+      "pads": 0
+    },
+    {
+      "id": "R3-S1",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "b4fc244d2137e8a13766e15b36031ce5ea08555233e688822010176685258dfe",
+      "oracleSha256": "a2a02b05a5927d68bd97aaaf9569077c3fc8c045b60c2b156862363cc99e1ea5",
+      "pads": 64
+    },
+    {
+      "id": "R3-S2",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "e341dd4e2678ac6dfba2ff0461ba25d6e4b5d2221d6306aa35a170831491ccf1",
+      "oracleSha256": "a2a02b05a5927d68bd97aaaf9569077c3fc8c045b60c2b156862363cc99e1ea5",
+      "pads": 64
+    },
+    {
+      "id": "R3-S3",
+      "root": "nui1-geometry-value-module-export.nui",
+      "originalSha256": "f99cac0ac2875010b19aaceba9465a573a70a703252c55399d2cb89ac2dc2fc3",
+      "sourceSha256": "2a91c4bc04f85ef9aed9c899c9800b3bf907647685f24c120244eef2927c0197",
+      "oracleSha256": "21974cae9cc3341bbb005b2e99437d16e4e3f783749ce4fa36c37c68437a16c8",
+      "pads": 256
+    },
+    {
+      "id": "R4-S0",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "oracleSha256": "5c94f679ae0bb181670d8e78ffa1e8918955c1426b6f24f27760487632155cee",
+      "pads": 0
+    },
+    {
+      "id": "R4-S1",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "d6e3500b0dc041470f1d6dc0833d3b3dfb27c8f16379b67c5b84414824e7ebb8",
+      "oracleSha256": "3426bff9d2769cc41242d13ac925012d15517ce1b1bc700bc76abd518b3834b5",
+      "pads": 64
+    },
+    {
+      "id": "R4-S2",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "44fc6dc4f6c29f4d1c94aea815b9955e5b624a8b58b6b34d70c2a88f29532da9",
+      "oracleSha256": "3426bff9d2769cc41242d13ac925012d15517ce1b1bc700bc76abd518b3834b5",
+      "pads": 64
+    },
+    {
+      "id": "R4-S3",
+      "root": "nui1-module-scalar-blocking.nui",
+      "originalSha256": "e586a6e6cb7a1e6b474f1484ebcaaabd94da75dd2fadf0ae5d840642acec8045",
+      "sourceSha256": "084fa6860c6471cda3796a195ae3d75d14c0a3c447935167c6665da4eaed0024",
+      "oracleSha256": "a17dea80794631a45cca011ed5d58ce4eae19f6691d16a28a51d1508a027e086",
+      "pads": 256
+    },
+    {
+      "id": "R5-S0",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "oracleSha256": "86e8ce68b00fcd57c965be7cf5bdab9d0ca798e0323caa734715d82742f50e86",
+      "pads": 0
+    },
+    {
+      "id": "R5-S1",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "8439f40fcd96d0cb5da258e13dbfa4ebfa5733f2d4c08e394dd0a917f905dc58",
+      "oracleSha256": "638504d86db09122acdeca55a2d597ae15d42eeb0523410f7e3ac9b4505c7849",
+      "pads": 64
+    },
+    {
+      "id": "R5-S2",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "eec921b44cd28c70e6b193412ab4f8d8771a9520b99c5f9c1b4da64100bbbb72",
+      "oracleSha256": "638504d86db09122acdeca55a2d597ae15d42eeb0523410f7e3ac9b4505c7849",
+      "pads": 64
+    },
+    {
+      "id": "R5-S3",
+      "root": "nui1-element-property-conditional.nui",
+      "originalSha256": "7f75fc359268d8e86edaeaabc2f3c408f436c40cd8439be2028c163bdb9252a3",
+      "sourceSha256": "22f75aca96a3291dfd9b661f4f2f6262162968f7e38ce1347bc80ce6e22b2a94",
+      "oracleSha256": "49229a52e865a320ef8ac75431a528adb1c52259d410db2369738dd788b0b27f",
+      "pads": 256
+    },
+    {
+      "id": "R6-S0",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "oracleSha256": "39f623b599cb6381a2a477bdfd67bb9087a0daeda10c56438b3a4799dabd27f5",
+      "pads": 0
+    },
+    {
+      "id": "R6-S1",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "f1ef8d389a20bb045c392341db49289464735b7403bc4fcd12485e210fda80af",
+      "oracleSha256": "1958ee1f75fadf97443e86480c1ae274a17f1a176284435e11c16912a19602fc",
+      "pads": 64
+    },
+    {
+      "id": "R6-S2",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "80036f98935dba4323f117e300fb1019e9def8352e2e72bde946580c0add4457",
+      "oracleSha256": "1958ee1f75fadf97443e86480c1ae274a17f1a176284435e11c16912a19602fc",
+      "pads": 64
+    },
+    {
+      "id": "R6-S3",
+      "root": "nui1-choice-geometry-properties.nui",
+      "originalSha256": "1737848401e9e443dbb216ab807067a96116b9501c8f759601b541b0f8795429",
+      "sourceSha256": "913fdf65dd45564cc7a0e7556581e28675932f4f9f9c2ed70799505eff09d5b6",
+      "oracleSha256": "e3faa2d5f892aa0ba070a0803a5ab230ed3efc7b91cdbe2b5dd5466263ab2b74",
+      "pads": 256
+    },
+    {
+      "id": "R7-S0",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "oracleSha256": "2f69cfaa9a2db745705afe1cdfa8445af32d4e2929f3fefeb76fac96e7cca43e",
+      "pads": 0
+    },
+    {
+      "id": "R7-S1",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "931f238444ab702898a2256084021c4d88a172363002c3b886ca6951b02fe9f2",
+      "oracleSha256": "83122b19a4934b27706783bff102859875c31d7a5a7f47709685db036959186d",
+      "pads": 64
+    },
+    {
+      "id": "R7-S2",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "85fed7285f83bd2a780c0991ab57cf5ff72984d0df3fbcb33273e3dcc2c54810",
+      "oracleSha256": "83122b19a4934b27706783bff102859875c31d7a5a7f47709685db036959186d",
+      "pads": 64
+    },
+    {
+      "id": "R7-S3",
+      "root": "nui1-linear-mutation-terminal.nui",
+      "originalSha256": "65dae53596f5d893c1645c1d58451dea65b24bf39e5e2f71046f8a41577b3fd3",
+      "sourceSha256": "7980d61b1d8191bfe0fbbe57a9fa754bf989c4842600fa1e79ed02d2337d0686",
+      "oracleSha256": "365ef1e407d6b8d6464aaf7f8cfb109e6b72ea30f79a7bceca81d858d983611a",
+      "pads": 256
+    },
+    {
+      "id": "R8-S0",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "oracleSha256": "c76dbea57d2a1126981b1f839cd0b7bbfa6edd28d5e26678d17df5130bbb3c76",
+      "pads": 0
+    },
+    {
+      "id": "R8-S1",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "578af61a1699d16a64d6caaf2c429fa0bfd8882e87f4b3081d80e26e23581214",
+      "oracleSha256": "b4caece70ebf015675dc6067130d3fa7d9bd7c5c159170ce5224df108a61964f",
+      "pads": 64
+    },
+    {
+      "id": "R8-S2",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "d210a8c9a19166553b6796e472d2ad80ec0ca525453806e86e2c4d0b3e43db13",
+      "oracleSha256": "b4caece70ebf015675dc6067130d3fa7d9bd7c5c159170ce5224df108a61964f",
+      "pads": 64
+    },
+    {
+      "id": "R8-S3",
+      "root": "nui1-geometry-value-coordinate-line.nui",
+      "originalSha256": "f2933ad2b9e586ed7ce3348bf76ff6ef71fd64285b8bb33b1845eebffbd0f14b",
+      "sourceSha256": "3e2d8c6618862d524b5675e86979c633b4ff034704b0d24899c9683dbd28db2d",
+      "oracleSha256": "dbbb5663a5a2d5d2bbf5b55f366be681623cfa20c827dd04bdb0237cf2754665",
+      "pads": 256
+    }
+  ]
+}
