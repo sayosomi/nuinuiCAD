@@ -20,7 +20,6 @@ use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOcc
 thread_local! {
     static READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static MODULE_PREREQUISITE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    static ACTIVATION_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static CONTROLLER_CANDIDATE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
@@ -1932,7 +1931,6 @@ mod tests {
         };
 
         let mut guardless_candidate_visits = Vec::new();
-        let mut guardless_activation_visits = Vec::new();
         for edge_count in [64, 256] {
             let graph = ConditionalDependencyGraph::from_edges(
                 (0..edge_count)
@@ -1960,18 +1958,15 @@ mod tests {
             }
             let candidate_visits = CONTROLLER_CANDIDATE_EDGE_VISITS.with(std::cell::Cell::get);
 
-            ACTIVATION_EDGE_VISITS.with(|count| count.set(0));
             for _ in 0..8 {
                 assert!(!graph.has_activation());
             }
-            let activation_visits = ACTIVATION_EDGE_VISITS.with(std::cell::Cell::get);
 
             eprintln!(
-                "#1476 guardless edges={edge_count} queries=8 controller_candidate_visits={candidate_visits} has_activation_visits={activation_visits}; Base full scans expect {} each",
+                "#1476 guardless edges={edge_count} queries=8 controller_candidate_visits={candidate_visits}; Base full-scan visits expect {}",
                 edge_count * 8,
             );
             guardless_candidate_visits.push(candidate_visits);
-            guardless_activation_visits.push(activation_visits);
             assert_eq!(
                 edge_state(&graph),
                 before,
@@ -2059,6 +2054,45 @@ mod tests {
                 None,
             )
         };
+
+        let guarded_positive_control = ConditionalDependencyGraph::from_edges(vec![
+            make_conditional_edge(
+                "positive-source",
+                "positive-left",
+                vec![make_guard(
+                    "positive-controller",
+                    "left",
+                    Some("geometry-value-coalesce"),
+                    None,
+                    None,
+                )],
+            ),
+            make_conditional_edge(
+                "positive-source",
+                "positive-right",
+                vec![make_guard(
+                    "positive-controller",
+                    "right",
+                    Some("geometry-value-coalesce"),
+                    None,
+                    None,
+                )],
+            ),
+        ]);
+        assert!(guarded_positive_control.has_activation());
+        CONTROLLER_CANDIDATE_EDGE_VISITS.with(|count| count.set(0));
+        let positive_candidates = guarded_positive_control.controller_candidates(&HashMap::new());
+        let positive_guarded_visits = CONTROLLER_CANDIDATE_EDGE_VISITS.with(std::cell::Cell::get);
+        assert_eq!(positive_candidates.len(), 1);
+        assert_eq!(positive_candidates[0].branches, vec!["left", "right"]);
+        assert_eq!(
+            positive_guarded_visits, 2,
+            "a graph containing only two guarded edges must increment the candidate visit counter twice"
+        );
+        for _ in 0..8 {
+            assert!(guarded_positive_control.has_activation());
+        }
+
         let mut semantic_edges = (0..16).map(unrelated_edge).collect::<Vec<_>>();
         semantic_edges.push(required_edge(
             endpoint("geometry-value", "coalesce-source", "CoalesceSource"),
@@ -2348,11 +2382,6 @@ mod tests {
             guardless_candidate_visits,
             vec![0, 0],
             "guardless controller scans must do zero repeated unrelated work; Base full-scan visits are 512 and 2048",
-        );
-        assert_eq!(
-            guardless_activation_visits,
-            vec![0, 0],
-            "guardless activation checks must do zero repeated unrelated work; Base full-scan visits are 512 and 2048",
         );
     }
 
