@@ -20,6 +20,8 @@ use super::types::{DependencyError, ElementId, EvaluationState, GeometryValueOcc
 thread_local! {
     static READINESS_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static MODULE_PREREQUISITE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static ACTIVATION_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static CONTROLLER_CANDIDATE_EDGE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[derive(Debug, Deserialize)]
@@ -110,6 +112,7 @@ struct ConditionalDependencyGuard {
 #[derive(Debug)]
 pub(crate) struct ConditionalDependencyGraph {
     edges: Vec<ConditionalDependencyEdge>,
+    guarded_edge_indices: Vec<usize>,
     module_occurrence_edge_indices_by_from: HashMap<String, Vec<usize>>,
 }
 
@@ -446,8 +449,16 @@ fn geometry_property_prerequisites_are_ready(
 
 impl ConditionalDependencyGraph {
     fn from_edges(edges: Vec<ConditionalDependencyEdge>) -> Self {
+        let mut guarded_edge_indices = Vec::new();
         let mut module_occurrence_edge_indices_by_from = HashMap::<String, Vec<usize>>::new();
         for (edge_index, edge) in edges.iter().enumerate() {
+            if edge
+                .activation
+                .as_ref()
+                .is_some_and(|activation| !activation.guards.is_empty())
+            {
+                guarded_edge_indices.push(edge_index);
+            }
             if edge.to.kind == "module-occurrence" {
                 module_occurrence_edge_indices_by_from
                     .entry(endpoint_key(&edge.from))
@@ -457,6 +468,7 @@ impl ConditionalDependencyGraph {
         }
         Self {
             edges,
+            guarded_edge_indices,
             module_occurrence_edge_indices_by_from,
         }
     }
@@ -752,11 +764,7 @@ impl ConditionalDependencyGraph {
     }
 
     pub(crate) fn has_activation(&self) -> bool {
-        self.edges.iter().any(|edge| {
-            edge.activation
-                .as_ref()
-                .is_some_and(|activation| !activation.guards.is_empty())
-        })
+        !self.guarded_edge_indices.is_empty()
     }
 
     pub(crate) fn controller_candidates(
@@ -764,7 +772,10 @@ impl ConditionalDependencyGraph {
         branch_selections: &HashMap<String, String>,
     ) -> Vec<ConditionalDependencyControllerCandidate<'_>> {
         let mut candidates = HashMap::<String, ConditionalDependencyControllerCandidate<'_>>::new();
-        for edge in &self.edges {
+        for edge_index in &self.guarded_edge_indices {
+            #[cfg(test)]
+            CONTROLLER_CANDIDATE_EDGE_VISITS.with(|count| count.set(count.get() + 1));
+            let edge = &self.edges[*edge_index];
             let Some(activation) = edge.activation.as_ref() else {
                 continue;
             };
@@ -1885,6 +1896,464 @@ mod tests {
             geometry_value_errors: Vec::new(),
             warnings: Vec::new(),
         }
+    }
+
+    #[test]
+    fn issue_1476_controller_guardless_scan_avoids_full_edge_walk() {
+        let edge_state = |graph: &ConditionalDependencyGraph| {
+            graph
+                .edges
+                .iter()
+                .map(|edge| {
+                    (
+                        edge.from.kind.clone(),
+                        edge.from.id.clone(),
+                        edge.to.kind.clone(),
+                        edge.to.id.clone(),
+                        edge.span,
+                        edge.requiredness.clone(),
+                        edge.activation.as_ref().map(|activation| {
+                            activation
+                                .guards
+                                .iter()
+                                .map(|guard| {
+                                    (
+                                        guard.controller_id.clone(),
+                                        guard.branch.clone(),
+                                        guard.controller_kind.clone(),
+                                        guard.static_selection.clone(),
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        }),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut guardless_candidate_visits = Vec::new();
+        let mut guardless_activation_visits = Vec::new();
+        for edge_count in [64, 256] {
+            let graph = ConditionalDependencyGraph::from_edges(
+                (0..edge_count)
+                    .map(|index| {
+                        required_edge(
+                            endpoint(
+                                "element",
+                                &format!("unrelated-source-{index}"),
+                                &format!("UnrelatedSource{index}"),
+                            ),
+                            endpoint(
+                                "binding",
+                                &format!("unrelated-target-{index}"),
+                                &format!("UnrelatedTarget{index}"),
+                            ),
+                        )
+                    })
+                    .collect(),
+            );
+            let before = edge_state(&graph);
+
+            CONTROLLER_CANDIDATE_EDGE_VISITS.with(|count| count.set(0));
+            for _ in 0..8 {
+                assert!(graph.controller_candidates(&HashMap::new()).is_empty());
+            }
+            let candidate_visits = CONTROLLER_CANDIDATE_EDGE_VISITS.with(std::cell::Cell::get);
+
+            ACTIVATION_EDGE_VISITS.with(|count| count.set(0));
+            for _ in 0..8 {
+                assert!(!graph.has_activation());
+            }
+            let activation_visits = ACTIVATION_EDGE_VISITS.with(std::cell::Cell::get);
+
+            eprintln!(
+                "#1476 guardless edges={edge_count} queries=8 controller_candidate_visits={candidate_visits} has_activation_visits={activation_visits}; Base full scans expect {} each",
+                edge_count * 8,
+            );
+            guardless_candidate_visits.push(candidate_visits);
+            guardless_activation_visits.push(activation_visits);
+            assert_eq!(
+                edge_state(&graph),
+                before,
+                "queries must not mutate the graph"
+            );
+        }
+
+        let empty = ConditionalDependencyGraph::from_edges(Vec::new());
+        assert!(!empty.has_activation());
+        assert!(empty.controller_candidates(&HashMap::new()).is_empty());
+
+        let mut empty_guards_edge = required_edge(
+            endpoint("element", "empty-guards-source", "EmptyGuardsSource"),
+            endpoint("binding", "empty-guards-target", "EmptyGuardsTarget"),
+        );
+        empty_guards_edge.activation = Some(ConditionalDependencyActivation { guards: vec![] });
+        let empty_guards = ConditionalDependencyGraph::from_edges(vec![empty_guards_edge]);
+        assert!(!empty_guards.has_activation());
+        assert!(empty_guards
+            .controller_candidates(&HashMap::new())
+            .is_empty());
+
+        let boolean_expression = || {
+            validate_typed_expression_payload(&serde_json::json!({
+                "kind": "booleanLiteral",
+                "span": { "start": 0, "end": 1 },
+                "value": true,
+                "type": { "kind": "boolean" }
+            }))
+            .expect("valid boolean controller expression")
+        };
+        let make_guard =
+            |controller_id: &str,
+             branch: &str,
+             controller_kind: Option<&str>,
+             static_selection: Option<&str>,
+             controller_expression: Option<TypedScalarExpression>| {
+                ConditionalDependencyGuard {
+                    controller_id: controller_id.to_owned(),
+                    branch: branch.to_owned(),
+                    controller_kind: controller_kind.map(str::to_owned),
+                    static_selection: static_selection.map(str::to_owned),
+                    controller_expression,
+                }
+            };
+        let make_conditional_edge =
+            |from_id: &str, to_id: &str, guards: Vec<ConditionalDependencyGuard>| {
+                ConditionalDependencyEdge {
+                    from: endpoint("geometry-value", from_id, from_id),
+                    to: endpoint("binding", to_id, to_id),
+                    span: None,
+                    requiredness: Some("conditional".to_owned()),
+                    activation: Some(ConditionalDependencyActivation { guards }),
+                }
+            };
+        let unrelated_edge = |index: usize| {
+            required_edge(
+                endpoint(
+                    "element",
+                    &format!("mixed-unrelated-source-{index}"),
+                    &format!("MixedUnrelatedSource{index}"),
+                ),
+                endpoint(
+                    "binding",
+                    &format!("mixed-unrelated-target-{index}"),
+                    &format!("MixedUnrelatedTarget{index}"),
+                ),
+            )
+        };
+        let outer_guard = |branch: &str| {
+            make_guard(
+                "outer-controller",
+                branch,
+                None,
+                None,
+                Some(boolean_expression()),
+            )
+        };
+        let coalesce_guard = |branch: &str| {
+            make_guard(
+                "coalesce-controller",
+                branch,
+                Some("geometry-value-coalesce"),
+                None,
+                None,
+            )
+        };
+        let mut semantic_edges = (0..16).map(unrelated_edge).collect::<Vec<_>>();
+        semantic_edges.push(required_edge(
+            endpoint("geometry-value", "coalesce-source", "CoalesceSource"),
+            endpoint("binding", "coalesce-pre-a", "CoalescePrerequisiteA"),
+        ));
+        semantic_edges.push(required_edge(
+            endpoint("geometry-value", "coalesce-source", "CoalesceSource"),
+            endpoint("binding", "coalesce-pre-b", "CoalescePrerequisiteB"),
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "coalesce-source",
+            "coalesce-left",
+            vec![coalesce_guard("left")],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "coalesce-source",
+            "coalesce-right",
+            vec![coalesce_guard("right")],
+        ));
+        semantic_edges.extend((16..32).map(unrelated_edge));
+        semantic_edges.push(required_edge(
+            endpoint("geometry-value", "nested-source", "NestedSource"),
+            endpoint("binding", "nested-pre", "NestedPrerequisite"),
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "outer-then-branch",
+            vec![outer_guard("then")],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "outer-else-branch",
+            vec![outer_guard("else")],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "then-pre",
+            vec![make_guard("outer-controller", "then", None, None, None)],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "else-pre",
+            vec![make_guard("outer-controller", "else", None, None, None)],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "inner-left",
+            vec![
+                outer_guard("then"),
+                make_guard(
+                    "inner-controller",
+                    "left",
+                    Some("geometry-value-coalesce"),
+                    None,
+                    None,
+                ),
+            ],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "inner-right",
+            vec![
+                outer_guard("then"),
+                make_guard(
+                    "inner-controller",
+                    "right",
+                    Some("geometry-value-coalesce"),
+                    None,
+                    None,
+                ),
+            ],
+        ));
+
+        let static_selected = make_guard("static-selector", "then", None, Some("selected"), None);
+        let static_unselected =
+            make_guard("static-selector", "else", None, Some("unselected"), None);
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "static-selected-pre",
+            vec![outer_guard("then"), static_selected],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "static-unselected-pre",
+            vec![outer_guard("then"), static_unselected],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "static-coalesce-left",
+            vec![
+                outer_guard("then"),
+                make_guard("static-selector", "then", None, Some("selected"), None),
+                make_guard(
+                    "static-coalesce",
+                    "left",
+                    Some("geometry-value-coalesce"),
+                    None,
+                    None,
+                ),
+            ],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "static-coalesce-right",
+            vec![
+                outer_guard("then"),
+                make_guard("static-selector", "then", None, Some("selected"), None),
+                make_guard(
+                    "static-coalesce",
+                    "right",
+                    Some("geometry-value-coalesce"),
+                    None,
+                    None,
+                ),
+            ],
+        ));
+        semantic_edges.push(make_conditional_edge(
+            "nested-source",
+            "inactive-static-coalesce",
+            vec![
+                outer_guard("then"),
+                make_guard("static-selector", "else", None, Some("unselected"), None),
+                make_guard(
+                    "inactive-static-coalesce",
+                    "left",
+                    Some("geometry-value-coalesce"),
+                    None,
+                    None,
+                ),
+            ],
+        ));
+        semantic_edges.extend((32..64).map(unrelated_edge));
+        let semantic_graph = ConditionalDependencyGraph::from_edges(semantic_edges);
+        assert!(semantic_graph.has_activation());
+        let semantic_state = edge_state(&semantic_graph);
+
+        let initially_selected = semantic_graph.controller_candidates(&HashMap::new());
+        let coalesce = initially_selected
+            .iter()
+            .find(|candidate| candidate.controller_id == "coalesce-controller")
+            .expect("geometry coalesce remains a controller candidate");
+        assert_eq!(
+            coalesce.source_endpoint_id,
+            "geometry-value:coalesce-source"
+        );
+        assert_eq!(
+            coalesce.controller_kind.as_deref(),
+            Some("geometry-value-coalesce")
+        );
+        assert!(coalesce.expression.is_none());
+        assert_eq!(coalesce.branches, vec!["left", "right"]);
+        assert_eq!(
+            coalesce.prerequisite_endpoint_ids,
+            vec!["binding:coalesce-pre-a", "binding:coalesce-pre-b"]
+        );
+        let outer = initially_selected
+            .iter()
+            .find(|candidate| candidate.controller_id == "outer-controller")
+            .expect("typed controller expression remains eligible");
+        assert_eq!(outer.source_endpoint_id, "geometry-value:nested-source");
+        assert!(matches!(
+            outer.expression,
+            Some(TypedScalarExpression::BooleanLiteral { value: true, .. })
+        ));
+        assert_eq!(outer.branches, vec!["then", "else"]);
+        assert_eq!(outer.prerequisite_endpoint_ids, vec!["binding:nested-pre"]);
+        assert!(!initially_selected
+            .iter()
+            .any(|candidate| candidate.controller_id == "inner-controller"));
+        let outer_branches = outer.branches.iter().cloned().collect::<HashSet<_>>();
+        assert_eq!(
+            branch_for_controller_value(&ScalarValue::Boolean(true), &outer_branches),
+            Some("then".to_owned())
+        );
+        assert_eq!(
+            branch_for_controller_value(&ScalarValue::Boolean(false), &outer_branches),
+            Some("else".to_owned())
+        );
+
+        let then_selection = HashMap::from([
+            ("outer-controller".to_owned(), "then".to_owned()),
+            ("static-selector".to_owned(), "unselected".to_owned()),
+        ]);
+        let active_candidates = semantic_graph.controller_candidates(&then_selection);
+        let inner = active_candidates
+            .iter()
+            .find(|candidate| candidate.controller_id == "inner-controller")
+            .expect("inner candidate is enabled by the active outer branch");
+        assert_eq!(inner.branches, vec!["left", "right"]);
+        assert_eq!(
+            inner.prerequisite_endpoint_ids,
+            vec!["binding:outer-then-branch", "binding:then-pre"]
+        );
+        let static_coalesce = active_candidates
+            .iter()
+            .find(|candidate| candidate.controller_id == "static-coalesce")
+            .expect("static selected prefix ignores a conflicting dynamic selection");
+        assert_eq!(static_coalesce.branches, vec!["left", "right"]);
+        assert_eq!(
+            static_coalesce.prerequisite_endpoint_ids,
+            vec!["binding:static-selected-pre"]
+        );
+        assert!(!active_candidates
+            .iter()
+            .any(|candidate| candidate.controller_id == "inactive-static-coalesce"));
+        let selected_static_edge = semantic_graph
+            .edges
+            .iter()
+            .find(|edge| edge.to.id == "static-selected-pre")
+            .unwrap();
+        let unselected_static_edge = semantic_graph
+            .edges
+            .iter()
+            .find(|edge| edge.to.id == "static-unselected-pre")
+            .unwrap();
+        assert!(edge_is_active(selected_static_edge, &then_selection));
+        assert!(!edge_is_active(unselected_static_edge, &then_selection));
+
+        let else_selection = HashMap::from([
+            ("outer-controller".to_owned(), "else".to_owned()),
+            ("static-selector".to_owned(), "selected".to_owned()),
+        ]);
+        let inactive_candidates = semantic_graph.controller_candidates(&else_selection);
+        assert!(!inactive_candidates
+            .iter()
+            .any(|candidate| candidate.controller_id == "inner-controller"));
+        assert!(!inactive_candidates
+            .iter()
+            .any(|candidate| candidate.controller_id == "static-coalesce"));
+        let active_again = semantic_graph.controller_candidates(&then_selection);
+        assert!(active_again
+            .iter()
+            .any(|candidate| candidate.controller_id == "inner-controller"));
+        assert_eq!(edge_state(&semantic_graph), semantic_state);
+
+        let module_graph = ConditionalDependencyGraph::from_edges(
+            decode_conditional_dependency_graph(Some(&module_prerequisite_semantics_payload()))
+                .unwrap()
+                .unwrap()
+                .edges,
+        );
+        let module_then = HashMap::from([("controller".to_owned(), "then".to_owned())]);
+        let all_active_then = HashSet::from([
+            "excluded-first".to_owned(),
+            "candidate-first".to_owned(),
+            "excluded-last".to_owned(),
+            "candidate-last".to_owned(),
+            "then-only".to_owned(),
+            "static-selected".to_owned(),
+        ]);
+        let excluding_two = HashSet::from([
+            "candidate-first".to_owned(),
+            "candidate-last".to_owned(),
+            "then-only".to_owned(),
+            "static-selected".to_owned(),
+        ]);
+        assert_eq!(
+            module_graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &module_then,
+                &HashSet::new(),
+                &all_active_then,
+            ),
+            None
+        );
+        assert_eq!(
+            module_graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &module_then,
+                &HashSet::new(),
+                &excluding_two,
+            ),
+            Some(("excluded-last".to_owned(), false))
+        );
+        assert_eq!(
+            module_graph.unavailable_module_instance_prerequisite(
+                "element:target",
+                &module_then,
+                &HashSet::from(["candidate-first".to_owned()]),
+                &excluding_two,
+            ),
+            Some(("candidate-first".to_owned(), true))
+        );
+        eprintln!("#1476 semantic controls=PASS");
+
+        assert_eq!(
+            guardless_candidate_visits,
+            vec![0, 0],
+            "guardless controller scans must do zero repeated unrelated work; Base full-scan visits are 512 and 2048",
+        );
+        assert_eq!(
+            guardless_activation_visits,
+            vec![0, 0],
+            "guardless activation checks must do zero repeated unrelated work; Base full-scan visits are 512 and 2048",
+        );
     }
 
     #[test]
