@@ -1,0 +1,57 @@
+{
+  "baseSha256": "7b0893b177fe89da90a5bdf34df8848d7137d243a22e36c2716acb8e3b7be756",
+  "fixedSha256": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f",
+  "restoredSha256": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f",
+  "records": [
+    {
+      "label": "removed-work",
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1493ModuleMaterialization.test.ts",
+        "--maxWorkers=1",
+        "--no-file-parallelism"
+      ],
+      "exit": 1,
+      "ownerSha256": "7b0893b177fe89da90a5bdf34df8848d7137d243a22e36c2716acb8e3b7be756"
+    },
+    {
+      "label": "removed-timing",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "scripts/performance/issue1493Modules.ts",
+        "removed"
+      ],
+      "exit": 0,
+      "ownerSha256": "7b0893b177fe89da90a5bdf34df8848d7137d243a22e36c2716acb8e3b7be756"
+    },
+    {
+      "label": "restored-work",
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1493ModuleMaterialization.test.ts",
+        "--maxWorkers=1",
+        "--no-file-parallelism"
+      ],
+      "exit": 0,
+      "ownerSha256": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f"
+    },
+    {
+      "label": "restored-timing",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "scripts/performance/issue1493Modules.ts",
+        "restored"
+      ],
+      "exit": 0,
+      "ownerSha256": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f"
+    }
+  ]
+}
