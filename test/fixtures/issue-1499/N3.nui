@@ -1,0 +1,13 @@
+nui 1
+// #1499 N3 independently sealed before evaluator execution
+module Cut(dx: number, dy: number) {
+line A = segment(start: (@dx,@dy), end: (@dx + 60,@dy + 30))
+line B = segment(start: (@dx,@dy + 30), end: (@dx + 60,@dy))
+export point Hit = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+export const Pure: point = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+}
+instance First = Cut(dx: 7, dy: -4)
+instance Second = Cut(dx: -19, dy: 23)
+point UseFirst = offset(from: @First::Pure, dx: 1, dy: 2)
+point UseSecond = offset(from: @Second::Pure, dx: 1, dy: 2)
+line Control = segment(start: (201, -103), end: (238, -103))

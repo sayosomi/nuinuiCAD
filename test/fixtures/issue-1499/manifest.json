@@ -1,0 +1,1261 @@
+{
+  "base": "0fd989e683104944d45bed6830bdac148d9bbc94",
+  "coordinateTolerance": 1e-06,
+  "distanceTolerance": 0.15,
+  "distanceErrorUpperBounds": {
+    "B1_B2_B4_N2": 0.0662708357088877,
+    "B3": 0.014229663773928092,
+    "arc160deg": 0.05394544966932991
+  },
+  "units": [
+    {
+      "id": "L1",
+      "file": "L1.nui",
+      "sha256": "5041364963fdaa44309590800ada2da9011dd0c8bfd5f4f7c12f56284ceabb7c",
+      "expected": {
+        "Hit": {
+          "x": 36.333333333333336,
+          "y": 23.666666666666668
+        }
+      },
+      "evidence": {
+        "equations": "3+60t=13+50u; 7+30t=47-50u; t=5/9,u=7/15",
+        "primitives": [
+          [
+            [
+              3,
+              7
+            ],
+            [
+              63,
+              37
+            ]
+          ],
+          [
+            [
+              13,
+              47
+            ],
+            [
+              63,
+              -3
+            ]
+          ]
+        ]
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 36.333333333333336,
+              "y": 23.666666666666668,
+              "line1Distance": 37.26779962499649,
+              "line2Distance": 32.99831645537222
+            }
+          ],
+          "extensions": false
+        },
+        {
+          "a": "A",
+          "b": "Miss",
+          "roots": [],
+          "extensions": false
+        }
+      ],
+      "errors": {
+        "NoHit": "\u4ea4\u70b9\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093"
+      }
+    },
+    {
+      "id": "L2",
+      "file": "L2.nui",
+      "sha256": "a4e810d853a7b8e5889311e881fa2c321a1159f9b28d7452b394de7147e73a38",
+      "expected": {
+        "Extended": {
+          "x": 20,
+          "y": 10
+        },
+        "Reverse": {
+          "x": 20,
+          "y": 10
+        }
+      },
+      "evidence": {
+        "equations": "A:y=x/2, B:x=20; outside both finite sources; reverse same locus",
+        "extensionRange": "20 mm << 1e6 mm"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [],
+          "extensions": false
+        },
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 20,
+              "y": 10,
+              "line1Distance": 22.360679774997898,
+              "line2Distance": 20
+            }
+          ],
+          "extensions": true
+        }
+      ],
+      "errors": {
+        "Finite": "\u4ea4\u70b9\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093"
+      }
+    },
+    {
+      "id": "L3",
+      "file": "L3.nui",
+      "sha256": "95c8f67f7527354e5536917842199da72ae365f98e326b6710f97c88f70c2a98",
+      "expected": {
+        "P0": {
+          "x": 20,
+          "y": 0
+        },
+        "P1": {
+          "x": 60,
+          "y": 0
+        }
+      },
+      "evidence": {
+        "vertices": [
+          [
+            0,
+            -20
+          ],
+          [
+            40,
+            20
+          ],
+          [
+            80,
+            -20
+          ]
+        ],
+        "t": [
+          0.5,
+          0.5
+        ],
+        "order": "cumulative directed segment distances"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 20,
+              "y": 0,
+              "line1Distance": 28.284271247461902,
+              "line2Distance": 30
+            },
+            {
+              "x": 60,
+              "y": 0,
+              "line1Distance": 84.8528137423857,
+              "line2Distance": 70
+            }
+          ],
+          "extensions": false
+        }
+      ],
+      "errors": {
+        "P2": "\u5bfe\u5fdc\u3059\u308b\u4ea4\u70b9\u306f\u3042\u308a\u307e\u305b\u3093"
+      }
+    },
+    {
+      "id": "L4",
+      "file": "L4.nui",
+      "sha256": "7ac11dfbe09c6ff53c4938ec7b0b15f74c1d4dcc9633562fb7d308c553825aab",
+      "expected": {
+        "P0": {
+          "x": 60,
+          "y": 0
+        },
+        "P1": {
+          "x": 20,
+          "y": 0
+        },
+        "Swap0": {
+          "x": 20,
+          "y": 0
+        },
+        "Swap1": {
+          "x": 60,
+          "y": 0
+        }
+      },
+      "evidence": {
+        "vertices": [
+          [
+            80,
+            -20
+          ],
+          [
+            40,
+            20
+          ],
+          [
+            0,
+            -20
+          ]
+        ],
+        "order": "reverse first path: x60 then20; swapped first horizontal x20 then60"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 60,
+              "y": 0,
+              "line1Distance": 28.284271247461902,
+              "line2Distance": 70
+            },
+            {
+              "x": 20,
+              "y": 0,
+              "line1Distance": 84.8528137423857,
+              "line2Distance": 30
+            }
+          ],
+          "extensions": false
+        },
+        {
+          "a": "B",
+          "b": "A",
+          "roots": [
+            {
+              "x": 20,
+              "y": 0,
+              "line1Distance": 30,
+              "line2Distance": 84.8528137423857
+            },
+            {
+              "x": 60,
+              "y": 0,
+              "line1Distance": 70,
+              "line2Distance": 28.284271247461902
+            }
+          ],
+          "extensions": false
+        }
+      ]
+    },
+    {
+      "id": "A1",
+      "file": "A1.nui",
+      "sha256": "488eafd01db924cdac8acc456669eb8f12bce8add9bf43988c302381812b96c2",
+      "expected": {
+        "P0": {
+          "x": 45.8257569495584,
+          "y": 20
+        },
+        "P1": {
+          "x": -45.8257569495584,
+          "y": 20
+        }
+      },
+      "evidence": {
+        "circle": [
+          0,
+          0,
+          50
+        ],
+        "lineY": 20,
+        "angles": [
+          23.578178478201835,
+          156.42182152179817
+        ],
+        "sweep": [
+          10,
+          160
+        ],
+        "equation": "x^2+20^2=50^2"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 45.8257569495584,
+              "y": 20,
+              "line1Distance": 11.849196043402756,
+              "line2Distance": 115.8257569495584
+            },
+            {
+              "x": -45.8257569495584,
+              "y": 20,
+              "line1Distance": 127.7771441161436,
+              "line2Distance": 24.174243050441603
+            }
+          ],
+          "extensions": false
+        }
+      ]
+    },
+    {
+      "id": "A2",
+      "file": "A2.nui",
+      "sha256": "fc536c8f2d46b29397c33857f4bd965d93a317bcbc7bfd03cab258326fcf120b",
+      "expected": {
+        "P0": {
+          "x": -45.8257569495584,
+          "y": 20
+        },
+        "P1": {
+          "x": 45.8257569495584,
+          "y": 20
+        }
+      },
+      "evidence": {
+        "circle": [
+          0,
+          0,
+          50
+        ],
+        "lineY": 20,
+        "angles": [
+          23.578178478201835,
+          156.42182152179817
+        ],
+        "sweep": [
+          170,
+          -160
+        ],
+        "equation": "x^2+20^2=50^2"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": -45.8257569495584,
+              "y": 20,
+              "line1Distance": 11.849196043402756,
+              "line2Distance": 24.174243050441603
+            },
+            {
+              "x": 45.8257569495584,
+              "y": 20,
+              "line1Distance": 127.7771441161436,
+              "line2Distance": 115.8257569495584
+            }
+          ],
+          "extensions": false
+        }
+      ]
+    },
+    {
+      "id": "A3",
+      "file": "A3.nui",
+      "sha256": "a7d610fb2457c738f77060bbf4af566fc7cd5f3886d69e06f9bd42119fb2a760",
+      "expected": {
+        "P0": {
+          "x": 30,
+          "y": -40
+        },
+        "P1": {
+          "x": 30,
+          "y": 40
+        }
+      },
+      "evidence": {
+        "circles": [
+          [
+            0,
+            0,
+            50
+          ],
+          [
+            60,
+            0,
+            50
+          ]
+        ],
+        "equations": "subtract circles: x=30; y^2=1600",
+        "angles": [
+          [
+            306.86989764584405,
+            53.13010235415598
+          ],
+          [
+            233.13010235415598,
+            126.86989764584402
+          ]
+        ],
+        "sweeps": [
+          [
+            290,
+            140
+          ],
+          [
+            100,
+            160
+          ]
+        ]
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 30,
+              "y": -40,
+              "line1Distance": 14.721762919720922,
+              "line2Distance": 116.17793097985378
+            },
+            {
+              "x": 30,
+              "y": 40,
+              "line1Distance": 107.45128471988214,
+              "line2Distance": 23.448409179692568
+            }
+          ],
+          "extensions": false
+        }
+      ]
+    },
+    {
+      "id": "A4",
+      "file": "A4.nui",
+      "sha256": "7334e1de84fd1965c2e5ed6cf534f4c3cdce4f8e8c0eddb42a9529854c0e0fff",
+      "expected": {
+        "P0": {
+          "x": 52.8257569495584,
+          "y": 11
+        },
+        "P1": {
+          "x": -38.8257569495584,
+          "y": 11
+        }
+      },
+      "evidence": {
+        "circle": [
+          7,
+          -9,
+          50
+        ],
+        "sourceCircle": [
+          0,
+          0,
+          50
+        ],
+        "translation": [
+          7,
+          -9
+        ],
+        "angles": [
+          23.578178478201835,
+          156.42182152179817
+        ],
+        "sweep": [
+          10,
+          160
+        ],
+        "known1497Control": true
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 52.8257569495584,
+              "y": 11,
+              "line1Distance": 11.849196043402756,
+              "line2Distance": 115.8257569495584
+            },
+            {
+              "x": -38.8257569495584,
+              "y": 11,
+              "line1Distance": 127.7771441161436,
+              "line2Distance": 24.174243050441603
+            }
+          ],
+          "extensions": false
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "file": "B1.nui",
+      "sha256": "ed96dffc320c5c59d323190217c1a9592443522ebd8817bfe22f10c594e77c84",
+      "expected": {
+        "P0": {
+          "x": 24,
+          "y": 0
+        },
+        "P1": {
+          "x": 60,
+          "y": 0
+        },
+        "P2": {
+          "x": 96,
+          "y": 0
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            0,
+            -32
+          ],
+          [
+            40,
+            56
+          ],
+          [
+            80,
+            -56
+          ],
+          [
+            120,
+            32
+          ]
+        ],
+        "powerCoefficients": {
+          "x": [
+            0,
+            120
+          ],
+          "y": [
+            -32,
+            264,
+            -600,
+            400
+          ]
+        },
+        "factorization": "400(t-.2)(t-.5)(t-.8)",
+        "parameters": [
+          0.2,
+          0.5,
+          0.8
+        ],
+        "derivativeAtRoots": [
+          72,
+          -36,
+          72
+        ],
+        "distanceMethod": "independent composite Simpson 4096 vs2048 difference<1e-8; product mesh distance tolerance0.15mm"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 24.0,
+              "y": 0,
+              "line1Distance": 40.57528779739829,
+              "line2Distance": 34.0,
+              "t": 0.2
+            },
+            {
+              "x": 60.0,
+              "y": 0,
+              "line1Distance": 77.82608701264576,
+              "line2Distance": 70.0,
+              "t": 0.5
+            },
+            {
+              "x": 96.0,
+              "y": 0,
+              "line1Distance": 115.07688622789307,
+              "line2Distance": 106.0,
+              "t": 0.8
+            }
+          ],
+          "extensions": false
+        }
+      ],
+      "errors": {
+        "Absent": "\u5bfe\u5fdc\u3059\u308b\u4ea4\u70b9\u306f\u3042\u308a\u307e\u305b\u3093"
+      }
+    },
+    {
+      "id": "B2",
+      "file": "B2.nui",
+      "sha256": "685268798bd73ac500a61e134ce0fa80947b0cd97ddfbdf1d6d8c65e641457db",
+      "expected": {
+        "P0": {
+          "x": 24,
+          "y": 0
+        },
+        "P1": {
+          "x": 60,
+          "y": 0
+        },
+        "P2": {
+          "x": 96,
+          "y": 0
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            0,
+            -32
+          ],
+          [
+            40,
+            56
+          ],
+          [
+            80,
+            -56
+          ],
+          [
+            120,
+            32
+          ]
+        ],
+        "powerCoefficients": {
+          "x": [
+            0,
+            120
+          ],
+          "y": [
+            -32,
+            264,
+            -600,
+            400
+          ]
+        },
+        "factorization": "400(t-.2)(t-.5)(t-.8)",
+        "parameters": [
+          0.2,
+          0.5,
+          0.8
+        ],
+        "derivativeAtRoots": [
+          72,
+          -36,
+          72
+        ],
+        "distanceMethod": "independent composite Simpson 4096 vs2048 difference<1e-8; product mesh distance tolerance0.15mm",
+        "secondControls": [
+          [
+            -10,
+            0
+          ],
+          [
+            36.666666666666664,
+            0
+          ],
+          [
+            83.33333333333333,
+            0
+          ],
+          [
+            130,
+            0
+          ]
+        ],
+        "secondParameters": [
+          0.24285714285714285,
+          0.5,
+          0.7571428571428571
+        ],
+        "secondIdentity": "independent B source"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 24.0,
+              "y": 0,
+              "line1Distance": 40.57528779739829,
+              "line2Distance": 34.0,
+              "t": 0.2
+            },
+            {
+              "x": 60.0,
+              "y": 0,
+              "line1Distance": 77.82608701264576,
+              "line2Distance": 70.0,
+              "t": 0.5
+            },
+            {
+              "x": 96.0,
+              "y": 0,
+              "line1Distance": 115.07688622789307,
+              "line2Distance": 106.0,
+              "t": 0.8
+            }
+          ],
+          "extensions": false
+        }
+      ],
+      "errors": {
+        "Absent": "\u5bfe\u5fdc\u3059\u308b\u4ea4\u70b9\u306f\u3042\u308a\u307e\u305b\u3093"
+      }
+    },
+    {
+      "id": "B3",
+      "file": "B3.nui",
+      "sha256": "84094337f32b20cbb1f8260690bba1875d717adccebd01a325230a7d3b672372",
+      "expected": {
+        "P0": {
+          "x": 30,
+          "y": 7.5
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            -60,
+            30
+          ],
+          [
+            -20,
+            -10
+          ],
+          [
+            20,
+            -10
+          ],
+          [
+            60,
+            30
+          ]
+        ],
+        "powerCoefficients": {
+          "x": [
+            -60,
+            120
+          ],
+          "y": [
+            30,
+            -120,
+            120
+          ]
+        },
+        "circle": [
+          0,
+          0,
+          30.923292192132454
+        ],
+        "equation": "y=x^2/120; x^2+x^4/14400=956.25; x^2=900 or -15300",
+        "parameters": [
+          0.25,
+          0.75
+        ],
+        "candidatePoints": [
+          [
+            -30,
+            7.5
+          ],
+          [
+            30,
+            7.5
+          ]
+        ],
+        "candidateAngles": [
+          165.96375653207352,
+          14.036243467926479
+        ],
+        "sweep": [
+          -20,
+          100
+        ],
+        "excluded": "negative-x circle root angle165.96 outside partial sweep"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 30,
+              "y": 7.5,
+              "line1Distance": 100.07447906481543,
+              "line2Distance": 18.369812066889335,
+              "t": 0.75,
+              "u": 0.3403624346792648
+            }
+          ],
+          "extensions": false
+        }
+      ],
+      "errors": {
+        "Absent": "\u5bfe\u5fdc\u3059\u308b\u4ea4\u70b9\u306f\u3042\u308a\u307e\u305b\u3093"
+      }
+    },
+    {
+      "id": "B4",
+      "file": "B4.nui",
+      "sha256": "4692f1dd5df91775156948296d657b383f06741d655c6e03febeadd9ebf8e105",
+      "expected": {
+        "P0": {
+          "x": 96,
+          "y": 0
+        },
+        "P1": {
+          "x": 60,
+          "y": 0
+        },
+        "P2": {
+          "x": 24,
+          "y": 0
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            0,
+            -32
+          ],
+          [
+            40,
+            56
+          ],
+          [
+            80,
+            -56
+          ],
+          [
+            120,
+            32
+          ]
+        ],
+        "powerCoefficients": {
+          "x": [
+            0,
+            120
+          ],
+          "y": [
+            -32,
+            264,
+            -600,
+            400
+          ]
+        },
+        "factorization": "400(t-.2)(t-.5)(t-.8)",
+        "parameters": [
+          0.2,
+          0.5,
+          0.8
+        ],
+        "derivativeAtRoots": [
+          72,
+          -36,
+          72
+        ],
+        "distanceMethod": "independent composite Simpson 4096 vs2048 difference<1e-8; product mesh distance tolerance0.15mm",
+        "reversedControls": [
+          [
+            120,
+            32
+          ],
+          [
+            80,
+            -56
+          ],
+          [
+            40,
+            56
+          ],
+          [
+            0,
+            -32
+          ]
+        ]
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 96.0,
+              "y": 0,
+              "line1Distance": 40.57528779739799,
+              "line2Distance": 106.0,
+              "t": 0.19999999999999996
+            },
+            {
+              "x": 60.0,
+              "y": 0,
+              "line1Distance": 77.8260870126453,
+              "line2Distance": 70.0,
+              "t": 0.5
+            },
+            {
+              "x": 24.0,
+              "y": 0,
+              "line1Distance": 115.07688622789277,
+              "line2Distance": 34.0,
+              "t": 0.8
+            }
+          ],
+          "extensions": false
+        }
+      ],
+      "errors": {
+        "Absent": "\u5bfe\u5fdc\u3059\u308b\u4ea4\u70b9\u306f\u3042\u308a\u307e\u305b\u3093"
+      }
+    },
+    {
+      "id": "N1",
+      "file": "N1.nui",
+      "sha256": "eb532efca304ddb2700eef4fcd84d56a5b2166375a4d59ceb799a8b8a6489b46",
+      "expected": {
+        "Draft::Hit": {
+          "x": 53.714285714285715,
+          "y": 29.428571428571427
+        }
+      },
+      "evidence": {
+        "base": [
+          [
+            10,
+            10
+          ],
+          [
+            130,
+            40
+          ]
+        ],
+        "offset": [
+          -2,
+          8
+        ],
+        "seam": [
+          [
+            8,
+            18
+          ],
+          [
+            128,
+            48
+          ]
+        ],
+        "ray": [
+          [
+            20,
+            80
+          ],
+          [
+            80,
+            -10
+          ]
+        ],
+        "rayParameter": 0.5619047619047619,
+        "equations": "ray y=110-1.5x; seam y=16+x/4; x=376/7",
+        "identity": "Hit belongs to Notch source in Draft instance"
+      },
+      "pairs": [
+        {
+          "a": "Draft::Ray",
+          "b": "Seam",
+          "roots": [
+            {
+              "x": 53.714285714285715,
+              "y": 29.428571428571427,
+              "line1Distance": 60.7792929292501,
+              "line2Distance": 47.121207149916124
+            }
+          ],
+          "extensions": false
+        }
+      ]
+    },
+    {
+      "id": "N2",
+      "file": "N2.nui",
+      "sha256": "fb161aa22ea3fc7dac3cf7538de35a227e94111a9056bb7d14cbb33ce0cde6c4",
+      "expected": {
+        "Draw": {
+          "x": 60,
+          "y": 0
+        },
+        "Pure": {
+          "x": 60,
+          "y": 0
+        },
+        "Consumer": {
+          "x": 67,
+          "y": -4
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            0,
+            -32
+          ],
+          [
+            40,
+            56
+          ],
+          [
+            80,
+            -56
+          ],
+          [
+            120,
+            32
+          ]
+        ],
+        "powerCoefficients": {
+          "x": [
+            0,
+            120
+          ],
+          "y": [
+            -32,
+            264,
+            -600,
+            400
+          ]
+        },
+        "factorization": "400(t-.2)(t-.5)(t-.8)",
+        "parameters": [
+          0.2,
+          0.5,
+          0.8
+        ],
+        "derivativeAtRoots": [
+          72,
+          -36,
+          72
+        ],
+        "distanceMethod": "independent composite Simpson 4096 vs2048 difference<1e-8; product mesh distance tolerance0.15mm",
+        "identity": "Pure occurrence no ElementId; Draw distinct source-owned drawable; legal downstream point"
+      },
+      "pairs": [
+        {
+          "a": "A",
+          "b": "B",
+          "roots": [
+            {
+              "x": 24.0,
+              "y": 0,
+              "line1Distance": 40.57528779739829,
+              "line2Distance": 34.0,
+              "t": 0.2
+            },
+            {
+              "x": 60.0,
+              "y": 0,
+              "line1Distance": 77.82608701264576,
+              "line2Distance": 70.0,
+              "t": 0.5
+            },
+            {
+              "x": 96.0,
+              "y": 0,
+              "line1Distance": 115.07688622789307,
+              "line2Distance": 106.0,
+              "t": 0.8
+            }
+          ],
+          "extensions": false
+        }
+      ],
+      "pure": [
+        "Pure"
+      ]
+    },
+    {
+      "id": "N3",
+      "file": "N3.nui",
+      "sha256": "5973d1356aa40f2651d2cf32a156fedb65ddd8f93f9fe3568965891c6539c10d",
+      "expected": {
+        "First::Hit": {
+          "x": 37,
+          "y": 11
+        },
+        "Second::Hit": {
+          "x": 11,
+          "y": 38
+        },
+        "First::Pure": {
+          "x": 37,
+          "y": 11
+        },
+        "Second::Pure": {
+          "x": 11,
+          "y": 38
+        },
+        "UseFirst": {
+          "x": 38,
+          "y": 13
+        },
+        "UseSecond": {
+          "x": 12,
+          "y": 40
+        }
+      },
+      "evidence": {
+        "relativeLines": [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              60,
+              30
+            ]
+          ],
+          [
+            [
+              0,
+              30
+            ],
+            [
+              60,
+              0
+            ]
+          ]
+        ],
+        "parameters": [
+          0.5,
+          0.5
+        ],
+        "translations": [
+          [
+            7,
+            -4
+          ],
+          [
+            -19,
+            23
+          ]
+        ],
+        "identity": "same definition source; independent nonempty instance paths and runtime IDs"
+      },
+      "pairs": [
+        {
+          "a": "First::A",
+          "b": "First::B",
+          "roots": [
+            {
+              "x": 37,
+              "y": 11,
+              "line1Distance": 33.54101966249684,
+              "line2Distance": 33.54101966249684
+            }
+          ],
+          "extensions": false
+        },
+        {
+          "a": "Second::A",
+          "b": "Second::B",
+          "roots": [
+            {
+              "x": 11,
+              "y": 38,
+              "line1Distance": 33.54101966249684,
+              "line2Distance": 33.54101966249684
+            }
+          ],
+          "extensions": false
+        }
+      ],
+      "pure": [
+        "First::Pure",
+        "Second::Pure"
+      ]
+    },
+    {
+      "id": "N4",
+      "file": "N4.nui",
+      "sha256": "66296ed4a876b068c8027689bdaf058b60256264df6bdb0efb25c7b8c243bd16",
+      "expected": {
+        "Good": {
+          "x": 30,
+          "y": 15
+        }
+      },
+      "evidence": {
+        "intersection": [
+          30,
+          15
+        ],
+        "parameters": [
+          0.5,
+          0.5
+        ],
+        "diagnostics": "same-source, parallel, overlap, invalid index, unavailable root; no computed stale points",
+        "recovery": "only intersection inputs/indices revised; Control identity and geometry preserved"
+      },
+      "pairs": [],
+      "errors": {
+        "Same": "\u540c\u3058\u7dda",
+        "ParallelHit": "\u4ea4\u70b9\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093",
+        "OverlapHit": "\u91cd\u306a",
+        "BadIndex": "0\u4ee5\u4e0a\u306e\u6574\u6570",
+        "Missing": "\u5bfe\u5fdc\u3059\u308b\u4ea4\u70b9\u306f\u3042\u308a\u307e\u305b\u3093"
+      },
+      "pureErrors": {
+        "PureBad": "non-negative integer",
+        "PureMissing": "unavailable"
+      },
+      "pure": [
+        "PureBad",
+        "PureMissing"
+      ],
+      "edit": {
+        "file": "N4-recovered.nui",
+        "sha256": "8b13de307731435f890364062e10f1a067e15a78145970555f7f9b60bacc8875",
+        "expected": {
+          "Good": {
+            "x": 30,
+            "y": 15
+          },
+          "Same": {
+            "x": 30,
+            "y": 15
+          },
+          "ParallelHit": {
+            "x": 30,
+            "y": 15
+          },
+          "OverlapHit": {
+            "x": 30,
+            "y": 15
+          },
+          "BadIndex": {
+            "x": 30,
+            "y": 15
+          },
+          "Missing": {
+            "x": 30,
+            "y": 15
+          },
+          "PureBad": {
+            "x": 30,
+            "y": 15
+          },
+          "PureMissing": {
+            "x": 30,
+            "y": 15
+          }
+        },
+        "errors": {},
+        "pureErrors": {},
+        "pairs": []
+      }
+    }
+  ],
+  "unusedX": "X1-X6 NOT_TRIGGERED",
+  "unusedR": "R1-R6 NOT_TRIGGERED",
+  "precision": "Double-precision algebra; all simple separated roots; coordinate1e-6mm; arc/bezier distance0.15mm allows sampled-length approximation; ordering separated by many mm. No tangency/epsilon claims."
+}

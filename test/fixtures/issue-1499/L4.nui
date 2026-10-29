@@ -1,0 +1,9 @@
+nui 1
+// #1499 L4 independently sealed before evaluator execution
+line A = polyline(points: [(80,-20),(40,20),(0,-20)])
+line B = segment(start: (-10, 0), end: (90, 0))
+point P0 = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point P1 = intersection(line1: @A, line2: @B, index: 1, extensions: false)
+point Swap0 = intersection(line1: @B, line2: @A, index: 0, extensions: false)
+point Swap1 = intersection(line1: @B, line2: @A, index: 1, extensions: false)
+line Control = segment(start: (201, -103), end: (238, -103))

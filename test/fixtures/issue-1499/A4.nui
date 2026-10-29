@@ -1,0 +1,8 @@
+nui 1
+// #1499 A4 independently sealed before evaluator execution
+arc Original = arc(center: (0, 0), radius: 50, start: 10, end: 170, direction: counterclockwise)
+line A = transformCopy(startPoint: (0,0), endPoint: (7,-9), baseLines: [@Original])
+line B = segment(start: (-63, 11), end: (77, 11))
+point P0 = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point P1 = intersection(line1: @A, line2: @B, index: 1, extensions: false)
+line Control = segment(start: (201, -103), end: (238, -103))

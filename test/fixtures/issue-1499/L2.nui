@@ -1,0 +1,9 @@
+nui 1
+// #1499 L2 independently sealed before evaluator execution
+line A = segment(start: (0, 0), end: (10, 5))
+line B = segment(start: (20, -10), end: (20, 0))
+line Reversed = segment(start: (10, 5), end: (0, 0))
+point Finite = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point Extended = intersection(line1: @A, line2: @B, index: 0, extensions: true)
+point Reverse = intersection(line1: @Reversed, line2: @B, index: 0, extensions: true)
+line Control = segment(start: (201, -103), end: (238, -103))

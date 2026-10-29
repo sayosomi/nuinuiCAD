@@ -1,0 +1,10 @@
+nui 1
+// #1499 N1 independently sealed before evaluator execution
+line Base = segment(start: (10, 10), end: (130, 40))
+line Seam = offset(sources: [@Base], distance: 8.246211251235321, side: left)
+module Notch(seam: path) {
+line Ray = segment(start: (20, 80), end: (80, -10))
+export point Hit = intersection(line1: @Ray, line2: @seam, index: 0, extensions: false)
+}
+instance Draft = Notch(seam: @Seam)
+line Control = segment(start: (201, -103), end: (238, -103))
