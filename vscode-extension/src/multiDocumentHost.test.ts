@@ -138,6 +138,7 @@ vi.mock("../../src/vscode/vscodeWebviewSession", () => ({
 }));
 
 import * as vscode from "vscode";
+import issue1490 from "../../test/fixtures/issue-1490/matrix.json";
 import { compileFreshCanonicalText } from "@nuinuicad/nui-language/document";
 import { queryDslCompletion } from "@nuinuicad/nui-language";
 import { queryDslSignatureHelp } from "@nuinuicad/nui-language";
@@ -1589,3 +1590,31 @@ describe("VS Code multi-document host lifecycle", () => {
     host.dispose();
   });
 });
+
+// Replay the already sealed #1490 sources through the actual production
+// discovery/provider owner. This is structured host testing, not native GUI E2E.
+it.each([1,2,3,4])("#1490 R%i complete saved-workspace reverse discovery preserves exact rename footprint",async root=>{
+ const cell=issue1490.find(c=>c.root===root&&c.state===0)!;
+ const files=cell.files as Record<string,string>;
+ for(const[file,text]of Object.entries(files))mocks.files.set(`/workspace/${file}`,encoder.encode(text));
+ const module=documentFor("/workspace/module.nui",files["module.nui"]!);
+ mocks.textDocuments=[module];
+ mocks.findFiles.mockResolvedValue(Object.keys(files).map(file=>vscode.Uri.file(`/workspace/${file}`) as unknown as TestUri));
+ const host=createVscodeModuleMultiDocumentHost();host.start();
+ try{
+  await vi.waitFor(()=>expect(latestCurrentGraphFor(module.uri.toString())?.nodes).toHaveLength(2));
+  const offset=files["module.nui"].indexOf("export module Pocket")+"export module ".length;
+  const lines=files["module.nui"].slice(0,offset).split("\n");
+  const provider=createNuiRenameProvider(()=>createLanguageAnalysisSession(files["module.nui"]));
+  const edit=await provider.provideRenameEdits!(module,new vscode.Position(lines.length-1,lines.at(-1)!.length),"PocketRenamed",undefined as never);
+  const replacements=(edit as {replacements:{uri:TestUri;range:{start:{line:number;character:number};end:{line:number;character:number}};newText:string}[]}).replacements;
+  const actual=replacements.map(r=>{
+   const file=r.uri.fsPath.split("/").at(-1)!,text=files[file]!;
+   const offset=(p:{line:number;character:number})=>text.split("\n").slice(0,p.line).reduce((n,line)=>n+line.length+1,0)+p.character;
+   const from=offset(r.range.start),to=offset(r.range.end);
+   return {file,from,to,expectedText:text.slice(from,to),newText:r.newText};
+  });
+  const expected=Object.entries(cell.edits).flatMap(([file,edits])=>(edits??[]).map(e=>({file,...e}))).sort((a,b)=>a.file.localeCompare(b.file)||a.from-b.from);
+  expect(actual).toEqual(expected);expect(mocks.findFiles).toHaveBeenCalledWith("**/*.nui");
+ }finally{host.dispose();}
+},30000);

@@ -62,6 +62,11 @@ records, collection indexing, and geometry properties where those properties
 are supported. Export the record from a module when callers need it. A module
 parameter or export must use the exact nominal record type; see [Modules](modules.md).
 
+A literal-selected record member in an array-valued field can supply scalar
+constructor fields before the resulting record is passed to a Module. This also
+applies to imported nominal records and wrappers whose only field is an array.
+Renaming a public Module preserves the original identity of its record types.
+
 <!-- dsl-example: compile-success -->
 ```nui
 nui 1

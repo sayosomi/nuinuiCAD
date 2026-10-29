@@ -1,0 +1,278 @@
+[
+  {
+    "format": "svg",
+    "path": "R1-S0.svg",
+    "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+    "byteLength": 444
+  },
+  {
+    "format": "pdf",
+    "path": "R1-S0.pdf",
+    "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+    "byteLength": 2328
+  },
+  {
+    "format": "svg",
+    "path": "R1-S1.svg",
+    "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+    "byteLength": 444
+  },
+  {
+    "format": "pdf",
+    "path": "R1-S1.pdf",
+    "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+    "byteLength": 2328
+  },
+  {
+    "format": "svg",
+    "path": "R1-S2.svg",
+    "sha256": "a7445c545e12a79f33be679d5709c11accdcd2438d8d4eaa2b114ceed1fabf7b",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R1-S2.pdf",
+    "sha256": "8ab4046c13e965ca9fc28fa1178e3a103b9e60dca2d8b60f11df42f4849b6c7f",
+    "byteLength": 1451
+  },
+  {
+    "format": "svg",
+    "path": "R1-S2-restored.svg",
+    "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R1-S2-restored.pdf",
+    "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+    "byteLength": 1452
+  },
+  {
+    "format": "svg",
+    "path": "R1-S2-recovered.svg",
+    "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R1-S2-recovered.pdf",
+    "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+    "byteLength": 1452
+  },
+  {
+    "format": "svg",
+    "path": "R2-S0.svg",
+    "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+    "byteLength": 444
+  },
+  {
+    "format": "pdf",
+    "path": "R2-S0.pdf",
+    "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+    "byteLength": 2328
+  },
+  {
+    "format": "svg",
+    "path": "R2-S1.svg",
+    "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+    "byteLength": 444
+  },
+  {
+    "format": "pdf",
+    "path": "R2-S1.pdf",
+    "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+    "byteLength": 2328
+  },
+  {
+    "format": "svg",
+    "path": "R2-S2.svg",
+    "sha256": "a7445c545e12a79f33be679d5709c11accdcd2438d8d4eaa2b114ceed1fabf7b",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R2-S2.pdf",
+    "sha256": "8ab4046c13e965ca9fc28fa1178e3a103b9e60dca2d8b60f11df42f4849b6c7f",
+    "byteLength": 1451
+  },
+  {
+    "format": "svg",
+    "path": "R2-S2-restored.svg",
+    "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R2-S2-restored.pdf",
+    "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+    "byteLength": 1452
+  },
+  {
+    "format": "svg",
+    "path": "R2-S2-recovered.svg",
+    "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R2-S2-recovered.pdf",
+    "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+    "byteLength": 1452
+  },
+  {
+    "format": "svg",
+    "path": "R3-S0.svg",
+    "sha256": "d10d3af03aca1aa072ad8f67e0ff83ed805eb9fdc55ae3bae8ce2768387c215f",
+    "byteLength": 590
+  },
+  {
+    "format": "pdf",
+    "path": "R3-S0.pdf",
+    "sha256": "2ee1d6f39ca1abd16e7b81301d8902045845fd262654e21aff5f5e90584ac262",
+    "byteLength": 2490
+  },
+  {
+    "format": "svg",
+    "path": "R3-S1.svg",
+    "sha256": "d10d3af03aca1aa072ad8f67e0ff83ed805eb9fdc55ae3bae8ce2768387c215f",
+    "byteLength": 590
+  },
+  {
+    "format": "pdf",
+    "path": "R3-S1.pdf",
+    "sha256": "2ee1d6f39ca1abd16e7b81301d8902045845fd262654e21aff5f5e90584ac262",
+    "byteLength": 2490
+  },
+  {
+    "format": "svg",
+    "path": "R3-S2.svg",
+    "sha256": "23eb554c8bb14b2551b24cf4b9da085514e0c4cf93958dc2512ca0df7e1a04c6",
+    "byteLength": 596
+  },
+  {
+    "format": "pdf",
+    "path": "R3-S2.pdf",
+    "sha256": "eec41fcbccc68018ef54150fa995610fb87540e5f28145a8cf33ad523c4f430c",
+    "byteLength": 2487
+  },
+  {
+    "format": "svg",
+    "path": "R3-S2-restored.svg",
+    "sha256": "2b219d467fe3c8d6ab31c80b9b5efbf988238657df2fdbf7b62107055731ec23",
+    "byteLength": 596
+  },
+  {
+    "format": "pdf",
+    "path": "R3-S2-restored.pdf",
+    "sha256": "83b3a76e18d6620323a67db69224c2b91a2da73577f47d7272ebb3356344c6ce",
+    "byteLength": 2489
+  },
+  {
+    "format": "svg",
+    "path": "R3-S2-recovered.svg",
+    "sha256": "2b219d467fe3c8d6ab31c80b9b5efbf988238657df2fdbf7b62107055731ec23",
+    "byteLength": 596
+  },
+  {
+    "format": "pdf",
+    "path": "R3-S2-recovered.pdf",
+    "sha256": "83b3a76e18d6620323a67db69224c2b91a2da73577f47d7272ebb3356344c6ce",
+    "byteLength": 2489
+  },
+  {
+    "format": "svg",
+    "path": "R4-S0.svg",
+    "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+    "byteLength": 444
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S0.pdf",
+    "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+    "byteLength": 2328
+  },
+  {
+    "format": "svg",
+    "path": "R4-S0-second.svg",
+    "sha256": "e70fc43b1355dad6b81a99a2c13dff1707951fbb99a6ab079f1264b6d9cb9009",
+    "byteLength": 447
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S0-second.pdf",
+    "sha256": "8a48ce59dc123607593e1418fb82898c4e6bc09a670d719b1db86ef813510d15",
+    "byteLength": 2326
+  },
+  {
+    "format": "svg",
+    "path": "R4-S1.svg",
+    "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+    "byteLength": 444
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S1.pdf",
+    "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+    "byteLength": 2328
+  },
+  {
+    "format": "svg",
+    "path": "R4-S1-second.svg",
+    "sha256": "e70fc43b1355dad6b81a99a2c13dff1707951fbb99a6ab079f1264b6d9cb9009",
+    "byteLength": 447
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S1-second.pdf",
+    "sha256": "8a48ce59dc123607593e1418fb82898c4e6bc09a670d719b1db86ef813510d15",
+    "byteLength": 2326
+  },
+  {
+    "format": "svg",
+    "path": "R4-S2.svg",
+    "sha256": "a7445c545e12a79f33be679d5709c11accdcd2438d8d4eaa2b114ceed1fabf7b",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S2.pdf",
+    "sha256": "8ab4046c13e965ca9fc28fa1178e3a103b9e60dca2d8b60f11df42f4849b6c7f",
+    "byteLength": 1451
+  },
+  {
+    "format": "svg",
+    "path": "R4-S2-second.svg",
+    "sha256": "372810b479057aa538313afd72c0b1760cc62af5555913db3cc0caa2159e70ef",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S2-second.pdf",
+    "sha256": "60bf32ca4c82ec5769f21e5882f1700f1c5c747ffabd401009d6a170755eaeb2",
+    "byteLength": 1452
+  },
+  {
+    "format": "svg",
+    "path": "R4-S2-restored.svg",
+    "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S2-restored.pdf",
+    "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+    "byteLength": 1452
+  },
+  {
+    "format": "svg",
+    "path": "R4-S2-recovered.svg",
+    "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+    "byteLength": 448
+  },
+  {
+    "format": "pdf",
+    "path": "R4-S2-recovered.pdf",
+    "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+    "byteLength": 1452
+  }
+]

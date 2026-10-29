@@ -1,0 +1,58 @@
+{
+  "mandatoryBlock": "cd /Users/yosomi/Code/nuinuiCAD\nset -euo pipefail\nBASE=0c4c2df0f6694645a857734373fb8a3d986a7d41\nnpm run build\nnpm run lint\nnpm run docs:dsl:check\nnpm run test:parity\nnpm test -- --maxWorkers=1 --no-file-parallelism\nif git diff --name-only \"$BASE\" -- rust-evaluator | grep -qE '\\.rs$'; then\n  cargo fmt --manifest-path rust-evaluator/Cargo.toml --check\n  cargo check --manifest-path rust-evaluator/Cargo.toml\n  cargo test --manifest-path rust-evaluator/Cargo.toml\n  cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings\nfi\ngit diff --check\ngit diff --cached --check\n",
+  "exactUserBlockMatch": true,
+  "blockExitCode": 0,
+  "results": {
+    "build": "PASS",
+    "lint": "PASS",
+    "docs:dsl:check": "PASS",
+    "test:parity": "207 PASS",
+    "full": "707 files PASS, 2 files skipped; 11418 tests PASS, 187 skipped",
+    "diff:unstaged": "PASS",
+    "diff:cached": "PASS"
+  },
+  "conditionalRustChecks": {
+    "status": "NOT_APPLICABLE",
+    "reason": "No .rs source changed; conditional fmt/check/test/clippy did not execute. Cargo build of production evaluation_stdio did execute in focused/default suites."
+  },
+  "focused": {
+    "newMatrix": {
+      "command": "npm test -- test/issue1490RenameArtifacts.integration.test.ts --maxWorkers=1 --no-file-parallelism",
+      "result": "12 passed (12)"
+    },
+    "newAndHost": {
+      "command": "npm test -- test/issue1490RenameArtifacts.integration.test.ts test/issue1488PatternArtifacts.integration.test.ts vscode-extension/src/multiDocumentHost.test.ts --maxWorkers=1 --no-file-parallelism",
+      "result": "56 passed (56)"
+    },
+    "historical": {
+      "command": "npm test -- test/issue1486RecordLanguageQueries.integration.test.ts test/issue1486Freshness.integration.test.ts test/issue1488PatternArtifacts.integration.test.ts test/issue1439RecordImports.test.ts test/issue1439RecordImportsRust.integration.test.ts test/issue1484RecordMetamorphic.test.ts test/issue1464CompositeSourceTransform.integration.test.ts test/issue1468PatternWorkflow.integration.test.ts test/issue1452MultiDocumentFreshness.integration.test.ts src/output/outputCore.issue1458.test.ts src/scalars/recordScalarLowering.test.ts src/dsl/moduleScalarRuntime.integration.test.ts packages/nui-language/src/scalars/moduleScalarRuntime.integration.test.ts --maxWorkers=1 --no-file-parallelism",
+      "result": "425 passed (425)"
+    }
+  },
+  "failedFinalGates": [],
+  "failureHistory": "Genuine exact Base and correction-removal failures retained; initial harness identity-reference failure diagnosed and corrected; F1-only correction exposed separate F3 Rust failure; inline neighbor exposed separate F2 compiler crash. No unexplained retry, assertion relaxation or deadline change.",
+  "cleanup": {
+    "archiveVerified": 46,
+    "removedOwnedTemporaryRoots": [
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-1Fv8XZ",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-8YFOco",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-8sfTFN",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-DxvSwq",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-Hh53UN",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-S6e5ZC",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-V1HbYe",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-cG8ZNZ",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-ekJFaP",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-g1vn0y",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-n2V9bU",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-oaD4iQ",
+      "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1490-pSOYZ5"
+    ]
+  },
+  "quota": {
+    "humanWeekly": "UNAVAILABLE",
+    "humanFiveHour": "UNAVAILABLE"
+  },
+  "sourceAndOraclePreserved": true,
+  "nativeGui": "NOT_REQUIRED; NOT_RUN; no PASS claimed"
+}

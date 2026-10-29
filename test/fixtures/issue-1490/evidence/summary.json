@@ -1,0 +1,2187 @@
+{
+  "base": "0c4c2df0f6694645a857734373fb8a3d986a7d41",
+  "branch": "sayosomi/issue-1490-public-module-rename-record-artifact-hunt",
+  "acceptedUnits": 17,
+  "primary": 12,
+  "adjacent": {
+    "accepted": [
+      "X1",
+      "X2"
+    ],
+    "rejected": 0,
+    "NOT_TRIGGERED": [
+      "X3",
+      "X4",
+      "X5",
+      "X6",
+      "X7",
+      "X8"
+    ]
+  },
+  "reducers": {
+    "accepted": [
+      "M1",
+      "M2",
+      "M3"
+    ],
+    "rejected": 0,
+    "NOT_TRIGGERED": [
+      "M4",
+      "M5",
+      "M6",
+      "M7",
+      "M8"
+    ]
+  },
+  "rejectedPrevalidationDrafts": 0,
+  "deliberateNegativeControls": 20,
+  "faultSeedAssertions": 63,
+  "process": {
+    "spawns": 1,
+    "requests": 142,
+    "exports": 86
+  },
+  "prevalidation": {
+    "sourceSnapshots": 69,
+    "allLegal": true
+  },
+  "primaryResults": [
+    {
+      "id": "R1-S0",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "dfeed6daad8dab5331660989304023e09af43e9bfaf365775b759d90bcb3c86e",
+          "facade.nui": "7f9022b78bcf1bb62ff79f876204c47f1a5f3683ae5ba7337eabc5d42a1df676",
+          "root.nui": "32fa952c44966be1a6e1d7d62547086246646617aa34d2fcf4bcb090eaa7a073",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "c238a949ae03900d86d7ff715b096b17816452e48adc16140e2a7ce1e0e67108",
+        "edits": "ab437874b5cb6cf476cbb56ebc30bcef12080743fd60c1e1b67345ec160525f2",
+        "after": "d399df8d96580bd1994d4307c8ea2aec3a2b8b0e5ee92332ce31cdf00be680d1"
+      },
+      "disposition": "BASE_PASS",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "102719884970bf33861b9b85621c865f2976ae823e4b18dc6b90c39a1fff5de0",
+      "bundleSha256": "8b2e40382fa8e6c9f4ba57b1fe3a1ed1e67e623b626178f73b597736288175a8",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85odu-608",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85odu-609",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85odu-609:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85odu-608",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85odu-608",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85ods-596",
+          "end": {
+            "elementId": "line-mvt85ods-596:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85ods-596:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85ods-598",
+          "end": {
+            "elementId": "line-mvt85ods-598:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85ods-598:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R1-S0.svg",
+          "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "path": "R1-S0.pdf",
+          "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+          "byteLength": 2328
+        }
+      ]
+    },
+    {
+      "id": "R1-S1",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "b1eb20d61d6ded6ca7b27b52360ed1428a70767081aa1bd59fe480c5ec09d959",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "c238a949ae03900d86d7ff715b096b17816452e48adc16140e2a7ce1e0e67108",
+        "edits": "ab437874b5cb6cf476cbb56ebc30bcef12080743fd60c1e1b67345ec160525f2",
+        "after": "d399df8d96580bd1994d4307c8ea2aec3a2b8b0e5ee92332ce31cdf00be680d1"
+      },
+      "disposition": "BASE_PASS",
+      "rename": {
+        "status": "ok",
+        "plan": {
+          "identity": {
+            "documentId": "/issue1486/module.nui",
+            "localIdentity": "module.nui:moduleDefinition:2"
+          },
+          "documents": [
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/facade.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 54,
+                  "to": 60,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/module.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 109,
+                  "to": 115,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/root.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 405,
+                  "to": 411,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "298cbc21ed48a83f0c86b64378226e38fa34d0d3d000335fd76245584ad2cb04",
+      "bundleSha256": "71092e8b087c941ec7a6cccce285b4b54b53cb8d77a6e79099668806fb3868a3",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85ogs-638",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85ogs-639",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85ogs-639:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85ogs-638",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85ogs-638",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85ogr-630",
+          "end": {
+            "elementId": "line-mvt85ogr-630:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85ogr-630:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85ogr-632",
+          "end": {
+            "elementId": "line-mvt85ogr-632:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85ogr-632:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R1-S1.svg",
+          "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "path": "R1-S1.pdf",
+          "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+          "byteLength": 2328
+        }
+      ]
+    },
+    {
+      "id": "R1-S2",
+      "hashes": {
+        "files": {
+          "types.nui": "9f8024b6dda65404c54b01bbe1fc423b107ecb424884fcb1ca001b05082fff37",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "c103e077bf6c3b5e30d2cd0653a9cca202dfa66214fd2933ae0f5edb682b633c",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "73cd8a1510e1462f569a24653323b178043b2e6cee631e341f5bd84e03df4606",
+        "edits": "ab437874b5cb6cf476cbb56ebc30bcef12080743fd60c1e1b67345ec160525f2",
+        "after": "d399df8d96580bd1994d4307c8ea2aec3a2b8b0e5ee92332ce31cdf00be680d1"
+      },
+      "disposition": "BASE_PASS",
+      "affected": [
+        "/issue1486/module.nui",
+        "/issue1486/root.nui"
+      ],
+      "dirtyHash": "b5b8e7dcc2608b78d9239f9bd7a4ef99e00049a15e13ccf5db084c896ea9c110",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "3d0736d36d4998a8b68ad6ccde0746c914e45ee593a7fd786ceff58339b37fca",
+      "invalid": "current",
+      "bundleSha256": "91abbb333edb00882bdadf1dbf833608cf0bde8a262276cba86d4cdee05630a0",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85ogs-638",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 39,
+          "y": -40
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85ogs-639",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85ogs-639:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 52,
+            "y": -49
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85ogs-638",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 39,
+            "y": -40
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85ogs-638",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85oi5-648",
+          "end": {
+            "elementId": "line-mvt85oi5-648:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85oi5-648:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85oi5-650",
+          "end": {
+            "elementId": "line-mvt85oi5-650:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85oi5-650:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R1-S2.svg",
+          "sha256": "a7445c545e12a79f33be679d5709c11accdcd2438d8d4eaa2b114ceed1fabf7b",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R1-S2.pdf",
+          "sha256": "8ab4046c13e965ca9fc28fa1178e3a103b9e60dca2d8b60f11df42f4849b6c7f",
+          "byteLength": 1451
+        }
+      ],
+      "restored": [
+        {
+          "format": "svg",
+          "path": "R1-S2-restored.svg",
+          "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R1-S2-restored.pdf",
+          "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+          "byteLength": 1452
+        }
+      ],
+      "recovered": [
+        {
+          "format": "svg",
+          "path": "R1-S2-recovered.svg",
+          "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R1-S2-recovered.pdf",
+          "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+          "byteLength": 1452
+        }
+      ]
+    },
+    {
+      "id": "R2-S0",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "dfeed6daad8dab5331660989304023e09af43e9bfaf365775b759d90bcb3c86e",
+          "facade.nui": "7f9022b78bcf1bb62ff79f876204c47f1a5f3683ae5ba7337eabc5d42a1df676",
+          "root.nui": "9e4b810c315945611e0495a63646bc85551698e048cf74037df4b5e52146cd23",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "c238a949ae03900d86d7ff715b096b17816452e48adc16140e2a7ce1e0e67108",
+        "edits": "ab437874b5cb6cf476cbb56ebc30bcef12080743fd60c1e1b67345ec160525f2",
+        "after": "1e02e9a373cc3e1156999136a7275f16e0e9200f915620b4df86deab641de051"
+      },
+      "disposition": "BASE_PASS",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "5792ef477cb8a379b65e6368eb75bfef809a73fc3d2489ebf492a5067f768ac0",
+      "bundleSha256": "a1af9a578ad2bcd9881b907d9f2a039b910288d40114140765df77323bf58609",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85okq-708",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85okq-709",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85okq-709:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85okq-708",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85okq-708",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85okp-696",
+          "end": {
+            "elementId": "line-mvt85okp-696:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85okp-696:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85okp-698",
+          "end": {
+            "elementId": "line-mvt85okp-698:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85okp-698:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R2-S0.svg",
+          "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "path": "R2-S0.pdf",
+          "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+          "byteLength": 2328
+        }
+      ]
+    },
+    {
+      "id": "R2-S1",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "8c89190780ff504e1992a4f9fb862964389fb985fc72ddb007888ddc003809d2",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "c238a949ae03900d86d7ff715b096b17816452e48adc16140e2a7ce1e0e67108",
+        "edits": "ab437874b5cb6cf476cbb56ebc30bcef12080743fd60c1e1b67345ec160525f2",
+        "after": "1e02e9a373cc3e1156999136a7275f16e0e9200f915620b4df86deab641de051"
+      },
+      "disposition": "BASE_PASS",
+      "rename": {
+        "status": "ok",
+        "plan": {
+          "identity": {
+            "documentId": "/issue1486/module.nui",
+            "localIdentity": "module.nui:moduleDefinition:2"
+          },
+          "documents": [
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/facade.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 54,
+                  "to": 60,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/module.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 109,
+                  "to": 115,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/root.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 405,
+                  "to": 411,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "a73e816cfb582e07bc2de5a26b951ae0e650e3bab5acdd1d9734da1c46d37fba",
+      "bundleSha256": "177346731d511077f54a779caf69ffd0cb26b3d8cbe6910dd3b32f379989d427",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85omb-738",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85omb-739",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85omb-739:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85omb-738",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85omb-738",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85oma-730",
+          "end": {
+            "elementId": "line-mvt85oma-730:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85oma-730:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85oma-732",
+          "end": {
+            "elementId": "line-mvt85oma-732:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85oma-732:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R2-S1.svg",
+          "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "path": "R2-S1.pdf",
+          "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+          "byteLength": 2328
+        }
+      ]
+    },
+    {
+      "id": "R2-S2",
+      "hashes": {
+        "files": {
+          "types.nui": "9f8024b6dda65404c54b01bbe1fc423b107ecb424884fcb1ca001b05082fff37",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "993331b3e39db5cc4327f40b0d35aea68aee7e896c1bb10ebf91d9a465a80338",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "73cd8a1510e1462f569a24653323b178043b2e6cee631e341f5bd84e03df4606",
+        "edits": "ab437874b5cb6cf476cbb56ebc30bcef12080743fd60c1e1b67345ec160525f2",
+        "after": "1e02e9a373cc3e1156999136a7275f16e0e9200f915620b4df86deab641de051"
+      },
+      "disposition": "BASE_PASS",
+      "affected": [
+        "/issue1486/module.nui",
+        "/issue1486/root.nui"
+      ],
+      "dirtyHash": "b5b8e7dcc2608b78d9239f9bd7a4ef99e00049a15e13ccf5db084c896ea9c110",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "19ee04d4e3aa824369291acd041bbe85c849b10743293050fb721676c5937425",
+      "invalid": "current",
+      "bundleSha256": "56c2f1f368e632b52354d411d84f9c28d6d49d01522f7929476d173d197e4c96",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85omb-738",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 39,
+          "y": -40
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85omb-739",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85omb-739:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 52,
+            "y": -49
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85omb-738",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 39,
+            "y": -40
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85omb-738",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85onq-748",
+          "end": {
+            "elementId": "line-mvt85onq-748:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85onq-748:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85onq-750",
+          "end": {
+            "elementId": "line-mvt85onq-750:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85onq-750:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R2-S2.svg",
+          "sha256": "a7445c545e12a79f33be679d5709c11accdcd2438d8d4eaa2b114ceed1fabf7b",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R2-S2.pdf",
+          "sha256": "8ab4046c13e965ca9fc28fa1178e3a103b9e60dca2d8b60f11df42f4849b6c7f",
+          "byteLength": 1451
+        }
+      ],
+      "restored": [
+        {
+          "format": "svg",
+          "path": "R2-S2-restored.svg",
+          "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R2-S2-restored.pdf",
+          "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+          "byteLength": 1452
+        }
+      ],
+      "recovered": [
+        {
+          "format": "svg",
+          "path": "R2-S2-recovered.svg",
+          "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R2-S2-recovered.pdf",
+          "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+          "byteLength": 1452
+        }
+      ]
+    },
+    {
+      "id": "R3-S0",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "dfeed6daad8dab5331660989304023e09af43e9bfaf365775b759d90bcb3c86e",
+          "facade.nui": "7f9022b78bcf1bb62ff79f876204c47f1a5f3683ae5ba7337eabc5d42a1df676",
+          "root.nui": "7d7ac599016a90476aebb81d8a9e96177e0b4b7b2068ea03396b71090e122767",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "27925e62d489278943e6880b508a4aa5cd3ed5ae650c8bb97132b9e69f95b125",
+        "edits": "62ea7b46fd8ef1c76b0fb024e4b87ce3d5c0e4769d04c20354c0d448f5224ee6",
+        "after": "eba07fca47fd015737c3dd7cad2539bad20bff42bec0920fa6b3e8ea165e75af"
+      },
+      "disposition": "BASE_PASS",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "4318706df68377b15d4cb1e0559e89bfb92fc1bf91023504cc638b0c592850b3",
+      "preview": "PASS",
+      "bundleSha256": "2287ab60659f0bd05ecf43fa535037aa317e485df51943ddbb8ff4f420f5941c",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85oqd-810",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85oqd-811",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85oqd-811:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85oqd-810",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85oqd-810",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Right::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85oqd-810",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 43,
+          "y": -41
+        },
+        "Right::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:817:line-mvt85oqd-811",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:817:line-mvt85oqd-811:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 56,
+            "y": -50
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85oqd-810",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 43,
+            "y": -41
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85oqd-810",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85oqc-797",
+          "end": {
+            "elementId": "line-mvt85oqc-797:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85oqc-797:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85oqc-799",
+          "end": {
+            "elementId": "line-mvt85oqc-799:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85oqc-799:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R3-S0.svg",
+          "sha256": "d10d3af03aca1aa072ad8f67e0ff83ed805eb9fdc55ae3bae8ce2768387c215f",
+          "byteLength": 590
+        },
+        {
+          "format": "pdf",
+          "path": "R3-S0.pdf",
+          "sha256": "2ee1d6f39ca1abd16e7b81301d8902045845fd262654e21aff5f5e90584ac262",
+          "byteLength": 2490
+        }
+      ]
+    },
+    {
+      "id": "R3-S1",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "ea4bcb4aac2f6f15e3ed386dd2f22031707fcc2f48be285fc38488c2e46849a9",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "27925e62d489278943e6880b508a4aa5cd3ed5ae650c8bb97132b9e69f95b125",
+        "edits": "62ea7b46fd8ef1c76b0fb024e4b87ce3d5c0e4769d04c20354c0d448f5224ee6",
+        "after": "eba07fca47fd015737c3dd7cad2539bad20bff42bec0920fa6b3e8ea165e75af"
+      },
+      "disposition": "BASE_PASS",
+      "rename": {
+        "status": "ok",
+        "plan": {
+          "identity": {
+            "documentId": "/issue1486/module.nui",
+            "localIdentity": "module.nui:moduleDefinition:2"
+          },
+          "documents": [
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/facade.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 54,
+                  "to": 60,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/module.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 109,
+                  "to": 115,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/root.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 405,
+                  "to": 411,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                },
+                {
+                  "from": 587,
+                  "to": 593,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "3c21530630b826ab04c8cb6927f893472acc973d4f908f27241ef4531e0de7e0",
+      "preview": "PASS",
+      "bundleSha256": "f1ad230d0a371bbbc9eba5096cd57fb4550f81e8fc4c03ec2fae4033a0c80cc8",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85osp-844",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85osp-845",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85osp-845:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85osp-844",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85osp-844",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Right::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85osp-844",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 43,
+          "y": -41
+        },
+        "Right::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:817:line-mvt85osp-845",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:817:line-mvt85osp-845:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 56,
+            "y": -50
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85osp-844",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 43,
+            "y": -41
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85osp-844",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85oso-835",
+          "end": {
+            "elementId": "line-mvt85oso-835:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85oso-835:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85oso-837",
+          "end": {
+            "elementId": "line-mvt85oso-837:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85oso-837:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R3-S1.svg",
+          "sha256": "d10d3af03aca1aa072ad8f67e0ff83ed805eb9fdc55ae3bae8ce2768387c215f",
+          "byteLength": 590
+        },
+        {
+          "format": "pdf",
+          "path": "R3-S1.pdf",
+          "sha256": "2ee1d6f39ca1abd16e7b81301d8902045845fd262654e21aff5f5e90584ac262",
+          "byteLength": 2490
+        }
+      ]
+    },
+    {
+      "id": "R3-S2",
+      "hashes": {
+        "files": {
+          "types.nui": "9f8024b6dda65404c54b01bbe1fc423b107ecb424884fcb1ca001b05082fff37",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "006d03288b4c8b6f958f7aaa7f84e5484125357220db7b25dc523e08b92a73c0",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02"
+        },
+        "oracle": "307dfe628e76356f3a6a137909aa3cfefab40918b6b05dd1fd62094cb8811e83",
+        "edits": "62ea7b46fd8ef1c76b0fb024e4b87ce3d5c0e4769d04c20354c0d448f5224ee6",
+        "after": "eba07fca47fd015737c3dd7cad2539bad20bff42bec0920fa6b3e8ea165e75af"
+      },
+      "disposition": "BASE_PASS",
+      "affected": [
+        "/issue1486/root.nui",
+        "/issue1486/module.nui"
+      ],
+      "dirtyHash": "b5b8e7dcc2608b78d9239f9bd7a4ef99e00049a15e13ccf5db084c896ea9c110",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "23fc8551c8578889c9dd2ad66f247d8b49f514efb284547859b0ce2b385a1083",
+      "preview": "PASS",
+      "invalid": "current",
+      "bundleSha256": "32a4e36c09e5629cc9c84b79138692ee374fbead12964134023f471e8eb70c6a",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85osp-844",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 39,
+          "y": -40
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85osp-845",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:617:line-mvt85osp-845:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 52,
+            "y": -49
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85osp-844",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 39,
+            "y": -40
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:622:freePoint-mvt85osp-844",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Right::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85osp-844",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 57,
+          "y": -55
+        },
+        "Right::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:817:line-mvt85osp-845",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:817:line-mvt85osp-845:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 70,
+            "y": -64
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85osp-844",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 57,
+            "y": -55
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:822:freePoint-mvt85osp-844",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85oup-859",
+          "end": {
+            "elementId": "line-mvt85oup-859:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85oup-859:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85oup-861",
+          "end": {
+            "elementId": "line-mvt85oup-861:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85oup-861:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R3-S2.svg",
+          "sha256": "23eb554c8bb14b2551b24cf4b9da085514e0c4cf93958dc2512ca0df7e1a04c6",
+          "byteLength": 596
+        },
+        {
+          "format": "pdf",
+          "path": "R3-S2.pdf",
+          "sha256": "eec41fcbccc68018ef54150fa995610fb87540e5f28145a8cf33ad523c4f430c",
+          "byteLength": 2487
+        }
+      ],
+      "restored": [
+        {
+          "format": "svg",
+          "path": "R3-S2-restored.svg",
+          "sha256": "2b219d467fe3c8d6ab31c80b9b5efbf988238657df2fdbf7b62107055731ec23",
+          "byteLength": 596
+        },
+        {
+          "format": "pdf",
+          "path": "R3-S2-restored.pdf",
+          "sha256": "83b3a76e18d6620323a67db69224c2b91a2da73577f47d7272ebb3356344c6ce",
+          "byteLength": 2489
+        }
+      ],
+      "recovered": [
+        {
+          "format": "svg",
+          "path": "R3-S2-recovered.svg",
+          "sha256": "2b219d467fe3c8d6ab31c80b9b5efbf988238657df2fdbf7b62107055731ec23",
+          "byteLength": 596
+        },
+        {
+          "format": "pdf",
+          "path": "R3-S2-recovered.pdf",
+          "sha256": "83b3a76e18d6620323a67db69224c2b91a2da73577f47d7272ebb3356344c6ce",
+          "byteLength": 2489
+        }
+      ]
+    },
+    {
+      "id": "R4-S0",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "dfeed6daad8dab5331660989304023e09af43e9bfaf365775b759d90bcb3c86e",
+          "facade.nui": "7f9022b78bcf1bb62ff79f876204c47f1a5f3683ae5ba7337eabc5d42a1df676",
+          "root.nui": "f6a11d4dde4e4a42df2bb6a318b8314b7297600cb3c72dffe67447c1c3b93ed3",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02",
+          "second.nui": "67c9347f3d0fb4b5c80f1dd5ebc80ca9d9538b760b42c793bb7906feb77bb35b",
+          "foreign.nui": "dc1c24b352af0db0e2a560149377bd61306b5a48725e7617929c28033a7360c6",
+          "foreignRoot.nui": "ab83cc6f35186efd96ffa0b3ce14b136b51f5e6682d8a3b58860a7cff6792da2"
+        },
+        "oracle": "c238a949ae03900d86d7ff715b096b17816452e48adc16140e2a7ce1e0e67108",
+        "edits": "2a228658689af60bbacb0111493c2eabfb7fedc04bf5152e0948d9c201a867ed",
+        "after": "dbbe81cd9f5c0b1487574617c542a773d9eb93e65d776696083532a9ffaca0a5"
+      },
+      "disposition": "BUG→FIXED→REPASS",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "180088228a12665c2bed4b085fe3f68cf07653ac28dda12f20ae743158e125fa",
+      "bundleSha256": "0ba48e4ddae29a2fee82e4f3a4407a3201e44efbea47912ec54de2dde7af8292",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85oyi-936",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:917:line-mvt85oyi-937",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:917:line-mvt85oyi-937:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85oyi-936",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85oyi-936",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85oyh-924",
+          "end": {
+            "elementId": "line-mvt85oyh-924:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85oyh-924:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85oyh-926",
+          "end": {
+            "elementId": "line-mvt85oyh-926:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85oyh-926:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R4-S0.svg",
+          "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S0.pdf",
+          "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+          "byteLength": 2328
+        }
+      ],
+      "secondArtifacts": [
+        {
+          "format": "svg",
+          "path": "R4-S0-second.svg",
+          "sha256": "e70fc43b1355dad6b81a99a2c13dff1707951fbb99a6ab079f1264b6d9cb9009",
+          "byteLength": 447
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S0-second.pdf",
+          "sha256": "8a48ce59dc123607593e1418fb82898c4e6bc09a670d719b1db86ef813510d15",
+          "byteLength": 2326
+        }
+      ]
+    },
+    {
+      "id": "R4-S1",
+      "hashes": {
+        "files": {
+          "types.nui": "eecb5ed3a566a9cac39eb0dadf6664a64362c187557bca8cdc3fec8b02b832a6",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "01f6ed6be49cbbe032ef154a07890f95f48bb569c434b714b3cbf01817a1b12c",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02",
+          "second.nui": "1cacebf8771fafaa16f2a8846d4f020e118d055b11c655786d3f3fd12d87b96c",
+          "foreign.nui": "dc1c24b352af0db0e2a560149377bd61306b5a48725e7617929c28033a7360c6",
+          "foreignRoot.nui": "ab83cc6f35186efd96ffa0b3ce14b136b51f5e6682d8a3b58860a7cff6792da2"
+        },
+        "oracle": "c238a949ae03900d86d7ff715b096b17816452e48adc16140e2a7ce1e0e67108",
+        "edits": "2a228658689af60bbacb0111493c2eabfb7fedc04bf5152e0948d9c201a867ed",
+        "after": "dbbe81cd9f5c0b1487574617c542a773d9eb93e65d776696083532a9ffaca0a5"
+      },
+      "disposition": "BUG→FIXED→REPASS",
+      "rename": {
+        "status": "ok",
+        "plan": {
+          "identity": {
+            "documentId": "/issue1486/module.nui",
+            "localIdentity": "module.nui:moduleDefinition:2"
+          },
+          "documents": [
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/facade.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 54,
+                  "to": 60,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/module.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 109,
+                  "to": 115,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/root.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 663,
+                  "to": 669,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            },
+            {
+              "source": {
+                "kind": "root-current",
+                "documentId": "/issue1486/second.nui",
+                "sourceRevision": 1
+              },
+              "edits": [
+                {
+                  "from": 663,
+                  "to": 669,
+                  "expectedText": "Pocket",
+                  "newText": "PocketRenamed"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "42fdb4e333b0908d3ccbcf6d89526538f3f8e4d1c217b55403f2931d5ea457da",
+      "bundleSha256": "320615495247fa0ed5b6549b3fe09c9b3621fafe51cd6539dab609fd4d160381",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85p1b-980",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 20,
+          "y": -26
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:917:line-mvt85p1b-981",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:917:line-mvt85p1b-981:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 33,
+            "y": -35
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85p1b-980",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 20,
+            "y": -26
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85p1b-980",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85p1a-972",
+          "end": {
+            "elementId": "line-mvt85p1a-972:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85p1a-972:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85p1a-974",
+          "end": {
+            "elementId": "line-mvt85p1a-974:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85p1a-974:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R4-S1.svg",
+          "sha256": "3ffd6cb9fbad61308f9479a669e0fff314d2017151544f0a2b0021e3d03854fb",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S1.pdf",
+          "sha256": "8631bc8f12c4dabdbcc14f96bfd3c65a98fbfd7d4cf4e29d1e3d8f5615ebaf65",
+          "byteLength": 2328
+        }
+      ],
+      "secondArtifacts": [
+        {
+          "format": "svg",
+          "path": "R4-S1-second.svg",
+          "sha256": "e70fc43b1355dad6b81a99a2c13dff1707951fbb99a6ab079f1264b6d9cb9009",
+          "byteLength": 447
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S1-second.pdf",
+          "sha256": "8a48ce59dc123607593e1418fb82898c4e6bc09a670d719b1db86ef813510d15",
+          "byteLength": 2326
+        }
+      ]
+    },
+    {
+      "id": "R4-S2",
+      "hashes": {
+        "files": {
+          "types.nui": "9f8024b6dda65404c54b01bbe1fc423b107ecb424884fcb1ca001b05082fff37",
+          "module.nui": "1b3d7956d7e42b93fb27c014b601c54a61cd74577551a683f12ce1f230848841",
+          "facade.nui": "ef17a5bff3d3ec423e9c5d70c68ceb86dfa9e92214a8e8a758ae959209a9ae40",
+          "root.nui": "60e6d0f183eac021cd6cc4f73feae87fcf9cf2edc5aaa64f5b44fb415455ab8e",
+          "independent.nui": "6590e6e4f76be20e38d608a1ec8dce0079a7efae834a498cf8dff6cdc5737b02",
+          "second.nui": "661e45273e865cfab3f17b7da2e2546f11b7805e1f0b6e1fd7f2a244b17afb88",
+          "foreign.nui": "dc1c24b352af0db0e2a560149377bd61306b5a48725e7617929c28033a7360c6",
+          "foreignRoot.nui": "ab83cc6f35186efd96ffa0b3ce14b136b51f5e6682d8a3b58860a7cff6792da2"
+        },
+        "oracle": "73cd8a1510e1462f569a24653323b178043b2e6cee631e341f5bd84e03df4606",
+        "edits": "2a228658689af60bbacb0111493c2eabfb7fedc04bf5152e0948d9c201a867ed",
+        "after": "dbbe81cd9f5c0b1487574617c542a773d9eb93e65d776696083532a9ffaca0a5"
+      },
+      "disposition": "BUG→FIXED→REPASS",
+      "affected": [
+        "/issue1486/module.nui",
+        "/issue1486/root.nui",
+        "/issue1486/second.nui"
+      ],
+      "dirtyHash": "b5b8e7dcc2608b78d9239f9bd7a4ef99e00049a15e13ccf5db084c896ea9c110",
+      "identities": {
+        "record": {
+          "documentId": "/issue1486/types.nui",
+          "localIdentity": "types.nui:recordDefinition:1"
+        },
+        "module": {
+          "documentId": "/issue1486/module.nui",
+          "localIdentity": "module.nui:moduleDefinition:2"
+        }
+      },
+      "preparedHash": "2b5e5bccb64015b8d1fe9ecf8540beebe5b175c431e0d1ac295a093b99293f31",
+      "invalid": "current",
+      "bundleSha256": "3a5616faf99528229628a28596df2fea65d9b3b852703d4f13da42edbf30738b",
+      "actualGeometry": {
+        "Left::piece::Anchor": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85p1b-980",
+          "kind": "point",
+          "name": "Anchor",
+          "x": 39,
+          "y": -40
+        },
+        "Left::piece::Edge": {
+          "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:917:line-mvt85p1b-981",
+          "end": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:917:line-mvt85p1b-981:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 52,
+            "y": -49
+          },
+          "endAngleDeg": 145.30484646876604,
+          "endPointId": null,
+          "endTangentAngleDeg": 145.30484646876604,
+          "kind": "line",
+          "length": 15.811388300841896,
+          "name": "Edge",
+          "start": {
+            "elementId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85p1b-980",
+            "kind": "point",
+            "name": "Anchor",
+            "x": 39,
+            "y": -40
+          },
+          "startAngleDeg": 325.304846468766,
+          "startPointId": "module-runtime:10:moduleBody25:root.nui:moduleInstance:922:freePoint-mvt85p1b-980",
+          "startTangentAngleDeg": 325.304846468766
+        },
+        "Control::Edge": {
+          "elementId": "line-mvt85p3j-1000",
+          "end": {
+            "elementId": "line-mvt85p3j-1000:end",
+            "kind": "point",
+            "name": "Edge.end",
+            "x": 10,
+            "y": 7
+          },
+          "endAngleDeg": 201.03751102542182,
+          "endPointId": null,
+          "endTangentAngleDeg": 201.03751102542182,
+          "kind": "line",
+          "length": 13.92838827718412,
+          "name": "Edge",
+          "start": {
+            "elementId": "line-mvt85p3j-1000:start",
+            "kind": "point",
+            "name": "Edge.start",
+            "x": -3,
+            "y": 2
+          },
+          "startAngleDeg": 21.037511025421818,
+          "startPointId": null,
+          "startTangentAngleDeg": 21.037511025421818
+        },
+        "Excluded::NotSelected": {
+          "elementId": "line-mvt85p3j-1002",
+          "end": {
+            "elementId": "line-mvt85p3j-1002:end",
+            "kind": "point",
+            "name": "NotSelected.end",
+            "x": 613,
+            "y": -619
+          },
+          "endAngleDeg": 135,
+          "endPointId": null,
+          "endTangentAngleDeg": 135,
+          "kind": "line",
+          "length": 16.97056274847714,
+          "name": "NotSelected",
+          "start": {
+            "elementId": "line-mvt85p3j-1002:start",
+            "kind": "point",
+            "name": "NotSelected.start",
+            "x": 601,
+            "y": -607
+          },
+          "startAngleDeg": 315,
+          "startPointId": null,
+          "startTangentAngleDeg": 315
+        }
+      },
+      "artifacts": [
+        {
+          "format": "svg",
+          "path": "R4-S2.svg",
+          "sha256": "a7445c545e12a79f33be679d5709c11accdcd2438d8d4eaa2b114ceed1fabf7b",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S2.pdf",
+          "sha256": "8ab4046c13e965ca9fc28fa1178e3a103b9e60dca2d8b60f11df42f4849b6c7f",
+          "byteLength": 1451
+        }
+      ],
+      "secondArtifacts": [
+        {
+          "format": "svg",
+          "path": "R4-S2-second.svg",
+          "sha256": "372810b479057aa538313afd72c0b1760cc62af5555913db3cc0caa2159e70ef",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S2-second.pdf",
+          "sha256": "60bf32ca4c82ec5769f21e5882f1700f1c5c747ffabd401009d6a170755eaeb2",
+          "byteLength": 1452
+        }
+      ],
+      "restored": [
+        {
+          "format": "svg",
+          "path": "R4-S2-restored.svg",
+          "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S2-restored.pdf",
+          "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+          "byteLength": 1452
+        }
+      ],
+      "recovered": [
+        {
+          "format": "svg",
+          "path": "R4-S2-recovered.svg",
+          "sha256": "0fdb94bfb9f6a0cbadd6c09e7729b29501fe7a32a20232a641b3f3bfeaa022d7",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "path": "R4-S2-recovered.pdf",
+          "sha256": "56382e3b380a7df2773f37f63aaa43391907ce74ae973cd47644ebb77364bafc",
+          "byteLength": 1452
+        }
+      ]
+    }
+  ],
+  "families": [
+    {
+      "id": "F1",
+      "firstOwner": "packages/nui-language/src/dsl/dslDocument.ts additionalRecordPropertyResolver",
+      "cause": "Root scalar constructor-field read used record-field-contents for the entire path instead of contents prefix plus record-field-collection projection, disagreeing with the existing producer. Reuses indexedRecordFieldPaths from moduleScalarRuntime.",
+      "reproducer": "M1",
+      "neighbor": "X2",
+      "affected": [
+        "R4-S0",
+        "R4-S1",
+        "R4-S2",
+        "M1",
+        "M2",
+        "X1"
+      ]
+    },
+    {
+      "id": "F2",
+      "firstOwner": "packages/nui-language/src/scalars/recordScalarLowering.ts planRecordScalarLowering",
+      "cause": "Inline members of an array-only record wrapper reserved slot zero although no named array binding owned it, producing a sourceOrder hole and bindingCatalog exception. Reserve only for actual named collection values.",
+      "reproducer": "M2",
+      "neighbor": "X2",
+      "affected": [
+        "X1",
+        "M2"
+      ]
+    },
+    {
+      "id": "F3",
+      "firstOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts compileModuleScalarRuntime document initializer fallback",
+      "cause": "Fallback synthetic record scalar initializers remapped collection IDs but retained authored targetSourceOrder rather than the canonical runtime event position; Rust rejected legal accesses. Existing source-order remapper fixes the producer without Rust changes.",
+      "reproducer": "M3",
+      "neighbor": "X2",
+      "affected": [
+        "M1",
+        "M2",
+        "M3",
+        "X1"
+      ]
+    }
+  ],
+  "limitations": [
+    "Structured host/provider discovery and host-neutral Canvas/Module Preview tested; no native GUI execution.",
+    "Human-only E2E Not Required; production native host/provider/save path unchanged.",
+    "Protected independent pushed-HEAD review, PR/CI, merge and Human clean-main restoration remain external completion gates."
+  ],
+  "quota": {
+    "humanWeekly": "UNAVAILABLE",
+    "humanFiveHour": "UNAVAILABLE"
+  },
+  "artifactArchive": {
+    "files": 46,
+    "sha256": "ab316c495906ec5836f733bc9cbb728dc6c7df9b0c1eef3e11757cd06d301806"
+  }
+}

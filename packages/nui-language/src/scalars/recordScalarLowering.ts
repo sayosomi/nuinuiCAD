@@ -479,7 +479,9 @@ export const planRecordScalarLowering = ({
     // Optional record members own lazy singleton descriptors. Seeding their
     // fields as root declarations evaluates unselected collection branches.
     if (inlineCollection && isDslOptionalValueType(inlineCollection.valueType.elementType)) continue;
-    if (value.inlineCollectionMember && !seedOrderByStatement.has(value.statementIndex)) seedOrderByStatement.set(value.statementIndex, 1);
+    // A named array owns scalar catalog slot zero. An array-valued record
+    // field has no such binding; its inline members start at the next real slot.
+    if (inlineCollection && !seedOrderByStatement.has(value.statementIndex)) seedOrderByStatement.set(value.statementIndex, 1);
     const scopeId = sourceNamespace.scopeIndex.scopeOfStatement.get(value.statementIndex);
     if (!scopeId || !value.typeIdentity) {
       unresolvedValueStatementIds.push(value.statementId);

@@ -1,0 +1,125 @@
+[
+  {
+    "label": "exact-Base",
+    "exitCode": 1,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "04dc076a0749d35aa8b98b056afa7d864bf57fdbdb779374e9801c711275db2d",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "c5945035181b1c6cce8be69cc1c940af72b199ddcf83b53717a0dc714e860317",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "113f1714ec575025999eb9f7788096e18cd5774dfb9d6a71d44fcaa5a6b1bea4"
+    },
+    "tests": [
+      "5 failed | 6 passed (11)"
+    ],
+    "failedNames": [
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > R4: genuine public Module Rename \u2192 saved/current rebuild \u2192 actual SVG/PDF",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M1: R4 alias member of imported-record array field loses its backing values",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > X1: Neighbor inline record array member; identical original nominal type and geometry",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M2: Inline imported record in an array-only wrapper must not reserve an absent scalar slot",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M3: Record constructor scalar collection indices must use runtime source positions"
+    ]
+  },
+  {
+    "label": "all-fixed",
+    "exitCode": 0,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "9baf7ccf369fccd5b9c8042d402dead70fb4cc4c2d464d65b85974b92f1b3a8a"
+    },
+    "tests": [
+      "11 passed (11)"
+    ],
+    "failedNames": []
+  },
+  {
+    "label": "F1-removed",
+    "exitCode": 1,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "04dc076a0749d35aa8b98b056afa7d864bf57fdbdb779374e9801c711275db2d",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "9baf7ccf369fccd5b9c8042d402dead70fb4cc4c2d464d65b85974b92f1b3a8a"
+    },
+    "tests": [
+      "4 failed | 7 passed (11)"
+    ],
+    "failedNames": [
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > R4: genuine public Module Rename \u2192 saved/current rebuild \u2192 actual SVG/PDF",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M1: R4 alias member of imported-record array field loses its backing values",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > X1: Neighbor inline record array member; identical original nominal type and geometry",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M2: Inline imported record in an array-only wrapper must not reserve an absent scalar slot"
+    ]
+  },
+  {
+    "label": "F1-restored",
+    "exitCode": 0,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "9baf7ccf369fccd5b9c8042d402dead70fb4cc4c2d464d65b85974b92f1b3a8a"
+    },
+    "tests": [
+      "11 passed (11)"
+    ],
+    "failedNames": []
+  },
+  {
+    "label": "F2-removed",
+    "exitCode": 1,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "113f1714ec575025999eb9f7788096e18cd5774dfb9d6a71d44fcaa5a6b1bea4"
+    },
+    "tests": [
+      "2 failed | 9 passed (11)"
+    ],
+    "failedNames": [
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > X1: Neighbor inline record array member; identical original nominal type and geometry",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M2: Inline imported record in an array-only wrapper must not reserve an absent scalar slot"
+    ]
+  },
+  {
+    "label": "F2-restored",
+    "exitCode": 0,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "9baf7ccf369fccd5b9c8042d402dead70fb4cc4c2d464d65b85974b92f1b3a8a"
+    },
+    "tests": [
+      "11 passed (11)"
+    ],
+    "failedNames": []
+  },
+  {
+    "label": "F3-removed",
+    "exitCode": 1,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "e73ea86ebcd956e3e9f17cba3b48754dfb2930156cfd7c1a13c7b8bc3eeaf9c6",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "9baf7ccf369fccd5b9c8042d402dead70fb4cc4c2d464d65b85974b92f1b3a8a"
+    },
+    "tests": [
+      "4 failed | 7 passed (11)"
+    ],
+    "failedNames": [
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M1: R4 alias member of imported-record array field loses its backing values",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > X1: Neighbor inline record array member; identical original nominal type and geometry",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M2: Inline imported record in an array-only wrapper must not reserve an absent scalar slot",
+      " FAIL  test/issue1490RenameArtifacts.integration.test.ts > M3: Record constructor scalar collection indices must use runtime source positions"
+    ]
+  },
+  {
+    "label": "F3-restored",
+    "exitCode": 0,
+    "productionHashes": {
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31",
+      "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+      "packages/nui-language/src/scalars/recordScalarLowering.ts": "9baf7ccf369fccd5b9c8042d402dead70fb4cc4c2d464d65b85974b92f1b3a8a"
+    },
+    "tests": [
+      "11 passed (11)"
+    ],
+    "failedNames": []
+  }
+]
