@@ -25,6 +25,7 @@ import {
 } from "./multiDocumentLanguageQueries";
 import {
   analyzeMultiDocumentSource,
+  createGraphExternalNamespaceResolver,
   type MultiDocumentGraphNode,
   type MultiDocumentImportEdge,
   type MultiDocumentImportGraph
@@ -34,6 +35,7 @@ import {
   resolveMultiDocumentPublicApiMember,
   type MultiDocumentPublicApiCatalog
 } from "./multiDocumentPublicApi";
+import { bindDocumentRecordSemantics } from "./multiDocumentRecordSemantics";
 import { createModuleRuntimeContext } from "../dsl/moduleRuntimeContext";
 import {
   sourceIdentityOf,
@@ -507,6 +509,16 @@ const candidateGraphForRename = (input: {
       valid: node.valid && publicApi.valid
     });
   }
+  // The candidate root is a new file-local artifact. Bind its imported record
+  // types against the proven saved dependency catalogs before Module analysis.
+  const root = finalizedNodes.get(input.identity.documentId)!;
+  const sourceLexicalNamespace = bindDocumentRecordSemantics(root.artifact, root.imports.flatMap(edge => {
+    const dependency = edge.status === "resolved" && edge.targetDocumentId ? finalizedNodes.get(edge.targetDocumentId) : undefined;
+    return dependency ? [dependency.artifact] : [];
+  }), createGraphExternalNamespaceResolver({ ...provisionalGraph, nodes: finalizedNodes }, input.identity.documentId));
+  if (sourceLexicalNamespace.diagnostics.some(diagnostic => diagnostic.severity === "error")) return null;
+  finalizedNodes.set(input.identity.documentId, { ...root, artifact: { ...root.artifact, sourceLexicalNamespace },
+    sourceDiagnostics: [...root.artifact.parsed.diagnostics, ...sourceLexicalNamespace.diagnostics] });
   const candidateGraph: MultiDocumentImportGraph = {
     ...provisionalGraph,
     nodes: finalizedNodes,

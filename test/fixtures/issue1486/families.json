@@ -1,0 +1,2895 @@
+{
+  "base": "39e653213576707c74e4ad454a52e102106c723c",
+  "novelFirstOwnerFamilies": 6,
+  "baseSuite": {
+    "failed": 34,
+    "passed": 12,
+    "tests": 46,
+    "timeout": false,
+    "scope": "All 24 primaries and then-frozen reducers/transitions; later R6 and A3 negative-control assertions are verification additions, not new defect claims."
+  },
+  "candidateSources": [
+    {
+      "path": "packages/nui-language/src/document/moduleSemanticRenameAnalysis.ts",
+      "baseBlob": "a109dfc2c33d902feabd1f43b291dfdd06f407bb",
+      "candidateSha256": "ce5ec3f9fa7fe5e4dd86a8e6147385411917fe2df9fc5f42f71cab4ac23b86aa"
+    },
+    {
+      "path": "packages/nui-language/src/document/multiDocumentModuleLanguage.ts",
+      "baseBlob": "6a18fbdb39847df171c73805b28cddc852403451",
+      "candidateSha256": "ddf59f6f3bc980cd68948e8e98f89a71e5526cf931f7acb10573811fecac9741"
+    },
+    {
+      "path": "packages/nui-language/src/document/typedRenameAnalysis.ts",
+      "baseBlob": "61a436d84a6ef13f2f899907b38649fbc56c5bb0",
+      "candidateSha256": "6d4d3cf33d5f5ba96bc83d98427aa3023a9066259ad9c25844a86f8ba4ea91b1"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslDocument.ts",
+      "baseBlob": "f0e684eb5dc404af8f4b6159faa5bd75e7feb13e",
+      "candidateSha256": "04dc076a0749d35aa8b98b056afa7d864bf57fdbdb779374e9801c711275db2d"
+    },
+    {
+      "path": "packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts",
+      "baseBlob": "bcc432e7c867f0cfbf5851d0caf3c3989f56b9db",
+      "candidateSha256": "6def97bdbdf91b86b954ad743d86dc32d77f8ef54d3c2379a2b29596de8b34b8"
+    },
+    {
+      "path": "packages/nui-language/src/document/sourceSemanticRenameCandidate.ts",
+      "baseBlob": "39e653213576707c74e4ad454a52e102106c723c:packages/nui-language/src/document/sourceSemanticRenameCandidate.ts",
+      "candidateSha256": "1d2ddbfbc53eac5e9df9fb627e5e6ab1ed5665796e35b1d3a416b5e3aa4d9b01"
+    }
+  ],
+  "families": [
+    {
+      "id": "F1-local-candidate-context",
+      "firstOwner": "packages/nui-language/src/document/moduleSemanticRenameAnalysis.ts",
+      "causeAndRepair": "compileWithStableIds discarded the exact graph context, making safe local record Rename look like capture. Shared contextual candidate compilation now rebuilds only the root using canonical artifact, record, public-API and Module owners; unchanged saved dependencies remain authoritative.",
+      "case": "R1",
+      "control": "X1",
+      "base": [
+        {
+          "case": "R1",
+          "bundleSha256": "646979c35243c6b79fae77b291fa1db37b53fdfa16256588717b8a65ad2e1716",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 88,
+                      "to": 89
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 88,
+                        "to": 89
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "record"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 41,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 88,
+                    "to": 89
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 88,
+                      "to": 89
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 88,
+                        "to": 89
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "record"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 88,
+                      "to": 89,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixed": [
+        {
+          "case": "R1",
+          "bundleSha256": "646979c35243c6b79fae77b291fa1db37b53fdfa16256588717b8a65ad2e1716",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 88,
+                      "to": 89
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 88,
+                        "to": 89
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 40,
+                          "to": 41
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 41,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 88,
+                          "to": 89,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 41,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 88,
+                    "to": 89
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 88,
+                      "to": 89
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 88,
+                        "to": 89
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 88,
+                          "to": 89
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 41,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 88,
+                          "to": 89,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 88,
+                      "to": 89,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "baseControl": [
+        {
+          "case": "X1",
+          "bundleSha256": "79d80305337e25e80e6f7ccec6bec61718e4bafe1e8442479f3c57530682e40f",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 32,
+                    "to": 33
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 66,
+                      "to": 67
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 32,
+                    "to": 33
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 66,
+                        "to": 67
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 32,
+                          "to": 33
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 32,
+                          "to": 33,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 66,
+                          "to": 67,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 32,
+                      "to": 33,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 66,
+                    "to": 67
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 66,
+                      "to": 67
+                    },
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 66,
+                        "to": 67
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 66,
+                          "to": 67
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 32,
+                          "to": 33,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 66,
+                          "to": 67,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 66,
+                      "to": 67,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixRemoval": {
+        "label": "remove-local",
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "test/issue1486RecordLanguageQueries.integration.test.ts",
+          "-t",
+          "'R1'|'X1'",
+          "--maxWorkers=1"
+        ],
+        "code": 1,
+        "timeout": false,
+        "seconds": 3.29,
+        "log": "/tmp/issue1486-remove-local.log",
+        "time": "2026-10-29T13:56:26.802150+09:00",
+        "result": "1 ⎯⎯⎯⎯⎯⎯⎯",
+        "logSha256": "19391a78211f5f66b3b67d199c109ffe577d1aad6f0991b16ad1d67ccd7364bd",
+        "restoration": "Exact candidate bytes restored in finally; all six removals each had 1 failing subject and 1 passing control. Unselected tests were intentionally filtered."
+      }
+    },
+    {
+      "id": "F2-public-candidate-record-binding",
+      "firstOwner": "packages/nui-language/src/document/multiDocumentModuleLanguage.ts",
+      "causeAndRepair": "candidateGraphForRename recreated a file-local root without binding its imported record types. Bind the new artifact through bindDocumentRecordSemantics before analyzing the candidate Module graph.",
+      "case": "R3",
+      "control": "X3",
+      "base": [
+        {
+          "case": "R3",
+          "bundleSha256": "963194a75acd53f498be89d18bd99084e9f30edee56c86df06a994aa58a1e996",
+          "queries": [
+            {
+              "file": "module.nui",
+              "key": "M",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/module.nui",
+                  "localIdentity": "module.nui:moduleDefinition:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/module.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 48,
+                    "to": 49
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 102,
+                      "to": 103
+                    }
+                  }
+                ]
+              },
+              "graphRename": {
+                "status": "rejected",
+                "reason": "unsafe-edit-proof"
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 48,
+                    "to": 49
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 48,
+                      "to": 49
+                    },
+                    "referenceRanges": []
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "module"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 48,
+                      "to": 49,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "module",
+                        "target": {
+                          "kind": "moduleDefinition",
+                          "statementId": "module.nui:moduleDefinition:2"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixed": [
+        {
+          "case": "R3",
+          "bundleSha256": "963194a75acd53f498be89d18bd99084e9f30edee56c86df06a994aa58a1e996",
+          "queries": [
+            {
+              "file": "module.nui",
+              "key": "M",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/module.nui",
+                  "localIdentity": "module.nui:moduleDefinition:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/module.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 48,
+                    "to": 49
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 102,
+                      "to": 103
+                    }
+                  }
+                ]
+              },
+              "graphRename": {
+                "status": "ok",
+                "plan": {
+                  "identity": {
+                    "documentId": "/issue1486/module.nui",
+                    "localIdentity": "module.nui:moduleDefinition:2"
+                  },
+                  "documents": [
+                    {
+                      "source": {
+                        "kind": "root-current",
+                        "documentId": "/issue1486/module.nui",
+                        "sourceRevision": 1
+                      },
+                      "edits": [
+                        {
+                          "from": 48,
+                          "to": 49,
+                          "expectedText": "M",
+                          "newText": "Changed"
+                        }
+                      ]
+                    },
+                    {
+                      "source": {
+                        "kind": "root-current",
+                        "documentId": "/issue1486/root.nui",
+                        "sourceRevision": 1
+                      },
+                      "edits": [
+                        {
+                          "from": 102,
+                          "to": 103,
+                          "expectedText": "M",
+                          "newText": "Changed"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 48,
+                    "to": 49
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 48,
+                      "to": 49
+                    },
+                    "referenceRanges": []
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "M",
+                        "range": {
+                          "from": 48,
+                          "to": 49
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 48,
+                          "to": 49,
+                          "expectedText": "M",
+                          "newText": "Changed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 48,
+                      "to": 49,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "module",
+                        "target": {
+                          "kind": "moduleDefinition",
+                          "statementId": "module.nui:moduleDefinition:2"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "baseControl": [
+        {
+          "case": "X3",
+          "bundleSha256": "27f144531ba4d07298ec04d9d5a37a1cf9c9085b5507d4505d489e1e3240e90f",
+          "queries": [
+            {
+              "file": "module.nui",
+              "key": "M",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/module.nui",
+                  "localIdentity": "module.nui:moduleDefinition:1"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/module.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 20,
+                    "to": 21
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 51,
+                      "to": 52
+                    }
+                  }
+                ]
+              },
+              "graphRename": {
+                "status": "ok",
+                "plan": {
+                  "identity": {
+                    "documentId": "/issue1486/module.nui",
+                    "localIdentity": "module.nui:moduleDefinition:1"
+                  },
+                  "documents": [
+                    {
+                      "source": {
+                        "kind": "root-current",
+                        "documentId": "/issue1486/module.nui",
+                        "sourceRevision": 1
+                      },
+                      "edits": [
+                        {
+                          "from": 20,
+                          "to": 21,
+                          "expectedText": "M",
+                          "newText": "Changed"
+                        }
+                      ]
+                    },
+                    {
+                      "source": {
+                        "kind": "root-current",
+                        "documentId": "/issue1486/root.nui",
+                        "sourceRevision": 1
+                      },
+                      "edits": [
+                        {
+                          "from": 51,
+                          "to": 52,
+                          "expectedText": "M",
+                          "newText": "Changed"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 20,
+                    "to": 21
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 20,
+                      "to": 21
+                    },
+                    "referenceRanges": []
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "M",
+                        "range": {
+                          "from": 20,
+                          "to": 21
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 20,
+                          "to": 21,
+                          "expectedText": "M",
+                          "newText": "Changed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 20,
+                      "to": 21,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "module",
+                        "target": {
+                          "kind": "moduleDefinition",
+                          "statementId": "module.nui:moduleDefinition:1"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixRemoval": {
+        "label": "remove-public",
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "test/issue1486RecordLanguageQueries.integration.test.ts",
+          "-t",
+          "'R3'|'X3'",
+          "--maxWorkers=1"
+        ],
+        "code": 1,
+        "timeout": false,
+        "seconds": 2.88,
+        "log": "/tmp/issue1486-remove-public.log",
+        "time": "2026-10-29T13:56:29.738511+09:00",
+        "result": "1 ⎯⎯⎯⎯⎯⎯⎯",
+        "logSha256": "e641e4cd311d5d33369776475cc862d5f5269e17acad7527fc35e74ce875e7a0",
+        "restoration": "Exact candidate bytes restored in finally; all six removals each had 1 failing subject and 1 passing control. Unselected tests were intentionally filtered."
+      }
+    },
+    {
+      "id": "F3-literal-occurrences",
+      "firstOwner": "packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts",
+      "causeAndRepair": "The collection occurrence traversal skipped literal generic collections and looked up record members as collection owners. Visit literal members, reject synthetic/non-reference text using the canonical reference parser, and project actual record/typed identities.",
+      "case": "R2",
+      "control": "X1",
+      "base": [
+        {
+          "case": "R2",
+          "bundleSha256": "e05c3fee9aedd69e99d97d3e2c0d9064d69000888111f07514a02a6e1c15e0ab",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  }
+                },
+                "references": []
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": []
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "record"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 41,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 96,
+                    "to": 97
+                  },
+                  "definition": null,
+                  "references": null,
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "unavailable"
+                    }
+                  },
+                  "occurrences": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixed": [
+        {
+          "case": "R2",
+          "bundleSha256": "e05c3fee9aedd69e99d97d3e2c0d9064d69000888111f07514a02a6e1c15e0ab",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 96,
+                      "to": 97
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 96,
+                        "to": 97
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 40,
+                          "to": 41
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 41,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 96,
+                          "to": 97,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 41,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 96,
+                    "to": 97
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 96,
+                      "to": 97
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 96,
+                        "to": 97
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 96,
+                          "to": 97
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 41,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 96,
+                          "to": 97,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 96,
+                      "to": 97,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "baseControl": [
+        {
+          "case": "X1",
+          "bundleSha256": "79d80305337e25e80e6f7ccec6bec61718e4bafe1e8442479f3c57530682e40f",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 32,
+                    "to": 33
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 66,
+                      "to": 67
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 32,
+                    "to": 33
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 66,
+                        "to": 67
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 32,
+                          "to": 33
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 32,
+                          "to": 33,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 66,
+                          "to": 67,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 32,
+                      "to": 33,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 66,
+                    "to": 67
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 66,
+                      "to": 67
+                    },
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 66,
+                        "to": 67
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 66,
+                          "to": 67
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 32,
+                          "to": 33,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 66,
+                          "to": 67,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 66,
+                      "to": 67,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixRemoval": {
+        "label": "remove-literal",
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "test/issue1486RecordLanguageQueries.integration.test.ts",
+          "-t",
+          "'R2'|'X1'",
+          "--maxWorkers=1"
+        ],
+        "code": 1,
+        "timeout": false,
+        "seconds": 2.89,
+        "log": "/tmp/issue1486-remove-literal.log",
+        "time": "2026-10-29T13:56:32.673261+09:00",
+        "result": "1 ⎯⎯⎯⎯⎯⎯⎯",
+        "logSha256": "c6303125bb2d5320281f2ab662692917476c95a5805d3a559d30abb8142d2031",
+        "restoration": "Exact candidate bytes restored in finally; all six removals each had 1 failing subject and 1 passing control. Unselected tests were intentionally filtered."
+      }
+    },
+    {
+      "id": "F4-imported-field-lowering",
+      "firstOwner": "packages/nui-language/src/dsl/dslDocument.ts",
+      "causeAndRepair": "The generalized-record runtime activation inspected only root parser record declarations. Imported generalized records therefore failed direct geometry consumers in both reference and Rust. Use the already bound nominal definition catalog, with no new evaluator semantics.",
+      "case": "R4",
+      "control": "X6",
+      "base": [
+        {
+          "case": "R4",
+          "bundleSha256": "3d42dea3f05174f70f58920c49f0268d2a302f6ed52bcf1f295658e982a61cfc",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 152,
+                      "to": 153
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 152,
+                        "to": 153
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "record"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 41,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 152,
+                    "to": 153
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 152,
+                      "to": 153
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 152,
+                        "to": 153
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "record"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 152,
+                      "to": 153,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "case": "R4",
+          "runtime": {
+            "rustEligible": true,
+            "reference": {
+              "errors": [
+                {
+                  "elementId": "freePoint-mvt2lm0n-13",
+                  "elementName": "Result",
+                  "missingDependencyId": "box",
+                  "message": "Result の数値式を評価できません。box はこの要素内に存在しません。または参照可能な変数に存在しません。"
+                },
+                {
+                  "elementId": "freePoint-mvt2lm0n-13",
+                  "elementName": "Result",
+                  "missingDependencyId": "box",
+                  "message": "Result の数値式を評価できません。box はこの要素内に存在しません。または参照可能な変数に存在しません。"
+                }
+              ],
+              "points": [
+                {
+                  "kind": "point",
+                  "elementId": "freePoint-mvt2lm0n-12",
+                  "name": "Origin",
+                  "x": 11,
+                  "y": 17
+                }
+              ]
+            },
+            "rust": {
+              "errors": [
+                {
+                  "elementId": "freePoint-mvt2lm0n-13",
+                  "elementName": "Result",
+                  "missingDependencyId": "@box.inner.x",
+                  "message": "Result の数値式を評価できません。数値を解釈できません: ."
+                },
+                {
+                  "elementId": "freePoint-mvt2lm0n-13",
+                  "elementName": "Result",
+                  "missingDependencyId": "@box.anchor.y",
+                  "message": "Result の数値式を評価できません。数値を解釈できません: ."
+                }
+              ],
+              "points": [
+                {
+                  "elementId": "freePoint-mvt2lm0n-12",
+                  "kind": "point",
+                  "name": "Origin",
+                  "x": 11,
+                  "y": 17
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "fixed": [
+        {
+          "case": "R4",
+          "bundleSha256": "3d42dea3f05174f70f58920c49f0268d2a302f6ed52bcf1f295658e982a61cfc",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 152,
+                      "to": 153
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 152,
+                        "to": 153
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 40,
+                          "to": 41
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 41,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 152,
+                          "to": 153,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 41,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 152,
+                    "to": 153
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 152,
+                      "to": 153
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 152,
+                        "to": 153
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 152,
+                          "to": 153
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 41,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 152,
+                          "to": 153,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 152,
+                      "to": 153,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "case": "R4",
+          "runtime": {
+            "rustEligible": true,
+            "reference": {
+              "errors": [],
+              "points": [
+                {
+                  "kind": "point",
+                  "elementId": "freePoint-mvt2xd0j-62",
+                  "name": "Origin",
+                  "x": 11,
+                  "y": 17
+                },
+                {
+                  "kind": "point",
+                  "elementId": "freePoint-mvt2xd0j-63",
+                  "name": "Result",
+                  "x": 7,
+                  "y": 17
+                }
+              ]
+            },
+            "rust": {
+              "errors": [],
+              "points": [
+                {
+                  "elementId": "freePoint-mvt2xd0j-62",
+                  "kind": "point",
+                  "name": "Origin",
+                  "x": 11,
+                  "y": 17
+                },
+                {
+                  "elementId": "freePoint-mvt2xd0j-63",
+                  "kind": "point",
+                  "name": "Result",
+                  "x": 7,
+                  "y": 17
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "baseControl": [
+        {
+          "case": "X6",
+          "bundleSha256": "dbd9e3fed8b7f040ea7631d1128895252ce88dbec099b6fbb350ea75e3a86205",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 152,
+                      "to": 153
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 41
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 152,
+                        "to": 153
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "record"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 41,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 152,
+                    "to": 153
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 152,
+                      "to": 153
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 41
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 152,
+                        "to": 153
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "record"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 152,
+                      "to": 153,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "case": "X6",
+          "runtime": {
+            "rustEligible": true,
+            "reference": {
+              "errors": [],
+              "points": [
+                {
+                  "kind": "point",
+                  "elementId": "freePoint-mvt2lm0u-16",
+                  "name": "Origin",
+                  "x": 11,
+                  "y": 17
+                },
+                {
+                  "kind": "point",
+                  "elementId": "freePoint-mvt2lm0u-17",
+                  "name": "Result",
+                  "x": 7,
+                  "y": 17
+                }
+              ]
+            },
+            "rust": {
+              "errors": [],
+              "points": [
+                {
+                  "elementId": "freePoint-mvt2lm0u-16",
+                  "kind": "point",
+                  "name": "Origin",
+                  "x": 11,
+                  "y": 17
+                },
+                {
+                  "elementId": "freePoint-mvt2lm0u-17",
+                  "kind": "point",
+                  "name": "Result",
+                  "x": 7,
+                  "y": 17
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "fixRemoval": {
+        "label": "remove-geometry",
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "test/issue1486RecordLanguageQueries.integration.test.ts",
+          "-t",
+          "'R4'|'X6'",
+          "--maxWorkers=1"
+        ],
+        "code": 1,
+        "timeout": false,
+        "seconds": 3.1,
+        "log": "/tmp/issue1486-remove-geometry.log",
+        "time": "2026-10-29T13:56:38.959403+09:00",
+        "result": "1 ⎯⎯⎯⎯⎯⎯⎯",
+        "logSha256": "f9a8cf81e71e5a178bbf78a1b718ad377996d3f67d73621c9272b840ed4e0021",
+        "restoration": "Exact candidate bytes restored in finally; all six removals each had 1 failing subject and 1 passing control. Unselected tests were intentionally filtered."
+      }
+    },
+    {
+      "id": "F5-inline-pseudo-declaration",
+      "firstOwner": "packages/nui-language/src/dsl/dslSemanticOccurrenceIndex.ts",
+      "causeAndRepair": "addRecordOccurrences assigned a synthetic inline constructor the containing collection name/type token, manufacturing a second declaration and making collection queries ambiguous. Omit only synthetic declaration/type tokens, retaining real constructor and field occurrences.",
+      "case": "R5",
+      "control": "X7",
+      "base": [
+        {
+          "case": "R5",
+          "bundleSha256": "bdb604311d68d6c921bfe108c212ef42f34114b81e8148225ede1d0656040a00",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "rows",
+              "graphDefinition": null,
+              "graphReferences": null,
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 44
+                  },
+                  "definition": null,
+                  "references": null,
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "unavailable"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 44,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "record-array-member:27:root.nui:typedDeclaration:21:01:0"
+                      }
+                    },
+                    {
+                      "from": 40,
+                      "to": 44,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 102,
+                    "to": 106
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 102,
+                      "to": 106
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 44
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 44
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 102,
+                        "to": 106
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "typed",
+                      "referencedName": "rows"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 102,
+                      "to": 106,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "case": "R5",
+          "runtime": {
+            "rustEligible": true,
+            "reference": {
+              "errors": [],
+              "points": []
+            },
+            "rust": {
+              "errors": [],
+              "points": []
+            }
+          }
+        }
+      ],
+      "fixed": [
+        {
+          "case": "R5",
+          "bundleSha256": "bdb604311d68d6c921bfe108c212ef42f34114b81e8148225ede1d0656040a00",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "rows",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "typed:binding:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 40,
+                    "to": 44
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 102,
+                      "to": 106
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 40,
+                    "to": 44
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 44
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 102,
+                        "to": 106
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "rows",
+                        "range": {
+                          "from": 40,
+                          "to": 44
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 44,
+                          "expectedText": "rows",
+                          "newText": "items"
+                        },
+                        {
+                          "from": 102,
+                          "to": 106,
+                          "expectedText": "rows",
+                          "newText": "items"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 40,
+                      "to": 44,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 102,
+                    "to": 106
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 102,
+                      "to": 106
+                    },
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 44
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 40,
+                      "to": 44
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 102,
+                        "to": 106
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "rows",
+                        "range": {
+                          "from": 102,
+                          "to": 106
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 40,
+                          "to": 44,
+                          "expectedText": "rows",
+                          "newText": "items"
+                        },
+                        {
+                          "from": 102,
+                          "to": 106,
+                          "expectedText": "rows",
+                          "newText": "items"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 102,
+                      "to": 106,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "case": "R5",
+          "runtime": {
+            "rustEligible": true,
+            "reference": {
+              "errors": [],
+              "points": []
+            },
+            "rust": {
+              "errors": [],
+              "points": []
+            }
+          }
+        }
+      ],
+      "baseControl": [
+        {
+          "case": "X7",
+          "bundleSha256": "5a2480e550f13733f8d8a3227c4b559f78cb627391c2471edc2cf68072f4480c",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "rows",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "typed:binding:root.nui:typedDeclaration:3"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 75,
+                    "to": 79
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 125,
+                      "to": 129
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 75,
+                    "to": 79
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 75,
+                      "to": 79
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 125,
+                        "to": 129
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "typed",
+                      "referencedName": "rows"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 75,
+                      "to": 79,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:3"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 125,
+                    "to": 129
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 125,
+                      "to": 129
+                    },
+                    "declarationRange": {
+                      "from": 75,
+                      "to": 79
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 75,
+                      "to": 79
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 125,
+                        "to": 129
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "reference-resolution-change",
+                      "family": "typed",
+                      "referencedName": "rows"
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 125,
+                      "to": 129,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:3"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "case": "X7",
+          "runtime": {
+            "rustEligible": true,
+            "reference": {
+              "errors": [],
+              "points": []
+            },
+            "rust": {
+              "errors": [],
+              "points": []
+            }
+          }
+        }
+      ],
+      "fixRemoval": {
+        "label": "remove-inline",
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "test/issue1486RecordLanguageQueries.integration.test.ts",
+          "-t",
+          "'R5'|'X7'",
+          "--maxWorkers=1"
+        ],
+        "code": 1,
+        "timeout": false,
+        "seconds": 3.09,
+        "log": "/tmp/issue1486-remove-inline.log",
+        "time": "2026-10-29T13:56:35.796203+09:00",
+        "result": "1 ⎯⎯⎯⎯⎯⎯⎯",
+        "logSha256": "74fa4c45327e58474e90a8b8b9c4e1f5af0a317aa25a0c2038230169d93edd71",
+        "restoration": "Exact candidate bytes restored in finally; all six removals each had 1 failing subject and 1 passing control. Unselected tests were intentionally filtered."
+      }
+    },
+    {
+      "id": "F6-typed-rename-supplement",
+      "firstOwner": "packages/nui-language/src/document/typedRenameAnalysis.ts",
+      "causeAndRepair": "The adapter returned before supplemental semantic occurrences when no Module existed. Base produced an apparently successful but incomplete scalar Rename. Consume canonical occurrences and apply candidate/reference stability proofs with or without Module syntax; reuse the contextual candidate compiler for imported collection owners.",
+      "case": "X2",
+      "control": "X1",
+      "base": [
+        {
+          "case": "X2",
+          "bundleSha256": "9452b1e62536c7e34dd5847ff2cfa4ad7a103c02fe4ff50fbca09dbda329cbda",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "typed:binding:root.nui:typedDeclaration:1"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 12,
+                    "to": 13
+                  }
+                },
+                "references": []
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 12,
+                    "to": 13
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 12,
+                      "to": 13
+                    },
+                    "referenceRanges": []
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 12,
+                          "to": 13
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 12,
+                          "to": 13,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 12,
+                      "to": 13,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 51,
+                    "to": 52
+                  },
+                  "definition": null,
+                  "references": null,
+                  "rename": {
+                    "status": "rejected",
+                    "rejection": {
+                      "reason": "unavailable"
+                    }
+                  },
+                  "occurrences": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixed": [
+        {
+          "case": "X2",
+          "bundleSha256": "9452b1e62536c7e34dd5847ff2cfa4ad7a103c02fe4ff50fbca09dbda329cbda",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "typed:binding:root.nui:typedDeclaration:1"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 12,
+                    "to": 13
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 51,
+                      "to": 52
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 12,
+                    "to": 13
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 12,
+                      "to": 13
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 51,
+                        "to": 52
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 12,
+                          "to": 13
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 12,
+                          "to": 13,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 51,
+                          "to": 52,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 12,
+                      "to": 13,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:1"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 51,
+                    "to": 52
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 51,
+                      "to": 52
+                    },
+                    "declarationRange": {
+                      "from": 12,
+                      "to": 13
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 12,
+                      "to": 13
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 51,
+                        "to": 52
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 51,
+                          "to": 52
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 12,
+                          "to": 13,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 51,
+                          "to": 52,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 51,
+                      "to": 52,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "typed",
+                        "bindingId": "binding:root.nui:typedDeclaration:1"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "baseControl": [
+        {
+          "case": "X1",
+          "bundleSha256": "79d80305337e25e80e6f7ccec6bec61718e4bafe1e8442479f3c57530682e40f",
+          "queries": [
+            {
+              "file": "root.nui",
+              "key": "r",
+              "graphDefinition": null,
+              "graphReferences": {
+                "identity": {
+                  "documentId": "/issue1486/root.nui",
+                  "localIdentity": "recordValue:root.nui:typedDeclaration:2"
+                },
+                "declaration": {
+                  "source": {
+                    "kind": "root-current",
+                    "documentId": "/issue1486/root.nui",
+                    "sourceRevision": 1
+                  },
+                  "range": {
+                    "from": 32,
+                    "to": 33
+                  }
+                },
+                "references": [
+                  {
+                    "source": {
+                      "kind": "root-current",
+                      "documentId": "/issue1486/root.nui",
+                      "sourceRevision": 1
+                    },
+                    "range": {
+                      "from": 66,
+                      "to": 67
+                    }
+                  }
+                ]
+              },
+              "observations": [
+                {
+                  "range": {
+                    "from": 32,
+                    "to": 33
+                  },
+                  "definition": null,
+                  "references": {
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 66,
+                        "to": 67
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 32,
+                          "to": 33
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 32,
+                          "to": 33,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 66,
+                          "to": 67,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 32,
+                      "to": 33,
+                      "kind": "declaration",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "range": {
+                    "from": 66,
+                    "to": 67
+                  },
+                  "definition": {
+                    "referenceRange": {
+                      "from": 66,
+                      "to": 67
+                    },
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    }
+                  },
+                  "references": {
+                    "declarationRange": {
+                      "from": 32,
+                      "to": 33
+                    },
+                    "referenceRanges": [
+                      {
+                        "from": 66,
+                        "to": 67
+                      }
+                    ]
+                  },
+                  "rename": {
+                    "status": "ok",
+                    "plan": {
+                      "sourceRevision": 1,
+                      "target": {
+                        "sourceRevision": 1,
+                        "oldName": "r",
+                        "range": {
+                          "from": 66,
+                          "to": 67
+                        }
+                      },
+                      "edits": [
+                        {
+                          "from": 32,
+                          "to": 33,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        },
+                        {
+                          "from": 66,
+                          "to": 67,
+                          "expectedText": "r",
+                          "newText": "renamed"
+                        }
+                      ]
+                    }
+                  },
+                  "occurrences": [
+                    {
+                      "from": 66,
+                      "to": 67,
+                      "kind": "reference",
+                      "identity": {
+                        "kind": "recordValue",
+                        "statementId": "root.nui:typedDeclaration:2"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "fixRemoval": {
+        "label": "remove-typed",
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "test/issue1486RecordLanguageQueries.integration.test.ts",
+          "-t",
+          "'X2'|'X1'",
+          "--maxWorkers=1"
+        ],
+        "code": 1,
+        "timeout": false,
+        "seconds": 2.88,
+        "log": "/tmp/issue1486-remove-typed.log",
+        "time": "2026-10-29T13:56:41.888894+09:00",
+        "result": "1 ⎯⎯⎯⎯⎯⎯⎯",
+        "logSha256": "f2d00f13298b61463dce06d79e8c46cd936acac53a871c28c608694319f9765e",
+        "restoration": "Exact candidate bytes restored in finally; all six removals each had 1 failing subject and 1 passing control. Unselected tests were intentionally filtered."
+      }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import type { CompiledDslDocument } from "../dsl/dslDocument";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileSourceSemanticRenameCandidate } from "./sourceSemanticRenameCandidate";
 import { createDslSemanticOccurrenceIndex, dslSemanticIdentityKey } from "../dsl/dslSemanticOccurrenceIndex";
 import { parseGeometryArrayDeferredModuleExportId } from "../dsl/geometryArraySemanticAnalysis";
 import { isBareDslIdentifierChar } from "../dsl/dslTokens";
@@ -326,9 +326,7 @@ export const moduleSemanticStableFingerprint = (compiled: CompiledDslDocument) =
   });
 };
 
-const compileWithStableIds = (source: string, before: CompiledDslDocument) => compileDslDocument(source, {
-  assignedStatementIds: before.statementMap?.statementIdByStatementIndex
-});
+const compileWithStableIds = compileSourceSemanticRenameCandidate;
 
 type RenameReplacement = {
   from: number;
@@ -603,13 +601,14 @@ export const analyzeRecordSemanticRename = (
     return `${text.slice(0, span.from)}${entry.newName}${text.slice(span.to)}`;
   }, sourceText.replace(/\r\n/g, "\n"));
   const after = compileWithStableIds(edited, compiled);
-  const afterRecords = after.sourceLexicalNamespace?.recordSemanticAnalysis;
+  const afterRecords = after?.sourceLexicalNamespace?.recordSemanticAnalysis;
   const targetStillNamed = target.kind === "recordType"
     ? afterRecords?.definitionsByStatementId.get(target.statementId)?.name === newName
     : target.kind === "recordValue"
       ? afterRecords?.valuesByStatementId.get(target.statementId)?.name === newName
       : afterRecords?.definitionsByStatementId.get(target.field.recordStatementId)?.fields[target.field.fieldIndex]?.name === newName;
   if (
+    !after ||
     after.diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
     !after.sourceLexicalNamespace ||
     !afterRecords ||

@@ -1,0 +1,818 @@
+[
+  {
+    "id": "R1",
+    "purpose": "reducer: local imported-record Rename loses candidate namespace",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\nconst n: number = @r.x\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 40,
+              "to": 41
+            },
+            {
+              "from": 88,
+              "to": 89
+            }
+          ]
+        },
+        "sha256": "77c69ffefe01a284586c9928de49e77ac2c8266ac1c9c3255589509e4872d005"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "646979c35243c6b79fae77b291fa1db37b53fdfa16256588717b8a65ad2e1716",
+    "points": null
+  },
+  {
+    "id": "R2",
+    "purpose": "reducer: literal collection omits record occurrence",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\nconst rows: types::R[] = [@r]\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 40,
+              "to": 41
+            },
+            {
+              "from": 96,
+              "to": 97
+            }
+          ]
+        },
+        "sha256": "19ea4c14da12e3bafed2ef45be23cb60e41d5c8494271535a93082fc181b6a3c"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "e05c3fee9aedd69e99d97d3e2c0d9064d69000888111f07514a02a6e1c15e0ab",
+    "points": null
+  },
+  {
+    "id": "R3",
+    "purpose": "reducer: public Module Rename with imported record parameter",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "module.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nexport module M(v: types::R) {\n  const local: types::R = @v\n  export const out: types::R = @local\n}\n",
+        "ranges": {
+          "M": [
+            {
+              "from": 48,
+              "to": 49
+            }
+          ]
+        },
+        "sha256": "fe291ad71dc703a4c165858412c5bf716bf408c96864ca5fa8649c5b536719c1"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as t\nimport \"./module.nui\" as m\nconst r: t::R = t::R(x: 7)\ninstance one = m::M(v: @r)\nconst n: number = @one::out.x\n",
+        "ranges": {
+          "M": [
+            {
+              "from": 102,
+              "to": 103
+            }
+          ]
+        },
+        "sha256": "d0fb539309301cbb873a39a925d78ff725cb0984bc0c28178b17816ebda11af5"
+      }
+    },
+    "targets": [
+      {
+        "file": "module.nui",
+        "key": "M",
+        "kind": "publicModule",
+        "newName": "Changed"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "963194a75acd53f498be89d18bd99084e9f30edee56c86df06a994aa58a1e996",
+    "points": null
+  },
+  {
+    "id": "X1",
+    "purpose": "passing control: ordinary same-file record value Rename",
+    "files": {
+      "root.nui": {
+        "text": "nui 1\nrecord R(x: number)\nconst r: R = R(x: 7)\nconst n: number = @r.x\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 32,
+              "to": 33
+            },
+            {
+              "from": 66,
+              "to": 67
+            }
+          ]
+        },
+        "sha256": "378287898a390695b6e7947d7d554cf6890bcdbc62d99928ad8bba2b3971e13c"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "79d80305337e25e80e6f7ccec6bec61718e4bafe1e8442479f3c57530682e40f",
+    "points": null
+  },
+  {
+    "id": "X2",
+    "purpose": "passing control: scalar literal collection occurrence",
+    "files": {
+      "root.nui": {
+        "text": "nui 1\nconst r: number = 7\nconst rows: number[] = [@r]\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 12,
+              "to": 13
+            },
+            {
+              "from": 51,
+              "to": 52
+            }
+          ]
+        },
+        "sha256": "58daa7359170f78d58b1f1f3f6e57f9a9bc38f6e34b4ddf43a6e205aec0f859f"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "9452b1e62536c7e34dd5847ff2cfa4ad7a103c02fe4ff50fbca09dbda329cbda",
+    "points": null
+  },
+  {
+    "id": "X3",
+    "purpose": "passing control: imported Module with scalar parameter",
+    "files": {
+      "module.nui": {
+        "text": "nui 1\nexport module M(v: number) {\n export const out: number = @v\n}\n",
+        "ranges": {
+          "M": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "847bce032c1e69407ae765a4ffceb983d0f0f690f05d20ed2d3db1bc463708cc"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./module.nui\" as m\ninstance one = m::M(v: 7)\n",
+        "ranges": {
+          "M": [
+            {
+              "from": 51,
+              "to": 52
+            }
+          ]
+        },
+        "sha256": "20eae7e5c925c7e21163960424c895b6d8e487b9eb4021e856b2aafe9e914bdc"
+      }
+    },
+    "targets": [
+      {
+        "file": "module.nui",
+        "key": "M",
+        "kind": "publicModule",
+        "newName": "Changed"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "27f144531ba4d07298ec04d9d5a37a1cf9c9085b5507d4505d489e1e3240e90f",
+    "points": null
+  },
+  {
+    "id": "X4",
+    "purpose": "qualified imported Module Rename is not captured by a same-text local Module",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "module.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nexport module M(v: types::R) {\n  const local: types::R = @v\n  export const out: types::R = @local\n}\n",
+        "ranges": {
+          "M": [
+            {
+              "from": 48,
+              "to": 49
+            }
+          ]
+        },
+        "sha256": "fe291ad71dc703a4c165858412c5bf716bf408c96864ca5fa8649c5b536719c1"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as t\nimport \"./module.nui\" as m\nconst r: t::R = t::R(x: 7)\ninstance one = m::M(v: @r)\nconst n: number = @one::out.x\nmodule Changed() {\n}\n",
+        "ranges": {
+          "M": [
+            {
+              "from": 102,
+              "to": 103
+            }
+          ]
+        },
+        "sha256": "f1138740c92b6fff5fd2a68eb12c155c4bd6a2dd43e1509062ca2a0512841760"
+      },
+      "independent.nui": {
+        "text": "nui 1\nconst n: number = 41\n",
+        "ranges": {},
+        "sha256": "7c5b9db7a44da8f0a3ecf6e190595d17ec7aa469872c930ed8308995955d5b65"
+      }
+    },
+    "targets": [
+      {
+        "file": "module.nui",
+        "key": "M",
+        "kind": "publicModule",
+        "newName": "Changed"
+      }
+    ],
+    "transition": "cross-document collision/capture",
+    "bundleSha256": "a9530ce0cc6aa9cdb97572a27bcc2a2a36b9f7c95708811cff40a17d9caa058a",
+    "points": null
+  },
+  {
+    "id": "X5",
+    "purpose": "C2 evidence-triggered collection owner and selected record alias queries",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\nconst rows: types::R[] = [@r, types::R(x: 13)]\nconst picked: types::R = @rows[0]\nconst n: number = @picked.x\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 40,
+              "to": 41
+            },
+            {
+              "from": 96,
+              "to": 97
+            }
+          ],
+          "rows": [
+            {
+              "from": 75,
+              "to": 79
+            },
+            {
+              "from": 142,
+              "to": 146
+            }
+          ],
+          "picked": [
+            {
+              "from": 122,
+              "to": 128
+            },
+            {
+              "from": 169,
+              "to": 175
+            }
+          ]
+        },
+        "sha256": "9617d9a86cf3f67e2f542b415d983932e6a5eb444e1e59e54ed9bfbc27310659"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "rows",
+        "kind": "local",
+        "newName": "items"
+      },
+      {
+        "file": "root.nui",
+        "key": "picked",
+        "kind": "local",
+        "newName": "chosen"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "b5a833346503bb933444c4828e4f4eeb95331f603af49886b0f59158642ff656",
+    "points": null,
+    "numeric": {
+      "n": 7
+    },
+    "unsupported": {
+      "root.nui": [
+        {
+          "from": 43,
+          "to": 51
+        },
+        {
+          "from": 54,
+          "to": 62
+        },
+        {
+          "from": 81,
+          "to": 89
+        },
+        {
+          "from": 99,
+          "to": 107
+        },
+        {
+          "from": 130,
+          "to": 138
+        }
+      ]
+    }
+  },
+  {
+    "id": "R4",
+    "purpose": "reducer: imported generalized record geometry lowering",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nexport record Box(inner: R, anchor: point)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "052ec153bbd598c33b65c68fa01bc69833194dd82e65055a35a32e08897bea8b"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\npoint Origin = coordinate(x: 11, y: 17)\nconst box: types::Box = types::Box(inner: @r, anchor: @Origin)\npoint Result = coordinate(x: @box.inner.x, y: @box.anchor.y)\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 40,
+              "to": 41
+            },
+            {
+              "from": 152,
+              "to": 153
+            }
+          ]
+        },
+        "sha256": "41931d56ed84c328bd0cf899383978a97e2a1d5bc3247e15e01b8bd9e286e762"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "3d42dea3f05174f70f58920c49f0268d2a302f6ed52bcf1f295658e982a61cfc",
+    "points": [
+      [
+        "Origin",
+        11,
+        17
+      ],
+      [
+        "Result",
+        7,
+        17
+      ]
+    ],
+    "numeric": {},
+    "unsupported": {
+      "root.nui": [
+        {
+          "from": 43,
+          "to": 51
+        },
+        {
+          "from": 54,
+          "to": 62
+        }
+      ]
+    }
+  },
+  {
+    "id": "X6",
+    "purpose": "passing neighbor: same geometry with an unused Module activation",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nexport record Box(inner: R, anchor: point)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "052ec153bbd598c33b65c68fa01bc69833194dd82e65055a35a32e08897bea8b"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\npoint Origin = coordinate(x: 11, y: 17)\nconst box: types::Box = types::Box(inner: @r, anchor: @Origin)\npoint Result = coordinate(x: @box.inner.x, y: @box.anchor.y)\nmodule Unused() {\n}\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 40,
+              "to": 41
+            },
+            {
+              "from": 152,
+              "to": 153
+            }
+          ]
+        },
+        "sha256": "9f1a7d89d6a23aaa2bb3297f4c0192856ce0cc318c226bcfc129b80c91916139"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "dbd9e3fed8b7f040ea7631d1128895252ce88dbec099b6fbb350ea75e3a86205",
+    "points": [
+      [
+        "Origin",
+        11,
+        17
+      ],
+      [
+        "Result",
+        7,
+        17
+      ]
+    ],
+    "numeric": {},
+    "unsupported": {
+      "root.nui": [
+        {
+          "from": 43,
+          "to": 51
+        },
+        {
+          "from": 54,
+          "to": 62
+        }
+      ]
+    }
+  },
+  {
+    "id": "R5",
+    "purpose": "reducer: inline constructor manufactures collection declaration identity",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst rows: types::R[] = [types::R(x: 7)]\nconst picked: types::R = @rows[0]\nconst n: number = @picked.x\n",
+        "ranges": {
+          "rows": [
+            {
+              "from": 40,
+              "to": 44
+            },
+            {
+              "from": 102,
+              "to": 106
+            }
+          ]
+        },
+        "sha256": "c92e74b4fc6d246b01ff7a8d7bb4f303d9020cc001e88bce30d9699361c249e5"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "rows",
+        "kind": "local",
+        "newName": "items"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "bdb604311d68d6c921bfe108c212ef42f34114b81e8148225ede1d0656040a00",
+    "points": null,
+    "numeric": {
+      "n": 7
+    },
+    "unsupported": {}
+  },
+  {
+    "id": "X7",
+    "purpose": "passing collection query neighbor without inline constructor",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\nconst rows: types::R[] = [@r]\nconst picked: types::R = @rows[0]\nconst n: number = @picked.x\n",
+        "ranges": {
+          "rows": [
+            {
+              "from": 75,
+              "to": 79
+            },
+            {
+              "from": 125,
+              "to": 129
+            }
+          ]
+        },
+        "sha256": "8d604dbf35b28609d2179baccd16725d5cc4135c304dbd98691ee2bfd70158d9"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "rows",
+        "kind": "local",
+        "newName": "items"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "5a2480e550f13733f8d8a3227c4b559f78cb627391c2471edc2cf68072f4480c",
+    "points": null,
+    "numeric": {
+      "n": 7
+    },
+    "unsupported": {}
+  },
+  {
+    "id": "X8",
+    "purpose": "nested-Module record forwarding neighbor before adding record-in-record",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\nmodule Outer(v: types::R) {\n  module Inner(v: types::R) {\n    export const out: types::R = @v\n  }\n  instance inside = Inner(v: @v)\n  export const out: types::R = @inside::out\n}\ninstance one = Outer(v: @r)\nconst n: number = @one::out.x\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 40,
+              "to": 41
+            },
+            {
+              "from": 271,
+              "to": 272
+            }
+          ]
+        },
+        "sha256": "d9735c8f92a6ef7630d5a184ba902696e4589aadd725afcbe578f53afde3d7ce"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "1404d8cc232f7e577b1b8853def66acb3a7ac4d49305e85f2cc988c354eb4f4d",
+    "points": null,
+    "numeric": {
+      "n": 7
+    },
+    "unsupported": {
+      "root.nui": [
+        {
+          "from": 43,
+          "to": 51
+        },
+        {
+          "from": 54,
+          "to": 62
+        },
+        {
+          "from": 85,
+          "to": 93
+        },
+        {
+          "from": 115,
+          "to": 123
+        },
+        {
+          "from": 149,
+          "to": 157
+        },
+        {
+          "from": 220,
+          "to": 228
+        }
+      ]
+    }
+  },
+  {
+    "id": "R6",
+    "purpose": "asymmetric imported-Module record outputs independently observable in point coordinates",
+    "files": {
+      "lib.nui": {
+        "text": "nui 1\nexport record R(x: number)\nrecord Hidden(x: number)\n",
+        "ranges": {
+          "R": [
+            {
+              "from": 20,
+              "to": 21
+            }
+          ]
+        },
+        "sha256": "d01e4358cab457a93d015d5ff862d9b77a53949964aabea9d1353606ee9a94b4"
+      },
+      "root.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nconst r: types::R = types::R(x: 7)\nimport \"./module.nui\" as m\nconst s: types::R = types::R(x: 19)\ninstance one = m::M(v: @r)\ninstance two = m::M(v: @s)\npoint Result = coordinate(x: @one::out.x, y: @two::out.x)\n",
+        "ranges": {
+          "r": [
+            {
+              "from": 40,
+              "to": 41
+            },
+            {
+              "from": 156,
+              "to": 157
+            }
+          ]
+        },
+        "sha256": "0f9868b0950e019f7cff1a026ca4159cc334f41887b94913273bcab1583bdb72"
+      },
+      "module.nui": {
+        "text": "nui 1\nimport \"./lib.nui\" as types\nexport module M(v: types::R) {\n  const local: types::R = @v\n  export const out: types::R = @local\n}\n",
+        "ranges": {
+          "M": [
+            {
+              "from": 48,
+              "to": 49
+            }
+          ]
+        },
+        "sha256": "fe291ad71dc703a4c165858412c5bf716bf408c96864ca5fa8649c5b536719c1"
+      }
+    },
+    "targets": [
+      {
+        "file": "root.nui",
+        "key": "r",
+        "newName": "renamed",
+        "kind": "local"
+      }
+    ],
+    "transition": "compile → query → Rename → physical edit → recompile → requery",
+    "bundleSha256": "94ba7b04ce899ae124ebdabe411033f0a05d624b2acd1f4e0863415e1523a3a5",
+    "points": [
+      [
+        "Result",
+        7,
+        19
+      ]
+    ],
+    "numeric": {},
+    "unsupported": {
+      "root.nui": [
+        {
+          "from": 43,
+          "to": 51
+        },
+        {
+          "from": 54,
+          "to": 62
+        },
+        {
+          "from": 105,
+          "to": 113
+        },
+        {
+          "from": 116,
+          "to": 124
+        }
+      ],
+      "module.nui": [
+        {
+          "from": 53,
+          "to": 61
+        },
+        {
+          "from": 80,
+          "to": 88
+        },
+        {
+          "from": 114,
+          "to": 122
+        }
+      ]
+    }
+  }
+]

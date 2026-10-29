@@ -1,0 +1,30 @@
+{
+  "rejectedAttempts": [
+    {
+      "cell": "F1",
+      "status": "CONTRACT_INVALID",
+      "source": "module Changed() {}",
+      "reason": "One-line empty Module block has trailing tokens; replaced inside F1 with newline-delimited block before acceptance.",
+      "consumesAcceptedUnit": false
+    }
+  ],
+  "oracleCorrections": [
+    {
+      "cell": "F1",
+      "retainedAs": "X4",
+      "reason": "A local Module named Changed cannot capture a qualified imported m::Changed; preserved as a legal passing control, not a defect."
+    },
+    {
+      "cell": "E1",
+      "reason": "Allocator expectation corrected: version statements do not allocate statement IDs; import is slot 1 and Module is slot 2."
+    },
+    {
+      "cell": "F2",
+      "reason": "Cycle diagnostics belong to both import edges; assert exact owner set, not an invented lib-first ordering."
+    },
+    {
+      "cell": "initial harness",
+      "reason": "For a one-character token, from+1 is the Rename-exclusive end. All accepted Rename selections use token.from."
+    }
+  ]
+}

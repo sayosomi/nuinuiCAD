@@ -627,8 +627,8 @@ const addRecordOccurrences = (compiled: CompiledDslDocument, add: AddOccurrence)
   for (const value of records.valuesByStatementId.values()) {
     const statement = compiled.statements[value.statementIndex];
     if (!statement) continue;
-    if (statement.nameSpan) addPhysicalOccurrence(add, compiled, value.statementIndex, statement.nameSpan, recordValueIdentityOccurrence(value.statementId), "declaration");
-    if (value.typeReference.typeIdentity) {
+    if (statement.nameSpan && !value.inlineCollectionMember) addPhysicalOccurrence(add, compiled, value.statementIndex, statement.nameSpan, recordValueIdentityOccurrence(value.statementId), "declaration");
+    if (value.typeReference.typeIdentity && !value.inlineCollectionMember) {
       addPhysicalOccurrence(add, compiled, value.statementIndex, value.typeReference.span, recordTypeIdentityOccurrence(value.typeReference.typeIdentity), "reference");
     }
     if (value.constructor) addRecordConstructorOccurrences(compiled, add, value.statementIndex, value.constructor);
@@ -1525,16 +1525,31 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
     };
     if (value.kind === "literal") {
       for (const member of value.members) {
+        // Literals and inline constructors have synthetic value owners, not
+        // authored references. Only the canonical reference parser proves a
+        // source token that can participate in navigation or rename.
+        const parsed = parseDslSourceReference(member.sourceText);
+        if (parsed.kind !== "valid") continue;
+        const nameSpan = { start: member.sourceSpan.start + parsed.reference.pathRange.start,
+          end: member.sourceSpan.start + parsed.reference.pathRange.end };
         const target = member.target as {
           kind: string;
           statementId?: string;
           definitionStatementId?: string;
           parameterIndex?: number;
         };
-        if (target.kind === "scalarValue" || target.kind === "recordValue") {
-          if (target.statementId) addCollectionSource(member.sourceSpan, target.statementId);
+        if (target.kind === "recordValue" && target.statementId) {
+          addPhysicalOccurrence(add, compiled, statementIndex, nameSpan,
+            recordValueIdentityOccurrence(target.statementId), "reference");
+        } else if (target.kind === "scalarValue") {
+          const declaration = compiled.sourceLexicalNamespace?.allDeclarations.find(candidate => candidate.statementId === target.statementId);
+          const binding = declaration && compiled.bindingAnalysis?.catalog.bindings.find(candidate =>
+            candidate.statementIndex === declaration.statementIndex && candidate.kind === "typed" && !isSyntheticRecordBinding(candidate.id));
+          if (declaration) addPhysicalOccurrence(add, compiled, statementIndex,
+            nameSpan,
+            binding ? { kind: "typed", bindingId: binding.id } : declarationIdentity(compiled, declaration), "reference");
         } else if (target.kind === "moduleParameterValue" && target.definitionStatementId !== undefined && target.parameterIndex !== undefined) {
-          addPhysicalOccurrence(add, compiled, statementIndex, { start: member.sourceSpan.start + 1, end: member.sourceSpan.end }, {
+          addPhysicalOccurrence(add, compiled, statementIndex, nameSpan, {
             kind: "module",
             target: {
               kind: "moduleParameter",
@@ -1589,7 +1604,7 @@ const addModuleSemanticPathOccurrences = (compiled: CompiledDslDocument, add: Ad
   };
   const collectionAnalysis = compiled.sourceLexicalNamespace?.geometryArraySemanticAnalysis;
   for (const value of collectionAnalysis?.genericValues ?? []) {
-    if (value.value?.kind === "if" || value.value?.kind === "match") {
+    if (value.value?.kind === "literal" || value.value?.kind === "if" || value.value?.kind === "match") {
       addCollectionControlFlowOccurrences(value.statementIndex, value.value);
     }
   }

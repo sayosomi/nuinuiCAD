@@ -10,7 +10,7 @@ import type { BindingId } from "../scalars/bindingCatalog";
 import { analyzeTypedBindingRename, type TypedRenameAnalysis, type TypedRenameSpan } from "../scalars/typedRenameAnalysis";
 import { buildTypedRenameSplices, type TypedRenameSpliceEntry } from "./typedRenameSplice";
 import { applyLineSplices } from "./textPatch";
-import { compileDslDocument } from "../dsl/dslDocument";
+import { compileSourceSemanticRenameCandidate } from "./sourceSemanticRenameCandidate";
 import { moduleSemanticStableFingerprint } from "./moduleSemanticRenameAnalysis";
 import type { ModuleScalarExpressionSemantic, ModuleGeometryReferenceSemantic } from "../dsl/moduleSemanticTypes";
 import { isDslGeometryValueType } from "../dsl/dslValueTypes";
@@ -44,9 +44,9 @@ export const analyzeTypedBindingRenameInDocument = ({
     textTemplates: compiled.textTemplates,
     numericBindings: compiled.numericBindings
   });
-  if (analysis.verdict === "rejected" || !compiled.moduleSemanticAnalysis) return analysis;
+  if (analysis.verdict === "rejected") return analysis;
 
-  const moduleOccurrences = moduleBindingOccurrences(compiled, targetBindingId, newName);
+  const moduleOccurrences = compiled.moduleSemanticAnalysis ? moduleBindingOccurrences(compiled, targetBindingId, newName) : [];
   const target = compiled.bindingAnalysis.catalog.bindingsById.get(targetBindingId);
   const occurrences = [...analysis.occurrences, ...moduleOccurrences];
   // Lowered numeric inputs can carry both collection names and scalar index
@@ -87,14 +87,14 @@ export const analyzeTypedBindingRenameInDocument = ({
   } catch {
     return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: combined.declarationSpan, name: target.name } };
   }
-  const after = compileDslDocument(candidateSource, { assignedStatementIds: compiled.statementMap?.statementIdByStatementIndex });
+  const after = compileSourceSemanticRenameCandidate(candidateSource, compiled);
   // A newly collected index reference can be captured even when the Module
   // fingerprint keeps the same collection target. Preserve every typed source
   // identity, including unrelated references, across the physical candidate.
   const typedReferences = (document: CompiledDslDocument) => createDslSemanticOccurrenceIndex(document).occurrences
     .filter((occurrence) => occurrence.identity.kind === "typed")
     .map((occurrence) => occurrence.identity.kind === "typed" ? `${occurrence.kind}:${occurrence.identity.bindingId}` : "");
-  if (after.diagnostics.length > 0 || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled) ||
+  if (!after || after.diagnostics.length > 0 || moduleSemanticStableFingerprint(after) !== moduleSemanticStableFingerprint(compiled) ||
       JSON.stringify(typedReferences(after)) !== JSON.stringify(typedReferences(compiled))) {
     return { verdict: "rejected", reason: "capture", detail: { kind: "module-semantic", span: combined.declarationSpan, name: target.name } };
   }
