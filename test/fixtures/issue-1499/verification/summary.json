@@ -1,0 +1,145 @@
+{
+  "base": "0fd989e683104944d45bed6830bdac148d9bbc94",
+  "testedSourceCommit": "a7d2b734018b6a4016672d41fa95ae4ec79f3208",
+  "productionChanges": false,
+  "primary": {
+    "L1": "PASS",
+    "L2": "PASS",
+    "L3": "PASS",
+    "L4": "PASS",
+    "A1": "PASS",
+    "A2": "PASS",
+    "A3": "PASS",
+    "A4": "PASS",
+    "B1": "PASS",
+    "B2": "PASS",
+    "B3": "PASS",
+    "B4": "PASS",
+    "N1": "PASS",
+    "N2": "PASS",
+    "N3": "PASS",
+    "N4": "PASS"
+  },
+  "X": "X1-X6 NOT_TRIGGERED",
+  "reducers": "R1-R6 NOT_TRIGGERED",
+  "acceptedUnits": 16,
+  "sourceSnapshots": 17,
+  "persistentRustSpawns": 1,
+  "persistentRustRequests": 17,
+  "tsCheckpoints": 17,
+  "rustCheckpoints": 17,
+  "novelDefects": [],
+  "counterfactual": "N/A: no defect or repair",
+  "focusedTS": {
+    "passed": 340,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "focusedRust": {
+    "passed": 28,
+    "failed": 0,
+    "ignored": 0,
+    "filteredOut": 627,
+    "exit": 0
+  },
+  "fullTests": {
+    "passed": 11518,
+    "failed": 0,
+    "skipped": 187,
+    "filesPassed": 713,
+    "filesSkipped": 2,
+    "exit": 0
+  },
+  "parity": {
+    "passed": 207,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "fullGateCommands": [
+    {
+      "name": "build",
+      "args": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 27.08495593070984,
+      "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+    },
+    {
+      "name": "lint",
+      "args": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit": 0,
+      "seconds": 28.458969116210938,
+      "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+    },
+    {
+      "name": "full-test",
+      "args": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exit": 0,
+      "seconds": 362.5806951522827,
+      "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+    },
+    {
+      "name": "parity",
+      "args": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "exit": 0,
+      "seconds": 56.65228796005249,
+      "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+    },
+    {
+      "name": "dsl-reference",
+      "args": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "exit": 0,
+      "seconds": 0.6198580265045166,
+      "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+    },
+    {
+      "name": "committed-diff",
+      "args": [
+        "git",
+        "diff",
+        "--check",
+        "0fd989e683104944d45bed6830bdac148d9bbc94",
+        "HEAD"
+      ],
+      "exit": 0,
+      "seconds": 0.039656877517700195,
+      "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+    },
+    {
+      "name": "worktree-diff",
+      "args": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "seconds": 0.02066779136657715,
+      "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+    }
+  ],
+  "conditionalRustGate": "NOT_TRIGGERED: no rust-evaluator paths changed",
+  "humanManualE2E": "Not Required: automated host-neutral acceptance; no production host or UI changes",
+  "review": "PENDING independent exact pushed-HEAD blocking review"
+}

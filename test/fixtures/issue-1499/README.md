@@ -43,3 +43,22 @@ Saved verification evidence includes compiler validation, Base results,
 focused regressions, and the complete required final gate. These CLI results
 do not establish physical sewability or Human Manual GUI E2E. No production
 owner, language behavior, architecture or user documentation changed.
+
+Final verification at source commit `a7d2b734018b6a4016672d41fa95ae4ec79f3208`:
+focused TS 340 PASS, focused Rust 28 PASS (627 filtered, no ignored), full JS
+11,518 PASS / 187 skipped (713 files PASS / 2 skipped), parity 207 PASS /
+0 skipped. Build, lint, DSL reference and both diff checks exited 0. No Rust
+path changed, so the conditional full Rust gate was not triggered.
+`verification/tested-source-sha256.json` proves the tested inputs; subsequent
+changes archive evidence only. Each matrix run used one persistent Rust process
+and 17 requests (N4 includes its ordinary recovery revision), plus 17 TS
+checkpoints. All 16 primary units passed; 16/28 exploration units were accepted.
+
+`verification/audit-selected-points.py` independently audits the saved final
+product outputs, including actual selected Rust points and pure values, without
+invoking a solver or additional product input. Run it from any working directory
+with no arguments to reproduce `selected-point-residuals.json`. All 86 successful
+selections across both hosts and recovery pass; the largest actual primitive
+residual is 2.212e-11 mm. Duplicate Module leaf names are disambiguated spatially
+only in this supplemental residual audit; canonical source and instance identity
+are asserted directly in the production integration test.

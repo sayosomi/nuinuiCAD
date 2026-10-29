@@ -1,0 +1,9 @@
+Final gate at a7d2b734018b6a4016672d41fa95ae4ec79f3208 (each command bounded; fail on nonzero):
+npm run build
+npm run lint
+npm test -- --maxWorkers=2
+npm run test:parity
+npm run docs:dsl:check
+git diff --check 0fd989e683104944d45bed6830bdac148d9bbc94 HEAD
+git diff --check
+Conditional Rust fmt/check/test/clippy not triggered: no rust-evaluator path changes.
