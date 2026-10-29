@@ -663,6 +663,7 @@ const recordFieldBindingIdForSemanticTarget = ({
   moduleSemanticAnalysis,
   sourceNamespace,
   rootRecordPlan,
+  moduleRuntimeContext,
   parentContext,
   visited = new Set<string>()
 }: {
@@ -675,6 +676,7 @@ const recordFieldBindingIdForSemanticTarget = ({
   moduleSemanticAnalysis: ModuleSemanticAnalysis;
   sourceNamespace: SourceLexicalNamespaceIndex;
   rootRecordPlan: ReturnType<typeof planRecordScalarLowering> | undefined;
+  moduleRuntimeContext?: ModuleRuntimeContext;
   parentContext?: SemanticRecordInstanceContext;
   visited?: Set<string>;
 }): BindingId | undefined => {
@@ -693,6 +695,7 @@ const recordFieldBindingIdForSemanticTarget = ({
           moduleSemanticAnalysis,
           sourceNamespace,
           rootRecordPlan,
+          moduleRuntimeContext,
           parentContext,
           visited
         })
@@ -710,7 +713,7 @@ const recordFieldBindingIdForSemanticTarget = ({
       if (!local.value.constructor && (local.valueExpression?.kind === "coalesce" || local.valueExpression?.kind === "match" && local.valueExpression.optionalRecordMatch || local.valueExpression?.kind === "none" || isDslOptionalValueType(local.declaredValueType))) return undefined;
       if (local.value.constructor || local.valueExpression) return moduleRecordScalarBindingIdForPath(path, target.statementId, fieldPath);
       return local.target
-        ? recordFieldBindingIdForSemanticTarget({ target: local.target, field, fieldPath, path, definition, instance, moduleSemanticAnalysis, sourceNamespace, rootRecordPlan, visited })
+        ? recordFieldBindingIdForSemanticTarget({ target: local.target, field, fieldPath, path, definition, instance, moduleSemanticAnalysis, sourceNamespace, rootRecordPlan, moduleRuntimeContext, parentContext, visited })
         : undefined;
     }
     const parentLocal = parentContext?.definition.recordValues.find((value) => value.value.statementId === target.statementId);
@@ -727,6 +730,7 @@ const recordFieldBindingIdForSemanticTarget = ({
             moduleSemanticAnalysis,
             sourceNamespace,
             rootRecordPlan,
+            moduleRuntimeContext,
             visited
           })
         : undefined;
@@ -755,6 +759,7 @@ const recordFieldBindingIdForSemanticTarget = ({
         moduleSemanticAnalysis,
         sourceNamespace,
         rootRecordPlan,
+        moduleRuntimeContext,
         parentContext,
         visited
       });
@@ -763,8 +768,12 @@ const recordFieldBindingIdForSemanticTarget = ({
       ? moduleRecordParameterScalarBindingIdForPath(owner.path, target.definitionStatementId, target.parameterIndex, fieldPath)
       : undefined;
   }
-  const child = moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
-  const childDefinition = child?.callee && moduleSemanticAnalysis.definitionsByStatementId.get(child.callee.definitionStatementId);
+  const child = moduleRuntimeContext?.instanceFor(target.instanceIdentity)
+    ?? moduleSemanticAnalysis.instancesByStatementId.get(target.instanceStatementId);
+  const childDefinition = child?.callee && (moduleRuntimeContext?.definitionFor(child.callee.definitionIdentity)
+    ?? moduleSemanticAnalysis.definitionsByStatementId.get(child.callee.definitionStatementId));
+  const childSourceNamespace = moduleRuntimeContext?.documentFor(childDefinition?.documentId)?.sourceLexicalNamespace ?? sourceNamespace;
+  const childAnalysis = moduleRuntimeContext?.analysisFor(childDefinition?.documentId) ?? moduleSemanticAnalysis;
   const exported = childDefinition?.exports.find((candidate) =>
     candidate.kind === "record" && candidate.name === target.exportName && candidate.exportedStatementId === target.exportedStatementId
   );
@@ -773,14 +782,15 @@ const recordFieldBindingIdForSemanticTarget = ({
         target: exported.backingTarget,
         field,
         fieldPath,
-        path: child.callerModuleDefinitionStatementId === null
-          ? [child.statementId]
-          : [...path, child.statementId],
+        path: moduleRuntimeContext
+          ? moduleRuntimeContext.runtimePathForInstance(child.callerModuleDefinitionStatementId === null ? [] : path, child)
+          : child.callerModuleDefinitionStatementId === null ? [child.statementId] : [...path, child.statementId],
         definition: childDefinition,
         instance: child,
-        moduleSemanticAnalysis,
-        sourceNamespace,
+        moduleSemanticAnalysis: childAnalysis,
+        sourceNamespace: childSourceNamespace,
         rootRecordPlan,
+        moduleRuntimeContext,
         ...(child.callerModuleDefinitionStatementId === null
           ? {}
           : { parentContext: { path, definition, instance } }),
@@ -841,7 +851,8 @@ export const moduleRecordExportFieldBindingIdFor = ({
     instance,
     moduleSemanticAnalysis: definitionAnalysis,
     sourceNamespace: definitionSourceNamespace,
-    rootRecordPlan
+    rootRecordPlan,
+    moduleRuntimeContext
   });
 };
 
@@ -896,7 +907,8 @@ export const moduleScalarExportBindingSeeds = (
               instance,
               moduleSemanticAnalysis: definitionAnalysis,
               sourceNamespace: definitionSourceNamespace,
-              rootRecordPlan
+              rootRecordPlan,
+              moduleRuntimeContext
             });
             if (!id) return [];
             return [{
@@ -985,6 +997,17 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic, a
   );
 };
 
+/** Split a compiler-resolved field path at its one indexed collection field. */
+const indexedRecordFieldPaths = (
+  target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget
+) => {
+  if (target.collectionIndex === undefined || !target.collectionFieldPath) return null;
+  const fieldPath = target.fieldPath ?? [target.field];
+  const boundary = target.collectionFieldPath.length;
+  if (boundary >= fieldPath.length) return null;
+  return { contents: fieldPath.slice(0, boundary), member: fieldPath.slice(boundary) };
+};
+
 const lowerRecordPropertyAst = (
   ast: ModuleScalarExpressionSemantic["ast"],
   semantic: ModuleScalarExpressionSemantic,
@@ -1035,6 +1058,15 @@ const lowerRecordPropertyAst = (
             target.record.kind === "recordParameter" ||
             target.record.kind === "deferredModuleRecordExport")
         ) {
+          if (indexedRecordFieldPaths(target)) {
+            return {
+              kind: "collectionIndex",
+              span: node.span,
+              nameSpan: { start: node.elementNameSpan.start, end: node.propertySpan.end },
+              name: node.elementName,
+              index: { kind: "numberLiteral", span: node.span, value: target.collectionIndex }
+            };
+          }
           const indexedProperty = /^(.*)\[(\d+)\]$/.exec(node.property);
           if (indexedProperty) {
             const fieldPathName = indexedProperty[1]!;
@@ -1795,9 +1827,18 @@ export const lowerExpression = (
                 recordValueFieldPath
               )
             : null;
+        const indexedPaths = recordFieldTarget ? indexedRecordFieldPaths(recordFieldTarget) : null;
+        const indexedRecord = recordFieldTarget && indexedPaths ? recordCollectionTargetFor(recordFieldTarget) : null;
+        const indexedMemberCollectionId = indexedRecord && indexedPaths
+          ? recordFieldCollectionValueIdFor(
+              recordFieldContentsCollectionValueIdFor(indexedRecord.collectionValueId, indexedPaths.contents),
+              indexedPaths.member.at(-1)!, indexedPaths.member
+            )
+          : null;
         typecheckResolutions.push({
           kind: "resolvedCollectionIndex",
           collectionValueId: collectionValueIdFor(
+            indexedMemberCollectionId ??
             recordFieldCollectionValueId ??
             recordValueFieldContentsCollectionValueId ??
             recordValueFieldCollectionValueId ??
@@ -4182,6 +4223,22 @@ export const compileModuleScalarRuntime = ({
       }
       for (const reference of expression.references) {
         const target = reference.target;
+        if (target?.kind === "recordField" && target.type && !target.property) {
+          const indexed = indexedRecordFieldPaths(target);
+          const record = indexed ? recordParameterCollectionForTargetContext(target, context) : null;
+          if (indexed && record) {
+            const sourceValueId = recordFieldContentsCollectionValueIdFor(record.collectionValueId, indexed.contents);
+            const field = indexed.member.at(-1)!;
+            const valueId = recordFieldCollectionValueIdFor(sourceValueId, field, indexed.member);
+            if (!registeredRecordFieldProjectionIds.has(valueId)) {
+              registeredRecordFieldProjectionIds.add(valueId);
+              moduleCollectionValues.push({ valueId, kind: "recordField", sourceValueId,
+                field: { ...field, type: target.type, ...(indexed.member.length > 1 ? { fieldPath: indexed.member } : {}) },
+                sourceOrder: Math.max(0, Math.floor(record.targetSourceOrder)) });
+            }
+            continue;
+          }
+        }
         if (target?.kind !== "recordField" || target.record.kind !== "deferredModuleRecordExport" || target.property || target.collectionIndex !== undefined || !target.type) continue;
         const record = recordParameterCollectionForTargetContext(target, context);
         if (!record) continue;
@@ -5303,7 +5360,10 @@ export const compileModuleScalarRuntime = ({
       appendOptionalMemberProjection(site.expression, null);
     }
     for (const sites of moduleSemanticAnalysis.rootElementScalarExpressionsByStatementId.values()) {
-      for (const site of sites) appendOptionalMemberProjection(site.expression, null);
+      for (const site of sites) {
+        appendRecordFieldProjection(site.expression, null);
+        appendOptionalMemberProjection(site.expression, null);
+      }
     }
 
     const appendOptionalCollectionMatchAliases = (

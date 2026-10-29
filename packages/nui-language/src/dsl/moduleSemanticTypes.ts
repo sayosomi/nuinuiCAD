@@ -104,6 +104,8 @@ export type ModuleRecordFieldSourceTarget = {
   /** Intermediate record fields when a member access is nested. */
   fieldPath?: readonly RecordFieldIdentity[];
   collectionIndex?: number;
+  /** Resolved path through the indexed collection field, before its member fields. */
+  collectionFieldPath?: readonly RecordFieldIdentity[];
   /** Geometry property after the field has yielded a geometry value. */
   property?: string;
 };
