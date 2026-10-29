@@ -1,0 +1,280 @@
+{
+  "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208",
+  "savedOutputSha256": "e26cddec96adb10c603ffb6431ce9a39a86b060c4c39bbf77066e7052d90f904",
+  "points": 86,
+  "maxPrimitiveResidualMm": 2.211270894415315e-11,
+  "rows": [
+    {
+      "unit": "L1",
+      "file": "L1.nui",
+      "host": "Rust",
+      "points": 1,
+      "maxPrimitiveResidualMm": 3.2155493553843714e-15,
+      "status": "PASS"
+    },
+    {
+      "unit": "L1",
+      "file": "L1.nui",
+      "host": "TS",
+      "points": 1,
+      "maxPrimitiveResidualMm": 3.2155493553843714e-15,
+      "status": "PASS"
+    },
+    {
+      "unit": "L2",
+      "file": "L2.nui",
+      "host": "Rust",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "L2",
+      "file": "L2.nui",
+      "host": "TS",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "L3",
+      "file": "L3.nui",
+      "host": "Rust",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "L3",
+      "file": "L3.nui",
+      "host": "TS",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "L4",
+      "file": "L4.nui",
+      "host": "Rust",
+      "points": 4,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "L4",
+      "file": "L4.nui",
+      "host": "TS",
+      "points": 4,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A1",
+      "file": "A1.nui",
+      "host": "Rust",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A1",
+      "file": "A1.nui",
+      "host": "TS",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A2",
+      "file": "A2.nui",
+      "host": "Rust",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A2",
+      "file": "A2.nui",
+      "host": "TS",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A3",
+      "file": "A3.nui",
+      "host": "Rust",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A3",
+      "file": "A3.nui",
+      "host": "TS",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A4",
+      "file": "A4.nui",
+      "host": "Rust",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "A4",
+      "file": "A4.nui",
+      "host": "TS",
+      "points": 2,
+      "maxPrimitiveResidualMm": 7.105427357601002e-15,
+      "status": "PASS"
+    },
+    {
+      "unit": "B1",
+      "file": "B1.nui",
+      "host": "Rust",
+      "points": 3,
+      "maxPrimitiveResidualMm": 6.365652394765888e-12,
+      "status": "PASS"
+    },
+    {
+      "unit": "B1",
+      "file": "B1.nui",
+      "host": "TS",
+      "points": 3,
+      "maxPrimitiveResidualMm": 6.3627673744683e-12,
+      "status": "PASS"
+    },
+    {
+      "unit": "B2",
+      "file": "B2.nui",
+      "host": "Rust",
+      "points": 3,
+      "maxPrimitiveResidualMm": 2.211270894415315e-11,
+      "status": "PASS"
+    },
+    {
+      "unit": "B2",
+      "file": "B2.nui",
+      "host": "TS",
+      "points": 3,
+      "maxPrimitiveResidualMm": 2.209818069166854e-11,
+      "status": "PASS"
+    },
+    {
+      "unit": "B3",
+      "file": "B3.nui",
+      "host": "Rust",
+      "points": 1,
+      "maxPrimitiveResidualMm": 1.5249909585523617e-11,
+      "status": "PASS"
+    },
+    {
+      "unit": "B3",
+      "file": "B3.nui",
+      "host": "TS",
+      "points": 1,
+      "maxPrimitiveResidualMm": 1.5252689837551244e-11,
+      "status": "PASS"
+    },
+    {
+      "unit": "B4",
+      "file": "B4.nui",
+      "host": "Rust",
+      "points": 3,
+      "maxPrimitiveResidualMm": 6.377439519705535e-12,
+      "status": "PASS"
+    },
+    {
+      "unit": "B4",
+      "file": "B4.nui",
+      "host": "TS",
+      "points": 3,
+      "maxPrimitiveResidualMm": 6.374389602032631e-12,
+      "status": "PASS"
+    },
+    {
+      "unit": "N1",
+      "file": "N1.nui",
+      "host": "Rust",
+      "points": 1,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N1",
+      "file": "N1.nui",
+      "host": "TS",
+      "points": 1,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N2",
+      "file": "N2.nui",
+      "host": "Rust",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N2",
+      "file": "N2.nui",
+      "host": "TS",
+      "points": 2,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N3",
+      "file": "N3.nui",
+      "host": "Rust",
+      "points": 4,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N3",
+      "file": "N3.nui",
+      "host": "TS",
+      "points": 4,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N4",
+      "file": "N4.nui",
+      "host": "Rust",
+      "points": 1,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N4",
+      "file": "N4.nui",
+      "host": "TS",
+      "points": 1,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N4",
+      "file": "N4-recovered.nui",
+      "host": "Rust",
+      "points": 8,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    },
+    {
+      "unit": "N4",
+      "file": "N4-recovered.nui",
+      "host": "TS",
+      "points": 8,
+      "maxPrimitiveResidualMm": 0,
+      "status": "PASS"
+    }
+  ]
+}

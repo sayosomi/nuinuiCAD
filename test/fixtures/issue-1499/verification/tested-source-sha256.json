@@ -1,0 +1,25 @@
+{
+  "head": "a7d2b734018b6a4016672d41fa95ae4ec79f3208",
+  "sha256": {
+    "test/fixtures/issue-1499/A1.nui": "488eafd01db924cdac8acc456669eb8f12bce8add9bf43988c302381812b96c2",
+    "test/fixtures/issue-1499/A2.nui": "fc536c8f2d46b29397c33857f4bd965d93a317bcbc7bfd03cab258326fcf120b",
+    "test/fixtures/issue-1499/A3.nui": "a7d610fb2457c738f77060bbf4af566fc7cd5f3886d69e06f9bd42119fb2a760",
+    "test/fixtures/issue-1499/A4.nui": "7334e1de84fd1965c2e5ed6cf534f4c3cdce4f8e8c0eddb42a9529854c0e0fff",
+    "test/fixtures/issue-1499/B1.nui": "ed96dffc320c5c59d323190217c1a9592443522ebd8817bfe22f10c594e77c84",
+    "test/fixtures/issue-1499/B2.nui": "685268798bd73ac500a61e134ce0fa80947b0cd97ddfbdf1d6d8c65e641457db",
+    "test/fixtures/issue-1499/B3.nui": "84094337f32b20cbb1f8260690bba1875d717adccebd01a325230a7d3b672372",
+    "test/fixtures/issue-1499/B4.nui": "4692f1dd5df91775156948296d657b383f06741d655c6e03febeadd9ebf8e105",
+    "test/fixtures/issue-1499/L1.nui": "5041364963fdaa44309590800ada2da9011dd0c8bfd5f4f7c12f56284ceabb7c",
+    "test/fixtures/issue-1499/L2.nui": "a4e810d853a7b8e5889311e881fa2c321a1159f9b28d7452b394de7147e73a38",
+    "test/fixtures/issue-1499/L3.nui": "95c8f67f7527354e5536917842199da72ae365f98e326b6710f97c88f70c2a98",
+    "test/fixtures/issue-1499/L4.nui": "7ac11dfbe09c6ff53c4938ec7b0b15f74c1d4dcc9633562fb7d308c553825aab",
+    "test/fixtures/issue-1499/N1.nui": "eb532efca304ddb2700eef4fcd84d56a5b2166375a4d59ceb799a8b8a6489b46",
+    "test/fixtures/issue-1499/N2.nui": "fb161aa22ea3fc7dac3cf7538de35a227e94111a9056bb7d14cbb33ce0cde6c4",
+    "test/fixtures/issue-1499/N3.nui": "5973d1356aa40f2651d2cf32a156fedb65ddd8f93f9fe3568965891c6539c10d",
+    "test/fixtures/issue-1499/N4-recovered.nui": "8b13de307731435f890364062e10f1a067e15a78145970555f7f9b60bacc8875",
+    "test/fixtures/issue-1499/N4.nui": "66296ed4a876b068c8027689bdaf058b60256264df6bdb0efb25c7b8c243bd16",
+    "test/fixtures/issue-1499/freeze.py": "eb29addb6eb9354057052bb8aa5d9c56432e427427266a7b35b5d137cc0ea9bd",
+    "test/issue1499IntersectionConformance.integration.test.ts": "b648e578aef48289eadfd129e6bcd0a0abf3218111ca805d4de86c56444ab1ba",
+    "test/fixtures/issue-1499/manifest.json": "200070865fbfa491e133e26e7090ccc65af11200262e4200ff3f75b02700ef8c"
+  }
+}

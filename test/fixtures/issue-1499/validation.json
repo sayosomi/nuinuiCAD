@@ -1,0 +1,110 @@
+{
+  "base": "0fd989e683104944d45bed6830bdac148d9bbc94",
+  "validateOnly": true,
+  "spawns": 0,
+  "requests": 0,
+  "observations": [
+    {
+      "id": "L1",
+      "file": "L1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "L2",
+      "file": "L2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "L3",
+      "file": "L3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "L4",
+      "file": "L4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "A1",
+      "file": "A1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "A2",
+      "file": "A2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "A3",
+      "file": "A3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "A4",
+      "file": "A4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "B1",
+      "file": "B1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "B2",
+      "file": "B2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "B3",
+      "file": "B3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "B4",
+      "file": "B4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "N1",
+      "file": "N1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "N2",
+      "file": "N2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "N3",
+      "file": "N3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "N4",
+      "file": "N4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "N4",
+      "file": "N4-recovered.nui",
+      "phase": "compile",
+      "diagnostics": []
+    }
+  ]
+}

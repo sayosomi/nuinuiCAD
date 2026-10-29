@@ -1,0 +1,9 @@
+nui 1
+// #1499 B2 independently sealed before evaluator execution
+curve A = bezier(start: (0, -32), end: (120, 32), startAngle: 65.55604521958347, startLength: 96.66436778875658, endAngle: 65.55604521958347, endLength: 96.66436778875658)
+curve B = bezier(start: (-10, 0), end: (130, 0), startAngle: 0.0, startLength: 46.666666666666664, endAngle: 0.0, endLength: 46.66666666666667)
+point P0 = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point P1 = intersection(line1: @A, line2: @B, index: 1, extensions: false)
+point P2 = intersection(line1: @A, line2: @B, index: 2, extensions: false)
+point Absent = intersection(line1: @A, line2: @B, index: 3, extensions: false)
+line Control = segment(start: (201, -103), end: (238, -103))

@@ -1,0 +1,15 @@
+nui 1
+// #1499 N4 sealed legal recovery
+line A = segment(start: (0, 0), end: (60, 30))
+line B = segment(start: (0, 30), end: (60, 0))
+line Parallel = segment(start: (0, 5), end: (60, 35))
+line Overlap = segment(start: (10, 5), end: (50, 25))
+point Good = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point Same = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point ParallelHit = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point OverlapHit = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point BadIndex = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+point Missing = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+const PureBad: point = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+const PureMissing: point = intersection(line1: @A, line2: @B, index: 0, extensions: false)
+line Control = segment(start: (201, -103), end: (238, -103))

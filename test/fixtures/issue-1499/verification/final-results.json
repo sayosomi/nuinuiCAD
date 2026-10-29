@@ -1,0 +1,82 @@
+[
+  {
+    "name": "build",
+    "args": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit": 0,
+    "seconds": 27.08495593070984,
+    "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+  },
+  {
+    "name": "lint",
+    "args": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "exit": 0,
+    "seconds": 28.458969116210938,
+    "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+  },
+  {
+    "name": "full-test",
+    "args": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2"
+    ],
+    "exit": 0,
+    "seconds": 362.5806951522827,
+    "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+  },
+  {
+    "name": "parity",
+    "args": [
+      "npm",
+      "run",
+      "test:parity"
+    ],
+    "exit": 0,
+    "seconds": 56.65228796005249,
+    "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+  },
+  {
+    "name": "dsl-reference",
+    "args": [
+      "npm",
+      "run",
+      "docs:dsl:check"
+    ],
+    "exit": 0,
+    "seconds": 0.6198580265045166,
+    "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+  },
+  {
+    "name": "committed-diff",
+    "args": [
+      "git",
+      "diff",
+      "--check",
+      "0fd989e683104944d45bed6830bdac148d9bbc94",
+      "HEAD"
+    ],
+    "exit": 0,
+    "seconds": 0.039656877517700195,
+    "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+  },
+  {
+    "name": "worktree-diff",
+    "args": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 0.02066779136657715,
+    "testedHead": "a7d2b734018b6a4016672d41fa95ae4ec79f3208"
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "name": "focused-ts",
+    "args": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1499IntersectionConformance.integration.test.ts",
+      "src/geometry/lineIntersections.test.ts",
+      "src/geometry/linePaths.test.ts",
+      "src/geometry/evaluateGeometryPrimitives.test.ts",
+      "src/geometry/evaluate.test.ts",
+      "src/geometry/geometryValueConstruction.integration.test.ts",
+      "src/dsl/moduleMultiDocumentRuntime.integration.test.ts",
+      "src/dsl/moduleManualFixtures.integration.test.ts",
+      "--maxWorkers=2"
+    ],
+    "exit": 0,
+    "seconds": 5.316789150238037
+  },
+  {
+    "name": "focused-rust",
+    "args": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "intersection_point_tests"
+    ],
+    "exit": 0,
+    "seconds": 4.4656150341033936
+  }
+]
