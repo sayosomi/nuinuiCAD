@@ -1,0 +1,50 @@
+{
+  "testedHead": "19a75d5abc30b2e71f854a6ee14a762256e2d0b7",
+  "base": "7d08c98aca4ae7982679a55f50358ec6f8eaa63b",
+  "ownerSha256": {
+    "packages/nui-language/src/dsl/moduleMaterialization.ts": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f",
+    "packages/nui-language/src/document/statementReconciler.ts": "b5acb1cbc2fb263eb0dfe0fabbcd37acbd28c287b0e16dcb724b8c4ca011de69"
+  },
+  "records": [
+    {
+      "name": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "timeoutSeconds": 180,
+      "exit": 0,
+      "timedOut": false,
+      "elapsedSeconds": 30.988,
+      "logSha256": "cd757c8a772aa21d395e57f7df15a82b43d0cbc123840272879df57be27ce771"
+    },
+    {
+      "name": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "timeoutSeconds": 180,
+      "exit": 0,
+      "timedOut": false,
+      "elapsedSeconds": 30.655,
+      "logSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+    },
+    {
+      "name": "full-test",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "timeoutSeconds": 1200,
+      "exit": -2,
+      "timedOut": false,
+      "elapsedSeconds": 107.266,
+      "logSha256": "17e6d64e39e24e637131d41f09f203b5478ba45a3f5d4240d585946fec9d14a8"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "testedHead": "a073ab37f88b129030d33f6988616ded30c757b1",
+  "unchangedAfterVerification": true,
+  "sources": {
+    "packages/nui-language/src/document/statementReconciler.ts": "b5acb1cbc2fb263eb0dfe0fabbcd37acbd28c287b0e16dcb724b8c4ca011de69",
+    "packages/nui-language/src/dsl/moduleMaterialization.ts": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f",
+    "scripts/performance/issue1493Modules.ts": "19db5759a7b42a31de547772e3f9241823dab200bd24ed309dbc745af402c566",
+    "scripts/performance/issue1493Reconciler.ts": "06e7f6880afc797cb120abe21a9e524fd938f15bb9423c1288da31e10c54c35c",
+    "scripts/performance/issue1493ReconcilerTrace.ts": "0615d1582a0f9c40c87da9cbfb0aef7be6683a023f3e2f2d859dff8279cc074a",
+    "test/issue1493ModuleEvaluation.integration.test.ts": "5eead7afc4754bfb3c88729b6cdb571f8175abce641eaa994183c918611fdc1b",
+    "test/issue1493ModuleMaterialization.test.ts": "d3315ca811f42b8e141a311f689bdee994a6de54aab3d978727b07d9a63f4b75",
+    "test/issue1493ModuleSupport.ts": "7d1ca8d2229898d4ad32b8f317c5260af5b25f1ab514b0a298d75768047516bb",
+    "test/issue1493Reconciler.test.ts": "39463315f57e223d875c9b8cf8db4b2cb77460cf6805d7f2f13e5e688c0cf53e",
+    "test/issue1493ReconcilerSupport.ts": "fdd10f46e15c657c9b52e788cd81eb1f0ced36366637bc626e7d760a4a9c24df"
+  }
+}

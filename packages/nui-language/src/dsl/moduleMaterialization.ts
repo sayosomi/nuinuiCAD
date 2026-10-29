@@ -262,6 +262,7 @@ export const materializeModuleExecution = ({
   const sourceExecutionPositionByRuntimeElementId = new Map<ElementId, number>();
   const originByRuntimeElementId = new Map<ElementId, ModuleOrigin>();
   const runtimeIdentityByElementId = new Map<ElementId, MaterializedRuntimeIdentity>();
+  const instanceBaseGeometrySnapshots: ModuleMaterializationSnapshot[] = [];
 
   const emitInstance = (
     instance: ModuleInstanceSemantic,
@@ -277,6 +278,16 @@ export const materializeModuleExecution = ({
       : instancePath;
     const runtimeIdentity = runtimeIdentityOf("moduleInstance", runtimeInstancePath);
     const runtimeElementId = materializedRuntimeElementId("moduleInstance", runtimeInstancePath);
+    const runtimeStart = executionStatements.length;
+    // Reserve in preorder, even though nested instances finish first.
+    const snapshot: ModuleMaterializationSnapshot = {
+      instanceId: runtimeElementId,
+      // Preserve the existing instance-ordinal fallback for an empty body.
+      endRuntimeIndex: instanceBaseGeometrySnapshots.length,
+      descendantIds: [],
+      instancePath: [...runtimeInstancePath]
+    };
+    instanceBaseGeometrySnapshots.push(snapshot);
     const definition = moduleRuntimeContext
       ? moduleRuntimeContext.definitionFor(instance.callee.definitionIdentity) ?? moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId)
       : moduleSemanticAnalysis.definitionsByStatementId.get(instance.callee.definitionStatementId);
@@ -422,6 +433,14 @@ export const materializeModuleExecution = ({
       runtimeIdentityByElementId.set(bodyRuntimeElementId, bodyIdentity);
       sourceExecutionPositionByRuntimeElementId.set(bodyRuntimeElementId, executionUnitStatementIndex);
     }
+    // emitInstance appends one contiguous subtree. Its completed range is the
+    // same descendant set as a runtime-path prefix scan, without scanning any
+    // unrelated instances. Nested geometry still belongs to every ancestor.
+    const descendants = executionStatements.slice(runtimeStart + 1);
+    if (descendants.length) snapshot.endRuntimeIndex = executionStatements.length - 1;
+    snapshot.descendantIds = descendants
+      .filter(candidate => !elementTypesWithoutOwnDrawableGeometry.has(candidate.type) && !isContainerElementType(candidate.type))
+      .map(candidate => candidate.runtimeElementId);
     return runtimeElementId;
   };
 
@@ -472,32 +491,7 @@ export const materializeModuleExecution = ({
     sourceExecutionPositionByRuntimeElementId,
     originByRuntimeElementId,
     runtimeIdentityByElementId,
-    instanceBaseGeometrySnapshots: executionStatements
-      .filter((entry) => entry.type === "moduleInstance")
-      .map((entry, entryIndex) => {
-        const path = entry.runtimeIdentity?.path ?? entry.instancePath;
-        const materializedDescendants = executionStatements
-          .map((candidate, candidateIndex) => ({ candidate, candidateIndex }))
-          .filter(({ candidate }) =>
-            candidate.runtimeElementId !== entry.runtimeElementId &&
-            (candidate.runtimeIdentity?.path ?? candidate.runtimeInstancePath ?? candidate.instancePath).length >= path.length &&
-            path.every((identity, index) => (candidate.runtimeIdentity?.path ?? candidate.runtimeInstancePath ?? candidate.instancePath)[index] === identity)
-          );
-        const descendants = materializedDescendants.filter(({ candidate }) =>
-          !elementTypesWithoutOwnDrawableGeometry.has(candidate.type) &&
-          !isContainerElementType(candidate.type)
-        );
-        const endRuntimeIndex = materializedDescendants.reduce(
-          (last, { candidateIndex }) => Math.max(last, candidateIndex),
-          entryIndex
-        );
-        return {
-          instanceId: entry.runtimeElementId,
-          endRuntimeIndex,
-          descendantIds: descendants.map(({ candidate }) => candidate.runtimeElementId),
-          instancePath: [...(entry.runtimeIdentity?.path ?? entry.runtimeInstancePath ?? entry.instancePath)]
-        };
-      }),
+    instanceBaseGeometrySnapshots,
     evaluationLimitIndex: undefined
   };
 };
