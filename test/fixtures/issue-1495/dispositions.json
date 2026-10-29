@@ -1,0 +1,165 @@
+{
+  "primary": 16,
+  "triggeredX": 6,
+  "reducers": 1,
+  "distinctLegalSources": 23,
+  "ceiling": 28,
+  "unusedReducers": "R2-R6 NOT_TRIGGERED",
+  "rows": [
+    {
+      "id": "L1",
+      "file": "L1.nui",
+      "sha256": "566f8c805e27a2a99257b8d10b414d2ac34c5d21f88876daf6f66715e1236c1f",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "L2",
+      "file": "L2.nui",
+      "sha256": "06fe674e0a3bfd44e0f4fd93382f3b8fe1273fc825d42eb218f909b138e50061",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "L3",
+      "file": "L3.nui",
+      "sha256": "960eac3060e2e8ca3a2e2eaa719645e97ebe56bba9320c4287a572f90e577509",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "L4",
+      "file": "L4.nui",
+      "sha256": "8dd1df61ce847df2222d87871a831eb47f76c63aa9afb1af534518fd5ac5a245",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "A1",
+      "file": "A1.nui",
+      "sha256": "125472922cff0a7b5f871030ed5d8187cda137c3e6d9e62bdd900020d9aa4bcb",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "A2",
+      "file": "A2.nui",
+      "sha256": "c7a08efe9ef13fd9baf1c42b877229dc4043bd419919552f43665f2586ef79a3",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "A3",
+      "file": "A3.nui",
+      "sha256": "892a8d67018e271dd8fd10107bfbb7e2ddfe236b2a062459d3e6317733342969",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "A4",
+      "file": "A4.nui",
+      "sha256": "4996e841931a3611917d107dae2c6a531fd12d3daf7976f46ff2a1b835ca1b63",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "B1",
+      "file": "B1.nui",
+      "sha256": "db5961c9e2453c3ab2780bdf2c1fc13a6427a2d4d56d5c41598727e9c2fe79b0",
+      "status": "PASS",
+      "variant": "X1"
+    },
+    {
+      "id": "B2",
+      "file": "B2.nui",
+      "sha256": "c778a9a71438a38869c4b86ee79c2fce9b2d54ff19d3a8276588c796864753ba",
+      "status": "PASS",
+      "variant": "X2"
+    },
+    {
+      "id": "B3",
+      "file": "B3.nui",
+      "sha256": "418c8c0bb79af7b751f8516eadcdcfb0b0475d77306405ed6b61ad1566de6b83",
+      "status": "PASS",
+      "variant": "X3"
+    },
+    {
+      "id": "B4",
+      "file": "B4.nui",
+      "sha256": "bd2e9e98446a56feb605b5778bc1fc722ca27bffb607e4cbc64213f17b2f0924",
+      "status": "PASS",
+      "variant": "X4"
+    },
+    {
+      "id": "C1",
+      "file": "C1.nui",
+      "sha256": "f0125c0e994f405bd82c5251e76e1420fe127fac84b58d05c31d5c9fd2a323ac",
+      "status": "PASS",
+      "variant": "X5"
+    },
+    {
+      "id": "C2",
+      "file": "C2.nui",
+      "sha256": "63d54747ef577c6e6355ec4d9f9bb54809d8642eb1e6bda44f8f57a70fe6d4df",
+      "status": "PASS",
+      "variant": "X6"
+    },
+    {
+      "id": "C3",
+      "file": "C3.nui",
+      "sha256": "169b596965e987e9f794516472ed712c2d29d33b48da4b9af5b77c46f4020ad1",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "C4",
+      "file": "C4.nui",
+      "sha256": "ea5ff25c56ebc4adf61e7349b60536977e2560afacd3774dd51385bc62b681fb",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "R1",
+      "file": "R1.nui",
+      "sha256": "59f53a30946419ca7a27b2b0e2fe1f946fda2f901f92e0a20a74443e4ff95bd4",
+      "status": "PASS",
+      "variant": null
+    },
+    {
+      "id": "initial-B1",
+      "file": "initial/B1.nui",
+      "sha256": "8b2ec8da7ef38a9ea2a07fe6d806be20b6f6d9892f9fb49fb8c9e45d87b067da",
+      "status": "ORACLE_AUTHORING_REJECTED"
+    },
+    {
+      "id": "initial-B2",
+      "file": "initial/B2.nui",
+      "sha256": "4f87a84341693fc7d23688cc1c9584d623b6e158091c2dd82f28b5994f400974",
+      "status": "ORACLE_AUTHORING_REJECTED"
+    },
+    {
+      "id": "initial-B3",
+      "file": "initial/B3.nui",
+      "sha256": "5a83a59d87de490aae924b2ff5c63d15570407245d1cabfd638f3c2ea71432cd",
+      "status": "ORACLE_AUTHORING_REJECTED"
+    },
+    {
+      "id": "initial-B4",
+      "file": "initial/B4.nui",
+      "sha256": "3f568cf8ece78c155aa4800fb2aa89bd277c3576f9d31569e4f969e253323aa4",
+      "status": "ORACLE_AUTHORING_REJECTED"
+    },
+    {
+      "id": "initial-C1",
+      "file": "initial/C1.nui",
+      "sha256": "7e886bc80889625a7514b78648705be37e190f783e978222bec2ab651be54ddd",
+      "status": "ORACLE_AUTHORING_REJECTED"
+    },
+    {
+      "id": "initial-C2",
+      "file": "initial/C2.nui",
+      "sha256": "54fe163fa93bf0901f9c4198ddba1874e890932416433d0788813cfc88ae2117",
+      "status": "ORACLE_AUTHORING_REJECTED"
+    }
+  ]
+}

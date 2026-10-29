@@ -1,0 +1,9 @@
+nui 1
+// #1495 L2; sealed before production evaluation
+line S0 = segment(start: (3, 5), end: (43, 5))
+line S1 = segment(start: (43, 5), end: (43, 32))
+reverse S0 ()
+reverse S1 ()
+line Seam = offset(sources: [@S1, @S0], distance: 3, side: left, closed: false, suppressTrimWarnings: false)
+line Control = segment(start: (201, -103), end: (238, -103))
+line ControlOffset = offset(sources: [@Control], distance: 7, side: right)

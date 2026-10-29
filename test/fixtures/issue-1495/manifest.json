@@ -1,0 +1,1204 @@
+{
+  "base": "39fdfd677813bb2fdc13b29232a621e6f6f9dbac",
+  "tolerance": 1e-07,
+  "residualToleranceMm": 0.16,
+  "units": [
+    {
+      "id": "L1",
+      "file": "L1.nui",
+      "sha256": "566f8c805e27a2a99257b8d10b414d2ac34c5d21f88876daf6f66715e1236c1f",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 3.0,
+                "y": 2.0
+              },
+              "end": {
+                "x": 46.0,
+                "y": 2.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 46.0,
+                "y": 2.0
+              },
+              "end": {
+                "x": 46.0,
+                "y": 32.0
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        [
+          3,
+          5
+        ],
+        [
+          43,
+          5
+        ],
+        [
+          43,
+          32
+        ]
+      ],
+      "rationale": "Right normals (0,-3),(3,0); infinite-line miter (46,2)."
+    },
+    {
+      "id": "L2",
+      "file": "L2.nui",
+      "sha256": "06fe674e0a3bfd44e0f4fd93382f3b8fe1273fc825d42eb218f909b138e50061",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 46.0,
+                "y": 32.0
+              },
+              "end": {
+                "x": 46.0,
+                "y": 2.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 46.0,
+                "y": 2.0
+              },
+              "end": {
+                "x": 3.0,
+                "y": 2.0
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        [
+          43,
+          32
+        ],
+        [
+          43,
+          5
+        ],
+        [
+          3,
+          5
+        ]
+      ],
+      "rationale": "Reverse both directed owners and authored order; left swaps the normal and reverses the same physical locus."
+    },
+    {
+      "id": "L3",
+      "file": "L3.nui",
+      "sha256": "960eac3060e2e8ca3a2e2eaa719645e97ebe56bba9320c4287a572f90e577509",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -1.0,
+                "y": 1.0
+              },
+              "end": {
+                "x": 47.0,
+                "y": 1.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 47.0,
+                "y": 1.0
+              },
+              "end": {
+                "x": 47.0,
+                "y": 36.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 47.0,
+                "y": 36.0
+              },
+              "end": {
+                "x": -1.0,
+                "y": 36.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": -1.0,
+                "y": 36.0
+              },
+              "end": {
+                "x": -1.0,
+                "y": 1.0
+              }
+            }
+          ],
+          "closed": true
+        }
+      },
+      "inputs": [
+        [
+          3,
+          5
+        ],
+        [
+          43,
+          5
+        ],
+        [
+          43,
+          32
+        ],
+        [
+          3,
+          32
+        ],
+        [
+          3,
+          5
+        ]
+      ],
+      "rationale": "Non-square CCW rectangle expands to x=-1..47,y=1..36; perimeter=166."
+    },
+    {
+      "id": "L4",
+      "file": "L4.nui",
+      "sha256": "8dd1df61ce847df2222d87871a831eb47f76c63aa9afb1af534518fd5ac5a245",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -31.367544467966326,
+                "y": -12.897366596101028
+              },
+              "end": {
+                "x": 8.310621309119028,
+                "y": 0.3286886629274246
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 8.310621309119028,
+                "y": 0.3286886629274246
+              },
+              "end": {
+                "x": 37.691851205191305,
+                "y": 46.93339815324896
+              }
+            }
+          ]
+        },
+        "Near": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 80.0,
+                "y": 0.0
+              },
+              "end": {
+                "x": 130.02999700059985,
+                "y": 0.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 130.02999700059985,
+                "y": 0.0
+              },
+              "end": {
+                "x": 180.0599880035988,
+                "y": 1.0005998200599788
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        [
+          [
+            -32,
+            -11
+          ],
+          [
+            7,
+            2
+          ],
+          [
+            36,
+            48
+          ]
+        ],
+        [
+          [
+            80,
+            3
+          ],
+          [
+            130,
+            3
+          ],
+          [
+            180,
+            4
+          ]
+        ]
+      ],
+      "rationale": "Cross-product analytic miters; near-parallel denominator=50, far above 1e-9, forward turn only ~1.146 degrees."
+    },
+    {
+      "id": "A1",
+      "file": "A1.nui",
+      "sha256": "125472922cff0a7b5f871030ed5d8187cda137c3e6d9e62bdd900020d9aa4bcb",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -28.335899411324313,
+                "y": -22.49615088301353
+              },
+              "end": {
+                "x": 0.9369661560324829,
+                "y": -2.9809071714423325
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0,
+                "y": 20
+              },
+              "radius": 23,
+              "start": {
+                "x": 0.9369661560324829,
+                "y": -2.9809071714423325
+              },
+              "end": {
+                "x": 23,
+                "y": 20
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        [
+          -30,
+          -20
+        ],
+        [
+          0,
+          0
+        ],
+        {
+          "center": [
+            0,
+            20
+          ],
+          "radius": 20,
+          "angles": [
+            270,
+            360
+          ]
+        },
+        [
+          [
+            20.85277348285736,
+            10.296297713107585
+          ],
+          [
+            0.9369661560324829,
+            -2.9809071714423325
+          ]
+        ]
+      ],
+      "rationale": "Projection/chord line-circle roots; unique root nearest authored junction."
+    },
+    {
+      "id": "A2",
+      "file": "A2.nui",
+      "sha256": "c7a08efe9ef13fd9baf1c42b877229dc4043bd419919552f43665f2586ef79a3",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "arc",
+              "center": {
+                "x": 20,
+                "y": 0
+              },
+              "radius": 22,
+              "start": {
+                "x": -2,
+                "y": 0
+              },
+              "end": {
+                "x": 20.48272939709379,
+                "y": 21.994703278952898
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 20.48272939709379,
+                "y": 21.994703278952898
+              },
+              "end": {
+                "x": 52.89442719099991,
+                "y": 5.7888543819998315
+              }
+            }
+          ]
+        },
+        "Reversed": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 52.89442719099991,
+                "y": 5.7888543819998315
+              },
+              "end": {
+                "x": 20.48272939709379,
+                "y": 21.994703278952898
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 20,
+                "y": 0
+              },
+              "radius": 22,
+              "start": {
+                "x": 20.48272939709379,
+                "y": 21.994703278952898
+              },
+              "end": {
+                "x": -2,
+                "y": 0
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "center": [
+            20,
+            0
+          ],
+          "radius": 20,
+          "angles": [
+            180,
+            90
+          ]
+        },
+        [
+          20,
+          20
+        ],
+        [
+          52,
+          4
+        ],
+        [
+          [
+            37.30612498490605,
+            13.583005485046769
+          ],
+          [
+            20.48272939709379,
+            21.994703278952898
+          ]
+        ]
+      ],
+      "rationale": "CW outward left radius=22; reversed right same locus. Seam uses base snapshots to avoid final-state recipe dependency.",
+      "note": "Seam reads .base; Reversed reads final."
+    },
+    {
+      "id": "A3",
+      "file": "A3.nui",
+      "sha256": "892a8d67018e271dd8fd10107bfbb7e2ddfe236b2a062459d3e6317733342969",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0,
+                "y": 0
+              },
+              "radius": 23,
+              "start": {
+                "x": 0,
+                "y": -23
+              },
+              "end": {
+                "x": 22.83187939622355,
+                "y": -2.7758391949647336
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 20,
+                "y": 15
+              },
+              "radius": 18,
+              "start": {
+                "x": 22.83187939622355,
+                "y": -2.7758391949647336
+              },
+              "end": {
+                "x": 36.91446717414635,
+                "y": 21.156362579862037
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ],
+        [
+          20,
+          15
+        ],
+        [
+          [
+            3.7281206037764516,
+            22.695839194964734
+          ],
+          [
+            22.83187939622355,
+            -2.7758391949647336
+          ]
+        ]
+      ],
+      "rationale": "Circle radical-axis foot and two perpendicular roots; root near (20,0) is well separated."
+    },
+    {
+      "id": "A4",
+      "file": "A4.nui",
+      "sha256": "4996e841931a3611917d107dae2c6a531fd12d3daf7976f46ff2a1b835ca1b63",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -28.335899411324313,
+                "y": -22.49615088301353
+              },
+              "end": {
+                "x": 0.9369661560324829,
+                "y": -2.9809071714423325
+              }
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0,
+                "y": 20
+              },
+              "radius": 23,
+              "start": {
+                "x": 0.9369661560324829,
+                "y": -2.9809071714423325
+              },
+              "end": {
+                "x": 22.97513284850033,
+                "y": 18.930761675882735
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 22.97513284850033,
+                "y": 18.930761675882735
+              },
+              "end": {
+                "x": 44.35895501646727,
+                "y": 46.14653534420429
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        [
+          [
+            22.97513284850033,
+            18.930761675882735
+          ],
+          [
+            6.474638383172369,
+            -2.0698676436255763
+          ]
+        ]
+      ],
+      "rationale": "Valid mixed triple plus deliberately discontinuous sibling; edit BadTail start y21\u219220 removes error and matches Seam.",
+      "errors": {
+        "Invalid": "reverse"
+      },
+      "edit": {
+        "replace": "start: (20,21)",
+        "with": "start: (20,20)",
+        "file": "A4-edited.nui",
+        "sha256": "3cd28a590c8d8004224023830be05658fbb9b2297d7f9b5f997fbfb903fba484"
+      }
+    },
+    {
+      "id": "B1",
+      "file": "B1.nui",
+      "sha256": "db5961c9e2453c3ab2780bdf2c1fc13a6427a2d4d56d5c41598727e9c2fe79b0",
+      "expected": {
+        "Seam": {
+          "start": {
+            "x": -40,
+            "y": -3
+          },
+          "end": {
+            "x": 38.65835921350013,
+            "y": 57.316718427000254
+          }
+        }
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          20
+        ],
+        [
+          20,
+          70
+        ],
+        [
+          40,
+          60
+        ]
+      ],
+      "rationale": "Analytic right-normal endpoints; tangent miter (3,-3), untrimmed body residual <=0.16 mm.",
+      "residuals": [
+        {
+          "path": "Seam",
+          "cubics": [
+            [
+              [
+                0,
+                0
+              ],
+              [
+                0,
+                20
+              ],
+              [
+                20,
+                70
+              ],
+              [
+                40,
+                60
+              ]
+            ]
+          ],
+          "distance": 3,
+          "skipEnds": true
+        }
+      ],
+      "junction": [
+        3,
+        -3
+      ],
+      "junctionTangents": [
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "variant": "X1",
+      "variantReason": "Initial generator encoded end handle as outward rather than incoming tangent. Preserved initial source/oracle/Base run; this pre-execution replacement restores intended control-point sensitivity."
+    },
+    {
+      "id": "B2",
+      "file": "B2.nui",
+      "sha256": "c778a9a71438a38869c4b86ee79c2fce9b2d54ff19d3a8276588c796864753ba",
+      "expected": {
+        "Seam": {
+          "start": {
+            "x": 1.788854381999832,
+            "y": -0.894427190999916
+          },
+          "end": {
+            "x": 62,
+            "y": 70
+          }
+        },
+        "Reversed": {
+          "start": {
+            "x": 62,
+            "y": 70
+          },
+          "end": {
+            "x": 1.788854381999832,
+            "y": -0.894427190999916
+          }
+        }
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ],
+        [
+          15,
+          30
+        ],
+        [
+          40,
+          25
+        ],
+        [
+          60,
+          20
+        ]
+      ],
+      "rationale": "Reversal swaps side and primitive order. Joined end may use sampled trim or tangent fallback; free endpoint exact.",
+      "residuals": [
+        {
+          "path": "Seam",
+          "cubics": [
+            [
+              [
+                0,
+                0
+              ],
+              [
+                15,
+                30
+              ],
+              [
+                40,
+                25
+              ],
+              [
+                60,
+                20
+              ]
+            ]
+          ],
+          "distance": 2,
+          "skipEnds": true
+        }
+      ],
+      "junction": [
+        62.0,
+        17.43844718719117
+      ],
+      "junctionTangents": [
+        [
+          20,
+          -5
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "variant": "X2",
+      "variantReason": "Initial generator encoded end handle as outward rather than incoming tangent. Preserved initial source/oracle/Base run; this pre-execution replacement restores intended control-point sensitivity."
+    },
+    {
+      "id": "B3",
+      "file": "B3.nui",
+      "sha256": "418c8c0bb79af7b751f8516eadcdcfb0b0475d77306405ed6b61ad1566de6b83",
+      "expected": {
+        "Seam": {
+          "start": {
+            "x": 1.788854381999832,
+            "y": -0.894427190999916
+          },
+          "end": {
+            "x": 113.32477880632277,
+            "y": 30.907464438906157
+          }
+        }
+      },
+      "inputs": [
+        [
+          [
+            0,
+            0
+          ],
+          [
+            15,
+            30
+          ],
+          [
+            40,
+            25
+          ],
+          [
+            60,
+            20
+          ]
+        ],
+        [
+          [
+            60,
+            20
+          ],
+          [
+            75,
+            50
+          ],
+          [
+            100,
+            55
+          ],
+          [
+            115,
+            32
+          ]
+        ]
+      ],
+      "rationale": "Distinct tangents; joined leaves may change under fixed 96-step trim/tangent rules; all other fitted body samples <=0.16 mm.",
+      "residuals": [
+        {
+          "path": "Seam",
+          "cubics": [
+            [
+              [
+                0,
+                0
+              ],
+              [
+                15,
+                30
+              ],
+              [
+                40,
+                25
+              ],
+              [
+                60,
+                20
+              ]
+            ],
+            [
+              [
+                60,
+                20
+              ],
+              [
+                75,
+                50
+              ],
+              [
+                100,
+                55
+              ],
+              [
+                115,
+                32
+              ]
+            ]
+          ],
+          "distance": 2,
+          "skipEnds": true
+        }
+      ],
+      "junction": [
+        61.07137028541811,
+        17.67060461583664
+      ],
+      "junctionTangents": [
+        [
+          20,
+          -5
+        ],
+        [
+          15,
+          30
+        ]
+      ],
+      "variant": "X3",
+      "variantReason": "Initial generator encoded end handle as outward rather than incoming tangent. Preserved initial source/oracle/Base run; this pre-execution replacement restores intended control-point sensitivity."
+    },
+    {
+      "id": "B4",
+      "file": "B4.nui",
+      "sha256": "bd2e9e98446a56feb605b5778bc1fc722ca27bffb607e4cbc64213f17b2f0924",
+      "expected": {
+        "Low": {
+          "start": {
+            "x": 1.6641005886756874,
+            "y": -1.1094003924504583
+          },
+          "end": {
+            "x": 58.33589941132431,
+            "y": -1.1094003924504583
+          }
+        }
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ],
+        [
+          20,
+          30
+        ],
+        [
+          40,
+          30
+        ],
+        [
+          60,
+          0
+        ]
+      ],
+      "rationale": "At t=.5, signed curvature=-1/20 mm^-1; right 35 scale=1+35*k=-.75, so interior unsafe. Endpoint scales >.7; trim yields two separated groups. d2 stays safe.",
+      "warnings": [
+        "Seam"
+      ],
+      "equal": [
+        [
+          "Seam",
+          "Quiet"
+        ]
+      ],
+      "gaps": [
+        "Seam"
+      ],
+      "residuals": [
+        {
+          "path": "Low",
+          "cubics": [
+            [
+              [
+                0,
+                0
+              ],
+              [
+                20,
+                30
+              ],
+              [
+                40,
+                30
+              ],
+              [
+                60,
+                0
+              ]
+            ]
+          ],
+          "distance": 2,
+          "skipEnds": false
+        }
+      ],
+      "variant": "X4",
+      "variantReason": "Initial generator encoded end handle as outward rather than incoming tangent. Preserved initial source/oracle/Base run; this pre-execution replacement restores intended control-point sensitivity."
+    },
+    {
+      "id": "C1",
+      "file": "C1.nui",
+      "sha256": "f0125c0e994f405bd82c5251e76e1420fe127fac84b58d05c31d5c9fd2a323ac",
+      "expected": {
+        "Seam": {
+          "start": {
+            "x": 3.0,
+            "y": 0.0
+          },
+          "end": {
+            "x": 38.65835921350013,
+            "y": 57.316718427000254
+          }
+        }
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          20
+        ],
+        [
+          20,
+          70
+        ],
+        [
+          40,
+          60
+        ]
+      ],
+      "rationale": "Identity-free pure and drawable offset share geometry; only drawable allocates element ID. Discontinuous pure/drawable failures use their own diagnostic channels. Replaces invalid line-from-path draft before evaluation.",
+      "pure": [
+        "Pure"
+      ],
+      "errors": {
+        "Invalid": "reverse"
+      },
+      "pureErrors": [
+        "PureInvalid"
+      ],
+      "variant": "X5",
+      "variantReason": "Initial generator encoded end handle as outward rather than incoming tangent. Preserved initial source/oracle/Base run; this pre-execution replacement restores intended control-point sensitivity."
+    },
+    {
+      "id": "C2",
+      "file": "C2.nui",
+      "sha256": "63d54747ef577c6e6355ec4d9f9bb54809d8642eb1e6bda44f8f57a70fe6d4df",
+      "expected": {
+        "First::Local": {
+          "start": {
+            "x": -40,
+            "y": -2
+          },
+          "end": {
+            "x": 39.10557280900009,
+            "y": 58.21114561800017
+          }
+        },
+        "Second::Local": {
+          "start": {
+            "x": -40,
+            "y": 4
+          },
+          "end": {
+            "x": 41.78885438199983,
+            "y": 63.57770876399967
+          }
+        }
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          20
+        ],
+        [
+          20,
+          70
+        ],
+        [
+          40,
+          60
+        ]
+      ],
+      "rationale": "Two Module occurrences have distinct IDs, distances and sides; right d2 and left d4 exact free endpoints.",
+      "variant": "X6",
+      "variantReason": "Initial generator encoded end handle as outward rather than incoming tangent. Preserved initial source/oracle/Base run; this pre-execution replacement restores intended control-point sensitivity."
+    },
+    {
+      "id": "C3",
+      "file": "C3.nui",
+      "sha256": "169b596965e987e9f794516472ed712c2d29d33b48da4b9af5b77c46f4020ad1",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 15.0,
+                "y": -12.0
+              },
+              "end": {
+                "x": 15.0,
+                "y": -55.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 15.0,
+                "y": -55.0
+              },
+              "end": {
+                "x": -15.0,
+                "y": -55.0
+              }
+            }
+          ]
+        }
+      },
+      "inputs": [
+        [
+          3,
+          5
+        ],
+        [
+          43,
+          5
+        ],
+        [
+          43,
+          32
+        ]
+      ],
+      "rationale": "Independent affine map R90*mirrorX: (x,y)\u2192(17-y,-9-x), determinant -1. Source right maps to transformed left."
+    },
+    {
+      "id": "C4",
+      "file": "C4.nui",
+      "sha256": "ea5ff25c56ebc4adf61e7349b60536977e2560afacd3774dd51385bc62b681fb",
+      "expected": {
+        "Seam": {
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": 3.0,
+                "y": 2.0
+              },
+              "end": {
+                "x": 46.0,
+                "y": 2.0
+              }
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 46.0,
+                "y": 2.0
+              },
+              "end": {
+                "x": 46.0,
+                "y": 32.0
+              }
+            }
+          ]
+        },
+        "On": {
+          "x": 10,
+          "y": 2
+        },
+        "OnEnd": {
+          "x": 46,
+          "y": 26
+        }
+      },
+      "inputs": [
+        [
+          3,
+          5
+        ],
+        [
+          43,
+          5
+        ],
+        [
+          43,
+          32
+        ]
+      ],
+      "rationale": "Downstream path-distance traversal: 7 mm forward from start, 6 mm inward from end; source path unchanged."
+    },
+    {
+      "id": "R1",
+      "file": "R1.nui",
+      "sha256": "59f53a30946419ca7a27b2b0e2fe1f946fda2f901f92e0a20a74443e4ff95bd4",
+      "expected": {
+        "Seam": {
+          "start": {
+            "x": 0,
+            "y": -3
+          },
+          "end": {
+            "x": 50,
+            "y": -3
+          },
+          "length": 50
+        }
+      },
+      "inputs": [
+        [
+          0,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          30,
+          0
+        ],
+        [
+          50,
+          0
+        ]
+      ],
+      "rationale": "Minimal legal straight cubic: exact right-offset locus y=-3, length50, no sampling uncertainty. Neighboring ControlOffset y=-110 remains valid.",
+      "residuals": [
+        {
+          "path": "Seam",
+          "cubics": [
+            [
+              [
+                0,
+                0
+              ],
+              [
+                10,
+                0
+              ],
+              [
+                30,
+                0
+              ],
+              [
+                50,
+                0
+              ]
+            ]
+          ],
+          "distance": 3,
+          "skipEnds": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+nui 1
+// #1495 C3; sealed before production evaluation
+line S0 = segment(start: (3, 5), end: (43, 5))
+line S1 = segment(start: (43, 5), end: (43, 32))
+move [S0, S1] (from: (0,0), to: (17,-9), scale: 1, angleDeg: 90, mirrorX: true)
+line Seam = offset(sources: [@S0, @S1], distance: 3, side: left, closed: false, suppressTrimWarnings: false)
+line Control = segment(start: (201, -103), end: (238, -103))
+line ControlOffset = offset(sources: [@Control], distance: 7, side: right)

@@ -183,7 +183,9 @@ pub(crate) fn build_offset_line_geometry(
                 }
             }
             SourceSegment::Bezier { .. } => {
-                let result = offset_bezier_segment_groups(segment, offset);
+                // The fitter uses a left normal, including its curvature scale.
+                // This boundary's signed distance is positive to the right.
+                let result = offset_bezier_segment_groups(segment, -offset);
                 if result.trimmed && !suppress_trim_warnings && warnings.is_empty() {
                     warnings.push(format!(
                         "{name} はオフセット量が曲線の曲率半径を超える箇所があるため、一部区間をトリムしました。オフセット量を下げると全体を作図できます。"
@@ -341,5 +343,43 @@ fn segment_length(segment: &OffsetSegment) -> f64 {
         OffsetSegment::Line { length, .. }
         | OffsetSegment::Bezier { length, .. }
         | OffsetSegment::Arc { length, .. } => *length,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn straight_bezier_offset_uses_the_same_directed_side_as_a_line() {
+        // Independent exact oracle: eastbound tangent (1,0), right normal
+        // (0,-1). No curvature or curve-approximation uncertainty is involved.
+        let source = json!({
+            "kind": "bezierCurve",
+            "segments": [{
+                "start": {"x": 0, "y": 0},
+                "control1": {"x": 10, "y": 0},
+                "control2": {"x": 30, "y": 0},
+                "end": {"x": 50, "y": 0}
+            }]
+        });
+        for offset in [-3.0, 0.0, 3.0] {
+            let result = build_offset_line_geometry(
+                "seam",
+                "Seam",
+                vec!["curve".into()],
+                std::slice::from_ref(&source),
+                offset,
+                false,
+                false,
+            );
+            assert!(result.error.is_none());
+            assert!(result.warnings.is_empty());
+            let geometry = result.geometry.unwrap();
+            for key in ["start", "end"] {
+                assert!((geometry[key]["y"].as_f64().unwrap() + offset).abs() < 1e-9);
+            }
+            assert!((geometry["length"].as_f64().unwrap() - 50.0).abs() < 1e-9);
+        }
     }
 }

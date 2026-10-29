@@ -1,0 +1,24 @@
+[
+  {
+    "name": "repair-removal",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "test/issue1495OffsetConformance.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exitCode": 1
+  },
+  {
+    "name": "rust-repair-removal",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "straight_bezier_offset_uses_the_same_directed_side_as_a_line"
+    ],
+    "exitCode": 101
+  }
+]

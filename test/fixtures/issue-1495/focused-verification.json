@@ -1,0 +1,15 @@
+{
+  "typescript": {
+    "command": "npm test -- test/issue1495OffsetConformance.integration.test.ts src/geometry/offsetPaths.test.ts src/geometry/offsetJoins.test.ts src/geometry/offsetSourceSegments.test.ts src/geometry/evaluate.test.ts test/issue1470BezierConformance.integration.test.ts --maxWorkers=2",
+    "exitCode": 0,
+    "files": 6,
+    "tests": 225
+  },
+  "rust": {
+    "command": "cargo test --manifest-path rust-evaluator/Cargo.toml offset_ -- --nocapture",
+    "exitCode": 0,
+    "libraryPassed": 45,
+    "libraryIgnored": 1,
+    "integrationPassed": 1
+  }
+}

@@ -383,7 +383,11 @@ fn reports_bezier_trim_warning() {
             "endHandleAngleDeg": 90,
             "endHandleLength": 35
         })),
-        offset_line("offset", vec!["curve"], json!(35)),
+        {
+            let mut offset = offset_line("offset", vec!["curve"], json!(35));
+            offset["side"] = json!("left");
+            offset
+        },
     ];
     let result = evaluate_document_input(EvaluationInput {
         evaluation_order: None,
@@ -431,6 +435,7 @@ fn suppresses_bezier_trim_warning_when_requested() {
         })),
         {
             let mut offset = offset_line("offset", vec!["curve"], json!(35));
+            offset["side"] = json!("left");
             offset["suppressTrimWarnings"] = json!(true);
             offset
         },

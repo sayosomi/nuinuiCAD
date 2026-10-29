@@ -1,0 +1,15 @@
+{
+  "base": "39fdfd677813bb2fdc13b29232a621e6f6f9dbac",
+  "spawns": 0,
+  "requests": 0,
+  "validateOnly": true,
+  "observations": [
+    {
+      "id": "R1",
+      "file": "R1.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    }
+  ]
+}

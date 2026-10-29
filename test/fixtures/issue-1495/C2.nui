@@ -1,0 +1,11 @@
+nui 1
+// #1495 C2; sealed before production evaluation
+module Allowance(d: number, side: choice(right, left)) {
+line S0 = segment(start: (-40, 0), end: (0, 0))
+curve Curve = bezier(start: (0, 0), end: (40, 60), startAngle: 90.0, startLength: 20.0, endAngle: -26.56505117707799, endLength: 22.360679774997898)
+line Local = offset(sources: [@S0, @Curve], distance: @d, side: @side, closed: false, suppressTrimWarnings: false)
+}
+instance First = Allowance(d: 2, side: right)
+instance Second = Allowance(d: 4, side: left)
+line Control = segment(start: (201, -103), end: (238, -103))
+line ControlOffset = offset(sources: [@Control], distance: 7, side: right)

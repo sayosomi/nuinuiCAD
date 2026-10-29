@@ -1,0 +1,4 @@
+{
+  "reason": "Full Base-to-HEAD diff check identified new blank lines at EOF in captured verbatim stdout/stderr. All logs archived with deterministic gzip to retain exact bytes and pass diff whitespace checks. No check disabled and no executable source changed.",
+  "initialArtifactCommit": "04cb96630d58ae83852ea4b92c0e97115f5b6569"
+}
