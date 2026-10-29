@@ -1,0 +1,1378 @@
+[
+  {
+    "id": "R1-T0-E0",
+    "root": 1,
+    "transform": 0,
+    "epoch": 0,
+    "fingerprint": "c6cd93b779a8cb50d3d52a7f1b2ded7f258c7c2b3968c3580bb9f7cc16c9d6d7",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 49
+      },
+      "points": {
+        "Result": {
+          "x": 11,
+          "y": 29
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T0-E1",
+    "root": 1,
+    "transform": 0,
+    "epoch": 1,
+    "fingerprint": "b621b2d2a7cb54a561576918fb6cf07520be1b095e73ddf2e890aba5aad06a84",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 67
+      },
+      "points": {
+        "Result": {
+          "x": 17,
+          "y": 23
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T1-E0",
+    "root": 1,
+    "transform": 1,
+    "epoch": 0,
+    "fingerprint": "222f911f3f99ae4fbf52ae4ad3d49dc9847ed37107dab09ca829dfc5d88a13f6",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 49
+      },
+      "points": {
+        "Result": {
+          "x": 11,
+          "y": 29
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T1-E1",
+    "root": 1,
+    "transform": 1,
+    "epoch": 1,
+    "fingerprint": "5b4dae0f4fb94c559d099e2d258608b68cda6117aba4c411e103feb22d87be23",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 67
+      },
+      "points": {
+        "Result": {
+          "x": 17,
+          "y": 23
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T2-E0",
+    "root": 1,
+    "transform": 2,
+    "epoch": 0,
+    "fingerprint": "c102cf59d307a53bc9b17599fa95f95e1d4359c1cf788001bf87451db757165c",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 49
+      },
+      "points": {
+        "Result": {
+          "x": 11,
+          "y": 29
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T2-E1",
+    "root": 1,
+    "transform": 2,
+    "epoch": 1,
+    "fingerprint": "5c3cc5acca304ade143c63cac65934526ec1ce46e52f755c616266e0083b5b96",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 3, y: 17)\ninstance left = a::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 67
+      },
+      "points": {
+        "Result": {
+          "x": 17,
+          "y": 23
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T3-E0",
+    "root": 1,
+    "transform": 3,
+    "epoch": 0,
+    "fingerprint": "19f689dc6c58c3d9cac62a9440ed120f8db59f66ff427eb2e0e346a86f0fcbe5",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 3, y: 17)\ninstance left = renamedDirect::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 49
+      },
+      "points": {
+        "Result": {
+          "x": 11,
+          "y": 29
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T3-E1",
+    "root": 1,
+    "transform": 3,
+    "epoch": 1,
+    "fingerprint": "a35082e3338eda8f750790070134392b3ef2d171228baeeb59049b0de7a5ae19",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 3, y: 17)\ninstance left = renamedDirect::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 67
+      },
+      "points": {
+        "Result": {
+          "x": 17,
+          "y": 23
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T4-E0",
+    "root": 1,
+    "transform": 4,
+    "epoch": 0,
+    "fingerprint": "945feef3255b27d72f215d3dc772d031dab652e3b47f2cc5c6e691826a49140d",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\nconst forwarded: a::R = @first\ninstance left = a::Read(value: @forwarded)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 49
+      },
+      "points": {
+        "Result": {
+          "x": 11,
+          "y": 29
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T4-E1",
+    "root": 1,
+    "transform": 4,
+    "epoch": 1,
+    "fingerprint": "d22a5706f8eb09a901b09b7bdcf94400cc379c4c47f7502b4d7cef6433411016",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 3, y: 17)\nconst forwarded: a::R = @first\ninstance left = a::Read(value: @forwarded)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 67
+      },
+      "points": {
+        "Result": {
+          "x": 17,
+          "y": 23
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T5-E0",
+    "root": 1,
+    "transform": 5,
+    "epoch": 0,
+    "fingerprint": "dce29912611b98cf272bb3cf31e1b6b08db12f8e2944a4aebda164354a65556c",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 3, y: 17)\ninstance left = f::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 49
+      },
+      "points": {
+        "Result": {
+          "x": 11,
+          "y": 29
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R1-T5-E1",
+    "root": 1,
+    "transform": 5,
+    "epoch": 1,
+    "fingerprint": "79086cd29070388f433f5d0ddaa68570df7f1c56579558bdc7b14de18cb81a81",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 3, y: 17)\ninstance left = f::Read(value: @first)\nconst observed: number = @left::score + @first.y\npoint Result = offset(from: @left::anchor, dx: @first.x, dy: @first.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "observed": 67
+      },
+      "points": {
+        "Result": {
+          "x": 17,
+          "y": 23
+        }
+      },
+      "origins": {
+        "first": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T0-E0",
+    "root": 2,
+    "transform": 0,
+    "epoch": 0,
+    "fingerprint": "2a32e0193433380ecaa71fe88d10f9416b6ba65dc28cc52063237b25e0e96968",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 54,
+        "rightScore": 94,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 25,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T0-E1",
+    "root": 2,
+    "transform": 0,
+    "epoch": 1,
+    "fingerprint": "a84013e5331b572aeb9ed2b65915190521ca247b8ae09ed9dd142e7c366b46a5",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 96,
+        "rightScore": 172,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 31,
+          "y": 37
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T1-E0",
+    "root": 2,
+    "transform": 1,
+    "epoch": 0,
+    "fingerprint": "985ecc5c9287c50031baacacda3265aba7d9128e2e53ce16abfa04a699ad1c31",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 54,
+        "rightScore": 94,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 25,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T1-E1",
+    "root": 2,
+    "transform": 1,
+    "epoch": 1,
+    "fingerprint": "73cd3cb2525098d048ae0894dd877b4d6a421b476aca572c743d8847dbbc9935",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 96,
+        "rightScore": 172,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 31,
+          "y": 37
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T2-E0",
+    "root": 2,
+    "transform": 2,
+    "epoch": 0,
+    "fingerprint": "a3c9d059dbd09e3669dbd764fffc6a4f115207851519007fd084baa0e976dd3c",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 54,
+        "rightScore": 94,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 25,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T2-E1",
+    "root": 2,
+    "transform": 2,
+    "epoch": 1,
+    "fingerprint": "15b1ea116f0b1e3ff07f9827531912b2dad5ff5f054d426faab6e12fc65372ef",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 96,
+        "rightScore": 172,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 31,
+          "y": 37
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T3-E0",
+    "root": 2,
+    "transform": 3,
+    "epoch": 0,
+    "fingerprint": "10f35cb665bfe49f8ec83ffdbb0fbc53b59c9dcbb6fc104c237769b276acc2b6",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: renamedFacade::R) {\n  instance inner = renamedDirect::Read(value: @value)\n  export const out: renamedFacade::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: renamedDirect::R = renamedFacade::R(x: 7, y: 19)\nconst second: renamedFacade::R = renamedDirect::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 54,
+        "rightScore": 94,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 25,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T3-E1",
+    "root": 2,
+    "transform": 3,
+    "epoch": 1,
+    "fingerprint": "77ea7b6ce0bbdf77dc0c4981915880700a8767fc1d94403d342e372ad3f88a23",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: renamedFacade::R) {\n  instance inner = renamedDirect::Read(value: @value)\n  export const out: renamedFacade::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: renamedDirect::R = renamedFacade::R(x: 7, y: 19)\nconst second: renamedFacade::R = renamedDirect::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 96,
+        "rightScore": 172,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 31,
+          "y": 37
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T4-E0",
+    "root": 2,
+    "transform": 4,
+    "epoch": 0,
+    "fingerprint": "ec241d031b04a66748242dc9de7295119a14529bee93ae03220af50ca40dc017",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst forwarded: a::R = @first\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @forwarded)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 54,
+        "rightScore": 94,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 25,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T4-E1",
+    "root": 2,
+    "transform": 4,
+    "epoch": 1,
+    "fingerprint": "c887137fecca372a4d09c7190dba9668f53f92734af5164144e88be7d29253c2",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = a::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: a::R = f::R(x: 7, y: 19)\nconst forwarded: a::R = @first\nconst second: f::R = a::R(x: 13, y: 29)\ninstance left = Relay(value: @forwarded)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 96,
+        "rightScore": 172,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 31,
+          "y": 37
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T5-E0",
+    "root": 2,
+    "transform": 5,
+    "epoch": 0,
+    "fingerprint": "b2034b3fe813bdd2fb845d413d1da5eb00fff880c64772070438c8567a9a0084",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = f::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: f::R = f::R(x: 7, y: 19)\nconst second: f::R = f::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 54,
+        "rightScore": 94,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 25,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R2-T5-E1",
+    "root": 2,
+    "transform": 5,
+    "epoch": 1,
+    "fingerprint": "89eed00d8787c30be5f3fb4edb83e1a03e71cdaef1abd2a3e741ddc669c309e7",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nmodule Relay(value: f::R) {\n  instance inner = f::Read(value: @value)\n  export const out: f::R = @inner::out\n  export const score: number = @inner::score\n  export const anchor: point = @inner::anchor\n}\nconst first: f::R = f::R(x: 7, y: 19)\nconst second: f::R = f::R(x: 13, y: 29)\ninstance left = Relay(value: @first)\ninstance right = Relay(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @right::anchor, dx: @left::out.x, dy: @left::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 96,
+        "rightScore": 172,
+        "observed": 36
+      },
+      "points": {
+        "Result": {
+          "x": 31,
+          "y": 37
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T0-E0",
+    "root": 3,
+    "transform": 0,
+    "epoch": 0,
+    "fingerprint": "15eb0077a698390a60a7cc3932afbbe877df571df6a2f21777dea06bb1bdd954",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T0-E1",
+    "root": 3,
+    "transform": 0,
+    "epoch": 1,
+    "fingerprint": "0f17410e9cbea78f9c5500536805bdba6579ba48e0c6dd6281703726f01f1971",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T1-E0",
+    "root": 3,
+    "transform": 1,
+    "epoch": 0,
+    "fingerprint": "9bbabe154c93766f166e527bc6b8c9c7abb4d714c9f90e0d68687a3f4753aa8b",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T1-E1",
+    "root": 3,
+    "transform": 1,
+    "epoch": 1,
+    "fingerprint": "196cf87c905dee9c77670dc43d15eb1ce6fa6b276a46e7d3aa465c3464b6fc6b",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T2-E0",
+    "root": 3,
+    "transform": 2,
+    "epoch": 0,
+    "fingerprint": "9cb4262b33914204ba6caf1db705da72ffbaa01e98c649aa380bdec612a13251",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T2-E1",
+    "root": 3,
+    "transform": 2,
+    "epoch": 1,
+    "fingerprint": "e128f1d5be9fdebfd832559cdef003a10429dd329e1ff4f0d221154e7bed9cb6",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T3-E0",
+    "root": 3,
+    "transform": 3,
+    "epoch": 0,
+    "fingerprint": "ac9aca0b0283e46600c5c2ad68bd7b91e169d06aae886beca06ba043e84142c7",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [renamedFacade::R(x: 37, y: 41), @first])\nconst selected: renamedDirect::R = if (true) { @first } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T3-E1",
+    "root": 3,
+    "transform": 3,
+    "epoch": 1,
+    "fingerprint": "f191316c8e1b9d354ecd839ea3f4bba0667cab1a135787d3a69c369df0009ad6",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [renamedFacade::R(x: 37, y: 41), @first])\nconst selected: renamedDirect::R = if (true) { @first } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T4-E0",
+    "root": 3,
+    "transform": 4,
+    "epoch": 0,
+    "fingerprint": "ba6d92a9067439f4fbfef2bedc50739e8d9b3d8aa5083374d48d692ea41d47d5",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = @first\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T4-E1",
+    "root": 3,
+    "transform": 4,
+    "epoch": 1,
+    "fingerprint": "84b2a7f224b9badb5f8128f6555c175a303bc6b74dc085ef1bc7cf058b403cf2",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = @first\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @first } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T5-E0",
+    "root": 3,
+    "transform": 5,
+    "epoch": 0,
+    "fingerprint": "42fa04e692ec7dbb267fc149dc725dde4fdf8aff9dd173756e5eefc13446091f",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: f::R = if (true) { @first } else { f::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R3-T5-E1",
+    "root": 3,
+    "transform": 5,
+    "epoch": 1,
+    "fingerprint": "db31cca470a12acecaf87e4fee5df5608fc70ac9828c1c8844beaa94dc745a58",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: f::R = if (true) { @first } else { f::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T0-E0",
+    "root": 4,
+    "transform": 0,
+    "epoch": 0,
+    "fingerprint": "ab215d9e01f01cb95e19eee8b5e3d3dadd5eabe0a28c854d8e9f06bf6ac71aa6",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 128,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 51,
+          "y": 91
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T0-E1",
+    "root": 4,
+    "transform": 0,
+    "epoch": 1,
+    "fingerprint": "ba393da8c269e368329b241b708f29a4cec3e957be217f986632cfac085518d2",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 230,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 57,
+          "y": 85
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T1-E0",
+    "root": 4,
+    "transform": 1,
+    "epoch": 0,
+    "fingerprint": "f3936aaa76e6207d59bc0e7e3b17cfba586f30d525919f1c41cf69eff5ef6f96",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 128,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 51,
+          "y": 91
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T1-E1",
+    "root": 4,
+    "transform": 1,
+    "epoch": 1,
+    "fingerprint": "7c9e5d733f192543a7f2387709ce32beee63686057429807c10762bf4e7d3fe9",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 230,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 57,
+          "y": 85
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T2-E0",
+    "root": 4,
+    "transform": 2,
+    "epoch": 0,
+    "fingerprint": "6a7a054769d505e6614a4deb8707d9542fe22e3cd6f3748fcd7bbcaf7d828377",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 128,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 51,
+          "y": 91
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T2-E1",
+    "root": 4,
+    "transform": 2,
+    "epoch": 1,
+    "fingerprint": "3b67e98c9bbf23a196cd44e9407e1e6c12f78ca437f627c2fb3c5b6162349ba4",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentB: number = 97\nconst independentA: number = 89\nconst first: a::R = a::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 230,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 57,
+          "y": 85
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T3-E0",
+    "root": 4,
+    "transform": 3,
+    "epoch": 0,
+    "fingerprint": "b66418338c949866ad5d2e4ff8fdf99e2358249907f9e5a047fa26eeed65505b",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nimport \"./other.nui\" as renamedOther\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 17, y: 43)\nconst second: renamedOther::R = renamedOther::R(x: 29, y: 53)\ninstance left = renamedDirect::Read(value: @first)\ninstance right = renamedOther::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 128,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 51,
+          "y": 91
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T3-E1",
+    "root": 4,
+    "transform": 3,
+    "epoch": 1,
+    "fingerprint": "b6b328b65c3b9309f636f014d207b6c80916e5fcbfad21c13b781326c83534f5",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nimport \"./other.nui\" as renamedOther\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: renamedDirect::R = renamedDirect::R(x: 17, y: 43)\nconst second: renamedOther::R = renamedOther::R(x: 29, y: 53)\ninstance left = renamedDirect::Read(value: @first)\ninstance right = renamedOther::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 230,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 57,
+          "y": 85
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T4-E0",
+    "root": 4,
+    "transform": 4,
+    "epoch": 0,
+    "fingerprint": "0a3c6ae09e38d2245030996889c8d2503ace693acdd5ea2cbcb2c2d4ef176439",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst forwarded: a::R = @first\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @forwarded)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 128,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 51,
+          "y": 91
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T4-E1",
+    "root": 4,
+    "transform": 4,
+    "epoch": 1,
+    "fingerprint": "3522cf343f49567784dfc6cc5b8673ce847c2249e16f7d04792fbc6b36388d2d",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: a::R = a::R(x: 17, y: 43)\nconst forwarded: a::R = @first\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = a::Read(value: @forwarded)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 230,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 57,
+          "y": 85
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui",
+        "forwarded": "lib.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T5-E0",
+    "root": 4,
+    "transform": 5,
+    "epoch": 0,
+    "fingerprint": "aab5ce38d12a34946c28886a4cc9cac2046b1e3aca9ce37c72293009a8479acc",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = f::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 128,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 51,
+          "y": 91
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  },
+  {
+    "id": "R4-T5-E1",
+    "root": 4,
+    "transform": 5,
+    "epoch": 1,
+    "fingerprint": "761029cae7facae6ae4ee5b829e3eeaaea252bd22bc2f2329507208a3cb14fa1",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nimport \"./other.nui\" as b\nconst independentA: number = 89\nconst independentB: number = 97\nconst first: f::R = f::R(x: 17, y: 43)\nconst second: b::R = b::R(x: 29, y: 53)\ninstance left = f::Read(value: @first)\ninstance right = b::Read(value: @second)\nconst leftScore: number = @left::score\nconst rightScore: number = @right::score\nconst observed: number = @left::out.x + @right::out.y\npoint Result = offset(from: @left::anchor, dx: @right::out.x, dy: @right::out.y)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read",
+      "other.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 2 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 2, y: @local.y - 2)\n}"
+    },
+    "expected": {
+      "scalars": {
+        "leftScore": 230,
+        "rightScore": 111,
+        "observed": 70
+      },
+      "points": {
+        "Result": {
+          "x": 57,
+          "y": 85
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "second": "other.nui"
+      }
+    }
+  }
+]

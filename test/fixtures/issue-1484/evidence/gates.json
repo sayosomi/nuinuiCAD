@@ -1,0 +1,62 @@
+{
+  "base": "0b1181a410cd573392b685c0544654abac397232",
+  "branch": "sayosomi/issue-1484-record-metamorphic-hunt",
+  "productionSourceSha256": {
+    "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts": "78cd884deb91bd69404b6791d50d9a538ee414539c10fc3bd9e28e8c7176b1d2",
+    "packages/nui-language/src/dsl/moduleSemanticTypes.ts": "bf980a77232f2097e1620cc50ada6f154330f01ca257ac511345343a02f8ecc3",
+    "packages/nui-language/src/dsl/recordSemanticAnalysis.ts": "2a179392c6d3ea455746ae30d90872dc49dcd06b979c6f94527a29d00cde42e1",
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "c5945035181b1c6cce8be69cc1c940af72b199ddcf83b53717a0dc714e860317"
+  },
+  "gates": [
+    {
+      "command": "focused canonical/parser/import/record/Module/revision/geometry regressions (13 files)",
+      "exitCode": 0,
+      "result": "PASS",
+      "filesPassed": 13,
+      "testsPassed": 233,
+      "logSha256": "24ffb6f7a4bc84ec7a31100fcbe32780af7e49f8634c087275239298b1e06f49"
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0,
+      "result": "PASS",
+      "logSha256": "7da8ea0713084a6b48bdd2a03630fea2a9d297020c66a75f507956c3ba177077"
+    },
+    {
+      "command": "npm run lint",
+      "exitCode": 0,
+      "result": "PASS",
+      "logSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+    },
+    {
+      "command": "npm run docs:dsl:check",
+      "exitCode": 0,
+      "result": "PASS",
+      "logSha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5"
+    },
+    {
+      "command": "npm run test:parity",
+      "exitCode": 0,
+      "result": "PASS",
+      "filesPassed": 1,
+      "testsPassed": 207,
+      "logSha256": "3f1f3abc655ee558070e3f3fc1cc3c27a28f2f8eb369262f45dc38ab98029b01"
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0,
+      "result": "PASS",
+      "filesPassed": 703,
+      "filesSkipped": 2,
+      "testsPassed": 11340,
+      "testsSkipped": 187,
+      "logSha256": "319ba75d68a02a66759bcc7eb77797993a945c5db3085980539882fa3398c565"
+    }
+  ],
+  "conditionalRustSourceGates": "not applicable: no Rust source changes",
+  "gitDiffChecks": [
+    "git diff --check: PASS",
+    "git diff --cached --check: PASS (checked immediately before commit)"
+  ],
+  "independentExactHeadReview": "pending ChatGPT; implementation self-check is not independent review"
+}

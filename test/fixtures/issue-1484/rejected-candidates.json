@@ -1,0 +1,364 @@
+[
+  {
+    "id": "R3-T0-E0",
+    "root": 3,
+    "transform": 0,
+    "epoch": 0,
+    "fingerprint": "f771eb966b92c1c1eeb23ed224d8e0ab088751b9888176aa8cc81bcd578d9261",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T0-E1",
+    "root": 3,
+    "transform": 0,
+    "epoch": 1,
+    "fingerprint": "1f9041c8a685ee74735f9a1cdbcc71a63ae9beef1fccb0f906384a8df20cd408",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T1-E0",
+    "root": 3,
+    "transform": 1,
+    "epoch": 0,
+    "fingerprint": "fb56c116314091252b5f6ed53af3353ccbccad5fc2b5ac6772dd72f7857c462a",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T1-E1",
+    "root": 3,
+    "transform": 1,
+    "epoch": 1,
+    "fingerprint": "871e69dc2646080367c89c020b9ec34868bc23b560a4d8bae93d6c33dfff6d35",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst unusedInserted: number = 103\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T2-E0",
+    "root": 3,
+    "transform": 2,
+    "epoch": 0,
+    "fingerprint": "27bba0a6fb8ec68f2dcde40afcda007a59b0b01f4d3c4469cc2aee4ac1e501dc",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T2-E1",
+    "root": 3,
+    "transform": 2,
+    "epoch": 1,
+    "fingerprint": "f09175068deb229cbb2c5f47dbc90c2f092e64aa98d1660e09d7c93f69d87924",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentB: number = 97\nconst independentA: number = 89\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T3-E0",
+    "root": 3,
+    "transform": 3,
+    "epoch": 0,
+    "fingerprint": "511a615c36dfa109225e3db91dbf31949bfb70548330b139c6986f1bae724609",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [renamedFacade::R(x: 37, y: 41), @first])\nconst selected: renamedDirect::R = if (true) { @wrapped.rows[1] } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T3-E1",
+    "root": 3,
+    "transform": 3,
+    "epoch": 1,
+    "fingerprint": "d0f9c6aed4885d81146a30bdd3395bb38af064c5eaac34c11b982f315a7f15a6",
+    "source": "nui 1\nimport \"./lib.nui\" as renamedDirect\nimport \"./facade.nui\" as renamedFacade\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: renamedDirect::R?, rows: renamedFacade::R[])\nconst first: renamedDirect::R = renamedFacade::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [renamedFacade::R(x: 37, y: 41), @first])\nconst selected: renamedDirect::R = if (true) { @wrapped.rows[1] } else { renamedDirect::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = renamedFacade::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as renamedOrigin\nexport @renamedOrigin::R\nexport @renamedOrigin::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T4-E0",
+    "root": 3,
+    "transform": 4,
+    "epoch": 0,
+    "fingerprint": "1199c7c3ffb1bd28cdaa31e9b38f49d7b3c16b51007be4a3cc83601b0ccbe5dd",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = @first\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T4-E1",
+    "root": 3,
+    "transform": 4,
+    "epoch": 1,
+    "fingerprint": "a22e220281f1384dc07a80d5bf2a64438678a97129cc9de3504ef9c58a5ca72c",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: a::R?, rows: f::R[])\nconst first: a::R = f::R(x: 23, y: 31)\nconst forwarded: a::R = @first\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: a::R = if (true) { @wrapped.rows[1] } else { a::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui",
+        "forwarded": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T5-E0",
+    "root": 3,
+    "transform": 5,
+    "epoch": 0,
+    "fingerprint": "a825c3cac918bd8972aca8725e58149d16dd9cacb68ae40336f503a289fda779",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: f::R = if (true) { @wrapped.rows[1] } else { f::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 5 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 5, y: @local.y - 5)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 169,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 65,
+          "y": 49
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  },
+  {
+    "id": "R3-T5-E1",
+    "root": 3,
+    "transform": 5,
+    "epoch": 1,
+    "fingerprint": "69806589513f1a765adb1c8c1969731053e7e2120f7bcaeeac6eab528bd02bcf",
+    "source": "nui 1\nimport \"./lib.nui\" as a\nimport \"./facade.nui\" as f\nconst independentA: number = 89\nconst independentB: number = 97\nrecord Wrapped(maybe: f::R?, rows: f::R[])\nconst first: f::R = f::R(x: 23, y: 31)\nconst wrapped: Wrapped = Wrapped(maybe: @first, rows: [f::R(x: 37, y: 41), @first])\nconst selected: f::R = if (true) { @wrapped.rows[1] } else { f::R(x: 43, y: 47) }\nconst optionalX: number = @wrapped.maybe?.x ?? 101\ninstance left = f::Read(value: @selected)\nconst observed: number = @left::score + @optionalX\nconst unaffected: number = @independentA + @independentB\npoint Result = offset(from: @left::anchor, dx: @wrapped.rows[0].x, dy: @optionalX)",
+    "saved": {
+      "lib.nui": "nui 1\nexport record R(x: number, y: number)\nrecord Private(x: number)\nexport module Read(value: R) {\n  const local: R = @value\n  export const out: R = @local\n  export const score: number = @local.x * 11 + @local.y\n  export const anchor: point = coordinate(x: @local.x + 11, y: @local.y - 11)\n}",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::R\nexport @original::Read"
+    },
+    "expected": {
+      "scalars": {
+        "optionalX": 23,
+        "observed": 307,
+        "unaffected": 186
+      },
+      "points": {
+        "Result": {
+          "x": 71,
+          "y": 43
+        }
+      },
+      "origins": {
+        "first": "lib.nui",
+        "selected": "lib.nui"
+      }
+    },
+    "disposition": "rejected candidate: record-reference-invalid; record-valued field/index extraction is outside the supported whole-record leaf path"
+  }
+]

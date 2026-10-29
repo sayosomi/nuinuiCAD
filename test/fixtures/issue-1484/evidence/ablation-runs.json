@@ -1,0 +1,26 @@
+[
+  {
+    "variant": "base",
+    "exitCode": 1,
+    "selection": null,
+    "bundles": 48
+  },
+  {
+    "variant": "remove-F1",
+    "exitCode": 1,
+    "selection": "R[124]-T0",
+    "bundles": 6
+  },
+  {
+    "variant": "remove-F2",
+    "exitCode": 1,
+    "selection": "R[134]-T0",
+    "bundles": 6
+  },
+  {
+    "variant": "remove-F3",
+    "exitCode": 1,
+    "selection": "R[134]-T0",
+    "bundles": 6
+  }
+]

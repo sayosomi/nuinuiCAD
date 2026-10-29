@@ -2060,7 +2060,7 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
       valueType: member.valueType,
       type: member.type,
       ...(member.fieldPath.length > 1 ? { fieldPath: member.fieldPath } : {}),
-      ...(member.collectionIndex !== undefined ? { collectionIndex: member.collectionIndex } : {}),
+      ...(member.collectionIndex !== undefined ? { collectionIndex: member.collectionIndex, collectionFieldPath: member.collectionFieldPath } : {}),
       ...(member.property ? { property: member.property } : {})
     };
   };
@@ -5551,8 +5551,20 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
           }
           if (elementType.kind === "record") {
             const record = recordReferenceSemantic(statementIndex, ownerIndex, member.text, member.span, elementType.identity ?? null);
-            return record.resolution === "resolved" && (record.target || record.constructor)
-              ? { kind: "resolved", value: { elementType, target: { kind: "recordValue", statementId: `record-field:${member.span.start}`, statementIndex } } }
+            const inline = record.constructor ? [...(recordAnalysis?.valuesByStatementId.values() ?? [])].find(value =>
+              value.statementIndex === statementIndex && value.typeIdentity === elementType.identity &&
+              value.inlineCollectionMember?.span.start === member.span.start && value.inlineCollectionMember.span.end === member.span.end
+            ) : null;
+            const target = record.target?.kind === "recordValue" ? record.target
+              : record.target?.kind === "recordParameter" ? { kind: "moduleParameterValue" as const,
+                  definitionStatementId: record.target.definitionStatementId, parameterIndex: record.target.parameterIndex }
+              : record.target?.kind === "recordCollectionIndex" &&
+                  record.target.index.ast.kind === "numberLiteral"
+                ? record.target.members?.[record.target.index.ast.value] ?? null
+              : inline ? { kind: "recordValue" as const, statementId: inline.statementId, statementIndex }
+              : null;
+            return record.resolution === "resolved" && target
+              ? { kind: "resolved", value: { elementType, target } }
               : { kind: "invalid", diagnostic: { code: "array-member-record-mismatch", message: `array member「${member.text}」の nominal record 型が一致しません。`, span: member.span } };
           }
           const parsedReference = parseDslSourceReference(member.text);

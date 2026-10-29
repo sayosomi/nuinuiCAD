@@ -926,18 +926,11 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
     valuesByStatementIndex.set(statementIndex, value);
   }
 
-  for (const [statementIndex, statement] of statements.entries()) {
-    if (statement.kind !== "typedDeclaration") continue;
-    const type = dslRequiredValueTypeOf(statement.valueType);
-    const element = isDslArrayValueType(type) ? dslRequiredValueTypeOf(type.elementType) : null;
-    if (!isDslArrayValueType(type) || element?.kind !== "record" || !statement.payloadSpans.initializer) continue;
-    const span = statement.payloadSpans.initializer;
-    const typeReference = resolveRecordType(input, definitionsByStatementIndex, statement, statementIndex, element, statement.payloadSpans.type ?? span, diagnostics);
-    if (!typeReference.typeIdentity) continue;
-    const typeIdentity = typeReference.typeIdentity;
-    const recordType: DslValueType = { kind: "record", name: element.name, identity: typeIdentity };
-    const owner = definitionIdAt(stableStatementIdByIndex, statementIndex, "record collection");
-    const text = `${" ".repeat(span.start)}${statement.initializer}`;
+  const registerInlineRecordMembers = (
+    statementIndex: number, statement: Extract<DslStatement, { kind: "typedDeclaration" }>,
+    typeReference: RecordTypeReferenceSemantic, recordType: DslValueType,
+    owner: string, text: string, span: DslSpan
+  ) => {
     const parsed = parseGeometryArrayExpression(text, span);
     let literalOrdinal = 0;
     const visit = (expression: GeometryArrayExpression): void => {
@@ -961,8 +954,40 @@ export const analyzeRecordSemantics = (input: RecordSemanticAnalysisInput): Reco
       else if (expression.kind === "coalesce") { visit(expression.left); visit(expression.right); }
     };
     if (parsed.expression) visit(parsed.expression);
+  };
+
+  for (const [statementIndex, statement] of statements.entries()) {
+    if (statement.kind !== "typedDeclaration") continue;
+    const type = dslRequiredValueTypeOf(statement.valueType);
+    const element = isDslArrayValueType(type) ? dslRequiredValueTypeOf(type.elementType) : null;
+    if (!isDslArrayValueType(type) || element?.kind !== "record" || !statement.payloadSpans.initializer) continue;
+    const span = statement.payloadSpans.initializer;
+    const typeReference = resolveRecordType(input, definitionsByStatementIndex, statement, statementIndex, element, statement.payloadSpans.type ?? span, diagnostics);
+    if (!typeReference.typeIdentity) continue;
+    const typeIdentity = typeReference.typeIdentity;
+    const recordType: DslValueType = { kind: "record", name: element.name, identity: typeIdentity };
+    const owner = definitionIdAt(stableStatementIdByIndex, statementIndex, "record collection");
+    const text = `${" ".repeat(span.start)}${statement.initializer}`;
+    registerInlineRecordMembers(statementIndex, statement, typeReference, recordType, owner, text, span);
   }
 
+  // Collection fields use the same nominal constructor owner as named arrays.
+  // Iterating the canonical values also reaches nested constructor fields.
+  for (const value of valuesByStatementId.values()) {
+    const statement = statements[value.statementIndex];
+    if (statement?.kind !== "typedDeclaration") continue;
+    for (const field of value.constructor?.fields ?? []) {
+      const type = dslRequiredValueTypeOf(field.expectedType);
+      const element = isDslArrayValueType(type) ? dslRequiredValueTypeOf(type.elementType) : null;
+      if (element?.kind !== "record" || !element.identity) continue;
+      const typeReference: RecordTypeReferenceSemantic = {
+        sourceName: element.name, span: field.valueSpan, typeIdentity: element.identity, resolution: "resolved"
+      };
+      const owner = `record-field-array:${encodeIdentityTuple([value.statementId, field.field.recordStatementId, String(field.field.fieldIndex)])}`;
+      registerInlineRecordMembers(value.statementIndex, statement, typeReference, element, owner,
+        `${" ".repeat(field.valueSpan.start)}${field.value}`, field.valueSpan);
+    }
+  }
   return {
     definitionsByStatementId,
     definitionsByStatementIndex,
@@ -979,6 +1004,7 @@ export type RecordMemberResolution = {
   valueType: import("./dslValueTypes").DslValueType;
   property?: string;
   collectionIndex?: number;
+  collectionFieldPath?: readonly RecordFieldIdentity[];
   type: ScalarExpressionType | null;
 };
 
@@ -1007,6 +1033,7 @@ export const resolveRecordMember = (
   const fieldPath: RecordFieldIdentity[] = [];
   let field: RecordFieldSemantic | null = null;
   let collectionIndex: number | undefined;
+  let collectionFieldPath: readonly RecordFieldIdentity[] | undefined;
   let optionalTraversal = false;
   for (const [partIndex, part] of parts.entries()) {
     const optionalValueType = valueType as import("./dslValueTypes").DslValueType;
@@ -1028,6 +1055,7 @@ export const resolveRecordMember = (
         if (!isDslArrayValueType(valueType)) return null;
         valueType = valueType.elementType;
         collectionIndex = part.index;
+        collectionFieldPath = [...fieldPath];
       }
     } else if (isDslArrayValueType(valueType)) {
       if (part.name !== "length" || part.index !== null || partIndex !== parts.length - 1) return null;
@@ -1046,7 +1074,7 @@ export const resolveRecordMember = (
         valueType,
         property: geometryProperty,
         type,
-        ...(collectionIndex !== undefined ? { collectionIndex } : {})
+        ...(collectionIndex !== undefined ? { collectionIndex, collectionFieldPath } : {})
       } : null;
     } else {
       return null;
@@ -1058,6 +1086,6 @@ export const resolveRecordMember = (
     fieldPath,
     valueType,
     type: scalarExpressionTypeOfDslValueType(valueType),
-    ...(collectionIndex !== undefined ? { collectionIndex } : {})
+    ...(collectionIndex !== undefined ? { collectionIndex, collectionFieldPath } : {})
   } : null;
 };
