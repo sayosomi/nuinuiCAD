@@ -1,0 +1,10 @@
+nui 1
+// #1497 V2; independently frozen before product evaluation
+module Pattern(s: number, a: number, flip: boolean) {
+curve B = bezier(start: (2, 3), end: (31, 11), startAngle: 69.44395478041653, startLength: 17.08800749063506, endAngle: 68.74949449286676, endLength: 19.313207915827967)
+export line Copy = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: @s, angleDeg: @a, mirrorX: @flip, baseLines: [@B])
+export const Pure: path = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: @s, angleDeg: @a, mirrorX: @flip, baseLines: [@B])
+}
+instance First = Pattern(s: 1.3, a: 27, flip: true)
+instance Second = Pattern(s: 0.7, a: -19, flip: false)
+line Control = segment(start: (201, -103), end: (238, -103))

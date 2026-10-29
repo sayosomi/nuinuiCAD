@@ -1,0 +1,7 @@
+nui 1
+// #1497 R2; independently frozen before product evaluation
+line L = segment(start: (1, 2), end: (4, 6))
+const Pure: path = transformCopy(startPoint: (0, 0), endPoint: (0, 0), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@L])
+point Read = coordinate(x: @Pure.endPoint.x, y: @Pure.endAngleDeg)
+point Neighbor = coordinate(x: @Pure.length, y: @Pure.startAngleDeg)
+line Control = segment(start: (201, -103), end: (238, -103))

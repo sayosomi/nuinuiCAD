@@ -1,0 +1,74 @@
+[
+  {
+    "command": [
+      "cargo",
+      "fmt",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 1.0368372920202091
+  },
+  {
+    "command": [
+      "cargo",
+      "check",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "exit": 0,
+    "seconds": 0.04022354196058586
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "line_copy"
+    ],
+    "exit": 0,
+    "seconds": 0.05142654199153185
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "line_transform"
+    ],
+    "exit": 0,
+    "seconds": 0.043920917029026896
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "geometry_value"
+    ],
+    "exit": 0,
+    "seconds": 0.053435874986462295
+  },
+  {
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1497AffineConformance.integration.test.ts",
+      "test/issue1495OffsetConformance.integration.test.ts",
+      "src/geometry/copyPathGeometry.test.ts",
+      "src/geometry/transformationRecipeEvaluation.test.ts",
+      "src/dsl/geometryValueReference.integration.test.ts",
+      "test/modulePathCarryRust.integration.test.ts",
+      "test/moduleQualifiedGeometryPropertyRust.integration.test.ts",
+      "--maxWorkers=2"
+    ],
+    "exit": 0,
+    "seconds": 5.952417834021617
+  }
+]

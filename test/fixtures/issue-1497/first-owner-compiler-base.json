@@ -1,0 +1,170 @@
+{
+  "source": "R2.nui",
+  "base": "b29186a6a8f48d35f60ab6adb334a3defe7d4a6a",
+  "elements": [
+    {
+      "id": "line-mvtqp1cz-2",
+      "name": "L",
+      "type": "line",
+      "activity": "visible",
+      "startPoint": {
+        "mode": "coordinate",
+        "x": 1,
+        "y": 2
+      },
+      "endPoint": {
+        "mode": "coordinate",
+        "x": 4,
+        "y": 6
+      },
+      "enabled": true,
+      "visible": true
+    },
+    {
+      "id": "freePoint-mvtqp1cz-3",
+      "name": "Read",
+      "type": "freePoint",
+      "activity": "visible",
+      "x": {
+        "kind": "expression",
+        "expression": "@Pure.endPoint.x"
+      },
+      "y": {
+        "kind": "expression",
+        "expression": "@Pure.endAngleDeg"
+      },
+      "enabled": true,
+      "visible": true
+    },
+    {
+      "id": "freePoint-mvtqp1cz-4",
+      "name": "Neighbor",
+      "type": "freePoint",
+      "activity": "visible",
+      "x": {
+        "kind": "expression",
+        "expression": "@Pure.length"
+      },
+      "y": {
+        "kind": "expression",
+        "expression": "@Pure.startAngleDeg"
+      },
+      "enabled": true,
+      "visible": true
+    },
+    {
+      "id": "line-mvtqp1cz-5",
+      "name": "Control",
+      "type": "line",
+      "activity": "visible",
+      "startPoint": {
+        "mode": "coordinate",
+        "x": 201,
+        "y": -103
+      },
+      "endPoint": {
+        "mode": "coordinate",
+        "x": 238,
+        "y": -103
+      },
+      "enabled": true,
+      "visible": true
+    }
+  ],
+  "numericBindings": {
+    "3:y": {
+      "parameterKey": "y",
+      "expression": "@Pure.endAngleDeg",
+      "references": [],
+      "typedExpression": {
+        "kind": "geometryProperty",
+        "span": {
+          "start": 0,
+          "end": 17
+        },
+        "elementNameSpan": {
+          "start": 1,
+          "end": 5
+        },
+        "propertySpan": {
+          "start": 6,
+          "end": 17
+        },
+        "elementName": "Pure",
+        "elementId": null,
+        "geometryValueOccurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvtqp1cz:2",
+          "instancePath": []
+        },
+        "property": "endAngleDeg",
+        "targetSourceOrder": 2,
+        "type": {
+          "kind": "number"
+        }
+      }
+    },
+    "4:x": {
+      "parameterKey": "x",
+      "expression": "@Pure.length",
+      "references": [],
+      "typedExpression": {
+        "kind": "geometryProperty",
+        "span": {
+          "start": 0,
+          "end": 12
+        },
+        "elementNameSpan": {
+          "start": 1,
+          "end": 5
+        },
+        "propertySpan": {
+          "start": 6,
+          "end": 12
+        },
+        "elementName": "Pure",
+        "elementId": null,
+        "geometryValueOccurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvtqp1cz:2",
+          "instancePath": []
+        },
+        "property": "length",
+        "targetSourceOrder": 2,
+        "type": {
+          "kind": "number"
+        }
+      }
+    },
+    "4:y": {
+      "parameterKey": "y",
+      "expression": "@Pure.startAngleDeg",
+      "references": [],
+      "typedExpression": {
+        "kind": "geometryProperty",
+        "span": {
+          "start": 0,
+          "end": 19
+        },
+        "elementNameSpan": {
+          "start": 1,
+          "end": 5
+        },
+        "propertySpan": {
+          "start": 6,
+          "end": 19
+        },
+        "elementName": "Pure",
+        "elementId": null,
+        "geometryValueOccurrence": {
+          "sourceStatementId": "statement:typedDeclaration:mvtqp1cz:2",
+          "instancePath": []
+        },
+        "property": "startAngleDeg",
+        "targetSourceOrder": 2,
+        "type": {
+          "kind": "number"
+        }
+      }
+    }
+  },
+  "finding": "Read.x lacks a typed occurrence binding for canonical endPoint.x; Read.y/Neighbor.x/y retain the pure occurrence."
+}

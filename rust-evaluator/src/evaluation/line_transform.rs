@@ -98,7 +98,7 @@ impl LineTransform {
                     y: axis_point2.y - axis_point1.y,
                 };
                 let axis_length_squared = axis.x * axis.x + axis.y * axis.y;
-                if axis_length_squared <= EPSILON {
+                if axis_length_squared <= EPSILON * EPSILON {
                     return None;
                 }
                 let relative = OffsetPoint {
@@ -466,5 +466,36 @@ pub(crate) fn transform_line_like_geometry(
         "offsetLine" | "joinedPath" => transform_offset_geometry(geometry, transform),
         "polyline" => transform_polyline_geometry(geometry, transform),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_reflection_axis_uses_the_same_length_threshold_as_admission() {
+        // #1497 R1: unit axis (3/5, 4/5), reflection matrix [-7,24;24,7]/25.
+        // Axis magnitude must not change the infinite reflection line.
+        for magnitude in [0.00001, 1.0] {
+            let transform = LineTransform::reflect(
+                OffsetPoint { x: 0.0, y: 0.0 },
+                OffsetPoint {
+                    x: 0.6 * magnitude,
+                    y: 0.8 * magnitude,
+                },
+            )
+            .expect("noncoincident axis above length epsilon");
+            let reflected = transform
+                .apply(OffsetPoint { x: 1.0, y: 2.0 })
+                .expect("an admitted axis must apply");
+            assert!((reflected.x - 1.64).abs() < 1e-12);
+            assert!((reflected.y - 1.52).abs() < 1e-12);
+        }
+        assert!(LineTransform::reflect(
+            OffsetPoint { x: 0.0, y: 0.0 },
+            OffsetPoint { x: 0.0, y: 0.0 },
+        )
+        .is_none());
     }
 }

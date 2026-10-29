@@ -1,0 +1,6 @@
+nui 1
+// #1497 R1; independently frozen before product evaluation
+line L = segment(start: (1, 2), end: (4, 6))
+line Copy = mirrorCopy(axis1: (0, 0), axis2: (0.000006, 0.000008), baseLines: [@L])
+const Pure: path = mirrorCopy(axis1: (0, 0), axis2: (0.000006, 0.000008), baseLines: [@L])
+line Control = segment(start: (201, -103), end: (238, -103))

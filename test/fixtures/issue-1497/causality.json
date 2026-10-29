@@ -1,0 +1,43 @@
+{
+  "base": "b29186a6a8f48d35f60ab6adb334a3defe7d4a6a",
+  "ownerChecks": [
+    {
+      "path": "packages/nui-language/src/dsl/dslDocument.ts",
+      "baseSHA256": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31",
+      "counterfactualProductionTextEqualsBase": true,
+      "fixedSHA256": "2c6cb4162932f3a9a74b1b3729e08501803517d2dbecf94709feaccf39507ca6"
+    },
+    {
+      "path": "rust-evaluator/src/evaluation/line_transform.rs",
+      "baseSHA256": "3bd0169c2cedb21db563bf737c2c820cc915d7f21e7587f55c2a92bec4fb0a1f",
+      "counterfactualProductionTextEqualsBase": true,
+      "fixedSHA256": "5585f51ac907c6c9d008e9c87ec8e4f6e8d0e44742d44b67b6cc09fc565fe596"
+    }
+  ],
+  "families": {
+    "F1": {
+      "baseFail": [
+        "X1/R1 Rust drawable and pure"
+      ],
+      "basePass": [
+        "X1/R1 TS",
+        "M1/M2 both hosts",
+        "Control all units"
+      ],
+      "repairRemoval": "remove-rust.json.gz",
+      "restored": "restored.json.gz"
+    },
+    "F2": {
+      "baseFail": [
+        "V3/R2 both hosts canonical endpoint property consumer"
+      ],
+      "basePass": [
+        "V3 drawable endpoint",
+        "R2 length and angle neighbor",
+        "X2 typed scalar route"
+      ],
+      "repairRemoval": "remove-compiler.json.gz",
+      "restored": "restored.json.gz"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+nui 1
+// #1497 P2; independently frozen before product evaluation
+curve B = bezier(start: (3, 5), end: (43, 5), startAngle: 0.0, startLength: 11.333333333333334, endAngle: 0.0, endLength: 13.333333333333332)
+line Seam = offset(sources: [@B], distance: 3, side: right)
+line Copy = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: 1.7, angleDeg: 37, mirrorX: false, baseLines: [@Seam])
+line Mirror = mirrorCopy(axis1: (5, -3), axis2: (12, 8), baseLines: [@Seam])
+line Control = segment(start: (201, -103), end: (238, -103))

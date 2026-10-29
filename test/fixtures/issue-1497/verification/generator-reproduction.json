@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "reproducedFiles": [
+    "M1.nui",
+    "M2.nui",
+    "M3.nui",
+    "M4.nui",
+    "P1.nui",
+    "P2.nui",
+    "P3.nui",
+    "P4-recovered.nui",
+    "P4.nui",
+    "R1.nui",
+    "R2.nui",
+    "T1.nui",
+    "T2.nui",
+    "T3.nui",
+    "T4.nui",
+    "V1.nui",
+    "V2.nui",
+    "V3.nui",
+    "V4-recovered.nui",
+    "V4.nui",
+    "X1.nui",
+    "X2.nui",
+    "X3.nui",
+    "manifest.json"
+  ],
+  "count": 24,
+  "generatorSHA256": "709734864c998d32976116f44601ea612ce00bc3e824ae9fd7a7f4e5345b5112"
+}

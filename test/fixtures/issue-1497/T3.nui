@@ -1,0 +1,5 @@
+nui 1
+// #1497 T3; independently frozen before product evaluation
+arc A = arc(center: (4, -2), radius: 13, start: 327, end: 48, direction: counterclockwise)
+line Copy = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: 1.3, angleDeg: 29, mirrorX: true, baseLines: [@A])
+line Control = segment(start: (201, -103), end: (238, -103))

@@ -1,4 +1,5 @@
 import { createGraphExternalNamespaceResolver } from "../document/multiDocumentImportGraph";
+import { numericGeometryPropertySupportedByStaticTarget } from "../geometry/numericGeometryProperties";
 import { documentRecordTypeIdentity } from "./recordSemanticAnalysis";
 import {
   createElementNameContext,
@@ -2116,9 +2117,10 @@ export const compileDslDocument = (
         const pointPath = /^(start|end)\.(x|y)$/.exec(node.property);
         const property = pointPath ? pointPath[2]! : node.property;
         const pointKey = pointPath?.[1];
-        const valid = declaredInterfaceType === "point"
-          ? property === "x" || property === "y"
-          : property === "length" || property === "startAngleDeg" || property === "endAngleDeg" || Boolean(pointPath);
+        const valid = numericGeometryPropertySupportedByStaticTarget(
+          { kind: "family", family: declaredInterfaceType === "point" ? "point" : "genericPath" },
+          property
+        ) || (declaredInterfaceType !== "point" && Boolean(pointPath));
         if (!valid) return null;
         return {
           kind: "geometryValue" as const,

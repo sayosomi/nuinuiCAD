@@ -1,0 +1,5 @@
+nui 1
+// #1497 T2; independently frozen before product evaluation
+curve B = bezier(start: (2, 3), end: (31, 11), startAngle: 69.44395478041653, startLength: 17.08800749063506, endAngle: 68.74949449286676, endLength: 19.313207915827967)
+line Copy = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: 1.7, angleDeg: 37, mirrorX: false, baseLines: [@B])
+line Control = segment(start: (201, -103), end: (238, -103))
