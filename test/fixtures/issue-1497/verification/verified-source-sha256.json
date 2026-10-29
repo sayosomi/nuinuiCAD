@@ -1,0 +1,10 @@
+{
+  "testedSHA": "43213e2ff24e6099813ffc3cb991bdcb2f9abf4f",
+  "digests": {
+    "packages/nui-language/src/dsl/dslDocument.ts": "2c6cb4162932f3a9a74b1b3729e08501803517d2dbecf94709feaccf39507ca6",
+    "rust-evaluator/src/evaluation/line_transform.rs": "5585f51ac907c6c9d008e9c87ec8e4f6e8d0e44742d44b67b6cc09fc565fe596",
+    "test/issue1497AffineConformance.integration.test.ts": "249de7d9369f9c2d7536fecaf52667f45da352ee5150c04874cb12b9a1aa24b3",
+    "test/fixtures/issue-1497/freeze.py": "709734864c998d32976116f44601ea612ce00bc3e824ae9fd7a7f4e5345b5112",
+    "test/fixtures/issue-1497/manifest.json": "b192f9f47ce44b3a0d5a784dfbaca5a9f246b87fb7e172d6471ff76f1060914e"
+  }
+}

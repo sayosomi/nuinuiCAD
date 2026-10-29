@@ -1,0 +1,87 @@
+{
+  "testedSHA": "43213e2ff24e6099813ffc3cb991bdcb2f9abf4f",
+  "startUnix": 1793290672.499873,
+  "elapsedSeconds": 462.2775640487671,
+  "timeoutSeconds": 1800,
+  "exit": 0,
+  "command": "exact user final verification block, /bin/bash -x",
+  "commands": [
+    {
+      "command": "npm run build",
+      "exit": 0
+    },
+    {
+      "command": "npm run lint",
+      "exit": 0
+    },
+    {
+      "command": "npm test -- --maxWorkers=2",
+      "exit": 0
+    },
+    {
+      "command": "npm run test:parity",
+      "exit": 0
+    },
+    {
+      "command": "npm run docs:dsl:check",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check b29186a6a8f48d35f60ab6adb334a3defe7d4a6a HEAD",
+      "exit": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    },
+    {
+      "command": "cargo fmt --manifest-path rust-evaluator/Cargo.toml -- --check",
+      "exit": 0
+    },
+    {
+      "command": "cargo check --manifest-path rust-evaluator/Cargo.toml",
+      "exit": 0
+    },
+    {
+      "command": "cargo test --manifest-path rust-evaluator/Cargo.toml",
+      "exit": 0
+    },
+    {
+      "command": "cargo clippy --manifest-path rust-evaluator/Cargo.toml --all-targets -- -D warnings",
+      "exit": 0
+    }
+  ],
+  "counts": {
+    "npmTest": {
+      "filesPassed": 712,
+      "filesSkipped": 2,
+      "testsPassed": 11502,
+      "testsSkipped": 187,
+      "testsFailed": 0
+    },
+    "parity": {
+      "passed": 207,
+      "failed": 0,
+      "skipped": 0
+    },
+    "rust": {
+      "libraryPassed": 639,
+      "stdioPassed": 6,
+      "integrationPassed": 1,
+      "ignored": 9,
+      "failed": 0
+    },
+    "matrix": {
+      "primary": 16,
+      "X": 3,
+      "reducers": 2,
+      "accepted": 21,
+      "ceiling": 28,
+      "persistentSpawns": 1,
+      "requests": 23,
+      "hostCheckpointPasses": 46,
+      "failed": 0,
+      "skipped": 0
+    }
+  }
+}

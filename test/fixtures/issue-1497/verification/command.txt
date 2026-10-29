@@ -1,0 +1,29 @@
+(
+  set -e
+  cd /Users/yosomi/Code/nuinuiCAD
+
+  base=b29186a6a8f48d35f60ab6adb334a3defe7d4a6a
+
+  npm run build
+  npm run lint
+  npm test -- --maxWorkers=2
+  npm run test:parity
+  npm run docs:dsl:check
+  git diff --check "$base" HEAD
+  git diff --check
+
+  if {
+    git diff --name-only "$base" HEAD
+    git diff --name-only
+  } | grep -q '^rust-evaluator/'; then
+    cargo fmt \
+      --manifest-path rust-evaluator/Cargo.toml -- --check
+    cargo check \
+      --manifest-path rust-evaluator/Cargo.toml
+    cargo test \
+      --manifest-path rust-evaluator/Cargo.toml
+    cargo clippy \
+      --manifest-path rust-evaluator/Cargo.toml \
+      --all-targets -- -D warnings
+  fi
+)

@@ -1,0 +1,34 @@
+{
+  "unchangedControlObservations": 46,
+  "records": [
+    {
+      "family": "F2",
+      "host": "Rust",
+      "reducer": "R2",
+      "independentNeighbor": {
+        "x": 5,
+        "y": 53.13010235415598
+      },
+      "actualNeighbor": {
+        "x": 5,
+        "y": 53.13010235415598
+      },
+      "status": "Base neighbor PASS; Read missing FAIL"
+    },
+    {
+      "family": "F2",
+      "host": "TS",
+      "reducer": "R2",
+      "independentNeighbor": {
+        "x": 5,
+        "y": 53.13010235415598
+      },
+      "actualNeighbor": {
+        "x": 5,
+        "y": 53.13010235415595
+      },
+      "status": "Base neighbor PASS; Read missing FAIL"
+    }
+  ],
+  "status": "PASS"
+}
