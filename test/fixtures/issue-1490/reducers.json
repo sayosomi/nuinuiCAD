@@ -1,0 +1,72 @@
+[
+  {
+    "id": "M1",
+    "source": "nui 1\nimport \"./types.nui\" as types\nimport \"./module.nui\" as pattern\nrecord Wrapper(rows: types::Measure[])\nconst dimension: types::Measure = types::Measure(x: 7, y: 19)\nconst wrapped: Wrapper = Wrapper(rows: [@dimension])\nconst first: types::Measure = types::Measure(x: @wrapped.rows[0].x, y: @wrapped.rows[0].y)\ngroup Left {\n  instance piece = pattern::Pocket(measure: @first, shift: 3)\n}\n",
+    "files": {
+      "types.nui": "nui 1\nexport record Measure(x: number, y: number)\n",
+      "module.nui": "nui 1\nimport \"./types.nui\" as types\nexport module Pocket(measure: types::Measure, shift: number) {\n point P = coordinate(x: @measure.x + @shift, y: @measure.y - @shift)\n}\n"
+    },
+    "expected": {
+      "x": 10,
+      "y": 16
+    },
+    "reason": "R4 alias member of imported-record array field loses its backing values",
+    "sha256": "bc46e7554a37b9202ebba75dfb416a4c47d9375056930223d32f1c47c9804b44"
+  },
+  {
+    "id": "X1",
+    "source": "nui 1\nimport \"./types.nui\" as types\nimport \"./module.nui\" as pattern\nrecord Wrapper(rows: types::Measure[])\nconst dimension: types::Measure = types::Measure(x: 7, y: 19)\nconst wrapped: Wrapper = Wrapper(rows: [types::Measure(x: 7, y: 19)])\nconst first: types::Measure = types::Measure(x: @wrapped.rows[0].x, y: @wrapped.rows[0].y)\ngroup Left {\n  instance piece = pattern::Pocket(measure: @first, shift: 3)\n}\n",
+    "files": {
+      "types.nui": "nui 1\nexport record Measure(x: number, y: number)\n",
+      "module.nui": "nui 1\nimport \"./types.nui\" as types\nexport module Pocket(measure: types::Measure, shift: number) {\n point P = coordinate(x: @measure.x + @shift, y: @measure.y - @shift)\n}\n"
+    },
+    "expected": {
+      "x": 10,
+      "y": 16
+    },
+    "reason": "Neighbor inline record array member; identical original nominal type and geometry",
+    "sha256": "65b4c69e3969bc02e89d44d5b9406292595954d5c4e5afdea14ffe2b93465686"
+  },
+  {
+    "id": "X2",
+    "source": "nui 1\nimport \"./types.nui\" as types\nimport \"./module.nui\" as pattern\nrecord Wrapper(inner: types::Measure)\nconst dimension: types::Measure = types::Measure(x: 7, y: 19)\nconst wrapped: Wrapper = Wrapper(inner: @dimension)\nconst first: types::Measure = types::Measure(x: @wrapped.inner.x, y: @wrapped.inner.y)\ngroup Left {\n  instance piece = pattern::Pocket(measure: @first, shift: 3)\n}\n",
+    "files": {
+      "types.nui": "nui 1\nexport record Measure(x: number, y: number)\n",
+      "module.nui": "nui 1\nimport \"./types.nui\" as types\nexport module Pocket(measure: types::Measure, shift: number) {\n point P = coordinate(x: @measure.x + @shift, y: @measure.y - @shift)\n}\n"
+    },
+    "expected": {
+      "x": 10,
+      "y": 16
+    },
+    "reason": "Neighbor nested record field without an intervening array",
+    "sha256": "bfaa0ace3749c1d26cde744db0f0f56953f425b9fa22f2e22112fe15e3401706"
+  },
+  {
+    "id": "M2",
+    "source": "nui 1\nimport \"./types.nui\" as types\nimport \"./module.nui\" as pattern\nrecord Wrapper(rows: types::Measure[])\nconst wrapped: Wrapper = Wrapper(rows: [types::Measure(x: 7, y: 19)])\nconst first: types::Measure = types::Measure(x: @wrapped.rows[0].x, y: @wrapped.rows[0].y)\ngroup Left {\n  instance piece = pattern::Pocket(measure: @first, shift: 3)\n}\n",
+    "files": {
+      "types.nui": "nui 1\nexport record Measure(x: number, y: number)\n",
+      "module.nui": "nui 1\nimport \"./types.nui\" as types\nexport module Pocket(measure: types::Measure, shift: number) {\n point P = coordinate(x: @measure.x + @shift, y: @measure.y - @shift)\n}\n"
+    },
+    "expected": {
+      "x": 10,
+      "y": 16
+    },
+    "reason": "Inline imported record in an array-only wrapper must not reserve an absent scalar slot",
+    "sha256": "10710f92ce37a4a190eeab2637c493ddc7c177ace002ee683ce5ac951d5eca18"
+  },
+  {
+    "id": "M3",
+    "source": "nui 1\nimport \"./types.nui\" as types\nimport \"./module.nui\" as pattern\nconst values: number[] = [7, 19]\nconst first: types::Measure = types::Measure(x: @values[0], y: @values[1])\ngroup Left {\n  instance piece = pattern::Pocket(measure: @first, shift: 3)\n}\n",
+    "files": {
+      "types.nui": "nui 1\nexport record Measure(x: number, y: number)\n",
+      "module.nui": "nui 1\nimport \"./types.nui\" as types\nexport module Pocket(measure: types::Measure, shift: number) {\n point P = coordinate(x: @measure.x + @shift, y: @measure.y - @shift)\n}\n"
+    },
+    "expected": {
+      "x": 10,
+      "y": 16
+    },
+    "reason": "Record constructor scalar collection indices must use runtime source positions",
+    "sha256": "8e34deac3802e60aff5551db63387306035adc6ec2713e1644f558a4fea5fe39"
+  }
+]

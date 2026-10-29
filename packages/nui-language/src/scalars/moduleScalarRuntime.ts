@@ -998,7 +998,7 @@ const semanticReferencesUsedByAst = (semantic: ModuleScalarExpressionSemantic, a
 };
 
 /** Split a compiler-resolved field path at its one indexed collection field. */
-const indexedRecordFieldPaths = (
+export const indexedRecordFieldPaths = (
   target: import("../dsl/moduleSemanticTypes").ModuleRecordFieldSourceTarget
 ) => {
   if (target.collectionIndex === undefined || !target.collectionFieldPath) return null;
@@ -7094,7 +7094,10 @@ export const compileModuleScalarRuntime = ({
         );
         initializers.set(bindingId, lowered.expression);
       } else {
-        initializers.set(bindingId, remapTypedExpressionCollectionValueIds(initializer, (valueId) => collectionValueIdFor(valueId, null)));
+        initializers.set(bindingId, remapTypedExpressionCollectionValueIds(
+          remapTypedExpressionSourceOrders(initializer, (sourceOrder) => sourceOrder >= 0 ? executionPositionForValue([], sourceOrder) : sourceOrder),
+          (valueId) => collectionValueIdFor(valueId, null)
+        ));
       }
     }
   }

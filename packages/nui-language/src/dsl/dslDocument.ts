@@ -82,7 +82,7 @@ import { geometryValueOccurrenceKey } from "../model/geometryValueOccurrence";
 import { parseGeometryArrayExpression } from "./geometryArrayExpression";
 import { parseRecordConstructorFields } from "./recordSemanticAnalysis";
 import { buildRootGeometryValueProgram } from "./moduleGeometryValueProgram";
-import { compileModuleScalarRuntime, lowerExpression, moduleRecordCollectionBinderFieldIdForPath, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
+import { compileModuleScalarRuntime, indexedRecordFieldPaths, lowerExpression, moduleRecordCollectionBinderFieldIdForPath, moduleRecordExportFieldBindingIdFor, moduleScalarBindingIdFor, moduleScalarExportBindingSeeds, type ModuleScalarRuntimeCompilation } from "../scalars/moduleScalarRuntime";
 import {
   recordFieldContentsCollectionValueIdFor,
   recordFieldCollectionValueIdFor,
@@ -4330,12 +4330,19 @@ export const compileDslDocument = (
             (property.target.record.kind === "deferredModuleRecordExport" || property.target.record.kind === "recordValue") &&
             property.target.collectionIndex !== undefined
           ) {
-            const fieldContents = rootRecordFieldContentsForTarget(property.target);
+            // Index the array field's contents first, then project the selected
+            // record member's scalar field through the existing runtime owner.
+            const indexed = indexedRecordFieldPaths(property.target);
+            const fieldContents = rootRecordFieldContentsForTarget(indexed
+              ? { ...property.target, fieldPath: indexed.contents }
+              : property.target);
             if (!fieldContents) return null;
             return {
               resolution: {
                 kind: "resolvedCollectionIndex" as const,
-                collectionValueId: fieldContents.collectionValueId,
+                collectionValueId: indexed
+                  ? recordFieldCollectionValueIdFor(fieldContents.collectionValueId, indexed.member.at(-1)!, indexed.member)
+                  : fieldContents.collectionValueId,
                 collectionLength: null,
                 targetSourceOrder: fieldContents.targetSourceOrder,
                 type: property.type
