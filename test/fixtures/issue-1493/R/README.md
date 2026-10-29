@@ -12,9 +12,9 @@ candidate's `head` field alone, identify every measured implementation.
 
 ## Frozen oracle and closed ledger
 
-`oracle.json` freezes the original 17 old→new source pairs and their source
+`oracle.json.gz` freezes the original 17 old→new source pairs and their source
 hashes, authored-location ID correspondence, stages, identity kinds, parent and
-branch relationships, created and vanished identities. `oracle-extensions.json`
+branch relationships, created and vanished identities. `oracle-extensions.json.gz`
 adds only the independently authored R3-2 minimal two-sibling reproducer, frozen
 before its product run. The original oracle was never regenerated to fit output.
 `test/issue1493ReconcilerSupport.ts` derives expectations from authored topology
@@ -77,7 +77,7 @@ claim of globally linear reconciliation.
 
 ## Causal removal and restoration
 
-`counterfactual.json` records hashes, commands and results for independent ablations.
+`counterfactual.json.gz` records hashes, commands and results for independent ablations.
 All ablated variants retain exact semantic ID/stage/parent/source oracles.
 
 - Remove only memoization, retain local ranges: four R1 work tests FAIL;
@@ -89,10 +89,10 @@ All ablated variants retain exact semantic ID/stage/parent/source oracles.
   1.380 ms. Final also counts numeric Set membership checks in its deterministic
   bound, so moving the work from iteration to interval membership is visible.
 
-`base*.json`, `cache-only*.json`, `fixed*.json`, `removed-*.json`,
-`restored-after-*.json` and `restored-full*.json` retain intermediate and repeated
+`base*.json.gz`, `cache-only*.json.gz`, `fixed*.json.gz`, `removed-*.json.gz`,
+`restored-after-*.json.gz` and `restored-full*.json.gz` retain intermediate and repeated
 samples rather than selecting a single favorable timing. The final candidate's
-whole matrix is `restored-full.json`. Diagnostic trace bundles are temporary,
+whole matrix is `restored-full.json.gz`. Diagnostic trace bundles are temporary,
 CLI-only copies of the exact owner with stage counters, independently checked
 against the frozen oracle; their timings are never benchmark data. The trace
 includes source/instrumentation hashes and all stage 1–6 work arrays.

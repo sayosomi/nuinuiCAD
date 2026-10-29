@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 import { assertReconciled, hash, reconcilerCases, reconcilerFixture } from "../../test/issue1493ReconcilerSupport";
 import type { reconcileStatements } from "../../packages/nui-language/src/document/statementReconciler";
@@ -40,6 +41,6 @@ try {
     return { id: f.id, ...structuredClone(instrumented.issue1493Trace) };
   });
   const label = process.argv[2]; assert.match(label, /^[a-z0-9-]+$/);
-  writeFileSync(`test/fixtures/issue-1493/R/${label}-trace.json`, JSON.stringify({ ownerSha256: hash(original), instrumentationSha256: hash(source), records }, null, 2) + "\n");
+  writeFileSync(`test/fixtures/issue-1493/R/${label}-trace.json.gz`, gzipSync(JSON.stringify({ ownerSha256: hash(original), instrumentationSha256: hash(source), records })));
   console.log(`${label}: exact-oracle diagnostic replay passed for ${records.length} R units`);
 } finally { rmSync(temporary, { recursive: true }); }
