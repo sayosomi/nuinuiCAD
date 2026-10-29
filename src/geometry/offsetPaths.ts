@@ -138,7 +138,9 @@ export const buildOffsetLineGeometry = ({
       continue;
     }
     if (segment.kind === "bezier") {
-      const result = offsetBezierSegmentGroups(segment, offset);
+      // The fitter uses a left normal (including its curvature-scale test).
+      // This boundary's signed distance is positive to the directed right.
+      const result = offsetBezierSegmentGroups(segment, -offset);
       if (result.trimmed && !suppressTrimWarnings && warnings.length === 0) {
         warnings.push(
           `${name} はオフセット量が曲線の曲率半径を超える箇所があるため、一部区間をトリムしました。オフセット量を下げると全体を作図できます。`

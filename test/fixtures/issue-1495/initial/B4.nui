@@ -1,0 +1,8 @@
+nui 1
+// #1495 B4; sealed before production evaluation
+curve Curve = bezier(start: (0, 0), end: (60, 0), startAngle: 56.309932474020215, startLength: 36.05551275463989, endAngle: 123.69006752597979, endLength: 36.05551275463989)
+line Seam = offset(sources: [@Curve], distance: 35, side: right, closed: false, suppressTrimWarnings: false)
+line Quiet = offset(sources: [@Curve], distance: 35, side: right, closed: false, suppressTrimWarnings: true)
+line Low = offset(sources: [@Curve], distance: 2, side: right, closed: false, suppressTrimWarnings: false)
+line Control = segment(start: (201, -103), end: (238, -103))
+line ControlOffset = offset(sources: [@Control], distance: 7, side: right)

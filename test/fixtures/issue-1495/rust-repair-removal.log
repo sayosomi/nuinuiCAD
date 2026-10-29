@@ -1,0 +1,22 @@
+
+running 1 test
+test evaluation::offset_paths::tests::straight_bezier_offset_uses_the_same_directed_side_as_a_line ... FAILED
+
+failures:
+
+---- evaluation::offset_paths::tests::straight_bezier_offset_uses_the_same_directed_side_as_a_line stdout ----
+
+thread 'evaluation::offset_paths::tests::straight_bezier_offset_uses_the_same_directed_side_as_a_line' (5610434) panicked at src/evaluation/offset_paths.rs:380:17:
+assertion failed: (geometry[key]["y"].as_f64().unwrap() + offset).abs() < 1e-9
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    evaluation::offset_paths::tests::straight_bezier_offset_uses_the_same_directed_side_as_a_line
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 646 filtered out; finished in 0.01s
+
+   Compiling nuinuicad-rust-evaluator v0.0.0 (/Users/yosomi/Code/nuinuiCAD/rust-evaluator)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.41s
+     Running unittests src/lib.rs (rust-evaluator/target/debug/deps/nuinuicad_rust_evaluator-59ccadadf15a6640)
+error: test failed, to rerun pass `--lib`

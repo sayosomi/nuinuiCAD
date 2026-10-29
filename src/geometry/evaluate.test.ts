@@ -4933,7 +4933,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
     expect(curve.x).toBeCloseTo(50);
     expect(curve.y).toBeCloseTo(0);
     expect(offset.x).toBeCloseTo(50);
-    expect(offset.y).toBeCloseTo(10);
+    expect(offset.y).toBeCloseTo(-10);
   });
 
   it("selects an intersection by index when multiple intersections exist", () => {
@@ -6350,7 +6350,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
         activity: "visible",
         baseLineIds: ["curve"],
         offset: 20,
-        side: "left",
+        side: "right",
         closed: false
       }
     ];
@@ -6445,7 +6445,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
         activity: "visible",
         baseLineIds: ["curve"],
         offset: 35,
-        side: "right",
+        side: "left",
         closed: false
       }
     ];
@@ -6488,7 +6488,7 @@ point Q = coordinate(x: distance(P, PR:start), y: 0)`);
         activity: "visible",
         baseLineIds: ["curve"],
         offset: 35,
-        side: "right",
+        side: "left",
         closed: false,
         suppressTrimWarnings: true
       }

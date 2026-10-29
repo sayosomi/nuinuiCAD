@@ -1,0 +1,162 @@
+{
+  "base": "39fdfd677813bb2fdc13b29232a621e6f6f9dbac",
+  "spawns": 0,
+  "requests": 0,
+  "validateOnly": true,
+  "observations": [
+    {
+      "id": "L1",
+      "file": "L1.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "L2",
+      "file": "L2.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "L3",
+      "file": "L3.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "L4",
+      "file": "L4.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "A1",
+      "file": "A1.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "A2",
+      "file": "A2.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "A3",
+      "file": "A3.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "A4",
+      "file": "A4.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "B1",
+      "file": "B1.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "B2",
+      "file": "B2.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "B3",
+      "file": "B3.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "B4",
+      "file": "B4.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "C1",
+      "file": "C1.nui",
+      "phase": "compile",
+      "status": "fatal",
+      "diagnostics": [
+        {
+          "severity": "error",
+          "line": 6,
+          "column": 27,
+          "code": "module-geometry-type-mismatch",
+          "message": "geometry reference「Pure」の型が一致しません(期待: line)。",
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 451,
+                "to": 455
+              }
+            ],
+            "sourceRevision": 1
+          },
+          "presentation": {
+            "key": "diagnostic.module-geometry-type-mismatch",
+            "parameters": {
+              "name": "Pure",
+              "target": "Pure"
+            }
+          },
+          "relatedInformation": [
+            {
+              "message": "Related declaration",
+              "physicalSpan": {
+                "segments": [
+                  {
+                    "from": 316,
+                    "to": 320
+                  }
+                ],
+                "sourceRevision": 1
+              },
+              "presentation": {
+                "key": "diagnostic.related.declaration"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "file": "C2.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "C3",
+      "file": "C3.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    },
+    {
+      "id": "C4",
+      "file": "C4.nui",
+      "phase": "compile",
+      "status": "valid",
+      "diagnostics": []
+    }
+  ]
+}

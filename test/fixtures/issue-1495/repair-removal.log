@@ -1,0 +1,178 @@
+
+> nuinuicad@0.0.0 test
+> vitest run test/issue1495OffsetConformance.integration.test.ts --maxWorkers=1
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts (17 tests | 7 failed) 2625ms
+     × 'B1' legal source and independent geometry 43ms
+     × 'B2' legal source and independent geometry 19ms
+     × 'B3' legal source and independent geometry 21ms
+     × 'B4' legal source and independent geometry 16ms
+     × 'C1' legal source and independent geometry 20ms
+     × 'C2' legal source and independent geometry 22ms
+     × 'R1' legal source and independent geometry 14ms
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 10 passed (17)
+   Start at  23:59:55
+   Duration  4.83s (transform 1.55s, setup 31ms, import 1.81s, tests 2.63s, environment 290ms)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/issue1495OffsetConformance.integration.test.ts > #1495 sealed independent seam-offset matrix > 'B1' legal source and independent geometry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Rust B1.nui: AssertionError: Rust.Seam.end.x: 41.34164078649987 vs 38.65835921350013: expected 2.6832815729997463 to be less than or equal to 1e-7",
++   "TS B1.nui: AssertionError: TS.Seam.end.x: 41.34164078649987 vs 38.65835921350013: expected 2.6832815729997463 to be less than or equal to 1e-7",
++ ]
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts:241:22
+    239|       }
+    240|     }
+    241|     expect(failures).toEqual([]);
+       |                      ^
+    242|   }, 30000);
+    243| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/issue1495OffsetConformance.integration.test.ts > #1495 sealed independent seam-offset matrix > 'B2' legal source and independent geometry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Rust B2.nui: AssertionError: Rust.Seam.start.x: -1.7888543819998317 vs 1.788854381999832: expected 3.577708763999664 to be less than or equal to 1e-7",
++   "TS B2.nui: AssertionError: TS.Seam.start.x: -1.7888543819998317 vs 1.788854381999832: expected 3.577708763999664 to be less than or equal to 1e-7",
++ ]
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts:241:22
+    239|       }
+    240|     }
+    241|     expect(failures).toEqual([]);
+       |                      ^
+    242|   }, 30000);
+    243| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/issue1495OffsetConformance.integration.test.ts > #1495 sealed independent seam-offset matrix > 'B3' legal source and independent geometry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Rust B3.nui: AssertionError: Rust.Seam.start.x: -1.7888543819998317 vs 1.788854381999832: expected 3.577708763999664 to be less than or equal to 1e-7",
++   "TS B3.nui: AssertionError: TS.Seam.start.x: -1.7888543819998317 vs 1.788854381999832: expected 3.577708763999664 to be less than or equal to 1e-7",
++ ]
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts:241:22
+    239|       }
+    240|     }
+    241|     expect(failures).toEqual([]);
+       |                      ^
+    242|   }, 30000);
+    243| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/issue1495OffsetConformance.integration.test.ts > #1495 sealed independent seam-offset matrix > 'B4' legal source and independent geometry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Rust B4.nui: AssertionError: expected [] to deeply equal [ 'Seam' ]",
++   "TS B4.nui: AssertionError: expected [] to deeply equal [ 'Seam' ]",
++ ]
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts:241:22
+    239|       }
+    240|     }
+    241|     expect(failures).toEqual([]);
+       |                      ^
+    242|   }, 30000);
+    243| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/issue1495OffsetConformance.integration.test.ts > #1495 sealed independent seam-offset matrix > 'C1' legal source and independent geometry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Rust C1.nui: AssertionError: Rust.Seam.start.x: -3 vs 3: expected 6 to be less than or equal to 1e-7",
++   "TS C1.nui: AssertionError: TS.Seam.start.x: -3 vs 3: expected 6 to be less than or equal to 1e-7",
++ ]
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts:241:22
+    239|       }
+    240|     }
+    241|     expect(failures).toEqual([]);
+       |                      ^
+    242|   }, 30000);
+    243| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/issue1495OffsetConformance.integration.test.ts > #1495 sealed independent seam-offset matrix > 'C2' legal source and independent geometry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Rust C2.nui: AssertionError: Rust.First::Local.end.x: 40.89442719099991 vs 39.10557280900009: expected 1.7888543819998262 to be less than or equal to 1e-7",
++   "TS C2.nui: AssertionError: TS.First::Local.end.x: 40.89442719099991 vs 39.10557280900009: expected 1.7888543819998262 to be less than or equal to 1e-7",
++ ]
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts:241:22
+    239|       }
+    240|     }
+    241|     expect(failures).toEqual([]);
+       |                      ^
+    242|   }, 30000);
+    243| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/issue1495OffsetConformance.integration.test.ts > #1495 sealed independent seam-offset matrix > 'R1' legal source and independent geometry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "Rust R1.nui: AssertionError: Rust.Seam.start.y: 3 vs -3: expected 6 to be less than or equal to 1e-7",
++   "TS R1.nui: AssertionError: TS.Seam.start.y: 3 vs -3: expected 6 to be less than or equal to 1e-7",
++ ]
+
+ ❯ test/issue1495OffsetConformance.integration.test.ts:241:22
+    239|       }
+    240|     }
+    241|     expect(failures).toEqual([]);
+       |                      ^
+    242|   }, 30000);
+    243| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
