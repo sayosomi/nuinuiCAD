@@ -1,0 +1,7 @@
+{
+  "coordinatePairs": 2140,
+  "nonnegativeLengths": 828,
+  "status": "PASS",
+  "source": "restored.json.gz",
+  "freezeReproduction": "all current generated source and manifest bytes identical"
+}

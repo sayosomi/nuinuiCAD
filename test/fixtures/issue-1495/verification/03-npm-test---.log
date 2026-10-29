@@ -1,0 +1,13 @@
+
+> nuinuicad@0.0.0 test
+> vitest run --maxWorkers=2
+
+
+ RUN  v4.1.9 /Users/yosomi/Code/nuinuiCAD
+
+
+ Test Files  711 passed | 2 skipped (713)
+      Tests  11481 passed | 187 skipped (11668)
+   Start at  00:03:16
+   Duration  337.79s (transform 12.93s, setup 15.49s, import 144.98s, tests 249.48s, environment 210.90s)
+

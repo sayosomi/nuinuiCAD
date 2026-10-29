@@ -91,8 +91,21 @@ residuals and rejection of a deliberately wrong-side oracle. Larger raw JSON
 is losslessly gzip-compressed; `repair-removal*.log` retains both negative runs.
 `focused-verification.json` records 6 TS files / 225 tests and Rust offset
 controls (45 library + 1 integration passed, 1 existing ignored performance
-test). Final committed-source build/lint/full tests/parity/DSL/fmt/check/test/
-clippy results are recorded in `verification/` after execution.
+test). All ten final gates passed with exit 0 on committed source
+`6bc8f01617655eba2d4f92203a0dd58e1268798b`; exact commands, bounded durations
+and logs are in `verification/results.json`:
+
+- build, lint, DSL reference, diff check: PASS;
+- full npm test: 711 files passed / 2 existing skipped; 11,481 tests passed /
+  187 existing skipped;
+- parity: 207/207 passed;
+- Rust fmt/check/clippy with warnings denied: PASS;
+- Rust tests: 638 library + 6 stdio + 1 integration passed; 9 existing ignored
+  performance tests; 0 doc tests.
+
+The subsequent evidence commit only records reports/logs and this README.
+`verification/verified-source-sha256.json` pins every changed executable source
+and `.nui` fixture byte covered by the passing gate revision.
 
 This repair implements the already documented directed-side contract. No new
 language, architecture, host or UI behavior was introduced; DSL reference and
