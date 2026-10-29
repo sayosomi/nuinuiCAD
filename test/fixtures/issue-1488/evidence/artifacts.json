@@ -1,0 +1,686 @@
+[
+  {
+    "epoch": "base",
+    "unit": "R1-S0",
+    "variant": "artifacts",
+    "path": "base/R1-S0.svg",
+    "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+    "bytes": 444,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S0",
+    "variant": "artifacts",
+    "path": "base/R1-S0.pdf",
+    "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+    "bytes": 2328,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S1",
+    "variant": "artifacts",
+    "path": "base/R1-S1.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S1",
+    "variant": "artifacts",
+    "path": "base/R1-S1.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S2",
+    "variant": "artifacts",
+    "path": "base/R1-S2.svg",
+    "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S2",
+    "variant": "artifacts",
+    "path": "base/R1-S2.pdf",
+    "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S2",
+    "variant": "restored",
+    "path": "base/R1-S2-restored.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S2",
+    "variant": "restored",
+    "path": "base/R1-S2-restored.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S2",
+    "variant": "recovered",
+    "path": "base/R1-S2-recovered.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R1-S2",
+    "variant": "recovered",
+    "path": "base/R1-S2-recovered.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S0",
+    "variant": "artifacts",
+    "path": "base/R2-S0.svg",
+    "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+    "bytes": 444,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S0",
+    "variant": "artifacts",
+    "path": "base/R2-S0.pdf",
+    "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+    "bytes": 2328,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S1",
+    "variant": "artifacts",
+    "path": "base/R2-S1.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S1",
+    "variant": "artifacts",
+    "path": "base/R2-S1.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S2",
+    "variant": "artifacts",
+    "path": "base/R2-S2.svg",
+    "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S2",
+    "variant": "artifacts",
+    "path": "base/R2-S2.pdf",
+    "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S2",
+    "variant": "restored",
+    "path": "base/R2-S2-restored.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S2",
+    "variant": "restored",
+    "path": "base/R2-S2-restored.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S2",
+    "variant": "recovered",
+    "path": "base/R2-S2-recovered.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R2-S2",
+    "variant": "recovered",
+    "path": "base/R2-S2-recovered.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S0",
+    "variant": "artifacts",
+    "path": "base/R4-S0.svg",
+    "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+    "bytes": 444,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S0",
+    "variant": "artifacts",
+    "path": "base/R4-S0.pdf",
+    "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+    "bytes": 2328,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S1",
+    "variant": "artifacts",
+    "path": "base/R4-S1.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S1",
+    "variant": "artifacts",
+    "path": "base/R4-S1.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S2",
+    "variant": "artifacts",
+    "path": "base/R4-S2.svg",
+    "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S2",
+    "variant": "artifacts",
+    "path": "base/R4-S2.pdf",
+    "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S2",
+    "variant": "restored",
+    "path": "base/R4-S2-restored.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S2",
+    "variant": "restored",
+    "path": "base/R4-S2-restored.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S2",
+    "variant": "recovered",
+    "path": "base/R4-S2-recovered.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "base",
+    "unit": "R4-S2",
+    "variant": "recovered",
+    "path": "base/R4-S2-recovered.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "F2-removed",
+    "unit": "R3-S0",
+    "variant": "artifacts",
+    "path": "F2-removed/R3-S0.svg",
+    "sha256": "dccfa57afe1d619aed48b377fe01c77041114a75c6cf0355d194773374d2b5c9",
+    "bytes": 590,
+    "format": "svg"
+  },
+  {
+    "epoch": "F2-removed",
+    "unit": "R3-S0",
+    "variant": "artifacts",
+    "path": "F2-removed/R3-S0.pdf",
+    "sha256": "2b9a18ac951e4f49c5ee4b3c2eabbbbf40c933d7270c6693f430b804940151a1",
+    "bytes": 2489,
+    "format": "pdf"
+  },
+  {
+    "epoch": "F2-removed",
+    "unit": "R3-S1",
+    "variant": "artifacts",
+    "path": "F2-removed/R3-S1.svg",
+    "sha256": "43d8fb4641eaf88a92d108b200c447bc0e678a78a45755fbc1c1a6f36679d7d2",
+    "bytes": 594,
+    "format": "svg"
+  },
+  {
+    "epoch": "F2-removed",
+    "unit": "R3-S1",
+    "variant": "artifacts",
+    "path": "F2-removed/R3-S1.pdf",
+    "sha256": "8a056e2410a1801cadebe5197c3cff0919c5f33f5eee61248d38440454c0b654",
+    "bytes": 2491,
+    "format": "pdf"
+  },
+  {
+    "epoch": "F2-removed",
+    "unit": "R3-S2",
+    "variant": "artifacts",
+    "path": "F2-removed/R3-S2.svg",
+    "sha256": "2d8bea12c701b46ef002e2260cdbdf55ff132dac9fad34cc6e2dfae7eaf3e8c8",
+    "bytes": 594,
+    "format": "svg"
+  },
+  {
+    "epoch": "F2-removed",
+    "unit": "R3-S2",
+    "variant": "artifacts",
+    "path": "F2-removed/R3-S2.pdf",
+    "sha256": "f78b63fd3c1e76f20ff0f0c543069458df57096ed4e8cecf896bd435bfcf3e05",
+    "bytes": 2491,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S0",
+    "variant": "artifacts",
+    "path": "final/R1-S0.svg",
+    "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+    "bytes": 444,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S0",
+    "variant": "artifacts",
+    "path": "final/R1-S0.pdf",
+    "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+    "bytes": 2328,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S1",
+    "variant": "artifacts",
+    "path": "final/R1-S1.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S1",
+    "variant": "artifacts",
+    "path": "final/R1-S1.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S2",
+    "variant": "artifacts",
+    "path": "final/R1-S2.svg",
+    "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S2",
+    "variant": "artifacts",
+    "path": "final/R1-S2.pdf",
+    "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S2",
+    "variant": "restored",
+    "path": "final/R1-S2-restored.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S2",
+    "variant": "restored",
+    "path": "final/R1-S2-restored.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S2",
+    "variant": "recovered",
+    "path": "final/R1-S2-recovered.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R1-S2",
+    "variant": "recovered",
+    "path": "final/R1-S2-recovered.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S0",
+    "variant": "artifacts",
+    "path": "final/R2-S0.svg",
+    "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+    "bytes": 444,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S0",
+    "variant": "artifacts",
+    "path": "final/R2-S0.pdf",
+    "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+    "bytes": 2328,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S1",
+    "variant": "artifacts",
+    "path": "final/R2-S1.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S1",
+    "variant": "artifacts",
+    "path": "final/R2-S1.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S2",
+    "variant": "artifacts",
+    "path": "final/R2-S2.svg",
+    "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S2",
+    "variant": "artifacts",
+    "path": "final/R2-S2.pdf",
+    "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S2",
+    "variant": "restored",
+    "path": "final/R2-S2-restored.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S2",
+    "variant": "restored",
+    "path": "final/R2-S2-restored.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S2",
+    "variant": "recovered",
+    "path": "final/R2-S2-recovered.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R2-S2",
+    "variant": "recovered",
+    "path": "final/R2-S2-recovered.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S0",
+    "variant": "artifacts",
+    "path": "final/R3-S0.svg",
+    "sha256": "dccfa57afe1d619aed48b377fe01c77041114a75c6cf0355d194773374d2b5c9",
+    "bytes": 590,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S0",
+    "variant": "artifacts",
+    "path": "final/R3-S0.pdf",
+    "sha256": "2b9a18ac951e4f49c5ee4b3c2eabbbbf40c933d7270c6693f430b804940151a1",
+    "bytes": 2489,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S1",
+    "variant": "artifacts",
+    "path": "final/R3-S1.svg",
+    "sha256": "43d8fb4641eaf88a92d108b200c447bc0e678a78a45755fbc1c1a6f36679d7d2",
+    "bytes": 594,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S1",
+    "variant": "artifacts",
+    "path": "final/R3-S1.pdf",
+    "sha256": "8a056e2410a1801cadebe5197c3cff0919c5f33f5eee61248d38440454c0b654",
+    "bytes": 2491,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S2",
+    "variant": "artifacts",
+    "path": "final/R3-S2.svg",
+    "sha256": "2d8bea12c701b46ef002e2260cdbdf55ff132dac9fad34cc6e2dfae7eaf3e8c8",
+    "bytes": 594,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S2",
+    "variant": "artifacts",
+    "path": "final/R3-S2.pdf",
+    "sha256": "f78b63fd3c1e76f20ff0f0c543069458df57096ed4e8cecf896bd435bfcf3e05",
+    "bytes": 2491,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S2",
+    "variant": "restored",
+    "path": "final/R3-S2-restored.svg",
+    "sha256": "43d8fb4641eaf88a92d108b200c447bc0e678a78a45755fbc1c1a6f36679d7d2",
+    "bytes": 594,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S2",
+    "variant": "restored",
+    "path": "final/R3-S2-restored.pdf",
+    "sha256": "8a056e2410a1801cadebe5197c3cff0919c5f33f5eee61248d38440454c0b654",
+    "bytes": 2491,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S2",
+    "variant": "recovered",
+    "path": "final/R3-S2-recovered.svg",
+    "sha256": "43d8fb4641eaf88a92d108b200c447bc0e678a78a45755fbc1c1a6f36679d7d2",
+    "bytes": 594,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R3-S2",
+    "variant": "recovered",
+    "path": "final/R3-S2-recovered.pdf",
+    "sha256": "8a056e2410a1801cadebe5197c3cff0919c5f33f5eee61248d38440454c0b654",
+    "bytes": 2491,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S0",
+    "variant": "artifacts",
+    "path": "final/R4-S0.svg",
+    "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+    "bytes": 444,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S0",
+    "variant": "artifacts",
+    "path": "final/R4-S0.pdf",
+    "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+    "bytes": 2328,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S1",
+    "variant": "artifacts",
+    "path": "final/R4-S1.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S1",
+    "variant": "artifacts",
+    "path": "final/R4-S1.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S2",
+    "variant": "artifacts",
+    "path": "final/R4-S2.svg",
+    "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S2",
+    "variant": "artifacts",
+    "path": "final/R4-S2.pdf",
+    "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S2",
+    "variant": "restored",
+    "path": "final/R4-S2-restored.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S2",
+    "variant": "restored",
+    "path": "final/R4-S2-restored.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S2",
+    "variant": "recovered",
+    "path": "final/R4-S2-recovered.svg",
+    "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+    "bytes": 448,
+    "format": "svg"
+  },
+  {
+    "epoch": "final",
+    "unit": "R4-S2",
+    "variant": "recovered",
+    "path": "final/R4-S2-recovered.pdf",
+    "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+    "bytes": 1452,
+    "format": "pdf"
+  }
+]

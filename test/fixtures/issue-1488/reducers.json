@@ -1,0 +1,48 @@
+[
+  {
+    "id": "M1",
+    "family": "group-qualified-record-export",
+    "source": "nui 1\nimport \"./lib.nui\" as t\nmodule Panel(v: t::Dim) {\n  export const out: t::Dim = @v\n}\ngroup Left {\n  instance p = Panel(v: t::Dim(x: 3, y: 17))\n}\nconst observed: number = @Left::p::out.x\npoint P = coordinate(x: @observed, y: 0)\n",
+    "saved": {
+      "lib.nui": "nui 1\nexport record Dim(x: number, y: number)\n"
+    },
+    "expected": {
+      "x": 3,
+      "y": 0
+    }
+  },
+  {
+    "id": "X1",
+    "family": "top-level-instance-control",
+    "source": "nui 1\nimport \"./lib.nui\" as t\nmodule Panel(v: t::Dim) {\n  export const out: t::Dim = @v\n}\ninstance p = Panel(v: t::Dim(x: 3, y: 17))\nconst observed: number = @p::out.x\npoint P = coordinate(x: @observed, y: 0)\n",
+    "saved": {
+      "lib.nui": "nui 1\nexport record Dim(x: number, y: number)\n"
+    },
+    "expected": {
+      "x": 3,
+      "y": 0
+    }
+  },
+  {
+    "id": "M2",
+    "family": "imported-record-preview",
+    "source": "nui 1\nimport \"./lib.nui\" as t\nconst r: t::Dim = t::Dim(x: 7, y: 19)\nmodule Panel(v: t::Dim) {\n  point P = coordinate(x: @v.x, y: @v.y)\n}\ninstance authored = Panel(v: @r)\n",
+    "saved": {
+      "lib.nui": "nui 1\nexport record Dim(x: number, y: number)\n"
+    },
+    "expected": {
+      "x": 7,
+      "y": 19
+    }
+  },
+  {
+    "id": "X2",
+    "family": "local-record-preview-control",
+    "source": "nui 1\nrecord Dim(x: number, y: number)\nconst r: Dim = Dim(x: 7, y: 19)\nmodule Panel(v: Dim) {\n  point P = coordinate(x: @v.x, y: @v.y)\n}\ninstance authored = Panel(v: @r)\n",
+    "saved": {},
+    "expected": {
+      "x": 7,
+      "y": 19
+    }
+  }
+]

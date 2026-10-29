@@ -810,17 +810,30 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
     referenceSpan: DslSpan,
     referenceTextStart = 0
   ): QualifiedModuleExportLookup | null => {
-    const segments = parseDslReferenceToken(referenceName).segments;
+    const path = parseDslReferenceToken(referenceName);
+    const segments = path.segments;
     if (segments.length < 2) return null;
-    const instanceName = segments[0];
+    let instanceName = segments[0];
     const exportName = segments.at(-1)!;
-    const instanceStart = referenceSpan.start + referenceTextStart + Math.max(0, referenceName.indexOf(instanceName));
+    let lookup: ModuleLexicalLookup | ReturnType<typeof resolveModuleLexicalPath> = ownerIndex === null
+      ? sourceDeclarationResolution(sourceNamespace, statementIndex, instanceName)
+      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, instanceName);
+    // Ordinary CAD containers may precede an instance. Resolve that prefix
+    // through the canonical lexical path owner before looking up its export.
+    // Keep Module-owned traversal and closed-scope checks in their own path.
+    let instanceOffset = referenceName.indexOf(instanceName);
+    if (segments.length > 2 && lookup.kind === "resolved" && lookup.declaration.kind === "group") {
+      const instancePath = { ...path, segments: segments.slice(0, -1) };
+      lookup = ownerIndex === null
+        ? resolveSourceLexicalPath(sourceNamespace, statementIndex, instancePath)
+        : resolveModuleLexicalPath(statementIndex, ownerIndex, instancePath);
+      instanceName = segments.at(-2)!;
+      instanceOffset = referenceName.lastIndexOf(instanceName, referenceName.lastIndexOf("::") - 1);
+    }
+    const instanceStart = referenceSpan.start + referenceTextStart + Math.max(0, instanceOffset);
     const memberStart = referenceSpan.start + referenceTextStart + Math.max(0, referenceName.lastIndexOf(exportName));
     const instanceSpan = { start: instanceStart, end: instanceStart + instanceName.length };
     const memberSpan = { start: memberStart, end: memberStart + exportName.length };
-    const lookup = ownerIndex === null
-      ? sourceDeclarationResolution(sourceNamespace, statementIndex, instanceName)
-      : resolveModuleLexicalDeclaration(statementIndex, ownerIndex, instanceName);
     if (lookup.kind === "resolved") {
       // A qualified ordinary CAD namespace (for example
       // `前身頃::縫い代::先に縫う`) is not a module export. Let the normal

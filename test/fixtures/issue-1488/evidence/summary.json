@@ -1,0 +1,609 @@
+{
+  "base": "07723e51f16dce664bc95971c3fed89ec3f5f7ee",
+  "branch": "sayosomi/issue-1488-imported-record-pattern-output-hunt",
+  "outcome": "READY_FOR_INDEPENDENT_REVIEW",
+  "owners": [
+    {
+      "path": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "baseSha256": "3f09db72389de90254504b532d6dae693f287dd08570dc1bd6607a141049d5cf",
+      "fixedSha256": "c1f1bbf6c218f2095a5914badea80e9602fd5e5a666f879e849245bdb746b95e"
+    },
+    {
+      "path": "src/dsl/modulePreviewRoot.ts",
+      "baseSha256": "73701cf2fc6bedc36bb34b7378975be128021c52658e991e666082b8d08e5a2b",
+      "fixedSha256": "91d702fa2e38838e2bc404e419179908c74e1566c4cbaaeb4e7256aee495fa86"
+    },
+    {
+      "path": "src/dsl/modulePreviewMultiDocumentContext.ts",
+      "baseSha256": null,
+      "fixedSha256": "a2c52175cac18133fa5435096125a7517f1e431f7b23272af4ee4858aaed27fd"
+    }
+  ],
+  "primary": [
+    {
+      "id": "R1-S0",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "89c61059ae48b0be9656aeaf76435b4289250009aaf2bf1865cf6f4024020e3a",
+        "saved": {
+          "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "2ece21ca788876947a17aaeceff93386cf784da02f0bc66917614a5f4bf4db17"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        223.26458333333335,
+        89.26458333333333
+      ],
+      "pdfPageCount": 2,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+          "byteLength": 2328
+        }
+      ]
+    },
+    {
+      "id": "R1-S1",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "89c61059ae48b0be9656aeaf76435b4289250009aaf2bf1865cf6f4024020e3a",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "a8c8d58d9978e2ad8f346cfdc6fa26c2a51faac12bc33bce1f6c6568c24e7296"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        195.26458333333335,
+        117.26458333333332
+      ],
+      "pdfPageCount": 1,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+          "byteLength": 1452
+        }
+      ]
+    },
+    {
+      "id": "R1-S2",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "090d7e9e941bb4aacda70ed2d6d0c98b0afc17fd05fa0ee8e6434819f62243e3",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "31f9b20a65dd3af19f623dc2f8051006daedb60ce74d59b5ec6ba887532a8b90"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        195.26458333333335,
+        127.26458333333332
+      ],
+      "pdfPageCount": 1,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+          "byteLength": 1452
+        }
+      ]
+    },
+    {
+      "id": "R2-S0",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "d5f441349d7f63ad8007a41eedbac5fe9d02d6061ce38b93481908b19a2d292e",
+        "saved": {
+          "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "2ece21ca788876947a17aaeceff93386cf784da02f0bc66917614a5f4bf4db17"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        223.26458333333335,
+        89.26458333333333
+      ],
+      "pdfPageCount": 2,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+          "byteLength": 2328
+        }
+      ]
+    },
+    {
+      "id": "R2-S1",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "d5f441349d7f63ad8007a41eedbac5fe9d02d6061ce38b93481908b19a2d292e",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "a8c8d58d9978e2ad8f346cfdc6fa26c2a51faac12bc33bce1f6c6568c24e7296"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        195.26458333333335,
+        117.26458333333332
+      ],
+      "pdfPageCount": 1,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+          "byteLength": 1452
+        }
+      ]
+    },
+    {
+      "id": "R2-S2",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "58556a085f35b38da6299537d7520c6e733367a58d6008db12e6407fa71e6d4b",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "31f9b20a65dd3af19f623dc2f8051006daedb60ce74d59b5ec6ba887532a8b90"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        195.26458333333335,
+        127.26458333333332
+      ],
+      "pdfPageCount": 1,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+          "byteLength": 1452
+        }
+      ]
+    },
+    {
+      "id": "R3-S0",
+      "disposition": "BUG→FIXED→REPASS",
+      "hashes": {
+        "source": "18737cb612f7e5058a3fa90ca09a198c7fe700f723cbf5f2fe2067f1fbcde8a5",
+        "saved": {
+          "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "57d6181b455b1e5f567de0729bedc1935f6ab34bd202d3f6e23902c92367426f"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        265.26458333333335,
+        95.26458333333333
+      ],
+      "pdfPageCount": 2,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "dccfa57afe1d619aed48b377fe01c77041114a75c6cf0355d194773374d2b5c9",
+          "byteLength": 590
+        },
+        {
+          "format": "pdf",
+          "sha256": "2b9a18ac951e4f49c5ee4b3c2eabbbbf40c933d7270c6693f430b804940151a1",
+          "byteLength": 2489
+        }
+      ]
+    },
+    {
+      "id": "R3-S1",
+      "disposition": "BUG→FIXED→REPASS",
+      "hashes": {
+        "source": "18737cb612f7e5058a3fa90ca09a198c7fe700f723cbf5f2fe2067f1fbcde8a5",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "4c105cd5971f0b36773a9e5f94a084fcf504d240b04ff7b5cc41d2f848d9238c"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        251.26458333333335,
+        123.26458333333332
+      ],
+      "pdfPageCount": 2,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "43d8fb4641eaf88a92d108b200c447bc0e678a78a45755fbc1c1a6f36679d7d2",
+          "byteLength": 594
+        },
+        {
+          "format": "pdf",
+          "sha256": "8a056e2410a1801cadebe5197c3cff0919c5f33f5eee61248d38440454c0b654",
+          "byteLength": 2491
+        }
+      ]
+    },
+    {
+      "id": "R3-S2",
+      "disposition": "BUG→FIXED→REPASS",
+      "hashes": {
+        "source": "007fcc28009329b1c855053d601d1e0d2ba33c32e627215f3813c0cf8a34530d",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "b820a2af86695a43125163fc0eda8fb3f8d70e32bb09e18aadb04e05de7dae75"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        251.26458333333335,
+        133.26458333333332
+      ],
+      "pdfPageCount": 2,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "2d8bea12c701b46ef002e2260cdbdf55ff132dac9fad34cc6e2dfae7eaf3e8c8",
+          "byteLength": 594
+        },
+        {
+          "format": "pdf",
+          "sha256": "f78b63fd3c1e76f20ff0f0c543069458df57096ed4e8cecf896bd435bfcf3e05",
+          "byteLength": 2491
+        }
+      ]
+    },
+    {
+      "id": "R4-S0",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "55f772c8eb1330e6e1fe7e593cefeeafa4ce81f96c98a19f0237b569641343ad",
+        "saved": {
+          "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "2ece21ca788876947a17aaeceff93386cf784da02f0bc66917614a5f4bf4db17"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        223.26458333333335,
+        89.26458333333333
+      ],
+      "pdfPageCount": 2,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "94f69ec28e64ba82acc41afad0f370bfd19f45e6638ec72b12b509430dbce7ba",
+          "byteLength": 444
+        },
+        {
+          "format": "pdf",
+          "sha256": "3ed7450db4af63fe153f70fa22540e95c97ba2aa5aeea2d54d8d89148c10cbed",
+          "byteLength": 2328
+        }
+      ]
+    },
+    {
+      "id": "R4-S1",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "55f772c8eb1330e6e1fe7e593cefeeafa4ce81f96c98a19f0237b569641343ad",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "a8c8d58d9978e2ad8f346cfdc6fa26c2a51faac12bc33bce1f6c6568c24e7296"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        195.26458333333335,
+        117.26458333333332
+      ],
+      "pdfPageCount": 1,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "926cba5264a8a7103ac09862b889b93669f8e9693918d2170877cbb09d350f27",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "sha256": "f5726e180fb3c177e2328896ab32a0601b47033422ad2730f966a7f20aa4930b",
+          "byteLength": 1452
+        }
+      ]
+    },
+    {
+      "id": "R4-S2",
+      "disposition": "BASE_PASS",
+      "hashes": {
+        "source": "6b4de4bd9a75a6feb01bab0d1ee9992985ec263a2115f778cc8b70a0af4f5a74",
+        "saved": {
+          "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+          "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+        },
+        "oracle": "31f9b20a65dd3af19f623dc2f8051006daedb60ce74d59b5ec6ba887532a8b90"
+      },
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "svgMm": [
+        195.26458333333335,
+        127.26458333333332
+      ],
+      "pdfPageCount": 1,
+      "artifacts": [
+        {
+          "format": "svg",
+          "sha256": "76dd2a156ff6fddde81ab877ed8e1b0e54e0ad1b534fa094150488dccfdc0a5f",
+          "byteLength": 448
+        },
+        {
+          "format": "pdf",
+          "sha256": "753b88974749127c833e8a98a0a71d3d92733ab856cd17855e444bbf1c8c6c33",
+          "byteLength": 1452
+        }
+      ]
+    }
+  ],
+  "exploration": {
+    "accepted": 16,
+    "rejected": 20,
+    "rejectedDrafts": 15,
+    "intentionalNegativeControls": 5,
+    "primary": 12,
+    "adjacent": {
+      "X1": "BASE_PASS",
+      "X2": "BUG→FIXED→REPASS",
+      "X3": "NOT_TRIGGERED",
+      "X4": "NOT_TRIGGERED",
+      "X5": "NOT_TRIGGERED",
+      "X6": "NOT_TRIGGERED",
+      "X7": "NOT_TRIGGERED",
+      "X8": "NOT_TRIGGERED"
+    },
+    "minimized": {
+      "M1": "BUG→FIXED→REPASS",
+      "M2": "BUG→FIXED→REPASS",
+      "M3": "NOT_TRIGGERED",
+      "M4": "NOT_TRIGGERED",
+      "M5": "NOT_TRIGGERED",
+      "M6": "NOT_TRIGGERED",
+      "M7": "NOT_TRIGGERED",
+      "M8": "NOT_TRIGGERED"
+    },
+    "ceiling": 28
+  },
+  "physical": {
+    "finalEncodedFiles": 40,
+    "persistentRustProcesses": 1,
+    "evaluationRequests": 98,
+    "directFacadeByteEquality": "S0/S1/S2 SVG and PDF identical",
+    "artifactIndex": "artifacts.json",
+    "artifactArchive": "artifacts.tar.gz",
+    "frozenMatrixSha256": "6e453b390e9c5c3829f51d6239857209d34294c8291e0624615a2d1b650a51f9",
+    "sensitivity": [
+      "wrong nominal origin",
+      "stale S0 geometry after S1",
+      "wrong SVG physical width",
+      "wrong PDF page width",
+      "wrong selected output order",
+      "wrong Module instance geometry"
+    ]
+  },
+  "families": [
+    {
+      "id": "F1",
+      "owner": "packages/nui-language/src/dsl/moduleSemanticAnalysis.ts",
+      "minimal": "M1",
+      "control": "X1 plus private grouped export rejection",
+      "baseFail": "F1-base.json.gz and exact-Base.json.gz",
+      "fixedPass": "F1-fixed.json.gz",
+      "removedFail": "F1-matrix-removed.json.gz",
+      "restoredPass": "F1-restored.json.gz and final-matrix.json.gz",
+      "affectedCells": [
+        "R3-S0",
+        "R3-S1",
+        "R3-S2"
+      ]
+    },
+    {
+      "id": "F2",
+      "owner": [
+        "src/dsl/modulePreviewRoot.ts",
+        "src/dsl/modulePreviewMultiDocumentContext.ts"
+      ],
+      "minimal": "M2",
+      "control": "X2 exact local source through ordinary non-graph compilation PASS; graph compilation exposes same family",
+      "baseFail": "F2-base.json.gz and exact-Base.json.gz",
+      "fixedPass": "final-matrix.json.gz",
+      "removedFail": "F2-matrix-removed.json.gz",
+      "restoredPass": "F2-restored.json.gz and final-matrix.json.gz",
+      "affectedCells": [
+        "R3-S0",
+        "R3-S1",
+        "R3-S2"
+      ]
+    }
+  ],
+  "gates": {
+    "focusedHistorical": {
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1488PatternArtifacts.integration.test.ts",
+        "test/issue1439RecordImports.test.ts",
+        "test/issue1439RecordImportsRust.integration.test.ts",
+        "test/issue1484RecordMetamorphic.test.ts",
+        "test/issue1486Freshness.integration.test.ts",
+        "test/issue1486RecordLanguageQueries.integration.test.ts",
+        "test/issue1468PatternWorkflow.integration.test.ts",
+        "test/issue1476TypedTextGeometry.test.ts",
+        "test/issue1476ModulePrerequisiteScaling.test.ts",
+        "src/output/outputCore.issue1458.test.ts",
+        "src/dsl/modulePreviewRoot.test.ts",
+        "src/dsl/modulePreviewState.test.ts",
+        "src/dsl/modulePreviewState.targetIsolation.test.ts",
+        "src/dsl/modulePreviewState.freshness.test.ts",
+        "src/dsl/modulePreviewState.diagnostics.test.ts",
+        "src/vscode/modulePreviewEvaluation.test.ts",
+        "--maxWorkers=1",
+        "--no-file-parallelism"
+      ],
+      "exitCode": 0,
+      "seconds": 21.19871497154236
+    },
+    "historical1460": "18/18 PASS",
+    "build": {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 30.228957176208496
+    },
+    "lint": {
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "seconds": 31.060587167739868
+    },
+    "dslReference": {
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "exitCode": 0,
+      "seconds": 0.7804338932037354
+    },
+    "parity": {
+      "command": [
+        "npm",
+        "run",
+        "test:parity",
+        "--",
+        "--maxWorkers=1"
+      ],
+      "exitCode": 0,
+      "seconds": 68.60660815238953
+    },
+    "fullInitial": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exitCode": 1,
+      "seconds": 340.2041988372803
+    },
+    "fullFinal": {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=1",
+        "--no-file-parallelism"
+      ],
+      "exitCode": 0,
+      "seconds": 560.8896799087524
+    },
+    "diffCheck": "PASS (staged and unstaged checked before commit)",
+    "rustSourceChanged": false,
+    "cargoFmtCheckTestClippy": "NOT_APPLICABLE (no Rust source changes)"
+  },
+  "initialFullFailure": {
+    "file": "test/issue1412LineAngleInteractionRust.integration.test.ts",
+    "rootFailure": "X01 hit existing 10-second deadline; dispose rejected its pending request and subsequent 909 cases reused that disposed process",
+    "firstRun": "910 failed / 10492 passed / 187 skipped",
+    "focusedFirstCase": "PASS without code changes",
+    "finalCondition": "Full suite once with one worker and no overlapping verification; existing deadlines/assertions unchanged",
+    "limitation": "Underlying transient scheduling/startup cause not independently established; initial failure retained, not erased or counted as a product defect"
+  },
+  "verificationRepairs": [
+    "Initial build TS2322 fixed by declaring the complete existing lexical lookup result union; no runtime semantic change to the repair.",
+    "Initial lint rejected a short-circuit assertion in the new test; rewritten as an explicit if without changing its assertion."
+  ],
+  "manualE2E": "Not Required for host-neutral scope; no native GUI PASS claimed",
+  "quota": {
+    "weekly": "UNAVAILABLE",
+    "fiveHour": "UNAVAILABLE"
+  }
+}

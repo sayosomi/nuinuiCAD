@@ -21,6 +21,7 @@ import { buildSourceLexicalNamespaceIndex, type SourceLexicalNamespaceIndex } fr
 import { formatDslName } from "@nuinuicad/nui-language";
 import type { CompileDslResult, DslDiagnostic, DslStatement } from "@nuinuicad/nui-language";
 import { NEW_DOCUMENT_DSL_MAJOR_VERSION } from "@nuinuicad/nui-language";
+import { modulePreviewMultiDocumentContext, modulePreviewProjectedContext } from "./modulePreviewMultiDocumentContext";
 import type {
   ModulePreviewTarget,
   ModulePreviewTargetSemanticSnapshot,
@@ -542,8 +543,10 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   let canonicalSourceNamespace: SourceLexicalNamespaceIndex;
   let canonicalAnalysis: ModuleSemanticAnalysis;
   try {
-    canonicalSourceNamespace = buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
-    canonicalAnalysis = analyzeSource(
+    canonicalSourceNamespace = compiled.moduleRuntimeContext?.valid && compiled.sourceLexicalNamespace
+      ? compiled.sourceLexicalNamespace : buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
+    canonicalAnalysis = compiled.moduleRuntimeContext?.valid && compiled.moduleSemanticAnalysis
+      ? compiled.moduleSemanticAnalysis : analyzeSource(
       compiled,
       statements,
       stableStatementIdByIndex,
@@ -600,9 +603,12 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
 
   let sourceNamespace: SourceLexicalNamespaceIndex;
   let analysis: ModuleSemanticAnalysis;
+  let moduleRuntimeContext: CompiledDslDocument["moduleRuntimeContext"];
   try {
-    sourceNamespace = buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
-    analysis = analyzeSource(
+    moduleRuntimeContext = modulePreviewMultiDocumentContext(compiled, statements, stableStatementIdByIndex);
+    sourceNamespace = moduleRuntimeContext?.documentFor(moduleRuntimeContext.rootDocumentId)?.sourceLexicalNamespace
+      ?? buildSourceLexicalNamespaceIndex(statements, stableStatementIdByIndex);
+    analysis = moduleRuntimeContext?.analysis.root ?? analyzeSource(
       compiled,
       statements,
       stableStatementIdByIndex,
@@ -650,6 +656,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   ) return null;
 
   const previewAnalysis = projectAncestorDefinitions(analysis, chain, syntheticStatementIds);
+  moduleRuntimeContext = modulePreviewProjectedContext(moduleRuntimeContext, previewAnalysis);
   const assignedElementIds = assignedElementIdsFor(
     statements, stableStatementIdByIndex, compiled.statementMap?.elementIdByStatementIndex ?? new Map()
   );
@@ -671,6 +678,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
       },
       assignedElementIds,
       moduleSemanticAnalysis: previewAnalysis,
+      moduleRuntimeContext,
       stableStatementIdByIndex,
       sourceLexicalResolution: {
         sourceNamespace,
@@ -705,6 +713,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
       statements,
       stableStatementIdByIndex,
       moduleSemanticAnalysis: previewAnalysis,
+      moduleRuntimeContext,
       moduleMaterialization,
       documentBindingAnalysis: sourceBindingAnalysisFor(compiled),
       documentScalarProgram: compiled.scalarProgram,
@@ -725,7 +734,9 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
   }
 
   const targetPath = syntheticStatementIds;
-  const targetRuntimeElementId = materializedRuntimeElementId("moduleInstance", targetPath);
+  const targetRuntimePath = moduleRuntimeContext
+    ? targetPath.map(id => moduleRuntimeContext!.runtimePathComponent(moduleRuntimeContext!.rootDocumentId, id)) : targetPath;
+  const targetRuntimeElementId = materializedRuntimeElementId("moduleInstance", targetRuntimePath);
   const targetRuntimeElementIds = moduleMaterialization.executionStatements
     .filter((entry) =>
       entry.instancePath.length >= targetPath.length &&
@@ -777,6 +788,7 @@ export const compileModulePreviewRoot = (input: ModulePreviewRootInput): ModuleP
     ),
     sourceLexicalNamespace: sourceNamespace,
     moduleSemanticAnalysis: previewAnalysis,
+    moduleRuntimeContext,
     moduleMaterialization,
     moduleGeometryRuntime
   };
