@@ -20,6 +20,77 @@ let rust: ReturnType<typeof createRustStdioParityClient>;
 beforeAll(() => { rust = createRustStdioParityClient(process.cwd()); }, 120_000);
 afterAll(() => { rust?.dispose(); });
 
+const indexedRecordSource = `nui 1
+record R(x: number)
+record Bag(rows: R[])
+const pool: R[] = [R(x: 5)]
+const selected: R = @pool[0]
+const bag: Bag = Bag(rows: [@pool[0]])
+const observed: number = @bag.rows[0].x`;
+
+const evaluateIssue1484RecordSource = async (source: string) => {
+  const result = await buildRecordImport(source, {});
+  expect(result.graph.valid).toBe(true);
+  expect(result.analysis.valid).toBe(true);
+  expect(result.context.valid).toBe(true);
+  expect(result.errors).toEqual([]);
+  const compiled = result.compiled;
+  if (!compiled.document || !compiled.statementMap || compiled.majorVersion === null) {
+    throw new Error("missing canonical compilation");
+  }
+  const root = result.graph.nodes.get(result.graph.rootDocumentId)!;
+  const records = root.artifact.sourceLexicalNamespace.recordSemanticAnalysis!;
+  const originalDefinition = [...records.definitionsByStatementId.values()].find(definition => definition.name === "R");
+  const originalMember = [...records.valuesByStatementId.values()].find(value => value.name === "pool[0]");
+  expect(originalDefinition).toBeDefined();
+  expect(originalMember).toBeDefined();
+  expect(originalMember!.typeIdentity).toBe(originalDefinition!.statementId);
+
+  const options = buildEvaluationOptions({ evaluationLimitIndex: undefined,
+    compiledDocument: { ...compiled, document: compiled.document, statementMap: compiled.statementMap, majorVersion: compiled.majorVersion } });
+  const elements = compiled.document.elements;
+  const prepared = prepareRustEvaluation(elements, options);
+  expect(prepared.rustEligible).toBe(true);
+  const reference = evaluateElementsReferencePayload(elements, options);
+  const production = await rust.evaluateInput(prepared.input);
+  const checkObserved = (payload: EvaluationPayload) => {
+    const evaluation = evaluationPayloadToResult(payload);
+    expect(evaluation.errors).toEqual([]);
+    expect(evaluation.geometryValueErrors ?? []).toEqual([]);
+    const binding = compiled.bindingAnalysis?.catalog.bindings.find(candidate => candidate.name === "observed");
+    expect(binding).toBeDefined();
+    expect(evaluation.computedScalarBindings?.get(binding!.id)).toMatchObject({
+      status: "ok", value: { kind: "number", value: 5 }
+    });
+  };
+  checkObserved(reference);
+  checkObserved(production);
+  expect(normalizeParityPayload(production)).toEqual(normalizeParityPayload(reference));
+  return result;
+};
+
+it("Issue #1484: indexed original record reference evaluates through a record array", async () => {
+  await evaluateIssue1484RecordSource(indexedRecordSource);
+});
+
+it("Issue #1484: selected record alias remains a passing control", async () => {
+  await evaluateIssue1484RecordSource(indexedRecordSource.replace(
+    "Bag(rows: [@pool[0]])",
+    "Bag(rows: [@selected])"
+  ));
+});
+
+it("Issue #1484: structurally matching distinct nominal record is rejected", async () => {
+  const source = `nui 1
+record R(x: number)
+record Other(x: number)
+record Bag(rows: R[])
+const wrong: Other = Other(x: 5)
+const bag: Bag = Bag(rows: [@wrong])`;
+  const result = await buildRecordImport(source, {});
+  expect(result.errors.length).toBeGreaterThan(0);
+});
+
 const checkObservations = (cell: Cell, compiled: Awaited<ReturnType<typeof buildRecordImport>>["compiled"], payload: EvaluationPayload) => {
   const result = evaluationPayloadToResult(payload);
   expect(result.errors).toEqual([]);

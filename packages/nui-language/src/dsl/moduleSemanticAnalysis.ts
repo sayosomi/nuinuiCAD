@@ -5558,6 +5558,9 @@ export const analyzeModuleSemantics = (input: ModuleSemanticAnalysisInput): Modu
             const target = record.target?.kind === "recordValue" ? record.target
               : record.target?.kind === "recordParameter" ? { kind: "moduleParameterValue" as const,
                   definitionStatementId: record.target.definitionStatementId, parameterIndex: record.target.parameterIndex }
+              : record.target?.kind === "recordCollectionIndex" &&
+                  record.target.index.ast.kind === "numberLiteral"
+                ? record.target.members?.[record.target.index.ast.value] ?? null
               : inline ? { kind: "recordValue" as const, statementId: inline.statementId, statementIndex }
               : null;
             return record.resolution === "resolved" && target
