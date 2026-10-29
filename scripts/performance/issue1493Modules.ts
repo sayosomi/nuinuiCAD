@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { materializeModuleExecution } from "../../packages/nui-language/src/dsl/moduleMaterialization";
+import { materializeModuleExecution } from "@nuinuicad/nui-language";
 import { assertMaterialization, compileModule, hash, materializationInput, moduleCases, moduleFixture, runtimeArrayWork } from "../../test/issue1493ModuleSupport";
 
 const folder = "test/fixtures/issue-1493/M";

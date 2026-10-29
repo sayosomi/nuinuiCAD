@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { compileDslDocument, parseDsl } from "@nuinuicad/nui-language";
+import { compileDslDocument, materializeModuleExecution, parseDsl } from "@nuinuicad/nui-language";
 import { isLastGoodDslDocument } from "@nuinuicad/nui-language/document";
-import { materializeModuleExecution } from "../packages/nui-language/src/dsl/moduleMaterialization";
 
 export type ModuleShape = "M1" | "M2" | "M3" | "M-control";
 export const moduleCases = ["M1", "M2", "M3"].flatMap(shape =>

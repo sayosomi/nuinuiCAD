@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { materializeModuleExecution } from "../packages/nui-language/src/dsl/moduleMaterialization";
+import { materializeModuleExecution } from "@nuinuicad/nui-language";
 import { assertMaterialization, compileModule, materializationInput, moduleCases, moduleFixture, runtimeArrayWork } from "./issue1493ModuleSupport";
 
 describe("#1493 module materialization topology and work regressions", () => {
