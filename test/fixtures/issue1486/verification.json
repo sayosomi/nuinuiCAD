@@ -1,0 +1,104 @@
+{
+  "mandatoryBlock": {
+    "label": "final-block",
+    "command": [
+      "bash",
+      "/tmp/final1486.sh"
+    ],
+    "code": 0,
+    "timeout": false,
+    "seconds": 263.33,
+    "log": "/tmp/issue1486-final-block.log",
+    "time": "2026-10-29T14:03:37.233554+09:00"
+  },
+  "gates": [
+    {
+      "gate": "required historical controls",
+      "result": "PASS",
+      "files": 5,
+      "passed": 99
+    },
+    {
+      "gate": "npm run build",
+      "result": "PASS"
+    },
+    {
+      "gate": "npm run lint",
+      "result": "PASS"
+    },
+    {
+      "gate": "npm run docs:dsl:check",
+      "result": "PASS"
+    },
+    {
+      "gate": "npm run test:parity",
+      "result": "PASS",
+      "passed": 207
+    },
+    {
+      "gate": "npm test",
+      "result": "PASS",
+      "filesPassed": 705,
+      "filesSkipped": 2,
+      "passed": 11391,
+      "skipped": 187,
+      "total": 11578,
+      "skipDisposition": "Existing suite/environment skips; no failing gate weakened or skipped."
+    },
+    {
+      "gate": "git diff --check",
+      "result": "PASS"
+    },
+    {
+      "label": "final-focused",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1486RecordLanguageQueries.integration.test.ts",
+        "test/issue1486Freshness.integration.test.ts",
+        "src/dsl/dslRenameQuery.test.ts",
+        "src/dsl/dslDefinitionQuery.test.ts",
+        "src/dsl/dslReferencesQuery.test.ts",
+        "src/dsl/recordDocumentIntegration.test.ts",
+        "src/document/moduleSemanticRenameAnalysis.test.ts",
+        "src/document/typedRenameAnalysis.module.test.ts",
+        "src/document/multiDocumentModuleLanguage.test.ts",
+        "src/document/multiDocumentLanguageQueries.renameSafety.test.ts",
+        "src/dsl/sourceLexicalNamespaceIndex.multiDocument.test.ts",
+        "--maxWorkers=2"
+      ],
+      "code": 0,
+      "timeout": false,
+      "seconds": 7.46,
+      "log": "/tmp/issue1486-final-focused.log",
+      "time": "2026-10-29T13:59:11.561078+09:00",
+      "result": "PASS",
+      "passed": 187
+    },
+    {
+      "label": "issue-focused-final",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "test/issue1486RecordLanguageQueries.integration.test.ts",
+        "test/issue1486Freshness.integration.test.ts",
+        "--maxWorkers=2"
+      ],
+      "code": 0,
+      "timeout": false,
+      "seconds": 4.16,
+      "log": "/tmp/issue1486-issue-focused-final.log",
+      "time": "2026-10-29T14:04:57.559007+09:00",
+      "result": "PASS",
+      "passed": 48
+    }
+  ],
+  "rustSourceGates": "NOT_APPLICABLE: no Rust source changed. Cargo build of evaluation_stdio and normally eligible persistent production execution were performed by existing test support; parity passed.",
+  "execution": "Each owned invocation bounded by external process-group timeout/log-size control and Vitest test/hook timeouts. No timeout or resource termination occurred. Rust clients disposed in afterAll; final process inspection found no remaining owned vitest/evaluation_stdio processes.",
+  "earlierFailures": "Intentional Base FAIL and six fix-removal FAIL runs are retained in families.json. Interim lint found one unused test import, removed before the successful mandatory block. Initial fixture/harness/oracle corrections are in prevalidation.json.",
+  "manualE2E": "NOT_REQUIRED: host-neutral source changes only; no Human GUI PASS claimed.",
+  "independentReview": "PENDING exact pushed HEAD; executor does not self-certify.",
+  "codexQuota": "UNAVAILABLE"
+}

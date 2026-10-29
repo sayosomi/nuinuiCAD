@@ -1184,9 +1184,6 @@ export const compileDslDocument = (
     (statement) => statement.kind === "typedDeclaration" && nominalRecordTypeOfDslValueType(dslRequiredValueTypeOf(statement.valueType)) !== null &&
       /^(?:if\s*\(|match\b)/.test(statement.initializer.trim())
   );
-  const hasGeneralizedRecordFields = parsed.statements.some((statement) =>
-    statement.kind === "recordDefinition" && statement.fields.some((field) => field.type !== null && scalarTypeOfDslValueType(field.type) === null)
-  );
   const hasNonScalarOptionalOrCoalescingStatements = parsed.statements.some((statement) => {
     if (statement.kind !== "typedDeclaration") return false;
     const requiredType = dslRequiredValueTypeOf(statement.valueType);
@@ -3682,6 +3679,10 @@ export const compileDslDocument = (
   const hasNominalRecordCollectionAccess = Boolean(sourceSemanticCompilation && [...sourceSemanticCompilation.rootScalarExpressionsByStatementId.values()].some(site =>
     site.expression.geometryProperties.some(property => property.target?.kind === "recordField" && property.target.record.kind === "recordCollectionIndex")
   ));
+  // Imported record definitions are absent from the root parser statements.
+  // The bound nominal catalog owns their fields just as it owns local ones.
+  const hasGeneralizedRecordFields = [...sourceLexicalNamespace?.recordSemanticAnalysis?.definitionsByStatementId.values() ?? []]
+    .some(definition => definition.fields.some(field => scalarTypeOfDslValueType(field.type) === null));
   const moduleSemanticCompilation = hasModuleStatements || hasGeometryValueStatements || hasMaterializationStatements || hasGeometryCarryStatements || hasRecordValueControlFlowStatements || hasGeneralizedRecordFields || hasNonScalarOptionalOrCoalescingStatements || hasGenericCollectionIndexStatements || hasGeometryCollectionIndexStatements || hasCollectionControlFlowStatements || hasImmutableCarryCollectionControlFlow || hasNominalRecordCollectionValueFor || hasOptionalRecordCollectionMembers || hasNominalRecordCollectionAccess || hasOptionalMemberStatements || hasStageAwareGeometryReferences || hasConstructionInputReferences || hasRootForGroupOccurrenceGeometryTargets ? sourceSemanticCompilation : undefined;
   const geometryInputTargetsByElementId = new Map<ElementId, Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>>();
   const constructionInputConsumerElementIds = new Set<ElementId>();

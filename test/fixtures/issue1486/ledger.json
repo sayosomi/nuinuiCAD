@@ -1,0 +1,969 @@
+{
+  "issue": 1486,
+  "base": "39e653213576707c74e4ad454a52e102106c723c",
+  "acceptedDistinct": 36,
+  "ceiling": 40,
+  "distinctCategories": {
+    "primary": 24,
+    "adjacent": 8,
+    "reducers": 4
+  },
+  "replayAliases": {
+    "R1": "A1",
+    "R4": "C3"
+  },
+  "dispositions": {
+    "BUG→FIXED→REPASS": 30,
+    "PASS": 6
+  },
+  "primaryDispositions": {
+    "PASS": 3,
+    "BUG→FIXED→REPASS": 21
+  },
+  "residualPrimary": [],
+  "codexQuota": "UNAVAILABLE",
+  "units": [
+    {
+      "id": "A1",
+      "unitSha256": "f61fdbc00b67550e59b02dabae9fec9be7f64215d31aa81f327be35228a9df34",
+      "bundleSha256": "646979c35243c6b79fae77b291fa1db37b53fdfa16256588717b8a65ad2e1716",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "direct type, constructor, ordinary record value",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "A2",
+      "unitSha256": "3db9f4b8114afd5a64c8bdbb147bc2b2bcb9c2c8738774d9f0d222242b96295f",
+      "bundleSha256": "c503570636d1decd030ff042d63903546c8bf0db6700ca12203d555aeb1a3dee",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "facade original identity",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        },
+        {
+          "file": "facade.nui",
+          "key": "pub",
+          "declarationFile": "lib.nui",
+          "declarationKey": "R",
+          "kind": "publicRecord",
+          "newName": "Renamed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "A3",
+      "unitSha256": "83437b56dded98dab7ec83b8d0faf9e2e99243a0ef2c4d9b9ef8ef6d65a604bd",
+      "bundleSha256": "26833e54dd35fac4e52e287d76487b0a2acd3dcf4e2001331c8f5c890a26bcd3",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "same-name same-shape distinct defining documents",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "A4",
+      "unitSha256": "cd6c9df49b55b77f0e03519c8ec2e0fa371498651a014f09cd57327da0dd2de3",
+      "bundleSha256": "c503570636d1decd030ff042d63903546c8bf0db6700ca12203d555aeb1a3dee",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "alias and public member identities",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        },
+        {
+          "file": "facade.nui",
+          "key": "pub",
+          "declarationFile": "lib.nui",
+          "declarationKey": "R",
+          "kind": "publicRecord",
+          "newName": "Renamed"
+        },
+        {
+          "file": "facade.nui",
+          "key": "alias",
+          "kind": "alias",
+          "newName": "renamed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "B1",
+      "unitSha256": "116ddb087f91c6a245517268b8a936f5bd68dd194d659918a29198e5d2ba4758",
+      "bundleSha256": "c81ecfa5b9ded171e9b9f85e47663f7600e5ad0cffb2c95c8632318b048c953e",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "record parameter in imported Module",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "B2",
+      "unitSha256": "5a53129c4a73507430b0ffee32decfc2e8a2cd33aa827ffa605197cb659b7cda",
+      "bundleSha256": "990bd5cbe6463870beb4ab01584ff1f42862bee5d7235548c6cae458732f97c9",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "typed local/export and caller return",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        },
+        {
+          "file": "root.nui",
+          "key": "inner",
+          "kind": "local",
+          "newName": "inside"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "B3",
+      "unitSha256": "0fa4e76ebd0facc0c2897935f02611441c84cb81cea02669601ed522a675e6c0",
+      "bundleSha256": "f99b1e6875844fa6cbe997dee2293e2c4cfffb9ebdeee5120fed2079e7a0a7fa",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "asymmetric instances and same-text distractor",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "B4",
+      "unitSha256": "043e60fdd1a4d7687ee5a69d87e62c534b49561c8f246078f2147c068a377332",
+      "bundleSha256": "a9328ce8fc0caaad6de46d1862ee48b154e0b6216a8e1a7f1efb04dfcca1f850",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "nested Module and record-in-record field",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "C1",
+      "unitSha256": "5e4caaebd703a541cd983f49430a90b837a33e0fb3de4fe61b4f2dc29da468c8",
+      "bundleSha256": "65f370ea9c0bbd64297e8217335758855836955f09ef68b679371a0552ae8623",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "optional record-valued path",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "C2",
+      "unitSha256": "1f9a503c7f300b0ac6c281cb5e81e2a3f075dc88587c45e0e65b72f2ef5777e6",
+      "bundleSha256": "b5a833346503bb933444c4828e4f4eeb95331f603af49886b0f59158642ff656",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context",
+        "F3-literal-occurrences"
+      ],
+      "purpose": "one-dimensional collection literal index",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "C3",
+      "unitSha256": "88d19ba17fd52aec732bcb5dce13856d55525550454beecaa1141bf1f0ee9b0f",
+      "bundleSha256": "3d42dea3f05174f70f58920c49f0268d2a302f6ed52bcf1f295658e982a61cfc",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context",
+        "F4-imported-field-lowering"
+      ],
+      "purpose": "nested number and point fields feed geometry",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "C4",
+      "unitSha256": "62774b879402ece7a94854dea1fa76925c4cfb329f56c98d54de9d9b6952f534",
+      "bundleSha256": "88c2fe5f94f6959d5b7ccf9c090e8f136729a5d995b3e4f92aeb863333aa83ed",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "qualified constructor versus local names and lexical shadowing",
+      "oracle": "primary.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "D1",
+      "unitSha256": "80e933c586b55145ce36be17f36d128fb723f9aa95855bf9ffbe819cdae124bc",
+      "bundleSha256": "7e5cad8e709b22f87e1771ca6de46afd2284013371a1d9b45c55eec6cd0f9f63",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "PASS",
+      "families": [],
+      "purpose": "complete reverse discovery / diamond deduplication",
+      "oracle": "primary.json",
+      "orderedTransition": "all root graphs → complete/incomplete reverse discovery → exact reference universe",
+      "supportedSelections": [
+        {
+          "file": "facade.nui",
+          "key": "pub",
+          "declarationFile": "lib.nui",
+          "declarationKey": "R",
+          "kind": "publicRecord",
+          "newName": "Renamed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "D2",
+      "unitSha256": "39c50eda03199e65b665cb0991f3f2804f0aa22bcf9709181c036836defe84f6",
+      "bundleSha256": "0a28055b602d69c6b761ac8560e909537cfacf23b6169104d16d1ce1b9fc47fd",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "PASS",
+      "families": [],
+      "purpose": "complete reverse discovery / diamond deduplication",
+      "oracle": "primary.json",
+      "orderedTransition": "all root graphs → complete/incomplete reverse discovery → exact reference universe",
+      "supportedSelections": [
+        {
+          "file": "facade.nui",
+          "key": "pub",
+          "declarationFile": "lib.nui",
+          "declarationKey": "R",
+          "kind": "publicRecord",
+          "newName": "Renamed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "D3",
+      "unitSha256": "84a8176fc28f9a5d03574000674d225d5c6065fe71131e97d8d558130f6743d7",
+      "bundleSha256": "85feda7d1f27ed2f81b08f570b4bd24be19feb0e78bbaac46e8d28804848b2e1",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "public Module Rename from definition and reference",
+      "oracle": "primary.json",
+      "orderedTransition": "public Module Rename from definition and reference",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "D4",
+      "unitSha256": "a98132a45cc3c7d4e00bdd84b9980ef6a0e9d2194dda5bf094b4b8fe0557603f",
+      "bundleSha256": "85feda7d1f27ed2f81b08f570b4bd24be19feb0e78bbaac46e8d28804848b2e1",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "incomplete discovery and unsafe proof",
+      "oracle": "primary.json",
+      "orderedTransition": "incomplete discovery and unsafe proof",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "E1",
+      "unitSha256": "1030b74231a8e54bad2c07ab3a0c2021b2bb9fbad1407a37ce8ec03bde912c70",
+      "bundleSha256": "85feda7d1f27ed2f81b08f570b4bd24be19feb0e78bbaac46e8d28804848b2e1",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "saved offset shift and separately proven dirty target",
+      "oracle": "primary.json",
+      "orderedTransition": "saved offset shift and separately proven dirty target",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "E2",
+      "unitSha256": "a51345f748ef84bcccf241b55af6c25978909594effb018d3b9f8da2d746e936",
+      "bundleSha256": "85feda7d1f27ed2f81b08f570b4bd24be19feb0e78bbaac46e8d28804848b2e1",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "save invalidation and independent root",
+      "oracle": "primary.json",
+      "orderedTransition": "save invalidation and independent root",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "E3",
+      "unitSha256": "5b53c34d14f9cb81fe6db8272a11f18d24fe358796434b5fd366d0c698fc8eeb",
+      "bundleSha256": "85feda7d1f27ed2f81b08f570b4bd24be19feb0e78bbaac46e8d28804848b2e1",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "R1/R2 completion inversion",
+      "oracle": "primary.json",
+      "orderedTransition": "R1/R2 completion inversion",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "E4",
+      "unitSha256": "82cff4d97a9e94f9fb53d41237292a446fe1e352dfe672e50ee45146065082ad",
+      "bundleSha256": "85feda7d1f27ed2f81b08f570b4bd24be19feb0e78bbaac46e8d28804848b2e1",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "fingerprint and revision incompatibility",
+      "oracle": "primary.json",
+      "orderedTransition": "fingerprint and revision incompatibility",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "F1",
+      "unitSha256": "82e480a7b17261d2a284f46a4fb82a785076ede479f99dda85ed00edca8671aa",
+      "bundleSha256": "80e1c3c524a8dee4ff366c7b103102004cc355fdf92565bbe11183e130263801",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "PASS",
+      "families": [],
+      "purpose": "cross-document collision/capture",
+      "oracle": "primary.json",
+      "orderedTransition": "cross-document collision/capture",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "F3",
+      "unitSha256": "5555dbe9ef705cf08eba0fbb33bfaee68e632356124031f010610b2f4fdb4f61",
+      "bundleSha256": "9f3058f42503787756248f028458bd62a9770faadd43db48702255acb663bc4e",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "supplementary UTF-16 and normalized/CRLF boundary",
+      "oracle": "primary.json",
+      "orderedTransition": "supplementary UTF-16 and normalized/CRLF boundary",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "F4",
+      "unitSha256": "5107119111bb4f4ed603311fd24ff528919ee5f6fceb45f74ef1bd92faa1de33",
+      "bundleSha256": "697ef2d54cb0e07f5cb6873c58ed7a1052d103a4567a65df8f0a0b126049d0dd",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "source-preserving physical edit and numeric geometry",
+      "oracle": "primary.json",
+      "orderedTransition": "source-preserving physical edit and numeric geometry",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "F2",
+      "unitSha256": "d10ecaf3dc7ca7c0b1c6be849eaa35f065c7e0e13b351afc63fe39a632d6e1e7",
+      "bundleSha256": "646979c35243c6b79fae77b291fa1db37b53fdfa16256588717b8a65ad2e1716",
+      "category": "primary",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "private/missing/wrong-family/cycle/invalid source owner attribution",
+      "oracle": "primary.json",
+      "orderedTransition": "valid neighbor → separately frozen invalid changes → exact diagnostic owner",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "R1",
+      "unitSha256": "f61fdbc00b67550e59b02dabae9fec9be7f64215d31aa81f327be35228a9df34",
+      "bundleSha256": "646979c35243c6b79fae77b291fa1db37b53fdfa16256588717b8a65ad2e1716",
+      "category": "reducer",
+      "acceptedDistinct": false,
+      "replayOf": "A1",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "reducer: local imported-record Rename loses candidate namespace",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "R2",
+      "unitSha256": "d6b9ec13edbf58639f2e933615f3e1b30b3e12c850ab832d13de6bbf7636a117",
+      "bundleSha256": "e05c3fee9aedd69e99d97d3e2c0d9064d69000888111f07514a02a6e1c15e0ab",
+      "category": "reducer",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F3-literal-occurrences"
+      ],
+      "purpose": "reducer: literal collection omits record occurrence",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "R3",
+      "unitSha256": "ada53becc3575f67cd5466567912b108e13f5c6875adef8ef923c2a0168a7b67",
+      "bundleSha256": "963194a75acd53f498be89d18bd99084e9f30edee56c86df06a994aa58a1e996",
+      "category": "reducer",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "reducer: public Module Rename with imported record parameter",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "X1",
+      "unitSha256": "ac93cea5867449a8224d8157e9165d7c2d8283cfd66d6308b958b4e9eba13b7b",
+      "bundleSha256": "79d80305337e25e80e6f7ccec6bec61718e4bafe1e8442479f3c57530682e40f",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "PASS",
+      "families": [],
+      "purpose": "passing control: ordinary same-file record value Rename",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "X2",
+      "unitSha256": "b09a381f03e0d06ea887e15d7bac69f968f73f244e33f174387a4509e32b71df",
+      "bundleSha256": "9452b1e62536c7e34dd5847ff2cfa4ad7a103c02fe4ff50fbca09dbda329cbda",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F3-literal-occurrences",
+        "F6-typed-rename-supplement"
+      ],
+      "purpose": "passing control: scalar literal collection occurrence",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "X3",
+      "unitSha256": "5bc0f6c836ee97b3668d3e951a9ad936c47d68b9e6526ed556019b1c55d5e840",
+      "bundleSha256": "27f144531ba4d07298ec04d9d5a37a1cf9c9085b5507d4505d489e1e3240e90f",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "PASS",
+      "families": [],
+      "purpose": "passing control: imported Module with scalar parameter",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "X4",
+      "unitSha256": "45371e63df8e61c1e0bb1ddb04b3ced0ce0e9dae396100eb7969e3100a0ae0c2",
+      "bundleSha256": "a9530ce0cc6aa9cdb97572a27bcc2a2a36b9f7c95708811cff40a17d9caa058a",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F2-public-candidate-record-binding"
+      ],
+      "purpose": "qualified imported Module Rename is not captured by a same-text local Module",
+      "oracle": "reducers.json",
+      "orderedTransition": "cross-document collision/capture",
+      "supportedSelections": [
+        {
+          "file": "module.nui",
+          "key": "M",
+          "kind": "publicModule",
+          "newName": "Changed"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "X5",
+      "unitSha256": "38fc26ed9673f3ec2661e7c86195ea53dc47bee5b4cd2bdebd6248844c878bbc",
+      "bundleSha256": "b5a833346503bb933444c4828e4f4eeb95331f603af49886b0f59158642ff656",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context",
+        "F5-inline-pseudo-declaration"
+      ],
+      "purpose": "C2 evidence-triggered collection owner and selected record alias queries",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "rows",
+          "kind": "local",
+          "newName": "items"
+        },
+        {
+          "file": "root.nui",
+          "key": "picked",
+          "kind": "local",
+          "newName": "chosen"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "R4",
+      "unitSha256": "88d19ba17fd52aec732bcb5dce13856d55525550454beecaa1141bf1f0ee9b0f",
+      "bundleSha256": "3d42dea3f05174f70f58920c49f0268d2a302f6ed52bcf1f295658e982a61cfc",
+      "category": "reducer",
+      "acceptedDistinct": false,
+      "replayOf": "C3",
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F4-imported-field-lowering"
+      ],
+      "purpose": "reducer: imported generalized record geometry lowering",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "X6",
+      "unitSha256": "9244106a6d2fe271d6a30406097dcc6d07b227689924dc6cc6b2f5daae3ed7e8",
+      "bundleSha256": "dbd9e3fed8b7f040ea7631d1128895252ce88dbec099b6fbb350ea75e3a86205",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "passing neighbor: same geometry with an unused Module activation",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "R5",
+      "unitSha256": "8acfde87858a43ab52c639e1d68f5f79cd0d923ce0ea01fdb9f84ddd0f01c028",
+      "bundleSha256": "bdb604311d68d6c921bfe108c212ef42f34114b81e8148225ede1d0656040a00",
+      "category": "reducer",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F5-inline-pseudo-declaration"
+      ],
+      "purpose": "reducer: inline constructor manufactures collection declaration identity",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "rows",
+          "kind": "local",
+          "newName": "items"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "X7",
+      "unitSha256": "42cbe06f2e6c76042b32999831f28a058e32bae02ba131b9a8af62093550f625",
+      "bundleSha256": "5a2480e550f13733f8d8a3227c4b559f78cb627391c2471edc2cf68072f4480c",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "passing collection query neighbor without inline constructor",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "rows",
+          "kind": "local",
+          "newName": "items"
+        }
+      ],
+      "unsupported": null
+    },
+    {
+      "id": "X8",
+      "unitSha256": "434c30ee23b8a81397d5675cad2a082224c9be28c12fb924abf81e1b630be490",
+      "bundleSha256": "1404d8cc232f7e577b1b8853def66acb3a7ac4d49305e85f2cc988c354eb4f4d",
+      "category": "adjacent",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "BUG→FIXED→REPASS",
+      "families": [
+        "F1-local-candidate-context"
+      ],
+      "purpose": "nested-Module record forwarding neighbor before adding record-in-record",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    },
+    {
+      "id": "R6",
+      "unitSha256": "a5d77fcc1752a5aea1169dcc92c3e2a6b0ddf6e66ac410eb154efd11e6e2a86d",
+      "bundleSha256": "94ba7b04ce899ae124ebdabe411033f0a05d624b2acd1f4e0863415e1523a3a5",
+      "category": "reducer",
+      "acceptedDistinct": true,
+      "replayOf": null,
+      "disposition": "PASS",
+      "families": [],
+      "purpose": "asymmetric imported-Module record outputs independently observable in point coordinates",
+      "oracle": "reducers.json",
+      "orderedTransition": "compile → query → Rename → physical edit → recompile → requery",
+      "supportedSelections": [
+        {
+          "file": "root.nui",
+          "key": "r",
+          "newName": "renamed",
+          "kind": "local"
+        }
+      ],
+      "unsupported": "Foreign record type/constructor/member authoring queries are NOT_SUPPORTED; facade record catalog Definition/References are exercised separately; public record Rename has no production record proof."
+    }
+  ]
+}
