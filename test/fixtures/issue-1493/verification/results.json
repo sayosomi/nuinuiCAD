@@ -1,0 +1,79 @@
+{
+  "testedHead": "a073ab37f88b129030d33f6988616ded30c757b1",
+  "base": "7d08c98aca4ae7982679a55f50358ec6f8eaa63b",
+  "ownerSha256": {
+    "packages/nui-language/src/dsl/moduleMaterialization.ts": "ce3ca0a9412416fd322e6ae07b8802f43acfc8b07629dfcb2d41d3f7297eb16f",
+    "packages/nui-language/src/document/statementReconciler.ts": "b5acb1cbc2fb263eb0dfe0fabbcd37acbd28c287b0e16dcb724b8c4ca011de69"
+  },
+  "records": [
+    {
+      "name": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "timeoutSeconds": 180,
+      "exit": 0,
+      "timedOut": false,
+      "elapsedSeconds": 27.526,
+      "logSha256": "0916d694bf6453a79747c5baa8c17d32e5d3be5e03239e4360186ecdfc4f9caa"
+    },
+    {
+      "name": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "timeoutSeconds": 180,
+      "exit": 0,
+      "timedOut": false,
+      "elapsedSeconds": 28.819,
+      "logSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+    },
+    {
+      "name": "full-test",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "timeoutSeconds": 1200,
+      "exit": 0,
+      "timedOut": false,
+      "elapsedSeconds": 359.29,
+      "logSha256": "d4dec122f858ca8faa920b84bc2fecfe43935eed8eeee997e9489f4fb850ebf7"
+    },
+    {
+      "name": "parity",
+      "command": [
+        "npm",
+        "run",
+        "test:parity",
+        "--",
+        "--maxWorkers=1",
+        "--no-file-parallelism"
+      ],
+      "timeoutSeconds": 600,
+      "exit": 0,
+      "timedOut": false,
+      "elapsedSeconds": 56.342,
+      "logSha256": "d1f74294ad38cfe0f56ac8d075f798526ad628dc9801a44c7454b989094fee6f"
+    },
+    {
+      "name": "dsl-reference",
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "timeoutSeconds": 120,
+      "exit": 0,
+      "timedOut": false,
+      "elapsedSeconds": 0.619,
+      "logSha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5"
+    }
+  ]
+}
