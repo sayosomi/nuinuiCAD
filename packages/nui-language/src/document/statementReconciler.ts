@@ -220,6 +220,7 @@ export const reconcileStatements = (
   // ブロック対応: 旧開き文index → マッチ済みフラグ / 新開き文index → 旧開き文index。
   const matchedOldBlocks = new Set<number>();
   const oldBlockByNewBlock = new Map<number, number>();
+  const scopeKeyCache = { old: new Map<number, string>(), new: new Map<number, string>() };
 
   const match = (oldIndex: number, newIndex: number, stage: ReconcileStage) => {
     const id = oldStatementIds.get(oldIndex);
@@ -231,6 +232,10 @@ export const reconcileStatements = (
     if (oldStatements[oldIndex].opensBlock && newStatements[newIndex].opensBlock) {
       matchedOldBlocks.add(oldIndex);
       oldBlockByNewBlock.set(newIndex, oldIndex);
+      // A paired parent changes descendant keys on both sides, including keys
+      // needed by a later hunk in this same matching wave.
+      scopeKeyCache.old.clear();
+      scopeKeyCache.new.clear();
     }
   };
 
@@ -247,8 +252,8 @@ export const reconcileStatements = (
     if (!oldResidue.has(oldIndex) || !newResidue.has(newIndex)) continue;
     match(oldIndex, newIndex, 1);
   }
-  // ==== スコープキー(段階が進むと blk: 対応が増えるため都度計算) ====
-  const scopeKey = (side: "old" | "new", index: number): string => {
+  // ==== スコープキー(親の対応が変わるまでのみ再利用) ====
+  const computeScopeKey = (side: "old" | "new", index: number): string => {
     const statements = side === "old" ? oldStatements : newStatements;
     const enclosing = statements[index].enclosing;
     if (!enclosing) return "root";
@@ -271,6 +276,13 @@ export const reconcileStatements = (
     }
     // 無名・未対応の親ブロック配下はキー系マッチに参加できない(一意センチネル)。
     return `⊥${side}:${parentIndex}${branchSuffix}`;
+  };
+  const scopeKey = (side: "old" | "new", index: number): string => {
+    const cached = scopeKeyCache[side].get(index);
+    if (cached !== undefined) return cached;
+    const key = computeScopeKey(side, index);
+    scopeKeyCache[side].set(index, key);
+    return key;
   };
 
   const residueList = (residue: Set<number>) => [...residue].sort((a, b) => a - b);
@@ -316,14 +328,17 @@ export const reconcileStatements = (
       progress = false;
       for (const hunk of replaceHunks) {
         const oldGroups = new Map<string, number[]>();
-        for (const index of residueList(oldResidue)) {
-          if (index < hunk.oldStart || index >= hunk.oldEnd) continue;
+        // Hunks are disjoint ordered source-index ranges. Visit only this
+        // range, retaining the same ascending residual order and live scope
+        // keys after any parent paired by an earlier hunk.
+        for (let index = hunk.oldStart; index < hunk.oldEnd; index += 1) {
+          if (!oldResidue.has(index)) continue;
           const key = `${identityKindOf(oldStatements[index])}|${scopeKey("old", index)}`;
           oldGroups.set(key, [...(oldGroups.get(key) ?? []), index]);
         }
         const newGroups = new Map<string, number[]>();
-        for (const index of residueList(newResidue)) {
-          if (index < hunk.newStart || index >= hunk.newEnd) continue;
+        for (let index = hunk.newStart; index < hunk.newEnd; index += 1) {
+          if (!newResidue.has(index)) continue;
           const key = `${identityKindOf(newStatements[index])}|${scopeKey("new", index)}`;
           newGroups.set(key, [...(newGroups.get(key) ?? []), index]);
         }

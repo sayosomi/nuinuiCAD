@@ -1,0 +1,54 @@
+[
+  {
+    "id": "R3-2",
+    "oldSource": "nui 1\npoint Neighbor = coordinate(x: 5, y: -2)\n\ngroup G0 {\n  point P0 = coordinate(x: 1, y: -2)\n}\ngroup G1 {\n  point P1 = coordinate(x: 1, y: -2)\n}",
+    "newSource": "nui 1\npoint Neighbor = coordinate(x: 5, y: -2)\n\ngroup H0 {\n  point Q0 = coordinate(x: 1, y: -2)\n}\ngroup H1 {\n  point Q1 = coordinate(x: 1, y: -2)\n}",
+    "oldSha256": "bc02cce56b8002eee28e26b51c29e93cacfa52dfa543368a8f335445b64246c1",
+    "newSha256": "56a973c13a597be550d56999d5993dfc7d863d420f26f32f3f6d6ba40ad54aaf",
+    "expected": [
+      {
+        "index": 1,
+        "id": "old:0",
+        "oldIndex": 1,
+        "stage": 1,
+        "parentOrdinal": null,
+        "kind": "freePoint"
+      },
+      {
+        "index": 2,
+        "id": "old:1",
+        "oldIndex": 2,
+        "stage": 3,
+        "parentOrdinal": null,
+        "kind": "group"
+      },
+      {
+        "index": 3,
+        "id": "old:2",
+        "oldIndex": 3,
+        "stage": 3,
+        "parentOrdinal": 1,
+        "sourceBranch": "then",
+        "kind": "freePoint"
+      },
+      {
+        "index": 5,
+        "id": "old:3",
+        "oldIndex": 5,
+        "stage": 3,
+        "parentOrdinal": null,
+        "kind": "group"
+      },
+      {
+        "index": 6,
+        "id": "old:4",
+        "oldIndex": 6,
+        "stage": 3,
+        "parentOrdinal": 3,
+        "sourceBranch": "then",
+        "kind": "freePoint"
+      }
+    ],
+    "vanished": []
+  }
+]
