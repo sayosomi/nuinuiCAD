@@ -1,0 +1,1874 @@
+[
+  {
+    "id": "R1-S0",
+    "root": 1,
+    "state": 0,
+    "sourceRevision": 1,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst exact: direct::Dim = @dimension\nconst dx: number = @exact.x + @rootEdit\nconst dy: number = @dimension.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 17, y: -23)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "7ef28ac7d6b31ac77c31299ffc051a54f905cacafd73c8340f51e9cf4234c377",
+      "saved": {
+        "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "2ece21ca788876947a17aaeceff93386cf784da02f0bc66917614a5f4bf4db17"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 17,
+          "y": -23
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 17,
+            "y": -23
+          },
+          "end": {
+            "x": 28,
+            "y": -30
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "dx": 17,
+        "dy": -23
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 53,
+            "y": 23
+          },
+          "end": {
+            "x": 67,
+            "y": 45
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 52.86770833333333,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 45.13229166666667,
+        "width": 217.26458333333335,
+        "height": 83.26458333333333
+      },
+      "svgMm": [
+        223.26458333333335,
+        89.26458333333333
+      ],
+      "columns": 2,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 42.86770833333333,
+          "y": -48.13229166666667
+        },
+        {
+          "x": 232.86770833333333,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R1-S1",
+    "root": 1,
+    "state": 1,
+    "sourceRevision": 2,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst exact: direct::Dim = @dimension\nconst dx: number = @exact.x + @rootEdit\nconst dy: number = @dimension.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "7ef28ac7d6b31ac77c31299ffc051a54f905cacafd73c8340f51e9cf4234c377",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "a8c8d58d9978e2ad8f346cfdc6fa26c2a51faac12bc33bce1f6c6568c24e7296"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 31,
+          "y": -37
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 31,
+            "y": -37
+          },
+          "end": {
+            "x": 42,
+            "y": -44
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "dx": 31,
+        "dy": -37
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 81,
+            "y": 51
+          },
+          "end": {
+            "x": 95,
+            "y": 73
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 80.86770833333334,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 73.13229166666666,
+        "width": 189.26458333333335,
+        "height": 111.26458333333332
+      },
+      "svgMm": [
+        195.26458333333335,
+        117.26458333333332
+      ],
+      "columns": 1,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 70.86770833333334,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R1-S2",
+    "root": 1,
+    "state": 2,
+    "sourceRevision": 3,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 5 // current root only\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst exact: direct::Dim = @dimension\nconst dx: number = @exact.x + @rootEdit\nconst dy: number = @dimension.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "49bd51f66f00401b0b957e0f0bd47e9e51dbcaf70c3b1e8fa1170b66e12640f7",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "31f9b20a65dd3af19f623dc2f8051006daedb60ce74d59b5ec6ba887532a8b90"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 36,
+          "y": -37
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 36,
+            "y": -37
+          },
+          "end": {
+            "x": 47,
+            "y": -44
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 5,
+        "dx": 36,
+        "dy": -37
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 81,
+            "y": 61
+          },
+          "end": {
+            "x": 95,
+            "y": 83
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 80.86770833333334,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 83.13229166666666,
+        "width": 189.26458333333335,
+        "height": 121.26458333333332
+      },
+      "svgMm": [
+        195.26458333333335,
+        127.26458333333332
+      ],
+      "columns": 1,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 70.86770833333334,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R2-S0",
+    "root": 2,
+    "state": 0,
+    "sourceRevision": 1,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./facade.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst exact: direct::Dim = @dimension\nconst dx: number = @exact.x + @rootEdit\nconst dy: number = @dimension.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 17, y: -23)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "868f2c7bef53a4b456718b129bbcd04a0d6b0b3319425a277a903a4cc6c3d9b4",
+      "saved": {
+        "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "2ece21ca788876947a17aaeceff93386cf784da02f0bc66917614a5f4bf4db17"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 17,
+          "y": -23
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 17,
+            "y": -23
+          },
+          "end": {
+            "x": 28,
+            "y": -30
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "dx": 17,
+        "dy": -23
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 53,
+            "y": 23
+          },
+          "end": {
+            "x": 67,
+            "y": 45
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 52.86770833333333,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 45.13229166666667,
+        "width": 217.26458333333335,
+        "height": 83.26458333333333
+      },
+      "svgMm": [
+        223.26458333333335,
+        89.26458333333333
+      ],
+      "columns": 2,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 42.86770833333333,
+          "y": -48.13229166666667
+        },
+        {
+          "x": 232.86770833333333,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R2-S1",
+    "root": 2,
+    "state": 1,
+    "sourceRevision": 2,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./facade.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst exact: direct::Dim = @dimension\nconst dx: number = @exact.x + @rootEdit\nconst dy: number = @dimension.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "868f2c7bef53a4b456718b129bbcd04a0d6b0b3319425a277a903a4cc6c3d9b4",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "a8c8d58d9978e2ad8f346cfdc6fa26c2a51faac12bc33bce1f6c6568c24e7296"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 31,
+          "y": -37
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 31,
+            "y": -37
+          },
+          "end": {
+            "x": 42,
+            "y": -44
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "dx": 31,
+        "dy": -37
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 81,
+            "y": 51
+          },
+          "end": {
+            "x": 95,
+            "y": 73
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 80.86770833333334,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 73.13229166666666,
+        "width": 189.26458333333335,
+        "height": 111.26458333333332
+      },
+      "svgMm": [
+        195.26458333333335,
+        117.26458333333332
+      ],
+      "columns": 1,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 70.86770833333334,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R2-S2",
+    "root": 2,
+    "state": 2,
+    "sourceRevision": 3,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./facade.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 5 // current root only\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst exact: direct::Dim = @dimension\nconst dx: number = @exact.x + @rootEdit\nconst dy: number = @dimension.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "b1cf2f6067fc625d38f77ff774e89a3c74c82f50b6ee67334708ce542a24d80d",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "31f9b20a65dd3af19f623dc2f8051006daedb60ce74d59b5ec6ba887532a8b90"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 36,
+          "y": -37
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 36,
+            "y": -37
+          },
+          "end": {
+            "x": 47,
+            "y": -44
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 5,
+        "dx": 36,
+        "dy": -37
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 81,
+            "y": 61
+          },
+          "end": {
+            "x": 95,
+            "y": 83
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 80.86770833333334,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 83.13229166666666,
+        "width": 189.26458333333335,
+        "height": 121.26458333333332
+      },
+      "svgMm": [
+        195.26458333333335,
+        127.26458333333332
+      ],
+      "columns": 1,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 70.86770833333334,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R3-S0",
+    "root": 3,
+    "state": 0,
+    "sourceRevision": 1,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nmodule Panel(value: types::Dim) {\n  export const out: types::Dim = types::Dim(x: @value.x + @data::out.x, y: @value.y + @data::out.y)\n  point Anchor = coordinate(x: @out.x, y: @out.y)\n  line Edge = segment(start: @Anchor, end: (@out.x + 11, @out.y - 7))\n}\nconst first: types::Dim = types::Dim(x: 3 + @rootEdit, y: 17)\nconst second: direct::Dim = direct::Dim(x: 13, y: 29)\nconst firstX: number = @first.x\nconst secondY: number = @second.y\ngroup Left [Ink] {\n  instance panel = Panel(value: @first)\n}\ngroup Right [Ink] {\n  instance panel = Panel(value: @second)\n}\nconst leftX: number = @Left::panel::out.x\nconst rightY: number = @Right::panel::out.y\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Right(at: (-19, 31), scale: 1, angle: 0, mirror: false)\n  place @Left(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 17, y: -23)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "c4ba7a820a0bab29ae4a91c0d830a791831f735c116cd5b8ac192f6aaba35980",
+      "saved": {
+        "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "57d6181b455b1e5f567de0729bedc1935f6ab34bd202d3f6e23902c92367426f"
+    },
+    "expected": {
+      "geometry": {
+        "Left::panel::Anchor": {
+          "kind": "point",
+          "x": 20,
+          "y": -6
+        },
+        "Left::panel::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 20,
+            "y": -6
+          },
+          "end": {
+            "x": 31,
+            "y": -13
+          }
+        },
+        "Right::panel::Anchor": {
+          "kind": "point",
+          "x": 30,
+          "y": 6
+        },
+        "Right::panel::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 30,
+            "y": 6
+          },
+          "end": {
+            "x": 41,
+            "y": -1
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "firstX": 3,
+        "secondY": 29,
+        "leftX": 20,
+        "rightY": 6
+      },
+      "placements": [
+        {
+          "group": "Right",
+          "at": {
+            "x": -19,
+            "y": 31
+          },
+          "scale": 1,
+          "angle": 0
+        },
+        {
+          "group": "Left",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Right::panel::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 11,
+            "y": 37
+          },
+          "end": {
+            "x": 22,
+            "y": 30
+          }
+        },
+        {
+          "path": "Left::panel::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 19,
+            "y": 29
+          },
+          "end": {
+            "x": 33,
+            "y": 51
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 10.867708333333333,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 51.13229166666667,
+        "width": 259.26458333333335,
+        "height": 89.26458333333333
+      },
+      "svgMm": [
+        265.26458333333335,
+        95.26458333333333
+      ],
+      "columns": 2,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 0.8677083333333329,
+          "y": -48.13229166666667
+        },
+        {
+          "x": 190.86770833333333,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R3-S1",
+    "root": 3,
+    "state": 1,
+    "sourceRevision": 2,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nmodule Panel(value: types::Dim) {\n  export const out: types::Dim = types::Dim(x: @value.x + @data::out.x, y: @value.y + @data::out.y)\n  point Anchor = coordinate(x: @out.x, y: @out.y)\n  line Edge = segment(start: @Anchor, end: (@out.x + 11, @out.y - 7))\n}\nconst first: types::Dim = types::Dim(x: 3 + @rootEdit, y: 17)\nconst second: direct::Dim = direct::Dim(x: 13, y: 29)\nconst firstX: number = @first.x\nconst secondY: number = @second.y\ngroup Left [Ink] {\n  instance panel = Panel(value: @first)\n}\ngroup Right [Ink] {\n  instance panel = Panel(value: @second)\n}\nconst leftX: number = @Left::panel::out.x\nconst rightY: number = @Right::panel::out.y\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Right(at: (-19, 31), scale: 1, angle: 0, mirror: false)\n  place @Left(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "c4ba7a820a0bab29ae4a91c0d830a791831f735c116cd5b8ac192f6aaba35980",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "4c105cd5971f0b36773a9e5f94a084fcf504d240b04ff7b5cc41d2f848d9238c"
+    },
+    "expected": {
+      "geometry": {
+        "Left::panel::Anchor": {
+          "kind": "point",
+          "x": 34,
+          "y": -20
+        },
+        "Left::panel::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 34,
+            "y": -20
+          },
+          "end": {
+            "x": 45,
+            "y": -27
+          }
+        },
+        "Right::panel::Anchor": {
+          "kind": "point",
+          "x": 44,
+          "y": -8
+        },
+        "Right::panel::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 44,
+            "y": -8
+          },
+          "end": {
+            "x": 55,
+            "y": -15
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "firstX": 3,
+        "secondY": 29,
+        "leftX": 34,
+        "rightY": -8
+      },
+      "placements": [
+        {
+          "group": "Right",
+          "at": {
+            "x": -19,
+            "y": 31
+          },
+          "scale": 1,
+          "angle": 0
+        },
+        {
+          "group": "Left",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Right::panel::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 25,
+            "y": 23
+          },
+          "end": {
+            "x": 36,
+            "y": 16
+          }
+        },
+        {
+          "path": "Left::panel::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 47,
+            "y": 57
+          },
+          "end": {
+            "x": 61,
+            "y": 79
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 24.867708333333333,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 79.13229166666666,
+        "width": 245.26458333333335,
+        "height": 117.26458333333332
+      },
+      "svgMm": [
+        251.26458333333335,
+        123.26458333333332
+      ],
+      "columns": 2,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 14.867708333333333,
+          "y": -48.13229166666667
+        },
+        {
+          "x": 204.86770833333333,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R3-S2",
+    "root": 3,
+    "state": 2,
+    "sourceRevision": 3,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 5 // current root only\nmodule Panel(value: types::Dim) {\n  export const out: types::Dim = types::Dim(x: @value.x + @data::out.x, y: @value.y + @data::out.y)\n  point Anchor = coordinate(x: @out.x, y: @out.y)\n  line Edge = segment(start: @Anchor, end: (@out.x + 11, @out.y - 7))\n}\nconst first: types::Dim = types::Dim(x: 3 + @rootEdit, y: 17)\nconst second: direct::Dim = direct::Dim(x: 13, y: 29)\nconst firstX: number = @first.x\nconst secondY: number = @second.y\ngroup Left [Ink] {\n  instance panel = Panel(value: @first)\n}\ngroup Right [Ink] {\n  instance panel = Panel(value: @second)\n}\nconst leftX: number = @Left::panel::out.x\nconst rightY: number = @Right::panel::out.y\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Right(at: (-19, 31), scale: 1, angle: 0, mirror: false)\n  place @Left(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "b92494fc9f68cbd6c4f20469e0a89c8fb95d8e65a75b9051d8022cb3e32a7560",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "b820a2af86695a43125163fc0eda8fb3f8d70e32bb09e18aadb04e05de7dae75"
+    },
+    "expected": {
+      "geometry": {
+        "Left::panel::Anchor": {
+          "kind": "point",
+          "x": 39,
+          "y": -20
+        },
+        "Left::panel::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 39,
+            "y": -20
+          },
+          "end": {
+            "x": 50,
+            "y": -27
+          }
+        },
+        "Right::panel::Anchor": {
+          "kind": "point",
+          "x": 44,
+          "y": -8
+        },
+        "Right::panel::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 44,
+            "y": -8
+          },
+          "end": {
+            "x": 55,
+            "y": -15
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 5,
+        "firstX": 8,
+        "secondY": 29,
+        "leftX": 39,
+        "rightY": -8
+      },
+      "placements": [
+        {
+          "group": "Right",
+          "at": {
+            "x": -19,
+            "y": 31
+          },
+          "scale": 1,
+          "angle": 0
+        },
+        {
+          "group": "Left",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Right::panel::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 25,
+            "y": 23
+          },
+          "end": {
+            "x": 36,
+            "y": 16
+          }
+        },
+        {
+          "path": "Left::panel::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 47,
+            "y": 67
+          },
+          "end": {
+            "x": 61,
+            "y": 89
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 24.867708333333333,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 89.13229166666666,
+        "width": 245.26458333333335,
+        "height": 127.26458333333332
+      },
+      "svgMm": [
+        251.26458333333335,
+        133.26458333333332
+      ],
+      "columns": 2,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 14.867708333333333,
+          "y": -48.13229166666667
+        },
+        {
+          "x": 204.86770833333333,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R4-S0",
+    "root": 4,
+    "state": 0,
+    "sourceRevision": 1,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nrecord Wrapper(inner: types::Dim, rows: direct::Dim[])\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst wrapped: Wrapper = Wrapper(inner: @dimension, rows: [types::Dim(x: 43, y: -47), @dimension])\nconst dx: number = @wrapped.rows[1].x + @rootEdit\nconst dy: number = @wrapped.inner.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 17, y: -23)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "e0643dba48e3012962467461c09bd67bb04f53e9660a5f1b06c63a069548c85c",
+      "saved": {
+        "lib.nui": "684e1820a0813621d4acb69094916b71cc2e29abca73f8576f81957c9a8ad472",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "2ece21ca788876947a17aaeceff93386cf784da02f0bc66917614a5f4bf4db17"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 17,
+          "y": -23
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 17,
+            "y": -23
+          },
+          "end": {
+            "x": 28,
+            "y": -30
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "dx": 17,
+        "dy": -23
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 53,
+            "y": 23
+          },
+          "end": {
+            "x": 67,
+            "y": 45
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 52.86770833333333,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 45.13229166666667,
+        "width": 217.26458333333335,
+        "height": 83.26458333333333
+      },
+      "svgMm": [
+        223.26458333333335,
+        89.26458333333333
+      ],
+      "columns": 2,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 42.86770833333333,
+          "y": -48.13229166666667
+        },
+        {
+          "x": 232.86770833333333,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R4-S1",
+    "root": 4,
+    "state": 1,
+    "sourceRevision": 2,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 0 // current root only\nrecord Wrapper(inner: types::Dim, rows: direct::Dim[])\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst wrapped: Wrapper = Wrapper(inner: @dimension, rows: [types::Dim(x: 43, y: -47), @dimension])\nconst dx: number = @wrapped.rows[1].x + @rootEdit\nconst dy: number = @wrapped.inner.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "e0643dba48e3012962467461c09bd67bb04f53e9660a5f1b06c63a069548c85c",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "a8c8d58d9978e2ad8f346cfdc6fa26c2a51faac12bc33bce1f6c6568c24e7296"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 31,
+          "y": -37
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 31,
+            "y": -37
+          },
+          "end": {
+            "x": 42,
+            "y": -44
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 0,
+        "dx": 31,
+        "dy": -37
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 81,
+            "y": 51
+          },
+          "end": {
+            "x": 95,
+            "y": 73
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 80.86770833333334,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 73.13229166666666,
+        "width": 189.26458333333335,
+        "height": 111.26458333333332
+      },
+      "svgMm": [
+        195.26458333333335,
+        117.26458333333332
+      ],
+      "columns": 1,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 70.86770833333334,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  },
+  {
+    "id": "R4-S2",
+    "root": 4,
+    "state": 2,
+    "sourceRevision": 3,
+    "source": "nui 1\n// Keep comments, blank lines and this exact source layout.\nimport \"./lib.nui\" as direct\nimport \"./lib.nui\" as types\nstyle Ink {\n  width: 1px,\n  color: #123456,\n}\ninstance data = types::Data()\nconst rootEdit: number = 5 // current root only\nrecord Wrapper(inner: types::Dim, rows: direct::Dim[])\nconst dimension: types::Dim = types::Dim(x: @data::out.x, y: @data::out.y)\nconst wrapped: Wrapper = Wrapper(inner: @dimension, rows: [types::Dim(x: 43, y: -47), @dimension])\nconst dx: number = @wrapped.rows[1].x + @rootEdit\nconst dy: number = @wrapped.inner.y\ngroup Pattern [Ink] {\n  point Anchor = coordinate(x: @dx, y: @dy)\n  line Edge = segment(start: @Anchor, end: (@dx + 11, @dy - 7))\n}\ngroup Control [Ink] {\n  line Edge = segment(start: (-3, 2), end: (10, 7))\n}\ngroup Excluded [Ink] {\n  line NotSelected = segment(start: (601, -607), end: (613, -619))\n}\nlayout Sheet {\n  place @Pattern(at: (7, -11), scale: 2, angle: 90, mirror: false)\n  place @Control(at: (260, -40), scale: 1, angle: 0, mirror: false)\n}\nlayout Unselected {\n  place @Excluded()\n}\nsvg WrongVector(layout: @Unselected, margin: 0)\nprint WrongPaper(layout: @Unselected, paper: a3, overlap: 0)\nsvg Vector(layout: @Sheet, margin: 3)\nprint Paper(layout: @Sheet, paper: a4, overlap: 10)\n\n// End sentinel.\n",
+    "saved": {
+      "lib.nui": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 31, y: -37)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+      "facade.nui": "nui 1\nimport \"./lib.nui\" as original\nexport @original::Dim\nexport @original::Data\n"
+    },
+    "dirty": "nui 1\n// Saved definition and numeric provider; top-level geometry is dependency-only.\nexport record Dim(x: number, y: number)\nexport module Data() {\n  export const out: Dim = Dim(x: 71, y: -83)\n}\ngroup LibraryOnly {\n  line Unauthored = segment(start: (901, 907), end: (911, 919))\n}\n",
+    "hashes": {
+      "source": "7534df426583c790061f9b408c21a31ea77bd5415ca5561d68860cd45fa9ef66",
+      "saved": {
+        "lib.nui": "9e2ed93f3d2d6086738cf06716b6214e6dce8e803b3405fc53ea9bd324853207",
+        "facade.nui": "516ea79a9fb6655d949ab5b447bb7e28b72d2e36ffd4f850fa201fe27b41c074"
+      },
+      "oracle": "31f9b20a65dd3af19f623dc2f8051006daedb60ce74d59b5ec6ba887532a8b90"
+    },
+    "expected": {
+      "geometry": {
+        "Pattern::Anchor": {
+          "kind": "point",
+          "x": 36,
+          "y": -37
+        },
+        "Pattern::Edge": {
+          "kind": "line",
+          "start": {
+            "x": 36,
+            "y": -37
+          },
+          "end": {
+            "x": 47,
+            "y": -44
+          }
+        },
+        "Control::Edge": {
+          "kind": "line",
+          "start": {
+            "x": -3,
+            "y": 2
+          },
+          "end": {
+            "x": 10,
+            "y": 7
+          }
+        },
+        "Excluded::NotSelected": {
+          "kind": "line",
+          "start": {
+            "x": 601,
+            "y": -607
+          },
+          "end": {
+            "x": 613,
+            "y": -619
+          }
+        }
+      },
+      "scalars": {
+        "rootEdit": 5,
+        "dx": 36,
+        "dy": -37
+      },
+      "placements": [
+        {
+          "group": "Pattern",
+          "at": {
+            "x": 7,
+            "y": -11
+          },
+          "scale": 2,
+          "angle": 90
+        },
+        {
+          "group": "Control",
+          "at": {
+            "x": 260,
+            "y": -40
+          },
+          "scale": 1,
+          "angle": 0
+        }
+      ],
+      "drawables": [
+        {
+          "path": "Pattern::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 81,
+            "y": 61
+          },
+          "end": {
+            "x": 95,
+            "y": 83
+          }
+        },
+        {
+          "path": "Control::Edge",
+          "name": "Edge",
+          "kind": "line",
+          "start": {
+            "x": 257,
+            "y": -38
+          },
+          "end": {
+            "x": 270,
+            "y": -33
+          }
+        }
+      ],
+      "bounds": {
+        "minX": 80.86770833333334,
+        "minY": -38.13229166666667,
+        "maxX": 270.1322916666667,
+        "maxY": 83.13229166666666,
+        "width": 189.26458333333335,
+        "height": 121.26458333333332
+      },
+      "svgMm": [
+        195.26458333333335,
+        127.26458333333332
+      ],
+      "columns": 1,
+      "rows": 1,
+      "pageOrigins": [
+        {
+          "x": 70.86770833333334,
+          "y": -48.13229166666667
+        }
+      ],
+      "selected": [
+        "Vector",
+        "Paper"
+      ],
+      "paperMm": [
+        210,
+        297
+      ],
+      "overlap": 10
+    }
+  }
+]

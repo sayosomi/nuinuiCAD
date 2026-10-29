@@ -55,7 +55,10 @@ supported. Unknown, duplicate, missing, or mixed-style arguments are errors.
 Module bodies can export geometry, collections, scalar values, and records.
 Exports are private to the instance until explicitly declared with `export`.
 An external reference uses `@instance::export`; an exported record field can
-then be read with `.`, for example `@front::measure.height`. A module instance
+then be read with `.`, for example `@front::measure.height`. When the instance
+is inside an ordinary group, include that namespace prefix, for example
+`@Pieces::front::measure.height`; the record retains its original nominal type.
+A module instance
 may carry direct `enabled` and `visible` options. `enabled: false` prevents
 the instance body from evaluating/materializing; `visible: false` evaluates the
 instance and its exports but hides its presentation. Both options accept
