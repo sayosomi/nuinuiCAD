@@ -1,0 +1,6 @@
+nui 1
+// #1497 T1; independently frozen before product evaluation
+line L0 = segment(start: (3, 5), end: (18, -2))
+line L1 = segment(start: (18, -2), end: (27, 16))
+line Copy = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: 1, angleDeg: 0, mirrorX: false, baseLines: [@L0, @L1])
+line Control = segment(start: (201, -103), end: (238, -103))

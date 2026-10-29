@@ -1,0 +1,14 @@
+nui 1
+// #1497 X2; independently frozen before product evaluation
+line L = segment(start: (1, 2), end: (4, 6))
+const Pure: path = transformCopy(startPoint: (0, 0), endPoint: (7, -2), scale: 1.5, angleDeg: 37, mirrorX: true, baseLines: [@L])
+const Reflected: path = mirrorCopy(axis1: (5, -3), axis2: (12, 8), baseLines: [@L])
+point PureStart = coordinate(x: @Pure.startPoint.x, y: @Pure.startPoint.y)
+point PureEnd = coordinate(x: @Pure.endPoint.x, y: @Pure.endPoint.y)
+const PureX: number = @Pure.endPoint.x
+point PureScalar = coordinate(x: @PureX, y: 0)
+point ReflectedStart = coordinate(x: @Reflected.startPoint.x, y: @Reflected.startPoint.y)
+point ReflectedEnd = coordinate(x: @Reflected.endPoint.x, y: @Reflected.endPoint.y)
+const ReflectedX: number = @Reflected.endPoint.x
+point ReflectedScalar = coordinate(x: @ReflectedX, y: 0)
+line Control = segment(start: (201, -103), end: (238, -103))

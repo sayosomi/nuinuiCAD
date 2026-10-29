@@ -1,0 +1,7 @@
+nui 1
+// #1497 P1; independently frozen before product evaluation
+line L = segment(start: (-9, -2), end: (4, -2))
+arc A = arc(center: (4, 8), radius: 10, start: 270, end: 0, direction: counterclockwise)
+curve B = bezier(start: (14, 8), end: (33, 12), startAngle: 56.309932474020215, startLength: 10.816653826391969, endAngle: 56.309932474020215, endLength: 14.422205101855956)
+line Copy = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: 1.4, angleDeg: 23, mirrorX: true, baseLines: [@L, @A, @B])
+line Control = segment(start: (201, -103), end: (238, -103))

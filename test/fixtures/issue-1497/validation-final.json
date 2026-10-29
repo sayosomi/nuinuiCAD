@@ -1,0 +1,146 @@
+{
+  "base": "b29186a6a8f48d35f60ab6adb334a3defe7d4a6a",
+  "validateOnly": true,
+  "spawns": 0,
+  "requests": 0,
+  "observations": [
+    {
+      "id": "T1",
+      "file": "T1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "T2",
+      "file": "T2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "T3",
+      "file": "T3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "T4",
+      "file": "T4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "M1",
+      "file": "M1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "M2",
+      "file": "M2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "M3",
+      "file": "M3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "M4",
+      "file": "M4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "P1",
+      "file": "P1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "P2",
+      "file": "P2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "P3",
+      "file": "P3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "P4",
+      "file": "P4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "P4",
+      "file": "P4-recovered.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "V1",
+      "file": "V1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "V2",
+      "file": "V2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "V3",
+      "file": "V3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "V4",
+      "file": "V4.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "V4",
+      "file": "V4-recovered.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "X1",
+      "file": "X1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "X3",
+      "file": "X3.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "X2",
+      "file": "X2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "R1",
+      "file": "R1.nui",
+      "phase": "compile",
+      "diagnostics": []
+    },
+    {
+      "id": "R2",
+      "file": "R2.nui",
+      "phase": "compile",
+      "diagnostics": []
+    }
+  ]
+}

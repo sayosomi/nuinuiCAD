@@ -1,0 +1,6 @@
+nui 1
+// #1497 M4; independently frozen before product evaluation
+arc A = arc(center: (4, -2), radius: 13, start: 327, end: 48, direction: counterclockwise)
+line First = mirrorCopy(axis1: (5, -3), axis2: (8, -3), baseLines: [@A])
+line Copy = mirrorCopy(axis1: (5, -3), axis2: (8, 1), baseLines: [@First])
+line Control = segment(start: (201, -103), end: (238, -103))

@@ -1,0 +1,12 @@
+nui 1
+// #1497 V3; independently frozen before product evaluation
+line L0 = segment(start: (3, 5), end: (18, -2))
+line Copy = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: 2, angleDeg: 37, mirrorX: true, baseLines: [@L0])
+const Pure: path = transformCopy(startPoint: (7, -4), endPoint: (-11, 23), scale: 2, angleDeg: 37, mirrorX: true, baseLines: [@L0])
+point CopyAt = onLine(from: @Copy.start, ratio: 0.25)
+point CopyRead = coordinate(x: @Copy.length, y: @Copy.startAngleDeg)
+point CopyEnd = coordinate(x: @Copy.endPoint.x, y: @Copy.endAngleDeg)
+point PureAt = onLine(from: @Pure.start, ratio: 0.25)
+point PureRead = coordinate(x: @Pure.length, y: @Pure.startAngleDeg)
+point PureEnd = coordinate(x: @Pure.endPoint.x, y: @Pure.endAngleDeg)
+line Control = segment(start: (201, -103), end: (238, -103))

@@ -146,6 +146,11 @@ unavailable when both handles are zero. String and boolean element properties
 are not general scalar geometry-property reads. A property must also be valid
 for the value's interface and available at the read position.
 
+Line and path values, including immutable `transformCopy` and `mirrorCopy`
+results, expose endpoint coordinates as `.startPoint.x`, `.startPoint.y`,
+`.endPoint.x`, and `.endPoint.y` alongside `.length`, `.startAngleDeg`, and
+`.endAngleDeg`.
+
 For every implemented one-dimensional collection type (`number[]`, `string[]`,
 `boolean[]`, `choice(...)[]`, `point[]`, `line[]`, `path[]`, and nominal-record
 arrays), `.length` is a read-only `number`. Empty literals have length `0`; a

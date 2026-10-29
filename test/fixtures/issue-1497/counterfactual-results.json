@@ -1,0 +1,87 @@
+[
+  {
+    "label": "remove-rust",
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1497AffineConformance.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 1,
+    "expectedExit": 1,
+    "seconds": 5.0797371250228025,
+    "sourceSHA256": {
+      "rust-evaluator/src/evaluation/line_transform.rs": "9e437fbdf0538b2971f6375eeffc9847e4c031fc302c13b1d95cf911b294e930",
+      "packages/nui-language/src/dsl/dslDocument.ts": "2c6cb4162932f3a9a74b1b3729e08501803517d2dbecf94709feaccf39507ca6"
+    }
+  },
+  {
+    "label": "remove-rust-unit",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "short_reflection_axis_uses_the_same_length_threshold_as_admission"
+    ],
+    "exit": 101,
+    "expectedExit": 101,
+    "seconds": 3.471801334002521,
+    "sourceSHA256": {
+      "rust-evaluator/src/evaluation/line_transform.rs": "9e437fbdf0538b2971f6375eeffc9847e4c031fc302c13b1d95cf911b294e930",
+      "packages/nui-language/src/dsl/dslDocument.ts": "2c6cb4162932f3a9a74b1b3729e08501803517d2dbecf94709feaccf39507ca6"
+    }
+  },
+  {
+    "label": "remove-compiler",
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1497AffineConformance.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 1,
+    "expectedExit": 1,
+    "seconds": 4.91825162502937,
+    "sourceSHA256": {
+      "rust-evaluator/src/evaluation/line_transform.rs": "5585f51ac907c6c9d008e9c87ec8e4f6e8d0e44742d44b67b6cc09fc565fe596",
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31"
+    }
+  },
+  {
+    "label": "base-complete",
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1497AffineConformance.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 1,
+    "expectedExit": 1,
+    "seconds": 4.63199483405333,
+    "sourceSHA256": {
+      "rust-evaluator/src/evaluation/line_transform.rs": "9e437fbdf0538b2971f6375eeffc9847e4c031fc302c13b1d95cf911b294e930",
+      "packages/nui-language/src/dsl/dslDocument.ts": "1d9e38b527cffe8f38bd526931ef2de54aa6ded890cd83b4aa30a8ad44fc2f31"
+    }
+  },
+  {
+    "label": "restored",
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1497AffineConformance.integration.test.ts",
+      "--maxWorkers=1"
+    ],
+    "exit": 0,
+    "expectedExit": 0,
+    "seconds": 4.648794832988642,
+    "sourceSHA256": {
+      "rust-evaluator/src/evaluation/line_transform.rs": "5585f51ac907c6c9d008e9c87ec8e4f6e8d0e44742d44b67b6cc09fc565fe596",
+      "packages/nui-language/src/dsl/dslDocument.ts": "2c6cb4162932f3a9a74b1b3729e08501803517d2dbecf94709feaccf39507ca6"
+    }
+  }
+]
