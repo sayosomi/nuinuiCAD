@@ -88,7 +88,7 @@ their original assertions. Neither assertions nor required checks are skipped.
 
 `results-summary.json` contains per-host Base/removal/restored dispositions,
 residuals and rejection of a deliberately wrong-side oracle. Larger raw JSON
-is losslessly gzip-compressed; `repair-removal*.log` retains both negative runs.
+is losslessly gzip-compressed; `repair-removal*.log.gz` retains both negative runs.
 `focused-verification.json` records 6 TS files / 225 tests and Rust offset
 controls (45 library + 1 integration passed, 1 existing ignored performance
 test). All ten final gates passed with exit 0 on committed source

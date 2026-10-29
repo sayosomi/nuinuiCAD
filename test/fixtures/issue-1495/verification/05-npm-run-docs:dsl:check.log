@@ -1,5 +1,0 @@
-
-> nuinuicad@0.0.0 docs:dsl:check
-> tsx scripts/docs/dslReference.ts --check
-
-DSL reference check passed.

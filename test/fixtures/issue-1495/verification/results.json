@@ -10,7 +10,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 27.019,
-      "log": "01-npm-run-build.log"
+      "log": "01-npm-run-build.log.gz"
     },
     {
       "command": [
@@ -20,7 +20,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 27.925,
-      "log": "02-npm-run-lint.log"
+      "log": "02-npm-run-lint.log.gz"
     },
     {
       "command": [
@@ -31,7 +31,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 338.345,
-      "log": "03-npm-test---.log"
+      "log": "03-npm-test---.log.gz"
     },
     {
       "command": [
@@ -41,7 +41,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 62.117,
-      "log": "04-npm-run-test:parity.log"
+      "log": "04-npm-run-test:parity.log.gz"
     },
     {
       "command": [
@@ -51,7 +51,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 0.625,
-      "log": "05-npm-run-docs:dsl:check.log"
+      "log": "05-npm-run-docs:dsl:check.log.gz"
     },
     {
       "command": [
@@ -61,7 +61,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 0.024,
-      "log": "06-git-diff---check.log"
+      "log": "06-git-diff---check.log.gz"
     },
     {
       "command": [
@@ -74,7 +74,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 1.164,
-      "log": "07-cargo-fmt---manifest-path.log"
+      "log": "07-cargo-fmt---manifest-path.log.gz"
     },
     {
       "command": [
@@ -85,7 +85,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 0.931,
-      "log": "08-cargo-check---manifest-path.log"
+      "log": "08-cargo-check---manifest-path.log.gz"
     },
     {
       "command": [
@@ -96,7 +96,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 10.52,
-      "log": "09-cargo-test---manifest-path.log"
+      "log": "09-cargo-test---manifest-path.log.gz"
     },
     {
       "command": [
@@ -111,7 +111,7 @@
       ],
       "exitCode": 0,
       "elapsedSeconds": 3.518,
-      "log": "10-cargo-clippy---manifest-path.log"
+      "log": "10-cargo-clippy---manifest-path.log.gz"
     }
   ]
 }
