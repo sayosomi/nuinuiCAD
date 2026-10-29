@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 import { assertReconciled, hash, reconcilerCases, reconcilerFixture } from "../../test/issue1493ReconcilerSupport";
-import type { reconcileStatements } from "../../packages/nui-language/src/document/statementReconciler";
+import type { reconcileStatements } from "@nuinuicad/nui-language/document";
 
 // Diagnostic-only counters in a temporary bundle of the exact owner. No
 // production API/branch is added, and these timings are never benchmark data.
