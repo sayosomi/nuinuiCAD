@@ -1,0 +1,296 @@
+{
+  "recordedAtJST": "2026-10-30 22:56:29 JST",
+  "base": "b9b34b89ceae84681d32b531daf35d527493d699",
+  "branch": "sayosomi/issue-1509-curved-seam-notch-revision-hunt",
+  "gate": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 26.977,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-01.log",
+      "logSha256": "0916d694bf6453a79747c5baa8c17d32e5d3be5e03239e4360186ecdfc4f9caa"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "seconds": 28.324,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-02.log",
+      "logSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exitCode": 0,
+      "seconds": 347.898,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-03.log",
+      "logSha256": "c341a8f1dd5e6fb2ffd1bd975cb8ecfbc245029be32da74240d0141e8ef7695e"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "exitCode": 0,
+      "seconds": 55.887,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-04.log",
+      "logSha256": "e0dd9d456d4a705827dd17d27fcea54797924ed58333d3d4e429908484a145ef"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "exitCode": 0,
+      "seconds": 0.612,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-05.log",
+      "logSha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5"
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--check"
+      ],
+      "exitCode": 0,
+      "seconds": 1.127,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-06.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "cargo",
+        "check",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "exitCode": 0,
+      "seconds": 1.096,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-07.log",
+      "logSha256": "1d0f1bf3dcf1393604f7d609279a79e01d4df9f404649180887aa2f5fc408db6"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "exitCode": 0,
+      "seconds": 11.5,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-08.log",
+      "logSha256": "80d5f887f77aad661d348f3de1167af307a90a43938a612fbe02c42130f763d5"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exitCode": 0,
+      "seconds": 3.591,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-09.log",
+      "logSha256": "e300fae914e94bdb26056751d20e97432aecf782be9a4e03d1fad0a2f30970bd"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "seconds": 0.024,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/gate-10.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "focused": [
+    {
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1495OffsetConformance.integration.test.ts",
+        "test/issue1501SplitOnLineConformance.integration.test.ts",
+        "test/issue1503IncrementalRevisionConformance.integration.test.ts",
+        "src/output/outputCore.issue1507.integration.test.ts",
+        "src/output/outputCore.issue1509.integration.test.ts",
+        "--maxWorkers=2"
+      ],
+      "exitCode": 0,
+      "seconds": 12.26,
+      "log": "/Users/yosomi/.codex/evidence/issue-1509/focused-01.log",
+      "logSha256": "a557d7ae767a20b4c0b13507f05b0a9129af9c38dd4ad07ca6b9294095e32d93",
+      "counts": {
+        "filesPassed": 5,
+        "testsPassed": 92
+      }
+    }
+  ],
+  "preparationRuns": [
+    {
+      "command": "ISSUE1509_* npx vitest run src/output/outputCore.issue1509.integration.test.ts --maxWorkers=1",
+      "run": "compiler",
+      "exitCode": 1,
+      "failed": 13,
+      "passed": 2,
+      "reason": "rejected join argument; no product evaluation",
+      "record": "/Users/yosomi/.codex/evidence/issue-1509/compiler.json",
+      "logSha256": null
+    },
+    {
+      "command": "ISSUE1509_* npx vitest run src/output/outputCore.issue1509.integration.test.ts --maxWorkers=1",
+      "run": "compiler-legal",
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 15,
+      "reason": "all source revisions accepted",
+      "record": "/Users/yosomi/.codex/evidence/issue-1509/compiler-legal.json",
+      "logSha256": "07a5bf70e441900e8c520bd9419ccc770cb94676bdaed17bcaff82a1aa07dcf0"
+    },
+    {
+      "command": "ISSUE1509_* npx vitest run src/output/outputCore.issue1509.integration.test.ts --maxWorkers=1",
+      "run": "base",
+      "exitCode": 1,
+      "failed": 12,
+      "passed": 3,
+      "reason": "raw identity normalization and C2 authoring mismatch",
+      "record": "/Users/yosomi/.codex/evidence/issue-1509/base.json",
+      "logSha256": "95be40c506d9427fadc1a4500271f418476341d1387db0773a91fe6015547b55"
+    },
+    {
+      "command": "ISSUE1509_* npx vitest run src/output/outputCore.issue1509.integration.test.ts --maxWorkers=1",
+      "run": "base-normalized",
+      "exitCode": 1,
+      "failed": 1,
+      "passed": 14,
+      "reason": "C2 source/oracle mismatch retained as X1",
+      "record": "/Users/yosomi/.codex/evidence/issue-1509/base-normalized.json",
+      "logSha256": "c2ea63d38232d8e827ea484ab03f45333ec26651943cfde4daea4b1e62c30bb7"
+    },
+    {
+      "command": "ISSUE1509_* npx vitest run src/output/outputCore.issue1509.integration.test.ts --maxWorkers=1",
+      "run": "base-legal",
+      "exitCode": 1,
+      "failed": 1,
+      "passed": 14,
+      "reason": "detector endpoint metadata and declared Bezier station tolerance forwarding",
+      "record": "/Users/yosomi/.codex/evidence/issue-1509/base-legal.json",
+      "logSha256": "ba233a1ae058fb16fad5ea28abea26a05d301b6ed8ca4afab51c7e05e42d7590"
+    },
+    {
+      "command": "ISSUE1509_* npx vitest run src/output/outputCore.issue1509.integration.test.ts --maxWorkers=1",
+      "run": "base-complete",
+      "exitCode": 1,
+      "failed": 1,
+      "passed": 14,
+      "reason": "remaining synthetic endpoint identity normalization",
+      "record": "/Users/yosomi/.codex/evidence/issue-1509/base-complete.json",
+      "logSha256": "1627aa560601087aa6a5da28d2a78dd964f7fdc3cb804b2d020804d09980e4c1"
+    },
+    {
+      "command": "ISSUE1509_* npx vitest run src/output/outputCore.issue1509.integration.test.ts --maxWorkers=1",
+      "run": "base-final",
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 16,
+      "reason": "48 checkpoint PASS; original O1 subsequently retained as X2",
+      "record": "/Users/yosomi/.codex/evidence/issue-1509/base-final.json",
+      "logSha256": "bc532717be6ffe1b1e58083e12117a41dcf0f6540507bac9b826b5672b7a8c11"
+    }
+  ],
+  "earlierFocused": {
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1495OffsetConformance.integration.test.ts",
+      "test/issue1501SplitOnLineConformance.integration.test.ts",
+      "test/issue1503IncrementalRevisionConformance.integration.test.ts",
+      "src/output/outputCore.issue1507.integration.test.ts",
+      "src/output/outputCore.issue1509.integration.test.ts",
+      "--maxWorkers=2"
+    ],
+    "exitCode": 0,
+    "testsPassed": 92,
+    "filesPassed": 5,
+    "seconds": 11.584,
+    "reason": "Before final O1 coverage correction; not used as final O1 evidence"
+  },
+  "counts": {
+    "fullNpm": {
+      "filesPassed": 718,
+      "filesSkipped": 2,
+      "testsPassed": 11615,
+      "testsSkipped": 187
+    },
+    "parity": {
+      "filesPassed": 1,
+      "testsPassed": 207
+    },
+    "rust": {
+      "libraryPassed": 641,
+      "stdioPassed": 6,
+      "integrationPassed": 1,
+      "ignored": 9
+    }
+  },
+  "matrix": {
+    "sequences": 12,
+    "checkpointsPassed": 48,
+    "exports": 192,
+    "inspections": 192,
+    "persistentEvaluations": 192,
+    "negativeEvaluations": 4
+  },
+  "binary": {
+    "path": "/Users/yosomi/Code/nuinuiCAD/rust-evaluator/target/debug/evaluation_stdio",
+    "sha256": "824eb9d208a06e0ba162944b2eb8399cf675d54b7bd1f33b21c1955a226aa72a"
+  },
+  "changedFileSha256": {
+    "src/output/outputCore.issue1509.integration.test.ts": "49a506da9e669bc4f42d65d974bdd6cad580ef190f402ffaa05139718b8088c7",
+    "test/fixtures/issue-1509/README.md": "460764550dba6596b5cbb9aa7c0e1cd65ac04f93df97a81adb703d537fcafc92",
+    "test/fixtures/issue-1509/freeze.py": "73e19b7ea5a6a57ed9c0db2bf4e1506f81aaddeb13f72dbaf3574ca5b6fc7195",
+    "test/fixtures/issue-1509/manifest.json": "d7ba7c37a4eadbe3b44e71a0e5ae1bab5fff99b5a41f1ef68933886e9714fd11",
+    "test/fixtures/issue-1509/matrix-results.json": "776b8567a43881d27763430f74f9ddc0a15f2ea0b68807b753641b8b386291f9",
+    "test/fixtures/issue-1509/observations.json.gz": "0ad2d2f24173c2a8bd56b1ddc91972122749474aa71c8de0c97a8012f2fd363c",
+    "test/fixtures/issue-1509/rejected-c2.json": "47e42987baf5fa2494200557835b2b0d7d01e594ed03a83928e7a8c263ff8871",
+    "test/fixtures/issue-1509/rejected-o1.json": "6da67ba89dc198260b1a9928a55b9a096fce78627650709de4861e8c08880688"
+  },
+  "existingTrackedTree": {
+    "count": 3294,
+    "sha256": "4fdda21fb793c83eefca7e038f69506c6e88b743e730c76eb66ee8bcdb11f31e",
+    "externalSnapshot": "/Users/yosomi/.codex/evidence/issue-1509/tested-existing-tree.json",
+    "allExistingTrackedBytesUnchangedFromBase": true
+  },
+  "scopeDeviations": [],
+  "preparationVariants": [
+    "X1 CONTRACT_INVALID source/oracle mismatch",
+    "X2 COVERAGE_INVALID original boundary trigger masked by control"
+  ],
+  "acceptedUnitsConservative": 14,
+  "defectFamilies": 0,
+  "repairRemovalProof": "NOT_APPLICABLE",
+  "manualE2E": "Not Required: host-neutral CLI acceptance; no GUI/printer/sewing claim",
+  "externalEvidence": "/Users/yosomi/.codex/evidence/issue-1509"
+}
