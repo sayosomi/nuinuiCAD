@@ -353,30 +353,13 @@ const trimmedLineGeometry = (
   };
 };
 
-const updateTrimmedGeometry = ({
-  computedGeometry,
-  endpoint,
-  tangentPoint
-}: {
-  computedGeometry: Map<ElementId, ComputedGeometry>;
-  endpoint: LineEndpointReference;
-  tangentPoint: Point;
-}) => {
-  const geometry = computedGeometry.get(endpoint.lineId);
-  if (!geometry || !isLineLikeGeometry(geometry)) return false;
-
-  if (geometry.kind === "line") {
-    const trimmed = trimmedLineGeometry(geometry, endpoint, tangentPoint);
-    if (!trimmed) return false;
-    computedGeometry.set(endpoint.lineId, trimmed);
-    return true;
-  }
-
-  const trimmed = trimmedPolylineGeometry({ geometry, endpoint, tangentPoint });
-  if (!trimmed) return false;
-  computedGeometry.set(endpoint.lineId, trimmed);
-  return true;
-};
+const trimmedGeometry = (
+  geometry: ComputedGeometry,
+  endpoint: LineEndpointReference,
+  tangentPoint: Point
+) => geometry.kind === "line"
+  ? trimmedLineGeometry(geometry, endpoint, tangentPoint)
+  : trimmedPolylineGeometry({ geometry, endpoint, tangentPoint });
 
 const cornerRadiusGeometry = ({
   element,
@@ -572,18 +555,10 @@ export const evaluateCornerRadiusArcLineElement = (
     return true;
   }
 
-  if (
-    !updateTrimmedGeometry({
-      computedGeometry,
-      endpoint: element.endpoint1,
-      tangentPoint: arc.start
-    }) ||
-    !updateTrimmedGeometry({
-      computedGeometry,
-      endpoint: element.endpoint2,
-      tangentPoint: arc.end
-    })
-  ) {
+  // Prepare the complete transaction before publishing either source trim.
+  const trimmed1 = trimmedGeometry(line1, element.endpoint1, arc.start);
+  const trimmed2 = trimmedGeometry(line2, element.endpoint2, arc.end);
+  if (!trimmed1 || !trimmed2) {
     errors.push(
       geometryError(
         element,
@@ -592,10 +567,13 @@ export const evaluateCornerRadiusArcLineElement = (
     );
     return true;
   }
-
-  computedGeometry.set(element.id, arc);
   if (samePoint(arc.start, arc.end)) {
     errors.push(geometryError(element, `${element.name} の始点と終点が同じ位置です。`));
+    return true;
   }
+
+  computedGeometry.set(element.endpoint1.lineId, trimmed1);
+  computedGeometry.set(element.endpoint2.lineId, trimmed2);
+  computedGeometry.set(element.id, arc);
   return true;
 };

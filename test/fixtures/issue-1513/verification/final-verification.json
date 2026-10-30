@@ -1,0 +1,159 @@
+{
+  "completedAt": "2026-10-30T18:51:48.138741+00:00",
+  "allRequiredGatesExitZero": true,
+  "sourceHashesUnchanged": true,
+  "matrix": {
+    "sources": 28,
+    "primarySlots": 16,
+    "primaryPass": 13,
+    "primaryRepaired": 3,
+    "engineComparisons": 56,
+    "status": "PASS"
+  },
+  "counts": {
+    "javascript": {
+      "pass": 11661,
+      "skip": 187,
+      "filesPass": 720,
+      "filesSkip": 2
+    },
+    "parity": {
+      "pass": 207
+    },
+    "rust": {
+      "pass": 649,
+      "ignored": 9
+    },
+    "rustCornerFocused": {
+      "pass": 5
+    },
+    "focusedSourceAndCorner": {
+      "pass": 233
+    }
+  },
+  "gates": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "startedAt": "2026-10-30T18:37:08.123662+00:00",
+      "finishedAt": "2026-10-30T18:37:40.684243+00:00",
+      "exit": 0,
+      "log": "static-0.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "startedAt": "2026-10-30T18:37:40.684524+00:00",
+      "finishedAt": "2026-10-30T18:38:13.405568+00:00",
+      "exit": 0,
+      "log": "static-1.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "startedAt": "2026-10-30T18:38:13.405797+00:00",
+      "finishedAt": "2026-10-30T18:38:14.551456+00:00",
+      "exit": 0,
+      "log": "static-2.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "startedAt": "2026-10-30T18:37:08.123670+00:00",
+      "finishedAt": "2026-10-30T18:43:07.590621+00:00",
+      "exit": 0,
+      "log": "javascript-0.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "startedAt": "2026-10-30T18:43:07.590857+00:00",
+      "finishedAt": "2026-10-30T18:44:02.925351+00:00",
+      "exit": 0,
+      "log": "javascript-1.log.gz"
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--check"
+      ],
+      "startedAt": "2026-10-30T18:37:08.123662+00:00",
+      "finishedAt": "2026-10-30T18:37:09.319138+00:00",
+      "exit": 0,
+      "log": "rust-0.log.gz"
+    },
+    {
+      "command": [
+        "cargo",
+        "check",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "startedAt": "2026-10-30T18:37:09.319358+00:00",
+      "finishedAt": "2026-10-30T18:37:10.131534+00:00",
+      "exit": 0,
+      "log": "rust-1.log.gz"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "startedAt": "2026-10-30T18:37:10.132244+00:00",
+      "finishedAt": "2026-10-30T18:37:22.267642+00:00",
+      "exit": 0,
+      "log": "rust-2.log.gz"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "startedAt": "2026-10-30T18:37:22.267942+00:00",
+      "finishedAt": "2026-10-30T18:37:26.788775+00:00",
+      "exit": 0,
+      "log": "rust-3.log.gz"
+    },
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "startedAt": "2026-10-30T18:45:18.972199+00:00",
+      "finishedAt": "2026-10-30T18:51:04.989542+00:00",
+      "exit": 0,
+      "log": "final-regression-0.log.gz"
+    }
+  ],
+  "gui": "NOT_RUN; unchanged host-neutral path; Human E2E not required for this slice",
+  "ciAndIndependentReview": "Pending separate exact-pushed-HEAD review and protected CI"
+}

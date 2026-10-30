@@ -1,0 +1,6 @@
+nui 1
+// #1513 C4-curved: oracle frozen before evaluation
+curve A = bezier(start: (0, 0), end: (120, 0), startAngle: 0.019098592463672185, startLength: 30.00000166666662, endAngle: 0.014323944579855075, endLength: 40.00000124999998)
+curve B = bezier(start: (50, -70), end: (50, 80), startAngle: 89.98567605542014, startLength: 40.00000124999998, endAngle: 89.98090140753634, endLength: 30.00000166666662)
+arc R = corner(end1: @A.end, end2: @B.start, radius: 12)
+line Control = segment(start: (201, -103), end: (238, -103))

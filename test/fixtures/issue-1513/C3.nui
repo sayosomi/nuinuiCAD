@@ -1,0 +1,8 @@
+nui 1
+// #1513 C3: oracle frozen before evaluation
+line Lead = segment(start: (-40, 0), end: (0, 0))
+line Tail = segment(start: (0, 0), end: (100, 0))
+line A = offset(sources: [@Lead, @Tail], distance: 10, side: right, closed: false)
+line B = segment(start: (100, -10), end: (100, -80))
+arc R = corner(end1: @A.end, end2: @B.start, radius: 8)
+line Control = segment(start: (201, -103), end: (238, -103))

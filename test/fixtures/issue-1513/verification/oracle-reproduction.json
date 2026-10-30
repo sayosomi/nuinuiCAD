@@ -1,0 +1,153 @@
+{
+  "recordedAt": "2026-10-30T18:48:25.796543+00:00",
+  "method": "Run identical oracle.py outside product checkout, compare regenerated manifest and all 28 sealed sources byte-for-byte; no product evaluation or new input",
+  "exit": 0,
+  "stdout": "Sealed 23 units plus 5 sealed revisions: 28 accepted sources; exploration closed\n",
+  "files": [
+    {
+      "file": "manifest.json",
+      "sha256": "a33da6d2d4a16372588ad10f848eea5ee9c92c417947b63ad873accac3bafa00",
+      "byteIdentical": true
+    },
+    {
+      "file": "Reducer2.nui",
+      "sha256": "cd9e86d44bbeb524284f2d18e970499c4571e91cfb23f660ea4a09b3ca15c62f",
+      "byteIdentical": true
+    },
+    {
+      "file": "Reducer1.nui",
+      "sha256": "c0f528d4c873fe4f5227fa3979d47a70c37ef6e07244b24e971db50a3d6d3546",
+      "byteIdentical": true
+    },
+    {
+      "file": "R1-recover.nui",
+      "sha256": "61edb78cc4ef3c36819764b9aca052ef350a78ffd0c33be3dadc27a9b8ffa30e",
+      "byteIdentical": true
+    },
+    {
+      "file": "R1-collapse.nui",
+      "sha256": "ac45b6b863ca09137719380d783dcf556a05ae86caee28231762f523910a9f4b",
+      "byteIdentical": true
+    },
+    {
+      "file": "C3.nui",
+      "sha256": "61ed27541568901be7de54496cd3a109ab8fa19b5a9b9b18a14a9f0bc07d4c67",
+      "byteIdentical": true
+    },
+    {
+      "file": "C2.nui",
+      "sha256": "d80649ad12f1b271b74c4dbec5f5477fd421a4d95c480d528e13269e8e626559",
+      "byteIdentical": true
+    },
+    {
+      "file": "C1.nui",
+      "sha256": "baaeeeceb92465446f8491711cc1e2dc0cb3389f29c9371adeba88a616011e30",
+      "byteIdentical": true
+    },
+    {
+      "file": "C4.nui",
+      "sha256": "19d7811834fe7e096503840d1b3e70119494007835e1a6194449a461c87435cc",
+      "byteIdentical": true
+    },
+    {
+      "file": "C4-curved.nui",
+      "sha256": "b97f4d2f79600e6e40c46110c0f746bf0968e78906f8c161cb599d3e2ba524b4",
+      "byteIdentical": true
+    },
+    {
+      "file": "X1.nui",
+      "sha256": "b321ac6330bd1c52b0b29bd601e94ab11189f2938366775f42ba32f787a28429",
+      "byteIdentical": true
+    },
+    {
+      "file": "X3.nui",
+      "sha256": "0b3cd66df82baa697614713c872f4555543ad45cdf459cc3a5c81bb6d355942f",
+      "byteIdentical": true
+    },
+    {
+      "file": "X2.nui",
+      "sha256": "2b02ad7104d8978e28b0c52d9dec26fee4067783ded330440d3ad2ec9beb6d9d",
+      "byteIdentical": true
+    },
+    {
+      "file": "X5.nui",
+      "sha256": "81d05b758e7c7a3dae402376a6bf58ab56b5ca3120ab19fb8ac73ad854bdd29f",
+      "byteIdentical": true
+    },
+    {
+      "file": "X4.nui",
+      "sha256": "c7d44d43a61bd9cbec2ef139efcc97e0ff50800120eecf3fce3e4afcae608115",
+      "byteIdentical": true
+    },
+    {
+      "file": "S4.nui",
+      "sha256": "abcdcf79688843009fd7497a9c1e5c5ac3427b992b9ca7af7bb74cf275b1de9d",
+      "byteIdentical": true
+    },
+    {
+      "file": "R1.nui",
+      "sha256": "794bfbd3ba8f340079ed70697f705ee1ebdf363ab8b0a152b4a97722990415b3",
+      "byteIdentical": true
+    },
+    {
+      "file": "F4.nui",
+      "sha256": "edf749cd30ed1fc9a8440e89de8022ef0fe882a2cd567f29ffd1c676810a657c",
+      "byteIdentical": true
+    },
+    {
+      "file": "R3.nui",
+      "sha256": "29e38e8d66af372778335b107f708fb9c8a3edfa7c2bd52dbfc0c0203213eedd",
+      "byteIdentical": true
+    },
+    {
+      "file": "R2-change.nui",
+      "sha256": "6330593cc32660434618a21165d71903c432326550972c49bf3d093dd1d5eabe",
+      "byteIdentical": true
+    },
+    {
+      "file": "R2.nui",
+      "sha256": "404aeb62ecd9688db1503cdaf052b003e6ee7162fc0e6c39b4d81074c0d8b833",
+      "byteIdentical": true
+    },
+    {
+      "file": "F3.nui",
+      "sha256": "0c71584e35a577388052a2bf22bd7dbea6611ed95f0110dc6f7a25fa0e703c73",
+      "byteIdentical": true
+    },
+    {
+      "file": "R3-distinct.nui",
+      "sha256": "503177677fe53a6082ac93c557c783f2a830c8c17bbf76ca37651890ed5df6b8",
+      "byteIdentical": true
+    },
+    {
+      "file": "S2.nui",
+      "sha256": "b98db735a9c302e33f00b5cf5bbfe42e47b53500887ca8a1fa7a6209cc325e71",
+      "byteIdentical": true
+    },
+    {
+      "file": "S3.nui",
+      "sha256": "be559468aea382a64d01a05a87ab5e0cc3af5da71a159f10664a73b74bda449e",
+      "byteIdentical": true
+    },
+    {
+      "file": "F2.nui",
+      "sha256": "c4b8ecab6f24dbc6c7ea909f6f53433f34af4148d5058e0d393e543abe6ef951",
+      "byteIdentical": true
+    },
+    {
+      "file": "S1.nui",
+      "sha256": "0366fda6d14400fef3292938581bcceee705f59935d81ecc919a128d8e8bf5e2",
+      "byteIdentical": true
+    },
+    {
+      "file": "R4.nui",
+      "sha256": "df1c1e86f325402315a879a10811e89174a3ff0ae08d23ab523fe045384dd179",
+      "byteIdentical": true
+    },
+    {
+      "file": "F1.nui",
+      "sha256": "efd4364c0d129f0e913c4fc113747e75776c912878ceca8e3a8abfd303dc5be7",
+      "byteIdentical": true
+    }
+  ]
+}

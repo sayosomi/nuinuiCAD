@@ -1,0 +1,236 @@
+[
+  {
+    "case": "R1",
+    "host": "Rust",
+    "revisions": [
+      {
+        "file": "R1.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "line-mvvbkun8-54",
+          "B": "line-mvvbkun8-55",
+          "R": "cornerRadiusArcLine-mvvbkun8-56",
+          "Control": "line-mvvbkun8-57"
+        }
+      },
+      {
+        "file": "R1-collapse.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "line-mvvbkun8-54",
+          "B": "line-mvvbkun8-55",
+          "Control": "line-mvvbkun8-57"
+        }
+      },
+      {
+        "file": "R1-recover.nui",
+        "sourceRevision": 3,
+        "ids": {
+          "A": "line-mvvbkun8-54",
+          "B": "line-mvvbkun8-55",
+          "R": "cornerRadiusArcLine-mvvbkun8-56",
+          "Control": "line-mvvbkun8-57"
+        }
+      }
+    ],
+    "status": "PASS"
+  },
+  {
+    "case": "R1",
+    "host": "TS",
+    "revisions": [
+      {
+        "file": "R1.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "line-mvvbkun8-54",
+          "B": "line-mvvbkun8-55",
+          "R": "cornerRadiusArcLine-mvvbkun8-56",
+          "Control": "line-mvvbkun8-57"
+        }
+      },
+      {
+        "file": "R1-collapse.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "line-mvvbkun8-54",
+          "B": "line-mvvbkun8-55",
+          "Control": "line-mvvbkun8-57"
+        }
+      },
+      {
+        "file": "R1-recover.nui",
+        "sourceRevision": 3,
+        "ids": {
+          "A": "line-mvvbkun8-54",
+          "B": "line-mvvbkun8-55",
+          "R": "cornerRadiusArcLine-mvvbkun8-56",
+          "Control": "line-mvvbkun8-57"
+        }
+      }
+    ],
+    "status": "PASS"
+  },
+  {
+    "case": "R2",
+    "host": "Rust",
+    "revisions": [
+      {
+        "file": "R2.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "line-mvvbkunn-58",
+          "B": "line-mvvbkunn-59",
+          "R": "cornerRadiusArcLine-mvvbkunn-60",
+          "Control": "line-mvvbkunn-61"
+        }
+      },
+      {
+        "file": "R2-change.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "line-mvvbkunn-58",
+          "B": "line-mvvbkunn-59",
+          "R": "cornerRadiusArcLine-mvvbkunn-60",
+          "Control": "line-mvvbkunn-61"
+        }
+      }
+    ],
+    "status": "PASS"
+  },
+  {
+    "case": "R2",
+    "host": "TS",
+    "revisions": [
+      {
+        "file": "R2.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "line-mvvbkunn-58",
+          "B": "line-mvvbkunn-59",
+          "R": "cornerRadiusArcLine-mvvbkunn-60",
+          "Control": "line-mvvbkunn-61"
+        }
+      },
+      {
+        "file": "R2-change.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "line-mvvbkunn-58",
+          "B": "line-mvvbkunn-59",
+          "R": "cornerRadiusArcLine-mvvbkunn-60",
+          "Control": "line-mvvbkunn-61"
+        }
+      }
+    ],
+    "status": "PASS"
+  },
+  {
+    "case": "R3",
+    "host": "Rust",
+    "revisions": [
+      {
+        "file": "R3.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "line-mvvbkunz-62",
+          "B": "line-mvvbkunz-63",
+          "R": "cornerRadiusArcLine-mvvbkunz-64",
+          "Control": "line-mvvbkunz-65"
+        }
+      },
+      {
+        "file": "R3-distinct.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "line-mvvbkunz-62",
+          "B": "line-mvvbkunz-63",
+          "R": "cornerRadiusArcLine-mvvbkunz-64",
+          "Control": "line-mvvbkunz-65"
+        }
+      }
+    ],
+    "status": "PASS"
+  },
+  {
+    "case": "R3",
+    "host": "TS",
+    "revisions": [
+      {
+        "file": "R3.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "line-mvvbkunz-62",
+          "B": "line-mvvbkunz-63",
+          "R": "cornerRadiusArcLine-mvvbkunz-64",
+          "Control": "line-mvvbkunz-65"
+        }
+      },
+      {
+        "file": "R3-distinct.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "line-mvvbkunz-62",
+          "B": "line-mvvbkunz-63",
+          "R": "cornerRadiusArcLine-mvvbkunz-64",
+          "Control": "line-mvvbkunz-65"
+        }
+      }
+    ],
+    "status": "PASS"
+  },
+  {
+    "case": "C4",
+    "host": "Rust",
+    "revisions": [
+      {
+        "file": "C4.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "bezierCurve-mvvbkum5-50",
+          "B": "bezierCurve-mvvbkum5-51",
+          "R": "cornerRadiusArcLine-mvvbkum5-52",
+          "Control": "line-mvvbkum5-53"
+        }
+      },
+      {
+        "file": "C4-curved.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "bezierCurve-mvvbkum5-50",
+          "B": "bezierCurve-mvvbkum5-51",
+          "R": "cornerRadiusArcLine-mvvbkum5-52",
+          "Control": "line-mvvbkum5-53"
+        }
+      }
+    ],
+    "status": "PASS"
+  },
+  {
+    "case": "C4",
+    "host": "TS",
+    "revisions": [
+      {
+        "file": "C4.nui",
+        "sourceRevision": 1,
+        "ids": {
+          "A": "bezierCurve-mvvbkum5-50",
+          "B": "bezierCurve-mvvbkum5-51",
+          "R": "cornerRadiusArcLine-mvvbkum5-52",
+          "Control": "line-mvvbkum5-53"
+        }
+      },
+      {
+        "file": "C4-curved.nui",
+        "sourceRevision": 2,
+        "ids": {
+          "A": "bezierCurve-mvvbkum5-50",
+          "B": "bezierCurve-mvvbkum5-51",
+          "R": "cornerRadiusArcLine-mvvbkum5-52",
+          "Control": "line-mvvbkum5-53"
+        }
+      }
+    ],
+    "status": "PASS"
+  }
+]

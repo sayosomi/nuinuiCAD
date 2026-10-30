@@ -925,6 +925,10 @@ selects the relevant intersection when the inputs provide alternatives.
 **Notes:** The source lines must provide a valid corner and enough room for the
 requested radius. The construction trims the adjoining geometry as part of
 the corner result; impossible, parallel, or degenerate corners are errors.
+Both source trims and the resulting arc are published together. If either
+source would collapse or the arc is invalid, the construction preserves both
+sources and publishes no arc. Curve/path trimming uses sampled approximation
+and may produce line segments.
 
 **Example:**
 

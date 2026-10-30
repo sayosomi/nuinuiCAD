@@ -1,0 +1,35 @@
+[
+  {
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "startedAt": "2026-10-30T18:37:08.123662+00:00",
+    "finishedAt": "2026-10-30T18:37:40.684243+00:00",
+    "exit": 0,
+    "log": "static-0.log.gz"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "startedAt": "2026-10-30T18:37:40.684524+00:00",
+    "finishedAt": "2026-10-30T18:38:13.405568+00:00",
+    "exit": 0,
+    "log": "static-1.log.gz"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "docs:dsl:check"
+    ],
+    "startedAt": "2026-10-30T18:38:13.405797+00:00",
+    "finishedAt": "2026-10-30T18:38:14.551456+00:00",
+    "exit": 0,
+    "log": "static-2.log.gz"
+  }
+]
