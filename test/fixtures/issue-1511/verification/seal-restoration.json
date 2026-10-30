@@ -1,0 +1,7 @@
+{
+  "primaryManifest": "primary-manifest.json.gz",
+  "primaryOracle": "primary-oracle.py.gz",
+  "adjacentOracle": "adjacent-oracle.py.gz",
+  "matchesOriginalPreExecutionHashes": true,
+  "method": "Exact-byte reconstruction from unchanged primary declarations and removal of the separately added X block; SHA-256 checked against original seals, not refrozen."
+}

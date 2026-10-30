@@ -101,3 +101,22 @@ roots, unsupported geometry and arbitrary extrapolation policies were not
 redefined. No GUI, browser, Canvas host, export, print, garment sewability or
 Human Manual E2E result is claimed. Independent exact-pushed-HEAD blocking
 review remains required before integration.
+
+The exact required final verification block is preserved in
+`verification/final-verification.sh`; its aggregate exit code is 0, with
+fail-fast ordering, on tested source commit
+`a5b23f4c6cf63b079b3bc742cfcfc503b999680d`. Results: focused TS 181 PASS;
+Rust edge 5 PASS; Rust extend/trim 15 PASS; full JS 11,638 PASS / 187 existing
+skips (719 files PASS / 2 skipped); parity 207 PASS; full Rust 648 PASS /
+9 existing ignored (641 library + 6 stdio + 1 integration). Build, lint,
+DSL reference, Rust formatting/check/clippy and diff checks all exited 0.
+The eight-file adjacent regression run passed 140 tests. The final full-suite
+matrix again used one persistent process, 43 Rust requests and 43 TS evaluations.
+No expected values, assertions, skips or ignored tests in existing suites changed.
+
+`verification/tested-source-sha256.json` seals the tested product and harness
+inputs. The subsequent evidence commit only archives logs, hashes and this
+fixture documentation; it does not change executable inputs. The initial
+primary oracle/manifest and adjacent oracle are additionally archived and
+verified byte-for-byte against their original pre-execution seals in
+`verification/seal-restoration.json`. No product repair was made or removed.
