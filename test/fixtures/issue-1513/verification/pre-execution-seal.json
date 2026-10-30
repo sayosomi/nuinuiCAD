@@ -1,0 +1,32 @@
+{
+  "sealedAt": "2026-10-30T18:32:10.236739+00:00",
+  "phase": "before first product evaluation; compiler and Rust eligibility validation PASS",
+  "files": {
+    "test/fixtures/issue-1513/Reducer1.nui": "c0f528d4c873fe4f5227fa3979d47a70c37ef6e07244b24e971db50a3d6d3546",
+    "test/fixtures/issue-1513/R1-recover.nui": "61edb78cc4ef3c36819764b9aca052ef350a78ffd0c33be3dadc27a9b8ffa30e",
+    "test/fixtures/issue-1513/R1-collapse.nui": "ac45b6b863ca09137719380d783dcf556a05ae86caee28231762f523910a9f4b",
+    "test/fixtures/issue-1513/C3.nui": "61ed27541568901be7de54496cd3a109ab8fa19b5a9b9b18a14a9f0bc07d4c67",
+    "test/fixtures/issue-1513/C2.nui": "d80649ad12f1b271b74c4dbec5f5477fd421a4d95c480d528e13269e8e626559",
+    "test/fixtures/issue-1513/C1.nui": "baaeeeceb92465446f8491711cc1e2dc0cb3389f29c9371adeba88a616011e30",
+    "test/fixtures/issue-1513/C4.nui": "19d7811834fe7e096503840d1b3e70119494007835e1a6194449a461c87435cc",
+    "test/fixtures/issue-1513/X1.nui": "b321ac6330bd1c52b0b29bd601e94ab11189f2938366775f42ba32f787a28429",
+    "test/fixtures/issue-1513/X3.nui": "0b3cd66df82baa697614713c872f4555543ad45cdf459cc3a5c81bb6d355942f",
+    "test/fixtures/issue-1513/X2.nui": "2b02ad7104d8978e28b0c52d9dec26fee4067783ded330440d3ad2ec9beb6d9d",
+    "test/fixtures/issue-1513/S4.nui": "abcdcf79688843009fd7497a9c1e5c5ac3427b992b9ca7af7bb74cf275b1de9d",
+    "test/fixtures/issue-1513/R1.nui": "794bfbd3ba8f340079ed70697f705ee1ebdf363ab8b0a152b4a97722990415b3",
+    "test/fixtures/issue-1513/F4.nui": "edf749cd30ed1fc9a8440e89de8022ef0fe882a2cd567f29ffd1c676810a657c",
+    "test/fixtures/issue-1513/R3.nui": "29e38e8d66af372778335b107f708fb9c8a3edfa7c2bd52dbfc0c0203213eedd",
+    "test/fixtures/issue-1513/R2-change.nui": "6330593cc32660434618a21165d71903c432326550972c49bf3d093dd1d5eabe",
+    "test/fixtures/issue-1513/R2.nui": "404aeb62ecd9688db1503cdaf052b003e6ee7162fc0e6c39b4d81074c0d8b833",
+    "test/fixtures/issue-1513/F3.nui": "0c71584e35a577388052a2bf22bd7dbea6611ed95f0110dc6f7a25fa0e703c73",
+    "test/fixtures/issue-1513/S2.nui": "b98db735a9c302e33f00b5cf5bbfe42e47b53500887ca8a1fa7a6209cc325e71",
+    "test/fixtures/issue-1513/S3.nui": "be559468aea382a64d01a05a87ab5e0cc3af5da71a159f10664a73b74bda449e",
+    "test/fixtures/issue-1513/F2.nui": "c4b8ecab6f24dbc6c7ea909f6f53433f34af4148d5058e0d393e543abe6ef951",
+    "test/fixtures/issue-1513/S1.nui": "0366fda6d14400fef3292938581bcceee705f59935d81ecc919a128d8e8bf5e2",
+    "test/fixtures/issue-1513/R4.nui": "df1c1e86f325402315a879a10811e89174a3ff0ae08d23ab523fe045384dd179",
+    "test/fixtures/issue-1513/F1.nui": "efd4364c0d129f0e913c4fc113747e75776c912878ceca8e3a8abfd303dc5be7",
+    "test/fixtures/issue-1513/manifest.json": "1a416a08b097ac64f4a4b3df772812c4c1ce28006c3fa92358ccc3b5d3f02301",
+    "test/fixtures/issue-1513/oracle.py": "f5635bcd69c4bbb429c18074d97fcda4188de3144490fe5ea24be6647d7f40a6",
+    "test/issue1513CornerRadiusConformance.integration.test.ts": "ef98d56839242584293bb8e17fc5cf0c9d3079a02ffb43162a2384d01840daf6"
+  }
+}

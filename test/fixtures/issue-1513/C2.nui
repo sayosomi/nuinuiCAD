@@ -1,0 +1,6 @@
+nui 1
+// #1513 C2: oracle frozen before evaluation
+arc A = arc(center: (0, 1000000.0), radius: 1000000.0, start: 270, end: 270.01, direction: counterclockwise)
+line B = segment(start: (174.53292431333682, 0.01523087089783104), end: (174.53292431333682, 70))
+arc R = corner(end1: @A.end, end2: @B.start, radius: 10)
+line Control = segment(start: (201, -103), end: (238, -103))

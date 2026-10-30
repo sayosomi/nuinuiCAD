@@ -1,0 +1,43 @@
+{
+  "acceptedSources": 28,
+  "ceiling": 28,
+  "primary": {
+    "S1": "PASS",
+    "S2": "PASS",
+    "S3": "PASS",
+    "S4": "PASS",
+    "F1": "REPAIRED",
+    "F2": "PASS",
+    "F3": "PASS",
+    "F4": "PASS",
+    "C1": "PASS",
+    "C2": "PASS",
+    "C3": "PASS",
+    "C4": "PASS",
+    "R1": "REPAIRED",
+    "R2": "PASS",
+    "R3": "PASS",
+    "R4": "REPAIRED"
+  },
+  "adjacent": {
+    "X1": "REPAIRED",
+    "X2": "PASS",
+    "X3": "PASS",
+    "X4": "REPAIRED",
+    "X5": "REPAIRED",
+    "X6": "NOT_TRIGGERED"
+  },
+  "reducers": {
+    "Reducer1": "REPAIRED",
+    "Reducer2": "REPAIRED",
+    "Reducer3-6": "NOT_TRIGGERED"
+  },
+  "final": {
+    "requests": 28,
+    "engineChecks": 56,
+    "spawns": 1,
+    "closedBeforeRecording": true,
+    "binarySha256": "7f53b1558b47873ad0bca1823b9e133e57e84f5ecde502c71635a7a68d1833b7"
+  },
+  "note": "R1 3 sealed revisions; R2 2; R3 2. Diagnostic text calibration X3 and strict failure geometry equality are harness corrections, not product findings. C4 also has a genuinely-curved two-owner revision (28th source). No further exploration."
+}

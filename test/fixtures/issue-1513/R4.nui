@@ -1,0 +1,13 @@
+nui 1
+// #1513 R4: oracle frozen before evaluation
+group First {
+line A = segment(start: (0, 0), end: (100, 0))
+line B = segment(start: (100, 0), end: (100, 10))
+arc R = corner(end1: @A.end, end2: @B.start, radius: 10)
+}
+group Second {
+line A = segment(start: (-50, -20), end: (40, -20))
+line B = segment(start: (40, -20), end: (40, 70))
+arc R = corner(end1: @A.end, end2: @B.start, radius: 6)
+}
+line Control = segment(start: (201, -103), end: (238, -103))

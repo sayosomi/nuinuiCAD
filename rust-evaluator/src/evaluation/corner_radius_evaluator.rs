@@ -46,20 +46,6 @@ fn validate_integer_index(
     Some(index as usize)
 }
 
-fn update_trimmed_geometry(
-    state: &mut EvaluationState,
-    line_id: &str,
-    endpoint_key: &str,
-    geometry: &Value,
-    tangent_point: super::corner_radius_path::Point,
-) -> bool {
-    let Some(trimmed) = trimmed_geometry(geometry, endpoint_key, tangent_point) else {
-        return false;
-    };
-    insert_geometry(state, line_id.to_owned(), trimmed);
-    true
-}
-
 pub(crate) fn evaluate_corner_radius_arc_line(
     element: &Value,
     local_variables: &(HashMap<String, f64>, HashMap<String, String>),
@@ -212,23 +198,25 @@ pub(crate) fn evaluate_corner_radius_arc_line(
         ));
         return;
     }
-    if !update_trimmed_geometry(state, &line1_id, &endpoint1_key, &line1, arc.start)
-        || !update_trimmed_geometry(state, &line2_id, &endpoint2_key, &line2, arc.end)
-    {
+    // Prepare both trims and validate the arc before publishing any geometry.
+    let trimmed1 = trimmed_geometry(&line1, &endpoint1_key, arc.start);
+    let trimmed2 = trimmed_geometry(&line2, &endpoint2_key, arc.end);
+    let (Some(trimmed1), Some(trimmed2)) = (trimmed1, trimmed2) else {
         state.errors.push(geometry_error(
             element,
             format!("{name} は元線を接点までトリムできません。参照線に長さが残る半径を指定してください。"),
         ));
         return;
-    }
-
-    let id = element_id(element).unwrap_or_default();
-    let same_endpoints = points_same_from_geometry(&arc);
-    insert_geometry(state, id, arc.geometry);
-    if same_endpoints {
+    };
+    if points_same_from_geometry(&arc) {
         state.errors.push(geometry_error(
             element,
             format!("{name} の始点と終点が同じ位置です。"),
         ));
+        return;
     }
+
+    insert_geometry(state, line1_id, trimmed1);
+    insert_geometry(state, line2_id, trimmed2);
+    insert_geometry(state, element_id(element).unwrap_or_default(), arc.geometry);
 }

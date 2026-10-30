@@ -1,0 +1,31 @@
+{
+  "recordedAt": "2026-10-30T18:39:47.539385+00:00",
+  "versions": {
+    "node": "v24.22.1",
+    "npm": "11.19.1",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "git": "git version 2.54.0 (Apple Git-157)"
+  },
+  "branch": "sayosomi/issue-1513-corner-radius-atomicity-hunt",
+  "base": "ebdcdce00727d291067ac6f20b295466caf04843",
+  "architectureImpact": "none; existing corner evaluation owners only; no compiler or host mutation",
+  "dslImpact": {
+    "affected": [
+      "runtime/evaluation (Rust and TS)",
+      "tests/fixtures",
+      "implemented DSL reference"
+    ],
+    "intentionallyUnchanged": [
+      "tokenizer/parser/AST",
+      "semantic analysis/resolution",
+      "type checking",
+      "lowering/compiler",
+      "serialization",
+      "completion/rename/navigation",
+      "source spans/statement identity",
+      "editor/native host"
+    ],
+    "deferred": []
+  }
+}

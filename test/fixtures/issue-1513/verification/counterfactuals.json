@@ -1,0 +1,48 @@
+[
+  {
+    "name": "base-complete",
+    "exit": 1,
+    "failures": [
+      "F1",
+      "R1",
+      "R4",
+      "Reducer1",
+      "Reducer2",
+      "X1",
+      "X4",
+      "X5"
+    ],
+    "sourceSha256": {
+      "src/geometry/cornerRadiusArcEvaluator.ts": "22e82765458674b373d0127b9d82acb75d37018dfaf6d1fb6a9b0964b871e5c1",
+      "rust-evaluator/src/evaluation/corner_radius_evaluator.rs": "f9cc19be53a00e3082e6eb32f6404954c3c1b25c73d16aa3616bead8a341ff7c"
+    }
+  },
+  {
+    "name": "remove-atomicity",
+    "exit": 1,
+    "failures": [
+      "F1",
+      "R1",
+      "R4",
+      "Reducer1",
+      "X4",
+      "X5"
+    ],
+    "sourceSha256": {
+      "src/geometry/cornerRadiusArcEvaluator.ts": "871337d7c8a2a123b05fcdfbd94e7198f0f198139471620c3e18b70bfd9d434a",
+      "rust-evaluator/src/evaluation/corner_radius_evaluator.rs": "b1715ef48e374351c17b1006f1fc9fa3cfdefae30c524198f9578d99bc6277cb"
+    }
+  },
+  {
+    "name": "remove-final-guard",
+    "exit": 1,
+    "failures": [
+      "Reducer2",
+      "X1"
+    ],
+    "sourceSha256": {
+      "src/geometry/cornerRadiusArcEvaluator.ts": "459e160c8108890d772f2d5efb20e9dfc680ab0f7489acc4d9e28399bd0b3232",
+      "rust-evaluator/src/evaluation/corner_radius_evaluator.rs": "1e8d8c03373db276955c497ef43c1f09423f85988003cb048a673bd11216e8b0"
+    }
+  }
+]

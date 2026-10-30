@@ -299,3 +299,38 @@ fn corner_radius_reports_geometry_and_dependency_errors() {
     });
     assert_eq!(missing.errors[0].missing_dependency_id, "missing");
 }
+
+#[test]
+fn corner_radius_failure_preserves_both_sources() {
+    // Second collapse, first collapse, and the final coincident-endpoint guard.
+    for (first_length, second_length, radius, diagnostic) in [
+        (100.0, 10.0, 10.0, "トリム"),
+        (10.0, 100.0, 10.0, "トリム"),
+        (100.0, 60.0, 5e-8, "同じ位置"),
+    ] {
+        let sources = vec![
+            free_point("a", "A", 100.0 - first_length, 0.0),
+            free_point("b", "B", 100.0, 0.0),
+            free_point("c", "C", 100.0, second_length),
+            line("ab", "AB", "a", "b"),
+            line("bc", "BC", "b", "c"),
+        ];
+        let before = evaluate_document_input(
+            serde_json::from_value(json!({ "elements": sources })).unwrap(),
+        );
+        let mut elements = sources;
+        elements.push(corner("ab", "bc", json!(radius)));
+        let after = evaluate_document_input(
+            serde_json::from_value(json!({ "elements": elements })).unwrap(),
+        );
+        assert_eq!(after.errors.len(), 1);
+        assert!(after.errors[0].message.contains(diagnostic));
+        assert_eq!(after.errors[0].element_id, "corner");
+        assert!(!after
+            .computed_geometry
+            .iter()
+            .any(|g| g.get("elementId").and_then(Value::as_str) == Some("corner")));
+        assert_eq!(geometry(&after, "ab"), geometry(&before, "ab"));
+        assert_eq!(geometry(&after, "bc"), geometry(&before, "bc"));
+    }
+}

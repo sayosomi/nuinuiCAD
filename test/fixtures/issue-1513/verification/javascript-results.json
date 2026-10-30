@@ -1,0 +1,25 @@
+[
+  {
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2"
+    ],
+    "startedAt": "2026-10-30T18:37:08.123670+00:00",
+    "finishedAt": "2026-10-30T18:43:07.590621+00:00",
+    "exit": 0,
+    "log": "javascript-0.log.gz"
+  },
+  {
+    "command": [
+      "npm",
+      "run",
+      "test:parity"
+    ],
+    "startedAt": "2026-10-30T18:43:07.590857+00:00",
+    "finishedAt": "2026-10-30T18:44:02.925351+00:00",
+    "exit": 0,
+    "log": "javascript-1.log.gz"
+  }
+]

@@ -1,0 +1,55 @@
+[
+  {
+    "command": [
+      "cargo",
+      "fmt",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--check"
+    ],
+    "startedAt": "2026-10-30T18:37:08.123662+00:00",
+    "finishedAt": "2026-10-30T18:37:09.319138+00:00",
+    "exit": 0,
+    "log": "rust-0.log.gz"
+  },
+  {
+    "command": [
+      "cargo",
+      "check",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "startedAt": "2026-10-30T18:37:09.319358+00:00",
+    "finishedAt": "2026-10-30T18:37:10.131534+00:00",
+    "exit": 0,
+    "log": "rust-1.log.gz"
+  },
+  {
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "startedAt": "2026-10-30T18:37:10.132244+00:00",
+    "finishedAt": "2026-10-30T18:37:22.267642+00:00",
+    "exit": 0,
+    "log": "rust-2.log.gz"
+  },
+  {
+    "command": [
+      "cargo",
+      "clippy",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "startedAt": "2026-10-30T18:37:22.267942+00:00",
+    "finishedAt": "2026-10-30T18:37:26.788775+00:00",
+    "exit": 0,
+    "log": "rust-3.log.gz"
+  }
+]
