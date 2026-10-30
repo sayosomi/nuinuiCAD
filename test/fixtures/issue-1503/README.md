@@ -6,7 +6,7 @@ Base: `75f95cf697453ec8b1421160e9ed9f9d436c3f14`.
 source/compiled revisions, diagnostic spans, identity obligations, compiler
 owner edges and independent numeric observations. Read one checkpoint per line.
 The 16 primary sequences have 4–6 checkpoints each. Four motivated extensions
-and two reducers bring the total to 22 accepted units, 99 checkpoints (82 legal,
+and two reducers bring the total to 22 accepted units, 101 checkpoints (84 legal,
 17 deliberately invalid). X5–X6 and R3–R6 are NOT_TRIGGERED. Four `.source.json` string carriers preserve exact CRLF/trailing-space source
 bytes while keeping repository whitespace checks unchanged; hashes cover the
 decoded source bytes. Other snapshots are plain `.nui` files. The four original
@@ -54,7 +54,7 @@ evaluator, source model, public API or architecture boundary was introduced.
 `causal-evidence.json` records unchanged Base failure, nearby passing controls,
 individual repair-removal failure and restored success, exact source/test
 hashes, test counts and production Rust requests. Each matrix execution uses
-one real persistent Rust process, 164 production-eligible requests and 164 TS
+one real persistent Rust process, 168 production-eligible requests and 168 TS
 reference evaluations over incremental and independently fresh compilations.
 
 Fatal geometry is never evaluated as current. E2 binding errors are non-gating;

@@ -235,7 +235,7 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
       initialIds ??= ids;
       check("stable source identities", () => {
         for (const name of unit.stable) { expect(ids.get(name), name).toBeTruthy(); expect(ids.get(name), name).toBe(initialIds!.get(name)); }
-        if (unit.id === "A3" && index === 3) expect(ids.has("Sibling")).toBe(false);
+        if (unit.id === "A3" && !("Sibling" in cp.expected)) expect(ids.has("Sibling")).toBe(false);
       });
       check("fresh dependency owners", () => expect(dependencyObservations(current!)).toEqual(dependencyObservations(fresh)));
       record.dependencies = dependencyObservations(current);
