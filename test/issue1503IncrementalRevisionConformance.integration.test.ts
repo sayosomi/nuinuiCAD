@@ -2,6 +2,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { compileCanonicalText, compileFreshCanonicalText, AutomationDocument, type TextCompileResult } from "@nuinuicad/nui-language/document";
 import { evaluateElementsReferencePayload } from "../src/geometry/evaluationEngine";
@@ -20,7 +21,15 @@ type Unit = { id: string; projection?: boolean; newIdentity?: string; newIdentit
 const units = manifest.units as Unit[];
 const validateOnly = process.env.ISSUE1503_VALIDATE_ONLY === "1";
 const observations: unknown[] = [];
+
+// Cargo places evaluation_stdio under CARGO_TARGET_DIR when set. Resolve the
+// same build output for execution; never fall back to a pre-existing binary
+// in the repository's default target tree.
+const rustBinaryPath = (targetDir: string | undefined): string =>
+  resolve(targetDir ?? "rust-evaluator/target", "debug",
+    process.platform === "win32" ? "evaluation_stdio.exe" : "evaluation_stdio");
 let rust: RustEvaluationProcess;
+let builtRustBinary: { path: string; sha256: string } | undefined;
 let closed: Promise<void> | undefined;
 let spawns = 0, requests = 0;
 
@@ -35,8 +44,12 @@ async function bounded<T>(promise: Promise<T>): Promise<T> {
 beforeAll(() => {
   if (validateOnly) return;
   execFileSync("cargo", ["build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], { timeout: 120000, stdio: "inherit" });
-  rust = new RustEvaluationProcess("rust-evaluator/target/debug/evaluation_stdio", {
+  const binaryPath = rustBinaryPath(process.env.CARGO_TARGET_DIR);
+  // A missing isolated output must fail here, not silently launch the default.
+  builtRustBinary = { path: binaryPath, sha256: createHash("sha256").update(readFileSync(binaryPath)).digest("hex") };
+  rust = new RustEvaluationProcess(binaryPath, {
     spawnProcess: ((...args: Parameters<typeof spawn>) => {
+      if (args[0] !== binaryPath) throw new Error("Unexpected Rust executable: " + args[0] + " (expected " + binaryPath + ")");
       spawns++;
       const child = spawn(...args);
       // Install listeners before the first request and before disposal.
@@ -53,7 +66,7 @@ afterAll(async () => {
     base: manifest.base, head: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     manifestSha256: createHash("sha256").update(readFileSync("test/fixtures/issue-1503/manifest.json")).digest("hex"),
     testSha256: createHash("sha256").update(readFileSync("test/issue1503IncrementalRevisionConformance.integration.test.ts")).digest("hex"),
-    validateOnly, spawns, requests, observations
+    validateOnly, spawns, requests, builtRustBinary, observations
   }, null, 2) + "\n");
 });
 
@@ -112,6 +125,21 @@ function dependencyObservations(compiled: TextCompileResult) {
 // Freeze source/oracles before running either evaluator. Continue through a
 // failed observation so later sealed checkpoints remain independently tested.
 describe("#1503 sealed incremental single-document revision matrix", () => {
+  it("resolves Cargo's isolated output instead of the stale default binary", () => {
+    const defaultBinary = rustBinaryPath(undefined);
+    const isolatedTarget = "test/fixtures/issue-1503/cargo-isolated-target";
+    const isolatedBinary = rustBinaryPath(isolatedTarget);
+    expect(isolatedBinary).toBe(resolve(process.cwd(), isolatedTarget, "debug",
+      process.platform === "win32" ? "evaluation_stdio.exe" : "evaluation_stdio"));
+    expect(isolatedBinary).not.toBe(defaultBinary);
+    if (process.env.CARGO_TARGET_DIR) {
+      expect(builtRustBinary?.path).toBe(rustBinaryPath(process.env.CARGO_TARGET_DIR));
+      expect(builtRustBinary?.path).not.toBe(defaultBinary);
+    } else {
+      expect(builtRustBinary?.path).toBe(defaultBinary);
+    }
+  });
+
   it.each(units)("$id incremental/fresh × reference/persistent Rust", async unit => {
     let current: TextCompileResult | undefined;
     let automation: AutomationDocument | undefined;
