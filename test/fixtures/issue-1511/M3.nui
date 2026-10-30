@@ -1,0 +1,12 @@
+nui 1
+// #1511 M3: frozen independently before product execution
+module Panel(dx: number, dy: number, width: number) {
+export line A = segment(start: (@dx, @dy), end: (@dx + @width, @dy))
+export line B = segment(start: (@dx + @width + 17, @dy - 20), end: (@dx + @width + 17, @dy + 20))
+extend A.end as Extended(to: (@dx + @width + 9, @dy))
+edge [A.end, B.start] as Joined(index: 0)
+export point Station = onLine(from: @A.end, distance: 13)
+}
+instance First = Panel(dx: 7, dy: -4, width: 83)
+instance Second = Panel(dx: -19, dy: 23, width: 137)
+line Control = segment(start: (201, -103), end: (238, -103))

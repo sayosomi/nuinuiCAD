@@ -1,0 +1,2038 @@
+{
+  "base": "03ce4e4b5eb28a188ee1904bc1bec36170e938e5",
+  "coordinateTolerance": 1e-06,
+  "lengthTolerance": 1e-06,
+  "units": [
+    {
+      "id": "E1",
+      "file": "E1.nui",
+      "sha256": "dd25b0cb0bf6e0996383a47c964fab2cd228a182481e0b168aab676fd86042f9",
+      "expected": {
+        "A": {
+          "start": {
+            "x": 3,
+            "y": 7
+          },
+          "end": {
+            "x": 67,
+            "y": 55
+          },
+          "length": 80.0
+        },
+        "B": {
+          "start": {
+            "x": 83,
+            "y": 23
+          },
+          "end": {
+            "x": 67,
+            "y": 55
+          },
+          "length": 35.77708763999664
+        }
+      },
+      "evidence": {
+        "corner": [
+          67,
+          55
+        ],
+        "parameters": [
+          16,
+          16
+        ]
+      }
+    },
+    {
+      "id": "E2",
+      "file": "E2.nui",
+      "sha256": "6a8d5c044941524e1e406e98484057fc71151da570a51de405f6ae947ea806d5",
+      "expected": {
+        "A": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 50,
+            "y": 25
+          },
+          "length": 55.90169943749474
+        },
+        "B": {
+          "start": {
+            "x": 50,
+            "y": 25
+          },
+          "end": {
+            "x": 100,
+            "y": 0
+          },
+          "length": 55.90169943749474
+        }
+      },
+      "evidence": {
+        "corner": [
+          50,
+          25
+        ]
+      },
+      "revisions": [
+        {
+          "file": "E2-reverse.nui",
+          "sha256": "3e9890c2bce03be0026bb83f1fea882ec53c80012000f704ba9ab7738f6e045b",
+          "expected": {
+            "A": {
+              "start": {
+                "x": 50,
+                "y": 25
+              },
+              "end": {
+                "x": 0,
+                "y": 0
+              },
+              "length": 55.90169943749474
+            },
+            "B": {
+              "start": {
+                "x": 100,
+                "y": 0
+              },
+              "end": {
+                "x": 50,
+                "y": 25
+              },
+              "length": 55.90169943749474
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "file": "E3.nui",
+      "sha256": "204711d7e91a3b391fc4930c821d8cee818ea7d48b83e5a3f4f07eb3baac6c4c",
+      "expected": {},
+      "evidence": {
+        "negative": "parallel"
+      },
+      "errorContains": "\u4ea4\u70b9",
+      "errorCount": 1,
+      "revisions": [
+        {
+          "file": "E3-same.nui",
+          "sha256": "03476644e5f102397bd19af9f4b26ff22ea8da9035fcb442f2be380df064926c",
+          "expected": {},
+          "errorContains": "\u540c\u3058\u7dda",
+          "errorCount": 1
+        },
+        {
+          "file": "E3-index.nui",
+          "sha256": "b64e9872cd1be1f663f2c365e6556c890810c164d8868763542be65ada4e8a7b",
+          "expected": {},
+          "errorContains": "\u4ea4\u70b9",
+          "errorCount": 1
+        },
+        {
+          "file": "E3-valid.nui",
+          "sha256": "12c567697ba7ebd843e4731c97ca795f0538a948c9928c6f27085db8d8477189",
+          "expected": {
+            "A": {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "end": {
+                "x": 30,
+                "y": 0
+              },
+              "length": 30.0
+            },
+            "B": {
+              "start": {
+                "x": 30,
+                "y": 0
+              },
+              "end": {
+                "x": 30,
+                "y": 20
+              },
+              "length": 20.0
+            }
+          },
+          "errorCount": 0
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "file": "E4.nui",
+      "sha256": "183f52ed15f5591002c9e11f9c19b16f8ee6177861b8adcf434e96f4a0ee8a5d",
+      "expected": {
+        "A": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 100,
+            "y": 0
+          },
+          "length": 100.0
+        },
+        "B": {
+          "start": {
+            "x": 30,
+            "y": 0
+          },
+          "end": {
+            "x": 30,
+            "y": 20
+          },
+          "length": 20.0
+        },
+        "Original": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 80,
+            "y": 0
+          },
+          "length": 80.0
+        },
+        "Checkpoint": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 100,
+            "y": 0
+          },
+          "length": 100.0
+        },
+        "Branch": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 30,
+            "y": 0
+          },
+          "length": 30.0
+        },
+        "RootFinal": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 100,
+            "y": 0
+          },
+          "length": 100.0
+        },
+        "BStage": {
+          "start": {
+            "x": 30,
+            "y": 0
+          },
+          "end": {
+            "x": 30,
+            "y": 20
+          },
+          "length": 20.0
+        }
+      },
+      "evidence": {
+        "selected": "A.First",
+        "corner": [
+          30,
+          0
+        ]
+      }
+    },
+    {
+      "id": "T1",
+      "file": "T1.nui",
+      "sha256": "10b0c5826fa2ef296fd341acff992b12cab83e64f95d4d31bb039d61156a0552",
+      "expected": {
+        "A": {
+          "start": {
+            "x": 3,
+            "y": 7
+          },
+          "end": {
+            "x": 51,
+            "y": 43
+          },
+          "length": 60.0
+        }
+      },
+      "evidence": {
+        "support": [
+          [
+            3,
+            7
+          ],
+          [
+            99,
+            79
+          ]
+        ]
+      },
+      "revisions": [
+        {
+          "file": "T1-end-out.nui",
+          "sha256": "03a9af393bfc68dab98ee65f01034995a688c470f07c211a1e2aa3892e23184f",
+          "expected": {
+            "A": {
+              "start": {
+                "x": 3,
+                "y": 7
+              },
+              "end": {
+                "x": 131,
+                "y": 103
+              },
+              "length": 160.0
+            }
+          }
+        },
+        {
+          "file": "T1-start-in.nui",
+          "sha256": "96b42b5ac9ea4871d01611cd0a0e6c594818b41361cc19ca76e95f4749c495b9",
+          "expected": {
+            "A": {
+              "start": {
+                "x": 35,
+                "y": 31
+              },
+              "end": {
+                "x": 99,
+                "y": 79
+              },
+              "length": 80.0
+            }
+          }
+        },
+        {
+          "file": "T1-start-out.nui",
+          "sha256": "a1ba26dd8370534ec8df96ed4086d25d0392ceb6970fac9c6303566a8aea3ea6",
+          "expected": {
+            "A": {
+              "start": {
+                "x": -29,
+                "y": -17
+              },
+              "end": {
+                "x": 99,
+                "y": 79
+              },
+              "length": 160.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "T2",
+      "file": "T2.nui",
+      "sha256": "bf14f72132569c6dcc3d20c6b4e9e28eda0b2016cb1d1a33078a9c455412afb0",
+      "expected": {},
+      "evidence": {
+        "negative": "off-support"
+      },
+      "errorContains": "\u76f4\u7dda\u4e0a",
+      "errorCount": 1,
+      "revisions": [
+        {
+          "file": "T2-zero.nui",
+          "sha256": "0925b768bb64019e21eeb91ee0837766a075bdbe4df9cff333132ef808a31af3",
+          "expected": {},
+          "errorContains": "\u9577\u3055\u304c0",
+          "errorCount": 1
+        },
+        {
+          "file": "T2-valid.nui",
+          "sha256": "4c3dd6fe61292b0ca368158ff45ae9a25f2c3106d41b175ef86d0da583c053e2",
+          "expected": {
+            "A": {
+              "start": {
+                "x": 3,
+                "y": 7
+              },
+              "end": {
+                "x": 51,
+                "y": 43
+              },
+              "length": 60.0
+            }
+          },
+          "errorCount": 0
+        }
+      ]
+    },
+    {
+      "id": "T3",
+      "file": "T3.nui",
+      "sha256": "471a1055426867b706960ea77d44e42a2e7afea9a457de1654914698bfbceaeb",
+      "expected": {
+        "A": {
+          "kind": "joinedPath",
+          "closed": false,
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -25,
+                "y": 0
+              },
+              "end": {
+                "x": 0,
+                "y": 0
+              },
+              "length": 25.0
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0,
+                "y": 30
+              },
+              "radius": 30,
+              "start": {
+                "x": -5.510910596163089e-15,
+                "y": 0.0
+              },
+              "end": {
+                "x": 30.0,
+                "y": 29.999999999999993
+              },
+              "startAngleDeg": 270,
+              "sweepAngleDeg": 90,
+              "length": 47.12388980384689,
+              "startTangentAngleDeg": 0,
+              "endTangentAngleDeg": 270
+            },
+            {
+              "kind": "line",
+              "start": {
+                "x": 30,
+                "y": 30
+              },
+              "end": {
+                "x": 30,
+                "y": 63
+              },
+              "length": 33.0
+            }
+          ],
+          "start": {
+            "x": -25,
+            "y": 0
+          },
+          "end": {
+            "x": 30,
+            "y": 63
+          },
+          "length": 105.1238898038469,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 270
+        }
+      },
+      "evidence": {
+        "topology": [
+          "line",
+          "arc",
+          "line"
+        ],
+        "untouched": 2
+      },
+      "revisions": [
+        {
+          "file": "T3-extend.nui",
+          "sha256": "b617841cd4753d2ed6e196bf63ae673ebaae3b46154745c8e2fbd0f3bab7c302",
+          "expected": {
+            "A": {
+              "kind": "joinedPath",
+              "closed": false,
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": -25,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "length": 25.0
+                },
+                {
+                  "kind": "arc",
+                  "center": {
+                    "x": 0,
+                    "y": 30
+                  },
+                  "radius": 30,
+                  "start": {
+                    "x": -5.510910596163089e-15,
+                    "y": 0.0
+                  },
+                  "end": {
+                    "x": 30.0,
+                    "y": 29.999999999999993
+                  },
+                  "startAngleDeg": 270,
+                  "sweepAngleDeg": 90,
+                  "length": 47.12388980384689,
+                  "startTangentAngleDeg": 0,
+                  "endTangentAngleDeg": 270
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 30,
+                    "y": 30
+                  },
+                  "end": {
+                    "x": 30,
+                    "y": 137
+                  },
+                  "length": 107.0
+                }
+              ],
+              "start": {
+                "x": -25,
+                "y": 0
+              },
+              "end": {
+                "x": 30,
+                "y": 137
+              },
+              "length": 179.1238898038469,
+              "startTangentAngleDeg": 0,
+              "endTangentAngleDeg": 270
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "T4",
+      "file": "T4.nui",
+      "sha256": "4b54dd57dc6dc742a141235846160cfe12630043d175740cf6d96a4a6dbdb4bd",
+      "expected": {
+        "A": {
+          "start": {
+            "x": 99,
+            "y": 79
+          },
+          "end": {
+            "x": -29,
+            "y": -17
+          },
+          "length": 160.0
+        },
+        "Disabled": {
+          "start": {
+            "x": 99,
+            "y": 79
+          },
+          "end": {
+            "x": 3,
+            "y": 7
+          },
+          "length": 120.0
+        }
+      },
+      "evidence": {
+        "direction": "reverse",
+        "disabled": true
+      }
+    },
+    {
+      "id": "A1",
+      "file": "A1.nui",
+      "sha256": "f3477ed89cd889883d40b6a765b4f18d9b52015c6957a318024032eab0e1b8b2",
+      "expected": {
+        "A": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 42.448209169624334,
+            "y": -38.32592948268743
+          },
+          "end": {
+            "x": 14.74769693814931,
+            "y": 33.83637201794506
+          },
+          "startAngleDeg": 317,
+          "sweepAngleDeg": 128,
+          "length": 96.0629220297679,
+          "startTangentAngleDeg": 47,
+          "endTangentAngleDeg": 355
+        }
+      },
+      "evidence": {
+        "wrap": true,
+        "sweep": 128
+      }
+    },
+    {
+      "id": "A2",
+      "file": "A2.nui",
+      "sha256": "042fd7ffcefa98a1a3ea80fd0198f387f30a10465f0e59a82f9e948371f6b5bc",
+      "expected": {
+        "A": {
+          "kind": "arcLine",
+          "center": {
+            "x": 11,
+            "y": -9
+          },
+          "radius": 43,
+          "start": {
+            "x": 38.639867216521196,
+            "y": 23.939911054116052
+          },
+          "end": {
+            "x": 42.448209169624334,
+            "y": -38.325929482687435
+          },
+          "startAngleDeg": 50,
+          "sweepAngleDeg": -93,
+          "length": 69.79571678725324,
+          "startTangentAngleDeg": 320,
+          "endTangentAngleDeg": 47
+        }
+      },
+      "evidence": {
+        "clockwise": true
+      },
+      "revisions": [
+        {
+          "file": "A2-trim-end.nui",
+          "sha256": "fbd4db1eb40f6ff3cad5cf0dc9bea4079c00b9ff88a03fccee6dd4e4ab4d858b",
+          "expected": {
+            "A": {
+              "kind": "arcLine",
+              "center": {
+                "x": 11,
+                "y": -9
+              },
+              "radius": 43,
+              "start": {
+                "x": 14.7476969381493,
+                "y": 33.83637201794506
+              },
+              "end": {
+                "x": 53.973805561821116,
+                "y": -7.499321641792458
+              },
+              "startAngleDeg": 85,
+              "sweepAngleDeg": -83,
+              "length": 62.29080100367762,
+              "startTangentAngleDeg": 355,
+              "endTangentAngleDeg": 92
+            }
+          }
+        },
+        {
+          "file": "A2-extend-start.nui",
+          "sha256": "99f4d250668af6fcf0c5dc1d37bca5f8a83f7ec98663ad4d2569bc1b946d9df8",
+          "expected": {
+            "A": {
+              "kind": "arcLine",
+              "center": {
+                "x": 11,
+                "y": -9
+              },
+              "radius": 43,
+              "start": {
+                "x": -21.452511949579197,
+                "y": 19.210538246591813
+              },
+              "end": {
+                "x": 42.448209169624334,
+                "y": -38.325929482687435
+              },
+              "startAngleDeg": 139,
+              "sweepAngleDeg": -182,
+              "length": 136.58946726107624,
+              "startTangentAngleDeg": 49,
+              "endTangentAngleDeg": 47
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "A3",
+      "file": "A3.nui",
+      "sha256": "9d22f345522a2545342f8d1a982641dc1b44d8a7c050e2a76c6781fdc8637d0e",
+      "expected": {
+        "A": {
+          "kind": "arcLine",
+          "center": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 50,
+          "start": {
+            "x": 49.2403876506104,
+            "y": 8.682408883346517
+          },
+          "end": {
+            "x": 30.0,
+            "y": 40.0
+          },
+          "startAngleDeg": 10,
+          "sweepAngleDeg": 43.13010235415598,
+          "length": 37.63811464010897,
+          "startTangentAngleDeg": 100,
+          "endTangentAngleDeg": 323.13010235415595
+        },
+        "B": {
+          "start": {
+            "x": 30,
+            "y": 10
+          },
+          "end": {
+            "x": 30,
+            "y": 40
+          },
+          "length": 30.0
+        }
+      },
+      "evidence": {
+        "lineCircle": [
+          30,
+          40
+        ],
+        "otherBodyRootExcluded": true
+      }
+    },
+    {
+      "id": "A4",
+      "file": "A4.nui",
+      "sha256": "5a4fe69f825cc362fb82e3327c08ef7ba264f7da8a31545360082a9b6e70eb0b",
+      "expected": {
+        "A": {
+          "kind": "arcLine",
+          "center": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 50,
+          "start": {
+            "x": 8.682408883346499,
+            "y": -49.24038765061041
+          },
+          "end": {
+            "x": 30.00000000000002,
+            "y": -39.999999999999986
+          },
+          "startAngleDeg": 280,
+          "sweepAngleDeg": 26.86989764584405,
+          "length": 23.448409179692593,
+          "startTangentAngleDeg": 10,
+          "endTangentAngleDeg": 216.86989764584405
+        },
+        "B": {
+          "kind": "arcLine",
+          "center": {
+            "x": 60,
+            "y": 0
+          },
+          "radius": 50,
+          "start": {
+            "x": 29.999999999999996,
+            "y": -40.0
+          },
+          "end": {
+            "x": 51.31759111665348,
+            "y": -49.2403876506104
+          },
+          "startAngleDeg": 233.13010235415598,
+          "sweepAngleDeg": 26.86989764584402,
+          "length": 23.448409179692568,
+          "startTangentAngleDeg": 323.13010235415595,
+          "endTangentAngleDeg": 170.0
+        }
+      },
+      "evidence": {
+        "circleRoots": [
+          [
+            30,
+            -40
+          ],
+          [
+            30,
+            40
+          ]
+        ],
+        "separation": 80
+      },
+      "revisions": [
+        {
+          "file": "A4-index1.nui",
+          "sha256": "8ec324c7cfe9abf34918486abdae60d986e08a3a78a9c785b3e759f8eefe94e6",
+          "expected": {
+            "A": {
+              "kind": "arcLine",
+              "center": {
+                "x": 0,
+                "y": 0
+              },
+              "radius": 50,
+              "start": {
+                "x": 8.682408883346499,
+                "y": -49.24038765061041
+              },
+              "end": {
+                "x": 30.000000000000004,
+                "y": 40.0
+              },
+              "startAngleDeg": 280,
+              "sweepAngleDeg": 133.13010235415598,
+              "length": 116.17793097985378,
+              "startTangentAngleDeg": 10,
+              "endTangentAngleDeg": 323.13010235415595
+            },
+            "B": {
+              "kind": "arcLine",
+              "center": {
+                "x": 60,
+                "y": 0
+              },
+              "radius": 50,
+              "start": {
+                "x": 30.000000000000007,
+                "y": 40.00000000000001
+              },
+              "end": {
+                "x": 51.31759111665348,
+                "y": -49.2403876506104
+              },
+              "startAngleDeg": 126.86989764584402,
+              "sweepAngleDeg": 133.13010235415598,
+              "length": 116.17793097985378,
+              "startTangentAngleDeg": 216.86989764584402,
+              "endTangentAngleDeg": 170.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "file": "B1.nui",
+      "sha256": "050591f8863a7cd2c38aae62684b5c3a3087a6890f43d09426ac9835555b2617",
+      "expected": {
+        "A": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 4,
+                "y": -7
+              },
+              "control1": {
+                "x": 14.017,
+                "y": 34.923
+              },
+              "control2": {
+                "x": 28.025589,
+                "y": 38.719443
+              },
+              "end": {
+                "x": 44.544887481,
+                "y": 31.198354775
+              }
+            }
+          ],
+          "length": 66.3641955865752,
+          "startTangentAngleDeg": 76.56181184164936,
+          "endTangentAngleDeg": 155.5206521811917,
+          "startHandleAngleDeg": 76.56181184164936,
+          "startHandleLength": 43.10311146541512,
+          "endHandleAngleDeg": 335.5206521811917,
+          "endHandleLength": 18.150867483197676,
+          "lengthTolerance": 0.01570463325197718
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            4,
+            -7
+          ],
+          [
+            31,
+            106
+          ],
+          [
+            87,
+            -58
+          ],
+          [
+            143,
+            26
+          ]
+        ],
+        "t": 0.371
+      }
+    },
+    {
+      "id": "B2",
+      "file": "B2.nui",
+      "sha256": "a44171ff203a7861ed7722474e9872c0309948b91dbba9a06bbd97387af34225",
+      "expected": {
+        "A": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": -9,
+                "y": 13
+              },
+              "control1": {
+                "x": 14,
+                "y": 88
+              },
+              "control2": {
+                "x": 132,
+                "y": -12
+              },
+              "end": {
+                "x": 190,
+                "y": 54
+              }
+            }
+          ],
+          "length": 220.44758598561145,
+          "startTangentAngleDeg": 72.95096902789018,
+          "endTangentAngleDeg": 228.69138598645128,
+          "startHandleAngleDeg": 72.95096902789018,
+          "startHandleLength": 78.44743462982075,
+          "endHandleAngleDeg": 48.69138598645128,
+          "endHandleLength": 87.86353054595519,
+          "lengthTolerance": 0.1440912961893221
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            -9,
+            13
+          ],
+          [
+            14,
+            88
+          ],
+          [
+            103,
+            -45
+          ],
+          [
+            161,
+            21
+          ]
+        ],
+        "extension": [
+          29,
+          33
+        ]
+      },
+      "revisions": [
+        {
+          "file": "B2-reversed.nui",
+          "sha256": "c0507959524c9907c553398be97f022a7e563d824cddd0295436bebacf6abc01",
+          "expected": {
+            "A": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 190,
+                    "y": 54
+                  },
+                  "control1": {
+                    "x": 132,
+                    "y": -12
+                  },
+                  "control2": {
+                    "x": 14,
+                    "y": 88
+                  },
+                  "end": {
+                    "x": -9,
+                    "y": 13
+                  }
+                }
+              ],
+              "length": 220.44758598561202,
+              "startTangentAngleDeg": 228.69138598645128,
+              "endTangentAngleDeg": 72.95096902789018,
+              "startHandleAngleDeg": 228.69138598645128,
+              "startHandleLength": 87.86353054595519,
+              "endHandleAngleDeg": 252.95096902789018,
+              "endHandleLength": 78.44743462982075,
+              "lengthTolerance": 0.14409129618926525
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "file": "B3.nui",
+      "sha256": "3313d78c4c1737c8a09b5048a702d6b46cf595f78ff324d13865f603b8db1a51",
+      "expected": {
+        "A": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 20,
+                "y": 45
+              },
+              "control2": {
+                "x": 45,
+                "y": 30
+              },
+              "end": {
+                "x": 65,
+                "y": 30
+              }
+            },
+            {
+              "start": {
+                "x": 65,
+                "y": 30
+              },
+              "control1": {
+                "x": 75.325,
+                "y": 30.0
+              },
+              "control2": {
+                "x": 85.138293,
+                "y": 18.913015
+              },
+              "end": {
+                "x": 96.271448922,
+                "y": 9.207809469
+              }
+            }
+          ],
+          "length": 118.50768048049423,
+          "startTangentAngleDeg": 66.03751102542182,
+          "endTangentAngleDeg": 138.92006974749822,
+          "startHandleAngleDeg": 66.03751102542182,
+          "startHandleLength": 49.24428900898052,
+          "endHandleAngleDeg": 318.9200697474982,
+          "endHandleLength": 14.769501521125102,
+          "lengthTolerance": 0.020004793908376225
+        },
+        "Neighbor": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": -9,
+                "y": 13
+              },
+              "control1": {
+                "x": 14,
+                "y": 88
+              },
+              "control2": {
+                "x": 103,
+                "y": -45
+              },
+              "end": {
+                "x": 161,
+                "y": 21
+              }
+            }
+          ],
+          "length": 194.47982431425564,
+          "startTangentAngleDeg": 72.95096902789018,
+          "endTangentAngleDeg": 228.69138598645128,
+          "startHandleAngleDeg": 72.95096902789018,
+          "startHandleLength": 78.44743462982075,
+          "endHandleAngleDeg": 48.69138598645128,
+          "endHandleLength": 87.86353054595519,
+          "lengthTolerance": 0.18229793616999385
+        }
+      },
+      "evidence": {
+        "controls": [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              20,
+              45
+            ],
+            [
+              45,
+              30
+            ],
+            [
+              65,
+              30
+            ]
+          ],
+          [
+            [
+              65,
+              30
+            ],
+            [
+              90,
+              30
+            ],
+            [
+              112,
+              -35
+            ],
+            [
+              157,
+              12
+            ]
+          ]
+        ],
+        "t": 0.413,
+        "unchangedPrefix": 1
+      },
+      "slots": {
+        "A": 1
+      }
+    },
+    {
+      "id": "B4",
+      "file": "B4.nui",
+      "sha256": "99919ee08172bc67555d878a156623ab1936785dd5a17a649a35272c471bd939",
+      "expected": {
+        "A": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 6,
+                "y": 50.4
+              },
+              "control1": {
+                "x": 14.0,
+                "y": 28.799999999999997
+              },
+              "control2": {
+                "x": 22.0,
+                "y": 11.999999999999996
+              },
+              "end": {
+                "x": 30.0,
+                "y": -3.552713678800501e-15
+              }
+            }
+          ],
+          "length": 55.940624037233526,
+          "startTangentAngleDeg": 290.32313682966293,
+          "endTangentAngleDeg": 123.69006752597979,
+          "startHandleAngleDeg": 290.32313682966293,
+          "startHandleLength": 23.033888078220752,
+          "endHandleAngleDeg": 303.69006752597977,
+          "endHandleLength": 14.422205101855956,
+          "lengthTolerance": 0.00024781736591588933
+        },
+        "B": {
+          "start": {
+            "x": 30.000000000000004,
+            "y": -6.217248937900877e-15
+          },
+          "end": {
+            "x": 145,
+            "y": 0
+          },
+          "length": 115.0
+        }
+      },
+      "evidence": {
+        "polynomial": "x=6+120t; y=360(t-.2)(t-.7)",
+        "roots": [
+          0.2,
+          0.7
+        ],
+        "derivatives": [
+          -180,
+          180
+        ],
+        "residual": 0
+      },
+      "revisions": [
+        {
+          "file": "B4-index1.nui",
+          "sha256": "01ca295d22e5c8fb446ddf97bd4c3aeb8447d6d6ccad80b1b63e6b72a7400117",
+          "expected": {
+            "A": {
+              "kind": "bezierCurve",
+              "segments": [
+                {
+                  "start": {
+                    "x": 6,
+                    "y": 50.4
+                  },
+                  "control1": {
+                    "x": 34.0,
+                    "y": -25.199999999999996
+                  },
+                  "control2": {
+                    "x": 62.0,
+                    "y": -42.0
+                  },
+                  "end": {
+                    "x": 90.0,
+                    "y": -1.4210854715202004e-14
+                  }
+                }
+              ],
+              "length": 133.91915751493644,
+              "startTangentAngleDeg": 290.32313682966293,
+              "endTangentAngleDeg": 236.3099324740202,
+              "startHandleAngleDeg": 290.32313682966293,
+              "startHandleLength": 80.61860827377262,
+              "endHandleAngleDeg": 56.30993247402021,
+              "endHandleLength": 50.477717856495836,
+              "lengthTolerance": 0.05081554358645829
+            },
+            "B": {
+              "start": {
+                "x": 89.99999999999999,
+                "y": -3.552713678800501e-15
+              },
+              "end": {
+                "x": 145,
+                "y": 0
+              },
+              "length": 55.000000000000014
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "M1",
+      "file": "M1.nui",
+      "sha256": "52a50bd44d9a7fdb150ecd096837148d3770b934880b5572e109b4d230b22512",
+      "expected": {
+        "A": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0.0,
+                "y": 30.0
+              },
+              "control2": {
+                "x": 25.0,
+                "y": 34.0
+              },
+              "end": {
+                "x": 50.0,
+                "y": 25.5
+              }
+            }
+          ],
+          "length": 68.62794500889949,
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 161.22196677755446,
+          "startHandleAngleDeg": 90.0,
+          "startHandleLength": 30.0,
+          "endHandleAngleDeg": 341.2219667775545,
+          "endHandleLength": 26.405491853021786,
+          "lengthTolerance": 0.02121483661630091
+        },
+        "B": {
+          "start": {
+            "x": 50,
+            "y": -10
+          },
+          "end": {
+            "x": 50,
+            "y": 25.5
+          },
+          "length": 35.5
+        },
+        "First": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0,
+                "y": 60
+              },
+              "control2": {
+                "x": 100,
+                "y": 16
+              },
+              "end": {
+                "x": 100,
+                "y": -24
+              }
+            }
+          ],
+          "length": 142.80516516716776,
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 90.0,
+          "startHandleAngleDeg": 90.0,
+          "startHandleLength": 60.0,
+          "endHandleAngleDeg": 270.0,
+          "endHandleLength": 40.0,
+          "lengthTolerance": 0.12484656152799428
+        },
+        "Second": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0.0,
+                "y": 30.0
+              },
+              "control2": {
+                "x": 25.0,
+                "y": 34.0
+              },
+              "end": {
+                "x": 50.0,
+                "y": 25.5
+              }
+            }
+          ],
+          "length": 68.62794500889949,
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 161.22196677755446,
+          "startHandleAngleDeg": 90.0,
+          "startHandleLength": 30.0,
+          "endHandleAngleDeg": 341.2219667775545,
+          "endHandleLength": 26.405491853021786,
+          "lengthTolerance": 0.02121483661630091
+        }
+      },
+      "evidence": {
+        "firstCornerBefore": [
+          50,
+          37.5
+        ],
+        "after": [
+          50,
+          25.5
+        ],
+        "t": 0.5
+      }
+    },
+    {
+      "id": "M2",
+      "file": "M2.nui",
+      "sha256": "c23fb044115cd80db40e6d0f99461180d3cdfb0616bd81d3b804c48fe78656cd",
+      "expected": {
+        "A": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 61,
+            "y": 0
+          },
+          "length": 61.0
+        },
+        "B": {
+          "start": {
+            "x": 30,
+            "y": 0
+          },
+          "end": {
+            "x": 30,
+            "y": 20
+          },
+          "length": 20.0
+        },
+        "Checkpoint": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 30,
+            "y": 0
+          },
+          "length": 30.0
+        },
+        "Branched": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 47,
+            "y": 0
+          },
+          "length": 47.0
+        },
+        "Disabled": {
+          "start": {
+            "x": 0,
+            "y": 0
+          },
+          "end": {
+            "x": 30,
+            "y": 0
+          },
+          "length": 30.0
+        },
+        "ReadBranch": {
+          "x": 38,
+          "y": 0
+        }
+      },
+      "evidence": {
+        "branch": 47,
+        "root": 61
+      }
+    },
+    {
+      "id": "M3",
+      "file": "M3.nui",
+      "sha256": "02b8eb3e470ed62c671af7daaf4d59425ceb03a77b594d5529a55a793c8c23d3",
+      "expected": {
+        "First::A": {
+          "start": {
+            "x": 7,
+            "y": -4
+          },
+          "end": {
+            "x": 107,
+            "y": -4
+          },
+          "length": 100.0
+        },
+        "First::B": {
+          "start": {
+            "x": 107,
+            "y": -4
+          },
+          "end": {
+            "x": 107,
+            "y": 16
+          },
+          "length": 20.0
+        },
+        "First::Station": {
+          "x": 94,
+          "y": -4
+        },
+        "Second::A": {
+          "start": {
+            "x": -19,
+            "y": 23
+          },
+          "end": {
+            "x": 135,
+            "y": 23
+          },
+          "length": 154.0
+        },
+        "Second::B": {
+          "start": {
+            "x": 135,
+            "y": 23
+          },
+          "end": {
+            "x": 135,
+            "y": 43
+          },
+          "length": 20.0
+        },
+        "Second::Station": {
+          "x": 122,
+          "y": 23
+        }
+      },
+      "evidence": {
+        "instances": [
+          "First",
+          "Second"
+        ]
+      }
+    },
+    {
+      "id": "M4",
+      "file": "M4.nui",
+      "sha256": "afd138dc51c9021264b89a58349ade3a40e88752c7811b3dd429cb6e193b378c",
+      "expected": {
+        "Front::Seam": {
+          "start": {
+            "x": 10,
+            "y": -20
+          },
+          "end": {
+            "x": 150,
+            "y": -20
+          },
+          "length": 140.0
+        },
+        "Front::Side": {
+          "start": {
+            "x": 150,
+            "y": -20
+          },
+          "end": {
+            "x": 150,
+            "y": 19
+          },
+          "length": 39.0
+        },
+        "Front::Notch": {
+          "x": 137,
+          "y": -20
+        },
+        "Back::Seam": {
+          "start": {
+            "x": 180,
+            "y": -70
+          },
+          "end": {
+            "x": 180,
+            "y": -163
+          },
+          "length": 93.0
+        },
+        "Back::Notch": {
+          "x": 180,
+          "y": -142
+        }
+      },
+      "evidence": {
+        "revisions": [
+          123,
+          151,
+          97,
+          123
+        ],
+        "restoresExactSource": true
+      },
+      "revisions": [
+        {
+          "file": "M4-V1.nui",
+          "sha256": "3424c96e4139756a2a2ba83cc3fbc4229928e6d9636361bbb327cbf5ef980998",
+          "expected": {
+            "Front::Seam": {
+              "start": {
+                "x": 10,
+                "y": -20
+              },
+              "end": {
+                "x": 178,
+                "y": -20
+              },
+              "length": 168.0
+            },
+            "Front::Side": {
+              "start": {
+                "x": 178,
+                "y": -20
+              },
+              "end": {
+                "x": 178,
+                "y": 19
+              },
+              "length": 39.0
+            },
+            "Front::Notch": {
+              "x": 165,
+              "y": -20
+            },
+            "Back::Seam": {
+              "start": {
+                "x": 180,
+                "y": -70
+              },
+              "end": {
+                "x": 180,
+                "y": -163
+              },
+              "length": 93.0
+            },
+            "Back::Notch": {
+              "x": 180,
+              "y": -142
+            }
+          }
+        },
+        {
+          "file": "M4-V2.nui",
+          "sha256": "4cb99715bb2b1cf957c86dddd14c09d24e1e6896215a0ee55a7b9467ee627b2f",
+          "expected": {
+            "Front::Seam": {
+              "start": {
+                "x": 10,
+                "y": -20
+              },
+              "end": {
+                "x": 124,
+                "y": -20
+              },
+              "length": 114.0
+            },
+            "Front::Side": {
+              "start": {
+                "x": 124,
+                "y": -20
+              },
+              "end": {
+                "x": 124,
+                "y": 19
+              },
+              "length": 39.0
+            },
+            "Front::Notch": {
+              "x": 111,
+              "y": -20
+            },
+            "Back::Seam": {
+              "start": {
+                "x": 180,
+                "y": -70
+              },
+              "end": {
+                "x": 180,
+                "y": -163
+              },
+              "length": 93.0
+            },
+            "Back::Notch": {
+              "x": 180,
+              "y": -142
+            }
+          }
+        },
+        {
+          "file": "M4.nui",
+          "sha256": "afd138dc51c9021264b89a58349ade3a40e88752c7811b3dd429cb6e193b378c",
+          "expected": {
+            "Front::Seam": {
+              "start": {
+                "x": 10,
+                "y": -20
+              },
+              "end": {
+                "x": 150,
+                "y": -20
+              },
+              "length": 140.0
+            },
+            "Front::Side": {
+              "start": {
+                "x": 150,
+                "y": -20
+              },
+              "end": {
+                "x": 150,
+                "y": 19
+              },
+              "length": 39.0
+            },
+            "Front::Notch": {
+              "x": 137,
+              "y": -20
+            },
+            "Back::Seam": {
+              "start": {
+                "x": 180,
+                "y": -70
+              },
+              "end": {
+                "x": 180,
+                "y": -163
+              },
+              "length": 93.0
+            },
+            "Back::Notch": {
+              "x": 180,
+              "y": -142
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "X1",
+      "file": "X1.nui",
+      "sha256": "1597e9c46493ed1b622cd07d23dd0f8330c1f6f864cc315d479f6bb9c62a44dd",
+      "expected": {
+        "A": {
+          "start": {
+            "x": 30,
+            "y": 10
+          },
+          "end": {
+            "x": 30,
+            "y": 20
+          },
+          "length": 10.0
+        },
+        "B": {
+          "kind": "arcLine",
+          "center": {
+            "x": 0,
+            "y": 0
+          },
+          "radius": 50,
+          "start": {
+            "x": 49.2403876506104,
+            "y": 8.682408883346517
+          },
+          "end": {
+            "x": 25.000000000000007,
+            "y": -43.30127018922193
+          },
+          "startAngleDeg": 10,
+          "sweepAngleDeg": 290,
+          "length": 253.0727415391778,
+          "startTangentAngleDeg": 100,
+          "endTangentAngleDeg": 210
+        }
+      },
+      "evidence": {
+        "trigger": "A3 has a later arc tangent root; E3 never reaches paired relocation",
+        "corner": [
+          30,
+          -40.414518843273804
+        ],
+        "circleResidual": 0.33222956847166785
+      },
+      "errorCount": 1,
+      "errorContains": "\u5186\u5468\u4e0a"
+    },
+    {
+      "id": "X2",
+      "file": "X2.nui",
+      "sha256": "f9e12bcbec7355531a829cf1851faf4b4530de4e72a0c4dbcaf46ca551e78de9",
+      "expected": {
+        "A": {
+          "kind": "joinedPath",
+          "closed": false,
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -25,
+                "y": 0
+              },
+              "end": {
+                "x": 0,
+                "y": 0
+              },
+              "length": 25.0
+            },
+            {
+              "kind": "arc",
+              "center": {
+                "x": 0,
+                "y": 30
+              },
+              "radius": 30,
+              "start": {
+                "x": -5.510910596163089e-15,
+                "y": 0.0
+              },
+              "end": {
+                "x": 17.633557568774187,
+                "y": 5.729490168751575
+              },
+              "startAngleDeg": 270,
+              "sweepAngleDeg": 36,
+              "length": 18.84955592153876
+            }
+          ],
+          "start": {
+            "x": -25,
+            "y": 0
+          },
+          "end": {
+            "x": 17.633557568774187,
+            "y": 5.729490168751575
+          },
+          "length": 43.84955592153876,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 216,
+          "lengthTolerance": 1e-07
+        }
+      },
+      "evidence": {
+        "trigger": "T3 curved primitive truncation and curved terminal append remain untested",
+        "parameter": 0.4,
+        "unchangedPrefix": 1
+      },
+      "revisions": [
+        {
+          "file": "X2-tangent.nui",
+          "sha256": "52e224d234222192a848b1a2568b582344366f26e144314b75b05a361468693e",
+          "expected": {
+            "A": {
+              "kind": "joinedPath",
+              "closed": false,
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": -25,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "length": 25.0
+                },
+                {
+                  "kind": "arc",
+                  "center": {
+                    "x": 0,
+                    "y": 30
+                  },
+                  "radius": 30,
+                  "start": {
+                    "x": -5.510910596163089e-15,
+                    "y": 0.0
+                  },
+                  "end": {
+                    "x": 30.0,
+                    "y": 29.999999999999993
+                  },
+                  "startAngleDeg": 270,
+                  "sweepAngleDeg": 90,
+                  "length": 47.12388980384689
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 30,
+                    "y": 30
+                  },
+                  "end": {
+                    "x": 30,
+                    "y": 67
+                  },
+                  "length": 37.0
+                }
+              ],
+              "start": {
+                "x": -25,
+                "y": 0
+              },
+              "end": {
+                "x": 30,
+                "y": 67
+              },
+              "length": 109.1238898038469,
+              "startTangentAngleDeg": 0,
+              "endTangentAngleDeg": 270,
+              "lengthTolerance": 1e-07
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "X3",
+      "file": "X3.nui",
+      "sha256": "f560a8239947396cea4883c032897cbded6970514368c3e891db2635bf80221a",
+      "expected": {
+        "A": {
+          "kind": "joinedPath",
+          "closed": false,
+          "segments": [
+            {
+              "kind": "line",
+              "start": {
+                "x": -25,
+                "y": 0
+              },
+              "end": {
+                "x": 0,
+                "y": 0
+              },
+              "length": 25.0
+            },
+            {
+              "kind": "bezier",
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0.0,
+                "y": 14.8
+              },
+              "control2": {
+                "x": 10.952,
+                "y": 24.124000000000002
+              },
+              "end": {
+                "x": 25.764580000000002,
+                "y": 27.972
+              },
+              "length": 41.21547964771977,
+              "lengthTolerance": 0.005974220313574361
+            }
+          ],
+          "start": {
+            "x": -25,
+            "y": 0
+          },
+          "end": {
+            "x": 25.764580000000002,
+            "y": 27.972
+          },
+          "length": 66.21547964771977,
+          "startTangentAngleDeg": 0,
+          "endTangentAngleDeg": 194.56236504254076,
+          "lengthTolerance": 0.005974320313574361
+        }
+      },
+      "evidence": {
+        "trigger": "T3/X2 do not cover the separate cubic segmented projection arm",
+        "controls": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            40
+          ],
+          [
+            80,
+            40
+          ],
+          [
+            100,
+            0
+          ]
+        ],
+        "t": 0.37,
+        "unchangedPrefix": 1
+      },
+      "revisions": [
+        {
+          "file": "X3-tangent.nui",
+          "sha256": "328f121c0e515c4ba586246262f987c9accb7218cac1439a52944bade378f111",
+          "expected": {
+            "A": {
+              "kind": "joinedPath",
+              "closed": false,
+              "segments": [
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": -25,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "length": 25.0
+                },
+                {
+                  "kind": "bezier",
+                  "start": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "control1": {
+                    "x": 0,
+                    "y": 40
+                  },
+                  "control2": {
+                    "x": 80,
+                    "y": 40
+                  },
+                  "end": {
+                    "x": 100,
+                    "y": 0
+                  },
+                  "length": 126.21590145451711,
+                  "lengthTolerance": 0.07717771216271413
+                },
+                {
+                  "kind": "line",
+                  "start": {
+                    "x": 100,
+                    "y": 0
+                  },
+                  "end": {
+                    "x": 110,
+                    "y": -20
+                  },
+                  "length": 22.360679774997898
+                }
+              ],
+              "start": {
+                "x": -25,
+                "y": 0
+              },
+              "end": {
+                "x": 110,
+                "y": -20
+              },
+              "length": 173.576581229515,
+              "startTangentAngleDeg": 0,
+              "endTangentAngleDeg": 116.56505117707799,
+              "lengthTolerance": 0.07717781216271413
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "conditional": {
+    "X4": "NOT_TRIGGERED",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED",
+    "R1": "NOT_TRIGGERED",
+    "R2": "NOT_TRIGGERED",
+    "R3": "NOT_TRIGGERED",
+    "R4": "NOT_TRIGGERED",
+    "R5": "NOT_TRIGGERED",
+    "R6": "NOT_TRIGGERED"
+  }
+}

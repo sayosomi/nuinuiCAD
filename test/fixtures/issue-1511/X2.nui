@@ -1,0 +1,7 @@
+nui 1
+// #1511 X2: frozen independently before product execution
+line Lead = segment(start: (-25, 0), end: (0, 0))
+arc Bend = arc(center: (0, 30), radius: 30, start: 270, end: 360, direction: counterclockwise)
+line A = join(paths: [@Lead, @Bend], closed: false)
+extend A.end(to: (17.633557568774187, 5.729490168751575))
+line Control = segment(start: (201, -103), end: (238, -103))

@@ -1,0 +1,5 @@
+nui 1
+// #1511 A2-trim-end: frozen independently before product execution
+arc A = arc(center: (11, -9), radius: 43, start: 85, end: 317, direction: clockwise)
+extend A.end(to: (53.973805561821116, -7.499321641792458))
+line Control = segment(start: (201, -103), end: (238, -103))

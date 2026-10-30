@@ -1,0 +1,5 @@
+nui 1
+// #1511 T1-start-in: frozen independently before product execution
+line A = segment(start: (3, 7), end: (99, 79))
+extend A.start(to: (35, 31))
+line Control = segment(start: (201, -103), end: (238, -103))

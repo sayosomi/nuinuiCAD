@@ -1,0 +1,6 @@
+nui 1
+// #1511 X1: frozen independently before product execution
+line A = segment(start: (30, 10), end: (30, 20))
+arc B = arc(center: (0, 0), radius: 50, start: 10, end: 300, direction: counterclockwise)
+edge [A.end, B.end] as Failed(index: 0)
+line Control = segment(start: (201, -103), end: (238, -103))

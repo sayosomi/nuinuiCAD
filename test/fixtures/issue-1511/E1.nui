@@ -1,0 +1,6 @@
+nui 1
+// #1511 E1: frozen independently before product execution
+line A = segment(start: (3, 7), end: (27, 25))
+line B = segment(start: (83, 23), end: (79, 31))
+edge [A.end, B.end] as Joined(index: 0)
+line Control = segment(start: (201, -103), end: (238, -103))

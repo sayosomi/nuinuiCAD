@@ -1,0 +1,7 @@
+nui 1
+// #1511 X3: frozen independently before product execution
+line Lead = segment(start: (-25, 0), end: (0, 0))
+curve Tail = bezier(start: (0, 0), end: (100, 0), startAngle: 90.0, startLength: 40.0, endAngle: 296.565051177078, endLength: 44.721359549995796)
+line A = join(paths: [@Lead, @Tail], closed: false)
+extend A.end(to: (25.764580000000002, 27.972))
+line Control = segment(start: (201, -103), end: (238, -103))

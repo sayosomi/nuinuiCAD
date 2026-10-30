@@ -1,0 +1,8 @@
+{
+  "node": "v24.22.1",
+  "npm": "11.19.1",
+  "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+  "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "binarySha256": "824eb9d208a06e0ba162944b2eb8399cf675d54b7bd1f33b21c1955a226aa72a"
+}

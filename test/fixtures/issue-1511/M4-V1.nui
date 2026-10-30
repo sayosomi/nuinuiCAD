@@ -1,0 +1,15 @@
+nui 1
+// #1511 M4-V1: frozen independently before product execution
+const Width: number = 151
+group Front {
+line Seam = segment(start: (10, -20), end: (10 + @Width, -20))
+line Side = segment(start: (10 + @Width + 17, -91), end: (10 + @Width + 17, 19))
+extend Seam.end as Extended(to: (10 + @Width + 9, -20))
+edge [Seam.end, Side.start] as Corner(index: 0)
+point Notch = onLine(from: @Seam.end, distance: 13)
+}
+group Back {
+line Seam = segment(start: (180, -70), end: (180, -163))
+point Notch = onLine(from: @Seam.end, distance: 21)
+}
+line Control = segment(start: (201, -103), end: (238, -103))

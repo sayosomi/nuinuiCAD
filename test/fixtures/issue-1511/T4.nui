@@ -1,0 +1,7 @@
+nui 1
+// #1511 T4: frozen independently before product execution
+line A = segment(start: (99, 79), end: (3, 7))
+extend A.start as Bypass(to: (1000, 2000), enabled: false)
+extend A.end as Changed(to: (-29, -17))
+const Disabled: line = @A.Bypass
+line Control = segment(start: (201, -103), end: (238, -103))

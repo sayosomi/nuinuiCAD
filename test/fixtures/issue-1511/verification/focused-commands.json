@@ -1,0 +1,31 @@
+[
+  {
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2",
+      "test/issue1511EdgeExtendConformance.integration.test.ts",
+      "src/geometry/lineIntersections.test.ts",
+      "src/geometry/bezierMath.test.ts",
+      "src/geometry/preMutationBezierGeometry.test.ts",
+      "src/geometry/transformationRecipeEvaluation.test.ts",
+      "test/issue1499IntersectionConformance.integration.test.ts",
+      "test/issue1501SplitOnLineConformance.integration.test.ts",
+      "test/issue1470BezierConformance.integration.test.ts"
+    ],
+    "started": "2026-10-30T15:04:54.977281+00:00",
+    "timeoutSeconds": 240,
+    "exitCode": 0
+  },
+  {
+    "command": [
+      "npx",
+      "eslint",
+      "test/issue1511EdgeExtendConformance.integration.test.ts"
+    ],
+    "started": "2026-10-30T15:05:01.146351+00:00",
+    "timeoutSeconds": 240,
+    "exitCode": 0
+  }
+]

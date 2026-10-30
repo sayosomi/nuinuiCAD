@@ -1,0 +1,6 @@
+nui 1
+// #1511 B4: frozen independently before product execution
+curve A = bezier(start: (6, 50.4), end: (126, 86.4), startAngle: 290.32313682966293, startLength: 115.16944039110375, endAngle: 73.14160123226172, endLength: 137.92751719653333)
+line B = segment(start: (-10, 0), end: (145, 0))
+edge [A.end, B.start](index: 0)
+line Control = segment(start: (201, -103), end: (238, -103))

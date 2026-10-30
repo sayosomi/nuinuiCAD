@@ -1,0 +1,6 @@
+nui 1
+// #1511 A4-index1: frozen independently before product execution
+arc A = arc(center: (0, 0), radius: 50, start: 280, end: 440, direction: counterclockwise)
+arc B = arc(center: (60, 0), radius: 50, start: 100, end: 260, direction: counterclockwise)
+edge [A.end, B.start](index: 1)
+line Control = segment(start: (201, -103), end: (238, -103))
