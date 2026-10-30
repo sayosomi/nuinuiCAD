@@ -57,6 +57,12 @@ afterAll(async () => {
   }, null, 2) + "\n");
 });
 
+// JSON string carriers retain literal CRLF/trailing spaces without weakening
+// repository whitespace checks. Hash the decoded source bytes, never a formatter.
+function sourceFor(file: string): string {
+  const stored = readFileSync(`test/fixtures/issue-1503/${file}`, "utf8");
+  return file.endsWith(".source.json") ? JSON.parse(stored) as string : stored;
+}
 function compare(actual: unknown, expected: unknown, path: string, lengthTolerance = manifest.lengthTolerance): void {
   if (typeof expected === "number") {
     expect(typeof actual, path).toBe("number");
@@ -115,7 +121,7 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
     const introducedIds = new Map<string, string>();
     const initialRuntimeIds = new Map<string, string>();
     for (const [index, cp] of unit.checkpoints.entries()) {
-      const source = readFileSync(`test/fixtures/issue-1503/${cp.file}`, "utf8");
+      const source = sourceFor(cp.file);
       expect(createHash("sha256").update(source).digest("hex")).toBe(cp.sha256);
       const previous = current;
       const input = previous && unit.projection ? {
@@ -152,7 +158,7 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
         expect(expectedCompiledRevision).toBe(cp.compiledRevision);
         expect(current!.sourceText).toBe(source);
         const represented = unit.checkpoints[cp.docIndex];
-        expect(current!.docText).toBe(readFileSync(`test/fixtures/issue-1503/${represented.file}`, "utf8"));
+        expect(current!.docText).toBe(sourceFor(represented.file));
         expect(current!.doc.statementMap.sourceRevision).toBe(represented.sourceRevision);
         expect(current!.currentCompiled.spans.sourceMap.source).toBe(source.replace(/\r\n/g, "\n"));
         expect(current!.currentCompiled.spans.sourceMap.sourceRevision).toBe(expectedRevision);

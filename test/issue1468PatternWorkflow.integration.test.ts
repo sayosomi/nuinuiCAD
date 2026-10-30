@@ -420,7 +420,7 @@ describe("Issue #1468 sealed cumulative sewing-pattern production workflows", ()
           }
           expect(diagnostics()).toEqual([]);
           expect(state().docText).toBe(cp.source);
-          expect(state().doc.statementMap.sourceRevision).toBe(cp.sourceRevision - Number(unit.id === "B4" && index === 1));
+          expect(state().doc.statementMap.sourceRevision).toBe(cp.sourceRevision);
           previousEvaluation = await evaluate();
           record.geometry = [...previousEvaluation.computedGeometry.values()];
           record.visibility = [...previousEvaluation.effectiveVisibleElementIds ?? []];

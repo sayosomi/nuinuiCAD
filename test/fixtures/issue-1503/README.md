@@ -7,7 +7,9 @@ source/compiled revisions, diagnostic spans, identity obligations, compiler
 owner edges and independent numeric observations. Read one checkpoint per line.
 The 16 primary sequences have 4–6 checkpoints each. Four motivated extensions
 and two reducers bring the total to 22 accepted units, 99 checkpoints (82 legal,
-17 deliberately invalid). X5–X6 and R3–R6 are NOT_TRIGGERED. The four original
+17 deliberately invalid). X5–X6 and R3–R6 are NOT_TRIGGERED. Four `.source.json` string carriers preserve exact CRLF/trailing-space source
+bytes while keeping repository whitespace checks unchanged; hashes cover the
+decoded source bytes. Other snapshots are plain `.nui` files. The four original
 G2 snapshots and superseded G2 oracle seals remain evidence, not extra units.
 
 ## Independent oracles
@@ -79,5 +81,9 @@ Production impact: canonical lifecycle/reconciliation only. Parsing, language
 meaning, source bytes/spans, scalar/Module semantics and TS/Rust evaluation
 contracts remain unchanged. No DSL reference or architecture change is needed.
 All accepted observations are host-neutral; no GUI or Human E2E result is claimed.
+The F1 correction also makes two historical assertions stale: #1468 B4's
+minus-one revision exception and the runtime semantic snapshot unit's repaired
+revision 2. They now assert independently established current revisions 7 and
+3 respectively; historical frozen fixtures and geometry expectations are untouched.
 Full gate results and tested/pushed identity are recorded in verification.json
 and the Issue checkpoint after verification.
