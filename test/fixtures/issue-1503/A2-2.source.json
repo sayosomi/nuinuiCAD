@@ -1,0 +1,1 @@
+"nui 1\r\nconst width: number = 30\r\nconst rise: number = 40\r\npoint A = coordinate(x: 2, y: -3)\r\npoint B = coordinate(\r\n  x: @width + 2,\r\n  y: @rise - 3,\r\n)\r\nline Edge = segment(start: @A, end: @B)\r\nconst measured: number = @Edge.length\r\npoint Read = coordinate(x: @measured, y: 11)\r\nline Control = segment(start: (201, -103), end: (238, -103))\r\n"

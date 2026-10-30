@@ -1,0 +1,9 @@
+nui 1
+const radius: number = 14
+line Lead = segment(start: (-10, 0), end: (0, 0))
+arc Bend = arc(center: (0, @radius), radius: @radius, start: 270, end: 360, direction: counterclockwise)
+line Joined = join(paths: [@Lead, @Bend])
+point Station = onLine(from: @Joined.start, distance: 10 + @radius * pi / 4)
+const total: number = @Joined.length
+point Read = coordinate(x: @total, y: 0)
+line Control = segment(start: (201, -103), end: (238, -103))

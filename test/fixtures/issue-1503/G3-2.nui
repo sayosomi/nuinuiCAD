@@ -1,0 +1,7 @@
+nui 1
+const width: number = 45
+const factor: number = 3
+line Source = segment(start: (2, 3), end: (2 + @width, 3))
+line Copy = transformCopy(startPoint: (2, 3), endPoint: (10, -5), scale: @factor, angleDeg: 90, mirrorX: false, baseLines: [@Source])
+point Tip = onLine(from: @Copy.start, ratio: 0.75)
+line Control = segment(start: (201, -103), end: (238, -103))

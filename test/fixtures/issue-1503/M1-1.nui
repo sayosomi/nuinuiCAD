@@ -1,0 +1,12 @@
+nui 1
+module Panel(dx: number, width: number) {
+  const bonus: number = 3
+  export const span: number = @width + @bonus
+  export point Start = coordinate(x: @dx, y: 2)
+  export point End = coordinate(x: @dx + @span, y: 2)
+  export line Edge = segment(start: @Start, end: @End)
+}
+instance First = Panel(dx: 7, width: 29)
+instance Second = Panel(dx: -19, width: 43)
+point Read = coordinate(x: @First::span, y: @Second::span)
+line Control = segment(start: (201, -103), end: (238, -103))

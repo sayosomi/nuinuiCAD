@@ -1,0 +1,10 @@
+nui 1
+line Edge = segment(start: @A, end: @B)
+point Read = coordinate(x: @measured, y: 11)
+const measured: number = @Edge.length
+point B = coordinate(x: @width + 2, y: @rise - 3)
+point A = coordinate(x: 2, y: -3)
+const rise: number = 40
+const width: number = 30
+// sibling comment
+line Control = segment(start: (201, -103), end: (238, -103))

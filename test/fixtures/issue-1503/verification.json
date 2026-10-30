@@ -1,0 +1,478 @@
+{
+  "base": "75f95cf697453ec8b1421160e9ed9f9d436c3f14",
+  "branch": "sayosomi/issue-1503-incremental-revision-hunt",
+  "testedCommit": "be27c8e0c38e38d2e730acc51c5313e4159babd3",
+  "recordedAtJST": "2026-10-30T14:39:35.240580+09:00",
+  "checks": [
+    {
+      "name": "focused",
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1503IncrementalRevisionConformance.integration.test.ts",
+        "src/document/statementReconciler.test.ts",
+        "src/document/textPatch.property.test.ts",
+        "src/geometry/geometryValueConstruction.integration.test.ts",
+        "src/dsl/moduleMultiDocumentRuntime.integration.test.ts",
+        "test/issue1501SplitOnLineConformance.integration.test.ts"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 5.759,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-focused.log",
+      "logSha256": "8bd7fd0fdf8cd73e14d94668cf102aa05d7770a52e99ea7e23d114177a1e494c",
+      "testFiles": "6 passed (6)",
+      "tests": "168 passed (168)",
+      "duration": "5.26s (transform 13.74s, setup 284ms, import 16.96s, tests 4.42s, environment 2.28s)"
+    },
+    {
+      "name": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 26.841,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-build.log",
+      "logSha256": "1bc0d349a41cd3c85355da41d118125c29a7a180f13463e6150f51d0357e8a92"
+    },
+    {
+      "name": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 29.039,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-lint.log",
+      "logSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+    },
+    {
+      "name": "full-tests",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 338.186,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-full-tests.log",
+      "logSha256": "b3d51084ba3982c4e91e98864a7650a18db30bbf197a2f8ceeab322048728236",
+      "testFiles": "715 passed | 2 skipped (717)",
+      "tests": "11558 passed | 187 skipped (11745)",
+      "duration": "337.58s (transform 13.19s, setup 16.44s, import 150.03s, tests 233.33s, environment 218.55s)"
+    },
+    {
+      "name": "parity",
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 55.522,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-parity.log",
+      "logSha256": "8b73ffb21a46f056522e807b9312f5d6f7cb9e45d0ebfb48091599db44e0dddb",
+      "testFiles": "1 passed (1)",
+      "tests": "207 passed (207)",
+      "duration": "55.08s (transform 1.76s, setup 31ms, import 2.04s, tests 52.64s, environment 288ms)"
+    },
+    {
+      "name": "dsl-reference",
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.624,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-dsl-reference.log",
+      "logSha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5"
+    },
+    {
+      "name": "base-diff-check",
+      "command": [
+        "git",
+        "diff",
+        "75f95cf697453ec8b1421160e9ed9f9d436c3f14",
+        "--check"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.04,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-base-diff-check.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "elapsedSeconds": 0.021,
+      "log": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-diff-check.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "matrix": {
+    "unitResults": [
+      {
+        "id": "A1",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "A2",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "A3",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "A4",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "E1",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "E2",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "E3",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "E4",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "M1",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "M2",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "M3",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "M4",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "G1",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "G2",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "G3",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "G4",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "R1",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "X1",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "X2",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "X3",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "R2",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      },
+      {
+        "id": "X4",
+        "phase": "unit-result",
+        "status": "PASS",
+        "failures": []
+      }
+    ],
+    "accepted": 22,
+    "primary": 16,
+    "XAccepted": 4,
+    "RAccepted": 2,
+    "XNotTriggered": 2,
+    "RNotTriggered": 4,
+    "snapshots": 101,
+    "legalSnapshots": 84,
+    "intentionallyInvalidSnapshots": 17,
+    "rustProcessSpawns": 1,
+    "rustRequests": 168,
+    "referenceEvaluations": 168,
+    "completeGeometrySetChecks": 336
+  },
+  "rustSourceChanges": false,
+  "conditionalRustChecks": "NOT_APPLICABLE; no rust-evaluator files changed. Real evaluation_stdio built and used by matrix.",
+  "existingFileSha256": {
+    "packages/nui-language/src/document/canonicalDocument.ts": "d7570a3fd0aaa4c8caf22dd6c790894ce108d5950bb88f8fef45771f4fc8533c",
+    "src/state/cadDocumentStore.sourceUpdate.test.ts": "bbaff0bd094af62a8baa4be732027af544a97d6ea3c0a422e0434e25c31a48bf",
+    "test/fixtures/issue-1503/A1-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/A1-1.nui": "24a83e4586b33a3d46b591cddc9c74ccc1c597c621b0b8d7c51d9ad05fce46c1",
+    "test/fixtures/issue-1503/A1-2.nui": "db00753417a3c1faaf54111bff04de43f54f513a773cd43f99f874c1661ba8f9",
+    "test/fixtures/issue-1503/A1-3.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/A2-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/A2-1.nui": "c0eb806a9f73279772199a949a62d79cde61eaa47d751f4766f0a4fd1c225ee4",
+    "test/fixtures/issue-1503/A2-2.source.json": "f307df071d190278d98a6d0082bc49a8b134f3df86c8836f198e54bf6e258b00",
+    "test/fixtures/issue-1503/A2-3.nui": "0988a479848b6b3bee74e0f2d3fb8f0ca8c2156673a229ad5f90e7a9d6fbdcb5",
+    "test/fixtures/issue-1503/A2-4.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/A3-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/A3-1.nui": "19708b8d44685164ecfc81c8de56a4d9067a8105a73715349af02ee49b15ff68",
+    "test/fixtures/issue-1503/A3-2.nui": "ef2a376824b661cfff1e5d1e2a88a1f9f378fcfc40c417c641a5e7350706427e",
+    "test/fixtures/issue-1503/A3-3.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/A3-forward-3.nui": "890128d69fc95c68bd72c477b0be96ebd070c2de3cabdcd263b193ce4ac0c5ac",
+    "test/fixtures/issue-1503/A3-forward-4.nui": "bfb1033500bb5f54192a962c8db81773fef5374978330483087d527aafe80cdd",
+    "test/fixtures/issue-1503/A4-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/A4-1.nui": "3b6686dd1fcf299c424aad260d5bc79d72dc84d368c36da305089b5becc51b3d",
+    "test/fixtures/issue-1503/A4-2.nui": "881ebb626129bdc76aec2e1b34d3cfa5fc773267f62051c829bc810f5e577d33",
+    "test/fixtures/issue-1503/A4-3.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E1-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E1-1.nui": "1486fa7092605680606680373dcd7941a8be87e427a3713c38d0250d6df72801",
+    "test/fixtures/issue-1503/E1-2.nui": "a92156040bbec83c48af1fd81e93db131f75bd37d411edf81773bd36ce2a03da",
+    "test/fixtures/issue-1503/E1-3.nui": "9f8eeb222f8add4b9611e0ef113b5a40b236b52d6771ab0f10bc2b0c80dfe2c1",
+    "test/fixtures/issue-1503/E1-4.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E2-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E2-1.nui": "a142fa11925bcd355154cf19fc589982d4dab6a39009087cce67c0b2db455d17",
+    "test/fixtures/issue-1503/E2-2.nui": "f067934f3c8cb2a1909e8de4161cb95bd7b1edda5859fd21d5c828ac392acb7b",
+    "test/fixtures/issue-1503/E2-3.nui": "9f8eeb222f8add4b9611e0ef113b5a40b236b52d6771ab0f10bc2b0c80dfe2c1",
+    "test/fixtures/issue-1503/E2-4.nui": "639c70d2023660abb6bcd38aa113ba5067266cfa6ed1d9bbb07d33e9badf946c",
+    "test/fixtures/issue-1503/E2-5.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E3-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E3-1.nui": "9f8eeb222f8add4b9611e0ef113b5a40b236b52d6771ab0f10bc2b0c80dfe2c1",
+    "test/fixtures/issue-1503/E3-2.nui": "7a3f7d85580107dfe61352f5110d5fef7c08d9a2eabe2e2e6d7e24df2710e30e",
+    "test/fixtures/issue-1503/E3-3.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E4-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/E4-1.nui": "1acd953eafbba3ed28a5c0f16ac5f22430a6ae66721902571b3b29e2ae1fdb60",
+    "test/fixtures/issue-1503/E4-2.nui": "f5487a7d210594bc5dcc0870ad1be9cf0dbd227143dbc136c3ebcfcbe5c21030",
+    "test/fixtures/issue-1503/E4-3.nui": "97bad89a349d644592cfb5c268a78970693a1c953dadafac236e19d4130ad74a",
+    "test/fixtures/issue-1503/E4-4.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/G1-0.nui": "f2544f9a51dd6331025dfa87a68ec03619ac6cee0825e676b6cdf9591351d2b9",
+    "test/fixtures/issue-1503/G1-1.nui": "272f68f7c98da358e831401c6d6bf8beb94b7f0c7b34aaa9d8bebb36d226fbcf",
+    "test/fixtures/issue-1503/G1-2.nui": "d6235c61271f54e14f18a8ed2f02d4c0c6d7ffc5460e521adda7b96f4d65a547",
+    "test/fixtures/issue-1503/G1-3.nui": "f2544f9a51dd6331025dfa87a68ec03619ac6cee0825e676b6cdf9591351d2b9",
+    "test/fixtures/issue-1503/G2-0.nui": "9c6465bdafd70239284588b410713cc40c8559017324bdedaab9750fa4301b72",
+    "test/fixtures/issue-1503/G2-1.nui": "f5aa9629cc6e437a5592213cab47ea7323d3e872e81f07a4c98853137b081346",
+    "test/fixtures/issue-1503/G2-2.nui": "9c40b995de658acf3a2f4b64b789e7aebc1b184bbf737c2e2bcda1778f3fccc1",
+    "test/fixtures/issue-1503/G2-3.nui": "9c6465bdafd70239284588b410713cc40c8559017324bdedaab9750fa4301b72",
+    "test/fixtures/issue-1503/G2-original-seal.json": "eccabc4e7c117b3a45b1603870b34650fd356b19b95c3817bd6b2bf2845b9fe1",
+    "test/fixtures/issue-1503/G2-v2-0.nui": "37c368dbfb7df909c446ff866c1c867b2d55722aae9cc24605821b52debc81b0",
+    "test/fixtures/issue-1503/G2-v2-1.nui": "1ff665da0af485dd2294b785ce0c110c16ffed51b5669996c1b087fef6ab715b",
+    "test/fixtures/issue-1503/G2-v2-2.nui": "15b6b9d037f4fd00ff6fe137a5d7f6cfbdb99887ebfa0306528d94d2236d2f32",
+    "test/fixtures/issue-1503/G2-v2-3.nui": "37c368dbfb7df909c446ff866c1c867b2d55722aae9cc24605821b52debc81b0",
+    "test/fixtures/issue-1503/G2-v2-seal.json": "a49a6877451a4b1862a03f1f05d031dd2a1e54e5c39f3d91de7b006901939f43",
+    "test/fixtures/issue-1503/G3-0.nui": "3d9436c4bc2fe41a28d5d68ce4783210c263d654a2c5ae9c74eae59f6009eb82",
+    "test/fixtures/issue-1503/G3-1.nui": "d9a54d2ecdab61ac94106214c74b0102e6ef536e7a25c682312b9f631c181cb3",
+    "test/fixtures/issue-1503/G3-2.nui": "de9a93090491b7221603a525936695c5527507a57d4f844e5682407b64c7d210",
+    "test/fixtures/issue-1503/G3-3.nui": "3d9436c4bc2fe41a28d5d68ce4783210c263d654a2c5ae9c74eae59f6009eb82",
+    "test/fixtures/issue-1503/G4-0.nui": "cebde0f8347514c55c293b6f089e15cd17e36e2b46fdfb6ab3b58eba2b01901d",
+    "test/fixtures/issue-1503/G4-1.nui": "4e40102810fc3b482d3369bf158fc2a678c1712a74147f62972d14b88114aea3",
+    "test/fixtures/issue-1503/G4-2.nui": "aff0881d9b8e61a41fbad7394f1ee1fd04bd53de7e730f51348a8b9f63b9f016",
+    "test/fixtures/issue-1503/G4-3.nui": "cebde0f8347514c55c293b6f089e15cd17e36e2b46fdfb6ab3b58eba2b01901d",
+    "test/fixtures/issue-1503/M1-0.nui": "089d345787219587d777f044560453501e315fd761bb154dc23204326c9beea0",
+    "test/fixtures/issue-1503/M1-1.nui": "1592b0172541678ac5e7eecaa6e9de63c758f672ada7d9607d48bfc8ddd1ae7d",
+    "test/fixtures/issue-1503/M1-2.nui": "9e25426630b9e5132a131e18aca181a6d9ff058915abb894e93b17ec03283bdc",
+    "test/fixtures/issue-1503/M1-3.nui": "089d345787219587d777f044560453501e315fd761bb154dc23204326c9beea0",
+    "test/fixtures/issue-1503/M2-0.nui": "089d345787219587d777f044560453501e315fd761bb154dc23204326c9beea0",
+    "test/fixtures/issue-1503/M2-1.nui": "70ef98b5a9d988eb316eab23e7bc8c1a62c7ed0cb4b15bbd519fa64ee2e77d44",
+    "test/fixtures/issue-1503/M2-2.nui": "f093091f2d409ee470e386cd956b96795ce266db8540bc777df93e13b7520c82",
+    "test/fixtures/issue-1503/M2-3.nui": "089d345787219587d777f044560453501e315fd761bb154dc23204326c9beea0",
+    "test/fixtures/issue-1503/M3-0.nui": "c14b200d81ff90b66baec04b2c44f24a2014c3aaec17462074cc69959fac1074",
+    "test/fixtures/issue-1503/M3-1.nui": "93ae3272a0076bc14b0f18e5722922b6ed3e8df3bf3d1280c90c0341d617c4bd",
+    "test/fixtures/issue-1503/M3-2.nui": "361125111c7d4a95a7ce5bc524464313cf48cbf81b111162d3b9fc0d31f06aa8",
+    "test/fixtures/issue-1503/M3-3.nui": "c14b200d81ff90b66baec04b2c44f24a2014c3aaec17462074cc69959fac1074",
+    "test/fixtures/issue-1503/M4-0.source.json": "03164c00f268316de82abc1d1b472995573b39f2d0eabca80df5c1727d132356",
+    "test/fixtures/issue-1503/M4-1.nui": "b7d25b9c4e397b5c67dd7b9771cf10b7fe3ccd25554951e3ecc6854fec7ad537",
+    "test/fixtures/issue-1503/M4-2.source.json": "5470961b5309efda5434ce3408ba7e19afc5d85867bb20e1dff3763585f20970",
+    "test/fixtures/issue-1503/M4-3.source.json": "03164c00f268316de82abc1d1b472995573b39f2d0eabca80df5c1727d132356",
+    "test/fixtures/issue-1503/R1-0.nui": "56fe503ab4c7ce12b49c7db151afaf5736c12aa72dee01fceb2d08daf6d0a14e",
+    "test/fixtures/issue-1503/R1-1.nui": "1bc7b3bb8744e924327348a84d868aba97d5ad1027797fba2ae70775944c4ac0",
+    "test/fixtures/issue-1503/R1-2.nui": "3474811310d23f6d2940bbacc7b6f2c3e02c21f964787092e7f99d6527b3befd",
+    "test/fixtures/issue-1503/R1-3.nui": "56fe503ab4c7ce12b49c7db151afaf5736c12aa72dee01fceb2d08daf6d0a14e",
+    "test/fixtures/issue-1503/R2-0.nui": "cd3abd441a54102876b20452242049956f90950661310d72ceb145254bec0f47",
+    "test/fixtures/issue-1503/R2-1.nui": "9497f0135db106bed626de90287c3d73dfa7cef92b579d4d9caaefc62db61fdb",
+    "test/fixtures/issue-1503/R2-2.nui": "92482da4e522466f75475ba672af312f0c6df882f4f9763de8f840a78be29c8f",
+    "test/fixtures/issue-1503/R2-3.nui": "13c3925cb3c8ccfd88e57d5aa1077b6b0f50791e42e09eb60860f10cebf02aa4",
+    "test/fixtures/issue-1503/README.md": "f4f8259700463e6555d52f81496c6e98c0885c5ce21daf161bf68c2035e3246d",
+    "test/fixtures/issue-1503/X1-0.nui": "56fe503ab4c7ce12b49c7db151afaf5736c12aa72dee01fceb2d08daf6d0a14e",
+    "test/fixtures/issue-1503/X1-1.nui": "1bc7b3bb8744e924327348a84d868aba97d5ad1027797fba2ae70775944c4ac0",
+    "test/fixtures/issue-1503/X1-2.nui": "3474811310d23f6d2940bbacc7b6f2c3e02c21f964787092e7f99d6527b3befd",
+    "test/fixtures/issue-1503/X1-3.nui": "3474811310d23f6d2940bbacc7b6f2c3e02c21f964787092e7f99d6527b3befd",
+    "test/fixtures/issue-1503/X1-4.nui": "eafd61ad6fb50014396ea85da7becbfde4b2b310a18e5bfbb702e898d66b14a0",
+    "test/fixtures/issue-1503/X1-5.nui": "56fe503ab4c7ce12b49c7db151afaf5736c12aa72dee01fceb2d08daf6d0a14e",
+    "test/fixtures/issue-1503/X2-0.nui": "b88f39997236cc8ca6fbe4e027b60adb6c4304a1f34ac4e2758efb2b703ec443",
+    "test/fixtures/issue-1503/X2-1.nui": "e98e7c6f3aefb9be259192c60ed2875f3a80a0af16271c6b6520aab3f9f5e24c",
+    "test/fixtures/issue-1503/X2-2.nui": "c42b05d52b3cf4ad1559fb54831e1fe7e0aee4aaea43abcc187f764990bf07fa",
+    "test/fixtures/issue-1503/X2-3.nui": "b88f39997236cc8ca6fbe4e027b60adb6c4304a1f34ac4e2758efb2b703ec443",
+    "test/fixtures/issue-1503/X3-0.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/X3-1.nui": "cff8542060ea588beeda9f3e6f3d9fb8a498c9797b58b99ffb41ed95ee86efbc",
+    "test/fixtures/issue-1503/X3-2.nui": "207cb81eaf2ccbcdaa505e940b7aca1e8851bf7ca95def133183ce719121fe31",
+    "test/fixtures/issue-1503/X3-3.nui": "88ba205a07b93e79a769c261b3330ab0bcba08f5f0737f6333c2e0b5fb61107d",
+    "test/fixtures/issue-1503/X3-4.nui": "ad4a3130135756c8ddf598f06163c38e266915da6c344cf40445bfb1e3d81dbc",
+    "test/fixtures/issue-1503/X3-5.nui": "febdc7dc7d05a5ec0e021935f971e020ee1296bd2b0fac4b7a1a3aebf9aaa475",
+    "test/fixtures/issue-1503/X4-0.nui": "cd3abd441a54102876b20452242049956f90950661310d72ceb145254bec0f47",
+    "test/fixtures/issue-1503/X4-1.nui": "81d917871f41b17429d446891b6240295df80e53331ec1247765c780eb243e06",
+    "test/fixtures/issue-1503/X4-2.nui": "606468411f7031d78c3e5ee9b68cae1e338a4fa5b9f1b55731479b8ba0c0de1e",
+    "test/fixtures/issue-1503/X4-3.nui": "382d31ec4efbe6b9680fc14c1ec3d2364ce0c6aa5961f1a61269c6c8bc921538",
+    "test/fixtures/issue-1503/X4-4.nui": "d3ee04cf123f9c3f2561e0263f5280390a9dbef0cdc757935cab357d679e2770",
+    "test/fixtures/issue-1503/X4-5.nui": "cd3abd441a54102876b20452242049956f90950661310d72ceb145254bec0f47",
+    "test/fixtures/issue-1503/causal-evidence.json": "b961089f8f3f1009c50e36b9ad88c50786d11de9e7476af271d132f0385b5028",
+    "test/fixtures/issue-1503/manifest.json": "5d2f268578600837297d1e0f8270a4b8994b081641e6b697cc3e9d2ca47615df",
+    "test/issue1468PatternWorkflow.integration.test.ts": "68cde1ed1018b848f07269219a6ba5fe6a521bb0fc71ddb9cc324e30ae21de5a",
+    "test/issue1503IncrementalRevisionConformance.integration.test.ts": "4a74fcaed8fcf1b5189b0ddce787c5c907d4f4e5d2aee4f789ec80840e622470",
+    "vscode-extension/src/runtimeEvaluationSemanticSnapshot.test.ts": "44976b174abae9e339ee678010147f1556faf407842df03c447ecf858d648e2f"
+  },
+  "matrixTestSha256": "4a74fcaed8fcf1b5189b0ddce787c5c907d4f4e5d2aee4f789ec80840e622470",
+  "manifestSha256": "5d2f268578600837297d1e0f8270a4b8994b081641e6b697cc3e9d2ca47615df",
+  "maxChildRssBytes": 2720415744,
+  "verificationEnvironment": {
+    "CARGO_TARGET_DIR": "/Users/yosomi/.codex/evidence/issue-1503-20261030/cargo-target"
+  },
+  "defaultRustBinaryBefore": {
+    "inode": 64046446,
+    "sha256": "5d45e57be4e93f762cb68dd1789716b129f4ce986f2824aad01a266b2e6f3014"
+  },
+  "defaultRustBinaryAfter": {
+    "inode": 64046446,
+    "sha256": "5d45e57be4e93f762cb68dd1789716b129f4ce986f2824aad01a266b2e6f3014"
+  },
+  "cargoPublicationReproduction": {
+    "samples": 20188,
+    "missingObservations": 1,
+    "rounds": [
+      {
+        "round": 0,
+        "exit": 0,
+        "missingSamples": 1
+      }
+    ],
+    "missingTimestamps": [
+      326016206564250
+    ]
+  },
+  "cargoPublicationGuard": {
+    "iterations": [
+      {
+        "iteration": 0,
+        "exitCode": 0
+      },
+      {
+        "iteration": 1,
+        "exitCode": 0
+      },
+      {
+        "iteration": 2,
+        "exitCode": 0
+      }
+    ],
+    "concurrentCargoBuilds": 112,
+    "cargoExitCodes": [
+      0
+    ],
+    "samples": 68530,
+    "missingDefaultBinarySamples": 0,
+    "defaultBinaryInodeChangedSamples": 0,
+    "defaultBinaryBeforeSha256": "5d45e57be4e93f762cb68dd1789716b129f4ce986f2824aad01a266b2e6f3014",
+    "defaultBinaryAfterSha256": "5d45e57be4e93f762cb68dd1789716b129f4ce986f2824aad01a266b2e6f3014",
+    "isolatedBinarySha256": "d74c76344bf89f60060624106ca9c2bc67d39c63960e5c02ff2ccd0bc865b6f1",
+    "CARGO_TARGET_DIR": "/Users/yosomi/.codex/evidence/issue-1503-20261030/cargo-target"
+  },
+  "identityProof": "This evidence file is added after testedCommit; every previously tracked source/test/fixture remains byte-identical. Final pushed HEAD and remote equality are recorded in Issue #1503.",
+  "priorGateAttempts": [
+    {
+      "testedCommit": "7720284ea8c4951f184b94567905a26667e2f89c",
+      "focusedExit": 0,
+      "buildExit": 1,
+      "reason": "Optional statementIdByStatementIndex type not handled; corrected with existing element-map fallback.",
+      "evidence": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-attempt1"
+    },
+    {
+      "testedCommit": "3609334bb2a0d9d357d3fcc06bbf4a8233ac2818",
+      "focusedExit": 0,
+      "buildExit": 0,
+      "lintExit": 0,
+      "fullTestsExit": 1,
+      "fullTestSummary": "2 failed | 11556 passed | 187 skipped (11745)",
+      "reason": "Two F1-stale historical revision assertions, corrected using independent current-source revision oracles.",
+      "evidence": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-attempt2"
+    }
+  ],
+  "preexistingInfrastructureFailure": {
+    "testedCommit": "bb9c3202d069aa7b55c1e44e345ef977050988ff",
+    "fullTestsExit": 1,
+    "tests": "1 failed | 11557 passed | 187 skipped (11745)",
+    "failure": "Bake B01 spawnSync evaluation_stdio ENOENT during shared Cargo binary publication. Cargo path absence reproduced without production source edits; isolated Cargo output prevents overwriting the prebuilt production binary. Three guard verification iterations all passed under112 concurrent Cargo builds. Final full gate retains exact required commands and uses recorded CARGO_TARGET_DIR.",
+    "evidence": "/Users/yosomi/.codex/evidence/issue-1503-20261030/gate-attempt3"
+  },
+  "byteStorageCorrection": "JSON string carriers retain every original accepted source SHA; no check configuration relaxed.",
+  "limitations": [
+    "Bounded single-document host-neutral mission; no GUI/Human E2E claim.",
+    "Independent exact-pushed-HEAD blocking review and protected CI/merge remain pending.",
+    "#1492 remains Human-PAUSED and untouched."
+  ],
+  "evidenceDirectory": "/Users/yosomi/.codex/evidence/issue-1503-20261030"
+}

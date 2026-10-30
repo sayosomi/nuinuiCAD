@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import type { CadElement } from "../types/geometry";
 import { dslTextForElements } from "@nuinuicad/nui-language";
 import { initialCadDocumentState, useCadDocumentStore } from "./cadDocumentStore";
@@ -27,6 +28,30 @@ const enabledALineCount = twoPointSource().split("\n").findIndex((line) => line.
 describe("cadDocumentStore source updates", () => {
   beforeEach(() => {
     useCadDocumentStore.setState(initialCadDocumentState());
+  });
+
+  it("keeps exact-current compiler revisions through the #1503 fatal recovery witness", () => {
+    const sources = [0, 1, 2, 3].map(index =>
+      readFileSync(`test/fixtures/issue-1503/R1-${index}.nui`, "utf8"));
+    useCadDocumentStore.getState().commitText(sources[0], "editor");
+    const initial = useCadDocumentStore.getState();
+    for (const index of [1, 2, 3]) {
+      useCadDocumentStore.getState().commitText(sources[index], "editor");
+      const state = useCadDocumentStore.getState();
+      expect(state.currentSourceRevision).toBe(initial.currentSourceRevision + index);
+      if (index < 3) {
+        expect(state.doc).toBe(initial.doc);
+        expect(state.compiledDocumentRevision).toBe(initial.compiledDocumentRevision);
+        expect(state.diagnostics.some(d => d.code === "unclosed-call")).toBe(true);
+        for (const diagnostic of state.diagnostics) {
+          expect(diagnostic.physicalSpan?.sourceRevision ?? diagnostic.sourceRevision).toBe(state.currentSourceRevision);
+        }
+      } else {
+        expect(state.docText).toBe(sources[0]);
+        expect(state.diagnostics).toEqual([]);
+        expect(state.doc.statementMap.sourceRevision).toBe(state.currentSourceRevision);
+      }
+    }
   });
 
   it("notifies synchronous subscribers about every source revision in order", () => {
