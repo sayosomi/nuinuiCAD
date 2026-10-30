@@ -1,0 +1,2996 @@
+{
+  "recordedAtJST": "2026-10-30 21:52:08 JST",
+  "base": "bdf29d636212caa486b443cb6187e814d31efac1",
+  "branch": "sayosomi/issue-1507-generated-output-conformance",
+  "testedImplementationCommit": "4cf8d18e9a54d558cb782809d585209d940d676b",
+  "testTreeProof": {
+    "trackedFileCount": 3293,
+    "treeSha256": "1a26474ddd5323040f735a4950096899ecffc6005b66c7a06dabe9f5b02dbc38",
+    "snapshot": "/Users/yosomi/.codex/evidence/issue-1507/tested-tree.json",
+    "snapshotSha256": "f8e3ba748df29a93dd6ae57697ac094b9eb5c196a4f1e524350c93440d28e966",
+    "allTrackedBytesMatchedAfterGate": true,
+    "metadataOnlyNextCommit": "This is the sole new verification metadata file; all existing executable sources, tests, oracle fixtures and artifact expectations must remain byte-identical to testedImplementationCommit."
+  },
+  "changedFileSha256": {
+    "packages/nui-language/src/dsl/dslDocument.ts": "799a1cfe495fad15648cec5481b4f119d66ee692c25d9d3da3979d299c434974",
+    "packages/nui-language/src/scalars/conditionalGroupConditionCompiler.ts": "cbe868378e3389d420f03de49e7ccb10e9e55a28e3940f3f2a7a8a9c8b50268e",
+    "rust-evaluator/src/evaluation/control_boolean_runtime.rs": "a4daed4b3fb5bce26f57cd150ffba7f719d64101cb83a43c240fd40e8d9c49e6",
+    "src/geometry/controlBooleanRuntime.ts": "fc95be32de36a6374e1ff77f69db64d9f0467e9401de75110cbc7338fe720c26",
+    "src/geometry/evaluate.ts": "a18ac8845baa90a5f94b876e0c61be157000a89e3615d843df9baf75f90f6bde",
+    "src/output/outputCore.issue1458.test.ts": "3278d1f9a4f27a2989d0a7eaf4fef52420e944b1c4cd55c02e53e5a2fe9f1a65",
+    "src/output/outputCore.issue1507.integration.test.ts": "1a7b770fe0165c93961da1914a7d7646d645d9795bf118622c0e8e7d2dd432b2",
+    "test/fixtures/issue-1507/README.md": "0a3d67ae85655571a2271cd41ca460e0a59eaa1d879ada2132e73b0af67c9d29",
+    "test/fixtures/issue-1507/base-results.json": "52dfb1a7f9c7590d10e682a5268234ed15145dc0f8f7f54a88bca210bb1057b4",
+    "test/fixtures/issue-1507/causal-evidence.json": "7660b56e49adc675b925d95657e845d1c3e2c15b6f89681a81f1289862a76901",
+    "test/fixtures/issue-1507/manifest.json": "9337dc5cfab73a8cee9b237fc4cb4177d92e049a92b5326603c3dab9736151dd",
+    "test/fixtures/issue-1507/rejected-direct-length-condition.json": "3d03c79f8a42b437a84e39a5dd6b5b5c6c1bbc05f08259edc126022749400922",
+    "test/fixtures/issue-1507/rejected-direct-point-binder.json": "5f016047f7f8b398220b75b0d7a3aeb7dfca4772ba7e51b50b03ad040642100a",
+    "test/fixtures/issue-1507/rejected-inline-styles.json": "7f4a5612d61b9beeccb4f6e4b4bff179a2dc698e506fb87b20f4e6c1d505ac48",
+    "test/issue1468PatternWorkflow.integration.test.ts": "331b9f1071c2ff5c2c9a759c9c6cf1d8b4e45a755837d42068cc2872a19090a1",
+    "test/pdfArtifactInspector.ts": "ec2f7e3f8205ba817a1ee16d7554b740492a7c7b341d972a49c33927b38aa4d4"
+  },
+  "gate": {
+    "head": "4cf8d18e9a54d558cb782809d585209d940d676b",
+    "base": "bdf29d636212caa486b443cb6187e814d31efac1",
+    "conventionalBinary": {
+      "path": "/Users/yosomi/Code/nuinuiCAD/rust-evaluator/target/debug/evaluation_stdio",
+      "sha256": "23d19e5e0c253477232c79ce320148374f90ff6d8f890bcbeafde9866cfb5fe7",
+      "builtBy": "CARGO_TARGET_DIR=/Users/yosomi/Code/nuinuiCAD/rust-evaluator/target cargo build --quiet --manifest-path rust-evaluator/Cargo.toml --bin evaluation_stdio",
+      "exitCode": 0
+    },
+    "steps": [
+      {
+        "name": "focused",
+        "command": [
+          "npx",
+          "vitest",
+          "run",
+          "src/output/outputCore.issue1507.integration.test.ts",
+          "src/output/outputCore.test.ts",
+          "src/output/outputCore.issue1458.test.ts",
+          "test/issue1468PatternWorkflow.integration.test.ts",
+          "test/issue1505GeneratedTopologyConformance.integration.test.ts"
+        ],
+        "exitCode": 0,
+        "seconds": 8.04,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-focused.log",
+        "logSha256": "c4935df045fa15621a4819a6e870382ac359a7371f747b1df6df25073202e894",
+        "summary": [
+          "Test Files  5 passed (5)",
+          "Tests  106 passed (106)"
+        ]
+      },
+      {
+        "name": "build",
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exitCode": 0,
+        "seconds": 27.29,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-build.log",
+        "logSha256": "2a1ff279f80a23c9279f1783d368a4259202591fb6ad7ab1d468a65a12bf721f",
+        "summary": []
+      },
+      {
+        "name": "lint",
+        "command": [
+          "npm",
+          "run",
+          "lint"
+        ],
+        "exitCode": 0,
+        "seconds": 28.58,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-lint.log",
+        "logSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec",
+        "summary": []
+      },
+      {
+        "name": "full",
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "--maxWorkers=2"
+        ],
+        "exitCode": 0,
+        "seconds": 338.84,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-full.log",
+        "logSha256": "54112a0202cc9b88065602ba4f4f2e01c8e20fec609bd4a8d33e698b566f5ef4",
+        "summary": [
+          "Test Files  717 passed | 2 skipped (719)",
+          "Tests  11599 passed | 187 skipped (11786)"
+        ]
+      },
+      {
+        "name": "parity",
+        "command": [
+          "npm",
+          "run",
+          "test:parity"
+        ],
+        "exitCode": 0,
+        "seconds": 54.85,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-parity.log",
+        "logSha256": "d4e1b63b19f3128805fa0db4446230e772e1a7872f24cdd8fd8c0b245f0f0c39",
+        "summary": [
+          "Test Files  1 passed (1)",
+          "Tests  207 passed (207)"
+        ]
+      },
+      {
+        "name": "dsl",
+        "command": [
+          "npm",
+          "run",
+          "docs:dsl:check"
+        ],
+        "exitCode": 0,
+        "seconds": 0.68,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-dsl.log",
+        "logSha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5",
+        "summary": []
+      },
+      {
+        "name": "fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--manifest-path",
+          "rust-evaluator/Cargo.toml",
+          "--check"
+        ],
+        "exitCode": 0,
+        "seconds": 1.03,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-fmt.log",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "summary": []
+      },
+      {
+        "name": "check",
+        "command": [
+          "cargo",
+          "check",
+          "--manifest-path",
+          "rust-evaluator/Cargo.toml"
+        ],
+        "exitCode": 0,
+        "seconds": 0.63,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-check.log",
+        "logSha256": "14e4ee26a3e461f0cb5253280b8d1870f2630a08fc4ae24ddeee7605b3585e0a",
+        "summary": []
+      },
+      {
+        "name": "rust-test",
+        "command": [
+          "cargo",
+          "test",
+          "--manifest-path",
+          "rust-evaluator/Cargo.toml"
+        ],
+        "exitCode": 0,
+        "seconds": 9.73,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-rust-test.log",
+        "logSha256": "866b09819124d93fa3726d1ddcf3fbdfe6075ce62ef43bc0d4ebe7c15ab8811a",
+        "summary": [
+          "test result: ok. 641 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 5.62s",
+          "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+          "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+          "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+        ]
+      },
+      {
+        "name": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--manifest-path",
+          "rust-evaluator/Cargo.toml",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exitCode": 0,
+        "seconds": 8.04,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-clippy.log",
+        "logSha256": "0becdd39635c8bef34e2075b8b567266a6f09f8e2e8ee0dc64f49a9f3f9abab1",
+        "summary": []
+      },
+      {
+        "name": "base-diff",
+        "command": [
+          "git",
+          "diff",
+          "bdf29d636212caa486b443cb6187e814d31efac1",
+          "--check"
+        ],
+        "exitCode": 0,
+        "seconds": 0.05,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-base-diff.log",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "summary": []
+      },
+      {
+        "name": "diff",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exitCode": 0,
+        "seconds": 0.02,
+        "log": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-diff.log",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "summary": []
+      }
+    ],
+    "rustSourceChanged": true,
+    "exitCode": 0,
+    "complete": true
+  },
+  "gateRecordSha256": "f43e6ef7d87eba601a3548bc9f9f7f6fce7d26b9eddb3185b089093e9b859469",
+  "physicalRuns": [
+    {
+      "name": "focused",
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-focused-matrix.json",
+      "recordSha256": "38a5bbda944bd01968cd0eeb80e640984da6c3b7e8ad4a83aa81c0bb20a9903a",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "directory": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-3m7YEw",
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "b62cab4d99f3d242b20379277833a3784195f073ff4e1b5bfac8bd2b37f79460"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "checkpoints": 72
+    },
+    {
+      "name": "full",
+      "record": "/Users/yosomi/.codex/evidence/issue-1507/repaired-final-full-matrix.json",
+      "recordSha256": "7c28387a8b969d57f0d9738abbf61369e9ed58754bdd8a65f67851b74a4bf8ef",
+      "counts": {
+        "spawns": 1,
+        "evaluations": 288,
+        "exports": 288,
+        "inspections": 288
+      },
+      "directory": "/var/folders/qb/0dhw4js96xdc2snlzwg74bg40000gn/T/nuinui-1507-I7sXTT",
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1507/cargo-target/debug/evaluation_stdio",
+        "sha256": "b62cab4d99f3d242b20379277833a3784195f073ff4e1b5bfac8bd2b37f79460"
+      },
+      "closure": {
+        "code": null,
+        "signal": "SIGTERM"
+      },
+      "checkpoints": 72
+    }
+  ],
+  "matrix": [
+    {
+      "id": "R1",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "31417f70bfa833d1a8b1c054638216b8108b5d0f4f6dade58dd0b3c41eae6535",
+              "bytes": 888,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b6c623700b02ba17a97412cac600dd9a997f031e1a736035bf7b00c747c38c2f",
+              "bytes": 1689,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "31417f70bfa833d1a8b1c054638216b8108b5d0f4f6dade58dd0b3c41eae6535",
+              "bytes": 888,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b6c623700b02ba17a97412cac600dd9a997f031e1a736035bf7b00c747c38c2f",
+              "bytes": 1689,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R2",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "da0936b31fdae2872a0650fec312abdfc2611c22d2f5379748b261bd09b7157d",
+              "bytes": 590,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "75a6043d6437284503695bd9c3e05d978c15272938cf383ddbc0803839db14fc",
+              "bytes": 1525,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "da0936b31fdae2872a0650fec312abdfc2611c22d2f5379748b261bd09b7157d",
+              "bytes": 590,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "75a6043d6437284503695bd9c3e05d978c15272938cf383ddbc0803839db14fc",
+              "bytes": 1525,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "c669ce09057614739213ca4a5fe20ca5a413e70d4ca7ffa491d4820d8de03bc7",
+              "bytes": 886,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "d631d95025e611e4256d6e4a684879326e637850d2f8422273d937dcd52c9e4a",
+              "bytes": 1682,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "c669ce09057614739213ca4a5fe20ca5a413e70d4ca7ffa491d4820d8de03bc7",
+              "bytes": 886,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "d631d95025e611e4256d6e4a684879326e637850d2f8422273d937dcd52c9e4a",
+              "bytes": 1682,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "f1725aa896b9cc090564f85a0555862dd7ce32a6d58ecee39476960452522a9c",
+              "bytes": 738,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b5ab1a0d60a97fc43475832b59ee2abce67437d5ec0781d01441467546405bbc",
+              "bytes": 1603,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "f1725aa896b9cc090564f85a0555862dd7ce32a6d58ecee39476960452522a9c",
+              "bytes": 738,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b5ab1a0d60a97fc43475832b59ee2abce67437d5ec0781d01441467546405bbc",
+              "bytes": 1603,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "da0936b31fdae2872a0650fec312abdfc2611c22d2f5379748b261bd09b7157d",
+              "bytes": 590,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "75a6043d6437284503695bd9c3e05d978c15272938cf383ddbc0803839db14fc",
+              "bytes": 1525,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "da0936b31fdae2872a0650fec312abdfc2611c22d2f5379748b261bd09b7157d",
+              "bytes": 590,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "75a6043d6437284503695bd9c3e05d978c15272938cf383ddbc0803839db14fc",
+              "bytes": 1525,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R3",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2f2dce190120ecb33d107099d9c5fa012fc2ac53947531be65a3a3b234226e4f",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "31dc6d4b430f06ddc09db4c4821e39da3d8574cf3aec860bb1ca50d3a1c167d3",
+              "bytes": 1766,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2f2dce190120ecb33d107099d9c5fa012fc2ac53947531be65a3a3b234226e4f",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "31dc6d4b430f06ddc09db4c4821e39da3d8574cf3aec860bb1ca50d3a1c167d3",
+              "bytes": 1766,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 12,
+          "emittedLineCount": 14,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "010f9c22f04186e261d300d2460184d2deeed1c0a52c3fdc8feec24e4450706d",
+              "bytes": 2218,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "bd31e77fee5d83ddb67f6e35c3d701fd126014370061d8df72b52332aa7b1f12",
+              "bytes": 2400,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "010f9c22f04186e261d300d2460184d2deeed1c0a52c3fdc8feec24e4450706d",
+              "bytes": 2218,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "bd31e77fee5d83ddb67f6e35c3d701fd126014370061d8df72b52332aa7b1f12",
+              "bytes": 2400,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2f2dce190120ecb33d107099d9c5fa012fc2ac53947531be65a3a3b234226e4f",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "31dc6d4b430f06ddc09db4c4821e39da3d8574cf3aec860bb1ca50d3a1c167d3",
+              "bytes": 1766,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2f2dce190120ecb33d107099d9c5fa012fc2ac53947531be65a3a3b234226e4f",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "31dc6d4b430f06ddc09db4c4821e39da3d8574cf3aec860bb1ca50d3a1c167d3",
+              "bytes": 1766,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2f2dce190120ecb33d107099d9c5fa012fc2ac53947531be65a3a3b234226e4f",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "31dc6d4b430f06ddc09db4c4821e39da3d8574cf3aec860bb1ca50d3a1c167d3",
+              "bytes": 1766,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2f2dce190120ecb33d107099d9c5fa012fc2ac53947531be65a3a3b234226e4f",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "31dc6d4b430f06ddc09db4c4821e39da3d8574cf3aec860bb1ca50d3a1c167d3",
+              "bytes": 1766,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "R4",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "cadc5b20539073fc99523e38a0bb12531692f180fea00862a5ca9c16b554d686",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "d375253d21ce58a6d70f9f52c6f1ffbc14b5854e313393f102550fc8d4a400a0",
+              "bytes": 1769,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "cadc5b20539073fc99523e38a0bb12531692f180fea00862a5ca9c16b554d686",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "d375253d21ce58a6d70f9f52c6f1ffbc14b5854e313393f102550fc8d4a400a0",
+              "bytes": 1769,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "4f876eac59c4b9f09f59829f8336e479c318aebd9ef6b64cfd31ba60d05ec409",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "42013daaa003293588e17efc9bc971bba67c7a199a0f0225ca85a707c2287f50",
+              "bytes": 1769,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "4f876eac59c4b9f09f59829f8336e479c318aebd9ef6b64cfd31ba60d05ec409",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "42013daaa003293588e17efc9bc971bba67c7a199a0f0225ca85a707c2287f50",
+              "bytes": 1769,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "4f876eac59c4b9f09f59829f8336e479c318aebd9ef6b64cfd31ba60d05ec409",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "42013daaa003293588e17efc9bc971bba67c7a199a0f0225ca85a707c2287f50",
+              "bytes": 1769,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "4f876eac59c4b9f09f59829f8336e479c318aebd9ef6b64cfd31ba60d05ec409",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "42013daaa003293588e17efc9bc971bba67c7a199a0f0225ca85a707c2287f50",
+              "bytes": 1769,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "cadc5b20539073fc99523e38a0bb12531692f180fea00862a5ca9c16b554d686",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "d375253d21ce58a6d70f9f52c6f1ffbc14b5854e313393f102550fc8d4a400a0",
+              "bytes": 1769,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "cadc5b20539073fc99523e38a0bb12531692f180fea00862a5ca9c16b554d686",
+              "bytes": 1030,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "d375253d21ce58a6d70f9f52c6f1ffbc14b5854e313393f102550fc8d4a400a0",
+              "bytes": 1769,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 0,
+          "emittedLineCount": 2,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "eb2941fd9e46f854952922224a4bf24205061ea372097d7983df19beaaec867e",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "24110ed9a59b41631c0bc700011d50832986d8d21aba7d85c5e376bd6da47199",
+              "bytes": 1606,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "eb2941fd9e46f854952922224a4bf24205061ea372097d7983df19beaaec867e",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "24110ed9a59b41631c0bc700011d50832986d8d21aba7d85c5e376bd6da47199",
+              "bytes": 1606,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 0,
+          "emittedLineCount": 2,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 0,
+          "emittedLineCount": 2,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "49ed08c971a7c7729cab96713004f4fe7d413b1212455adab2c352a11673da28",
+              "bytes": 885,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "4b623aa37e0b10e8259c949870a48a8a46ed748073eef33d9c20a45d96b76e5a",
+              "bytes": 1680,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "49ed08c971a7c7729cab96713004f4fe7d413b1212455adab2c352a11673da28",
+              "bytes": 885,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "4b623aa37e0b10e8259c949870a48a8a46ed748073eef33d9c20a45d96b76e5a",
+              "bytes": 1680,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "53309ee2b341a1bfbd4b89f66d3d89b033349911262682698bda0f64b72ef8bf",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3ef170f162f2a10104d8a367295cfdb09a4105fc3c49592f10ff26ecf0a68065",
+              "bytes": 1603,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "53309ee2b341a1bfbd4b89f66d3d89b033349911262682698bda0f64b72ef8bf",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3ef170f162f2a10104d8a367295cfdb09a4105fc3c49592f10ff26ecf0a68065",
+              "bytes": 1603,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "02627aba154c3b0ed09f9af892605e9eb1b024ba2b9e81f9ee2fedd9a16a691d",
+              "bytes": 886,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "fb88763d056da3c4b8cd6ae95955d508668f58d11761446789388070a463fd54",
+              "bytes": 1682,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "02627aba154c3b0ed09f9af892605e9eb1b024ba2b9e81f9ee2fedd9a16a691d",
+              "bytes": 886,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "fb88763d056da3c4b8cd6ae95955d508668f58d11761446789388070a463fd54",
+              "bytes": 1682,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2ae749016591693d18d99141663dde2c7ad565ddf4dba6cfdf6c090b87e20c2b",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "37716160d6390b78a1349bf165bab8df87ade92eb00f6927e77d185a4fc0accc",
+              "bytes": 1765,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2ae749016591693d18d99141663dde2c7ad565ddf4dba6cfdf6c090b87e20c2b",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "37716160d6390b78a1349bf165bab8df87ade92eb00f6927e77d185a4fc0accc",
+              "bytes": 1765,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 2,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "e61935d77dcfe987ef722d0ccc2a74052f9144a8bf588d0d7db8cac141ed0a53",
+              "bytes": 887,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "aa0ab76aafc5b33db0f22c0d33f1db599a4ed12fc61962d038a47ee3b61f83a0",
+              "bytes": 1688,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "e61935d77dcfe987ef722d0ccc2a74052f9144a8bf588d0d7db8cac141ed0a53",
+              "bytes": 887,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "aa0ab76aafc5b33db0f22c0d33f1db599a4ed12fc61962d038a47ee3b61f83a0",
+              "bytes": 1688,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P1",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "c0269be69474a03e2fa04002eb8b910553203a1161fca27876473a5047e70041",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "52b5a01be8bd8312b21e0b6543e60edb5cd57074e8a979f6cb7f25e782c1ab23",
+              "bytes": 1314,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "c0269be69474a03e2fa04002eb8b910553203a1161fca27876473a5047e70041",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "52b5a01be8bd8312b21e0b6543e60edb5cd57074e8a979f6cb7f25e782c1ab23",
+              "bytes": 1314,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 8,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "491d77d6e1d195949d3f14bbcfe4f9e09b65a12218302276bc3bc23def3b8671",
+              "bytes": 1332,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "c114d63c4572fe8e593538ba1a389d1f97bc9a05fe87ac1d8f3d608a5f801006",
+              "bytes": 1632,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "491d77d6e1d195949d3f14bbcfe4f9e09b65a12218302276bc3bc23def3b8671",
+              "bytes": 1332,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "c114d63c4572fe8e593538ba1a389d1f97bc9a05fe87ac1d8f3d608a5f801006",
+              "bytes": 1632,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 2,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "60430cff379b71bdfb9003b37b87cfe3c9c0171519b16ff68463abbfe7dfe55b",
+              "bytes": 1036,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "7d5699ed4834ee8ed7938db1270097acd668656efbb4b4fe86002a3f2ab0bc1e",
+              "bytes": 1474,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "60430cff379b71bdfb9003b37b87cfe3c9c0171519b16ff68463abbfe7dfe55b",
+              "bytes": 1036,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "7d5699ed4834ee8ed7938db1270097acd668656efbb4b4fe86002a3f2ab0bc1e",
+              "bytes": 1474,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "c0269be69474a03e2fa04002eb8b910553203a1161fca27876473a5047e70041",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "52b5a01be8bd8312b21e0b6543e60edb5cd57074e8a979f6cb7f25e782c1ab23",
+              "bytes": 1314,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "c0269be69474a03e2fa04002eb8b910553203a1161fca27876473a5047e70041",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "52b5a01be8bd8312b21e0b6543e60edb5cd57074e8a979f6cb7f25e782c1ab23",
+              "bytes": 1314,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "a044bb4f01a70c0e9df89c16a91f8644d4d3537242ab46c2400acf45dde15daa",
+              "bytes": 593,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "2233e843ff76c93a57f2f9bb73d48ccd4b9cc703ece6a89a70bad2a9dfd62c39",
+              "bytes": 1535,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "a044bb4f01a70c0e9df89c16a91f8644d4d3537242ab46c2400acf45dde15daa",
+              "bytes": 593,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "2233e843ff76c93a57f2f9bb73d48ccd4b9cc703ece6a89a70bad2a9dfd62c39",
+              "bytes": 1535,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "41239b81b0dd5a592756a21fad6b4a39fa5d26b55f8da45f186c444f0427f997",
+              "bytes": 895,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "8d947aeb7f2fd1ebce617bdabfbc4173c67895426464715f0435687ae0aada9e",
+              "bytes": 1695,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "41239b81b0dd5a592756a21fad6b4a39fa5d26b55f8da45f186c444f0427f997",
+              "bytes": 895,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "8d947aeb7f2fd1ebce617bdabfbc4173c67895426464715f0435687ae0aada9e",
+              "bytes": 1695,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "5fbd27f0e49d6bb858e5511d5c2b8461316b1597c2e0bc1cf9e22301a5cd40f1",
+              "bytes": 741,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "e8a00a65f5ce1f04a0db9657b6ad3a6817a666b62a221b07186e4db1f7103734",
+              "bytes": 1613,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "5fbd27f0e49d6bb858e5511d5c2b8461316b1597c2e0bc1cf9e22301a5cd40f1",
+              "bytes": 741,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "e8a00a65f5ce1f04a0db9657b6ad3a6817a666b62a221b07186e4db1f7103734",
+              "bytes": 1613,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "a044bb4f01a70c0e9df89c16a91f8644d4d3537242ab46c2400acf45dde15daa",
+              "bytes": 593,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "2233e843ff76c93a57f2f9bb73d48ccd4b9cc703ece6a89a70bad2a9dfd62c39",
+              "bytes": 1535,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "a044bb4f01a70c0e9df89c16a91f8644d4d3537242ab46c2400acf45dde15daa",
+              "bytes": 593,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "2233e843ff76c93a57f2f9bb73d48ccd4b9cc703ece6a89a70bad2a9dfd62c39",
+              "bytes": 1535,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "0468295b2a46347c6c3b14de2d1b6fc7dc435668b0c4573a2d025f1ae33344b2",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "189e366d6d3fd1035429c6129cfc93b597a2c5f13ef82839f9ce120a1ef05eb3",
+              "bytes": 1528,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "0468295b2a46347c6c3b14de2d1b6fc7dc435668b0c4573a2d025f1ae33344b2",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "189e366d6d3fd1035429c6129cfc93b597a2c5f13ef82839f9ce120a1ef05eb3",
+              "bytes": 1528,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 4,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "4885ec5d2f75245c9cde5579b5080fbbf0ce8a17e91199461d6a94c91146ebaa",
+              "bytes": 898,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b1210153843eb6b05406234c97b776540b08ce7c88bfaec7da7311caa1d52b70",
+              "bytes": 5221,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "4885ec5d2f75245c9cde5579b5080fbbf0ce8a17e91199461d6a94c91146ebaa",
+              "bytes": 898,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b1210153843eb6b05406234c97b776540b08ce7c88bfaec7da7311caa1d52b70",
+              "bytes": 5221,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "0468295b2a46347c6c3b14de2d1b6fc7dc435668b0c4573a2d025f1ae33344b2",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "00885622a4d06cf584b8fe2942fd4a0338729a548046ab201116652fa63b8d2d",
+              "bytes": 1528,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "0468295b2a46347c6c3b14de2d1b6fc7dc435668b0c4573a2d025f1ae33344b2",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "00885622a4d06cf584b8fe2942fd4a0338729a548046ab201116652fa63b8d2d",
+              "bytes": 1528,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "0468295b2a46347c6c3b14de2d1b6fc7dc435668b0c4573a2d025f1ae33344b2",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "189e366d6d3fd1035429c6129cfc93b597a2c5f13ef82839f9ce120a1ef05eb3",
+              "bytes": 1528,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "0468295b2a46347c6c3b14de2d1b6fc7dc435668b0c4573a2d025f1ae33344b2",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "189e366d6d3fd1035429c6129cfc93b597a2c5f13ef82839f9ce120a1ef05eb3",
+              "bytes": 1528,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "f29ed0d10ce8f98289a47aa9f2ad4534dd8f36d30eb7de310426156f2da525e2",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3e7ce021e1b6e8a2000a5c524e602f4632145f1eb5115a20173327691f490959",
+              "bytes": 1607,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "f29ed0d10ce8f98289a47aa9f2ad4534dd8f36d30eb7de310426156f2da525e2",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3e7ce021e1b6e8a2000a5c524e602f4632145f1eb5115a20173327691f490959",
+              "bytes": 1607,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 6,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "1c2b1b8e17c26d9bae74f099473b33e73b272c47312afb08a994ba4f2f69b893",
+              "bytes": 888,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "dafc1eff1ffead3d436c3aab0f708368e46a2c8b81ba3ddf77130344b1908b97",
+              "bytes": 1684,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "1c2b1b8e17c26d9bae74f099473b33e73b272c47312afb08a994ba4f2f69b893",
+              "bytes": 888,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "dafc1eff1ffead3d436c3aab0f708368e46a2c8b81ba3ddf77130344b1908b97",
+              "bytes": 1684,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 4,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "09321d2fa12a8e4f0a08348be80b094239c38707f5e921e2aede19b136279e21",
+              "bytes": 1036,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "cf969ceb784c1829a9ee8ed504f8dd46702ae8ab42e2fe891346b92086355c3a",
+              "bytes": 1765,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "09321d2fa12a8e4f0a08348be80b094239c38707f5e921e2aede19b136279e21",
+              "bytes": 1036,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "cf969ceb784c1829a9ee8ed504f8dd46702ae8ab42e2fe891346b92086355c3a",
+              "bytes": 1765,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "f29ed0d10ce8f98289a47aa9f2ad4534dd8f36d30eb7de310426156f2da525e2",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3e7ce021e1b6e8a2000a5c524e602f4632145f1eb5115a20173327691f490959",
+              "bytes": 1607,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "f29ed0d10ce8f98289a47aa9f2ad4534dd8f36d30eb7de310426156f2da525e2",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3e7ce021e1b6e8a2000a5c524e602f4632145f1eb5115a20173327691f490959",
+              "bytes": 1607,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "X1",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "49ed08c971a7c7729cab96713004f4fe7d413b1212455adab2c352a11673da28",
+              "bytes": 885,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "4b623aa37e0b10e8259c949870a48a8a46ed748073eef33d9c20a45d96b76e5a",
+              "bytes": 1680,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "49ed08c971a7c7729cab96713004f4fe7d413b1212455adab2c352a11673da28",
+              "bytes": 885,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "4b623aa37e0b10e8259c949870a48a8a46ed748073eef33d9c20a45d96b76e5a",
+              "bytes": 1680,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "53309ee2b341a1bfbd4b89f66d3d89b033349911262682698bda0f64b72ef8bf",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3ef170f162f2a10104d8a367295cfdb09a4105fc3c49592f10ff26ecf0a68065",
+              "bytes": 1603,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "53309ee2b341a1bfbd4b89f66d3d89b033349911262682698bda0f64b72ef8bf",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3ef170f162f2a10104d8a367295cfdb09a4105fc3c49592f10ff26ecf0a68065",
+              "bytes": 1603,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "X2",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 6,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2ae749016591693d18d99141663dde2c7ad565ddf4dba6cfdf6c090b87e20c2b",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "37716160d6390b78a1349bf165bab8df87ade92eb00f6927e77d185a4fc0accc",
+              "bytes": 1765,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2ae749016591693d18d99141663dde2c7ad565ddf4dba6cfdf6c090b87e20c2b",
+              "bytes": 1034,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "37716160d6390b78a1349bf165bab8df87ade92eb00f6927e77d185a4fc0accc",
+              "bytes": 1765,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 2,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "e61935d77dcfe987ef722d0ccc2a74052f9144a8bf588d0d7db8cac141ed0a53",
+              "bytes": 887,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "aa0ab76aafc5b33db0f22c0d33f1db599a4ed12fc61962d038a47ee3b61f83a0",
+              "bytes": 1688,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "e61935d77dcfe987ef722d0ccc2a74052f9144a8bf588d0d7db8cac141ed0a53",
+              "bytes": 887,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "aa0ab76aafc5b33db0f22c0d33f1db599a4ed12fc61962d038a47ee3b61f83a0",
+              "bytes": 1688,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "369b79c9e9b63fe00460fefd458e7739c629e1b71928b404eabfcadc1454303f",
+              "bytes": 740,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "0424e172a8a4356916acd8a923f82cb55485a7480298d223900883fbe1b5ae71",
+              "bytes": 1607,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "X3",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 0,
+          "emittedLineCount": 2,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 2,
+          "emittedLineCount": 4,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "eb2941fd9e46f854952922224a4bf24205061ea372097d7983df19beaaec867e",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "24110ed9a59b41631c0bc700011d50832986d8d21aba7d85c5e376bd6da47199",
+              "bytes": 1606,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "eb2941fd9e46f854952922224a4bf24205061ea372097d7983df19beaaec867e",
+              "bytes": 739,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "24110ed9a59b41631c0bc700011d50832986d8d21aba7d85c5e376bd6da47199",
+              "bytes": 1606,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 0,
+          "emittedLineCount": 2,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 0,
+          "emittedLineCount": 2,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "2d13e49abfabe0d419855dbae2afa81c2f756b99d16b7feb685e53950b86424f",
+              "bytes": 444,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "3bed076700815e8ec6a325e929c6a68862bf16753dc6275c1ee8e4fc5e4f46b7",
+              "bytes": 1449,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "X4",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 3,
+          "emittedLineCount": 5,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "02627aba154c3b0ed09f9af892605e9eb1b024ba2b9e81f9ee2fedd9a16a691d",
+              "bytes": 886,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "fb88763d056da3c4b8cd6ae95955d508668f58d11761446789388070a463fd54",
+              "bytes": 1682,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "02627aba154c3b0ed09f9af892605e9eb1b024ba2b9e81f9ee2fedd9a16a691d",
+              "bytes": 886,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "fb88763d056da3c4b8cd6ae95955d508668f58d11761446789388070a463fd54",
+              "bytes": 1682,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b91f72c19cd3705de643d295390cb62cc3f6b394d6b52c058441d294f46908d5",
+              "bytes": 591,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "b6e7e424f995c14a171cdc5af56b91108b46e7404bffad387d927503893c3993",
+              "bytes": 1526,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 1,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "30d2ba655b67d2ca2f98380ac2871f2aa8d38baa9cacd468543e2f4530e6489f",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "e31c6135838b929293980f2ce9a23343f7539d8cb60b12d36f88c8665f49b0c4",
+              "bytes": 1528,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RED1",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RED2",
+      "disposition": "PASS",
+      "checkpoints": [
+        {
+          "index": 0,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 2,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        },
+        {
+          "index": 3,
+          "generatedLineCount": 0,
+          "emittedLineCount": 3,
+          "pdfPages": 1,
+          "artifacts": [
+            {
+              "mode": "incremental",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "incremental",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "svg",
+              "sha256": "b28fd506cd90569d2002b8b6390618b99c1aac8d542342b9a4b76e19af23cace",
+              "bytes": 592,
+              "inspection": "PASS"
+            },
+            {
+              "mode": "fresh",
+              "format": "pdf",
+              "sha256": "5a562b2f7f20fb8d824e7cafc73140905999ef054d1f31e603c327bf35457525",
+              "bytes": 1529,
+              "inspection": "PASS"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "budget": {
+    "primary": 12,
+    "primaryCheckpoints": 48,
+    "extensionsAccepted": 4,
+    "extensionsUnused": 2,
+    "reducersAccepted": 2,
+    "reducersUnused": 4,
+    "unusedDisposition": "NOT_TRIGGERED",
+    "acceptedUnits": 18,
+    "acceptedCeiling": 24
+  },
+  "manualE2E": "Not Required for this CLI-only host-neutral acceptance. GUI, native save dialogs, printing fidelity and sewing fit were not tested.",
+  "residuals": [
+    "Supported count/index-driven visible ranges substitute for collection-for, which has no showGenerated source option. Direct collection.length conditions are covered by X1-X4 and repaired.",
+    "No PR merge, Issue closure or independent blocking review performed."
+  ]
+}
