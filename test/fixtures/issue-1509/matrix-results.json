@@ -1,0 +1,2370 @@
+{
+  "base": "b9b34b89ceae84681d32b531daf35d527493d699",
+  "head": "b9b34b89ceae84681d32b531daf35d527493d699",
+  "fixtureSha256": "d7ba7c37a4eadbe3b44e71a0e5ae1bab5fff99b5a41f1ef68933886e9714fd11",
+  "testSha256": "49a506da9e669bc4f42d65d974bdd6cad580ef190f402ffaa05139718b8088c7",
+  "counts": {
+    "spawns": 1,
+    "evaluations": 192,
+    "exports": 192,
+    "inspections": 192,
+    "negativeEvaluations": 4
+  },
+  "binary": {
+    "path": "/Users/yosomi/Code/nuinuiCAD/rust-evaluator/target/debug/evaluation_stdio",
+    "sha256": "824eb9d208a06e0ba162944b2eb8399cf675d54b7bd1f33b21c1955a226aa72a"
+  },
+  "closure": {
+    "code": null,
+    "signal": "SIGTERM"
+  },
+  "measurements": {
+    "maxOffsetHausdorffMm": 0.00300639421305332,
+    "maxBezierStationErrorMm": 0.005041829385401721,
+    "maxBezierTipErrorMm": 0.005220331855743747
+  },
+  "primarySequences": 12,
+  "primaryCheckpoints": 48,
+  "primaryPassed": 48,
+  "confirmedDefectFamilies": 0,
+  "repairs": [],
+  "repairRemoval": "NOT_APPLICABLE: no independently confirmed product defect or correction",
+  "acceptedExplorationUnitsConservative": 14,
+  "extensions": [
+    {
+      "id": "X1",
+      "classification": "CONTRACT_INVALID",
+      "evidence": "rejected-c2.json"
+    },
+    {
+      "id": "X2",
+      "classification": "COVERAGE_INVALID",
+      "evidence": "rejected-o1.json"
+    }
+  ],
+  "reducers": [],
+  "notTriggered": [
+    "X3",
+    "X4",
+    "X5",
+    "X6",
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "R6"
+  ],
+  "negativeControls": [
+    {
+      "kind": "zero-radius",
+      "mode": "incremental",
+      "source": "nui 1\n// #1509 C1: frozen independently before evaluation\nconst width: number = 40\nconst radius: number = 0\nconst allowance: number = 4\nprofile Draft\nprofile Cut\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle SeamInk {\n width: 2px,\n color: #ab5412,\n for @Cut {\n  visible: false,\n }\n}\nstyle MarkInk {\n width: 2px,\n color: #127a45,\n for @Cut {\n  visible: false,\n }\n}\ngroup Piece {\n point Origin = coordinate(x: 0, y: 0)\n line Straight = segment(start: (0, 0), end: (@width, 0), visible: false)\n arc Bend = arc(center: (@width, @radius), radius: @radius, start: 270, end: 360, direction: counterclockwise, visible: false)\n line Contour [Ink] = join(paths: [@Straight, @Bend], closed: false)\n line Allowance [SeamInk] = offset(sources: [@Contour], distance: @allowance, side: right, closed: false)\n point Station1 = onLine(from: @Contour.start, ratio: 0.64, visible: false)\n point Tip1 = tangentOffset(line: @Contour, base: @Station1, angle: -90, distance: 6, visible: false)\n line Mark1 [MarkInk] = segment(start: @Station1, end: @Tip1, visible: true)\n}\ngroup Control {\n line Calibration [Ink] = segment(start: (0, -15), end: (100, -15))\n line Sibling [Ink] = segment(start: (0, -10), end: (3, -6))\n}\ngroup Unselected {\n line Outside = segment(start: (9000, 9000), end: (9100, 9000))\n}\nlayout Pattern {\n place @Piece(origin: @Piece::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0))\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "b10b6d40c056a79a57c20c59919bc8b39472574951b09b177d4b9c7b6a62a293",
+      "diagnostics": [
+        {
+          "elementId": "Piece::Bend",
+          "elementName": "Bend",
+          "missingDependencyId": "arcLine-mvv10wf8-905",
+          "missingDependencyName": "Bend",
+          "message": "Bend \u306e\u534a\u5f84\u306f0\u3088\u308a\u5927\u304d\u3044\u5024\u3067\u6307\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Contour",
+          "elementName": "Contour",
+          "missingDependencyId": "arcLine-mvv10wf8-905",
+          "missingDependencyName": "Bend",
+          "message": "Contour \u306f Bend \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Bend \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Bend \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Allowance",
+          "elementName": "Allowance",
+          "missingDependencyId": "allowance",
+          "message": "Allowance \u306e\u6570\u5024\u5f0f\u3092\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002allowance \u306f\u3053\u306e\u8981\u7d20\u5185\u306b\u5b58\u5728\u3057\u307e\u305b\u3093\u3002\u307e\u305f\u306f\u53c2\u7167\u53ef\u80fd\u306a\u5909\u6570\u306b\u5b58\u5728\u3057\u307e\u305b\u3093\u3002"
+        },
+        {
+          "elementId": "Piece::Station1",
+          "elementName": "Station1",
+          "missingDependencyId": "joinedPath-mvv10wf8-906",
+          "missingDependencyName": "Contour",
+          "message": "Station1 \u306f Contour \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Contour \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Contour \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Tip1",
+          "elementName": "Tip1",
+          "missingDependencyId": "joinedPath-mvv10wf8-906",
+          "missingDependencyName": "Contour",
+          "message": "Tip1 \u306f Contour \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Contour \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Contour \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Mark1",
+          "elementName": "Mark1",
+          "missingDependencyId": "lineDivisionPoint-mvv10wf8-908",
+          "missingDependencyName": "Station1",
+          "message": "Mark1 \u306f Station1 \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Station1 \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Station1 \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        }
+      ],
+      "exported": false
+    },
+    {
+      "kind": "zero-radius",
+      "mode": "fresh",
+      "source": "nui 1\n// #1509 C1: frozen independently before evaluation\nconst width: number = 40\nconst radius: number = 0\nconst allowance: number = 4\nprofile Draft\nprofile Cut\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle SeamInk {\n width: 2px,\n color: #ab5412,\n for @Cut {\n  visible: false,\n }\n}\nstyle MarkInk {\n width: 2px,\n color: #127a45,\n for @Cut {\n  visible: false,\n }\n}\ngroup Piece {\n point Origin = coordinate(x: 0, y: 0)\n line Straight = segment(start: (0, 0), end: (@width, 0), visible: false)\n arc Bend = arc(center: (@width, @radius), radius: @radius, start: 270, end: 360, direction: counterclockwise, visible: false)\n line Contour [Ink] = join(paths: [@Straight, @Bend], closed: false)\n line Allowance [SeamInk] = offset(sources: [@Contour], distance: @allowance, side: right, closed: false)\n point Station1 = onLine(from: @Contour.start, ratio: 0.64, visible: false)\n point Tip1 = tangentOffset(line: @Contour, base: @Station1, angle: -90, distance: 6, visible: false)\n line Mark1 [MarkInk] = segment(start: @Station1, end: @Tip1, visible: true)\n}\ngroup Control {\n line Calibration [Ink] = segment(start: (0, -15), end: (100, -15))\n line Sibling [Ink] = segment(start: (0, -10), end: (3, -6))\n}\ngroup Unselected {\n line Outside = segment(start: (9000, 9000), end: (9100, 9000))\n}\nlayout Pattern {\n place @Piece(origin: @Piece::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0))\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "b10b6d40c056a79a57c20c59919bc8b39472574951b09b177d4b9c7b6a62a293",
+      "diagnostics": [
+        {
+          "elementId": "Piece::Bend",
+          "elementName": "Bend",
+          "missingDependencyId": "arcLine-mvv10wff-919",
+          "missingDependencyName": "Bend",
+          "message": "Bend \u306e\u534a\u5f84\u306f0\u3088\u308a\u5927\u304d\u3044\u5024\u3067\u6307\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Contour",
+          "elementName": "Contour",
+          "missingDependencyId": "arcLine-mvv10wff-919",
+          "missingDependencyName": "Bend",
+          "message": "Contour \u306f Bend \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Bend \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Bend \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Allowance",
+          "elementName": "Allowance",
+          "missingDependencyId": "allowance",
+          "message": "Allowance \u306e\u6570\u5024\u5f0f\u3092\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002allowance \u306f\u3053\u306e\u8981\u7d20\u5185\u306b\u5b58\u5728\u3057\u307e\u305b\u3093\u3002\u307e\u305f\u306f\u53c2\u7167\u53ef\u80fd\u306a\u5909\u6570\u306b\u5b58\u5728\u3057\u307e\u305b\u3093\u3002"
+        },
+        {
+          "elementId": "Piece::Station1",
+          "elementName": "Station1",
+          "missingDependencyId": "joinedPath-mvv10wff-920",
+          "missingDependencyName": "Contour",
+          "message": "Station1 \u306f Contour \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Contour \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Contour \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Tip1",
+          "elementName": "Tip1",
+          "missingDependencyId": "joinedPath-mvv10wff-920",
+          "missingDependencyName": "Contour",
+          "message": "Tip1 \u306f Contour \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Contour \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Contour \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Mark1",
+          "elementName": "Mark1",
+          "missingDependencyId": "lineDivisionPoint-mvv10wff-922",
+          "missingDependencyName": "Station1",
+          "message": "Mark1 \u306f Station1 \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Station1 \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Station1 \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        }
+      ],
+      "exported": false
+    },
+    {
+      "kind": "off-curve-tip",
+      "mode": "incremental",
+      "source": "nui 1\n// #1509 C1: frozen independently before evaluation\nconst width: number = 40\nconst radius: number = 30\nconst allowance: number = 4\nprofile Draft\nprofile Cut\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle SeamInk {\n width: 2px,\n color: #ab5412,\n for @Cut {\n  visible: false,\n }\n}\nstyle MarkInk {\n width: 2px,\n color: #127a45,\n for @Cut {\n  visible: false,\n }\n}\ngroup Piece {\n point Origin = coordinate(x: 0, y: 0)\n line Straight = segment(start: (0, 0), end: (@width, 0), visible: false)\n arc Bend = arc(center: (@width, @radius), radius: @radius, start: 270, end: 360, direction: counterclockwise, visible: false)\n line Contour [Ink] = join(paths: [@Straight, @Bend], closed: false)\n line Allowance [SeamInk] = offset(sources: [@Contour], distance: @allowance, side: right, closed: false)\n point Station1 = onLine(from: @Contour.start, ratio: 0.64, visible: false)\n point Tip1 = tangentOffset(line: @Contour, base: (900, 900), angle: -90, distance: 6, visible: false)\n line Mark1 [MarkInk] = segment(start: @Station1, end: @Tip1, visible: true)\n}\ngroup Control {\n line Calibration [Ink] = segment(start: (0, -15), end: (100, -15))\n line Sibling [Ink] = segment(start: (0, -10), end: (3, -6))\n}\ngroup Unselected {\n line Outside = segment(start: (9000, 9000), end: (9100, 9000))\n}\nlayout Pattern {\n place @Piece(origin: @Piece::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0))\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "168db5effbf49432df15bd249a7bd4e0ae8da628b06966182a505781b3b9872d",
+      "diagnostics": [
+        {
+          "elementId": "Piece::Tip1",
+          "elementName": "Tip1",
+          "missingDependencyId": "lineTangentOffsetPoint-mvv10wfv-937",
+          "missingDependencyName": "Tip1",
+          "message": "Tip1 \u306e\u57fa\u6e96\u70b9\u306f\u57fa\u6e96\u7dda\u4e0a\u306b\u3042\u308a\u307e\u305b\u3093\u3002\u57fa\u6e96\u7dda\u4e0a\u306e\u70b9\u3092\u6307\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Mark1",
+          "elementName": "Mark1",
+          "missingDependencyId": "lineTangentOffsetPoint-mvv10wfv-937",
+          "missingDependencyName": "Tip1",
+          "message": "Mark1 \u306f Tip1 \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Tip1 \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Tip1 \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        }
+      ],
+      "exported": false
+    },
+    {
+      "kind": "off-curve-tip",
+      "mode": "fresh",
+      "source": "nui 1\n// #1509 C1: frozen independently before evaluation\nconst width: number = 40\nconst radius: number = 30\nconst allowance: number = 4\nprofile Draft\nprofile Cut\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle SeamInk {\n width: 2px,\n color: #ab5412,\n for @Cut {\n  visible: false,\n }\n}\nstyle MarkInk {\n width: 2px,\n color: #127a45,\n for @Cut {\n  visible: false,\n }\n}\ngroup Piece {\n point Origin = coordinate(x: 0, y: 0)\n line Straight = segment(start: (0, 0), end: (@width, 0), visible: false)\n arc Bend = arc(center: (@width, @radius), radius: @radius, start: 270, end: 360, direction: counterclockwise, visible: false)\n line Contour [Ink] = join(paths: [@Straight, @Bend], closed: false)\n line Allowance [SeamInk] = offset(sources: [@Contour], distance: @allowance, side: right, closed: false)\n point Station1 = onLine(from: @Contour.start, ratio: 0.64, visible: false)\n point Tip1 = tangentOffset(line: @Contour, base: (900, 900), angle: -90, distance: 6, visible: false)\n line Mark1 [MarkInk] = segment(start: @Station1, end: @Tip1, visible: true)\n}\ngroup Control {\n line Calibration [Ink] = segment(start: (0, -15), end: (100, -15))\n line Sibling [Ink] = segment(start: (0, -10), end: (3, -6))\n}\ngroup Unselected {\n line Outside = segment(start: (9000, 9000), end: (9100, 9000))\n}\nlayout Pattern {\n place @Piece(origin: @Piece::Origin, at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0))\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "168db5effbf49432df15bd249a7bd4e0ae8da628b06966182a505781b3b9872d",
+      "diagnostics": [
+        {
+          "elementId": "Piece::Tip1",
+          "elementName": "Tip1",
+          "missingDependencyId": "lineTangentOffsetPoint-mvv10wg1-951",
+          "missingDependencyName": "Tip1",
+          "message": "Tip1 \u306e\u57fa\u6e96\u70b9\u306f\u57fa\u6e96\u7dda\u4e0a\u306b\u3042\u308a\u307e\u305b\u3093\u3002\u57fa\u6e96\u7dda\u4e0a\u306e\u70b9\u3092\u6307\u5b9a\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        },
+        {
+          "elementId": "Piece::Mark1",
+          "elementName": "Mark1",
+          "missingDependencyId": "lineTangentOffsetPoint-mvv10wg1-951",
+          "missingDependencyName": "Tip1",
+          "message": "Mark1 \u306f Tip1 \u3092\u53c2\u7167\u3057\u3066\u3044\u307e\u3059\u304c\u3001Tip1 \u306e\u8a55\u4fa1\u306b\u5931\u6557\u3057\u3066\u3044\u308b\u305f\u3081\u8a55\u4fa1\u3067\u304d\u307e\u305b\u3093\u3002\u5148\u306b Tip1 \u306e\u30a8\u30e9\u30fc\u3092\u89e3\u6d88\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
+        }
+      ],
+      "exported": false
+    }
+  ],
+  "sensitivity": "+0.1mm Tip1 corruption rejected by runtime and file detectors",
+  "checkpoints": [
+    {
+      "id": "C1",
+      "checkpoint": "V0",
+      "sourceSha256": "aa9e4ed21a497761ddfa07130345d97c8dc327cc6835d771e6ea9f93c555d253",
+      "oracleSha256": "cdce1db5cbd107d86ae1198121181811a78d7c24d878403c9e1d4d617a9ea410",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-0-incremental.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-0-incremental.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-0-fresh.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-0-fresh.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "checkpoint": "V1",
+      "sourceSha256": "2c611d0de5c1066fb96d884d194cd84f496409671420b43fcc70f902a0cb003d",
+      "oracleSha256": "62953ad43fe71a755462f90f58e496404d53a86f727ea7e58d72424dc0dabe68",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-1-incremental.svg",
+          "sha256": "a58fb7f3cf968d33a9862aaa2a335d687e36d44c7d25b1e47c2631a0dbb1d6a7",
+          "bytes": 1194,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-1-incremental.pdf",
+          "sha256": "605298f1610c04abc4f6e022fb32cc47c0392681f29e606b0136d01dbfe75159",
+          "bytes": 1896,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-1-fresh.svg",
+          "sha256": "a58fb7f3cf968d33a9862aaa2a335d687e36d44c7d25b1e47c2631a0dbb1d6a7",
+          "bytes": 1194,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-1-fresh.pdf",
+          "sha256": "605298f1610c04abc4f6e022fb32cc47c0392681f29e606b0136d01dbfe75159",
+          "bytes": 1896,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "checkpoint": "V2",
+      "sourceSha256": "a935bd34436f70859974c2ba6cc9f3b59b1ca9fc7ecedc635fd288e040275e2c",
+      "oracleSha256": "2f0ff1e60cb4a9befc19423646c3d9444734833166f38631de350e83047cca1b",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-2-incremental.svg",
+          "sha256": "53d0f8331a6ffb8b982c050ba610c9d942a0b48a239d0f7244892ac2d57d5a34",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-2-incremental.pdf",
+          "sha256": "849d1bcd42baf3834945178c306d29ded7227d3555cd37a9fa51bb33bfd6477e",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-2-fresh.svg",
+          "sha256": "53d0f8331a6ffb8b982c050ba610c9d942a0b48a239d0f7244892ac2d57d5a34",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-2-fresh.pdf",
+          "sha256": "849d1bcd42baf3834945178c306d29ded7227d3555cd37a9fa51bb33bfd6477e",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "checkpoint": "V3",
+      "sourceSha256": "aa9e4ed21a497761ddfa07130345d97c8dc327cc6835d771e6ea9f93c555d253",
+      "oracleSha256": "cdce1db5cbd107d86ae1198121181811a78d7c24d878403c9e1d4d617a9ea410",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-3-incremental.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-3-incremental.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-3-fresh.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C1-3-fresh.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "checkpoint": "V0",
+      "sourceSha256": "03c659573cdb33caa6db6ed92a392bbdd4233d7bf66248eb4b3debf6490b581d",
+      "oracleSha256": "0c51eb4bc365fc38af16f273cd43f4e9acce54dc6645f7050a2bc28fa2e7f0aa",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-0-incremental.svg",
+          "sha256": "358b292bf66e3abed39b4c44153650c19c6eff930555320495390872224fa695",
+          "bytes": 1584,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-0-incremental.pdf",
+          "sha256": "c4080fa4ba79223da84377db6d3e4d3893f6e56ae4c4b791edd335c8be1860a3",
+          "bytes": 2121,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-0-fresh.svg",
+          "sha256": "358b292bf66e3abed39b4c44153650c19c6eff930555320495390872224fa695",
+          "bytes": 1584,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-0-fresh.pdf",
+          "sha256": "c4080fa4ba79223da84377db6d3e4d3893f6e56ae4c4b791edd335c8be1860a3",
+          "bytes": 2121,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "checkpoint": "V1",
+      "sourceSha256": "2dabae65cd3a599ea5b72f01e0b940b15f5208e6e2e25646d2ca12889400f880",
+      "oracleSha256": "8dbf4aa4ad93eaa7f8c0f3d9611a6af2a1abd96bc3054aaeaa02400081476a55",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-1-incremental.svg",
+          "sha256": "2e0e3900e36011d23cf262d511a9c59588a7856d1945d2bd3d13255bfe575367",
+          "bytes": 1588,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-1-incremental.pdf",
+          "sha256": "78abf5d9c535e5e4aacf834e6b32389e1c602f6c4fc16e896aa51ac115e9b17a",
+          "bytes": 2119,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-1-fresh.svg",
+          "sha256": "2e0e3900e36011d23cf262d511a9c59588a7856d1945d2bd3d13255bfe575367",
+          "bytes": 1588,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-1-fresh.pdf",
+          "sha256": "78abf5d9c535e5e4aacf834e6b32389e1c602f6c4fc16e896aa51ac115e9b17a",
+          "bytes": 2119,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "checkpoint": "V2",
+      "sourceSha256": "43d604f5950bf10eb15e75f38e38145227dbff88c25cf8bef625125e342ef042",
+      "oracleSha256": "56115487b2b535a06517ecee03c5834289faacf089ca79bcd83629c16f6f03a0",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-2-incremental.svg",
+          "sha256": "7ba1639098c1d5fab31698c6f7ecb72026f2d1250f02e3916be3c255cd08165f",
+          "bytes": 1579,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-2-incremental.pdf",
+          "sha256": "d94225fb5955dc69f5d5ae8ba5634a99f1796e96932ada138993343c9d82977f",
+          "bytes": 2118,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-2-fresh.svg",
+          "sha256": "7ba1639098c1d5fab31698c6f7ecb72026f2d1250f02e3916be3c255cd08165f",
+          "bytes": 1579,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-2-fresh.pdf",
+          "sha256": "d94225fb5955dc69f5d5ae8ba5634a99f1796e96932ada138993343c9d82977f",
+          "bytes": 2118,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C2",
+      "checkpoint": "V3",
+      "sourceSha256": "03c659573cdb33caa6db6ed92a392bbdd4233d7bf66248eb4b3debf6490b581d",
+      "oracleSha256": "0c51eb4bc365fc38af16f273cd43f4e9acce54dc6645f7050a2bc28fa2e7f0aa",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-3-incremental.svg",
+          "sha256": "358b292bf66e3abed39b4c44153650c19c6eff930555320495390872224fa695",
+          "bytes": 1584,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-3-incremental.pdf",
+          "sha256": "c4080fa4ba79223da84377db6d3e4d3893f6e56ae4c4b791edd335c8be1860a3",
+          "bytes": 2121,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-3-fresh.svg",
+          "sha256": "358b292bf66e3abed39b4c44153650c19c6eff930555320495390872224fa695",
+          "bytes": 1584,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C2-3-fresh.pdf",
+          "sha256": "c4080fa4ba79223da84377db6d3e4d3893f6e56ae4c4b791edd335c8be1860a3",
+          "bytes": 2121,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "checkpoint": "V0",
+      "sourceSha256": "dd6acc5a4295a15d08f12084229cde0f26f0ad2280e5a1d2c6bdd7358e2d4c76",
+      "oracleSha256": "a191b9335908797e403f38ec6d0e135694df3a4835ffb3a74fc0c94d786a9866",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-0-incremental.svg",
+          "sha256": "692e916d084e9f087202e30e7fc24fbae67b7ea824bcddd6467249b370e56705",
+          "bytes": 2221,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-0-incremental.pdf",
+          "sha256": "5d658e7d180dc5df465445f059d247415af3804ab56eaab6b3be141988d70a53",
+          "bytes": 2447,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-0-fresh.svg",
+          "sha256": "692e916d084e9f087202e30e7fc24fbae67b7ea824bcddd6467249b370e56705",
+          "bytes": 2221,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-0-fresh.pdf",
+          "sha256": "5d658e7d180dc5df465445f059d247415af3804ab56eaab6b3be141988d70a53",
+          "bytes": 2447,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "checkpoint": "V1",
+      "sourceSha256": "48e275857c27d7582fde836c09184c1959706f45ec12a54b98faea3d267bfdd2",
+      "oracleSha256": "2c483aa655b290dcfd099d4c59ceaff0b99a574b8dc072d8b43b320b473ceaf1",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-1-incremental.svg",
+          "sha256": "b2ed6b1c41211d2ea49dfa3bc0d88519de682c7c9a537cefdf1068a646714e64",
+          "bytes": 2236,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-1-incremental.pdf",
+          "sha256": "22ea81d6342254569a2315aceefb58e685f6603c01ffd46b990f082d36378e70",
+          "bytes": 2441,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-1-fresh.svg",
+          "sha256": "b2ed6b1c41211d2ea49dfa3bc0d88519de682c7c9a537cefdf1068a646714e64",
+          "bytes": 2236,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-1-fresh.pdf",
+          "sha256": "22ea81d6342254569a2315aceefb58e685f6603c01ffd46b990f082d36378e70",
+          "bytes": 2441,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "checkpoint": "V2",
+      "sourceSha256": "93d24f169d39a3ada763b56d895840ed228981b68a06a120fd9b0ac44393e2bd",
+      "oracleSha256": "4727825efccc345f6187f50dc53262883f651a9779033c448a4c6d57a35ee1c2",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-2-incremental.svg",
+          "sha256": "bed23dabd07c0131108b0289b9b4934decfaab1d01dfaea7f35666a381780b86",
+          "bytes": 2211,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-2-incremental.pdf",
+          "sha256": "8d3a84a03fdf0951a50d5ae658251b47742874751e80045eafaa25556d6da076",
+          "bytes": 2445,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-2-fresh.svg",
+          "sha256": "bed23dabd07c0131108b0289b9b4934decfaab1d01dfaea7f35666a381780b86",
+          "bytes": 2211,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-2-fresh.pdf",
+          "sha256": "8d3a84a03fdf0951a50d5ae658251b47742874751e80045eafaa25556d6da076",
+          "bytes": 2445,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "checkpoint": "V3",
+      "sourceSha256": "dd6acc5a4295a15d08f12084229cde0f26f0ad2280e5a1d2c6bdd7358e2d4c76",
+      "oracleSha256": "a191b9335908797e403f38ec6d0e135694df3a4835ffb3a74fc0c94d786a9866",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-3-incremental.svg",
+          "sha256": "692e916d084e9f087202e30e7fc24fbae67b7ea824bcddd6467249b370e56705",
+          "bytes": 2221,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-3-incremental.pdf",
+          "sha256": "5d658e7d180dc5df465445f059d247415af3804ab56eaab6b3be141988d70a53",
+          "bytes": 2447,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-3-fresh.svg",
+          "sha256": "692e916d084e9f087202e30e7fc24fbae67b7ea824bcddd6467249b370e56705",
+          "bytes": 2221,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C3-3-fresh.pdf",
+          "sha256": "5d658e7d180dc5df465445f059d247415af3804ab56eaab6b3be141988d70a53",
+          "bytes": 2447,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "checkpoint": "V0",
+      "sourceSha256": "f942c1d81bdfc2828c61530f2e75ac4c30cc404c0388e36b62f29c680656c791",
+      "oracleSha256": "06944b4465cb4cf74af7faf9cf48682b4e5e7e5a51d709c6c3ae42e1be68ef30",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-0-incremental.svg",
+          "sha256": "84acac6182ced12090163d56525534f46a487b0a3bcd4b9ea0c36706b973d9f6",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-0-incremental.pdf",
+          "sha256": "cbfd96822d3860e688e99bfadcabe64acfdb592041b2c933dab8e041173f4718",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-0-fresh.svg",
+          "sha256": "84acac6182ced12090163d56525534f46a487b0a3bcd4b9ea0c36706b973d9f6",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-0-fresh.pdf",
+          "sha256": "cbfd96822d3860e688e99bfadcabe64acfdb592041b2c933dab8e041173f4718",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "checkpoint": "V1",
+      "sourceSha256": "12e8f061bf086d495f0c1dc779400a9352bbdf943611bc19ffcfe27ff54ceb8f",
+      "oracleSha256": "33810abd96f769180b1b03094f4cd57f3b924873deedba1c29d51e06af3e7943",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-1-incremental.svg",
+          "sha256": "b3d970cd76b99cd9a8b9f334f2a77377d59eb3d8fed885f2f43bdf88e95699e3",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-1-incremental.pdf",
+          "sha256": "04b3bc159c910f314015f8fcbc929d0b7e09d2ddf2445efcaae0f252cc77a2aa",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-1-fresh.svg",
+          "sha256": "b3d970cd76b99cd9a8b9f334f2a77377d59eb3d8fed885f2f43bdf88e95699e3",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-1-fresh.pdf",
+          "sha256": "04b3bc159c910f314015f8fcbc929d0b7e09d2ddf2445efcaae0f252cc77a2aa",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "checkpoint": "V2",
+      "sourceSha256": "180cbed29eecf8660aa8e810b038667c49e96af43fd3a30044362f3272723137",
+      "oracleSha256": "08c2a1c5b69823e68a54f8806c003eeca2e107623c54a7746584bc38a34b5764",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-2-incremental.svg",
+          "sha256": "94e65a2d66025f168e0c465f31bf57d9b1ac188027b3a51cae0a9e2d3da6299f",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-2-incremental.pdf",
+          "sha256": "12722291b0c092d1e3714aee3ca5f25c8af81fe0487805ae6ec1704954fe0a00",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-2-fresh.svg",
+          "sha256": "94e65a2d66025f168e0c465f31bf57d9b1ac188027b3a51cae0a9e2d3da6299f",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-2-fresh.pdf",
+          "sha256": "12722291b0c092d1e3714aee3ca5f25c8af81fe0487805ae6ec1704954fe0a00",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "checkpoint": "V3",
+      "sourceSha256": "f942c1d81bdfc2828c61530f2e75ac4c30cc404c0388e36b62f29c680656c791",
+      "oracleSha256": "06944b4465cb4cf74af7faf9cf48682b4e5e7e5a51d709c6c3ae42e1be68ef30",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-3-incremental.svg",
+          "sha256": "84acac6182ced12090163d56525534f46a487b0a3bcd4b9ea0c36706b973d9f6",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-3-incremental.pdf",
+          "sha256": "cbfd96822d3860e688e99bfadcabe64acfdb592041b2c933dab8e041173f4718",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-3-fresh.svg",
+          "sha256": "84acac6182ced12090163d56525534f46a487b0a3bcd4b9ea0c36706b973d9f6",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/C4-3-fresh.pdf",
+          "sha256": "cbfd96822d3860e688e99bfadcabe64acfdb592041b2c933dab8e041173f4718",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N1",
+      "checkpoint": "V0",
+      "sourceSha256": "c81fd1fc110162832bbca3e5280c749a4b020ca0df0230cb925721e6253ea65c",
+      "oracleSha256": "4fc8ae0e7815a16f642ca6429c67c881817aaca5760bbf62830f14bc570dfd5b",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-0-incremental.svg",
+          "sha256": "59c2cce970403899161f987406040055485b28635b925a44ffea0f37b88a702b",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-0-incremental.pdf",
+          "sha256": "67fdc9fe392f5e1824851373cea242fe94a30867c632b18b4fbf857517af5bf9",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-0-fresh.svg",
+          "sha256": "59c2cce970403899161f987406040055485b28635b925a44ffea0f37b88a702b",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-0-fresh.pdf",
+          "sha256": "67fdc9fe392f5e1824851373cea242fe94a30867c632b18b4fbf857517af5bf9",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N1",
+      "checkpoint": "V1",
+      "sourceSha256": "6574cb4d85f6b42e72a43e5daa3e93d31d51efaa137c2143f40dae9ee98f2225",
+      "oracleSha256": "de55eca1d73d79258ef1421ee7bbe040dd1cb725dfeb9893542783c4ca13a3f9",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-1-incremental.svg",
+          "sha256": "67a49efac4cef193e780dedef93e54eccf2d8407a7031c5903aa6c2a24268f9a",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-1-incremental.pdf",
+          "sha256": "81483a2d73edf61ca646899b766e1060256051d86bfce13ebf519ebca1ff4316",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-1-fresh.svg",
+          "sha256": "67a49efac4cef193e780dedef93e54eccf2d8407a7031c5903aa6c2a24268f9a",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-1-fresh.pdf",
+          "sha256": "81483a2d73edf61ca646899b766e1060256051d86bfce13ebf519ebca1ff4316",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N1",
+      "checkpoint": "V2",
+      "sourceSha256": "0386fdde0d310a103488e4840fbfc9d76c64898d6dc9690f5fba4d324db8727a",
+      "oracleSha256": "aef9e495e98c0169cc4e258b9fdca55ed5464a1477af697ebd97e9b0d6a84d47",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-2-incremental.svg",
+          "sha256": "9ee48573d7ab72eadd4676a1412e00b83e572c9666e125a896a95f46a3dd2795",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-2-incremental.pdf",
+          "sha256": "f9798327eebe50ac75b5e6999379e72085f3e9142feda5e5a5211081ab2ffdba",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-2-fresh.svg",
+          "sha256": "9ee48573d7ab72eadd4676a1412e00b83e572c9666e125a896a95f46a3dd2795",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-2-fresh.pdf",
+          "sha256": "f9798327eebe50ac75b5e6999379e72085f3e9142feda5e5a5211081ab2ffdba",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N1",
+      "checkpoint": "V3",
+      "sourceSha256": "c81fd1fc110162832bbca3e5280c749a4b020ca0df0230cb925721e6253ea65c",
+      "oracleSha256": "4fc8ae0e7815a16f642ca6429c67c881817aaca5760bbf62830f14bc570dfd5b",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-3-incremental.svg",
+          "sha256": "59c2cce970403899161f987406040055485b28635b925a44ffea0f37b88a702b",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-3-incremental.pdf",
+          "sha256": "67fdc9fe392f5e1824851373cea242fe94a30867c632b18b4fbf857517af5bf9",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-3-fresh.svg",
+          "sha256": "59c2cce970403899161f987406040055485b28635b925a44ffea0f37b88a702b",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N1-3-fresh.pdf",
+          "sha256": "67fdc9fe392f5e1824851373cea242fe94a30867c632b18b4fbf857517af5bf9",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N2",
+      "checkpoint": "V0",
+      "sourceSha256": "a7c017f51cc45da491adea37648941d05439dbd11a8fe7f771d4d3438bfa9c32",
+      "oracleSha256": "b45ef92f12720496536c6c1cac1aa007f42accb212bc9da9ccce4b48ba1af98b",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-0-incremental.svg",
+          "sha256": "458434cf05a501335b933e3030edac6da7af2c043441153d291ec47807b24a71",
+          "bytes": 1337,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-0-incremental.pdf",
+          "sha256": "56d25ed20e6984eee28fad691574fb5b0b58e56f615ec1d64feae7d957fd9fd0",
+          "bytes": 1977,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-0-fresh.svg",
+          "sha256": "458434cf05a501335b933e3030edac6da7af2c043441153d291ec47807b24a71",
+          "bytes": 1337,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-0-fresh.pdf",
+          "sha256": "56d25ed20e6984eee28fad691574fb5b0b58e56f615ec1d64feae7d957fd9fd0",
+          "bytes": 1977,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N2",
+      "checkpoint": "V1",
+      "sourceSha256": "c15c2c05043ceef0e0786e9f3e4bd7563a97cd0c9c213c155fdc824c5aad74dc",
+      "oracleSha256": "2e79367e0e8725b3dbd0298b55c696a8d417c6e256310706f90c8e91401fe13f",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-1-incremental.svg",
+          "sha256": "e3ee29914cad2c60c84fc8d556efc71be405914d10db43557acba50fcab6b193",
+          "bytes": 1340,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-1-incremental.pdf",
+          "sha256": "ae38e96a1a7cb23addd8cacc1dc80238db199136b6fc681d333614f48209d4ab",
+          "bytes": 1969,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-1-fresh.svg",
+          "sha256": "e3ee29914cad2c60c84fc8d556efc71be405914d10db43557acba50fcab6b193",
+          "bytes": 1340,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-1-fresh.pdf",
+          "sha256": "ae38e96a1a7cb23addd8cacc1dc80238db199136b6fc681d333614f48209d4ab",
+          "bytes": 1969,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N2",
+      "checkpoint": "V2",
+      "sourceSha256": "01a7ca2f0aac34a6070938f63b43d7654960c5438d74793db1d805a476d9e65a",
+      "oracleSha256": "e9e5bccfc777d5ad04f76aa40c8f70396ba68b56d28fd38e6f74a8470f2960b1",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-2-incremental.svg",
+          "sha256": "90a8484b4f0f707c3a98f11a6a66b8ec3bd14edd1d1e19d7ffea44cafdd55090",
+          "bytes": 1332,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-2-incremental.pdf",
+          "sha256": "edcf429699fd1e46cbab92421687d6483d3ba27dd8ada553cf20d86c6544e110",
+          "bytes": 1970,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-2-fresh.svg",
+          "sha256": "90a8484b4f0f707c3a98f11a6a66b8ec3bd14edd1d1e19d7ffea44cafdd55090",
+          "bytes": 1332,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-2-fresh.pdf",
+          "sha256": "edcf429699fd1e46cbab92421687d6483d3ba27dd8ada553cf20d86c6544e110",
+          "bytes": 1970,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N2",
+      "checkpoint": "V3",
+      "sourceSha256": "a7c017f51cc45da491adea37648941d05439dbd11a8fe7f771d4d3438bfa9c32",
+      "oracleSha256": "b45ef92f12720496536c6c1cac1aa007f42accb212bc9da9ccce4b48ba1af98b",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-3-incremental.svg",
+          "sha256": "458434cf05a501335b933e3030edac6da7af2c043441153d291ec47807b24a71",
+          "bytes": 1337,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-3-incremental.pdf",
+          "sha256": "56d25ed20e6984eee28fad691574fb5b0b58e56f615ec1d64feae7d957fd9fd0",
+          "bytes": 1977,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-3-fresh.svg",
+          "sha256": "458434cf05a501335b933e3030edac6da7af2c043441153d291ec47807b24a71",
+          "bytes": 1337,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N2-3-fresh.pdf",
+          "sha256": "56d25ed20e6984eee28fad691574fb5b0b58e56f615ec1d64feae7d957fd9fd0",
+          "bytes": 1977,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N3",
+      "checkpoint": "V0",
+      "sourceSha256": "cde6b591a3e52589b972b9dfc0f8ab9da919070cc76a4b9ec8118c74cd3e60fa",
+      "oracleSha256": "4a33505565c32a8b65edb2f2c2e200e0e1ab09c5a5c36ce89465b1eae2b1c444",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-0-incremental.svg",
+          "sha256": "4fca0f3d04b3f9799b5756b14be7a8e890f3919a375fe0f81158079a821dbc75",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-0-incremental.pdf",
+          "sha256": "25be633b38bc15e6969a91d3e02fad087981f88384d725e858dc193da29ffc35",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-0-fresh.svg",
+          "sha256": "4fca0f3d04b3f9799b5756b14be7a8e890f3919a375fe0f81158079a821dbc75",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-0-fresh.pdf",
+          "sha256": "25be633b38bc15e6969a91d3e02fad087981f88384d725e858dc193da29ffc35",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N3",
+      "checkpoint": "V1",
+      "sourceSha256": "e0d3cf8955cb0e57a8b1107c544ffe564ce0f769509598d92625ad2d425d0950",
+      "oracleSha256": "868553c815724564429b883554986b32549e567ec07e65ba2a32c020a23c1e7b",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-1-incremental.svg",
+          "sha256": "0230378b4661611a802878eb9b1aebde974c6191f95310a18f08da9a518e3aec",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-1-incremental.pdf",
+          "sha256": "cb7a711b2009e85291ac5d0e9d01beeafa2ec140026fa50d94b52a19a90d49d2",
+          "bytes": 1893,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-1-fresh.svg",
+          "sha256": "0230378b4661611a802878eb9b1aebde974c6191f95310a18f08da9a518e3aec",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-1-fresh.pdf",
+          "sha256": "cb7a711b2009e85291ac5d0e9d01beeafa2ec140026fa50d94b52a19a90d49d2",
+          "bytes": 1893,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N3",
+      "checkpoint": "V2",
+      "sourceSha256": "b86e787a85158da6861266ce70592bfd1f8b80c690b0f010baa5bad38b304f7e",
+      "oracleSha256": "1fd776b3047cd7aa0c2172b0c28eb5ce14af1f5f1ba8979e84dd73e7932c3286",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-2-incremental.svg",
+          "sha256": "fada6ffadef3b92797649ddec59a27742e1d4b2437cbf3fa2575008714e44187",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-2-incremental.pdf",
+          "sha256": "461b900324804a75532453ee02bf98f380ccb2fe141c3a8a3c45187b8c93f8b5",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-2-fresh.svg",
+          "sha256": "fada6ffadef3b92797649ddec59a27742e1d4b2437cbf3fa2575008714e44187",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-2-fresh.pdf",
+          "sha256": "461b900324804a75532453ee02bf98f380ccb2fe141c3a8a3c45187b8c93f8b5",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N3",
+      "checkpoint": "V3",
+      "sourceSha256": "cde6b591a3e52589b972b9dfc0f8ab9da919070cc76a4b9ec8118c74cd3e60fa",
+      "oracleSha256": "4a33505565c32a8b65edb2f2c2e200e0e1ab09c5a5c36ce89465b1eae2b1c444",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-3-incremental.svg",
+          "sha256": "4fca0f3d04b3f9799b5756b14be7a8e890f3919a375fe0f81158079a821dbc75",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-3-incremental.pdf",
+          "sha256": "25be633b38bc15e6969a91d3e02fad087981f88384d725e858dc193da29ffc35",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-3-fresh.svg",
+          "sha256": "4fca0f3d04b3f9799b5756b14be7a8e890f3919a375fe0f81158079a821dbc75",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N3-3-fresh.pdf",
+          "sha256": "25be633b38bc15e6969a91d3e02fad087981f88384d725e858dc193da29ffc35",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N4",
+      "checkpoint": "V0",
+      "sourceSha256": "11b391a2aef30b8d7c794122e730abd4cc49c05eec54b2531880604d8c69d573",
+      "oracleSha256": "99d732a8d5e22c30387bcca7316386bdc69dd7f721ceb78c800aa99338f3253e",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-0-incremental.svg",
+          "sha256": "91f723d4d01b81741406fa8b8c8f066022a0b0faa96dec068bb167c8b10c31c9",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-0-incremental.pdf",
+          "sha256": "0993062d8a50eabf558628a18b5325f0992d0af9853d46a06574f060609597cb",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-0-fresh.svg",
+          "sha256": "91f723d4d01b81741406fa8b8c8f066022a0b0faa96dec068bb167c8b10c31c9",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-0-fresh.pdf",
+          "sha256": "0993062d8a50eabf558628a18b5325f0992d0af9853d46a06574f060609597cb",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N4",
+      "checkpoint": "V1",
+      "sourceSha256": "f586a0a808f629adf0f03d96fabc283328497efccb60707d3f5cab1dd43a0a0b",
+      "oracleSha256": "7f6744b9a0d1b868b395080f968cc710fc9c95810f990a0bd02050be0d06f425",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-1-incremental.svg",
+          "sha256": "04aef8584f026989ba250cdee977c00b602e3b6c06b0c84b22f1f83aa2ee11d1",
+          "bytes": 1193,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-1-incremental.pdf",
+          "sha256": "b96fdf8aebd538c7d6c3a7aa5d5aef43e009291002f5106e7c4b8ebb9e7d4e04",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-1-fresh.svg",
+          "sha256": "04aef8584f026989ba250cdee977c00b602e3b6c06b0c84b22f1f83aa2ee11d1",
+          "bytes": 1193,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-1-fresh.pdf",
+          "sha256": "b96fdf8aebd538c7d6c3a7aa5d5aef43e009291002f5106e7c4b8ebb9e7d4e04",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N4",
+      "checkpoint": "V2",
+      "sourceSha256": "4e69308cd73c092596ec59405672e13e86f9205af98852bc781eadc8852c195d",
+      "oracleSha256": "4852433452961728844ac3ed3550d9943c721fb0e4e95e3f0fbae369160e8d6a",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-2-incremental.svg",
+          "sha256": "564f4be92f59c893a5148c02e61c3c7fe2ea75b1bf96e85ec2485bc85223bb3d",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-2-incremental.pdf",
+          "sha256": "e6078b2883c1d83225a78d98a71c1e6ad362dea5a70b17b9abb2560724d8adec",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-2-fresh.svg",
+          "sha256": "564f4be92f59c893a5148c02e61c3c7fe2ea75b1bf96e85ec2485bc85223bb3d",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-2-fresh.pdf",
+          "sha256": "e6078b2883c1d83225a78d98a71c1e6ad362dea5a70b17b9abb2560724d8adec",
+          "bytes": 1889,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "N4",
+      "checkpoint": "V3",
+      "sourceSha256": "11b391a2aef30b8d7c794122e730abd4cc49c05eec54b2531880604d8c69d573",
+      "oracleSha256": "99d732a8d5e22c30387bcca7316386bdc69dd7f721ceb78c800aa99338f3253e",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-3-incremental.svg",
+          "sha256": "91f723d4d01b81741406fa8b8c8f066022a0b0faa96dec068bb167c8b10c31c9",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-3-incremental.pdf",
+          "sha256": "0993062d8a50eabf558628a18b5325f0992d0af9853d46a06574f060609597cb",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-3-fresh.svg",
+          "sha256": "91f723d4d01b81741406fa8b8c8f066022a0b0faa96dec068bb167c8b10c31c9",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/N4-3-fresh.pdf",
+          "sha256": "0993062d8a50eabf558628a18b5325f0992d0af9853d46a06574f060609597cb",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O1",
+      "checkpoint": "V0",
+      "sourceSha256": "d4c00ef0e5109f82374e77f20698d59a1f151bc22e7760c067d9f43c0936c1c5",
+      "oracleSha256": "caeb04818b65e8d1ba711215e8df3d6ae835384e6188e2decae9b5dc6ee14141",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-0-incremental.svg",
+          "sha256": "e73731a85704f81e33fcfd940ec5d1370e6c36c0380f1a863caf1581a5aeeddc",
+          "bytes": 1201,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-0-incremental.pdf",
+          "sha256": "dfbafc251fe58722ecc6a136a51649ee047d8da83477ec848ddf880508907def",
+          "bytes": 1896,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-0-fresh.svg",
+          "sha256": "e73731a85704f81e33fcfd940ec5d1370e6c36c0380f1a863caf1581a5aeeddc",
+          "bytes": 1201,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-0-fresh.pdf",
+          "sha256": "dfbafc251fe58722ecc6a136a51649ee047d8da83477ec848ddf880508907def",
+          "bytes": 1896,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O1",
+      "checkpoint": "V1",
+      "sourceSha256": "5208abc09ceb5898ebd9af2639290740aa0f7e6fab25e97f863ad92902efed8e",
+      "oracleSha256": "a4287ae876b96cae7517c777315862c009488475bf57878690a135d1fa39d435",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-1-incremental.svg",
+          "sha256": "12d33350e4c9a2047dd8767c827a29af4e5dd04a72aa5084fb5325e57fbc06ef",
+          "bytes": 1203,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-1-incremental.pdf",
+          "sha256": "fe0ace354a59720684e488b3b3fee2ab27a085ca8e044718b1f1bc7c2be48e53",
+          "bytes": 1899,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-1-fresh.svg",
+          "sha256": "12d33350e4c9a2047dd8767c827a29af4e5dd04a72aa5084fb5325e57fbc06ef",
+          "bytes": 1203,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-1-fresh.pdf",
+          "sha256": "fe0ace354a59720684e488b3b3fee2ab27a085ca8e044718b1f1bc7c2be48e53",
+          "bytes": 1899,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O1",
+      "checkpoint": "V2",
+      "sourceSha256": "5ac97315c3cba8c773ee729ba6d5be0efce89c3943052a5889f308c5724b5fd2",
+      "oracleSha256": "2c454c6ef7fe649b0baf4770eec07a276fb9f99a8aa818a0ece5e2a40a23a51c",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-2-incremental.svg",
+          "sha256": "a36bd6cfb56cbbcfd36e646c61f45fa6515347b5fcd304154d95320bb1219f4d",
+          "bytes": 1202,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-2-incremental.pdf",
+          "sha256": "4f9e849e6c05321ea5a22c5d5701b0b008335b531ba689c35dbfc6e119bff9fc",
+          "bytes": 3231,
+          "pages": 2,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-2-fresh.svg",
+          "sha256": "a36bd6cfb56cbbcfd36e646c61f45fa6515347b5fcd304154d95320bb1219f4d",
+          "bytes": 1202,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-2-fresh.pdf",
+          "sha256": "4f9e849e6c05321ea5a22c5d5701b0b008335b531ba689c35dbfc6e119bff9fc",
+          "bytes": 3231,
+          "pages": 2,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O1",
+      "checkpoint": "V3",
+      "sourceSha256": "d4c00ef0e5109f82374e77f20698d59a1f151bc22e7760c067d9f43c0936c1c5",
+      "oracleSha256": "caeb04818b65e8d1ba711215e8df3d6ae835384e6188e2decae9b5dc6ee14141",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-3-incremental.svg",
+          "sha256": "e73731a85704f81e33fcfd940ec5d1370e6c36c0380f1a863caf1581a5aeeddc",
+          "bytes": 1201,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-3-incremental.pdf",
+          "sha256": "dfbafc251fe58722ecc6a136a51649ee047d8da83477ec848ddf880508907def",
+          "bytes": 1896,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-3-fresh.svg",
+          "sha256": "e73731a85704f81e33fcfd940ec5d1370e6c36c0380f1a863caf1581a5aeeddc",
+          "bytes": 1201,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O1-3-fresh.pdf",
+          "sha256": "dfbafc251fe58722ecc6a136a51649ee047d8da83477ec848ddf880508907def",
+          "bytes": 1896,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O2",
+      "checkpoint": "V0",
+      "sourceSha256": "0976b3d9ac6bb644a510a079e264b8280923e24394c3f51223fa5d45bf73a842",
+      "oracleSha256": "8aa2e01118370dd16c320129a1f4e9d551372fca1d35df8443b6f247e42fa94d",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-0-incremental.svg",
+          "sha256": "94287906239326fb4d89eef4594e7209ad837383aa276d7b2205439ed0cee75c",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-0-incremental.pdf",
+          "sha256": "0cbfe2a2b65a39e8247dd79570209054674bbd5e518fc087b71176d007731b64",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-0-fresh.svg",
+          "sha256": "94287906239326fb4d89eef4594e7209ad837383aa276d7b2205439ed0cee75c",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-0-fresh.pdf",
+          "sha256": "0cbfe2a2b65a39e8247dd79570209054674bbd5e518fc087b71176d007731b64",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O2",
+      "checkpoint": "V1",
+      "sourceSha256": "c0bd22d0c2d04276f14b0dfd8e31c2dd358e265af9d5fd6b0371f542a4de1fdf",
+      "oracleSha256": "113d76303b9d95849d69a367ec52cd0e2f1287506cbf198cd6094cba2c1ca67e",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-1-incremental.svg",
+          "sha256": "fd4b609d7db2e07404a6f270b3186dc4d4a57310f1833b210ec1a8bc8a333c05",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-1-incremental.pdf",
+          "sha256": "3060b7ca85d420df7db6c9cd594e1b0f1b5290a6ce7e9f1128c96cb8b3738f6b",
+          "bytes": 3216,
+          "pages": 2,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-1-fresh.svg",
+          "sha256": "fd4b609d7db2e07404a6f270b3186dc4d4a57310f1833b210ec1a8bc8a333c05",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-1-fresh.pdf",
+          "sha256": "3060b7ca85d420df7db6c9cd594e1b0f1b5290a6ce7e9f1128c96cb8b3738f6b",
+          "bytes": 3216,
+          "pages": 2,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O2",
+      "checkpoint": "V2",
+      "sourceSha256": "75e4b230ef8ec2fa6e6c60562dead2d247ea4da3fb388ebce6a1e7c09aa9a5db",
+      "oracleSha256": "223ef88ed53538f657b78ff5e06e16913115620a091e5d604d01fc38760e0f2a",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-2-incremental.svg",
+          "sha256": "2f08b35506adb34dd850fabd301199580d5554409df958fe883c60f75cedfa1c",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-2-incremental.pdf",
+          "sha256": "e467a98d57a41a1b2934063db224cca83fc22072a07088c0bcd3c644b0406fd0",
+          "bytes": 4566,
+          "pages": 3,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-2-fresh.svg",
+          "sha256": "2f08b35506adb34dd850fabd301199580d5554409df958fe883c60f75cedfa1c",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-2-fresh.pdf",
+          "sha256": "e467a98d57a41a1b2934063db224cca83fc22072a07088c0bcd3c644b0406fd0",
+          "bytes": 4566,
+          "pages": 3,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O2",
+      "checkpoint": "V3",
+      "sourceSha256": "0976b3d9ac6bb644a510a079e264b8280923e24394c3f51223fa5d45bf73a842",
+      "oracleSha256": "8aa2e01118370dd16c320129a1f4e9d551372fca1d35df8443b6f247e42fa94d",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-3-incremental.svg",
+          "sha256": "94287906239326fb4d89eef4594e7209ad837383aa276d7b2205439ed0cee75c",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-3-incremental.pdf",
+          "sha256": "0cbfe2a2b65a39e8247dd79570209054674bbd5e518fc087b71176d007731b64",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-3-fresh.svg",
+          "sha256": "94287906239326fb4d89eef4594e7209ad837383aa276d7b2205439ed0cee75c",
+          "bytes": 1200,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O2-3-fresh.pdf",
+          "sha256": "0cbfe2a2b65a39e8247dd79570209054674bbd5e518fc087b71176d007731b64",
+          "bytes": 1891,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O3",
+      "checkpoint": "V0",
+      "sourceSha256": "ee939d6fccb22dc29e28d686a675255c856dbda49c5ad848b1837c44526bbccd",
+      "oracleSha256": "cdce1db5cbd107d86ae1198121181811a78d7c24d878403c9e1d4d617a9ea410",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-0-incremental.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-0-incremental.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-0-fresh.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-0-fresh.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O3",
+      "checkpoint": "V1",
+      "sourceSha256": "4ec688bf8fd6591f38a1c9a1d36165ac7da4069cdda5365d326eac8b356ba4e3",
+      "oracleSha256": "0e48559b9cd23e8e806ad02467aa73f31fc03aefcaa299904691510bf8da4745",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-1-incremental.svg",
+          "sha256": "72e1428f6fb64373ada704da8eedea161ecf941d56c7a1ee9231e524722c00ab",
+          "bytes": 1193,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-1-incremental.pdf",
+          "sha256": "b5b6a653b83281936813687ae8ab42e2686b875b7d0cb28a08bbfc05812d003a",
+          "bytes": 1901,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-1-fresh.svg",
+          "sha256": "72e1428f6fb64373ada704da8eedea161ecf941d56c7a1ee9231e524722c00ab",
+          "bytes": 1193,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-1-fresh.pdf",
+          "sha256": "b5b6a653b83281936813687ae8ab42e2686b875b7d0cb28a08bbfc05812d003a",
+          "bytes": 1901,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O3",
+      "checkpoint": "V2",
+      "sourceSha256": "942ff7bada45270c5064c4e1c5d96dee0eb1bc9e704c93b44df89e8638e9c489",
+      "oracleSha256": "fbd6ea7c90861fa7bc9c5b3608eebab9c34c4f75d83fd078261c3ce56daa8e19",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-2-incremental.svg",
+          "sha256": "c196c6d0414f60d02208d0b94393c0dfcc3c950983844c852a0ccefd6bb93844",
+          "bytes": 1202,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-2-incremental.pdf",
+          "sha256": "198535c07d00ddf3ba578f55f28783364d7d7650ac564cd53863341a470ce5ee",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-2-fresh.svg",
+          "sha256": "c196c6d0414f60d02208d0b94393c0dfcc3c950983844c852a0ccefd6bb93844",
+          "bytes": 1202,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-2-fresh.pdf",
+          "sha256": "198535c07d00ddf3ba578f55f28783364d7d7650ac564cd53863341a470ce5ee",
+          "bytes": 1895,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O3",
+      "checkpoint": "V3",
+      "sourceSha256": "ee939d6fccb22dc29e28d686a675255c856dbda49c5ad848b1837c44526bbccd",
+      "oracleSha256": "cdce1db5cbd107d86ae1198121181811a78d7c24d878403c9e1d4d617a9ea410",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-3-incremental.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-3-incremental.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-3-fresh.svg",
+          "sha256": "d7c214ec5c12cb54d41007d71d39ec41f1d44ee9aaa6f4eab4620c5613d2096e",
+          "bytes": 1191,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O3-3-fresh.pdf",
+          "sha256": "1aed0e39c6254dcc49c637da9b4b04bac802b1bd9498cbe35f0bc65bf16b0992",
+          "bytes": 1892,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O4",
+      "checkpoint": "V0",
+      "sourceSha256": "f5240f74a114d483aca15e7e380bf3edf701fa90a467c9c9427ca30ce254f312",
+      "oracleSha256": "fb19d83d7f22ee5b42a87f984507b5e54c83d5eab5c5b7433b166ee495d76a16",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-0-incremental.svg",
+          "sha256": "ddd8b905b9d997da9156358eb1ffdd6cbd58d6dd3275b2ced9ff97bcc2fda073",
+          "bytes": 1338,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-0-incremental.pdf",
+          "sha256": "005fcc2e622e6335d720c2f69999dcf532c7c562b83cbfc7e8aa30365d7f4692",
+          "bytes": 1971,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-0-fresh.svg",
+          "sha256": "ddd8b905b9d997da9156358eb1ffdd6cbd58d6dd3275b2ced9ff97bcc2fda073",
+          "bytes": 1338,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-0-fresh.pdf",
+          "sha256": "005fcc2e622e6335d720c2f69999dcf532c7c562b83cbfc7e8aa30365d7f4692",
+          "bytes": 1971,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O4",
+      "checkpoint": "V1",
+      "sourceSha256": "d6cb44f06f677ae6aeb10455f81258f86298d29253b8a3997be21e13037f6fd7",
+      "oracleSha256": "ba7fd18fa8fa1f55aefd8b72ba6fa00a477c3e9fb29e26dc70dc2f5ba768f333",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-1-incremental.svg",
+          "sha256": "ab7b9cde2e995499c7019dd9fc810057cfd94fa5d958dc0b2c0308fd4330765f",
+          "bytes": 745,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-1-incremental.pdf",
+          "sha256": "5e2c4164aa365389132abf08a7a954e93bdaa06ccea0dd571dbce7303772cf90",
+          "bytes": 1631,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-1-fresh.svg",
+          "sha256": "ab7b9cde2e995499c7019dd9fc810057cfd94fa5d958dc0b2c0308fd4330765f",
+          "bytes": 745,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-1-fresh.pdf",
+          "sha256": "5e2c4164aa365389132abf08a7a954e93bdaa06ccea0dd571dbce7303772cf90",
+          "bytes": 1631,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O4",
+      "checkpoint": "V2",
+      "sourceSha256": "8f62dd918bf2addd6d3c1697e3013842657abf8db6f8aab23bed7ec936e60fda",
+      "oracleSha256": "4ae9e0b7ca1dcd4f917cd5da04d5ddbb71252bd1fa6304541fbdd8ae8395529f",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-2-incremental.svg",
+          "sha256": "52ecc8d6291c744b12d4aaed79cfdb5857fc82666593a9de49b9fde1c3bb052a",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-2-incremental.pdf",
+          "sha256": "7a4f31e2eb75d9332e9ecf9b4ada0d778833d188f06fdb6dedb2412ab7d72585",
+          "bytes": 1890,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-2-fresh.svg",
+          "sha256": "52ecc8d6291c744b12d4aaed79cfdb5857fc82666593a9de49b9fde1c3bb052a",
+          "bytes": 1192,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-2-fresh.pdf",
+          "sha256": "7a4f31e2eb75d9332e9ecf9b4ada0d778833d188f06fdb6dedb2412ab7d72585",
+          "bytes": 1890,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    },
+    {
+      "id": "O4",
+      "checkpoint": "V3",
+      "sourceSha256": "f5240f74a114d483aca15e7e380bf3edf701fa90a467c9c9427ca30ce254f312",
+      "oracleSha256": "fb19d83d7f22ee5b42a87f984507b5e54c83d5eab5c5b7433b166ee495d76a16",
+      "disposition": "PASS",
+      "files": [
+        {
+          "mode": "incremental",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-3-incremental.svg",
+          "sha256": "ddd8b905b9d997da9156358eb1ffdd6cbd58d6dd3275b2ced9ff97bcc2fda073",
+          "bytes": 1338,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "incremental",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-3-incremental.pdf",
+          "sha256": "005fcc2e622e6335d720c2f69999dcf532c7c562b83cbfc7e8aa30365d7f4692",
+          "bytes": 1971,
+          "pages": 1,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "svg",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-3-fresh.svg",
+          "sha256": "ddd8b905b9d997da9156358eb1ffdd6cbd58d6dd3275b2ced9ff97bcc2fda073",
+          "bytes": 1338,
+          "pages": null,
+          "inspection": "PASS"
+        },
+        {
+          "mode": "fresh",
+          "format": "pdf",
+          "path": "/Users/yosomi/.codex/evidence/issue-1509/artifacts/O4-3-fresh.pdf",
+          "sha256": "005fcc2e622e6335d720c2f69999dcf532c7c562b83cbfc7e8aa30365d7f4692",
+          "bytes": 1971,
+          "pages": 1,
+          "inspection": "PASS"
+        }
+      ]
+    }
+  ],
+  "externalEvidence": "/Users/yosomi/.codex/evidence/issue-1509"
+}
