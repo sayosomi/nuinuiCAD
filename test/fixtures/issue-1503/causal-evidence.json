@@ -1,0 +1,586 @@
+{
+  "base": "75f95cf697453ec8b1421160e9ed9f9d436c3f14",
+  "budget": {
+    "primary": 16,
+    "X": [
+      "X1",
+      "X2",
+      "X3",
+      "X4"
+    ],
+    "R": [
+      "R1",
+      "R2"
+    ],
+    "notTriggeredX": 2,
+    "notTriggeredR": 4
+  },
+  "acceptedUnits": 22,
+  "snapshots": 99,
+  "legalSnapshots": 82,
+  "externalEvidence": "/Users/yosomi/.codex/evidence/issue-1503-20261030",
+  "experiments": [
+    {
+      "phase": "base",
+      "exitCode": 1,
+      "elapsedSeconds": 5.064,
+      "sourceSha256": "0bb1f72c4198155a29a763ee17f7789af89cb2053ae38a466fbf722e29e289c5",
+      "spawns": 1,
+      "rustRequests": 164,
+      "testSha256": "76362330513907eab73adbeab5bdb7b228a9fc815b7a6ec4a873b93ccea3bdf6",
+      "manifestSha256": "14fc94d350f05eab6f281df9bc7489605ae6402685c6d617d19b13406261d437",
+      "unitResults": [
+        {
+          "id": "A1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E1",
+          "status": "FAIL",
+          "failures": [
+            "E1-2.nui source/lifecycle: AssertionError: expected 2 to be 3 // Object.is equality",
+            "E1-2.nui current diagnostic ownership: AssertionError: expected 2 to be 3 // Object.is equality",
+            "E1-3.nui source/lifecycle: AssertionError: expected 2 to be 4 // Object.is equality",
+            "E1-4.nui source/lifecycle: AssertionError: expected 3 to be 5 // Object.is equality"
+          ]
+        },
+        {
+          "id": "E2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "R1",
+          "status": "FAIL",
+          "failures": [
+            "R1-2.nui source/lifecycle: AssertionError: expected 2 to be 3 // Object.is equality",
+            "R1-2.nui current diagnostic ownership: AssertionError: expected 2 to be 3 // Object.is equality",
+            "R1-3.nui source/lifecycle: AssertionError: expected 2 to be 4 // Object.is equality"
+          ]
+        },
+        {
+          "id": "X1",
+          "status": "FAIL",
+          "failures": [
+            "X1-2.nui source/lifecycle: AssertionError: expected 2 to be 3 // Object.is equality",
+            "X1-2.nui current diagnostic ownership: AssertionError: expected 2 to be 3 // Object.is equality",
+            "X1-3.nui source/lifecycle: AssertionError: expected 1 to be 3 // Object.is equality",
+            "X1-3.nui current diagnostic ownership: AssertionError: expected 1 to be 3 // Object.is equality",
+            "X1-4.nui source/lifecycle: AssertionError: expected 2 to be 4 // Object.is equality",
+            "X1-5.nui source/lifecycle: AssertionError: expected 3 to be 5 // Object.is equality"
+          ]
+        },
+        {
+          "id": "X2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X3",
+          "status": "FAIL",
+          "failures": [
+            "X3-2.nui new declaration identity changed: Added freePoint-mvui1rxq-721 -> freePoint-mvui1rxu-729",
+            "X3-3.nui new declaration identity changed: Added freePoint-mvui1rxu-729 -> freePoint-mvui1rxy-737"
+          ]
+        },
+        {
+          "id": "R2",
+          "status": "FAIL",
+          "failures": [
+            "R2-2.nui new declaration identity changed: Added freePoint-mvui1ryz-759 -> freePoint-mvui1rz1-763",
+            "R2-3.nui new declaration identity changed: Added freePoint-mvui1rz1-763 -> freePoint-mvui1rz2-767"
+          ]
+        },
+        {
+          "id": "X4",
+          "status": "FAIL",
+          "failures": [
+            "X4-2.nui new declaration identity changed: Added statement:moduleDefinition:mvui1rzb:414 -> statement:moduleDefinition:mvui1rzg:427",
+            "X4-2.nui new declaration identity changed: Added::size statement:typedDeclaration:mvui1rzb:415 -> statement:typedDeclaration:mvui1rzg:428",
+            "X4-2.nui new declaration identity changed: Added::P freePoint-mvui1rzb-774 -> freePoint-mvui1rzg-781",
+            "X4-2.nui new declaration identity changed: First statement:moduleInstance:mvui1rzb:416 -> statement:moduleInstance:mvui1rzg:429",
+            "X4-2.nui new declaration identity changed: Second statement:moduleInstance:mvui1rzb:417 -> statement:moduleInstance:mvui1rzg:430",
+            "X4-2.nui new declaration identity changed: Read freePoint-mvui1rzb-775 -> freePoint-mvui1rzg-782",
+            "X4-3.nui new declaration identity changed: Added statement:moduleDefinition:mvui1rzg:427 -> statement:moduleDefinition:mvui1rzl:440",
+            "X4-3.nui new declaration identity changed: Added::size statement:typedDeclaration:mvui1rzg:428 -> statement:typedDeclaration:mvui1rzl:441",
+            "X4-3.nui new declaration identity changed: Added::P freePoint-mvui1rzg-781 -> freePoint-mvui1rzl-788",
+            "X4-3.nui new declaration identity changed: First statement:moduleInstance:mvui1rzg:429 -> statement:moduleInstance:mvui1rzl:442",
+            "X4-3.nui new declaration identity changed: Second statement:moduleInstance:mvui1rzg:430 -> statement:moduleInstance:mvui1rzl:443",
+            "X4-3.nui new declaration identity changed: Read freePoint-mvui1rzg-782 -> freePoint-mvui1rzl-789"
+          ]
+        }
+      ],
+      "testSummary": "7 \u23af\u23af\u23af\u23af\u23af\u23af\u23af"
+    },
+    {
+      "phase": "remove-revision-only",
+      "exitCode": 1,
+      "elapsedSeconds": 5.068,
+      "sourceSha256": "c3930a0fa433cafa8c5b09699089430983b5057fca6b73d51303f521c803bb74",
+      "spawns": 1,
+      "rustRequests": 164,
+      "testSha256": "76362330513907eab73adbeab5bdb7b228a9fc815b7a6ec4a873b93ccea3bdf6",
+      "manifestSha256": "14fc94d350f05eab6f281df9bc7489605ae6402685c6d617d19b13406261d437",
+      "unitResults": [
+        {
+          "id": "A1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E1",
+          "status": "FAIL",
+          "failures": [
+            "E1-2.nui source/lifecycle: AssertionError: expected 2 to be 3 // Object.is equality",
+            "E1-2.nui current diagnostic ownership: AssertionError: expected 2 to be 3 // Object.is equality",
+            "E1-3.nui source/lifecycle: AssertionError: expected 2 to be 4 // Object.is equality",
+            "E1-4.nui source/lifecycle: AssertionError: expected 3 to be 5 // Object.is equality"
+          ]
+        },
+        {
+          "id": "E2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "R1",
+          "status": "FAIL",
+          "failures": [
+            "R1-2.nui source/lifecycle: AssertionError: expected 2 to be 3 // Object.is equality",
+            "R1-2.nui current diagnostic ownership: AssertionError: expected 2 to be 3 // Object.is equality",
+            "R1-3.nui source/lifecycle: AssertionError: expected 2 to be 4 // Object.is equality"
+          ]
+        },
+        {
+          "id": "X1",
+          "status": "FAIL",
+          "failures": [
+            "X1-2.nui source/lifecycle: AssertionError: expected 2 to be 3 // Object.is equality",
+            "X1-2.nui current diagnostic ownership: AssertionError: expected 2 to be 3 // Object.is equality",
+            "X1-3.nui source/lifecycle: AssertionError: expected 1 to be 3 // Object.is equality",
+            "X1-3.nui current diagnostic ownership: AssertionError: expected 1 to be 3 // Object.is equality",
+            "X1-4.nui source/lifecycle: AssertionError: expected 2 to be 4 // Object.is equality",
+            "X1-5.nui source/lifecycle: AssertionError: expected 3 to be 5 // Object.is equality"
+          ]
+        },
+        {
+          "id": "X2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X4",
+          "status": "PASS",
+          "failures": []
+        }
+      ],
+      "testSummary": "4 \u23af\u23af\u23af\u23af\u23af\u23af\u23af"
+    },
+    {
+      "phase": "remove-recovery-only",
+      "exitCode": 1,
+      "elapsedSeconds": 5.204,
+      "sourceSha256": "f495a1b7e66a1277e5b40be5b33120ba7108df990f6e1afa3bc0a84606fc4942",
+      "spawns": 1,
+      "rustRequests": 164,
+      "testSha256": "76362330513907eab73adbeab5bdb7b228a9fc815b7a6ec4a873b93ccea3bdf6",
+      "manifestSha256": "14fc94d350f05eab6f281df9bc7489605ae6402685c6d617d19b13406261d437",
+      "unitResults": [
+        {
+          "id": "A1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X3",
+          "status": "FAIL",
+          "failures": [
+            "X3-2.nui new declaration identity changed: Added freePoint-mvui1zu3-721 -> freePoint-mvui1zu7-729",
+            "X3-3.nui new declaration identity changed: Added freePoint-mvui1zu7-729 -> freePoint-mvui1zub-737"
+          ]
+        },
+        {
+          "id": "R2",
+          "status": "FAIL",
+          "failures": [
+            "R2-2.nui new declaration identity changed: Added freePoint-mvui1zvf-759 -> freePoint-mvui1zvh-763",
+            "R2-3.nui new declaration identity changed: Added freePoint-mvui1zvh-763 -> freePoint-mvui1zvj-767"
+          ]
+        },
+        {
+          "id": "X4",
+          "status": "FAIL",
+          "failures": [
+            "X4-2.nui new declaration identity changed: Added statement:moduleDefinition:mvui1zvr:414 -> statement:moduleDefinition:mvui1zvx:427",
+            "X4-2.nui new declaration identity changed: Added::size statement:typedDeclaration:mvui1zvr:415 -> statement:typedDeclaration:mvui1zvx:428",
+            "X4-2.nui new declaration identity changed: Added::P freePoint-mvui1zvr-774 -> freePoint-mvui1zvx-781",
+            "X4-2.nui new declaration identity changed: First statement:moduleInstance:mvui1zvr:416 -> statement:moduleInstance:mvui1zvx:429",
+            "X4-2.nui new declaration identity changed: Second statement:moduleInstance:mvui1zvr:417 -> statement:moduleInstance:mvui1zvx:430",
+            "X4-2.nui new declaration identity changed: Read freePoint-mvui1zvr-775 -> freePoint-mvui1zvx-782",
+            "X4-3.nui new declaration identity changed: Added statement:moduleDefinition:mvui1zvx:427 -> statement:moduleDefinition:mvui1zw3:440",
+            "X4-3.nui new declaration identity changed: Added::size statement:typedDeclaration:mvui1zvx:428 -> statement:typedDeclaration:mvui1zw3:441",
+            "X4-3.nui new declaration identity changed: Added::P freePoint-mvui1zvx-781 -> freePoint-mvui1zw3-788",
+            "X4-3.nui new declaration identity changed: First statement:moduleInstance:mvui1zvx:429 -> statement:moduleInstance:mvui1zw3:442",
+            "X4-3.nui new declaration identity changed: Second statement:moduleInstance:mvui1zvx:430 -> statement:moduleInstance:mvui1zw3:443",
+            "X4-3.nui new declaration identity changed: Read freePoint-mvui1zvx-782 -> freePoint-mvui1zw3-789"
+          ]
+        }
+      ],
+      "testSummary": "3 \u23af\u23af\u23af\u23af\u23af\u23af\u23af"
+    },
+    {
+      "phase": "restored",
+      "exitCode": 0,
+      "elapsedSeconds": 4.97,
+      "sourceSha256": "b3a46e3ee85b05cb68eb3a51035f446454a2d4289e3b0cbb8c2f661b31ac30d3",
+      "spawns": 1,
+      "rustRequests": 164,
+      "testSha256": "76362330513907eab73adbeab5bdb7b228a9fc815b7a6ec4a873b93ccea3bdf6",
+      "manifestSha256": "14fc94d350f05eab6f281df9bc7489605ae6402685c6d617d19b13406261d437",
+      "unitResults": [
+        {
+          "id": "A1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "A4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "E4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "G4",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X1",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X3",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failures": []
+        },
+        {
+          "id": "X4",
+          "status": "PASS",
+          "failures": []
+        }
+      ],
+      "testSummary": "29 passed (29)"
+    }
+  ]
+}

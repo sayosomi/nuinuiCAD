@@ -1,0 +1,18 @@
+nui 1
+module Outer(x: number) {
+  module Inner(w: number) {
+    const delta: number = 4
+    export const size: number = @w + @delta
+    export point P = coordinate(x: @size, y: -5)
+    export line L = segment(start: (0, -5), end: @P)
+  }
+  instance Part = Inner(w: @x)
+  export const size: number = @Part::size
+  export const tip: point = @Part::P
+  export const edge: line = @Part::L
+}
+instance Left = Outer(x: 23)
+instance Right = Outer(x: 57)
+point Read = coordinate(x: @Left::size, y: @Right::tip.x)
+line Use = segment(start: @Left::tip, end: @Right::tip)
+line Control = segment(start: (201, -103), end: (238, -103))

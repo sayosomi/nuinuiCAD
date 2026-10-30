@@ -1,0 +1,346 @@
+{
+  "id": "G2",
+  "purpose": "Bezier handle and consistent split input edits",
+  "oracle": "Symmetric cubic P0=(0,0),P1=(0,h),P2=(100,h),P3=(100,0); t=.5 cut=(50,.75h); de Casteljau exact controls; Simpson32768 length tolerance=.002mm. Six split endpoint metadata from independent endpoint/control vectors; corrected construction endAngle=270 produces end-to-control angle90; original invalid-on-curve assumption and frozen evidence retained in G2-original-seal.json and G2-*.nui",
+  "stable": [
+    "handle",
+    "Source",
+    "Cut",
+    "Far",
+    "Control"
+  ],
+  "checkpoints": [
+    {
+      "file": "G2-v2-0.nui",
+      "sha256": "37c368dbfb7df909c446ff866c1c867b2d55722aae9cc24605821b52debc81b0",
+      "edit": "initial",
+      "expected": {
+        "Control": {
+          "start": {
+            "x": 201,
+            "y": -103
+          },
+          "end": {
+            "x": 238,
+            "y": -103
+          },
+          "length": 37
+        },
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0,
+                "y": 20.0
+              },
+              "control2": {
+                "x": 25,
+                "y": 30.0
+              },
+              "end": {
+                "x": 50,
+                "y": 30.0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 180.0,
+          "startHandleAngleDeg": 90.0,
+          "endHandleAngleDeg": 180.0,
+          "startHandleLength": 20.0,
+          "endHandleLength": 25.0,
+          "length": 64.39639985059007
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 50,
+                "y": 30.0
+              },
+              "control1": {
+                "x": 75,
+                "y": 30.0
+              },
+              "control2": {
+                "x": 100,
+                "y": 20.0
+              },
+              "end": {
+                "x": 100,
+                "y": 0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 0.0,
+          "endTangentAngleDeg": 90.0,
+          "startHandleAngleDeg": 0.0,
+          "endHandleAngleDeg": 90.0,
+          "startHandleLength": 25.0,
+          "endHandleLength": 20.0,
+          "length": 64.39639985059016
+        },
+        "Cut": {
+          "x": 50,
+          "y": 30.0
+        }
+      },
+      "invalid": null
+    },
+    {
+      "file": "G2-v2-1.nui",
+      "sha256": "1ff665da0af485dd2294b785ce0c110c16ffed51b5669996c1b087fef6ab715b",
+      "edit": "handle40 ->64 and on-curve cut",
+      "expected": {
+        "Control": {
+          "start": {
+            "x": 201,
+            "y": -103
+          },
+          "end": {
+            "x": 238,
+            "y": -103
+          },
+          "length": 37
+        },
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0,
+                "y": 32.0
+              },
+              "control2": {
+                "x": 25,
+                "y": 48.0
+              },
+              "end": {
+                "x": 50,
+                "y": 48.0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 180.0,
+          "startHandleAngleDeg": 90.0,
+          "endHandleAngleDeg": 180.0,
+          "startHandleLength": 32.0,
+          "endHandleLength": 25.0,
+          "length": 77.7165451311411
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 50,
+                "y": 48.0
+              },
+              "control1": {
+                "x": 75,
+                "y": 48.0
+              },
+              "control2": {
+                "x": 100,
+                "y": 32.0
+              },
+              "end": {
+                "x": 100,
+                "y": 0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 0.0,
+          "endTangentAngleDeg": 90.0,
+          "startHandleAngleDeg": 0.0,
+          "endHandleAngleDeg": 90.0,
+          "startHandleLength": 25.0,
+          "endHandleLength": 32.0,
+          "length": 77.71654513114082
+        },
+        "Cut": {
+          "x": 50,
+          "y": 48.0
+        }
+      },
+      "invalid": null
+    },
+    {
+      "file": "G2-v2-2.nui",
+      "sha256": "15b6b9d037f4fd00ff6fe137a5d7f6cfbdb99887ebfa0306528d94d2236d2f32",
+      "edit": "handle ->24 and cut",
+      "expected": {
+        "Control": {
+          "start": {
+            "x": 201,
+            "y": -103
+          },
+          "end": {
+            "x": 238,
+            "y": -103
+          },
+          "length": 37
+        },
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0,
+                "y": 12.0
+              },
+              "control2": {
+                "x": 25,
+                "y": 18.0
+              },
+              "end": {
+                "x": 50,
+                "y": 18.0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 180.0,
+          "startHandleAngleDeg": 90.0,
+          "endHandleAngleDeg": 180.0,
+          "startHandleLength": 12.0,
+          "endHandleLength": 25.0,
+          "length": 56.7993541455302
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 50,
+                "y": 18.0
+              },
+              "control1": {
+                "x": 75,
+                "y": 18.0
+              },
+              "control2": {
+                "x": 100,
+                "y": 12.0
+              },
+              "end": {
+                "x": 100,
+                "y": 0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 0.0,
+          "endTangentAngleDeg": 90.0,
+          "startHandleAngleDeg": 0.0,
+          "endHandleAngleDeg": 90.0,
+          "startHandleLength": 25.0,
+          "endHandleLength": 12.0,
+          "length": 56.79935414553007
+        },
+        "Cut": {
+          "x": 50,
+          "y": 18.0
+        }
+      },
+      "invalid": null
+    },
+    {
+      "file": "G2-v2-3.nui",
+      "sha256": "37c368dbfb7df909c446ff866c1c867b2d55722aae9cc24605821b52debc81b0",
+      "edit": "restore",
+      "expected": {
+        "Control": {
+          "start": {
+            "x": 201,
+            "y": -103
+          },
+          "end": {
+            "x": 238,
+            "y": -103
+          },
+          "length": 37
+        },
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0,
+                "y": 20.0
+              },
+              "control2": {
+                "x": 25,
+                "y": 30.0
+              },
+              "end": {
+                "x": 50,
+                "y": 30.0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 180.0,
+          "startHandleAngleDeg": 90.0,
+          "endHandleAngleDeg": 180.0,
+          "startHandleLength": 20.0,
+          "endHandleLength": 25.0,
+          "length": 64.39639985059007
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 50,
+                "y": 30.0
+              },
+              "control1": {
+                "x": 75,
+                "y": 30.0
+              },
+              "control2": {
+                "x": 100,
+                "y": 20.0
+              },
+              "end": {
+                "x": 100,
+                "y": 0
+              }
+            }
+          ],
+          "startTangentAngleDeg": 0.0,
+          "endTangentAngleDeg": 90.0,
+          "startHandleAngleDeg": 0.0,
+          "endHandleAngleDeg": 90.0,
+          "startHandleLength": 25.0,
+          "endHandleLength": 20.0,
+          "length": 64.39639985059016
+        },
+        "Cut": {
+          "x": 50,
+          "y": 30.0
+        }
+      },
+      "invalid": null
+    }
+  ]
+}

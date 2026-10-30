@@ -1,0 +1,10 @@
+nui 1
+const width: number = 55
+line Source = segment(start: (0, 0), end: (@width, 0))
+move Source as shifted(from: (0, 0), to: (10, 5), scale: 2, angleDeg: 90, mirrorX: false)
+move Source as later(from: (0, 0), to: (3, 4), scale: 1, angleDeg: 0, mirrorX: false)
+path Selected = from(source: @Source.shifted)
+const measured: number = @Source.shifted.length
+const endpoint: number = @Selected.endPoint.y
+point Read = coordinate(x: @measured, y: @endpoint)
+line Control = segment(start: (201, -103), end: (238, -103))

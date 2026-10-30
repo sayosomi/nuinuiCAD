@@ -1,0 +1,6 @@
+nui 1
+const handle: number = 64
+curve Source = bezier(start: (0, 0), end: (100, 0), startAngle: 90, startLength: @handle, endAngle: 90, endLength: @handle)
+point Cut = coordinate(x: 50, y: @handle * 0.75)
+line Far = split(source: @Source, at: @Cut)
+line Control = segment(start: (201, -103), end: (238, -103))

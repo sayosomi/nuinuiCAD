@@ -94,7 +94,14 @@ export const compileCanonicalText = (
   options: { createdElementIds?: readonly ElementId[] } = {}
 ): TextCompileResult => {
   const sourceText = normalizedText(nextText);
-  const revision = current.sourceText === sourceText ? current.doc.statementMap.sourceRevision : current.doc.statementMap.sourceRevision + 1;
+  // A fatal attempt retains the last-good document, whose revision no longer
+  // describes current.sourceText. Reuse the existing exact-current compiler
+  // product (AutomationDocument) or its host projection (CadDocumentStore).
+  const currentRevision = (current as Partial<TextCompileResult>).currentCompiled?.spans.sourceMap.sourceRevision
+    ?? ("currentSourceRevision" in current && typeof current.currentSourceRevision === "number"
+      ? current.currentSourceRevision
+      : current.doc.statementMap.sourceRevision);
+  const revision = currentRevision + (current.sourceText === sourceText ? 0 : 1);
   const normalizedSource = sourceText.replace(/\r\n/g, "\n");
   const parsed = parseDslSnapshot({ normalizedSource, sourceRevision: revision });
   const createdElementIds = [...(options.createdElementIds ?? [])];
@@ -109,6 +116,29 @@ export const compileCanonicalText = (
   }, {
     createId: (type) => createdElementIds.shift() ?? createCadElementId(type)
   });
+  if (reconciliationBase !== current.doc) {
+    // The error-free base recovers temporarily missing declarations, but has
+    // never seen declarations first introduced during an errorful revision.
+    // For additions relative to that base, preserve any unclaimed identity
+    // inherited by the same reconciler from the live compiled document.
+    const live = reconcileStatements({
+      oldStatements: current.doc.statements,
+      oldLines: current.doc.sourceLines,
+      oldElementIds: current.doc.statementMap.elementIdByStatementIndex,
+      oldStatementIds: current.doc.statementMap.statementIdByStatementIndex,
+      newStatements: parsed.statements,
+      newLines: compileLines(sourceText)
+    });
+    const liveIds = new Set(current.doc.statementMap.statementIdByStatementIndex.values());
+    const claimedIds = new Set(reconciled.assignedIds.values());
+    for (const [index, id] of live.assignedIds) {
+      if (!reconciled.createdIds.has(index) || !liveIds.has(id) || claimedIds.has(id)) continue;
+      claimedIds.delete(reconciled.assignedIds.get(index)!);
+      reconciled.assignedIds.set(index, id);
+      reconciled.createdIds.delete(index);
+      claimedIds.add(id);
+    }
+  }
   const compiled = compileDslDocument(sourceText, {
     assignedElementIds: reconciled.assignedIds,
     assignedStatementIds: reconciled.assignedIds,

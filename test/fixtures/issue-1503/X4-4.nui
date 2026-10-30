@@ -1,0 +1,10 @@
+nui 1
+const n: number = 5
+line Control = segment(start: (201, -103), end: (238, -103))
+module Added(width: number) {
+  export const size: number = @width * 2
+  export point P = coordinate(x: @size, y: -7)
+}
+instance First = Added(width: 17)
+instance Second = Added(width: 31)
+point Read = coordinate(x: @First::size, y: @Second::size)

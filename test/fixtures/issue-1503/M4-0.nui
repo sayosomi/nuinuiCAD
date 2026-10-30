@@ -1,0 +1,15 @@
+nui 1
+const width: number = 101
+module Box(width: number) {
+  export const alias: number = @width
+  group Local {
+    point Tip = coordinate(x: @width, y: @width)
+    const width: number = 13
+    
+  }
+  export point P = coordinate(x: @alias, y: 0)
+}
+instance First = Box(width: 19)
+instance Second = Box(width: 47)
+point Read = coordinate(x: @First::alias, y: @Second::alias)
+line Control = segment(start: (201, -103), end: (238, -103))
