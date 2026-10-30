@@ -1,0 +1,177 @@
+{
+  "reason": "Direct segment(start: @pt) reports undefined-geometry-reference in existing legacy construction reference path. Use current typed member coordinate reads instead, preserving identical independent point/line oracle. Not a new language feature.",
+  "checkpoints": [
+    {
+      "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nstyle Detail {\n width: 2px,\n color: #123456,\n for @Cut {\n  visible: false,\n }\n}\nconst points: point[] = [(2, 5)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n for pt in @mapped {\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: @pt, end: (41, 29))\n }\n line Selected [Red] = segment(start: @mapped[0], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "4f52eb612d8fe34cbb89e8d1e9c36980b5d7ff5bb691aa76cdb7f67e915f0903",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "line": 12,
+          "column": 7,
+          "code": "unused-drawing-style",
+          "message": "Style「Detail」はどこからも使用されていません。",
+          "presentation": {
+            "key": "diagnostic.unused-drawing-style",
+            "parameters": {
+              "name": "Detail"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 126,
+                "to": 132
+              }
+            ],
+            "sourceRevision": 1
+          }
+        },
+        {
+          "severity": "warning",
+          "line": 25,
+          "column": 1,
+          "code": "undefined-geometry-reference",
+          "message": "参照先が見つかりません: @pt",
+          "presentation": {
+            "key": "diagnostic.undefined-geometry-reference",
+            "parameters": {
+              "reference": "@pt"
+            }
+          },
+          "exactSpanOnly": true
+        }
+      ]
+    },
+    {
+      "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nstyle Detail {\n width: 2px,\n color: #123456,\n for @Cut {\n  visible: false,\n }\n}\nconst points: point[] = [(2, 5), (13, -4), (2, 5)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n for pt in @mapped {\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: @pt, end: (41, 29))\n }\n line Selected [Red] = segment(start: @mapped[1], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "d66b5d2af67f554b72a2a47ad1a343244d37212963e6bb05d60a01695d86ed48",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "line": 12,
+          "column": 7,
+          "code": "unused-drawing-style",
+          "message": "Style「Detail」はどこからも使用されていません。",
+          "presentation": {
+            "key": "diagnostic.unused-drawing-style",
+            "parameters": {
+              "name": "Detail"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 126,
+                "to": 132
+              }
+            ],
+            "sourceRevision": 1
+          }
+        },
+        {
+          "severity": "warning",
+          "line": 25,
+          "column": 1,
+          "code": "undefined-geometry-reference",
+          "message": "参照先が見つかりません: @pt",
+          "presentation": {
+            "key": "diagnostic.undefined-geometry-reference",
+            "parameters": {
+              "reference": "@pt"
+            }
+          },
+          "exactSpanOnly": true
+        }
+      ]
+    },
+    {
+      "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nstyle Detail {\n width: 2px,\n color: #123456,\n for @Cut {\n  visible: false,\n }\n}\nconst points: point[] = [(13, -4), (7, 9)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n for pt in @mapped {\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: @pt, end: (41, 29))\n }\n line Selected [Red] = segment(start: @mapped[1], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "35ee40fc01f910161bc5ddac15e12306ae510e36df9121311e14f698472dfd60",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "line": 12,
+          "column": 7,
+          "code": "unused-drawing-style",
+          "message": "Style「Detail」はどこからも使用されていません。",
+          "presentation": {
+            "key": "diagnostic.unused-drawing-style",
+            "parameters": {
+              "name": "Detail"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 126,
+                "to": 132
+              }
+            ],
+            "sourceRevision": 1
+          }
+        },
+        {
+          "severity": "warning",
+          "line": 25,
+          "column": 1,
+          "code": "undefined-geometry-reference",
+          "message": "参照先が見つかりません: @pt",
+          "presentation": {
+            "key": "diagnostic.undefined-geometry-reference",
+            "parameters": {
+              "reference": "@pt"
+            }
+          },
+          "exactSpanOnly": true
+        }
+      ]
+    },
+    {
+      "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nstyle Detail {\n width: 2px,\n color: #123456,\n for @Cut {\n  visible: false,\n }\n}\nconst points: point[] = [(2, 5)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n for pt in @mapped {\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: @pt, end: (41, 29))\n }\n line Selected [Red] = segment(start: @mapped[0], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+      "sha256": "4f52eb612d8fe34cbb89e8d1e9c36980b5d7ff5bb691aa76cdb7f67e915f0903",
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "line": 12,
+          "column": 7,
+          "code": "unused-drawing-style",
+          "message": "Style「Detail」はどこからも使用されていません。",
+          "presentation": {
+            "key": "diagnostic.unused-drawing-style",
+            "parameters": {
+              "name": "Detail"
+            }
+          },
+          "exactSpanOnly": true,
+          "physicalSpan": {
+            "segments": [
+              {
+                "from": 126,
+                "to": 132
+              }
+            ],
+            "sourceRevision": 1
+          }
+        },
+        {
+          "severity": "warning",
+          "line": 25,
+          "column": 1,
+          "code": "undefined-geometry-reference",
+          "message": "参照先が見つかりません: @pt",
+          "presentation": {
+            "key": "diagnostic.undefined-geometry-reference",
+            "parameters": {
+              "reference": "@pt"
+            }
+          },
+          "exactSpanOnly": true
+        }
+      ]
+    }
+  ]
+}

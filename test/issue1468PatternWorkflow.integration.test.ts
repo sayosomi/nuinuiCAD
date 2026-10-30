@@ -2,7 +2,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDslSemanticOccurrenceIndex, planDslRenameEditsResult, queryDslSourceValueStep } from "@nuinuicad/nui-language";
@@ -53,7 +53,7 @@ const transport: RustEvaluationTransport = async input => {
 beforeAll(() => {
   execFileSync("cargo", ["build", "--quiet", "--manifest-path", "rust-evaluator/Cargo.toml", "--bin", "evaluation_stdio"], { timeout: 120000, stdio: "inherit" });
   directory = mkdtempSync(join(tmpdir(), "nuinui-1468-"));
-  rust = new RustEvaluationProcess("rust-evaluator/target/debug/evaluation_stdio", {
+  rust = new RustEvaluationProcess(resolve(process.env.CARGO_TARGET_DIR ?? "rust-evaluator/target", "debug", "evaluation_stdio"), {
     spawnProcess: ((...args: Parameters<typeof spawn>) => {
       spawns++;
       const child = spawn(...args);
