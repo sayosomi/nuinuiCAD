@@ -555,6 +555,29 @@ fn bezier_length(segment: &Value) -> f64 {
     approximate_segment_length(segment, 32).unwrap_or(0.0)
 }
 
+fn refresh_split_bezier_measurements(curve: &mut Value) -> Option<()> {
+    let segments = curve.get("segments")?.as_array()?;
+    let first = segments.first()?;
+    let last = segments.last()?;
+    let start = value_point(first.get("start")?)?;
+    let control1 = value_point(first.get("control1")?)?;
+    let control2 = value_point(last.get("control2")?)?;
+    let end = value_point(last.get("end")?)?;
+    let start_angle = angle_from_to(start, control1);
+    let end_angle = angle_from_to(control2, end);
+    if !start_angle.is_null() {
+        curve["startHandleAngleDeg"] = start_angle.clone();
+        curve["startTangentAngleDeg"] = start_angle;
+    }
+    if let Some(angle) = end_angle.as_f64() {
+        curve["endHandleAngleDeg"] = json!(angle);
+        curve["endTangentAngleDeg"] = json!(normalize_degrees(angle + 180.0));
+    }
+    curve["startHandleLength"] = json!(distance(start, control1));
+    curve["endHandleLength"] = json!(distance(control2, end));
+    Some(())
+}
+
 fn split_bezier_curve_geometry(
     curve: &Value,
     split_point: &ComputedPoint,
@@ -673,6 +696,11 @@ fn split_bezier_curve_geometry(
         .map(bezier_length)
         .sum::<f64>());
 
+    if refresh_split_bezier_measurements(&mut near).is_none()
+        || refresh_split_bezier_measurements(&mut far).is_none()
+    {
+        return SplitGeometryResult::NotOnLine;
+    }
     SplitGeometryResult::Split(SplitResult { near, far })
 }
 

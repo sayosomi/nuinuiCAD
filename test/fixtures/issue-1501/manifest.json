@@ -168,7 +168,9 @@
             "x": 32,
             "y": 34
           },
-          "length": 61.0
+          "length": 61.0,
+          "startTangentAngleDeg": 0.0,
+          "endTangentAngleDeg": 270.0
         },
         "Far": {
           "kind": "polyline",
@@ -204,7 +206,9 @@
             "x": 92,
             "y": 83
           },
-          "length": 109.0
+          "length": 109.0,
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 180.0
         },
         "Reversed": {
           "kind": "polyline",
@@ -240,7 +244,9 @@
             "x": 32,
             "y": 34
           },
-          "length": 109.0
+          "length": 109.0,
+          "startTangentAngleDeg": 180.0,
+          "endTangentAngleDeg": 90.0
         },
         "BackFar": {
           "kind": "polyline",
@@ -276,7 +282,9 @@
             "x": 2,
             "y": 3
           },
-          "length": 61.0
+          "length": 61.0,
+          "startTangentAngleDeg": 270.0,
+          "endTangentAngleDeg": 0.0
         },
         "Cut": {
           "x": 32,
@@ -805,6 +813,12 @@
             }
           ],
           "length": 66.3641955865752,
+          "startTangentAngleDeg": 76.56181184164936,
+          "endTangentAngleDeg": 155.5206521811917,
+          "startHandleAngleDeg": 76.56181184164936,
+          "startHandleLength": 43.10311146541512,
+          "endHandleAngleDeg": 335.5206521811917,
+          "endHandleLength": 18.150867483197676,
           "lengthTolerance": 0.01570463325197718
         },
         "Far": {
@@ -830,6 +844,12 @@
             }
           ],
           "length": 115.93788529953969,
+          "startTangentAngleDeg": 335.5206521811917,
+          "endTangentAngleDeg": 236.3099324740202,
+          "startHandleAngleDeg": 335.5206521811917,
+          "startHandleLength": 30.77330363054267,
+          "endHandleAngleDeg": 56.309932474020215,
+          "endHandleLength": 63.50096906347178,
           "lengthTolerance": 0.03994202445136946
         },
         "Cut": {
@@ -908,6 +928,12 @@
             }
           ],
           "length": 182.30208088611437,
+          "startTangentAngleDeg": 76.56181184164936,
+          "endTangentAngleDeg": 236.30993247402023,
+          "startHandleAngleDeg": 76.56181184164936,
+          "startHandleLength": 116.18089343777659,
+          "endHandleAngleDeg": 56.309932474020215,
+          "endHandleLength": 100.9554357129917,
           "lengthTolerance": 0.2151454204221525
         }
       },
@@ -946,6 +972,12 @@
             }
           ],
           "length": 107.36506321829233,
+          "startTangentAngleDeg": 87.69403327600499,
+          "endTangentAngleDeg": 144.1458533412992,
+          "startHandleAngleDeg": 87.69403327600499,
+          "startHandleLength": 65.1657705624663,
+          "endHandleAngleDeg": 324.1458533412992,
+          "endHandleLength": 43.24842668793211,
           "lengthTolerance": 0.04484041186517257
         },
         "Far": {
@@ -971,6 +1003,12 @@
             }
           ],
           "length": 152.99391828121372,
+          "startTangentAngleDeg": 324.1458533412992,
+          "endTangentAngleDeg": 262.03038960567864,
+          "startHandleAngleDeg": 324.1458533412992,
+          "startHandleLength": 55.71822477186678,
+          "endHandleAngleDeg": 82.03038960567864,
+          "endHandleLength": 85.27359397257747,
           "lengthTolerance": 0.07184238190345721
         },
         "Cut": {
@@ -1059,6 +1097,12 @@
             }
           ],
           "length": 260.35898149950367,
+          "startTangentAngleDeg": 87.69403327600499,
+          "endTangentAngleDeg": 262.03038960567864,
+          "startHandleAngleDeg": 87.69403327600499,
+          "startHandleLength": 149.12075643584967,
+          "endHandleAngleDeg": 82.03038960567865,
+          "endHandleLength": 151.46286673637206,
           "lengthTolerance": 0.46162865359108335
         }
       },
@@ -1097,6 +1141,12 @@
             }
           ],
           "length": 115.93788529953952,
+          "startTangentAngleDeg": 236.3099324740202,
+          "endTangentAngleDeg": 335.5206521811917,
+          "startHandleAngleDeg": 236.3099324740202,
+          "startHandleLength": 63.50096906347178,
+          "endHandleAngleDeg": 155.5206521811917,
+          "endHandleLength": 30.773303630542678,
           "lengthTolerance": 0.03994202445136946
         },
         "Far": {
@@ -1122,6 +1172,12 @@
             }
           ],
           "length": 66.36419558657458,
+          "startTangentAngleDeg": 155.5206521811917,
+          "endTangentAngleDeg": 76.56181184164936,
+          "startHandleAngleDeg": 155.5206521811917,
+          "startHandleLength": 18.150867483197672,
+          "endHandleAngleDeg": 256.56181184164933,
+          "endHandleLength": 43.10311146541512,
           "lengthTolerance": 0.015704633252005603
         },
         "Cut": {
@@ -1200,6 +1256,12 @@
             }
           ],
           "length": 182.30208088611369,
+          "startTangentAngleDeg": 236.30993247402023,
+          "endTangentAngleDeg": 76.56181184164936,
+          "startHandleAngleDeg": 236.30993247402023,
+          "startHandleLength": 100.9554357129917,
+          "endHandleAngleDeg": 256.56181184164933,
+          "endHandleLength": 116.18089343777659,
           "lengthTolerance": 0.21514542042209567
         }
       },
@@ -1256,6 +1318,12 @@
             }
           ],
           "length": 118.50768048049423,
+          "startTangentAngleDeg": 66.03751102542182,
+          "endTangentAngleDeg": 138.92006974749822,
+          "startHandleAngleDeg": 66.03751102542182,
+          "startHandleLength": 49.24428900898052,
+          "endHandleAngleDeg": 318.9200697474982,
+          "endHandleLength": 14.769501521125102,
           "lengthTolerance": 0.020004793908376225
         },
         "Far": {
@@ -1281,6 +1349,12 @@
             }
           ],
           "length": 70.07918236029069,
+          "startTangentAngleDeg": 318.92006974749825,
+          "endTangentAngleDeg": 226.24536426676835,
+          "startHandleAngleDeg": 318.92006974749825,
+          "startHandleLength": 20.99200337264028,
+          "endHandleAngleDeg": 46.245364266768355,
+          "endHandleLength": 38.19561684277399,
           "lengthTolerance": 0.014662419657233524
         },
         "Cut": {
@@ -1803,12 +1877,148 @@
           "errors": {}
         }
       ]
+    },
+    {
+      "id": "R1",
+      "file": "R1.nui",
+      "sha256": "50c0802920e60e14ec94c73dcfa073d294bc9edda8e0ee6db8b0534e1efd9909",
+      "expected": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0.0,
+                "y": 20.0
+              },
+              "control2": {
+                "x": 20.0,
+                "y": 30.0
+              },
+              "end": {
+                "x": 40.0,
+                "y": 30.0
+              }
+            }
+          ],
+          "length": 55.7862770263657,
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 180.0,
+          "startHandleAngleDeg": 90.0,
+          "startHandleLength": 20.0,
+          "endHandleAngleDeg": 0.0,
+          "endHandleLength": 20.0,
+          "lengthTolerance": 0.011827792368314046
+        },
+        "Far": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 40.0,
+                "y": 30.0
+              },
+              "control1": {
+                "x": 60.0,
+                "y": 30.0
+              },
+              "control2": {
+                "x": 80.0,
+                "y": 20.0
+              },
+              "end": {
+                "x": 80,
+                "y": 0
+              }
+            }
+          ],
+          "length": 55.78627702636562,
+          "startTangentAngleDeg": 0.0,
+          "endTangentAngleDeg": 90.0,
+          "startHandleAngleDeg": 0.0,
+          "startHandleLength": 20.0,
+          "endHandleAngleDeg": 270.0,
+          "endHandleLength": 20.0,
+          "lengthTolerance": 0.01182779236830694
+        },
+        "Cut": {
+          "x": 40,
+          "y": 30
+        }
+      },
+      "evidence": {
+        "authored": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            40
+          ],
+          [
+            80,
+            40
+          ],
+          [
+            80,
+            0
+          ]
+        ],
+        "parameter": 0.5,
+        "nearEndTangent": 180,
+        "farStartTangent": 0,
+        "reason": "minimized B1 stale split endpoint metadata"
+      },
+      "input": {
+        "Source": {
+          "kind": "bezierCurve",
+          "segments": [
+            {
+              "start": {
+                "x": 0,
+                "y": 0
+              },
+              "control1": {
+                "x": 0,
+                "y": 40
+              },
+              "control2": {
+                "x": 80,
+                "y": 40
+              },
+              "end": {
+                "x": 80,
+                "y": 0
+              }
+            }
+          ],
+          "length": 111.57255405273078,
+          "startTangentAngleDeg": 90.0,
+          "endTangentAngleDeg": 90.0,
+          "startHandleAngleDeg": 90.0,
+          "startHandleLength": 40.0,
+          "endHandleAngleDeg": 270.0,
+          "endHandleLength": 40.0,
+          "lengthTolerance": 0.0946450594961365
+        }
+      },
+      "partitions": [
+        [
+          "Source",
+          "Far"
+        ]
+      ]
     }
   ],
   "budget": {
     "primary": 16,
     "X": 0,
-    "R": 0,
+    "R": 1,
     "maximum": 28,
     "unused": "NOT_TRIGGERED"
   },

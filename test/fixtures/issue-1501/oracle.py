@@ -82,6 +82,9 @@ def cubic(c):
 def curve(cs):
     parts = [cubic(c) for c in cs]
     return dict(kind='bezierCurve', segments=[p[0] for p in parts], length=sum(p[1] for p in parts),
+                startTangentAngleDeg=angle(cs[0][0],cs[0][1]), endTangentAngleDeg=angle(cs[-1][3],cs[-1][2]),
+                startHandleAngleDeg=angle(cs[0][0],cs[0][1]), startHandleLength=dist(cs[0][0],cs[0][1]),
+                endHandleAngleDeg=angle(cs[-1][2],cs[-1][3]), endHandleLength=dist(cs[-1][2],cs[-1][3]),
                 lengthTolerance=sum(p[2]['upper']-p[2]['lower'] for p in parts)+1e-7)
 
 
@@ -118,7 +121,7 @@ line Far = split(source: @Source, at: @StartRatio)''',
     dict(Source=line(a,q),Far=line(q,b),**{n:xy(q) for n in ['StartRatio','EndRatio','StartDistance','EndDistance']},Zero=xy(b),One=xy(a)),dict(authored=[a,b],length=120,parameter=.31), partitions=[['Source','Far']])
 ps=[(2,3),(32,3),(32,83),(92,83)]; q=(32,34)
 def poly(points):
-    return dict(kind='polyline', segments=[line(a,b) for a,b in zip(points,points[1:])], start=xy(points[0]),end=xy(points[-1]),length=sum(dist(a,b) for a,b in zip(points,points[1:])))
+    return dict(kind='polyline', segments=[line(a,b) for a,b in zip(points,points[1:])], start=xy(points[0]),end=xy(points[-1]),length=sum(dist(a,b) for a,b in zip(points,points[1:])),startTangentAngleDeg=angle(points[0],points[1]),endTangentAngleDeg=angle(points[-1],points[-2]))
 add('S3', f'''line Source = polyline(points: {ps}, closed: false)
 line Reversed = polyline(points: {list(reversed(ps))}, closed: false)
 point Cut = onLine(from: @Source.start, distance: 61)
@@ -243,9 +246,17 @@ u=add('P4',text,expected,dict(neighborhood='nui1-seam-allowance-copy: two source
 text,expected=panel(159)
 u['revisions']=[dict(**write_source('P4-edited',text),expected=expected,errors={})]
 
-assert len(units)==16
+# R1 reduces the independently confirmed stale endpoint-metadata failure to
+# one symmetric cubic, an exact dyadic split point, and one split declaration.
+rc=[(0,0),(0,40),(80,40),(80,0)]
+rl,rr=casteljau(rc,.5)
+add('R1',declaration(rc)+'\npoint Cut = coordinate(x: 40, y: 30)\nline Far = split(source: @Source, at: @Cut)',
+    dict(Source=curve([rl]),Far=curve([rr]),Cut=xy((40,30))),
+    dict(authored=rc,parameter=.5,nearEndTangent=180,farStartTangent=0,reason='minimized B1 stale split endpoint metadata'),
+    input={'Source':curve([rc])},partitions=[['Source','Far']])
+assert len(units)==17
 manifest=dict(base=BASE,coordinateTolerance=1e-6,lengthTolerance=1e-6,units=units,
-              budget=dict(primary=16,X=0,R=0,maximum=28,unused='NOT_TRIGGERED'),
+              budget=dict(primary=16,X=0,R=1,maximum=28,unused='NOT_TRIGGERED'),
               oracle='Euclidean lines; analytic directed arcs; Bernstein/de Casteljau and Simpson 8192/16384 with chord/control-polygon length bounds. No product execution or imports.')
 (ROOT/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
-print('Frozen',len(units),'primary units; no product execution')
+print('Frozen 16 primary + 1 R units; no product execution')

@@ -33,6 +33,7 @@ listeners are installed before requests/teardown; requests have 15s timeouts.
 | P2 | Pure/drawable station agreement and identity separation |
 | P3 | Independent Module instances, downstream far consumer, dimension revision |
 | P4 | Two-panel intersection → split → transform/offset chain and dimension revision |
+| R1 | Minimized symmetric cubic at exact t=.5; split endpoint metadata |
 
 P4 is a deliberately analytic neighborhood of
 `docs/module/manual-fixtures/nui1-seam-allowance-copy.nui`: asymmetric straight
@@ -65,15 +66,30 @@ Every case checks the unchanged 37 mm Control sibling, finite payloads,
 diagnostics, near/far drawable identities, topology, endpoints and lengths.
 Revisions preserve existing drawable IDs, including Module identities.
 Pure values have occurrence identity only. No new production semantics,
-architecture or parallel evaluator is introduced.
+architecture or parallel evaluator is introduced. Split Bezier endpoint metadata
+is recomputed from the resulting controls in the existing TS/Rust split owners.
 
 The initial harness overconstrained internal endpoint IDs and P1 fitter
 subdivision count. Those assertions were corrected without changing any
 numerical oracle or accepted source. A later generic cache assertion incorrectly
 used pre-transform geometry for B4; its already sealed reversed controls remain
 the oracle. Initial failed harness logs are retained as such, not product FAIL
-evidence. All 16 cases passed on unchanged production Base
-`0c82168872543bda24bbbf3faccd65f7619e67cc`.
-X1–X6 and R1–R6 are NOT_TRIGGERED. With no confirmed defect or production repair,
-repair-removal counterfactuals are not applicable. Verification records live in
-`verification/`; CLI checks do not establish GUI behavior or garment sewability.
+evidence. The initial shape-only PASS was superseded when endpoint metadata
+assertions exposed a real defect on unchanged production Base
+`0c82168872543bda24bbbf3faccd65f7619e67cc`: B1–B4 and minimized R1 fail in both
+hosts; the other 12 primary cases pass. Segment arrays were subdivided correctly,
+but their endpoint tangents and handle measurements were copied from the
+unsplit source. R1's controls are (0,0),(0,40),(80,40),(80,0), split exactly at
+(40,30). Correct near-end/far-start tangents are 180°/0°, and all four resulting
+endpoint handles are 20 mm; Base retains 90° tangent values and 40 mm handles.
+
+The existing split owners now refresh these fields from the resulting controls.
+The strengthened 17-unit matrix passes. Controlled removal of only these two
+production changes reproduces all five failures and preserves adjacent controls;
+restoration passes again. Native Rust coverage includes the exact R1 oracle.
+X1–X6 and R2–R6 are NOT_TRIGGERED: 16 primary + 1 R = 17/28 accepted units.
+Verification records live in `verification/`; CLI checks do not establish GUI
+behavior or garment sewability. Existing sampled Bezier stationing remains an
+approximation: B2's observed physical station errors are +0.117404311 mm from
+the start and -0.113299174 mm from the end, within the predeclared independent
+bound. Exact split coordinates/controls retain the 1e-6 mm tolerance.

@@ -133,6 +133,25 @@ function tangentVector(g: Geometry, end: boolean): XY | undefined {
   const a = end ? s.control2 : s.start!, b = end ? s.end! : s.control1;
   return { x: b.x - a.x, y: b.y - a.y };
 }
+function verifyPublishedTangents(actual: Geometry, sealed: Geometry): void {
+  if (actual.kind === "point") return;
+  for (const end of [false, true]) {
+    const primitive = sealed.segments?.[end ? sealed.segments.length - 1 : 0] ?? sealed;
+    const arc = primitive as Geometry & { radius?: number; startAngleDeg?: number; sweepAngleDeg?: number };
+    let expected: number;
+    if (arc.radius !== undefined) {
+      expected = arc.startAngleDeg! + (end ? arc.sweepAngleDeg! : 0) + Math.sign(arc.sweepAngleDeg!) * 90 + (end ? 180 : 0);
+    } else {
+      // A composite with only sealed overall endpoints has no independently
+      // specified endpoint primitive here; explicit field assertions cover it.
+      if (!sealed.segments && actual.kind !== "line") continue;
+      const from = end ? primitive.end! : primitive.start!;
+      const to = end ? primitive.control2 ?? primitive.start! : primitive.control1 ?? primitive.end!;
+      expected = Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
+    }
+    compare((actual as unknown as Expected)[end ? "endTangentAngleDeg" : "startTangentAngleDeg"], ((expected % 360) + 360) % 360, "independent published tangent AngleDeg");
+  }
+}
 
 describe("#1501 independently sealed split/onLine conformance", () => {
   it.each(units)("$id legal source -> persistent Rust and TS -> independent oracle", async unit => {
@@ -182,7 +201,10 @@ describe("#1501 independently sealed split/onLine conformance", () => {
           expect(result.geometryValueErrors ?? []).toEqual([]);
           expect(result.warnings).toEqual([]);
           compare(byName.Control, { start: { x: 201, y: -103 }, end: { x: 238, y: -103 }, length: 37 }, "unaffected sibling");
-          for (const [name, expected] of Object.entries(checkpoint.expected)) compare(byName[name], expected, `${host}.${name}`);
+          for (const [name, expected] of Object.entries(checkpoint.expected)) {
+            compare(byName[name], expected, `${host}.${name}`);
+            if (ids.has(name)) verifyPublishedTangents(byName[name], expected as Geometry);
+          }
           for (const name of checkpoint.pure ?? []) {
             expect(byName[name], name).toBeTruthy();
             expect(ids.has(name), name + " has occurrence identity only").toBe(false);
