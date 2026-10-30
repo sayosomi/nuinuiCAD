@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "base": "bdf29d636212caa486b443cb6187e814d31efac1",
- "coordinateTolerance": 1e-07,
+ "coordinateTolerance": 1e-7,
  "encodingTolerance": 0.00051,
  "oracleMethod": "Independent arithmetic and explicit affine quadrants, Euclidean length, endpoint extrema plus half physical width. No production outputs consumed.",
  "units": [
@@ -11498,6 +11498,4412 @@
    ]
   }
  ],
- "extensions": [],
- "reducers": []
+ "extensions": [
+  {
+   "id": "X1",
+   "oracleDerivation": "Confirmed compiler discrepancy: map v->3v-2 drives a visible range under direct if(@mapped.length>0). Same frozen C2 endpoints, ordered identities and physical expectations; typed-count C2 is the unaffected Base PASS.",
+   "checkpoints": [
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "3a1e4405e78643ab54dfbbd717abcaa97188199029193d512030e90dbb665829",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -6
+         },
+         "end": {
+          "x": 23,
+          "y": -2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -6
+        },
+        "end": {
+         "x": 23,
+         "y": -2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 23.264583333333334,
+       "maxY": -1.7354166666666666,
+       "width": 130.52916666666667,
+       "height": 29.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       136.52916666666667,
+       35.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [4, 9, 4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "aa063f52f1c2248af9c67d62c7913a8d3b97b5e8b79b9c9c1b1cbd2cecf02e2d",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -6
+         },
+         "end": {
+          "x": 23,
+          "y": -2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 50,
+          "y": -21
+         },
+         "end": {
+          "x": 53,
+          "y": -17
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          2
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -6
+         },
+         "end": {
+          "x": 23,
+          "y": -2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -6
+        },
+        "end": {
+         "x": 23,
+         "y": -2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 50,
+         "y": -21
+        },
+        "end": {
+         "x": 53,
+         "y": -17
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          2
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -6
+        },
+        "end": {
+         "x": 23,
+         "y": -2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 53.264583333333334,
+       "maxY": -1.7354166666666666,
+       "width": 160.52916666666667,
+       "height": 29.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       166.52916666666667,
+       35.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "2b8b6715e4b711d5f03daeeca9ee6633984b2cbb06c2b0b6305e93a152ef2b2e"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [9, 4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "338885cb95057db4fe1decdcc52115e507bf7dda949ea905a594ee10d5278245",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 50,
+          "y": -21
+         },
+         "end": {
+          "x": 53,
+          "y": -17
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -6
+         },
+         "end": {
+          "x": 23,
+          "y": -2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 50,
+         "y": -21
+        },
+        "end": {
+         "x": 53,
+         "y": -17
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -6
+        },
+        "end": {
+         "x": 23,
+         "y": -2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 53.264583333333334,
+       "maxY": -1.7354166666666666,
+       "width": 160.52916666666667,
+       "height": 29.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       166.52916666666667,
+       35.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "9d16bf2293acca1b8dd7523da5b1c0c4c9f8b0aa0211ff098c084dedf2885688"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [4]\nconst mapped: number[] = for value in @values { @value * 3 - 2 }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const item: number = @mapped[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "3a1e4405e78643ab54dfbbd717abcaa97188199029193d512030e90dbb665829",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -6
+         },
+         "end": {
+          "x": 23,
+          "y": -2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -6
+        },
+        "end": {
+         "x": 23,
+         "y": -2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 23.264583333333334,
+       "maxY": -1.7354166666666666,
+       "width": 130.52916666666667,
+       "height": 29.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       136.52916666666667,
+       35.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289"
+    }
+   ]
+  },
+  {
+   "id": "X2",
+   "oracleDerivation": "Adjacent collection metadata branch: direct if(@mapped.length>0) around C4 mapped-point iteration, preserving all independently frozen mapped points, derived lines and selected-member physical expectations.",
+   "checkpoints": [
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst points: point[] = [(2, 5)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const pt: point = @mapped[@i]\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: (@pt.x, @pt.y), end: (41, 29))\n }\n }\n line Selected [Red] = segment(start: @mapped[0], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "ac5879968778ea61f92a53cd97ed8a58a2b559b3c53ef8d278a7af7f8871df13",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "point",
+         "x": 9,
+         "y": 2
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 9,
+          "y": 2
+         },
+         "end": {
+          "x": 41,
+          "y": 29
+         },
+         "length": 41.86884283091664
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 9,
+          "y": 2
+         },
+         "end": {
+          "x": 47,
+          "y": 31
+         },
+         "length": 47.80167361086848
+        },
+        "color": "#aa5612",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Derived",
+        "kind": "line",
+        "start": {
+         "x": 9,
+         "y": 2
+        },
+        "end": {
+         "x": 41,
+         "y": 29
+        },
+        "length": 41.86884283091664,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Selected",
+        "kind": "line",
+        "start": {
+         "x": 9,
+         "y": 2
+        },
+        "end": {
+         "x": 47,
+         "y": 31
+        },
+        "length": 47.80167361086848,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 47.264583333333334,
+       "maxY": 31.264583333333334,
+       "width": 154.52916666666667,
+       "height": 62.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       160.52916666666667,
+       68.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "0d8502a3ca5ebc2b206b0e4365b8354aa012750666899ec759393c106306131c"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst points: point[] = [(2, 5), (13, -4), (2, 5)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const pt: point = @mapped[@i]\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: (@pt.x, @pt.y), end: (41, 29))\n }\n }\n line Selected [Red] = segment(start: @mapped[1], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "5e39ef49f2d3de5ebc34b4484389e091129168280464b92a053463f43cc1f8fd",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "point",
+         "x": 9,
+         "y": 2
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 9,
+          "y": 2
+         },
+         "end": {
+          "x": 41,
+          "y": 29
+         },
+         "length": 41.86884283091664
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "point",
+         "x": 20,
+         "y": -7
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -7
+         },
+         "end": {
+          "x": 41,
+          "y": 29
+         },
+         "length": 41.677331968349414
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          2
+         ]
+        ],
+        "geometry": {
+         "kind": "point",
+         "x": 9,
+         "y": 2
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          2
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 9,
+          "y": 2
+         },
+         "end": {
+          "x": 41,
+          "y": 29
+         },
+         "length": 41.86884283091664
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -7
+         },
+         "end": {
+          "x": 47,
+          "y": 31
+         },
+         "length": 46.61544808322666
+        },
+        "color": "#aa5612",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Derived",
+        "kind": "line",
+        "start": {
+         "x": 9,
+         "y": 2
+        },
+        "end": {
+         "x": 41,
+         "y": 29
+        },
+        "length": 41.86884283091664,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "placement": 0,
+        "name": "Derived",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -7
+        },
+        "end": {
+         "x": 41,
+         "y": 29
+        },
+        "length": 41.677331968349414,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          2
+         ]
+        ],
+        "placement": 0,
+        "name": "Derived",
+        "kind": "line",
+        "start": {
+         "x": 9,
+         "y": 2
+        },
+        "end": {
+         "x": 41,
+         "y": 29
+        },
+        "length": 41.86884283091664,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Selected",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -7
+        },
+        "end": {
+         "x": 47,
+         "y": 31
+        },
+        "length": 46.61544808322666,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 47.264583333333334,
+       "maxY": 31.264583333333334,
+       "width": 154.52916666666667,
+       "height": 62.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       160.52916666666667,
+       68.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "b9eae05ec6818c32fe1ac9885721141dca7f6576db49a668b4ff0aab095d0115"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst points: point[] = [(13, -4), (7, 9)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const pt: point = @mapped[@i]\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: (@pt.x, @pt.y), end: (41, 29))\n }\n }\n line Selected [Red] = segment(start: @mapped[1], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "9a00cb5c38beb25c1d33148b9f25307999e713bb88947425e570e9f699ef45c1",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "point",
+         "x": 20,
+         "y": -7
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -7
+         },
+         "end": {
+          "x": 41,
+          "y": 29
+         },
+         "length": 41.677331968349414
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "point",
+         "x": 14,
+         "y": 6
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 14,
+          "y": 6
+         },
+         "end": {
+          "x": 41,
+          "y": 29
+         },
+         "length": 35.4682957019364
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 14,
+          "y": 6
+         },
+         "end": {
+          "x": 47,
+          "y": 31
+         },
+         "length": 41.400483088968905
+        },
+        "color": "#aa5612",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Derived",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -7
+        },
+        "end": {
+         "x": 41,
+         "y": 29
+        },
+        "length": 41.677331968349414,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "placement": 0,
+        "name": "Derived",
+        "kind": "line",
+        "start": {
+         "x": 14,
+         "y": 6
+        },
+        "end": {
+         "x": 41,
+         "y": 29
+        },
+        "length": 35.4682957019364,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Selected",
+        "kind": "line",
+        "start": {
+         "x": 14,
+         "y": 6
+        },
+        "end": {
+         "x": 47,
+         "y": 31
+        },
+        "length": 41.400483088968905,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 47.264583333333334,
+       "maxY": 31.264583333333334,
+       "width": 154.52916666666667,
+       "height": 62.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       160.52916666666667,
+       68.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "b91af7ff498d230431a3102396ce58ad03fdebb9dff69c860e2c93b607076b73"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst points: point[] = [(2, 5)]\nconst mapped: point[] = for pt in @points { coordinate(x: @pt.x + 7, y: @pt.y - 3) }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@mapped.length > 0) {\n for i in range(min: 0, max: @mapped.length - 1, step: 1, showGenerated: true) {\n  const pt: point = @mapped[@i]\n  point Mark = from(source: @pt)\n  line Derived [Ink] = segment(start: (@pt.x, @pt.y), end: (41, 29))\n }\n }\n line Selected [Red] = segment(start: @mapped[0], end: (47, 31))\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "ac5879968778ea61f92a53cd97ed8a58a2b559b3c53ef8d278a7af7f8871df13",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "point",
+         "x": 9,
+         "y": 2
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 9,
+          "y": 2
+         },
+         "end": {
+          "x": 41,
+          "y": 29
+         },
+         "length": 41.86884283091664
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 9,
+          "y": 2
+         },
+         "end": {
+          "x": 47,
+          "y": 31
+         },
+         "length": 47.80167361086848
+        },
+        "color": "#aa5612",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Derived",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Derived",
+        "kind": "line",
+        "start": {
+         "x": 9,
+         "y": 2
+        },
+        "end": {
+         "x": 41,
+         "y": 29
+        },
+        "length": 41.86884283091664,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/Selected",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Selected",
+        "kind": "line",
+        "start": {
+         "x": 9,
+         "y": 2
+        },
+        "end": {
+         "x": 47,
+         "y": 31
+        },
+        "length": 47.80167361086848,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 47.264583333333334,
+       "maxY": 31.264583333333334,
+       "width": 154.52916666666667,
+       "height": 62.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       160.52916666666667,
+       68.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "0d8502a3ca5ebc2b206b0e4365b8354aa012750666899ec759393c106306131c"
+    }
+   ]
+  },
+  {
+   "id": "X3",
+   "oracleDerivation": "Sensitive false-branch control: direct length condition across empty/two/empty/empty; only static calibration/sibling appear when false.",
+   "checkpoints": [
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = []\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "a141968c270a81a8eaf907addc2ee1d7e774e451fd6e49d2d4083d9d569f8da0",
+     "oracle": {
+      "rows": [],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 5.264583333333333,
+       "maxY": -6.735416666666667,
+       "width": 112.52916666666667,
+       "height": 24.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       118.52916666666667,
+       30.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "439de96bc7814234716063b018e83471f805f5003d44f887bb2e623679b43d15"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [6, 11]\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "0a2ff79b144a816047afdbfc7311cc575f67e9dbade5c53c874059a51cb1bed3",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 12,
+          "y": -2
+         },
+         "end": {
+          "x": 15,
+          "y": 2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 22,
+          "y": -7
+         },
+         "end": {
+          "x": 25,
+          "y": -3
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 12,
+         "y": -2
+        },
+        "end": {
+         "x": 15,
+         "y": 2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 22,
+         "y": -7
+        },
+        "end": {
+         "x": 25,
+         "y": -3
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 25.264583333333334,
+       "maxY": 2.2645833333333334,
+       "width": 132.52916666666667,
+       "height": 33.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       138.52916666666667,
+       39.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "608a2f73dc7dfbc27b398f8082e386faeed312b3228f3f944f55dcf76403bc09"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = []\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "a141968c270a81a8eaf907addc2ee1d7e774e451fd6e49d2d4083d9d569f8da0",
+     "oracle": {
+      "rows": [],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 5.264583333333333,
+       "maxY": -6.735416666666667,
+       "width": 112.52916666666667,
+       "height": 24.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       118.52916666666667,
+       30.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "439de96bc7814234716063b018e83471f805f5003d44f887bb2e623679b43d15"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = []\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "a141968c270a81a8eaf907addc2ee1d7e774e451fd6e49d2d4083d9d569f8da0",
+     "oracle": {
+      "rows": [],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 5.264583333333333,
+       "maxY": -6.735416666666667,
+       "width": 112.52916666666667,
+       "height": 24.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       118.52916666666667,
+       30.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "439de96bc7814234716063b018e83471f805f5003d44f887bb2e623679b43d15"
+    }
+   ]
+  },
+  {
+   "id": "X4",
+   "oracleDerivation": "Sensitive lazy-collection control: direct length condition uses the active conditional collection cardinality before generating lines; inactive members never leak.",
+   "checkpoints": [
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = true\nconst delta: number = 0\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 12,
+          "y": -2
+         },
+         "end": {
+          "x": 15,
+          "y": 2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 12,
+         "y": -2
+        },
+        "end": {
+         "x": 15,
+         "y": 2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 15.264583333333333,
+       "maxY": 2.2645833333333334,
+       "width": 122.52916666666667,
+       "height": 33.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       128.52916666666667,
+       39.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = false\nconst delta: number = 0\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "41357b513714dda1fde636710c2a3832ca1618bbc944258c506b2b9337deb518",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 22,
+          "y": -7
+         },
+         "end": {
+          "x": 25,
+          "y": -3
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 34,
+          "y": -13
+         },
+         "end": {
+          "x": 37,
+          "y": -9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          2
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 46,
+          "y": -19
+         },
+         "end": {
+          "x": 49,
+          "y": -15
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 22,
+         "y": -7
+        },
+        "end": {
+         "x": 25,
+         "y": -3
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          1
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 34,
+         "y": -13
+        },
+        "end": {
+         "x": 37,
+         "y": -9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          2
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 46,
+         "y": -19
+        },
+        "end": {
+         "x": 49,
+         "y": -15
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 49.264583333333334,
+       "maxY": -2.7354166666666666,
+       "width": 156.52916666666667,
+       "height": 28.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       162.52916666666667,
+       34.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "992afa6dedb340dd59e314cfbab6473f6dc84193cb7b3c060726a1431158a790"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = true\nconst delta: number = 4\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "136ae25732ce8af5ea690e245895d99c53ea7c2bb58d5aacb0bba835a994ad87",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 20,
+          "y": -6
+         },
+         "end": {
+          "x": 23,
+          "y": -2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 20,
+         "y": -6
+        },
+        "end": {
+         "x": 23,
+         "y": -2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 23.264583333333334,
+       "maxY": -1.7354166666666666,
+       "width": 130.52916666666667,
+       "height": 29.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       136.52916666666667,
+       35.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "5a5eb95688c10388afcca1d57fd394a0f5acbbe872e15fb3d977471869ed3289"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst flag: boolean = true\nconst delta: number = 0\nconst values: number[] = if (@flag) { [6 + @delta] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n for i in range(min: 0, max: @values.length - 1, step: 1, showGenerated: true) {\n  const item: number = @values[@i]\n  line Mark [Ink] = segment(start: (2 * @item, 4 - @item), end: (2 * @item + 3, 8 - @item))\n }\n }\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "313e549b229685bcf4c40929b28b87fc21652241f5d1d92d6064dba6f69caeb6",
+     "oracle": {
+      "rows": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 12,
+          "y": -2
+         },
+         "end": {
+          "x": 15,
+          "y": 2
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "static": [],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/i/Mark",
+        "instances": [],
+        "path": [
+         [
+          "Piece/if/i",
+          0
+         ]
+        ],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 12,
+         "y": -2
+        },
+        "end": {
+         "x": 15,
+         "y": 2
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 15.264583333333333,
+       "maxY": 2.2645833333333334,
+       "width": 122.52916666666667,
+       "height": 33.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       128.52916666666667,
+       39.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "ff9adc38a99631fcca2d7aaa7a4284bb0551a325c5f208ac96c87ac083363a25"
+    }
+   ]
+  }
+ ],
+ "reducers": [
+  {
+   "id": "RED1",
+   "oracleDerivation": "Minimal producer: numeric literal collection used only in direct if(@values.length>0), controlling one static five-mm line. Values1/3/2/1; no map, generated binder, length arithmetic, or selected-member reads are needed for the Base compiler rejection.",
+   "checkpoints": [
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [6]\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "9d11b3b0508d3cf44c441bb35f0549e06348fece7bc966139a08efc0cc11a242",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [6, 11, 6]\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "46201cfa5a42aa9ec7b60944e6347b9ef63425cc35aa8040688a912d4c6a0558",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [11, 6]\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "866921b2411dc330f4108a8a448dc0328fd8b35f5c40db68834d1eac8ccd5ab5",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = [6]\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "9d11b3b0508d3cf44c441bb35f0549e06348fece7bc966139a08efc0cc11a242",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    }
+   ]
+  },
+  {
+   "id": "RED2",
+   "oracleDerivation": "Unknown-length reducer: a non-optional number[] conditional still has a valid collection identity when static cardinality is null. Direct length guards one static five-mm line. No map or generated occurrence is needed.",
+   "checkpoints": [
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = if (true) { [6] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "1be6935d321166361161e42089b7d42071d8e59d48b2037bbdf88a7b982897bf",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = if (false) { [6] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "0a6649b233d1ed15c026796ae9ee295f6c57f6f2da1ff69ea506ec3c8989f312",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = if (true) { [8] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "d1644d0c93e934e760fc31074951dd0fecab2fe9ca2b90b36edff0632e22e2af",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    },
+    {
+     "source": "nui 1\nstyle Ink {\n width: 2px,\n color: #123456,\n}\nstyle Red {\n width: 2px,\n color: #aa5612,\n}\nprofile Draft\nprofile Cut\nconst values: number[] = if (true) { [6] } else { [11, 17, 23] }\ngroup Piece {\n point Origin = coordinate(x: 3, y: -5)\n if (@values.length > 0) {\n  line Mark [Ink] = segment(start: (11, 5), end: (14, 9))\n }\n\n}\ngroup Control {\n point Ignored = coordinate(x: -1000, y: -2000)\n line Calibration [Ink] = segment(start: (-107, -31), end: (-7, -31))\n line Sibling [Red] = segment(start: (2, -11), end: (5, -7))\n}\ngroup Unselected {\n line Outside [Ink] = segment(start: (5000, 5000), end: (5100, 5000))\n}\nlayout Pattern {\n place @Piece(at: (0, 0), scale: 1, angle: 0, mirror: false)\n place @Control(at: (0, 0), scale: 1, angle: 0, mirror: false)\n}\nsvg Vector(layout: @Pattern, profile: @Draft, margin: 3)\nprint Paper(layout: @Pattern, profile: @Draft, paper: a4, orientation: portrait, overlap: 10)\n",
+     "sha256": "1be6935d321166361161e42089b7d42071d8e59d48b2037bbdf88a7b982897bf",
+     "oracle": {
+      "rows": [],
+      "static": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "geometry": {
+         "kind": "line",
+         "start": {
+          "x": 11,
+          "y": 5
+         },
+         "end": {
+          "x": 14,
+          "y": 9
+         },
+         "length": 5
+        },
+        "color": "#123456",
+        "visible": true
+       }
+      ],
+      "hidden": [],
+      "disabled": [],
+      "placements": [
+       {
+        "group": "Piece",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       },
+       {
+        "group": "Control",
+        "at": {
+         "x": 0,
+         "y": 0
+        },
+        "origin": {
+         "x": 0,
+         "y": 0
+        },
+        "angle": 0,
+        "scale": 1,
+        "mirror": false
+       }
+      ],
+      "drawables": [
+       {
+        "template": "Piece/if/Mark",
+        "instances": [],
+        "path": [],
+        "placement": 0,
+        "name": "Mark",
+        "kind": "line",
+        "start": {
+         "x": 11,
+         "y": 5
+        },
+        "end": {
+         "x": 14,
+         "y": 9
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Calibration",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Calibration",
+        "kind": "line",
+        "start": {
+         "x": -107,
+         "y": -31
+        },
+        "end": {
+         "x": -7,
+         "y": -31
+        },
+        "length": 100,
+        "width": 0.5291666666666667,
+        "color": "#123456"
+       },
+       {
+        "template": "Control/Sibling",
+        "instances": [],
+        "path": [],
+        "placement": 1,
+        "name": "Sibling",
+        "kind": "line",
+        "start": {
+         "x": 2,
+         "y": -11
+        },
+        "end": {
+         "x": 5,
+         "y": -7
+        },
+        "length": 5,
+        "width": 0.5291666666666667,
+        "color": "#aa5612"
+       }
+      ],
+      "bounds": {
+       "minX": -107.26458333333333,
+       "minY": -31.264583333333334,
+       "maxX": 14.264583333333333,
+       "maxY": 9.264583333333333,
+       "width": 121.52916666666667,
+       "height": 40.52916666666667
+      },
+      "margin": 3,
+      "svgMm": [
+       127.52916666666667,
+       46.52916666666667
+      ],
+      "paperMm": [
+       210,
+       297
+      ],
+      "overlap": 10,
+      "stride": [
+       190,
+       277
+      ],
+      "columns": 1,
+      "rowsOfPages": 1,
+      "pageOrigins": [
+       {
+        "x": -117.26458333333333,
+        "y": -41.264583333333334
+       }
+      ],
+      "profile": "Draft",
+      "diagnostics": []
+     },
+     "oracleSha256": "350f1c0c325135a2207c3b140ee03633c3d55adebf84cce30d8cbb6bbcb2fcde"
+    }
+   ]
+  }
+ ]
 }

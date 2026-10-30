@@ -2363,7 +2363,8 @@ export const evaluateElements = (
         ? resolveConditionalGroupCondition(
             typedCondition,
             lookupBinding,
-            resolveScalarGeometryProperty
+            resolveScalarGeometryProperty,
+            collectionLookupsForEvaluation(sourceOrder)
           )
         : undefined;
       if (resolvedTypedCondition) conditionEvaluationTraces.set(element.id, resolvedTypedCondition.trace);

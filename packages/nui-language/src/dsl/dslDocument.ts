@@ -2083,11 +2083,13 @@ export const compileDslDocument = (
             const length = value && collectionAnalysis
               ? collectionLengthForValueId(collectionAnalysis, value.statementId)
               : null;
-            if (value && length !== null) {
+            // A conditional collection keeps its identity even when its
+            // cardinality must be selected at runtime. Preserve that null.
+            if (value && isDslArrayValueType(value.declaredValueType)) {
               return {
                 kind: "collection" as const,
                 collectionValueId: value.statementId,
-                collectionLength: length ?? 0,
+                collectionLength: length,
                 targetSourceOrder: lookup.declaration.statementIndex,
                 type: { kind: "number" as const }
               };
@@ -4969,6 +4971,10 @@ export const compileDslDocument = (
         bindingAnalysis: scalarAnalysis.bindingAnalysis,
         spans,
         includeStatement,
+        additionalGeometryPropertyResolver: ({ statementIndex, node }) =>
+          moduleGeometryPropertyResolver?.({ statementIndex, node }) ??
+          rootGeometryValuePropertyResolver?.({ statementIndex, node }) ??
+          null,
         resolveGeometryStageSelection
       })
     : undefined;

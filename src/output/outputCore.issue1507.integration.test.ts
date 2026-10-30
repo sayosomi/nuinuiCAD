@@ -241,13 +241,14 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
     const failures: string[] = [];
     const initialArtifacts = new Map<string, unknown>();
     for (const [index, cp] of unit.checkpoints.entries()) {
-      const record: Record<string, unknown> = { id: unit.id, index, sourceSha256: cp.sha256, oracleSha256: cp.oracleSha256, results: [] };
+      const record: Record<string, unknown> = { id: unit.id, index, sourceSha256: cp.sha256, oracleSha256: cp.oracleSha256, results: [], compilations: [], runtimes: [] };
       observations.push(record);
       current = current ? compileCanonicalText(current, cp.source) : compileFreshCanonicalText(cp.source);
       const fresh = compileFreshCanonicalText(cp.source);
       for (const [mode, c] of [["incremental", current], ["fresh", fresh]] as const) {
+        (record.compilations as unknown[]).push({ mode, status: c.status, diagnostics: c.diagnostics, bindingIssueDiagnostics: c.bindingIssueDiagnostics });
         try {
-          expect(c.sourceText).toBe(cp.source); expect(c.docText).toBe(cp.source); expect(c.status).not.toBe("fatal");
+          expect(c.sourceText).toBe(cp.source); expect(c.status, JSON.stringify(c.diagnostics)).not.toBe("fatal"); expect(c.docText).toBe(cp.source);
           expect([...c.diagnostics, ...c.bindingIssueDiagnostics]).toEqual([]);
           expect(c.doc.statementMap.sourceRevision).toBe(c.currentCompiled.spans.sourceMap.sourceRevision);
           if (validateOnly) continue;
@@ -260,9 +261,16 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
             const reference = evaluateElementsReference(c.doc.document.elements, options);
             counts.evaluations++;
             const actual = evaluationPayloadToResult(await bounded(rust.request(prepared.input)) as EvaluationPayload);
-            for (const result of [reference, actual]) {
-              checkGeometry(c, result, cp.oracle);
-              checkPlan(buildOutputPlan({ compiledDocument: c.doc, output, evaluation: result }), c, result, cp.oracle);
+            const check = (label: string, run: () => void) => {
+              try { run(); } catch (error) { failures.push(`${unit.id}/${index}/${mode}/${format}/${label}: ${String(error)}`); }
+            };
+            for (const [engine, result] of [["TS", reference], ["Rust", actual]] as const) {
+              const n = normalized(c, result);
+              (record.runtimes as unknown[]).push({ mode, format, engine, errors: result.errors,
+                generated: n.generated.map(r => ({ ...identityOf(r), geometry: r.geometry })),
+                lines: [...result.computedGeometry.values()].filter(g => g.kind === "line").map(g => ({ ...n.identity(g.elementId), geometry: g })) });
+              check(`${engine} geometry`, () => checkGeometry(c, result, cp.oracle));
+              check(`${engine} plan`, () => checkPlan(buildOutputPlan({ compiledDocument: c.doc, output, evaluation: result }), c, result, cp.oracle));
             }
             const plan = buildOutputPlan({ compiledDocument: c.doc, output, evaluation: actual });
             const path = join(directory, `${unit.id}-${index}-${mode}.${format}`);
@@ -270,12 +278,17 @@ describe("#1507 frozen source revisions through persistent Rust to physical arti
             counts.exports++;
             expect(await bounded(rust.exportOutput({ path, payload: plan.rustPayload }))).toEqual({ exported: true });
             expect(statSync(path).size).toBeLessThan(1024 * 1024);
-            const bytes = readFileSync(path), contents = checkArtifact(bytes, format, cp.oracle);
+            const bytes = readFileSync(path);
+            const artifact: Record<string, unknown> = { mode, format, path, bytes: bytes.length, sha256: sha(bytes), count: plan.drawables.length, pages: plan.print?.pages.length, inspection: "FAIL" };
+            (record.results as unknown[]).push(artifact);
             counts.inspections++;
-            const artifactKey = `${mode}/${format}`;
-            if (index === 0) initialArtifacts.set(artifactKey, contents);
-            if (index === 3) expect(contents).toEqual(initialArtifacts.get(artifactKey));
-            (record.results as unknown[]).push({ mode, format, path, bytes: bytes.length, sha256: sha(bytes), count: plan.drawables.length, pages: plan.print?.pages.length, contents });
+            check("encoded artifact", () => {
+              const contents = checkArtifact(bytes, format, cp.oracle);
+              artifact.contents = contents; artifact.inspection = "PASS";
+              const artifactKey = `${mode}/${format}`;
+              if (index === 0) initialArtifacts.set(artifactKey, contents);
+              if (index === 3) expect(contents).toEqual(initialArtifacts.get(artifactKey));
+            });
           }
         } catch (error) { failures.push(`${unit.id}/${index}/${mode}: ${error instanceof Error ? error.stack : String(error)}`); }
       }

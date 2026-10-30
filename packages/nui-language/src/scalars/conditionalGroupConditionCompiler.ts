@@ -19,7 +19,8 @@ import { parseScalarExpression } from "./expressionParser";
 import { typecheckScalarExpression } from "./expressionTypecheck";
 import { propertyBindingOccurrenceKey } from "./propertyBindingCompiler";
 import { collectReferences, unresolvedReferenceMessage } from "./typedDeclarationAnalysis";
-import type { TypedScalarExpression } from "./typedExpressionAst";
+import type { TypedScalarExpression, ScalarExpressionResolvedGeometryProperty } from "./typedExpressionAst";
+import type { ScalarExpressionAst } from "./expressionAst";
 import type { TransformationStageSelection } from "../dsl/transformationRecipes";
 import { resolveGeometryPropertyMetadata } from "./typedGeometryPropertyResolution";
 import { createElementNameContext } from "../model/elementNames";
@@ -36,6 +37,10 @@ export type CompileConditionalGroupConditionsInput = {
   bindingAnalysis: BindingAnalysis;
   spans: DiagnosticSpanContext;
   includeStatement?: DslStatementInclusion;
+  additionalGeometryPropertyResolver?: (input: {
+    statementIndex: number;
+    node: Extract<ScalarExpressionAst, { kind: "geometryProperty" }>;
+  }) => ScalarExpressionResolvedGeometryProperty | null;
   resolveGeometryStageSelection?: (input: { elementId: ElementId; members: readonly string[] }) => TransformationStageSelection;
 };
 
@@ -77,6 +82,7 @@ export const compileConditionalGroupConditions = ({
   bindingAnalysis,
   spans,
   includeStatement,
+  additionalGeometryPropertyResolver,
   resolveGeometryStageSelection
 }: CompileConditionalGroupConditionsInput): ConditionalGroupConditionCompilation => {
   const elementsById = new Map(elements.map((element) => [element.id, element]));
@@ -161,6 +167,9 @@ export const compileConditionalGroupConditions = ({
         currentElement: element,
         nameContext,
         currentSourceOrder: statementIndex,
+        additionalGeometryPropertyResolver: additionalGeometryPropertyResolver
+          ? ({ node }) => additionalGeometryPropertyResolver({ statementIndex, node })
+          : undefined,
         resolveStageSelection: resolveGeometryStageSelection
       }
     );

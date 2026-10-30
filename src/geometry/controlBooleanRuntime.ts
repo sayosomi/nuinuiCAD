@@ -19,7 +19,7 @@ import type { CadElement, CadElementType, ElementId } from "../types/geometry";
 import type { BindingId } from "@nuinuicad/nui-language";
 import { propertyBindingOccurrenceKey, type ScalarValueSource } from "@nuinuicad/nui-language";
 import type { TypedScalarExpression } from "@nuinuicad/nui-language";
-import { evaluateTypedExpression } from "../scalars/expressionEvaluator";
+import { evaluateTypedExpression, type ScalarEvaluationEnvironment } from "../scalars/expressionEvaluator";
 import { evaluateConditionExpressionWithTrace, type ConditionEvaluationTrace } from "../scalars/conditionEvaluationTrace";
 import type { ScalarEvaluation } from "@nuinuicad/nui-language";
 import { findParameterDefinition, scalarTypeForParameterDefinition } from "@nuinuicad/nui-language";
@@ -155,9 +155,11 @@ const activeBranchForConditionEvaluation = (evaluation: ScalarEvaluation): "then
 export const resolveConditionalGroupCondition = (
   expression: TypedScalarExpression,
   resolveBinding: ControlBooleanResolveFn,
-  resolveGeometryProperty?: ControlBooleanGeometryResolveFn
+  resolveGeometryProperty?: ControlBooleanGeometryResolveFn,
+  collectionLookup?: Pick<ScalarEvaluationEnvironment, "lookupCollectionLength" | "lookupCollectionLengthEvaluation">
 ): ResolvedConditionalGroupCondition => {
   const { evaluation, trace } = evaluateConditionExpressionWithTrace(expression, {
+    ...collectionLookup,
     lookupBinding: resolveBinding,
     ...(resolveGeometryProperty ? { lookupGeometryProperty: resolveGeometryProperty } : {})
   });
