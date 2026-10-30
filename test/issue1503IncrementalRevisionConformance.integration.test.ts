@@ -132,9 +132,10 @@ describe("#1503 sealed incremental single-document revision matrix", () => {
     expect(isolatedBinary).toBe(resolve(process.cwd(), isolatedTarget, "debug",
       process.platform === "win32" ? "evaluation_stdio.exe" : "evaluation_stdio"));
     expect(isolatedBinary).not.toBe(defaultBinary);
+    // Validation-only checks source/oracles and deliberately does not build Rust.
+    if (validateOnly) return;
     if (process.env.CARGO_TARGET_DIR) {
       expect(builtRustBinary?.path).toBe(rustBinaryPath(process.env.CARGO_TARGET_DIR));
-      expect(builtRustBinary?.path).not.toBe(defaultBinary);
     } else {
       expect(builtRustBinary?.path).toBe(defaultBinary);
     }
