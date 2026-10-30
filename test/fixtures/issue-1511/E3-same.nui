@@ -1,0 +1,6 @@
+nui 1
+// #1511 E3-same: frozen independently before product execution
+line A = segment(start: (0, 0), end: (80, 0))
+line B = segment(start: (30, -20), end: (30, 20))
+edge [A.end, A.start](index: 0)
+line Control = segment(start: (201, -103), end: (238, -103))

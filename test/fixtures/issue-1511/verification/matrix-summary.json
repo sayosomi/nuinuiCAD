@@ -1,0 +1,232 @@
+{
+  "base": "03ce4e4b5eb28a188ee1904bc1bec36170e938e5",
+  "primary": 20,
+  "adjacent": 3,
+  "reducers": 0,
+  "accepted": 23,
+  "maximum": 32,
+  "requests": 43,
+  "spawns": 1,
+  "units": [
+    {
+      "id": "E1",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "E2",
+      "disposition": "PASS",
+      "checkpointCount": 2,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "E3",
+      "disposition": "PASS",
+      "checkpointCount": 4,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "E4",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "T1",
+      "disposition": "PASS",
+      "checkpointCount": 4,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "T2",
+      "disposition": "PASS",
+      "checkpointCount": 3,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "T3",
+      "disposition": "PASS",
+      "checkpointCount": 2,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "T4",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "A1",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "A2",
+      "disposition": "PASS",
+      "checkpointCount": 3,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "A3",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "A4",
+      "disposition": "PASS",
+      "checkpointCount": 2,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "B1",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "B2",
+      "disposition": "PASS",
+      "checkpointCount": 2,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "B3",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "B4",
+      "disposition": "PASS",
+      "checkpointCount": 2,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "M1",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "M2",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "M3",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "M4",
+      "disposition": "PASS",
+      "checkpointCount": 4,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "X1",
+      "disposition": "PASS",
+      "checkpointCount": 1,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "X2",
+      "disposition": "PASS",
+      "checkpointCount": 2,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    },
+    {
+      "id": "X3",
+      "disposition": "PASS",
+      "checkpointCount": 2,
+      "hosts": [
+        "Rust",
+        "TS"
+      ]
+    }
+  ],
+  "conditional": {
+    "X4": "NOT_TRIGGERED",
+    "X5": "NOT_TRIGGERED",
+    "X6": "NOT_TRIGGERED",
+    "R1": "NOT_TRIGGERED",
+    "R2": "NOT_TRIGGERED",
+    "R3": "NOT_TRIGGERED",
+    "R4": "NOT_TRIGGERED",
+    "R5": "NOT_TRIGGERED",
+    "R6": "NOT_TRIGGERED"
+  },
+  "defectFamilies": [],
+  "repairRemovalRestoration": "NOT_APPLICABLE: no product defect"
+}

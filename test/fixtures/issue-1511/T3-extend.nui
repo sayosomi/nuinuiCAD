@@ -1,0 +1,8 @@
+nui 1
+// #1511 T3-extend: frozen independently before product execution
+line Lead = segment(start: (-25, 0), end: (0, 0))
+arc Bend = arc(center: (0, 30), radius: 30, start: 270, end: 360, direction: counterclockwise)
+line Tail = segment(start: (30, 30), end: (30, 100))
+line A = join(paths: [@Lead, @Bend, @Tail], closed: false)
+extend A.end(to: (30, 137))
+line Control = segment(start: (201, -103), end: (238, -103))

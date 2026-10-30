@@ -1,0 +1,5 @@
+nui 1
+// #1511 A1: frozen independently before product execution
+arc A = arc(center: (11, -9), radius: 43, start: 317, end: 349, direction: counterclockwise)
+extend A.end(to: (14.74769693814931, 33.83637201794506))
+line Control = segment(start: (201, -103), end: (238, -103))

@@ -1,0 +1,9 @@
+nui 1
+// #1511 M1: frozen independently before product execution
+curve A = bezier(start: (0, 0), end: (100, 0), startAngle: 90.0, startLength: 60.0, endAngle: 270.0, endLength: 40.0)
+line B = segment(start: (50, -10), end: (50, 10))
+extend A.end as Extended(to: (100, -24))
+edge [A.end, B.end] as Joined(index: 0)
+const First: path = @A.Extended
+const Second: path = @A.Joined
+line Control = segment(start: (201, -103), end: (238, -103))

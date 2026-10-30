@@ -1,0 +1,6 @@
+nui 1
+// #1511 A3: frozen independently before product execution
+arc A = arc(center: (0, 0), radius: 50, start: 10, end: 300, direction: counterclockwise)
+line B = segment(start: (30, 10), end: (30, 20))
+edge [A.end, B.end](index: 0)
+line Control = segment(start: (201, -103), end: (238, -103))

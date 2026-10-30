@@ -1,0 +1,7 @@
+nui 1
+// #1511 B3: frozen independently before product execution
+point Join = coordinate(x: 65, y: 30)
+curve A = bezier(start: (0, 0), end: (157, 12), startAngle: 66.03751102542182, startLength: 49.24428900898052, endAngle: 46.24536426676835, endLength: 65.06919393998976, intermediates: [@Join: 0: 20: 25: seam])
+curve Neighbor = bezier(start: (-9, 13), end: (161, 21), startAngle: 72.95096902789018, startLength: 78.44743462982075, endAngle: 48.69138598645128, endLength: 87.86353054595519)
+extend A.end(to: (96.27144892199999, 9.207809468999997))
+line Control = segment(start: (201, -103), end: (238, -103))

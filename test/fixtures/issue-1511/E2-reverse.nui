@@ -1,0 +1,6 @@
+nui 1
+// #1511 E2-reverse: frozen independently before product execution
+line A = segment(start: (100, 50), end: (0, 0))
+line B = segment(start: (100, 0), end: (0, 50))
+edge [A.start, B.end](index: 0)
+line Control = segment(start: (201, -103), end: (238, -103))
