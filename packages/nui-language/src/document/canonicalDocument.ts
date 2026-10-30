@@ -129,7 +129,8 @@ export const compileCanonicalText = (
       newStatements: parsed.statements,
       newLines: compileLines(sourceText)
     });
-    const liveIds = new Set(current.doc.statementMap.statementIdByStatementIndex.values());
+    const liveIds = new Set((current.doc.statementMap.statementIdByStatementIndex
+      ?? current.doc.statementMap.elementIdByStatementIndex).values());
     const claimedIds = new Set(reconciled.assignedIds.values());
     for (const [index, id] of live.assignedIds) {
       if (!reconciled.createdIds.has(index) || !liveIds.has(id) || claimedIds.has(id)) continue;
