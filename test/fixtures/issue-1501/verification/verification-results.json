@@ -1,0 +1,188 @@
+[
+  {
+    "name": "compiler-validation",
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1501SplitOnLineConformance.integration.test.ts"
+    ],
+    "timeout": 120,
+    "exitCode": 0,
+    "seconds": 2.7
+  },
+  {
+    "name": "focused-ts",
+    "command": [
+      "npx",
+      "vitest",
+      "run",
+      "test/issue1501SplitOnLineConformance.integration.test.ts",
+      "src/geometry/splitLineEvaluator.test.ts",
+      "src/geometry/linePaths.test.ts",
+      "src/geometry/geometryValueConstruction.integration.test.ts",
+      "src/dsl/moduleMultiDocumentRuntime.integration.test.ts"
+    ],
+    "timeout": 180,
+    "exitCode": 0,
+    "seconds": 3.55
+  },
+  {
+    "name": "rust-line-path",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "line_path"
+    ],
+    "timeout": 180,
+    "exitCode": 0,
+    "seconds": 0.091
+  },
+  {
+    "name": "rust-split",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "split_line_tests"
+    ],
+    "timeout": 180,
+    "exitCode": 0,
+    "seconds": 0.091
+  },
+  {
+    "name": "build",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "timeout": 240,
+    "exitCode": 0,
+    "seconds": 27.033
+  },
+  {
+    "name": "lint",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "timeout": 240,
+    "exitCode": 0,
+    "seconds": 28.042
+  },
+  {
+    "name": "full-test",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=2"
+    ],
+    "timeout": 900,
+    "exitCode": 0,
+    "seconds": 358.32
+  },
+  {
+    "name": "parity",
+    "command": [
+      "npm",
+      "run",
+      "test:parity"
+    ],
+    "timeout": 300,
+    "exitCode": 0,
+    "seconds": 55.225
+  },
+  {
+    "name": "dsl-reference",
+    "command": [
+      "npm",
+      "run",
+      "docs:dsl:check"
+    ],
+    "timeout": 180,
+    "exitCode": 0,
+    "seconds": 0.62
+  },
+  {
+    "name": "rust-fmt",
+    "command": [
+      "cargo",
+      "fmt",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--check"
+    ],
+    "timeout": 120,
+    "exitCode": 0,
+    "seconds": 1.114
+  },
+  {
+    "name": "rust-check",
+    "command": [
+      "cargo",
+      "check",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "timeout": 180,
+    "exitCode": 0,
+    "seconds": 0.884
+  },
+  {
+    "name": "rust-full",
+    "command": [
+      "cargo",
+      "test",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml"
+    ],
+    "timeout": 300,
+    "exitCode": 0,
+    "seconds": 6.076
+  },
+  {
+    "name": "rust-clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--manifest-path",
+      "rust-evaluator/Cargo.toml",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "timeout": 240,
+    "exitCode": 0,
+    "seconds": 3.668
+  },
+  {
+    "name": "base-diff",
+    "command": [
+      "git",
+      "diff",
+      "0c82168872543bda24bbbf3faccd65f7619e67cc",
+      "--check"
+    ],
+    "timeout": 30,
+    "exitCode": 0,
+    "seconds": 0.041
+  },
+  {
+    "name": "worktree-diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "timeout": 30,
+    "exitCode": 0,
+    "seconds": 0.021
+  }
+]

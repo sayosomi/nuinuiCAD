@@ -1,0 +1,71 @@
+{
+  "results": [
+    {
+      "label": "repair-removed-matrix",
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1501SplitOnLineConformance.integration.test.ts"
+      ],
+      "exitCode": 1,
+      "expectedExitCode": 1
+    },
+    {
+      "label": "repair-removed-rust",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "split_line_tests"
+      ],
+      "exitCode": 101,
+      "expectedExitCode": 101
+    },
+    {
+      "label": "repair-restored-matrix",
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1501SplitOnLineConformance.integration.test.ts"
+      ],
+      "exitCode": 0,
+      "expectedExitCode": 0
+    },
+    {
+      "label": "repair-restored-rust",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "split_line_tests"
+      ],
+      "exitCode": 0,
+      "expectedExitCode": 0
+    }
+  ],
+  "onlyRemovedPaths": [
+    "src/geometry/splitLineEvaluator.ts",
+    "rust-evaluator/src/evaluation/split_line_evaluator.rs"
+  ],
+  "removedRevision": "0c82168872543bda24bbbf3faccd65f7619e67cc",
+  "fixedSha256": {
+    "src/geometry/splitLineEvaluator.ts": "bb2d0d320c7532218a32e3cb30d9bf7b2607549296de22195ef57a6adefd9bff",
+    "rust-evaluator/src/evaluation/split_line_evaluator.rs": "a994e03e561adf173c970fb2c54856286f05a7b97c216bf817b7312e9f4ffbe1"
+  },
+  "restoredByteIdentically": true,
+  "removedMatrix": {
+    "failed": [
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "R1"
+    ],
+    "passingAdjacentPrimaries": 12
+  },
+  "restoredMatrix": "17/17 PASS in both TS and persistent Rust"
+}

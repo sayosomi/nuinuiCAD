@@ -1,0 +1,44 @@
+{
+  "expectedParameter": 0.437,
+  "expectedPoint": [
+    56.987815425,
+    28.496413878999995
+  ],
+  "expectedStationMm": 107.36506321829194,
+  "totalLengthMm": 260.35898149950367,
+  "observations": [
+    {
+      "host": "Rust",
+      "name": "Station",
+      "t": 0.43739535361350734,
+      "pointErrorMm": 0.11740431049895117,
+      "curveResidualMm": 3.907985046680551e-14,
+      "physicalStationErrorMm": 0.11740431074413493
+    },
+    {
+      "host": "Rust",
+      "name": "BackStation",
+      "t": 0.43661831764301007,
+      "pointErrorMm": 0.11329917422744012,
+      "curveResidualMm": 3.907985046680551e-14,
+      "physicalStationErrorMm": -0.11329917445027604
+    },
+    {
+      "host": "TS",
+      "name": "Station",
+      "t": 0.43739535361350734,
+      "pointErrorMm": 0.11740431049895117,
+      "curveResidualMm": 3.907985046680551e-14,
+      "physicalStationErrorMm": 0.11740431074413493
+    },
+    {
+      "host": "TS",
+      "name": "BackStation",
+      "t": 0.43661831764301007,
+      "pointErrorMm": 0.11329917422745837,
+      "curveResidualMm": 1.7763568394002505e-14,
+      "physicalStationErrorMm": -0.11329917445027604
+    }
+  ],
+  "limitation": "Existing 32-chord traversal approximation; this is an audit of saved points, not a claim of exact arc-length inversion."
+}
