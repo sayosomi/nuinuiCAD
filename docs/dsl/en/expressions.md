@@ -87,6 +87,10 @@ whole-value aliases are resolved. Reads resolve to the selected immutable value
 or stage. Hidden geometry remains readable; disabled, failed, or unavailable
 geometry is unavailable.
 
+Collection `.length` is also available directly in numeric construction inputs.
+For a collection-valued conditional, it reads the current selected branch's
+cardinality without evaluating the unselected branch.
+
 Generated drawable occurrences from a `for` statement use an explicit
 zero-based occurrence suffix after the resolved source reference:
 `@Mark[0]` or `@Mark[@i]`. The bracket expression is a typed numeric scalar;

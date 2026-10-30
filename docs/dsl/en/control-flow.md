@@ -92,6 +92,11 @@ Nested statement-for expansions preserve the complete occurrence path. A bare
 `@Name` is accepted only when exactly one occurrence is available and otherwise
 reports an unavailable/ambiguous occurrence rather than choosing zero.
 
+A geometry collection binder may supply `from(source: @item)` inside its
+statement-for body. Each iteration materializes the current collection member
+as a separate drawable occurrence. For a mapped collection, this is the mapped
+geometry, with the map's source order and duplicates preserved.
+
 Containers inherit their ancestors' `enabled`/`visible` gates and Styles. A
 disabled container prevents child evaluation and later references; a hidden
 container still evaluates children but does not draw them. See [Styles](modifiers.md).

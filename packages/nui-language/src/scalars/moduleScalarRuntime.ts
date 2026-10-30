@@ -8100,6 +8100,12 @@ export const compileModuleScalarRuntime = ({
   for (const entry of geometryValueProgramEntries) {
     entry.construction = replaceLazyProgramsInGeometryValueProgram(entry.construction) as GeometryValueProgramNode;
   }
+  for (const [collectionValueId, value] of geometryCollectionNodesByValueId) {
+    const replaced = replaceLazyGeometryMapPrograms({
+      kind: "collectionValue", collectionValueId, targetSourceOrder: -1, value
+    });
+    if (replaced.kind === "collectionValue") geometryCollectionNodesByValueId.set(collectionValueId, replaced.value);
+  }
   for (const [elementId, targets] of geometryInputTargetsByRuntimeElementId) {
     const replaced = new Map<string, GeometryInputTarget | readonly GeometryInputTarget[]>();
     for (const [parameterKey, target] of targets) {

@@ -147,6 +147,7 @@ fn validate_typed_expression_runtime_targets(
             }
             TypedScalarExpression::GeometryProperty {
                 element_id,
+                collection_value_id,
                 geometry_value_occurrence,
                 for_group_template_element_id,
                 for_group_index,
@@ -156,6 +157,7 @@ fn validate_typed_expression_runtime_targets(
                     .as_deref()
                     .unwrap_or(element_id.as_str());
                 if geometry_value_occurrence.is_none()
+                    && collection_value_id.is_none()
                     && !elements_by_id.contains_key(target_element_id)
                 {
                     return Err(payload_error(
@@ -1296,6 +1298,56 @@ mod tests {
         });
         assert!(validate_numeric_bindings_payload(
             &json!([numeric_entry("7", Some(malformed), json!([]))]),
+            &elements_by_id,
+            &HashSet::new(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn validates_collection_length_numeric_targets_without_a_drawable_id() {
+        let element = point_with_expression("@values.length");
+        let elements_by_id = HashMap::from([("p", &element)]);
+        let expression = json!({
+            "kind": "geometryProperty",
+            "span": {"start": 0, "end": 14},
+            "elementNameSpan": {"start": 1, "end": 7},
+            "propertySpan": {"start": 8, "end": 14},
+            "elementName": "values",
+            "elementId": null,
+            "collectionValueId": "values",
+            "collectionLength": null,
+            "property": "length",
+            "targetSourceOrder": 0,
+            "type": {"kind": "number"}
+        });
+        assert!(validate_numeric_bindings_payload(
+            &json!([numeric_entry(
+                "@values.length",
+                Some(expression.clone()),
+                json!([])
+            )]),
+            &elements_by_id,
+            &HashSet::new(),
+        )
+        .is_ok());
+
+        let mut missing_drawable = expression;
+        missing_drawable
+            .as_object_mut()
+            .unwrap()
+            .remove("collectionValueId");
+        missing_drawable
+            .as_object_mut()
+            .unwrap()
+            .remove("collectionLength");
+        missing_drawable["elementId"] = json!("missing");
+        assert!(validate_numeric_bindings_payload(
+            &json!([numeric_entry(
+                "@values.length",
+                Some(missing_drawable),
+                json!([])
+            )]),
             &elements_by_id,
             &HashSet::new(),
         )

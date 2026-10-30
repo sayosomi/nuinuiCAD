@@ -3743,6 +3743,27 @@ export const compileDslDocument = (
         sourceText
       };
     }
+    if (target.kind === "geometryValueForBinder") {
+      // A statement-for geometry binder is the current member of its resolved
+      // collection. Reuse ordinary collection indexing and the canonical
+      // numeric iteration ordinal; no runtime name lookup or new target kind.
+      const owner = parsed.statements[target.statementIndex];
+      const parsedSource = owner?.kind === "element" && owner.type === "forGroup" && owner.forSource
+        ? parseDslSourceReference(owner.forSource) : null;
+      const source = parsedSource?.kind === "valid"
+        ? rootCollectionSourceForPath(target.statementIndex, parsedSource.reference.path) : null;
+      if (!source?.collectionValueId) return undefined;
+      const value = geometryCollectionNodeForValueId(source.collectionValueId);
+      return {
+        kind: "collectionIndex",
+        collectionValueId: source.collectionValueId,
+        collectionLength: null,
+        targetSourceOrder: -1,
+        index: { kind: "reference", name: target.name, bindingId: target.binderId,
+          span: { start: 0, end: 0 }, nameSpan: { start: 0, end: 0 }, type: { kind: "number" } },
+        members: [], ...(value ? { value } : {})
+      };
+    }
     if (target.kind === "sourceGeometry") {
       const sourceElementId = compiled.elementIdsByStatementIndex?.get(target.statementIndex);
       return sourceElementId
@@ -4137,7 +4158,7 @@ export const compileDslDocument = (
               : target.kind === "collectionParameterLength"
                 ? `${target.definitionStatementId}:parameter:${target.parameterIndex}`
                 : JSON.stringify([target.instanceStatementId, target.exportName]),
-            collectionLength: target.kind === "collectionValueLength" ? target.length ?? 0 : 0,
+            collectionLength: target.kind === "collectionValueLength" ? target.length : null,
             targetSourceOrder: target.kind === "collectionValueLength"
               ? target.statementIndex
               : target.kind === "deferredModuleCollectionExportLength"

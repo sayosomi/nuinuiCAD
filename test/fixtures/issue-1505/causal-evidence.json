@@ -1,0 +1,1449 @@
+{
+  "base": "a827e9c359aaaa07ec03bfe08ac48b8bcddfbb08",
+  "primarySealUnchanged": true,
+  "primarySequences": 16,
+  "primaryCheckpoints": 65,
+  "activeReducerSequences": 4,
+  "activeReducerCheckpoints": 16,
+  "acceptedExplorationUnits": 21,
+  "reducerSlotsUsed": 5,
+  "extensionSlotsUsed": 0,
+  "retiredReducer": "superseded-reducer4.json",
+  "unused": {
+    "X1-X6": "NOT_TRIGGERED",
+    "R6": "NOT_TRIGGERED"
+  },
+  "externalEvidenceDirectory": "/Users/yosomi/.codex/evidence/issue-1505",
+  "runs": [
+    {
+      "label": "base-final-matrix",
+      "exitCode": 1,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "2c6cb4162932f3a9a74b1b3729e08501803517d2dbecf94709feaccf39507ca6",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "950c146791354e3d18214898c5c2481e321a3b1535a0e403c262dde512f8af6d"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 146,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "1065d499f3623e4835be95b333e061b44b7f9b99bbfa974570137d264eaf3059"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "C1/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "C2",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "C2/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "C3",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "C3/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "C4",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "C4/0/incremental eligibility: AssertionError: expected false to be true // Object.is equality"
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "Reducer1/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "Reducer2",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "Reducer2/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "Reducer3",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "Reducer3/0/incremental eligibility: AssertionError: expected false to be true // Object.is equality"
+        },
+        {
+          "id": "Reducer4",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "Reducer4/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        }
+      ]
+    },
+    {
+      "label": "remove-F1",
+      "exitCode": 1,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "973ac7526bda89ab10a064c54db4a67a4991afe2296ea89cd21e7aa79dc67f74"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 162,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "ebe18bb98ece938ad9dafb984f84a2a426b244b990dae87347453c19891b3065"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "C1/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "C2",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "C2/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "C3",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "C3/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "C4",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "C4/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "Reducer1/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "Reducer2",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "Reducer2/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        },
+        {
+          "id": "Reducer3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer4",
+          "status": "FAIL",
+          "failureCount": 8,
+          "firstFailure": "Reducer4/0/incremental/Rust request: Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element"
+        }
+      ]
+    },
+    {
+      "label": "restore-F1",
+      "exitCode": 0,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 162,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "09b9072abc01b19edf4600ec2c355429d83a577bc4152f53dff85f3a2f04addd"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        }
+      ]
+    },
+    {
+      "label": "remove-F2",
+      "exitCode": 1,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "0d40ee4675ca83d64df1b1121fbeaec54b2a2c7e02284b776f289e70e5e422cd",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 162,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "09b9072abc01b19edf4600ec2c355429d83a577bc4152f53dff85f3a2f04addd"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C2",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "C2/0/incremental/TS independent oracle: AssertionError: Count.x: 0 vs 1: expected 1 to be less than or equal to 1e-8"
+        },
+        {
+          "id": "C3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer2",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "Reducer2/0/incremental/TS independent oracle: AssertionError: Count.x: 0 vs 1: expected 1 to be less than or equal to 1e-8"
+        },
+        {
+          "id": "Reducer3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        }
+      ]
+    },
+    {
+      "label": "restore-F2",
+      "exitCode": 0,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 162,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "09b9072abc01b19edf4600ec2c355429d83a577bc4152f53dff85f3a2f04addd"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        }
+      ]
+    },
+    {
+      "label": "remove-F3",
+      "exitCode": 1,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "69959f650a733b9e9ae7b5569d28c3e9c3a397d07d8b4a74d30a920956f30621",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 146,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "09b9072abc01b19edf4600ec2c355429d83a577bc4152f53dff85f3a2f04addd"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C4",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "C4/0/incremental eligibility: AssertionError: expected false to be true // Object.is equality"
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer3",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "Reducer3/0/incremental eligibility: AssertionError: expected false to be true // Object.is equality"
+        },
+        {
+          "id": "Reducer4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        }
+      ]
+    },
+    {
+      "label": "restore-F3",
+      "exitCode": 0,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 162,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "09b9072abc01b19edf4600ec2c355429d83a577bc4152f53dff85f3a2f04addd"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        }
+      ]
+    },
+    {
+      "label": "remove-F4",
+      "exitCode": 1,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "f9bc9a9373019668b8dddcec8c09d10e06ce7239929d7fd652941819484cf761",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 162,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "09b9072abc01b19edf4600ec2c355429d83a577bc4152f53dff85f3a2f04addd"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C4",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "C4/0/incremental/TS independent oracle: AssertionError: pt/Mark|[[\"pt\",0]].x: 2 vs 9: expected 7 to be less than or equal to 1e-8"
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer4",
+          "status": "FAIL",
+          "failureCount": 16,
+          "firstFailure": "Reducer4/0/incremental/TS independent oracle: AssertionError: Read.x: 2 vs 9: expected 7 to be less than or equal to 1e-8"
+        }
+      ]
+    },
+    {
+      "label": "restore-F4",
+      "exitCode": 0,
+      "productionHashes": {
+        "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+        "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+        "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244"
+      },
+      "inputHashes": {
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+        "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2"
+      },
+      "spawns": 1,
+      "requests": 162,
+      "binary": {
+        "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+        "sha256": "09b9072abc01b19edf4600ec2c355429d83a577bc4152f53dff85f3a2f04addd"
+      },
+      "cleaned": true,
+      "units": [
+        {
+          "id": "R1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "R4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "C4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "M4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "N4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer1",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer2",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer3",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        },
+        {
+          "id": "Reducer4",
+          "status": "PASS",
+          "failureCount": 0,
+          "firstFailure": null
+        }
+      ]
+    }
+  ],
+  "families": [
+    {
+      "id": "F1",
+      "firstIncorrectOwner": "rust-evaluator/src/evaluation/numeric_binding_runtime.rs",
+      "reducer": "Reducer1",
+      "firstBadCheckpoint": 0,
+      "sourceSha256": "42046bffc94a8994c5c0e1067a23aafed4e3dc583f20c4479f857d9e012946a2",
+      "expected": {
+        "kind": "point",
+        "x": 1,
+        "y": 9
+      },
+      "baseTSActual": {
+        "kind": "point",
+        "x": 1,
+        "y": 9
+      },
+      "baseRustTransportError": "Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element",
+      "baseUnaffectedControl": {
+        "kind": "point",
+        "x": -113,
+        "y": 71
+      },
+      "baseNearbyIndexedControl": null,
+      "removal": "remove-F1",
+      "restoration": "restore-F1"
+    },
+    {
+      "id": "F2",
+      "firstIncorrectOwner": "packages/nui-language/src/dsl/dslDocument.ts",
+      "reducer": "Reducer2",
+      "firstBadCheckpoint": 0,
+      "sourceSha256": "46fe18976357f8f88e62b29319ddd90409c0c4c7636846e3803f8bbb856342da",
+      "expected": {
+        "kind": "point",
+        "x": 1,
+        "y": 9
+      },
+      "baseTSActual": {
+        "kind": "point",
+        "x": 0,
+        "y": 9
+      },
+      "baseRustTransportError": "Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element",
+      "baseUnaffectedControl": {
+        "kind": "point",
+        "x": -113,
+        "y": 71
+      },
+      "baseNearbyIndexedControl": null,
+      "removal": "remove-F2",
+      "restoration": "restore-F2"
+    },
+    {
+      "id": "F3",
+      "firstIncorrectOwner": "packages/nui-language/src/dsl/dslDocument.ts",
+      "reducer": "Reducer3",
+      "firstBadCheckpoint": 0,
+      "sourceSha256": "eb2c485587cfe37e9cbb78f27d9b6076ae7a0c77b5a8523bd03c1da6a33a88e9",
+      "expected": {
+        "kind": "point",
+        "x": 2,
+        "y": 5
+      },
+      "baseTSActual": null,
+      "baseRustTransportError": null,
+      "baseUnaffectedControl": {
+        "kind": "point",
+        "x": -113,
+        "y": 71
+      },
+      "baseNearbyIndexedControl": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "elementId": "line-mvuqlppi-369:start",
+          "name": "Selected.start",
+          "x": 2,
+          "y": 5
+        },
+        "end": {
+          "kind": "point",
+          "elementId": "line-mvuqlppi-369:end",
+          "name": "Selected.end",
+          "x": 41,
+          "y": 29
+        },
+        "length": 45.79301256742124,
+        "startAngleDeg": 31.607502246248885,
+        "endAngleDeg": 211.60750224624888,
+        "startTangentAngleDeg": 31.607502246248885,
+        "endTangentAngleDeg": 211.60750224624888,
+        "elementId": "line-mvuqlppi-369",
+        "name": "Selected",
+        "startPointId": null,
+        "endPointId": null
+      },
+      "removal": "remove-F3",
+      "restoration": "restore-F3"
+    },
+    {
+      "id": "F4",
+      "firstIncorrectOwner": "packages/nui-language/src/scalars/moduleScalarRuntime.ts",
+      "reducer": "Reducer4",
+      "firstBadCheckpoint": 0,
+      "sourceSha256": "67d194eaaf6d066c13a4aaa11c23b043eb1ecf025bdeab777d7a8a946ec4f5cc",
+      "expected": {
+        "kind": "point",
+        "x": 9,
+        "y": 2
+      },
+      "baseTSActual": {
+        "kind": "point",
+        "x": 2,
+        "y": 5
+      },
+      "baseRustTransportError": "Error: numeric-binding-payload-invalid: numeric binding typedExpression geometry target does not match an element",
+      "baseUnaffectedControl": {
+        "kind": "point",
+        "x": -113,
+        "y": 71
+      },
+      "baseNearbyIndexedControl": {
+        "kind": "line",
+        "start": {
+          "kind": "point",
+          "elementId": "line-mvuqlppy-388:start",
+          "name": "Selected.start",
+          "x": 9,
+          "y": 2
+        },
+        "end": {
+          "kind": "point",
+          "elementId": "line-mvuqlppy-388:end",
+          "name": "Selected.end",
+          "x": 41,
+          "y": 29
+        },
+        "length": 41.86884283091664,
+        "startAngleDeg": 40.15599962491933,
+        "endAngleDeg": 220.15599962491933,
+        "startTangentAngleDeg": 40.15599962491933,
+        "endTangentAngleDeg": 220.15599962491933,
+        "elementId": "line-mvuqlppy-388",
+        "name": "Selected",
+        "startPointId": null,
+        "endPointId": null
+      },
+      "removal": "remove-F4",
+      "restoration": "restore-F4"
+    }
+  ]
+}
