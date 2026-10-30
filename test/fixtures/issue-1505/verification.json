@@ -1,0 +1,261 @@
+{
+  "base": "a827e9c359aaaa07ec03bfe08ac48b8bcddfbb08",
+  "branch": "sayosomi/issue-1505-dynamic-generated-topology-hunt",
+  "testedCommit": "696e12efc73eecf1be0270f822ffaafdcae1d0d9",
+  "recordedAtJST": "2026-10-30T18:09:32.576873+09:00",
+  "fullGateHeadAtExecution": "a827e9c359aaaa07ec03bfe08ac48b8bcddfbb08",
+  "fullGateProvenance": "Full ordered gate ran before the implementation commit on its exact working-tree inputs. SHA-256 proves every tested executable source, test and oracle fixture byte-identical to testedCommit. The complete matrix then ran successfully on testedCommit itself.",
+  "checks": [
+    {
+      "label": "focused",
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "test/issue1505GeneratedTopologyConformance.integration.test.ts",
+        "src/dsl/moduleScalarRuntime.integration.test.ts",
+        "src/dsl/moduleGeometryRuntime.integration.test.ts",
+        "src/geometry/forGroupExpansion.test.ts",
+        "src/scalars/immutableCarry.integration.test.ts",
+        "test/issue1503IncrementalRevisionConformance.integration.test.ts"
+      ],
+      "startedAt": "2026-10-30T08:59:16.225181+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-focused.log",
+      "exitCode": 0,
+      "elapsedSeconds": 10.554291,
+      "logSha256": "cacd553b9b3e6c31616f75101881e43126b012ae50ccfa197a5f63d8dbbebb10",
+      "testFiles": "6 passed (6)",
+      "tests": "331 passed (331)",
+      "duration": "9.12s (transform 16.76s, setup 550ms, import 20.87s, tests 11.06s, environment 3.27s)"
+    },
+    {
+      "label": "build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "startedAt": "2026-10-30T08:59:26.780294+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-build.log",
+      "exitCode": 0,
+      "elapsedSeconds": 31.507035,
+      "logSha256": "1bc0d349a41cd3c85355da41d118125c29a7a180f13463e6150f51d0357e8a92"
+    },
+    {
+      "label": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "startedAt": "2026-10-30T08:59:58.287801+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-lint.log",
+      "exitCode": 0,
+      "elapsedSeconds": 33.398244,
+      "logSha256": "0c9b6f6eb28030425d4efc990f78026b090923e92ac63fb556c2dfa4751d73ec"
+    },
+    {
+      "label": "full-tests",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "startedAt": "2026-10-30T09:00:31.686662+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-full-tests.log",
+      "exitCode": 0,
+      "elapsedSeconds": 367.061094,
+      "logSha256": "6e91e1217470621b498ca1c46985f451a8cfc5830cfb4bccdff3cea5836eeec4",
+      "testFiles": "716 passed | 2 skipped (718)",
+      "tests": "11580 passed | 187 skipped (11767)",
+      "duration": "366.44s (transform 15.14s, setup 17.59s, import 166.08s, tests 251.78s, environment 236.41s)"
+    },
+    {
+      "label": "parity",
+      "command": [
+        "npm",
+        "run",
+        "test:parity"
+      ],
+      "startedAt": "2026-10-30T09:06:38.748357+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-parity.log",
+      "exitCode": 0,
+      "elapsedSeconds": 55.873645,
+      "logSha256": "471c60ae9edf96e6453e9739864b507ff8f50bf304dfad7f0cf0a25496420eeb",
+      "testFiles": "1 passed (1)",
+      "tests": "207 passed (207)",
+      "duration": "54.88s (transform 1.81s, setup 33ms, import 2.07s, tests 52.41s, environment 283ms)"
+    },
+    {
+      "label": "dsl-reference",
+      "command": [
+        "npm",
+        "run",
+        "docs:dsl:check"
+      ],
+      "startedAt": "2026-10-30T09:07:34.622402+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-dsl-reference.log",
+      "exitCode": 0,
+      "elapsedSeconds": 0.730885,
+      "logSha256": "144980e8c00d1df0567718d118f243fb06c0f1f5babc21b815abead813ed85f5"
+    },
+    {
+      "label": "rust-fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--check"
+      ],
+      "startedAt": "2026-10-30T09:07:35.353747+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-rust-fmt.log",
+      "exitCode": 0,
+      "elapsedSeconds": 1.159001,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "rust-check",
+      "command": [
+        "cargo",
+        "check",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "startedAt": "2026-10-30T09:07:36.513224+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-rust-check.log",
+      "exitCode": 0,
+      "elapsedSeconds": 0.894914,
+      "logSha256": "fdb6147aa54936d79b45d54d0f86a3ffc0d511b46e3043f0bb843d1e0e7fbe7a"
+    },
+    {
+      "label": "rust-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml"
+      ],
+      "startedAt": "2026-10-30T09:07:37.408726+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-rust-tests.log",
+      "exitCode": 0,
+      "elapsedSeconds": 9.880923,
+      "logSha256": "5f9a6eced250dd5ffe9533165b694c2a308906b862cf51eeb78f31c5bfa3b91d",
+      "summaries": [
+        "test result: ok. 641 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 5.57s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "label": "rust-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--manifest-path",
+        "rust-evaluator/Cargo.toml",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "startedAt": "2026-10-30T09:07:47.290264+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-rust-clippy.log",
+      "exitCode": 0,
+      "elapsedSeconds": 7.516815,
+      "logSha256": "36b21bc892378bdf0b8b37039e519502ace7061f522655a2ae5fba3ac9fa6943"
+    },
+    {
+      "label": "base-diff",
+      "command": [
+        "git",
+        "diff",
+        "a827e9c359aaaa07ec03bfe08ac48b8bcddfbb08",
+        "--check"
+      ],
+      "startedAt": "2026-10-30T09:07:54.807567+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-base-diff.log",
+      "exitCode": 0,
+      "elapsedSeconds": 0.041243,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "working-diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "startedAt": "2026-10-30T09:07:54.849239+00:00",
+      "log": "/Users/yosomi/.codex/evidence/issue-1505/final-working-diff.log",
+      "exitCode": 0,
+      "elapsedSeconds": 0.040893,
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "gateInputHashes": {
+    "docs/dsl/en/control-flow.md": "4a4d09231449a7b4aab5af0cce94b862adfbe8eb0fc4abb50168ad9d9f92155b",
+    "docs/dsl/en/expressions.md": "bf88aa62346b64cc6c539b7c65b32f6f99f2ba7d7a1b9a05d711191c70768108",
+    "packages/nui-language/src/dsl/dslDocument.ts": "1b7203b63b14180d3337563b20b90244222b84f743fc0a8adc826bebf4bee200",
+    "packages/nui-language/src/scalars/moduleScalarRuntime.ts": "5cd2024c2065ae3eb22182b0df7324555ef914ba411c74231c8dddfb7a58a892",
+    "rust-evaluator/src/evaluation/numeric_binding_runtime.rs": "e3256cbbb216cd4694ebc223a7a1e6eb62396cba8a8e85a93f74fe1631e5d244",
+    "test/issue1505GeneratedTopologyConformance.integration.test.ts": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+    "test/fixtures/issue-1505/manifest.json": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2",
+    "test/fixtures/issue-1505/superseded-reducer4.json": "7afe47ba1211179e10178b3cef61352b052d31eb41fe601b0969660ffb67e1f8"
+  },
+  "exactCommitMatrix": {
+    "exitCode": 0,
+    "tests": "21 passed (21)",
+    "sequences": 20,
+    "checkpoints": 81,
+    "tsEvaluations": 162,
+    "requests": 162,
+    "spawns": 1,
+    "binary": {
+      "path": "/Users/yosomi/.codex/evidence/issue-1505/cargo-target/debug/evaluation_stdio",
+      "sha256": "f60d0c8c347038d37c5bd4758547962854f7e89ccb393f45bfc6bd6be4c6f60d"
+    },
+    "cleaned": true,
+    "testSha256": "16f1db713076af2f8f2aaf9425f15f7d04a68c2d358266cc9aec15c20cb2ef8a",
+    "manifestSha256": "5582447ae0377ed7cfcd7058146deac4a85bdf29e3a7d04b312a75a4cfbcebe2",
+    "log": "/Users/yosomi/.codex/evidence/issue-1505/exact-commit-matrix.log",
+    "logSha256": "39554b21d461bb835c0a782131924dadb315a6a00960d4b0a0634c017a5182e6"
+  },
+  "exploration": {
+    "primary": 16,
+    "extensions": 0,
+    "reducerSlots": 5,
+    "effectiveReducers": 4,
+    "retiredReducerAttempts": 1,
+    "total": 21,
+    "maximum": 28
+  },
+  "primaryDispositions": {
+    "R1": "PASS",
+    "R2": "PASS",
+    "R3": "PASS",
+    "R4": "PASS",
+    "C1": "PASS",
+    "C2": "PASS",
+    "C3": "PASS",
+    "C4": "PASS",
+    "M1": "PASS",
+    "M2": "PASS",
+    "M3": "PASS",
+    "M4": "PASS",
+    "N1": "PASS",
+    "N2": "PASS",
+    "N3": "PASS",
+    "N4": "PASS"
+  },
+  "defectFamilies": 4,
+  "contentEquivalence": true,
+  "finalEvidenceCommit": "Only this verification.json may be added after testedCommit; exact final pushed HEAD is recorded in the Issue checkpoint to avoid a self-referential hash.",
+  "residuals": [
+    "Independent exact-pushed-HEAD blocking review and protected CI/merge remain pending.",
+    "CLI-only; no Canvas responsiveness, GUI, Human E2E, export or physical sewability result.",
+    "Coverage is the closed matrix, not every possible language combination."
+  ]
+}
